@@ -3,7 +3,7 @@ import { db } from './firebase';
 import { geminiApiKey } from './dashboard-firebase'; // Use the shared API key config
 
 // --- Tier Definitions ---
-export const PREMIUM_EMAILS = ["robinmyh@gmail.com", "oliverbeckett069420@gmail.com"];
+export const PREMIUM_EMAILS = ["robinmyh@gmail.com", "oliverbeckett069420@gmail.com, bajinsrinivasr@lexington1.net"];
 export const PRO_EMAILS = ["srinibaj10@gmail.com"];
 export type UserTier = 'basic' | 'pro' | 'premium' | 'loading';
 
