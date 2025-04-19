@@ -50,7 +50,7 @@ export function Sidebar({
   // --- START OF CHANGES ---
 
   // List of developer emails
-  const DEV_EMAILS = ["bajinsrinivasr@lexington1.net", "fugegate@gmail.com"] // Removed srinibaj10@gmail.com from DEV if it's now PRO
+  const DEV_EMAILS = ["bajinsrinivasr@lexington1.net", "fugegate@gmail.com, srinibaj10@gmail.com"] // Removed srinibaj10@gmail.com from DEV if it's now PRO
   // List of premium user emails
   const PREMIUM_EMAILS = ["robinmyh@gmail.com", "oliverbeckett069420@gmail.com, bajinsrinivasr@lexington1.net"]
   // List of PRO user emails
