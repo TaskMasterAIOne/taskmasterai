@@ -3,7 +3,7 @@ import { db } from './firebase';
 import { geminiApiKey } from './dashboard-firebase'; // Use the shared API key config
 
 // --- Tier Definitions ---
-export const PREMIUM_EMAILS = ["robinmyh@gmail.com", "oliverbeckett069420@gmail.com, bajinsrinivasr@lexington1.net"];
+export const PREMIUM_EMAILS = ["robinmyh@gmail.com", "oliverbeckett069420@gmail.com"];
 export const PRO_EMAILS = ["srinibaj10@gmail.com"];
 export type UserTier = 'basic' | 'pro' | 'premium' | 'loading';
 
@@ -174,7 +174,7 @@ export async function processTextToAINoteData( text: string, userId: string, api
     if (noteRawText.startsWith("Error:")) { console.error("Note generation failed:", noteRawText); detailedNoteContent = `Error generating note: ${noteRawText}\n\nOriginal Text:\n${text.slice(0, 500)}...`; } else { detailedNoteContent = noteRawText.trim(); console.log("Detailed note content generated."); }
 
     // 2. Generate Key Points
-    const keyPointsPrompt = `Extract exactly 10 distinct key points from the following text. List only the points, one per line.\nText:\n---\n${text.slice(0, 15000)}\n---\nKey Points:\n1. ...`;
+    const keyPointsPrompt = `Extract exactly 10 distinct key points from the following text. List only the points, one per line. In your output, NEVER SAY: "Here are 10 distinct and significant key points from the provided text:" \nText:\n---\n${text.slice(0, 15000)}\n---\nKey Points:\n1. ...`;
     const keyPointsOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: keyPointsPrompt }] }], generationConfig: { temperature: 0.3, maxOutputTokens: 800 } }) };
     try { const kpResponse = await fetchWithRetry(currentGeminiEndpoint, keyPointsOptions); const kpText = extractCandidateText(await kpResponse.text()); if (kpText.startsWith("Error:")) { console.error("KP Error:", kpText); keyPoints = ['Key points generation failed.']; } else { const parsed = kpText.split('\n').map(l => l.trim().replace(/^\d+\.\s*/, '')).filter(p => p.length > 5).slice(0, 10); keyPoints = parsed.length > 0 ? parsed : ['No valid key points parsed.']; console.log("Key points generated."); } } catch (kpError) { console.error("KP fetch error:", kpError); keyPoints = ['Key points generation fetch error.']; }
 
