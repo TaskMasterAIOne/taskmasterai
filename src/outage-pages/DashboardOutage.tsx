@@ -61,7 +61,7 @@ const DashboardOutage = () => {
 
         {/* Outage Message */}
         <p className="max-w-xl text-gray-300 text-lg md:text-xl leading-relaxed text-center">
-          Dashboard is currently experiencing a major outage  to unforeseen issues. We're working
+          Dashboard is currently experiencing a major outage due to unforeseen issues. We're working
           to restore full functionality, with service resuming by <strong>March 22</strong>.
         </p>
 
