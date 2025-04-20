@@ -109,7 +109,7 @@ Provide *only* the generated Markdown note content below.
         safeProgress({ progress: 60, status: 'Generating key points...', error: null });
 
         // --- Key Points Generation ---
-        const keyPointsPrompt = `Extract exactly 10 distinct key points from the following YouTube video info/transcript. List only the points.\n\nTitle: ${videoTitle}\nText:\n---\n${transcript.slice(0, 15000)}\n---\n\nKey Points:\n1. ...`;
+        const keyPointsPrompt = `Extract exactly 10 distinct key points from the following YouTube video info/transcript. List only the points. In your output, NEVER SAY: "Here are 10 distinct and significant key points from the provided text:" \n\nTitle: ${videoTitle}\nText:\n---\n${transcript.slice(0, 15000)}\n---\n\nKey Points:\n1. ...`;
         let keyPoints: string[] = ['Key points generation failed.'];
          try {
              const kpOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: keyPointsPrompt }] }], generationConfig: { temperature: 0.3, maxOutputTokens: 800 } }) };
