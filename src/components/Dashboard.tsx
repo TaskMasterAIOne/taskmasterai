@@ -46,7 +46,7 @@ import { TaskAnalytics } from './TaskAnalytics'; // Ensure this component exists
 // ---------------------
 // Constants for Tiers & Limits
 // ---------------------
-const PREMIUM_EMAILS = ["robinmyh@gmail.com", "oliverbeckett069420@gmail.com, bajinsrinivasr@lexington1.net"];
+const PREMIUM_EMAILS = ["robinmyh@gmail.com", "oliverbeckett069420@gmail.com, bajinsrinivasr@lexington1.net, stevenmoore99op@gmail.com"];
 const PRO_EMAILS = ["srinibaj10@gmail.com"];
 const BASIC_CHAT_LIMIT = 10;
 const PRO_CHAT_LIMIT = 200;
@@ -55,7 +55,7 @@ const PRO_CHAT_LIMIT = 200;
 // ---------------------
 // Helper functions for Gemini integration
 // ---------------------
-const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}&alt=sse`; // Use 1.5 flash and enable SSE
+const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}&alt=sse`; // Use 1.5 flash and enable SSE
 
 const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 30000) => {
   const controller = new AbortController();
@@ -1429,7 +1429,7 @@ Another Example: Looks clear for today. Consider planning your next project step
 
             try {
                 // Using the non-streaming endpoint for overview
-                const overviewEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`;
+                const overviewEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`;
                 const geminiOptions = {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
