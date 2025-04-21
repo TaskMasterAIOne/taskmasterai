@@ -121,7 +121,7 @@ export function Settings() {
   const [isGoogleUser, setIsGoogleUser] = useState<boolean>(false);
 
   // Identify Premium & Pro Users
-  const PREMIUM_EMAILS = ["robinmyh@gmail.com", "oliverbeckett069420@gmail.com"];
+  const PREMIUM_EMAILS = ["robinmyh@gmail.com", "oliverbeckett069420@gmail.com", "bajinsrinivasr@lexington1.net"];
   const PRO_EMAILS = ["srinibaj10@gmail.com"];
   const [isPremiumUser, setIsPremiumUser] = useState<boolean>(false);
   const [isProUser, setIsProUser] = useState<boolean>(false);
