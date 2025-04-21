@@ -2335,12 +2335,6 @@ Another Example: Looks clear for today. Consider planning your next project step
                   PREMIUM
                  </span>
              )}
-             {/* BETA badge only if Pro or Premium */}
-              {(userTier === 'pro' || userTier === 'premium') && (
-                 <span className="text-[9px] sm:text-[10px] bg-gradient-to-r from-pink-500 to-purple-500 text-white px-1.5 py-0.5 rounded-full font-medium">
-                  BETA
-                 </span>
-              )}
           </div>
 
           {/* --- Conditional Rendering based on tier --- */}
