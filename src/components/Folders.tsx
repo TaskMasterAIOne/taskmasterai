@@ -57,7 +57,7 @@ import "katex/dist/katex.min.css";
 // ---------------------
 // Constants for Tiers & Limits (Reusing from Dashboard)
 // ---------------------
-const PREMIUM_EMAILS = ["robinmyh@gmail.com", "oliverbeckett069420@gmail.com"];
+const PREMIUM_EMAILS = ["robinmyh@gmail.com", "oliverbeckett069420@gmail.com", "bajinsrinivasr@lexington1.net"];
 const PRO_EMAILS = ["srinibaj10@gmail.com"];
 const BASIC_CHAT_LIMIT = 10; // Chat limit for Basic users (in Folders AI)
 const PRO_CHAT_LIMIT = 200; // Chat limit for Pro users (in Folders AI)
