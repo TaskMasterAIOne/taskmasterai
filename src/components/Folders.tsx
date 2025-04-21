@@ -11,12 +11,18 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sidebar } from "./Sidebar"; // Assuming Sidebar component is correctly imported
 import { auth } from "../lib/firebase";
-// Reusing dashboard-firebase for API key AND usage/tier functions
+// Remove Firebase Usage imports, keep Gemini API key
+import { geminiApiKey } from "../lib/dashboard-firebase";
+
+// --- IMPORT NEW TIER/USAGE FUNCTIONS AND TYPES ---
 import {
-    geminiApiKey,
-    getUserUsageData,
-    updateUserChatUsage
-} from "../lib/dashboard-firebase";
+    UserTier, // Import the type
+    getUserTier,
+    getUserChatUsage, // Use the specific chat usage getter
+    updateUserChatUsage, // Use the specific chat usage updater
+    getChatLimitForTier,
+} from '../lib/current-paying-user'; // Correct path to the new file
+
 import {
     FolderData,
     FolderWithItems,
@@ -55,18 +61,17 @@ import "katex/dist/katex.min.css";
 
 
 // ---------------------
-// Constants for Tiers & Limits (Reusing from Dashboard)
+// Constants for Tiers & Limits - REMOVED (Now derived from current-paying-user.ts)
 // ---------------------
-const PREMIUM_EMAILS = ["robinmyh@gmail.com", "oliverbeckett069420@gmail.com", "bajinsrinivasr@lexington1.net"];
-const PRO_EMAILS = ["srinibaj10@gmail.com"];
-const BASIC_CHAT_LIMIT = 10; // Chat limit for Basic users (in Folders AI)
-const PRO_CHAT_LIMIT = 200; // Chat limit for Pro users (in Folders AI)
+// const PREMIUM_EMAILS = [...]; // REMOVED
+// const PRO_EMAILS = [...]; // REMOVED
+// const BASIC_CHAT_LIMIT = 10; // REMOVED
+// const PRO_CHAT_LIMIT = 200; // REMOVED
 
 // ---------------------
-// Gemini Integration (Reusing from Dashboard.tsx with minor tweaks)
+// Gemini Integration (Remains the same)
 // ---------------------
-// Use 1.5 flash and enable SSE - Adjust model if needed
-const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}&alt=sse`; // Updated model
+const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}&alt=sse`; // Updated model
 
 const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 30000) => {
     const controller = new AbortController();
@@ -189,7 +194,7 @@ const extractCandidateText = (rawResponseText: string): string => {
 };
 
 
-// Adjusted JSON extraction to handle nested structures and common errors
+// Adjusted JSON extraction (remains the same)
 function extractJsonBlocks(text: string): string[] {
     const blocks: string[] = [];
     // Regex to find ```json blocks, capturing content inside
@@ -227,8 +232,7 @@ function extractJsonBlocks(text: string): string[] {
     return blocks;
 }
 
-
-// Define interface for chat messages (similar to Dashboard)
+// Define interface for chat messages (remains the same)
 interface ChatMessage {
     role: 'user' | 'assistant';
     content: string;
@@ -236,7 +240,7 @@ interface ChatMessage {
     id?: string; // Unique ID for updates/keys
 }
 
-// Define AI study suggestions
+// Define AI study suggestions (remains the same)
 const studyTipSuggestions = [
     "Create 5 flashcards",
     "Explain the key concepts",
@@ -247,14 +251,14 @@ const studyTipSuggestions = [
     "Explain [Term/Concept]",
 ];
 
-// Framer motion variants for chat panel
+// Framer motion variants (remains the same)
 const chatPanelVariants = {
   hidden: { x: "100%", opacity: 0, transition: { type: "tween", duration: 0.3 } },
   visible: { x: 0, opacity: 1, transition: { type: "tween", duration: 0.3 } },
   exit: { x: "100%", opacity: 0, transition: { type: "tween", duration: 0.3 } },
 };
 
-// Helper to create context for AI - NOW INCLUDES UNIVERSAL CONTEXT
+// Helper to create context for AI (remains the same)
 const createPrompt = (
     userMessage: string,
     folder?: FolderWithItems | null,
@@ -326,10 +330,8 @@ const createPrompt = (
   - Be specific to the folder content if provided.
   - If no folder is selected and the query requires one, politely ask the user to select a folder.`;
 
-
   return context;
 };
-
 
 // ---------------------
 // Folders Component
@@ -342,8 +344,8 @@ export function Folders() {
   const [user, setUser] = useState<any>(null); // Use firebase.User | null ideally
   const [userName, setUserName] = useState<string>("User");
 
-  // --- START: User Tier & Usage State ---
-  const [userTier, setUserTier] = useState<'basic' | 'pro' | 'premium' | 'loading'>('loading');
+  // --- START: User Tier & Usage State (Use imported type) ---
+  const [userTier, setUserTier] = useState<UserTier>('loading');
   const [chatCount, setChatCount] = useState(0);
   const [chatMonth, setChatMonth] = useState(''); // Store YYYY-MM
   const [isChatLimitReached, setIsChatLimitReached] = useState(false);
@@ -351,7 +353,8 @@ export function Folders() {
   const [isLoadingAiContext, setIsLoadingAiContext] = useState(true); // Loading state for universal context
   // --- END: User Tier & Usage State ---
 
-  // Folder & Item State
+  // ... (Rest of the state variables remain the same) ...
+    // Folder & Item State
   const [folders, setFolders] = useState<FolderWithItems[]>([]);
   const [subFolders, setSubFolders] = useState<{ [parentId: string]: FolderWithItems[] }>({}); // Stores fetched subfolders
   const [selectedFolder, setSelectedFolder] = useState<FolderWithItems | null>(null);
@@ -450,9 +453,11 @@ export function Folders() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const flashcardRef = useRef<HTMLDivElement>(null); // For flip animation
 
+
   // ---------------------
-  // 2. THEME & STYLE VARIABLES (Adopted from Dashboard.tsx)
+  // 2. THEME & STYLE VARIABLES (Remains the same)
   // ---------------------
+  // ... Theme variables ...
   const headlineColor = isIlluminateEnabled ? "text-green-700" : "text-green-400"; // Example, adjust as needed
   const illuminateTextBlue = isIlluminateEnabled ? "text-blue-700" : "text-blue-400";
   const illuminateTextPurple = isIlluminateEnabled ? "text-purple-700" : "text-purple-400";
@@ -534,7 +539,7 @@ export function Folders() {
     return () => clearTimeout(timer);
   }, []);
 
-  // LocalStorage Sync Effects for UI preferences
+  // LocalStorage Sync Effects for UI preferences (remains the same)
   useEffect(() => { localStorage.setItem("isSidebarCollapsed", JSON.stringify(isSidebarCollapsed)); }, [isSidebarCollapsed]);
   useEffect(() => { localStorage.setItem("isSidebarBlackoutEnabled", JSON.stringify(isSidebarBlackoutEnabled)); }, [isSidebarBlackoutEnabled]);
   useEffect(() => { localStorage.setItem("isSidebarIlluminateEnabled", JSON.stringify(isSidebarIlluminateEnabled)); }, [isSidebarIlluminateEnabled]);
@@ -561,7 +566,7 @@ export function Folders() {
     }
   }, [isIlluminateEnabled, isBlackoutEnabled]); // Depend on both
 
-  // Auth listener & Initial Data Fetch (User, Tier, Usage, Context, Tags)
+  // Auth listener & Initial Data Fetch - UPDATED
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
       setUser(firebaseUser);
@@ -569,33 +574,35 @@ export function Folders() {
         setUserName(firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "User");
         await fetchAllTags(firebaseUser.uid); // Fetch global tags on login
 
-        // --- Determine Tier ---
-        let tier: 'basic' | 'pro' | 'premium' = 'basic'; // Default to basic
-        if (firebaseUser.email && PREMIUM_EMAILS.includes(firebaseUser.email)) {
-            tier = 'premium';
-        } else if (firebaseUser.email && PRO_EMAILS.includes(firebaseUser.email)) {
-            tier = 'pro';
-        }
-        setUserTier(tier);
+        // --- Determine Tier using imported function ---
+        const tier = getUserTier(firebaseUser.email);
+        setUserTier(tier); // Set state
 
-        // --- Load Usage Data (if not premium) ---
+        // --- Load Usage Data (if not premium) using imported functions ---
         if (tier !== 'premium') {
             try {
                 const currentMonthYear = new Date().toISOString().slice(0, 7); // "YYYY-MM"
-                const usageData = await getUserUsageData(firebaseUser.uid);
+                // Use the imported function
+                const usageData = await getUserChatUsage(firebaseUser.uid);
+
                 if (usageData && usageData.month === currentMonthYear) {
+                    // Data exists for current month
                     setChatCount(usageData.count);
                     setChatMonth(usageData.month);
-                    const limit = tier === 'pro' ? PRO_CHAT_LIMIT : BASIC_CHAT_LIMIT;
+                    const limit = getChatLimitForTier(tier); // Use helper
                     setIsChatLimitReached(usageData.count >= limit);
                 } else {
+                    // No data OR data from previous month - reset
+                    console.log(`Resetting chat usage for ${firebaseUser.uid} in Folders for month ${currentMonthYear}. Previous data:`, usageData);
                     setChatCount(0);
                     setChatMonth(currentMonthYear);
                     setIsChatLimitReached(false);
+                    // Update Firestore with reset count using imported function
                     await updateUserChatUsage(firebaseUser.uid, 0, currentMonthYear).catch(err => console.error("Failed initial chat usage reset:", err));
                 }
             } catch (err) {
                 console.error("Error loading/updating usage data:", err);
+                // Handle error - default to 0 count, not limited
                 setChatCount(0);
                 setChatMonth(new Date().toISOString().slice(0, 7));
                 setIsChatLimitReached(false);
@@ -604,7 +611,7 @@ export function Folders() {
             setChatCount(0); setChatMonth(''); setIsChatLimitReached(false);
         }
 
-        // --- Load Universal AI Context ---
+        // --- Load Universal AI Context (Remains the same) ---
         setIsLoadingAiContext(true);
         try {
             const context = await getUserContext(firebaseUser.uid);
@@ -635,7 +642,8 @@ export function Folders() {
     return () => unsubscribe();
   }, [navigate]);
 
-   // Fetch Top-Level Folders listener
+  // ... (Rest of the useEffect hooks remain the same) ...
+     // Fetch Top-Level Folders listener
    useEffect(() => {
         if (!user?.uid) {
             setFolders([]);
@@ -769,10 +777,11 @@ export function Folders() {
 
 
   // ---------------------
-  // 4. HANDLERS & HELPERS
+  // 4. HANDLERS & HELPERS (Remain the same unless directly related to usage/tier)
   // ---------------------
+  // ... Handlers like toggleSidebar, fetchTags, toggleFolderExpansion, handleSelectFolder, reset forms, CRUD operations etc. ...
 
-  const handleToggleSidebar = () => setIsSidebarCollapsed(prev => !prev);
+    const handleToggleSidebar = () => setIsSidebarCollapsed(prev => !prev);
 
   const fetchAllTags = async (userId: string) => {
     try {
@@ -1114,7 +1123,8 @@ export function Folders() {
     }
   };
 
-  // --- Item Handlers ---
+    // ... (Item Handlers, Study Mode Handlers, Import/Export Handlers remain the same) ...
+      // --- Item Handlers ---
 
   const handleAddItem = async () => {
     if (!user || !selectedFolder) return;
@@ -1663,179 +1673,179 @@ export function Folders() {
   };
 
 
-    // --- AI Chat Handlers ---
-    const handleChatSubmit = async (e?: React.FormEvent) => {
-        if (e) e.preventDefault();
-        const messageContent = chatMessage.trim();
-        if (!messageContent || !user || !selectedFolder || isChatLoading || userTier === 'loading') return;
+  // --- AI Chat Handlers - UPDATED ---
+  const handleChatSubmit = async (e?: React.FormEvent) => {
+      if (e) e.preventDefault();
+      const messageContent = chatMessage.trim();
+      if (!messageContent || !user || !selectedFolder || isChatLoading || userTier === 'loading') return;
 
-        // --- START: Usage Check ---
-        const currentMonthYear = new Date().toISOString().slice(0, 7);
-        let limitReached = false;
-        let currentLimit = Infinity; // Default for premium
+      // --- START: Usage Check (Use imported functions/state) ---
+      const currentMonthYear = new Date().toISOString().slice(0, 7);
+      let limitReached = false;
+      const currentLimit = getChatLimitForTier(userTier); // Use helper
 
-        if (userTier !== 'premium') {
-            currentLimit = userTier === 'pro' ? PRO_CHAT_LIMIT : BASIC_CHAT_LIMIT;
-            let currentCount = chatCount; // Use state value
+      if (userTier !== 'premium') {
+          let currentCount = chatCount; // Use state value
 
-            // Check if the stored month matches the current month
-            if (chatMonth !== currentMonthYear) {
-                currentCount = 0; // Reset count locally
-                setChatCount(0); setChatMonth(currentMonthYear); setIsChatLimitReached(false);
-                limitReached = false;
-                updateUserChatUsage(user.uid, 0, currentMonthYear).catch(err => console.error("Failed to reset chat usage:", err));
-            } else {
-                limitReached = currentCount >= currentLimit;
-                setIsChatLimitReached(limitReached); // Sync state just in case
-            }
-        }
+          // Check if the stored month matches the current month
+          if (chatMonth !== currentMonthYear) {
+              console.log(`Folders Chat: Month mismatch (State: ${chatMonth}, Current: ${currentMonthYear}). Resetting count.`);
+              currentCount = 0; // Reset count locally
+              setChatCount(0); setChatMonth(currentMonthYear); setIsChatLimitReached(false);
+              limitReached = false;
+              // Use imported function
+              updateUserChatUsage(user.uid, 0, currentMonthYear).catch(err => console.error("Failed to reset chat usage:", err));
+          } else {
+              limitReached = currentCount >= currentLimit;
+              setIsChatLimitReached(limitReached); // Sync state just in case
+          }
+      }
 
-        if (limitReached) {
-            setChatHistory(prev => [...prev, {
-                role: 'assistant', content: `You've reached your ${currentLimit} chat message limit for this month. Upgrade for more interactions!`, error: true, id: `limit-${Date.now()}`
-            }]);
-            setChatMessage(''); // Clear input
-            return; // Stop submission
-        }
-        // --- END: Usage Check ---
+      if (limitReached) {
+          setChatHistory(prev => [...prev, {
+              role: 'assistant', content: `You've reached your ${currentLimit === Infinity ? 'monthly' : currentLimit} chat message limit. Upgrade for more interactions!`, error: true, id: `limit-${Date.now()}`
+          }]);
+          setChatMessage(''); // Clear input
+          return; // Stop submission
+      }
+      // --- END: Usage Check ---
 
-        const userMsg: ChatMessage = { role: 'user', content: messageContent, id: `user-${Date.now()}` };
-        const assistantMsgId = `assistant-${Date.now()}`;
-        const assistantPlaceholder: ChatMessage = { role: 'assistant', content: "...", id: assistantMsgId };
+      const userMsg: ChatMessage = { role: 'user', content: messageContent, id: `user-${Date.now()}` };
+      const assistantMsgId = `assistant-${Date.now()}`;
+      const assistantPlaceholder: ChatMessage = { role: 'assistant', content: "...", id: assistantMsgId };
 
-        setChatHistory(prev => [...prev, userMsg, assistantPlaceholder]);
-        setChatMessage(""); // Clear input immediately
-        setIsChatLoading(true);
+      setChatHistory(prev => [...prev, userMsg, assistantPlaceholder]);
+      setChatMessage(""); // Clear input immediately
+      setIsChatLoading(true);
 
-        // --- Increment Usage Count (Before API Call) ---
-        if (userTier !== 'premium') {
-            const newCount = chatCount + 1;
-            setChatCount(newCount); // Optimistic UI update
-            setIsChatLimitReached(newCount >= currentLimit); // Update limit state
-            updateUserChatUsage(user.uid, newCount, currentMonthYear).catch(err => console.error("Failed to update chat usage:", err));
-        }
-        // --- End Increment Logic ---
+      // --- Increment Usage Count (Before API Call - Use imported function) ---
+      if (userTier !== 'premium') {
+          const newCount = chatCount + 1;
+          setChatCount(newCount); // Optimistic UI update
+          setIsChatLimitReached(newCount >= currentLimit); // Update limit state
+          updateUserChatUsage(user.uid, newCount, currentMonthYear).catch(err => {
+               console.error("Failed to update chat usage:", err);
+               // Optionally revert count or show error in chat
+          });
+      }
+      // --- End Increment Logic ---
 
-        // Generate the prompt with context (folder items and universal context)
-        const prompt = createPrompt(userMsg.content, selectedFolder, folderItems, loadedAiContext);
-        // console.log("Gemini Prompt:", prompt); // Debug: Log the prompt
+      // Generate the prompt with context (folder items and universal context)
+      const prompt = createPrompt(userMsg.content, selectedFolder, folderItems, loadedAiContext);
+      // console.log("Gemini Prompt:", prompt); // Debug: Log the prompt
 
-        const geminiOptions = {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                 contents: [{ parts: [{ text: prompt }] }],
-                 // Optional: Add safety settings, generation config if needed
-                 safetySettings: [ // Standard safety settings
-                      { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-                      { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-                      { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-                      { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-                  ],
-            }),
-        };
+      const geminiOptions = {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+               contents: [{ parts: [{ text: prompt }] }],
+               safetySettings: [ // Standard safety settings
+                    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                ],
+          }),
+      };
 
-        try {
-            let finalRawResponse = "";
-            let finalExtractedText = "";
+      try {
+          let finalRawResponse = "";
+          let finalExtractedText = "";
 
-            await streamResponse(
-                geminiEndpoint,
-                geminiOptions,
-                (rawChunkAccumulated) => {
-                    finalRawResponse = rawChunkAccumulated; // Store the latest raw response
-                    const currentExtractedText = extractCandidateText(rawChunkAccumulated);
-                    finalExtractedText = currentExtractedText; // Keep track of the latest complete text
+          await streamResponse(
+              geminiEndpoint,
+              geminiOptions,
+              (rawChunkAccumulated) => {
+                  finalRawResponse = rawChunkAccumulated; // Store the latest raw response
+                  const currentExtractedText = extractCandidateText(rawChunkAccumulated);
+                  finalExtractedText = currentExtractedText; // Keep track of the latest complete text
 
-                    // Update the specific assistant message with the streamed content
-                    setChatHistory(prev => prev.map(msg =>
-                        msg.id === assistantMsgId
-                            ? { ...msg, content: currentExtractedText || "..." } // Use extracted text or ellipsis
-                            : msg
-                    ));
-                },
-                60000 // Timeout for the *entire* streaming request
-            );
+                  // Update the specific assistant message with the streamed content
+                  setChatHistory(prev => prev.map(msg =>
+                      msg.id === assistantMsgId
+                          ? { ...msg, content: currentExtractedText || "..." } // Use extracted text or ellipsis
+                          : msg
+                  ));
+              },
+              60000 // Timeout for the *entire* streaming request
+          );
 
-            // Final processing after stream ends
-             let replyContent = finalExtractedText.trim() || "Sorry, I couldn't generate a response."; // Use final text
-             let itemsAdded = false;
+          // Final processing after stream ends
+           let replyContent = finalExtractedText.trim() || "Sorry, I couldn't generate a response."; // Use final text
+           let itemsAdded = false;
 
-             const jsonBlocks = extractJsonBlocks(finalExtractedText); // Extract JSON from final text
+           const jsonBlocks = extractJsonBlocks(finalExtractedText); // Extract JSON from final text
 
-            if (jsonBlocks.length > 0) {
-                 const blockToProcess = jsonBlocks[0];
-                 try {
-                     const parsed = JSON.parse(blockToProcess);
-                     let addedCount = 0;
-                     if (parsed.type === "flashcard" && Array.isArray(parsed.data)) {
-                         if (selectedFolder.type !== 'question') {
-                             for (const card of parsed.data) {
-                                 if (card.term && card.definition) {
-                                     await addFlashcard(user.uid, selectedFolder.id, { term: card.term, definition: card.definition, topic: card.topic || null });
-                                     itemsAdded = true; addedCount++;
-                                 }
-                             }
-                         } else { replyContent = "Sorry, I can only add flashcards to 'flashcard' or 'mixed' type folders."; }
-                     } else if (parsed.type === "question" && Array.isArray(parsed.data)) {
-                          if (selectedFolder.type !== 'flashcard') {
-                              for (const q of parsed.data) {
-                                  if (q.question && Array.isArray(q.options) && q.options.length > 1 && typeof q.correctAnswer === 'number' && q.correctAnswer >= 0 && q.correctAnswer < q.options.length) {
-                                      await addQuestion(user.uid, selectedFolder.id, { question: q.question, options: q.options, correctAnswer: q.correctAnswer, explanation: q.explanation || null });
-                                      itemsAdded = true; addedCount++;
-                                  }
-                              }
-                          } else { replyContent = "Sorry, I can only add questions to 'question' or 'mixed' type folders."; }
-                     }
+          if (jsonBlocks.length > 0) {
+               const blockToProcess = jsonBlocks[0];
+               try {
+                   const parsed = JSON.parse(blockToProcess);
+                   let addedCount = 0;
+                   if (parsed.type === "flashcard" && Array.isArray(parsed.data)) {
+                       if (selectedFolder.type !== 'question') {
+                           for (const card of parsed.data) {
+                               if (card.term && card.definition) {
+                                   await addFlashcard(user.uid, selectedFolder.id, { term: card.term, definition: card.definition, topic: card.topic || null });
+                                   itemsAdded = true; addedCount++;
+                               }
+                           }
+                       } else { replyContent = "Sorry, I can only add flashcards to 'flashcard' or 'mixed' type folders."; }
+                   } else if (parsed.type === "question" && Array.isArray(parsed.data)) {
+                        if (selectedFolder.type !== 'flashcard') {
+                            for (const q of parsed.data) {
+                                if (q.question && Array.isArray(q.options) && q.options.length > 1 && typeof q.correctAnswer === 'number' && q.correctAnswer >= 0 && q.correctAnswer < q.options.length) {
+                                    await addQuestion(user.uid, selectedFolder.id, { question: q.question, options: q.options, correctAnswer: q.correctAnswer, explanation: q.explanation || null });
+                                    itemsAdded = true; addedCount++;
+                                }
+                            }
+                        } else { replyContent = "Sorry, I can only add questions to 'question' or 'mixed' type folders."; }
+                   }
 
-                     if (itemsAdded) {
-                         replyContent = `Okay, I've added ${addedCount} ${parsed.type === 'flashcard' ? 'flashcard(s)' : 'question(s)'} to the "${selectedFolder.name}" folder.`;
-                     } else if (replyContent.startsWith("Sorry,")) { /* Use generated error */ }
-                     else { replyContent = "I found some structured data, but couldn't add items. Please check the format if you intended to create items."; }
+                   if (itemsAdded) {
+                       replyContent = `Okay, I've added ${addedCount} ${parsed.type === 'flashcard' ? 'flashcard(s)' : 'question(s)'} to the "${selectedFolder.name}" folder.`;
+                   } else if (replyContent.startsWith("Sorry,")) { /* Use generated error */ }
+                   else { replyContent = "I found some structured data, but couldn't add items. Please check the format if you intended to create items."; }
 
-                      // Clean up display text if needed
-                      if (finalExtractedText.trim().startsWith('```json') && finalExtractedText.trim().endsWith('```')) { /* Content is already set */ }
-                      else { replyContent = replyContent.replace(/```json\s*([\s\S]*?)\s*```/g, '').trim(); }
+                    // Clean up display text if needed
+                    if (finalExtractedText.trim().startsWith('```json') && finalExtractedText.trim().endsWith('```')) { /* Content is already set */ }
+                    else { replyContent = replyContent.replace(/```json\s*([\s\S]*?)\s*```/g, '').trim(); }
 
 
-                 } catch (err) {
-                     console.error("Failed to parse or process JSON block:", err, "Block:", blockToProcess);
-                     replyContent = "I tried to process some structured data, but encountered an error. " + (replyContent || finalExtractedText); // Append to existing text if any
-                 }
-             }
+               } catch (err) {
+                   console.error("Failed to parse or process JSON block:", err, "Block:", blockToProcess);
+                   replyContent = "I tried to process some structured data, but encountered an error. " + (replyContent || finalExtractedText); // Append to existing text if any
+               }
+           }
 
-             // Update the final message content in history
-             setChatHistory(prev => prev.map(msg =>
-                 msg.id === assistantMsgId ? { ...msg, content: replyContent || "...", error: false } : msg // Ensure error flag is false on success
-             ));
+           // Update the final message content in history
+           setChatHistory(prev => prev.map(msg =>
+               msg.id === assistantMsgId ? { ...msg, content: replyContent || "...", error: false } : msg // Ensure error flag is false on success
+           ));
 
-             if (itemsAdded) {
-                 await refreshSelectedFolderItems(); // Refresh view if AI added items
-             }
+           if (itemsAdded) {
+               await refreshSelectedFolderItems(); // Refresh view if AI added items
+           }
 
-        } catch (err: any) {
-            console.error('Chat Submit Error:', err);
-            const errorMsgContent = `Sorry, I encountered an error: ${err.message || 'Please try again.'}`;
-            // Update the placeholder with the final error message
-            setChatHistory(prev => prev.map(msg =>
-                 msg.id === assistantMsgId ? { ...msg, content: errorMsgContent, error: true } : msg
-            ));
-        } finally {
-            setIsChatLoading(false);
-        }
-    };
+      } catch (err: any) {
+          console.error('Chat Submit Error:', err);
+          const errorMsgContent = `Sorry, I encountered an error: ${err.message || 'Please try again.'}`;
+          // Update the placeholder with the final error message
+          setChatHistory(prev => prev.map(msg =>
+               msg.id === assistantMsgId ? { ...msg, content: errorMsgContent, error: true } : msg
+          ));
+      } finally {
+          setIsChatLoading(false);
+      }
+  };
 
-    // --- Use Memo for Chat Limit ---
+    // --- Use Memo for Chat Limit (UPDATED) ---
     const currentChatLimit = useMemo(() => {
-        if (userTier === 'premium') return Infinity;
-        if (userTier === 'pro') return PRO_CHAT_LIMIT;
-        return BASIC_CHAT_LIMIT;
+        return getChatLimitForTier(userTier); // Use imported function
     }, [userTier]);
 
-
-  // --- Filtering & Sorting ---
-
-  const filteredFolders = folders.filter(folder => {
+  // --- Filtering & Sorting (Remains the same) ---
+  // ... Filtering and Sorting logic ...
+    const filteredFolders = folders.filter(folder => {
     const folderTags = folderTagsMap[folder.id] || [];
     const nameMatch = folder.name.toLowerCase().includes(searchQuery.toLowerCase());
     const descMatch = folder.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false;
@@ -1867,27 +1877,29 @@ export function Folders() {
     }
   });
 
+
   // ---------------------
   // 5. JSX RENDER
   // ---------------------
   return (
     <div className={`${containerClass} min-h-screen w-full overflow-x-hidden relative font-sans flex`}>
+      {/* Sidebar remains the same */}
       <Sidebar
         userName={userName}
         isCollapsed={isSidebarCollapsed}
         onToggle={handleToggleSidebar}
         isBlackoutEnabled={isBlackoutEnabled && isSidebarBlackoutEnabled}
         isIlluminateEnabled={isIlluminateEnabled && isSidebarIlluminateEnabled}
-        // Pass navigate or other props if Sidebar needs them
       />
 
       {/* Main Content Area */}
       <main
         className={`flex-1 transition-all duration-300 ease-in-out min-h-screen
           ${isSidebarCollapsed ? 'ml-16 md:ml-20' : 'ml-64'}
-          p-3 md:p-4 lg:p-5 xl:p-6 overflow-y-auto`} // Added overflow-y-auto here too
+          p-3 md:p-4 lg:p-5 xl:p-6 overflow-y-auto`}
       >
-        {/* Top Bar */}
+        {/* ... Top Bar, AI Banner, Study Mode Indicator ... */}
+         {/* Top Bar */}
         <div className={`${cardClass} rounded-xl p-3 sm:p-4 mb-4 sm:mb-5 flex flex-col sm:flex-row items-center justify-between gap-2 shadow-sm animate-fadeIn ${cardVisible ? 'opacity-100' : 'opacity-0'}`}>
           <div className="flex items-center space-x-2">
             <FoldersIcon className={`w-5 h-5 ${illuminateTextPurple}`} />
@@ -2085,7 +2097,8 @@ export function Folders() {
 
 
         {/* Main Content Grid / Study Mode Area */}
-         <div className={`transition-all duration-300 ${activeStudyMode ? 'study-mode-active' : 'default-view'}`}>
+        {/* ... (Study Modes UI and Default Folder View UI remain the same) ... */}
+                 <div className={`transition-all duration-300 ${activeStudyMode ? 'study-mode-active' : 'default-view'}`}>
              {/* === STUDY MODES RENDER === */}
              {/* Wrapped study modes in checks for activeStudyMode and selectedFolder */}
              {activeStudyMode === "flashcards" && selectedFolder && studyItems.length > 0 && (
@@ -2385,6 +2398,7 @@ export function Folders() {
                      )}
                  </motion.div>
              )}
+
 
              {/* === DEFAULT VIEW (FOLDER LIST & CONTENT) === */}
              {!activeStudyMode && (
@@ -2766,9 +2780,9 @@ export function Folders() {
                                      )}
                                  </AnimatePresence>
 
-
                                  {/* Folder Items List/Grid */}
-                                 {!isAddingItem && !editingItem && !isCreatingSubFolder && !showImportModal && (
+                                 {/* ... Folder Items JSX remains the same ... */}
+                                   {!isAddingItem && !editingItem && !isCreatingSubFolder && !showImportModal && (
                                       <div className={`${cardClass} rounded-xl p-3 sm:p-4 shadow-md`}>
                                          <div className="flex items-center justify-between mb-3">
                                              <h3 className={`text-lg font-semibold ${headingClass}`}>Folder Content ({folderItems.length})</h3>
@@ -2846,6 +2860,8 @@ export function Folders() {
                                          )}
                                      </div>
                                  )}
+
+
                             </div>
                          ) : (
                              // Placeholder when no folder is selected
@@ -2863,7 +2879,7 @@ export function Folders() {
 
       </main>
 
-      {/* AI Chat Sidebar/Panel */}
+      {/* AI Chat Sidebar/Panel - UPDATED */}
        <AnimatePresence>
          {isAIChatOpen && (
            <motion.div
@@ -2892,7 +2908,8 @@ export function Folders() {
              </div>
 
              {/* Chat History Area */}
-              <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800/50" ref={chatEndRef}>
+             {/* ... (Chat history mapping remains the same) ... */}
+               <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800/50" ref={chatEndRef}>
                  {chatHistory.map((message) => (
                      <motion.div
                          key={message.id} // Use unique ID for key
@@ -2940,7 +2957,9 @@ export function Folders() {
                   <div ref={chatEndRef} /> {/* Element to scroll to */}
              </div>
 
+
              {/* Suggestion Buttons */}
+             {/* ... Suggestion buttons JSX remains the same ... */}
              {!isChatLoading && selectedFolder && (
                  <div className={`p-2 border-t ${illuminateBorder} flex-shrink-0`}>
                      <p className={`text-xs mb-1 ${subheadingClass}`}>Suggestions:</p>
@@ -2958,13 +2977,14 @@ export function Folders() {
                  </div>
              )}
 
-             {/* Chat Input Form */}
-             <div className={`px-2 sm:px-3 pt-1 border-t ${illuminateBorder} ${isIlluminateEnabled ? 'bg-gray-100' : 'bg-gray-800/90 backdrop-blur-sm'} flex-shrink-0 sticky bottom-0`}> {/* Changed structure */}
-                 {/* Usage Display */}
+
+             {/* Chat Input Form - UPDATED with useMemo */}
+             <div className={`px-2 sm:px-3 pt-1 border-t ${illuminateBorder} ${isIlluminateEnabled ? 'bg-gray-100' : 'bg-gray-800/90 backdrop-blur-sm'} flex-shrink-0 sticky bottom-0`}>
+                 {/* Usage Display - Use calculated currentChatLimit */}
                  {userTier !== 'premium' && userTier !== 'loading' && (
                      <div className="pb-1 text-xs text-center">
                          <span className={isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}>
-                             Messages this month: {chatCount} / {currentChatLimit}
+                             Messages this month: {chatCount} / {currentChatLimit === Infinity ? '∞' : currentChatLimit}
                          </span>
                          {isChatLimitReached && (
                              <span className="text-red-500 ml-1 font-medium">(Limit Reached)</span>
