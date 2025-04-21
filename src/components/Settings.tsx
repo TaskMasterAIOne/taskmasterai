@@ -78,32 +78,34 @@ export function Settings() {
     return stored ? JSON.parse(stored) : false;
   });
 
+  // --- START OF THEME STATE FIXES ---
   // --- Theme States ---
-  // Initialize based on localStorage OR system preference
+  // Initialize based ONLY on localStorage, default to false if not found
   const [isIlluminateEnabled, setIsIlluminateEnabled] = useState(() => {
     const stored = localStorage.getItem('isIlluminateEnabled');
-    if (stored !== null) return JSON.parse(stored);
-    // Only check system preference if no localStorage value exists
-    return window.matchMedia('(prefers-color-scheme: light)').matches;
+    // Default to false if no specific setting is stored
+    return stored !== null ? JSON.parse(stored) : false;
   });
   const [isBlackoutEnabled, setIsBlackoutEnabled] = useState(() => {
     const stored = localStorage.getItem('isBlackoutEnabled');
-    // Don't automatically enable blackout based on system dark mode, only from storage
-    return stored ? JSON.parse(stored) : false;
+    // Default to false if no specific setting is stored
+    return stored !== null ? JSON.parse(stored) : false;
   });
   const [isSidebarIlluminateEnabled, setIsSidebarIlluminateEnabled] = useState(() => {
-    const stored = localStorage.getItem('isSidebarIlluminateEnabled');
-    if (stored !== null) return JSON.parse(stored);
-    const mainIlluminate = localStorage.getItem('isIlluminateEnabled');
-    if (mainIlluminate !== null) return JSON.parse(mainIlluminate);
-    return window.matchMedia('(prefers-color-scheme: light)').matches;
+    const storedSidebar = localStorage.getItem('isSidebarIlluminateEnabled');
+    if (storedSidebar !== null) return JSON.parse(storedSidebar);
+    // If sidebar pref not set, check if the main illuminate pref was explicitly set to true
+    const storedMain = localStorage.getItem('isIlluminateEnabled');
+    return storedMain !== null ? JSON.parse(storedMain) : false;
   });
   const [isSidebarBlackoutEnabled, setIsSidebarBlackoutEnabled] = useState(() => {
-    const stored = localStorage.getItem('isSidebarBlackoutEnabled');
-    if (stored !== null) return JSON.parse(stored);
-    const mainBlackout = localStorage.getItem('isBlackoutEnabled');
-    return mainBlackout ? JSON.parse(mainBlackout) : false;
+    const storedSidebar = localStorage.getItem('isSidebarBlackoutEnabled');
+    if (storedSidebar !== null) return JSON.parse(storedSidebar);
+    // If sidebar pref not set, check if the main blackout pref was explicitly set to true
+    const storedMain = localStorage.getItem('isBlackoutEnabled');
+    return storedMain !== null ? JSON.parse(storedMain) : false;
   });
+  // --- END OF THEME STATE FIXES ---
 
 
   // --- Form Data State ---
@@ -118,29 +120,26 @@ export function Settings() {
   // Determine if user signed in via Google
   const [isGoogleUser, setIsGoogleUser] = useState<boolean>(false);
 
-  // --- START OF CHANGES ---
   // Identify Premium & Pro Users
   const PREMIUM_EMAILS = ["robinmyh@gmail.com", "oliverbeckett069420@gmail.com"];
   const PRO_EMAILS = ["srinibaj10@gmail.com"];
   const [isPremiumUser, setIsPremiumUser] = useState<boolean>(false);
   const [isProUser, setIsProUser] = useState<boolean>(false);
-  // --- END OF CHANGES ---
 
   // ---------------------------
   //    APPLY & PERSIST THEME CHANGES
   // ---------------------------
   useEffect(() => {
+    // Clear previous theme classes first
+    document.body.classList.remove('illuminate-mode', 'blackout-mode');
+
     // Apply body classes based on the current state
     if (isIlluminateEnabled) {
       document.body.classList.add('illuminate-mode');
-      document.body.classList.remove('blackout-mode');
     } else if (isBlackoutEnabled) {
       document.body.classList.add('blackout-mode');
-      document.body.classList.remove('illuminate-mode');
-    } else {
-      document.body.classList.remove('illuminate-mode');
-      document.body.classList.remove('blackout-mode');
     }
+    // If neither is enabled, no class is added, resulting in the default theme
 
     // Persist changes to localStorage
     localStorage.setItem('isIlluminateEnabled', JSON.stringify(isIlluminateEnabled));
@@ -166,13 +165,11 @@ export function Settings() {
       }
       setUser(currentUser);
 
-      // --- START OF CHANGES ---
       // Check if current user is premium or pro AFTER getting currentUser
       const premiumCheck = currentUser?.email && PREMIUM_EMAILS.includes(currentUser.email);
       const proCheck = currentUser?.email && PRO_EMAILS.includes(currentUser.email);
       setIsPremiumUser(premiumCheck);
       setIsProUser(proCheck);
-      // --- END OF CHANGES ---
 
       const googleFlag = currentUser.providerData?.some((p: any) => p.providerId === 'google.com');
       setIsGoogleUser(googleFlag);
@@ -238,59 +235,77 @@ export function Settings() {
   // ---------------------------
   const handleToggleIlluminate = (checked: boolean) => {
     setIsIlluminateEnabled(checked);
+    // When turning Illuminate ON
     if (checked) {
-      setIsBlackoutEnabled(false);
-      setIsSidebarIlluminateEnabled(true); // Activate sidebar illuminate when main illuminate is turned ON
-      // setIsSidebarBlackoutEnabled(false); // Optional: Deactivate other sidebar theme
+      setIsBlackoutEnabled(false); // Turn Blackout OFF
+      setIsSidebarIlluminateEnabled(true); // Turn Sidebar Illuminate ON
+      setIsSidebarBlackoutEnabled(false); // Turn Sidebar Blackout OFF
+    }
+    // When turning Illuminate OFF (without turning Blackout ON immediately)
+    else {
+        // If Blackout is not already enabled, turn off sidebar illuminate too
+        if (!isBlackoutEnabled) {
+            setIsSidebarIlluminateEnabled(false);
+        }
     }
   };
 
   const handleToggleBlackout = (checked: boolean) => {
     setIsBlackoutEnabled(checked);
+     // When turning Blackout ON
     if (checked) {
-      setIsIlluminateEnabled(false);
-      setIsSidebarBlackoutEnabled(true); // Activate sidebar blackout when main blackout is turned ON
-      // setIsSidebarIlluminateEnabled(false); // Optional: Deactivate other sidebar theme
+      setIsIlluminateEnabled(false); // Turn Illuminate OFF
+      setIsSidebarBlackoutEnabled(true); // Turn Sidebar Blackout ON
+      setIsSidebarIlluminateEnabled(false); // Turn Sidebar Illuminate OFF
+    }
+     // When turning Blackout OFF (without turning Illuminate ON immediately)
+    else {
+        // If Illuminate is not already enabled, turn off sidebar blackout too
+        if (!isIlluminateEnabled) {
+            setIsSidebarBlackoutEnabled(false);
+        }
     }
   };
+
 
   // ---------------------------
   //    DYNAMIC TAILWIND CLASSES (Adopted from Dashboard)
   // ---------------------------
+  // Base classes assume the default (neither illuminate nor blackout) is dark
   const containerClass = isIlluminateEnabled
     ? "bg-gray-50 text-gray-900"
     : isBlackoutEnabled
       ? "bg-black text-gray-200"
-      : "bg-gray-900 text-gray-200";
+      : "bg-gray-900 text-gray-200"; // Default theme
 
   const cardClass = isIlluminateEnabled
     ? "bg-white text-gray-900 border border-gray-200/70 shadow-sm"
     : isBlackoutEnabled
       ? "bg-gray-900 text-gray-300 border border-gray-700/50 shadow-md shadow-black/20"
-      : "bg-gray-800 text-gray-300 border border-gray-700/50 shadow-lg shadow-black/20";
+      : "bg-gray-800 text-gray-300 border border-gray-700/50 shadow-lg shadow-black/20"; // Default theme card
 
-  const headingClass = isIlluminateEnabled ? "text-gray-800" : "text-gray-100";
-  const subheadingClass = isIlluminateEnabled ? "text-gray-600" : "text-gray-400";
-  const inputBg = isIlluminateEnabled ? "bg-gray-100 hover:bg-gray-200/50 border-gray-300 focus:border-blue-500 focus:ring-blue-500" : "bg-gray-700 hover:bg-gray-600/50 border-gray-600 focus:border-blue-500 focus:ring-blue-500";
-  const placeholderIconColor = isIlluminateEnabled ? 'text-gray-400' : 'text-gray-500';
-  const textareaBg = isIlluminateEnabled ? "bg-gray-100 border-gray-300 focus:border-blue-500 focus:ring-blue-500" : "bg-gray-700 border-gray-600 focus:border-blue-500 focus:ring-blue-500";
+  const headingClass = isIlluminateEnabled ? "text-gray-800" : "text-gray-100"; // Default dark
+  const subheadingClass = isIlluminateEnabled ? "text-gray-600" : "text-gray-400"; // Default dark
+  const inputBg = isIlluminateEnabled ? "bg-gray-100 hover:bg-gray-200/50 border-gray-300 focus:border-blue-500 focus:ring-blue-500" : "bg-gray-700 hover:bg-gray-600/50 border-gray-600 focus:border-blue-500 focus:ring-blue-500"; // Default dark
+  const placeholderIconColor = isIlluminateEnabled ? 'text-gray-400' : 'text-gray-500'; // Default dark
+  const textareaBg = isIlluminateEnabled ? "bg-gray-100 border-gray-300 focus:border-blue-500 focus:ring-blue-500" : "bg-gray-700 border-gray-600 focus:border-blue-500 focus:ring-blue-500"; // Default dark
 
 
   // Added a subtle pulse animation on hover for the primary button
   const buttonPrimaryClass = `bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:shadow-lg hover:shadow-purple-500/30 hover:from-blue-400 hover:to-purple-400 transition-all duration-300 transform hover:scale-105 active:scale-100 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none group relative overflow-hidden`;
   const buttonPrimaryHoverEffect = `hover:brightness-110`; // Simpler hover effect
 
-  const buttonSecondaryClass = `${isIlluminateEnabled ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'} transition-colors duration-150 disabled:opacity-60 disabled:cursor-not-allowed`;
-  const buttonDangerClass = `${isIlluminateEnabled ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-red-900/50 text-red-400 hover:bg-red-800/50'} transition-colors duration-150 disabled:opacity-60 disabled:cursor-not-allowed`;
+  const buttonSecondaryClass = `${isIlluminateEnabled ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'} transition-colors duration-150 disabled:opacity-60 disabled:cursor-not-allowed`; // Default dark style
+  const buttonDangerClass = `${isIlluminateEnabled ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-red-900/50 text-red-400 hover:bg-red-800/50'} transition-colors duration-150 disabled:opacity-60 disabled:cursor-not-allowed`; // Default dark style
   const buttonDangerConfirmClass = `bg-red-600 text-white hover:bg-red-700 transition-colors duration-150 disabled:opacity-60 disabled:cursor-not-allowed`;
 
-  const errorBoxBg = isIlluminateEnabled ? 'bg-red-100' : 'bg-red-800/30';
-  const errorTextColor = isIlluminateEnabled ? 'text-red-700' : 'text-red-400';
-  const aiContextErrorBoxBg = isIlluminateEnabled ? 'bg-yellow-100' : 'bg-yellow-800/30'; // Maybe yellow for context info/errors?
-  const aiContextErrorTextColor = isIlluminateEnabled ? 'text-yellow-800' : 'text-yellow-300';
+  const errorBoxBg = isIlluminateEnabled ? 'bg-red-100' : 'bg-red-800/30'; // Default dark style
+  const errorTextColor = isIlluminateEnabled ? 'text-red-700' : 'text-red-400'; // Default dark style
+  const aiContextErrorBoxBg = isIlluminateEnabled ? 'bg-yellow-100' : 'bg-yellow-800/30'; // Default dark style
+  const aiContextErrorTextColor = isIlluminateEnabled ? 'text-yellow-800' : 'text-yellow-300'; // Default dark style
 
-  const deleteModalBg = isIlluminateEnabled ? 'bg-white border border-gray-200 shadow-xl' : 'bg-gray-800 border border-gray-700 shadow-2xl';
-  const deleteModalText = isIlluminateEnabled ? 'text-gray-700' : 'text-gray-200';
+  const deleteModalBg = isIlluminateEnabled ? 'bg-white border border-gray-200 shadow-xl' : 'bg-gray-800 border border-gray-700 shadow-2xl'; // Default dark style
+  const deleteModalText = isIlluminateEnabled ? 'text-gray-700' : 'text-gray-200'; // Default dark style
   const deleteModalOverlay = 'bg-black/60 backdrop-blur-sm';
 
   // ---------------------------
@@ -548,7 +563,7 @@ export function Settings() {
   // ---------------------------
   if (isLoading && !user) { // Still show loader if profile is loading, even if AI context isn't finished
     return (
-      <div className={`flex items-center justify-center min-h-screen ${containerClass}`}>
+      <div className={`flex items-center justify-center min-h-screen ${containerClass}`}> {/* Use containerClass here too */}
         <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
       </div>
     );
@@ -568,7 +583,7 @@ export function Settings() {
         isCollapsed={isSidebarCollapsed}
         onToggle={handleToggleSidebar}
         userName={userData.name}
-        // Sidebar reads premium status internally via auth, no need to pass prop here
+        // Pass theme status correctly
         isBlackoutEnabled={isBlackoutEnabled && isSidebarBlackoutEnabled}
         isIlluminateEnabled={isIlluminateEnabled && isSidebarIlluminateEnabled}
       />
@@ -876,6 +891,7 @@ export function Settings() {
                   {/* Sidebar Toggles - Conditionally rendered based on main theme */}
                   {/* --- REVERTED VISUAL STRUCTURE --- */}
                   <div className="pl-8 space-y-4">
+                     {/* Only show sidebar Illuminate toggle IF main Illuminate is ON */}
                      {isIlluminateEnabled && (
                         <div className="flex items-center justify-between">
                            <label htmlFor="sidebar-illuminate-toggle" className="flex items-center cursor-pointer gap-3">
@@ -888,6 +904,7 @@ export function Settings() {
                            </label>
                         </div>
                      )}
+                      {/* Only show sidebar Blackout toggle IF main Blackout is ON */}
                      {isBlackoutEnabled && (
                         <div className="flex items-center justify-between">
                            <label htmlFor="sidebar-blackout-toggle" className="flex items-center cursor-pointer gap-3">
@@ -900,12 +917,11 @@ export function Settings() {
                            </label>
                         </div>
                      )}
-                     {/* --- Removed the border-t and the conditional text --- */}
+                     {/* No message needed if neither is enabled */}
                   </div>
                 </div>
               </div>
 
-              {/* --- START OF CHANGES: Subscription Status Card --- */}
               {/* Subscription Status Card */}
               <div className={`${cardClass} rounded-xl p-4 sm:p-5`}>
                   <div className="flex items-center justify-between mb-4">
@@ -977,7 +993,6 @@ export function Settings() {
                       )}
                   </div>
               </div>
-              {/* --- END OF CHANGES: Subscription Status Card --- */}
 
             </div> {/* === End Column 2 === */}
 
