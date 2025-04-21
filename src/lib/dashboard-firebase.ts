@@ -31,7 +31,11 @@ import {
 } from "firebase/firestore"
 
 // --- START: Added Tier Definitions, Limits, and Types ---
-export const PREMIUM_EMAILS = ["robinmyh@gmail.com", "oliverbeckett069420@gmail.com, stevenmoore99op@gmail.com"];
+const PREMIUM_EMAILS = [
+    "robinmyh@gmail.com",
+    "oliverbeckett069420@gmail.com", // Added comma and made separate string
+    "bajinsrinivasr@lexington1.net"   // Made separate string   // Made separate string
+];
 export const PRO_EMAILS = ["srinibaj10@gmail.com"];
 export type UserTier = 'basic' | 'pro' | 'premium' | 'loading';
 
