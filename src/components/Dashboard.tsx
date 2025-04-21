@@ -46,7 +46,11 @@ import { TaskAnalytics } from './TaskAnalytics'; // Ensure this component exists
 // ---------------------
 // Constants for Tiers & Limits
 // ---------------------
-const PREMIUM_EMAILS = ["robinmyh@gmail.com", "oliverbeckett069420@gmail.com, bajinsrinivasr@lexington1.net, stevenmoore99op@gmail.com"];
+const PREMIUM_EMAILS = [
+    "robinmyh@gmail.com",
+    "oliverbeckett069420@gmail.com", // Added comma and made separate string
+    "bajinsrinivasr@lexington1.net"   
+];
 const PRO_EMAILS = ["srinibaj10@gmail.com"];
 const BASIC_CHAT_LIMIT = 10;
 const PRO_CHAT_LIMIT = 200;
