@@ -1,5 +1,4 @@
-import React, "use-strict"; // Added "use-strict" for good practice
-import { useEffect, useState } from "react"; // Grouped React imports
+import React, { useEffect, useState } from "react"; // Grouped React imports
 import {
   LayoutDashboard,
   Settings,
