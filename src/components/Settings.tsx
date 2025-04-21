@@ -91,19 +91,16 @@ export function Settings() {
     // Default to false if no specific setting is stored
     return stored !== null ? JSON.parse(stored) : false;
   });
+  // --- FIX: Initialize sidebar themes based *only* on their own localStorage keys ---
   const [isSidebarIlluminateEnabled, setIsSidebarIlluminateEnabled] = useState(() => {
     const storedSidebar = localStorage.getItem('isSidebarIlluminateEnabled');
-    if (storedSidebar !== null) return JSON.parse(storedSidebar);
-    // If sidebar pref not set, check if the main illuminate pref was explicitly set to true
-    const storedMain = localStorage.getItem('isIlluminateEnabled');
-    return storedMain !== null ? JSON.parse(storedMain) : false;
+    // Default to false if the sidebar-specific setting isn't stored
+    return storedSidebar !== null ? JSON.parse(storedSidebar) : false;
   });
   const [isSidebarBlackoutEnabled, setIsSidebarBlackoutEnabled] = useState(() => {
     const storedSidebar = localStorage.getItem('isSidebarBlackoutEnabled');
-    if (storedSidebar !== null) return JSON.parse(storedSidebar);
-    // If sidebar pref not set, check if the main blackout pref was explicitly set to true
-    const storedMain = localStorage.getItem('isBlackoutEnabled');
-    return storedMain !== null ? JSON.parse(storedMain) : false;
+    // Default to false if the sidebar-specific setting isn't stored
+    return storedSidebar !== null ? JSON.parse(storedSidebar) : false;
   });
   // --- END OF THEME STATE FIXES ---
 
@@ -139,7 +136,7 @@ export function Settings() {
     } else if (isBlackoutEnabled) {
       document.body.classList.add('blackout-mode');
     }
-    // If neither is enabled, no class is added, resulting in the default theme
+    // If neither is enabled, no class is added, resulting in the default theme (which should be dark based on your class definitions)
 
     // Persist changes to localStorage
     localStorage.setItem('isIlluminateEnabled', JSON.stringify(isIlluminateEnabled));
@@ -307,6 +304,8 @@ export function Settings() {
   const deleteModalBg = isIlluminateEnabled ? 'bg-white border border-gray-200 shadow-xl' : 'bg-gray-800 border border-gray-700 shadow-2xl'; // Default dark style
   const deleteModalText = isIlluminateEnabled ? 'text-gray-700' : 'text-gray-200'; // Default dark style
   const deleteModalOverlay = 'bg-black/60 backdrop-blur-sm';
+
+  // ... (rest of the component code remains the same) ...
 
   // ---------------------------
   //    FORM INPUT CHANGES
@@ -583,7 +582,7 @@ export function Settings() {
         isCollapsed={isSidebarCollapsed}
         onToggle={handleToggleSidebar}
         userName={userData.name}
-        // Pass theme status correctly
+        // Pass theme status correctly based on BOTH main and sidebar toggles
         isBlackoutEnabled={isBlackoutEnabled && isSidebarBlackoutEnabled}
         isIlluminateEnabled={isIlluminateEnabled && isSidebarIlluminateEnabled}
       />
@@ -889,7 +888,6 @@ export function Settings() {
                     </label>
                   </div>
                   {/* Sidebar Toggles - Conditionally rendered based on main theme */}
-                  {/* --- REVERTED VISUAL STRUCTURE --- */}
                   <div className="pl-8 space-y-4">
                      {/* Only show sidebar Illuminate toggle IF main Illuminate is ON */}
                      {isIlluminateEnabled && (
