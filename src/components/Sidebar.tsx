@@ -202,7 +202,6 @@ export function Sidebar({
                <div className="flex items-center justify-between w-full">
                  <a href="/" className="flex items-center space-x-2 whitespace-nowrap overflow-hidden">
                    <Logo className="w-8 h-8 flex-shrink-0" />
-                    <span className={`font-semibold text-lg ${defaultTextColor}`}>NoteNexus</span> {/* Added App Name */}
                  </a>
                </div>
              )}
