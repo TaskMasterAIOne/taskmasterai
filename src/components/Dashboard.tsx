@@ -70,7 +70,7 @@ import { TaskAnalytics } from './TaskAnalytics'; // Ensure this component exists
 // Helper functions for Gemini integration
 // ---------------------
 // ... (Gemini helper functions remain unchanged) ...
-const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}&alt=sse`; // Use 1.5 flash and enable SSE
+const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}&alt=sse`; // Use 1.5 flash and enable SSE
 
 const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 30000) => {
   const controller = new AbortController();
@@ -1456,7 +1456,7 @@ Another Example: Looks clear for today. Consider planning your next project step
 
             try {
                 // Using the non-streaming endpoint for overview
-                const overviewEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`;
+                const overviewEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`;
                 const geminiOptions = {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
