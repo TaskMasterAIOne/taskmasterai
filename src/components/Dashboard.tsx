@@ -2365,7 +2365,7 @@ Another Example: Looks clear for today. Consider planning your next project step
                <div
                  className={`text-xs sm:text-sm prose-sm max-w-none animate-fadeIn ${isIlluminateEnabled ? 'text-gray-800' : 'text-gray-300'} leading-snug ${smartOverview.includes('unavailable') || smartOverview.includes('failed') || smartOverview.includes('limit') ? (isIlluminateEnabled ? 'text-yellow-700 italic' : 'text-yellow-500 italic') : ''}`} // Style error/info messages
                >
-                 {smartOverview || "Add items or wait a moment for the overview."} {/* Show AI text or a default placeholder */}
+                 {smartOverview || "Add items for an overview."} {/* Show AI text or a default placeholder */}
                </div>
                {/* Show AI disclaimer only if overview seems valid */}
                {smartOverview && !smartOverview.includes('unavailable') && !smartOverview.includes('failed') && !smartOverview.includes('limit') && !smartOverview.includes('No pending items') && (
