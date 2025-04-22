@@ -38,6 +38,8 @@ import {
     getUserChatUsage, // Use the specific chat usage getter
     updateUserChatUsage, // Use the specific chat usage updater
     getChatLimitForTier,
+    getUserNoteUsage,
+    updateUserNoteUsage
 } from '../lib/current-paying-user'; // Correct path to the new file
 
 import { NewNoteModal } from './NewNoteModal';
