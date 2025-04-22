@@ -1,11 +1,12 @@
 import { loadStripe, Stripe } from '@stripe/stripe-js';
-import { getFunctions, httpsCallable, FunctionsHttpsError } from 'firebase/functions'; // Import HttpsError type
-import { app, auth } from './firebase'; // Ensure 'auth' is exported from firebase.ts
+// Import functions related types/functions correctly
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { app, auth } from './firebase';
 import { getIdToken } from 'firebase/auth';
+// FirebaseError is often the base class or has common properties
+import { FirebaseError } from 'firebase/app';
 
 // --- USE YOUR **TEST** PUBLISHABLE KEY ---
-// Replace with your actual TEST key from Stripe Dashboard > Developers > API Keys
-// Consider using Environment Variables (e.g., VITE_STRIPE_PUBLISHABLE_KEY) for production
 const STRIPE_PUBLISHABLE_KEY = 'pk_live_51QdhwgIdgEonJvEbYZYASetFGNVWiSHN68N3FtLpybd4QIhEjfXQxk3XJoxhEDor4gaT7hZxjN4HSDAz1fAQiuFV00Q4nb1AlL'; // PASTE TEST KEY HERE
 
 if (!STRIPE_PUBLISHABLE_KEY) {
@@ -16,10 +17,6 @@ if (!STRIPE_PUBLISHABLE_KEY) {
 
 let stripePromise: Promise<Stripe | null>;
 
-/**
- * Loads the Stripe.js library asynchronously.
- * @returns {Promise<Stripe | null>}
- */
 export const getStripe = (): Promise<Stripe | null> => {
   if (!STRIPE_PUBLISHABLE_KEY) {
     console.error("Cannot load Stripe without a publishable key.");
@@ -31,14 +28,6 @@ export const getStripe = (): Promise<Stripe | null> => {
   return stripePromise;
 };
 
-
-/**
- * Calls the DEPLOYED Firebase Function ('createStripeCheckoutSession' via onCall)
- * to create a Stripe Checkout Session.
- * @param {string} priceId - The Stripe Price ID for the item.
- * @returns {Promise<{ sessionId: string }>} Resolves with the Session ID.
- * @throws Will throw an error if authentication fails or the backend call fails.
- */
 export const createCheckoutSession = async (
   priceId: string
 ): Promise<{ sessionId: string }> => {
@@ -52,18 +41,17 @@ export const createCheckoutSession = async (
     throw new Error("User not logged in. Please sign in.");
   }
 
-  // Verify token is fresh before calling function (optional but good practice)
   try {
-    await getIdToken(user, /*forceRefresh*/ false);
+    await getIdToken(user, false);
   } catch (error) {
      console.error("Error verifying Firebase ID token:", error);
      throw new Error("Could not verify authentication.");
   }
 
-  const functionsInstance = getFunctions(app); // Get specific instance if needed, or use default 'functions' export
+  const functionsInstance = getFunctions(app);
   const createStripeCheckoutSessionCallable = httpsCallable(
     functionsInstance,
-    'createStripeCheckoutSession' // Must match deployed function name
+    'createStripeCheckoutSession'
   );
 
   const successUrl = `${window.location.origin}/dashboard?session_id={CHECKOUT_SESSION_ID}`;
@@ -91,15 +79,31 @@ export const createCheckoutSession = async (
     let message = "An unknown error occurred calling the backend.";
     let code: string = 'unknown';
 
-    // Check if it's an HttpsError from Firebase Functions
-    if (error instanceof FunctionsHttpsError) {
+    // Check if it conforms to FirebaseError structure or standard Error
+    if (error instanceof FirebaseError) {
+        message = error.message;
+        code = error.code; // Firebase specific error code
+    } else if (error instanceof Error) {
       message = error.message;
-      code = error.code;
-    } else if (error instanceof Error) { // Standard JS error
-      message = error.message;
+    } else if (typeof error === 'object' && error && 'message' in error) {
+      // Fallback for objects with a message property
+      message = String((error as { message: string }).message);
+      if ('code' in error) { // Check if it also has a code property
+          code = String((error as { code: string }).code);
+      }
     }
 
     console.error(`Backend Call Error - Code: ${code}, Message: ${message}`);
+
+    // Provide specific feedback based on common Firebase function error codes
+    if (code === 'unauthenticated') {
+      message = "Authentication failed. Please log in again.";
+    } else if (code === 'invalid-argument') {
+      message = "Invalid data sent to server. " + message;
+    } else if (code === 'internal') {
+      message = "Server error during checkout. " + message;
+    } // Add other specific Firebase error codes if needed
+
     throw new Error(`Checkout failed: ${message} (Code: ${code})`);
   }
 };
