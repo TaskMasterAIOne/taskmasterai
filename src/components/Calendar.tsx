@@ -31,11 +31,12 @@ import {
   BrainCircuit, // Added for AI Chat
   Send,          // Added for AI Chat
   Loader2,       // Added for loading state
+  Crown          // Keep Crown for potential future use or consistency
 } from "lucide-react";
 import { Sidebar } from "./Sidebar";
-import { auth, db } from "../lib/firebase";
+import { auth, db } from "../lib/firebase"; // Import db directly for getDoc
 import type { User } from "firebase/auth";
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore'; // Import Firestore functions used
 import {
   format,
   startOfWeek,
@@ -61,24 +62,18 @@ import {
   subDays,
 } from "date-fns";
 import {
-  onCollectionSnapshot as onCalendarCollectionSnapshot,
+  onCollectionSnapshot as onCalendarCollectionSnapshot, // Alias calendar-specific listener
   createEvent,
   updateEvent,
   deleteEvent,
-} from "../lib/calendar-firebase";
+} from "../lib/calendar-firebase"; // Assuming calendar functions are separate
 import {
-  // --- REMOVED Centralized Tier/Usage Imports from dashboard-firebase ---
+  // Import only what's needed from dashboard-firebase
   onCollectionSnapshot as onDashboardCollectionSnapshot,
   updateItem as updateDashboardItem,
   deleteItem as deleteDashboardItem,
   markItemComplete as markDashboardItemComplete,
-  geminiApiKey,
-  // getUserTier, // REMOVED
-  // getUserUsageData, // REMOVED
-  // updateUserChatUsage, // REMOVED
-  // UserTier, // REMOVED (will import from current-paying-user)
-  // BASIC_CHAT_LIMIT, // REMOVED
-  // PRO_CHAT_LIMIT, // REMOVED
+  geminiApiKey, // Keep API key import
 } from '../lib/dashboard-firebase';
 
 // --- IMPORT Centralized Tier/Usage Functions ---
@@ -92,7 +87,7 @@ import {
   // PRO_CHAT_LIMIT, // Use getChatLimitForTier instead
 } from '../lib/current-paying-user'; // Correct path
 
-// Import AI Context functions and interface
+// --- Import AI Context ---
 import {
   getUserContext,
   UserContext
@@ -106,9 +101,9 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 
 // ---------------------
-// Helper functions for Gemini integration (Assume these are correct and available)
+// Helper functions for Gemini integration (Unchanged)
 // ---------------------
-const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}&alt=sse`; // Use 1.5 Flash
+const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}&alt=sse`; // Use 1.5 Flash
 
 const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 30000) => {
   const controller = new AbortController();
@@ -180,96 +175,51 @@ const streamResponse = async (
 
 
 const extractCandidateText = (rawResponseText: string): string => {
-    // Goal: Find and return only the text content from the *first candidate*.
-    // Avoid returning the raw JSON wrapper or metadata. Handles SSE chunks.
     try {
         let extractedText = "";
         let potentialJson = "";
 
-        // Split potential SSE chunks (Gemini SSE format: data: {...})
         const lines = rawResponseText.trim().split('\n');
         const lastDataLine = lines.filter(line => line.startsWith('data:')).pop();
 
         if (lastDataLine) {
-             potentialJson = lastDataLine.substring(5).trim(); // Remove 'data:' prefix
+             potentialJson = lastDataLine.substring(5).trim();
         } else if (rawResponseText.trim().startsWith('{')) {
-            // Might be a non-SSE JSON response (e.g., error or non-streamed)
             potentialJson = rawResponseText.trim();
         }
 
         if (potentialJson) {
             try {
                 const parsedJson = JSON.parse(potentialJson);
-
-                // 1. Check for the target candidate text
                 if (parsedJson.candidates?.[0]?.content?.parts?.[0]?.text) {
                     extractedText = parsedJson.candidates[0].content.parts[0].text;
+                } else if (parsedJson.error?.message) {
+                    return `Error: ${parsedJson.error.message}`;
+                } else if (parsedJson.candidates?.[0]?.finishReason && parsedJson.candidates?.[0]?.finishReason !== 'STOP') {
+                    return `Error: Generation stopped (${parsedJson.candidates[0].finishReason})`;
+                } else {
+                    extractedText = "";
                 }
-                // 2. Check for an error message within the JSON
-                else if (parsedJson.error?.message) {
-                    console.error("Gemini API Error in response:", parsedJson.error.message);
-                    return `Error: ${parsedJson.error.message}`; // Return formatted error
-                }
-                 // 3. Check for top-level candidate errors (e.g., safety blocks)
-                 else if (parsedJson.candidates?.[0]?.finishReason && parsedJson.candidates?.[0]?.finishReason !== 'STOP') {
-                      console.error("Gemini API finishReason error:", parsedJson.candidates[0].finishReason);
-                      return `Error: Generation stopped (${parsedJson.candidates[0].finishReason})`;
-                 }
-                // 4. If parsed but no text/error found (e.g., only safety ratings in chunk)
-                else {
-                    extractedText = ""; // Wait for next chunk
-                }
+            } catch (e) { extractedText = ""; }
+        } else { extractedText = ""; }
 
-            } catch (e) {
-                // JSON parsing failed - likely an incomplete chunk.
-                extractedText = ""; // Wait for more data
-            }
-        } else {
-            // Doesn't look like SSE or JSON
-            extractedText = "";
-        }
-
-        // Clean common prefixes
         return extractedText.replace(/^Assistant:\s*/, '').replace(/^(User|Human):\s*/, '').trim();
 
     } catch (err) {
         console.error("Error *during* extraction logic:", err, "Original text:", rawResponseText);
-        return ""; // Fallback cautiously
+        return "";
     }
 };
 
 
 // ---------------------------
-//   Interfaces & Types
+//   Interfaces & Types (Unchanged)
 // ---------------------------
-interface CalendarItemBase {
-  id: string;
-  title: string;
-  startDate: Date;
-  endDate: Date;
-  type: "event" | "task" | "goal" | "project" | "plan";
-  userId: string;
-  color?: string;
-  isAllDay?: boolean;
-  description?: string;
-  status?: "pending" | "completed";
-  priority?: 'high' | 'medium' | 'low';
-  originalCollection?: "tasks" | "goals" | "projects" | "plans";
-}
-
-interface CalendarEvent extends CalendarItemBase {
-  type: "event";
-}
-
+interface CalendarItemBase { id: string; title: string; startDate: Date; endDate: Date; type: "event" | "task" | "goal" | "project" | "plan"; userId: string; color?: string; isAllDay?: boolean; description?: string; status?: "pending" | "completed"; priority?: 'high' | 'medium' | 'low'; originalCollection?: "tasks" | "goals" | "projects" | "plans"; }
+interface CalendarEvent extends CalendarItemBase { type: "event"; }
 type CalendarItem = CalendarItemBase;
 type CalendarView = "month" | "week";
-
-interface ChatMessage {
-    id?: string;
-    role: 'user' | 'assistant';
-    content: string;
-    error?: boolean;
-}
+interface ChatMessage { id?: string; role: 'user' | 'assistant'; content: string; error?: boolean; }
 
 // ---------------------------
 //   Component Logic
@@ -317,7 +267,7 @@ export function Calendar() {
   const [isChatLoading, setIsChatLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // --- Tier and Usage State (Using Centralized types/logic) ---
+  // --- Tier and Usage State (Uses Centralized types/logic) ---
   const [userTier, setUserTier] = useState<UserTier>('loading');
   const [chatCount, setChatCount] = useState(0);
   const [usageMonth, setUsageMonth] = useState(''); // YYYY-MM for chat usage
@@ -326,11 +276,11 @@ export function Calendar() {
 
   // --- AI Context State ---
   const [loadedAiContext, setLoadedAiContext] = useState<UserContext | null>(null);
-  const [isLoadingAiContext, setIsLoadingAiContext] = useState(true); // Separate loading for context
+  const [isLoadingAiContext, setIsLoadingAiContext] = useState(true);
 
-  // --- Memoized Chat Limit ---
+  // --- Memoized Chat Limit (Uses Centralized function) ---
   const currentChatLimit = useMemo(() => {
-      return getChatLimitForTier(userTier); // Use centralized function
+      return getChatLimitForTier(userTier);
   }, [userTier]);
 
 
@@ -338,128 +288,23 @@ export function Calendar() {
   //   Helper Functions (Unchanged)
   // ---------------------------
    const getWeekDates = (date: Date): Date[] => eachDayOfInterval({ start: startOfWeek(date), end: endOfWeek(date) });
-   const getMonthGridDays = (date: Date): Date[] => { /* ... same ... */
-        const start = startOfWeek(startOfMonth(date));
-        const end = endOfWeek(endOfMonth(date));
-        let days = eachDayOfInterval({ start, end });
-        if (days.length < 42) {
-             const endOfSixthWeek = endOfWeek(addDays(start, 35));
-             days = eachDayOfInterval({ start, end: endOfSixthWeek });
-        }
-        return days;
-    };
-   const formatDateForInput = (date: Date, isAllDay: boolean): string => { /* ... same ... */
-    try {
-      if (isAllDay) return format(date, "yyyy-MM-dd");
-      const tzOffset = date.getTimezoneOffset() * 60000;
-      const localDate = new Date(date.getTime() - tzOffset);
-      return localDate.toISOString().slice(0, 16); // YYYY-MM-DDTHH:mm
-    } catch { return ""; }
-  };
-   const parseInputDate = (value: string, isAllDay: boolean): Date | null => { /* ... same ... */
-      try {
-          if (isAllDay) {
-              const d = parse(value, "yyyy-MM-dd", new Date());
-              return startOfDay(d);
-          } else {
-              const d = parseISO(value);
-              return isNaN(d.getTime()) ? null : d;
-          }
-      } catch (e) {
-          console.error("Error parsing input date:", value, e);
-          return null;
-      }
-  };
-   const calculatePriority = (itemData: any): 'high' | 'medium' | 'low' => { /* ... same ... */
-        if (itemData.priority) return itemData.priority;
-        if (!itemData.dueDate) return 'low';
-        let dueDate: Date | null = null;
-        if (itemData.dueDate?.toDate) dueDate = itemData.dueDate.toDate();
-        else if (itemData.dueDate instanceof Date) dueDate = itemData.dueDate;
-        else try { dueDate = new Date(itemData.dueDate); if (isNaN(dueDate.getTime())) dueDate = null; } catch { dueDate = null; }
-        if (!dueDate) return 'low';
-        const now = new Date(); now.setHours(0, 0, 0, 0);
-        dueDate.setHours(0, 0, 0, 0);
-        const diffTime = dueDate.getTime() - now.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        if (diffDays < 0) return 'high';
-        if (diffDays <= 1) return 'high';
-        if (diffDays <= 3) return 'medium';
-        return 'low';
-    };
+   const getMonthGridDays = (date: Date): Date[] => { const start = startOfWeek(startOfMonth(date)); const end = endOfWeek(endOfMonth(date)); let days = eachDayOfInterval({ start, end }); if (days.length < 42) { const endOfSixthWeek = endOfWeek(addDays(start, 35)); days = eachDayOfInterval({ start, end: endOfSixthWeek }); } return days; };
+   const formatDateForInput = (date: Date, isAllDay: boolean): string => { try { if (isAllDay) return format(date, "yyyy-MM-dd"); const tzOffset = date.getTimezoneOffset() * 60000; const localDate = new Date(date.getTime() - tzOffset); return localDate.toISOString().slice(0, 16); } catch { return ""; } };
+   const parseInputDate = (value: string, isAllDay: boolean): Date | null => { try { if (isAllDay) { const d = parse(value, "yyyy-MM-dd", new Date()); return startOfDay(d); } else { const d = parseISO(value); return isNaN(d.getTime()) ? null : d; } } catch (e) { console.error("Error parsing input date:", value, e); return null; } };
+   const calculatePriority = (itemData: any): 'high' | 'medium' | 'low' => { if (itemData.priority) return itemData.priority; if (!itemData.dueDate) return 'low'; let dueDate: Date | null = null; if (itemData.dueDate?.toDate) dueDate = itemData.dueDate.toDate(); else if (itemData.dueDate instanceof Date) dueDate = itemData.dueDate; else try { dueDate = new Date(itemData.dueDate); if (isNaN(dueDate.getTime())) dueDate = null; } catch { dueDate = null; } if (!dueDate) return 'low'; const now = new Date(); now.setHours(0, 0, 0, 0); dueDate.setHours(0, 0, 0, 0); const diffTime = dueDate.getTime() - now.getTime(); const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); if (diffDays < 0) return 'high'; if (diffDays <= 1) return 'high'; if (diffDays <= 3) return 'medium'; return 'low'; };
 
-    // --- allCalendarItems Memo (Unchanged) ---
-    const allCalendarItems = useMemo((): CalendarItem[] => {
+   // --- allCalendarItems Memo (Unchanged) ---
+   const allCalendarItems = useMemo((): CalendarItem[] => {
         const dashboardItems: CalendarItem[] = [
-        ...dashboardTasks.map((item): CalendarItem => ({
-            id: item.id,
-            title: item.data.task || "Untitled Task",
-            startDate: item.data.dueDate?.toDate ? startOfDay(item.data.dueDate.toDate()) : startOfDay(new Date()),
-            endDate: item.data.dueDate?.toDate ? endOfDay(item.data.dueDate.toDate()) : endOfDay(new Date()),
-            type: "task",
-            isAllDay: true,
-            userId: item.data.userId,
-            color: "#EF4444",
-            status: item.data.completed ? "completed" : "pending",
-            priority: calculatePriority(item.data),
-            originalCollection: "tasks",
-            description: item.data.description || "",
-        })),
-        ...dashboardGoals.map((item): CalendarItem => ({
-            id: item.id,
-            title: item.data.goal || "Untitled Goal",
-            startDate: item.data.dueDate?.toDate ? startOfDay(item.data.dueDate.toDate()) : startOfDay(new Date()),
-            endDate: item.data.dueDate?.toDate ? endOfDay(item.data.dueDate.toDate()) : endOfDay(new Date()),
-            type: "goal",
-            isAllDay: true,
-            userId: item.data.userId,
-            color: "#10B981",
-            status: item.data.completed ? "completed" : "pending",
-            priority: calculatePriority(item.data),
-            originalCollection: "goals",
-            description: item.data.description || "",
-        })),
-        ...dashboardProjects.map((item): CalendarItem => ({
-            id: item.id,
-            title: item.data.project || "Untitled Project",
-            startDate: item.data.dueDate?.toDate ? startOfDay(item.data.dueDate.toDate()) : startOfDay(new Date()),
-            endDate: item.data.dueDate?.toDate ? endOfDay(item.data.dueDate.toDate()) : endOfDay(new Date()),
-            type: "project",
-            isAllDay: true,
-            userId: item.data.userId,
-            color: "#6366F1",
-            status: item.data.completed ? "completed" : "pending",
-            priority: calculatePriority(item.data),
-            originalCollection: "projects",
-            description: item.data.description || "",
-        })),
-        ...dashboardPlans.map((item): CalendarItem => ({
-            id: item.id,
-            title: item.data.plan || "Untitled Plan",
-            startDate: item.data.dueDate?.toDate ? startOfDay(item.data.dueDate.toDate()) : startOfDay(new Date()),
-            endDate: item.data.dueDate?.toDate ? endOfDay(item.data.dueDate.toDate()) : endOfDay(new Date()),
-            type: "plan",
-            isAllDay: true,
-            userId: item.data.userId,
-            color: "#8B5CF6",
-            status: item.data.completed ? "completed" : "pending",
-            priority: calculatePriority(item.data),
-            originalCollection: "plans",
-            description: item.data.description || "",
-        })),
+            ...dashboardTasks.map((item): CalendarItem => ({ id: item.id, title: item.data.task || "Untitled Task", startDate: item.data.dueDate?.toDate ? startOfDay(item.data.dueDate.toDate()) : startOfDay(new Date()), endDate: item.data.dueDate?.toDate ? endOfDay(item.data.dueDate.toDate()) : endOfDay(new Date()), type: "task", isAllDay: true, userId: item.data.userId, color: "#EF4444", status: item.data.completed ? "completed" : "pending", priority: calculatePriority(item.data), originalCollection: "tasks", description: item.data.description || "" })),
+            ...dashboardGoals.map((item): CalendarItem => ({ id: item.id, title: item.data.goal || "Untitled Goal", startDate: item.data.dueDate?.toDate ? startOfDay(item.data.dueDate.toDate()) : startOfDay(new Date()), endDate: item.data.dueDate?.toDate ? endOfDay(item.data.dueDate.toDate()) : endOfDay(new Date()), type: "goal", isAllDay: true, userId: item.data.userId, color: "#10B981", status: item.data.completed ? "completed" : "pending", priority: calculatePriority(item.data), originalCollection: "goals", description: item.data.description || "" })),
+            ...dashboardProjects.map((item): CalendarItem => ({ id: item.id, title: item.data.project || "Untitled Project", startDate: item.data.dueDate?.toDate ? startOfDay(item.data.dueDate.toDate()) : startOfDay(new Date()), endDate: item.data.dueDate?.toDate ? endOfDay(item.data.dueDate.toDate()) : endOfDay(new Date()), type: "project", isAllDay: true, userId: item.data.userId, color: "#6366F1", status: item.data.completed ? "completed" : "pending", priority: calculatePriority(item.data), originalCollection: "projects", description: item.data.description || "" })),
+            ...dashboardPlans.map((item): CalendarItem => ({ id: item.id, title: item.data.plan || "Untitled Plan", startDate: item.data.dueDate?.toDate ? startOfDay(item.data.dueDate.toDate()) : startOfDay(new Date()), endDate: item.data.dueDate?.toDate ? endOfDay(item.data.dueDate.toDate()) : endOfDay(new Date()), type: "plan", isAllDay: true, userId: item.data.userId, color: "#8B5CF6", status: item.data.completed ? "completed" : "pending", priority: calculatePriority(item.data), originalCollection: "plans", description: item.data.description || "" })),
         ].filter(item => item.startDate && !isNaN(item.startDate.getTime()));
-
-        // Combine calendar-specific events
-        const calendarItemsTyped: CalendarEvent[] = calendarEvents.map(item => ({
-            ...item,
-            type: 'event' as 'event' // Ensure type is correct
-        }));
-
-        // Combine and ensure uniqueness by ID, prioritizing calendarEvents if IDs clash
+        const calendarItemsTyped: CalendarEvent[] = calendarEvents.map(item => ({ ...item, type: 'event' as 'event' }));
         const uniqueMap = new Map<string, CalendarItem>();
         dashboardItems.forEach(item => uniqueMap.set(item.id, item));
-        calendarItemsTyped.forEach(item => uniqueMap.set(item.id, item)); // Overwrite dashboard items if ID clash
-
+        calendarItemsTyped.forEach(item => uniqueMap.set(item.id, item));
         return Array.from(uniqueMap.values());
     }, [calendarEvents, dashboardTasks, dashboardGoals, dashboardProjects, dashboardPlans]);
 
@@ -467,43 +312,25 @@ export function Calendar() {
   // ---------------------------
   //   Effects
   // ---------------------------
-  // ... (Resize, LocalStorage/Theme effects remain the same) ...
-    useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-    useEffect(() => localStorage.setItem('isSidebarCollapsed', JSON.stringify(isSidebarCollapsed)), [isSidebarCollapsed]);
-    useEffect(() => {
-        localStorage.setItem('isBlackoutEnabled', JSON.stringify(isBlackoutEnabled));
-        if (isBlackoutEnabled && !isIlluminateEnabled) document.body.classList.add('blackout-mode');
-        else document.body.classList.remove('blackout-mode');
-    }, [isBlackoutEnabled, isIlluminateEnabled]);
-    useEffect(() => localStorage.setItem('isSidebarBlackoutEnabled', JSON.stringify(isSidebarBlackoutEnabled)), [isSidebarBlackoutEnabled]);
-    useEffect(() => {
-        localStorage.setItem('isIlluminateEnabled', JSON.stringify(isIlluminateEnabled));
-        if (isIlluminateEnabled) {
-        document.body.classList.add('illuminate-mode');
-        document.body.classList.remove('blackout-mode');
-        } else {
-        document.body.classList.remove('illuminate-mode');
-        if (isBlackoutEnabled) document.body.classList.add('blackout-mode');
-        }
-    }, [isIlluminateEnabled, isBlackoutEnabled]);
-    useEffect(() => localStorage.setItem('isSidebarIlluminateEnabled', JSON.stringify(isSidebarIlluminateEnabled)), [isSidebarIlluminateEnabled]);
+   useEffect(() => { const handleResize = () => setIsMobile(window.innerWidth < 768); window.addEventListener("resize", handleResize); return () => window.removeEventListener("resize", handleResize); }, []);
+   useEffect(() => localStorage.setItem('isSidebarCollapsed', JSON.stringify(isSidebarCollapsed)), [isSidebarCollapsed]);
+   useEffect(() => { localStorage.setItem('isBlackoutEnabled', JSON.stringify(isBlackoutEnabled)); if (isBlackoutEnabled && !isIlluminateEnabled) document.body.classList.add('blackout-mode'); else document.body.classList.remove('blackout-mode'); }, [isBlackoutEnabled, isIlluminateEnabled]);
+   useEffect(() => localStorage.setItem('isSidebarBlackoutEnabled', JSON.stringify(isSidebarBlackoutEnabled)), [isSidebarBlackoutEnabled]);
+   useEffect(() => { localStorage.setItem('isIlluminateEnabled', JSON.stringify(isIlluminateEnabled)); if (isIlluminateEnabled) { document.body.classList.add('illuminate-mode'); document.body.classList.remove('blackout-mode'); } else { document.body.classList.remove('illuminate-mode'); if (isBlackoutEnabled) document.body.classList.add('blackout-mode'); } }, [isIlluminateEnabled, isBlackoutEnabled]);
+   useEffect(() => localStorage.setItem('isSidebarIlluminateEnabled', JSON.stringify(isSidebarIlluminateEnabled)), [isSidebarIlluminateEnabled]);
 
 
     // --- Auth Listener + Tier/Usage/Context Loading (UPDATED) ---
     useEffect(() => {
         setLoading(true);
-        setUserTier('loading'); // Reset tier on auth change
-        setIsLoadingUsage(true); // Start loading usage
-        setIsLoadingAiContext(true); // Start loading AI context
+        setUserTier('loading');
+        setIsLoadingUsage(true);
+        setIsLoadingAiContext(true);
 
-        const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => { // Make async
+        const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
             setUser(firebaseUser);
             if (firebaseUser) {
-                // Fetch user name (Unchanged)
+                // Fetch user name
                 const userDocRef = doc(db, "users", firebaseUser.uid);
                 getDoc(userDocRef).then(docSnap => {
                     const name = docSnap.exists() && docSnap.data()?.name ? docSnap.data()?.name : firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "User";
@@ -512,80 +339,67 @@ export function Calendar() {
                     setUserName(firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "User");
                 });
 
-                 // --- Determine Tier using imported function ---
                 const tier = getUserTier(firebaseUser.email);
                 setUserTier(tier);
 
-                // --- Load Chat Usage Data (if not premium) using imported functions ---
                 const currentMonthYear = new Date().toISOString().slice(0, 7);
-                setUsageMonth(currentMonthYear); // Set current chat month
+                setUsageMonth(currentMonthYear);
 
-                let usagePromise: Promise<void>;
-                if (tier !== 'premium') {
-                    usagePromise = getUserChatUsage(firebaseUser.uid)
-                        .then(usageData => {
+                // Load Chat Usage
+                const usagePromise = (async () => {
+                    if (tier !== 'premium') {
+                        try {
+                            const usageData = await getUserChatUsage(firebaseUser.uid);
                             if (usageData && usageData.month === currentMonthYear) {
                                 setChatCount(usageData.count);
                                 const limit = getChatLimitForTier(tier);
                                 setIsChatLimitReached(usageData.count >= limit);
                             } else {
-                                setChatCount(0);
-                                setIsChatLimitReached(false);
-                                return updateUserChatUsage(firebaseUser.uid, 0, currentMonthYear); // Chain the update promise
+                                setChatCount(0); setIsChatLimitReached(false);
+                                await updateUserChatUsage(firebaseUser.uid, 0, currentMonthYear);
                             }
-                        })
-                        .catch(err => {
+                        } catch (err) {
                             console.error("Calendar: Error loading/updating CHAT usage data:", err);
-                            setChatCount(0);
-                            setIsChatLimitReached(false);
-                        });
-                } else { // Premium user (Chat)
-                    setChatCount(0);
-                    setIsChatLimitReached(false);
-                    usagePromise = Promise.resolve(); // Resolve immediately for premium
-                }
+                            setChatCount(0); setIsChatLimitReached(false);
+                        }
+                    } else {
+                        setChatCount(0); setIsChatLimitReached(false);
+                    }
+                })(); // Immediately invoke async function
 
-                // --- Load Universal AI Context ---
+                // Load AI Context
                 const contextPromise = getUserContext(firebaseUser.uid)
                     .then(context => setLoadedAiContext(context))
                     .catch(err => console.error("Calendar: Error loading AI context:", err));
 
-                 // Wait for both usage and context loading to finish
-                await Promise.all([usagePromise, contextPromise]);
-                setIsLoadingUsage(false);
-                setIsLoadingAiContext(false);
+                 // Wait for both promises to settle before setting loading states off
+                Promise.allSettled([usagePromise, contextPromise]).finally(() => {
+                     setIsLoadingUsage(false);
+                     setIsLoadingAiContext(false);
+                     // Keep overall loading true until data listeners complete
+                });
 
             } else {
-                // Reset all relevant state on logout
+                // Reset state on logout
                 setCalendarEvents([]); setDashboardTasks([]); setDashboardGoals([]); setDashboardProjects([]); setDashboardPlans([]);
                 setUserName("User"); setUserTier('loading'); setChatCount(0); setUsageMonth(''); setIsChatLimitReached(false);
                 setIsLoadingUsage(true); setIsLoadingAiContext(true); setLoadedAiContext(null);
                 navigate("/login");
+                setLoading(false); // Stop loading immediately on logout
             }
-            // Loading state is managed by the completion of listeners below, not just auth
+            // Overall loading state is handled by data listeners below
         });
         return () => unsubscribe();
     }, [navigate]);
     // --- END MODIFIED AUTH LISTENER ---
 
-
-    // Scroll AI chat to bottom (Unchanged)
-    useEffect(() => {
-        if (chatEndRef.current && isAiSidebarOpen) {
-            requestAnimationFrame(() => {
-                chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-            });
-        }
-    }, [chatHistory, isAiSidebarOpen]);
+    // Scroll AI chat to bottom
+    useEffect(() => { if (chatEndRef.current && isAiSidebarOpen) { requestAnimationFrame(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }); } }, [chatHistory, isAiSidebarOpen]);
 
     // Data Listeners (Unchanged)
     useEffect(() => {
-        if (!user?.uid) {
-             setCalendarEvents([]); setDashboardTasks([]); setDashboardGoals([]); setDashboardProjects([]); setDashboardPlans([]);
-             setLoading(true); return;
-         }
-        let eventLoaded = false, taskLoaded = false, goalLoaded = false, projectLoaded = false, planLoaded = false;
-        setLoading(true);
+        if (!user?.uid) { setCalendarEvents([]); setDashboardTasks([]); setDashboardGoals([]); setDashboardProjects([]); setDashboardPlans([]); setLoading(true); return; }
+        let eventLoaded = false, taskLoaded = false, goalLoaded = false, projectLoaded = false, planLoaded = false; setLoading(true);
         const checkAllLoaded = () => { if (eventLoaded && taskLoaded && goalLoaded && projectLoaded && planLoaded) { setLoading(false); } }
         const unsubEvents = onCalendarCollectionSnapshot("events", user.uid, (items) => { setCalendarEvents( items.map((item) => ({ id: item.id, title: item.data.title || "Untitled Event", startDate: item.data.startDate?.toDate?.() ?? new Date(), endDate: item.data.endDate?.toDate?.() ?? addDays(item.data.startDate?.toDate?.() ?? new Date(), 1), type: "event", userId: item.data.userId, color: item.data.color || "#3B82F6", isAllDay: item.data.isAllDay ?? false, description: item.data.description || "", status: undefined, priority: undefined, originalCollection: undefined, })).filter(event => event.startDate && !isNaN(event.startDate.getTime())) ); eventLoaded = true; checkAllLoaded(); }, (error: Error) => { console.error("Error fetching events:", error); eventLoaded = true; checkAllLoaded(); });
         const unsubTasks = onDashboardCollectionSnapshot("tasks", user.uid, (data) => { setDashboardTasks(data); taskLoaded = true; checkAllLoaded(); }, (error: Error) => { console.error("Error fetching tasks:", error); taskLoaded = true; checkAllLoaded(); });
@@ -595,241 +409,59 @@ export function Calendar() {
         return () => { unsubEvents(); unsubTasks(); unsubGoals(); unsubProjects(); unsubPlans(); };
     }, [user?.uid]);
 
-
   // ---------------------------
   //   Event Handlers (Unchanged, except chat submit)
   // ---------------------------
-    // ... (handleToggleSidebar, handlePrev, handleNext, handleToday, handleViewChange, handleDateClick, handleItemClick, handleModalClose, handleFormChange, handleSaveItem, handleDeleteItem, getItemsForDay, getTypeIcon, getDefaultColor remain the same) ...
     const handleToggleSidebar = () => setIsSidebarCollapsed((prev) => !prev);
-    const handlePrev = () => {
-        if (calendarView === "month") setCurrentDate(subMonths(currentDate, 1));
-        else if (calendarView === "week") setCurrentDate(subWeeks(currentDate, 1));
-    };
-    const handleNext = () => {
-        if (calendarView === "month") setCurrentDate(addMonths(currentDate, 1));
-        else if (calendarView === "week") setCurrentDate(addWeeks(currentDate, 1));
-    };
+    const handlePrev = () => { if (calendarView === "month") setCurrentDate(subMonths(currentDate, 1)); else if (calendarView === "week") setCurrentDate(subWeeks(currentDate, 1)); };
+    const handleNext = () => { if (calendarView === "month") setCurrentDate(addMonths(currentDate, 1)); else if (calendarView === "week") setCurrentDate(addWeeks(currentDate, 1)); };
     const handleToday = () => setCurrentDate(new Date());
     const handleViewChange = (view: CalendarView) => setCalendarView(view);
-
-    const handleDateClick = (date: Date) => {
-        setSelectedItem(null);
-        setModalDate(date);
-        const startDate = startOfDay(date); startDate.setHours(9, 0, 0, 0); // Start at 9 AM
-        const endDate = new Date(startDate); endDate.setHours(10, 0, 0, 0); // End at 10 AM
-
-        setItemForm({
-            id: "", title: "", description: "", startDate: startDate, endDate: endDate,
-            isAllDay: false, type: "event", color: "#3B82F6", priority: 'medium',
-            originalCollection: undefined,
-        });
-        setShowModal(true);
-    };
-
-    const handleItemClick = (item: CalendarItem) => {
-        setSelectedItem(item);
-        setModalDate(null);
-
-        setItemForm({
-            id: item.id,
-            title: item.title,
-            description: item.description || "",
-            startDate: item.startDate,
-            endDate: item.endDate,
-            isAllDay: item.isAllDay ?? (item.type !== 'event' && isSameDay(startOfDay(item.startDate), startOfDay(item.endDate))),
-            type: item.type,
-            color: item.color || getDefaultColor(item.type),
-            priority: item.priority || 'medium',
-            originalCollection: item.originalCollection,
-        });
-        setShowModal(true);
-    };
-
-    const handleModalClose = () => {
-        setShowModal(false);
-        setSelectedItem(null);
-        setModalDate(null);
-        setItemForm({
-             id: "", title: "", description: "", startDate: new Date(),
-            endDate: addDays(new Date(), 1), isAllDay: false,
-            type: "event", color: "#3B82F6", priority: 'medium',
-            originalCollection: undefined,
-        });
-    };
-
-    const handleFormChange = (field: keyof typeof itemForm, value: any) => {
-        setItemForm((prev) => {
-            let newState = { ...prev };
-            if (field === 'startDate' || field === 'endDate') {
-                 const parsedDate = parseInputDate(value, prev.isAllDay);
-                 if (parsedDate) newState = { ...newState, [field]: parsedDate };
-                 else return prev;
-            } else {
-                 newState = { ...newState, [field]: value };
-            }
-            if (field === 'isAllDay') {
-                const isNowAllDay = value;
-                newState.isAllDay = isNowAllDay;
-                if (isNowAllDay) {
-                    newState.startDate = startOfDay(prev.startDate);
-                    newState.endDate = startOfDay(prev.endDate);
-                    if (isSameDay(newState.startDate, newState.endDate)) {
-                         newState.endDate = newState.startDate;
-                    }
-                }
-            }
-            if (newState.endDate < newState.startDate) {
-                const newEndDate = new Date(newState.startDate);
-                if (!newState.isAllDay) {
-                    newEndDate.setHours(newEndDate.getHours() + 1);
-                    newState.endDate = newEndDate;
-                } else {
-                    newState.endDate = newState.startDate;
-                }
-            }
-            return newState;
-        });
-    };
+    const handleDateClick = (date: Date) => { setSelectedItem(null); setModalDate(date); const startDate = startOfDay(date); startDate.setHours(9, 0, 0, 0); const endDate = new Date(startDate); endDate.setHours(10, 0, 0, 0); setItemForm({ id: "", title: "", description: "", startDate: startDate, endDate: endDate, isAllDay: false, type: "event", color: "#3B82F6", priority: 'medium', originalCollection: undefined, }); setShowModal(true); };
+    const handleItemClick = (item: CalendarItem) => { setSelectedItem(item); setModalDate(null); setItemForm({ id: item.id, title: item.title, description: item.description || "", startDate: item.startDate, endDate: item.endDate, isAllDay: item.isAllDay ?? (item.type !== 'event' && isSameDay(startOfDay(item.startDate), startOfDay(item.endDate))), type: item.type, color: item.color || getDefaultColor(item.type), priority: item.priority || 'medium', originalCollection: item.originalCollection, }); setShowModal(true); };
+    const handleModalClose = () => { setShowModal(false); setSelectedItem(null); setModalDate(null); setItemForm({ id: "", title: "", description: "", startDate: new Date(), endDate: addDays(new Date(), 1), isAllDay: false, type: "event", color: "#3B82F6", priority: 'medium', originalCollection: undefined, }); };
+    const handleFormChange = (field: keyof typeof itemForm, value: any) => { setItemForm((prev) => { let newState = { ...prev }; if (field === 'startDate' || field === 'endDate') { const parsedDate = parseInputDate(value, prev.isAllDay); if (parsedDate) newState = { ...newState, [field]: parsedDate }; else return prev; } else { newState = { ...newState, [field]: value }; } if (field === 'isAllDay') { const isNowAllDay = value; newState.isAllDay = isNowAllDay; if (isNowAllDay) { newState.startDate = startOfDay(prev.startDate); newState.endDate = startOfDay(prev.endDate); if (isSameDay(newState.startDate, newState.endDate)) { newState.endDate = newState.startDate; } } } if (newState.endDate < newState.startDate) { const newEndDate = new Date(newState.startDate); if (!newState.isAllDay) { newEndDate.setHours(newEndDate.getHours() + 1); newState.endDate = newEndDate; } else { newState.endDate = newState.startDate; } } return newState; }); };
+    const handleSaveItem = async () => { if (!user || !itemForm.title.trim()) return; if (isNaN(itemForm.startDate.getTime()) || isNaN(itemForm.endDate.getTime())) { alert("Invalid date entered."); return; } let dataToSave: any = { userId: user.uid }; const isDashboardItem = itemForm.originalCollection && itemForm.type !== 'event'; if (isDashboardItem) { dataToSave[itemForm.type] = itemForm.title.trim(); dataToSave.dueDate = itemForm.startDate; dataToSave.priority = itemForm.priority; dataToSave.description = itemForm.description.trim(); } else { dataToSave = { ...dataToSave, title: itemForm.title.trim(), description: itemForm.description.trim(), startDate: itemForm.startDate, endDate: itemForm.isAllDay && isSameDay(itemForm.startDate, itemForm.endDate) ? itemForm.startDate : itemForm.endDate, isAllDay: itemForm.isAllDay, color: itemForm.color, type: 'event', }; } try { if (selectedItem) { if (isDashboardItem) { await updateDashboardItem(selectedItem.originalCollection!, selectedItem.id, dataToSave); } else { await updateEvent(selectedItem.id, dataToSave); } } else { await createEvent({...dataToSave, type: 'event'}); } handleModalClose(); } catch (error) { console.error("Error saving item:", error); alert("Failed to save item. Please check console for details."); } };
+    const handleDeleteItem = async () => { if (!selectedItem) return; const confirmDelete = window.confirm(`Delete "${selectedItem.title}"?`); if (!confirmDelete) return; try { if (selectedItem.originalCollection && selectedItem.type !== 'event') { await deleteDashboardItem(selectedItem.originalCollection, selectedItem.id); } else { await deleteEvent(selectedItem.id); } handleModalClose(); } catch (error) { console.error("Error deleting item:", error); alert("Failed to delete item."); } };
+    const getItemsForDay = (date: Date): CalendarItem[] => { const dayStart = startOfDay(date); return allCalendarItems.filter(item => { const itemStart = startOfDay(item.startDate); const itemEnd = startOfDay(item.endDate); return itemStart <= dayStart && itemEnd >= dayStart; }).sort((a, b) => { if (a.isAllDay !== b.isAllDay) return a.isAllDay ? -1 : 1; return a.startDate.getTime() - b.startDate.getTime(); }); };
+    const getTypeIcon = (type: CalendarItem["type"]) => { const iconProps = { className: "w-3.5 h-3.5 flex-shrink-0" }; switch (type) { case "task": return <ListChecks {...iconProps} />; case "goal": return <Target {...iconProps} />; case "project": return <Folder {...iconProps} />; case "plan": return <Timer {...iconProps} />; case "event": default: return <CalendarDays {...iconProps} />; } };
+    const getDefaultColor = (type: CalendarItem["type"]): string => { switch (type) { case "task": return "#EF4444"; case "goal": return "#10B981"; case "project": return "#6366F1"; case "plan": return "#8B5CF6"; case "event": default: return "#3B82F6"; } };
 
 
-    const handleSaveItem = async () => {
-        if (!user || !itemForm.title.trim()) return;
-        if (isNaN(itemForm.startDate.getTime()) || isNaN(itemForm.endDate.getTime())) {
-            alert("Invalid date entered."); return;
-        }
-        let dataToSave: any = { userId: user.uid };
-        const isDashboardItem = itemForm.originalCollection && itemForm.type !== 'event';
-        if (isDashboardItem) {
-             dataToSave[itemForm.type] = itemForm.title.trim();
-             dataToSave.dueDate = itemForm.startDate;
-             dataToSave.priority = itemForm.priority;
-             dataToSave.description = itemForm.description.trim();
-        } else {
-            dataToSave = {
-                ...dataToSave, title: itemForm.title.trim(), description: itemForm.description.trim(),
-                startDate: itemForm.startDate, endDate: itemForm.isAllDay && isSameDay(itemForm.startDate, itemForm.endDate) ? itemForm.startDate : itemForm.endDate,
-                isAllDay: itemForm.isAllDay, color: itemForm.color, type: 'event',
-            };
-        }
-        try {
-            if (selectedItem) {
-                if (isDashboardItem) { await updateDashboardItem(selectedItem.originalCollection!, selectedItem.id, dataToSave); }
-                else { await updateEvent(selectedItem.id, dataToSave); }
-            } else { await createEvent({...dataToSave, type: 'event'}); }
-            handleModalClose();
-        } catch (error) { console.error("Error saving item:", error); alert("Failed to save item. Please check console for details."); }
-    };
-
-    const handleDeleteItem = async () => {
-        if (!selectedItem) return;
-        const confirmDelete = window.confirm(`Delete "${selectedItem.title}"?`); if (!confirmDelete) return;
-        try {
-        if (selectedItem.originalCollection && selectedItem.type !== 'event') { await deleteDashboardItem(selectedItem.originalCollection, selectedItem.id); }
-        else { await deleteEvent(selectedItem.id); } handleModalClose();
-        } catch (error) { console.error("Error deleting item:", error); alert("Failed to delete item."); }
-    };
-
-
-    const getItemsForDay = (date: Date): CalendarItem[] => {
-        const dayStart = startOfDay(date);
-        return allCalendarItems.filter(item => {
-            const itemStart = startOfDay(item.startDate);
-            const itemEnd = startOfDay(item.endDate);
-            return itemStart <= dayStart && itemEnd >= dayStart;
-        }).sort((a, b) => {
-             if (a.isAllDay !== b.isAllDay) return a.isAllDay ? -1 : 1;
-             return a.startDate.getTime() - b.startDate.getTime();
-        });
-    };
-
-    const getTypeIcon = (type: CalendarItem["type"]) => {
-        const iconProps = { className: "w-3.5 h-3.5 flex-shrink-0" };
-        switch (type) {
-            case "task": return <ListChecks {...iconProps} />;
-            case "goal": return <Target {...iconProps} />;
-            case "project": return <Folder {...iconProps} />;
-            case "plan": return <Timer {...iconProps} />;
-            case "event": default: return <CalendarDays {...iconProps} />;
-        }
-    };
-
-    const getDefaultColor = (type: CalendarItem["type"]): string => {
-        switch (type) {
-            case "task": return "#EF4444"; // Red
-            case "goal": return "#10B981"; // Green
-            case "project": return "#6366F1"; // Indigo
-            case "plan": return "#8B5CF6"; // Purple
-            case "event": default: return "#3B82F6"; // Blue
-        }
-    };
-
-    // Format context for AI Chat (INCLUDES AI CONTEXT)
-     const formatCalendarItemsForChat = (): string => {
-        const now = new Date();
-        const sevenDaysFromNow = addDays(now, 7);
-        const relevantItems = allCalendarItems
-            .filter(item => item.endDate >= subDays(now, 1) && item.startDate <= sevenDaysFromNow)
-            .sort((a, b) => a.startDate.getTime() - b.startDate.getTime())
-            .slice(0, 25);
-
-        if (relevantItems.length === 0) return "No scheduled items found for the upcoming week.";
-
-        const formatted = relevantItems.map(item => {
-            const startStr = item.isAllDay ? format(item.startDate, 'EEE, MMM d') : format(item.startDate, 'EEE, MMM d, h:mma');
-            const endStr = item.isAllDay ? (isSameDay(item.startDate, item.endDate) ? '' : ` - ${format(item.endDate, 'EEE, MMM d')}`) : (isSameDay(item.startDate, item.endDate) ? ` - ${format(item.endDate, 'h:mma')}` : ` - ${format(item.endDate, 'EEE, MMM d, h:mma')}`);
-            const duration = differenceInMinutes(item.endDate, item.startDate);
-            const durationStr = item.isAllDay ? "(All Day)" : (duration > 0 ? `(${duration} min)` : '');
-            const status = item.status ? `[Status: ${item.status}]` : '';
-            const priority = item.priority ? `[Priority: ${item.priority}]` : '';
-            return `• ${item.title} (${item.type}) | ${startStr}${endStr} ${durationStr} ${priority} ${status}`;
-        }).join('\n');
-
-        return `Upcoming Schedule Context (approx. next 7 days):\n${formatted}`;
-    };
-
-
-    // --- UPDATED: Handle AI Chat Submit (Includes AI Context) ---
+    // --- UPDATED: AI Chat Submit Handler ---
     const handleCalendarChatSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!chatMessage.trim() || isChatLoading || !geminiApiKey || !user) return;
 
-        // --- Usage Check (Uses central logic) ---
+        // Usage Check
         if (userTier !== 'premium') {
             const currentMonthYear = usageMonth || new Date().toISOString().slice(0, 7);
             const limit = currentChatLimit;
             if (chatCount >= limit) {
                 setChatHistory(prev => [...prev, { id: `cal-limit-${Date.now()}`, role: 'assistant', content: `You've reached your ${limit === Infinity ? 'monthly' : limit} chat message limit. Upgrade for more interactions!`, error: true }]);
-                setChatMessage('');
-                return;
+                setChatMessage(''); return;
             }
         }
-        // --- End Usage Check ---
 
-        const currentMessage = chatMessage;
-        setChatMessage('');
-
+        const currentMessage = chatMessage; setChatMessage('');
         const userMsg: ChatMessage = { id: `user-${Date.now()}`, role: 'user', content: currentMessage };
         setChatHistory(prev => [...prev, userMsg]);
         setIsChatLoading(true);
 
-        // --- Increment Usage Count (Uses central logic) ---
+        // Increment Usage
         if (userTier !== 'premium') {
             const newCount = chatCount + 1;
             const currentMonth = usageMonth || new Date().toISOString().slice(0, 7);
             const limit = currentChatLimit;
-            setChatCount(newCount);
-            setIsChatLimitReached(newCount >= limit);
-            updateUserChatUsage(user.uid, newCount, currentMonth).catch(err => {
-                console.error("CalendarChat: Failed to update chat usage:", err);
-            });
+            setChatCount(newCount); setIsChatLimitReached(newCount >= limit);
+            updateUserChatUsage(user.uid, newCount, currentMonth).catch(err => { console.error("CalendarChat: Failed to update chat usage:", err); });
         }
-        // --- End Increment Logic ---
 
         const conversationHistory = chatHistory.slice(-6).map(m => `${m.role === 'user' ? userName : 'Assistant'}: ${m.content}`).join('\n');
         const calendarContext = formatCalendarItemsForChat();
         const currentDateTime = format(new Date(), 'PPPP p');
 
-        // --- START: Include Universal AI Context in Prompt ---
+        // --- Include Universal AI Context ---
         let aiContextSection = '';
         if (loadedAiContext) {
             aiContextSection += "\n[USER'S UNIVERSAL CONTEXT]\n";
@@ -839,26 +471,22 @@ export function Calendar() {
             if (loadedAiContext.otherContext) aiContextSection += `- Other Notes: ${loadedAiContext.otherContext}\n`;
             aiContextSection += "--- End of Universal Context ---\n";
         }
-        // --- END: Include Universal AI Context ---
-
+        // --- End AI Context ---
 
         const prompt = `
 [CONTEXT]
 User's Name: ${userName}
 Current Date & Time: ${currentDateTime}
 Current Calendar View: ${calendarView} view showing dates around ${format(currentDate, 'MMMM yyyy')}
-${aiContextSection} {/* Inject AI Context Here */}
+${aiContextSection} {/* Inject AI Context */}
 User's Schedule Context (Upcoming/Recent):
 ${calendarContext}
-
 [CONVERSATION HISTORY]
 ${conversationHistory}
-
 [NEW USER MESSAGE]
 ${userName}: ${currentMessage}
 
 You are a helpful AI Scheduling Assistant integrated into a calendar application. Your primary goal is to help ${userName} manage their schedule effectively based *only* on the provided calendar context, user context, and conversation history.
-
 Guidelines:
 1. Focus Strictly on Scheduling: Analyze the provided schedule. Offer insights on time management, potential conflicts, suggest optimal times for activities mentioned by the user, remind them of upcoming items, and answer questions *directly related* to their calendar. Consider the User Context if relevant (e.g., scheduling work tasks vs personal goals).
 2. Use Provided Context: Base your analysis and suggestions *only* on the 'User's Schedule Context', 'User's Universal Context', and the ongoing conversation. Do not invent events or assume knowledge outside this context.
@@ -866,7 +494,6 @@ Guidelines:
 4. Natural Tone: Respond in a friendly, helpful, and natural conversational style.
 5. No External Actions: Do *not* offer to create, edit, or delete calendar items. You are informational and analytical only.
 6. No JSON/Code: Do not output JSON or code blocks.
-
 Respond directly to the user's message following these guidelines.`;
 
         const assistantMsgId = `assistant-${Date.now()}`;
@@ -877,76 +504,34 @@ Respond directly to the user's message following these guidelines.`;
         let finalRawResponseText = "";
 
         try {
-            const geminiOptions = { /* ... same options ... */
-                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { temperature: 0.6, maxOutputTokens: 800 },
-                    safetySettings: [
-                        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-                        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-                        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-                        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-                    ],
-                })
-            };
-
-            await streamResponse(geminiEndpoint, geminiOptions, (rawChunkAccumulated) => { /* ... same streaming logic ... */
-                finalRawResponseText = rawChunkAccumulated;
-                const currentExtractedText = extractCandidateText(rawChunkAccumulated);
-                if (currentExtractedText || accumulatedStreamedText === "...") { // Update if new text or still loading
-                    accumulatedStreamedText = currentExtractedText || "..."; // Keep ellipsis if empty
-                    setChatHistory(prev => prev.map(msg =>
-                        msg.id === assistantMsgId ? { ...msg, content: accumulatedStreamedText } : msg
-                    ));
-                }
-             });
-
-            // Final update after stream ends (Unchanged)
+            const geminiOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.6, maxOutputTokens: 800 }, safetySettings: [ { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }, { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" }, { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }, { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }, ], }) };
+            await streamResponse(geminiEndpoint, geminiOptions, (rawChunkAccumulated) => { finalRawResponseText = rawChunkAccumulated; const currentExtractedText = extractCandidateText(rawChunkAccumulated); if (currentExtractedText || accumulatedStreamedText === "...") { accumulatedStreamedText = currentExtractedText || "..."; setChatHistory(prev => prev.map(msg => msg.id === assistantMsgId ? { ...msg, content: accumulatedStreamedText } : msg )); } });
             const finalExtractedText = extractCandidateText(finalRawResponseText);
-             setChatHistory(prev => prev.map(msg => {
-                 if (msg.id === assistantMsgId) {
-                     const finalContent = finalExtractedText || "Sorry, I couldn't process that request.";
-                     const isError = !finalExtractedText || finalExtractedText.startsWith("Error:");
-                     return { ...msg, content: finalContent, error: isError };
-                 }
-                 return msg;
-             }));
-
-        } catch (err: any) { /* ... same error handling ... */
-            console.error('Calendar Chat Submit Error:', err);
-            const errorMsgContent = `Sorry, I encountered an error${err.message ? ': ' + err.message : '.'} Please try again.`;
-            setChatHistory(prev => prev.map(msg =>
-                 msg.id === assistantMsgId ? { ...msg, content: errorMsgContent, error: true } : msg
-            ));
-        } finally {
-            setIsChatLoading(false);
-        }
+             setChatHistory(prev => prev.map(msg => { if (msg.id === assistantMsgId) { const finalContent = finalExtractedText || "Sorry, I couldn't process that request."; const isError = !finalExtractedText || finalExtractedText.startsWith("Error:"); return { ...msg, content: finalContent, error: isError }; } return msg; }));
+        } catch (err: any) { console.error('Calendar Chat Submit Error:', err); const errorMsgContent = `Sorry, I encountered an error${err.message ? ': ' + err.message : '.'} Please try again.`; setChatHistory(prev => prev.map(msg => msg.id === assistantMsgId ? { ...msg, content: errorMsgContent, error: true } : msg )); }
+        finally { setIsChatLoading(false); }
     };
 
 
   // ---------------------------
   //   Styling Variables (Unchanged)
   // ---------------------------
-  // ... (styling variables remain the same) ...
-    const containerClass = isIlluminateEnabled ? "bg-gray-50 text-gray-900" : isBlackoutEnabled ? "bg-black text-gray-200" : "bg-gray-900 text-gray-200";
-    const cardClass = isIlluminateEnabled ? "bg-white text-gray-900 border border-gray-200/70 shadow-sm" : isBlackoutEnabled ? "bg-gray-900 text-gray-300 border border-gray-700/50" : "bg-gray-800 text-gray-300 border border-gray-700/50";
-    const headingClass = isIlluminateEnabled ? "text-gray-800" : "text-gray-100";
-    const subheadingClass = isIlluminateEnabled ? "text-gray-600" : "text-gray-400";
-    const borderColor = isIlluminateEnabled ? "border-gray-200/70" : "border-gray-700/60"; // Slightly adjusted dark border
-    const inputBg = isIlluminateEnabled ? "bg-gray-100 hover:bg-gray-200/50 border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50" : "bg-gray-700 hover:bg-gray-600/50 border-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50";
-    const iconColor = isIlluminateEnabled ? "text-gray-500 hover:text-gray-700" : "text-gray-400 hover:text-gray-200";
-    const modalClass = isIlluminateEnabled ? "bg-white text-gray-900" : "bg-gray-800 text-gray-200";
-    const buttonPrimaryClass = "bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 shadow hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed";
-    const buttonSecondaryClass = isIlluminateEnabled ? "bg-gray-200 text-gray-700 hover:bg-gray-300" : "bg-gray-700 text-gray-300 hover:bg-gray-600";
-    const buttonDangerClass = isIlluminateEnabled ? "bg-red-100 text-red-700 hover:bg-red-200" : "bg-red-900/50 text-red-300 hover:bg-red-800/60";
-    const buttonDisabledClass = "opacity-50 cursor-not-allowed";
-    const dayCellBaseClass = `relative transition-colors duration-150 overflow-hidden border ${borderColor}`;
-    const dayCellMonthViewClass = "min-h-[90px] sm:min-h-[110px] md:min-h-[120px] lg:min-h-[130px] p-1 md:p-1.5";
-    const dayCellWeekViewClass = "min-h-[250px] sm:min-h-[350px] md:min-h-[450px] lg:min-h-[550px] p-1 md:p-1.5";
-    const dayCellHoverBg = isIlluminateEnabled ? "hover:bg-gray-100/50" : "hover:bg-gray-700/20"; // Subtle hover
-    const illuminateTextBlue = isIlluminateEnabled ? "text-blue-700" : "text-blue-400";
+   const containerClass = isIlluminateEnabled ? "bg-gray-50 text-gray-900" : isBlackoutEnabled ? "bg-black text-gray-200" : "bg-gray-900 text-gray-200";
+   const cardClass = isIlluminateEnabled ? "bg-white text-gray-900 border border-gray-200/70 shadow-sm" : isBlackoutEnabled ? "bg-gray-900 text-gray-300 border border-gray-700/50" : "bg-gray-800 text-gray-300 border border-gray-700/50";
+   const headingClass = isIlluminateEnabled ? "text-gray-800" : "text-gray-100";
+   const subheadingClass = isIlluminateEnabled ? "text-gray-600" : "text-gray-400";
+   const borderColor = isIlluminateEnabled ? "border-gray-200/70" : "border-gray-700/60";
+   const inputBg = isIlluminateEnabled ? "bg-gray-100 hover:bg-gray-200/50 border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50" : "bg-gray-700 hover:bg-gray-600/50 border-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50";
+   const iconColor = isIlluminateEnabled ? "text-gray-500 hover:text-gray-700" : "text-gray-400 hover:text-gray-200";
+   const modalClass = isIlluminateEnabled ? "bg-white text-gray-900" : "bg-gray-800 text-gray-200";
+   const buttonPrimaryClass = "bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 shadow hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed";
+   const buttonSecondaryClass = isIlluminateEnabled ? "bg-gray-200 text-gray-700 hover:bg-gray-300" : "bg-gray-700 text-gray-300 hover:bg-gray-600";
+   const buttonDangerClass = isIlluminateEnabled ? "bg-red-100 text-red-700 hover:bg-red-200" : "bg-red-900/50 text-red-300 hover:bg-red-800/60";
+   const dayCellBaseClass = `relative transition-colors duration-150 overflow-hidden border ${borderColor}`;
+   const dayCellMonthViewClass = "min-h-[90px] sm:min-h-[110px] md:min-h-[120px] lg:min-h-[130px] p-1 md:p-1.5";
+   const dayCellWeekViewClass = "min-h-[250px] sm:min-h-[350px] md:min-h-[450px] lg:min-h-[550px] p-1 md:p-1.5";
+   const dayCellHoverBg = isIlluminateEnabled ? "hover:bg-gray-100/50" : "hover:bg-gray-700/20";
+   const illuminateTextBlue = isIlluminateEnabled ? "text-blue-700" : "text-blue-400";
 
 
   // ---------------------------
@@ -955,14 +540,14 @@ Respond directly to the user's message following these guidelines.`;
   // Loading is handled by the listener completion check
 
   // ---------------------------
-  //   Main Render
+  //   Main Render (Unchanged structure)
   // ---------------------------
   const monthGridDays = getMonthGridDays(currentDate);
   const currentWeekDates = getWeekDates(currentDate);
 
   return (
     <div className={`flex h-screen ${containerClass} font-sans overflow-hidden`}>
-        {/* Sidebar (Unchanged) */}
+        {/* Sidebar */}
       <Sidebar
         isCollapsed={isSidebarCollapsed}
         onToggle={handleToggleSidebar}
@@ -970,82 +555,34 @@ Respond directly to the user's message following these guidelines.`;
         isBlackoutEnabled={isBlackoutEnabled && isSidebarBlackoutEnabled}
         isIlluminateEnabled={isIlluminateEnabled && isSidebarIlluminateEnabled}
       />
-
-        {/* AI Chat Trigger Button (Unchanged) */}
-        <button
-            onClick={() => setIsAiSidebarOpen(true)}
-            className={`fixed bottom-4 md:bottom-6 lg:bottom-8 ${ isSidebarCollapsed ? 'right-4 md:right-6' : 'right-4 md:right-6 lg:right-8' } z-40 p-2.5 rounded-full shadow-lg transition-all duration-300 transform hover:scale-110 active:scale-100 ${ isIlluminateEnabled ? 'bg-white border border-gray-300 text-blue-600 hover:bg-gray-100' : 'bg-gradient-to-br from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700' } ${isAiSidebarOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
-            title="Open Scheduling Assistant" aria-label="Open Scheduling Assistant AI Chat" >
-            <BrainCircuit className="w-5 h-5" />
-        </button>
+        {/* AI Chat Trigger Button */}
+        <button onClick={() => setIsAiSidebarOpen(true)} className={`fixed bottom-4 md:bottom-6 lg:bottom-8 ${ isSidebarCollapsed ? 'right-4 md:right-6' : 'right-4 md:right-6 lg:right-8' } z-40 p-2.5 rounded-full shadow-lg transition-all duration-300 transform hover:scale-110 active:scale-100 ${ isIlluminateEnabled ? 'bg-white border border-gray-300 text-blue-600 hover:bg-gray-100' : 'bg-gradient-to-br from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700' } ${isAiSidebarOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`} title="Open Scheduling Assistant" aria-label="Open Scheduling Assistant AI Chat" > <BrainCircuit className="w-5 h-5" /> </button>
 
       <main className={`flex-1 flex flex-col transition-all duration-300 ${isSidebarCollapsed ? "md:ml-20" : "md:ml-64"} ml-0`}>
-        {/* Calendar Header (Unchanged) */}
-        <header className={`p-3 md:p-4 border-b ${borderColor} flex-shrink-0`}>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <div className="flex items-center gap-2 sm:gap-4"> <h1 className={`text-lg sm:text-xl md:text-2xl font-bold ${headingClass} whitespace-nowrap truncate`}> {calendarView === "month" ? format(currentDate, "MMMM yyyy") : ( <> {format(startOfWeek(currentDate), 'MMM d')} - {format(endOfWeek(currentDate), 'MMM d, yyyy')} </> )} </h1> <div className="flex items-center gap-1"> <button onClick={handlePrev} className={`p-1.5 rounded ${iconColor} hover:bg-gray-500/10`} title="Previous Period"> <ChevronLeft className="w-4 h-4" /> </button> <button onClick={handleToday} className={`px-2 py-1 rounded text-xs ${buttonSecondaryClass} transition-colors`} title="Go to Today"> Today </button> <button onClick={handleNext} className={`p-1.5 rounded ${iconColor} hover:bg-gray-500/10`} title="Next Period"> <ChevronRight className="w-4 h-4" /> </button> </div> </div>
-                <div className="flex items-center gap-2 sm:gap-3 justify-between sm:justify-end"> <div className={`${buttonSecondaryClass} p-0.5 rounded-full flex text-xs font-medium`}> <button onClick={() => handleViewChange('month')} className={`px-2.5 py-0.5 rounded-full transition-colors duration-150 ${calendarView === 'month' ? (isIlluminateEnabled ? 'bg-white shadow-sm text-blue-600' : 'bg-gray-600 shadow-sm text-white') : 'hover:bg-gray-500/10'}`}> Month </button> <button onClick={() => handleViewChange('week')} className={`px-2.5 py-0.5 rounded-full transition-colors duration-150 ${calendarView === 'week' ? (isIlluminateEnabled ? 'bg-white shadow-sm text-blue-600' : 'bg-gray-600 shadow-sm text-white') : 'hover:bg-gray-500/10'}`}> Week </button> </div> <button onClick={() => handleDateClick(new Date())} className={`flex items-center gap-1 px-3 py-1.5 ${buttonPrimaryClass} rounded-full text-xs sm:text-sm shadow-sm transform hover:scale-105 active:scale-100`}> <Plus className="w-3.5 h-3.5" /> New </button> </div>
-            </div>
-        </header>
+        {/* Calendar Header */}
+        <header className={`p-3 md:p-4 border-b ${borderColor} flex-shrink-0`}> <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"> <div className="flex items-center gap-2 sm:gap-4"> <h1 className={`text-lg sm:text-xl md:text-2xl font-bold ${headingClass} whitespace-nowrap truncate`}> {calendarView === "month" ? format(currentDate, "MMMM yyyy") : ( <> {format(startOfWeek(currentDate), 'MMM d')} - {format(endOfWeek(currentDate), 'MMM d, yyyy')} </> )} </h1> <div className="flex items-center gap-1"> <button onClick={handlePrev} className={`p-1.5 rounded ${iconColor} hover:bg-gray-500/10`} title="Previous Period"> <ChevronLeft className="w-4 h-4" /> </button> <button onClick={handleToday} className={`px-2 py-1 rounded text-xs ${buttonSecondaryClass} transition-colors`} title="Go to Today"> Today </button> <button onClick={handleNext} className={`p-1.5 rounded ${iconColor} hover:bg-gray-500/10`} title="Next Period"> <ChevronRight className="w-4 h-4" /> </button> </div> </div> <div className="flex items-center gap-2 sm:gap-3 justify-between sm:justify-end"> <div className={`${buttonSecondaryClass} p-0.5 rounded-full flex text-xs font-medium`}> <button onClick={() => handleViewChange('month')} className={`px-2.5 py-0.5 rounded-full transition-colors duration-150 ${calendarView === 'month' ? (isIlluminateEnabled ? 'bg-white shadow-sm text-blue-600' : 'bg-gray-600 shadow-sm text-white') : 'hover:bg-gray-500/10'}`}> Month </button> <button onClick={() => handleViewChange('week')} className={`px-2.5 py-0.5 rounded-full transition-colors duration-150 ${calendarView === 'week' ? (isIlluminateEnabled ? 'bg-white shadow-sm text-blue-600' : 'bg-gray-600 shadow-sm text-white') : 'hover:bg-gray-500/10'}`}> Week </button> </div> <button onClick={() => handleDateClick(new Date())} className={`flex items-center gap-1 px-3 py-1.5 ${buttonPrimaryClass} rounded-full text-xs sm:text-sm shadow-sm transform hover:scale-105 active:scale-100`}> <Plus className="w-3.5 h-3.5" /> New </button> </div> </div> </header>
 
-        {/* Calendar Grid Area (Unchanged JSX logic) */}
+        {/* Calendar Grid Area */}
         <div className="flex-1 overflow-auto p-1.5 md:p-2 lg:p-3 relative">
            <div className="grid grid-cols-7 gap-1 md:gap-2 lg:gap-3 sticky top-0 z-10 py-1.5 backdrop-blur-sm mb-1" style={{ backgroundColor: isIlluminateEnabled ? 'rgba(249, 250, 251, 0.8)' : 'rgba(17, 24, 39, 0.8)'}}> {getWeekDates(currentDate).map(day => ( <div key={getDay(day)} className={`text-center text-xs font-semibold ${subheadingClass} ${isSameDay(day, new Date()) ? (isIlluminateEnabled ? 'text-blue-600' : 'text-blue-400') : ''}`}> {format(day, 'EEE')} <span className={`ml-1 ${isMobile ? 'hidden' : 'inline'}`}>{format(day, 'd')}</span> </div> ))} </div>
            {/* Grid Content */}
-           {loading ? (
-               <div className="absolute inset-0 flex items-center justify-center bg-opacity-50" style={{ backgroundColor: isIlluminateEnabled ? 'rgba(249, 250, 251, 0.5)' : 'rgba(17, 24, 39, 0.5)'}}>
-                   <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-               </div>
-           ) : calendarView === 'month' ? (
-                <div className="grid grid-cols-7 grid-rows-6 gap-px">
-                {monthGridDays.map((day) => {
-                    const dayItems = getItemsForDay(day); const isToday = isSameDay(day, new Date()); const isCurrentMonth = isSameMonth(day, currentDate); const cellBg = isToday ? (isIlluminateEnabled ? 'bg-blue-50/70' : 'bg-blue-900/20') : (isIlluminateEnabled ? 'bg-white' : 'bg-gray-800/20');
-                    return (
-                    <div key={day.toISOString()} onClick={() => handleDateClick(day)} className={`${dayCellBaseClass} ${dayCellMonthViewClass} ${cellBg} ${!isCurrentMonth ? 'bg-opacity-60 opacity-60' : ''} ${dayCellHoverBg} cursor-pointer flex flex-col group`}>
-                        <span className={`text-xs font-medium mb-1 self-end p-0.5 ${isToday ? `bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center` : (isCurrentMonth ? headingClass : subheadingClass)}`}>{format(day, "d")}</span>
-                        <div className="flex-1 space-y-0.5 overflow-hidden">
-                            {dayItems.slice(0, isMobile ? 1 : 3).map((item) => ( <button key={item.id} onClick={(e) => { e.stopPropagation(); handleItemClick(item); }} title={item.title} className={`w-full text-left px-1 py-0.5 rounded text-[10px] md:text-[11px] flex items-center gap-1 truncate transition-colors duration-150 ${item.status === 'completed' ? 'line-through opacity-60' : ''}`} style={{ backgroundColor: `${item.color || getDefaultColor(item.type)}1A`, color: isIlluminateEnabled ? darkenColor(item.color || getDefaultColor(item.type), 20) : lightenColor(item.color || getDefaultColor(item.type), 30), borderLeft: `2px solid ${item.color || getDefaultColor(item.type)}` }}> {getTypeIcon(item.type)} <span className="truncate flex-grow font-medium">{item.title}</span> {item.priority === 'high' && !item.isAllDay && ( <PriorityBadge priority={item.priority} isIlluminateEnabled={isIlluminateEnabled} compact className="ml-auto flex-shrink-0 scale-[65%]" /> )} </button> ))}
-                            {dayItems.length > (isMobile ? 1 : 3) && ( <div className={`text-[9px] text-center ${subheadingClass} mt-0.5`}> +{dayItems.length - (isMobile ? 1 : 3)} more </div> )}
-                        </div>
-                    </div> ); })} </div>
-            ) : ( // Week View
-                 <div className="grid grid-cols-7 gap-px">
-                 {currentWeekDates.map((day) => {
-                     const dayItems = getItemsForDay(day); const isToday = isSameDay(day, new Date()); const cellBg = isToday ? (isIlluminateEnabled ? 'bg-blue-50/70' : 'bg-blue-900/20') : (isIlluminateEnabled ? 'bg-white' : 'bg-gray-800/20');
-                     return (
-                         <div key={day.toISOString()} onClick={() => handleDateClick(day)} className={`${dayCellBaseClass} ${dayCellWeekViewClass} ${cellBg} ${dayCellHoverBg} cursor-pointer flex flex-col`}>
-                            <div className="flex-1 space-y-1 overflow-auto p-1 scrollbar-thin scrollbar-thumb-gray-400/50 scrollbar-track-transparent">
-                                {dayItems.length === 0 && ( <div className={`text-xs text-center italic ${subheadingClass} mt-4`}>No items</div> )}
-                                {dayItems.map((item) => ( <button key={item.id} onClick={(e) => { e.stopPropagation(); handleItemClick(item); }} title={`${item.title}\n${item.isAllDay ? 'All Day' : format(item.startDate, 'h:mm a') + (isSameDay(item.startDate, item.endDate) ? '' : ' (' + format(item.startDate, 'MMM d') + ')') + ' - ' + format(item.endDate, 'h:mm a') + (isSameDay(item.startDate, item.endDate) ? '' : ' (' + format(item.endDate, 'MMM d') + ')')}`} className={`w-full text-left px-1.5 py-1 rounded text-xs flex items-center gap-1.5 transition-colors duration-150 ${item.status === 'completed' ? 'line-through opacity-60' : ''} ${item.isAllDay ? 'my-0.5 font-semibold' : ''}`} style={{ backgroundColor: `${item.color || getDefaultColor(item.type)}1A`, color: isIlluminateEnabled ? darkenColor(item.color || getDefaultColor(item.type), 20) : lightenColor(item.color || getDefaultColor(item.type), 30), borderLeft: `2px solid ${item.color || getDefaultColor(item.type)}` }}> {getTypeIcon(item.type)} <div className="flex-grow truncate"> <span>{item.title}</span> {!item.isAllDay && ( <span className={`ml-1 text-[10px] opacity-80`}>{format(item.startDate, 'h:mma')}</span> )} </div> {item.priority === 'high' && ( <PriorityBadge priority={item.priority} isIlluminateEnabled={isIlluminateEnabled} compact className="ml-auto flex-shrink-0 scale-[65%]" /> )} </button> ))}
-                             </div>
-                         </div> ); })} </div>
-            )}
+           {loading ? ( <div className="absolute inset-0 flex items-center justify-center bg-opacity-50" style={{ backgroundColor: isIlluminateEnabled ? 'rgba(249, 250, 251, 0.5)' : 'rgba(17, 24, 39, 0.5)'}}> <Loader2 className="w-8 h-8 animate-spin text-blue-500" /> </div> ) :
+            calendarView === 'month' ? ( <div className="grid grid-cols-7 grid-rows-6 gap-px"> {monthGridDays.map((day) => { const dayItems = getItemsForDay(day); const isToday = isSameDay(day, new Date()); const isCurrentMonth = isSameMonth(day, currentDate); const cellBg = isToday ? (isIlluminateEnabled ? 'bg-blue-50/70' : 'bg-blue-900/20') : (isIlluminateEnabled ? 'bg-white' : 'bg-gray-800/20'); return ( <div key={day.toISOString()} onClick={() => handleDateClick(day)} className={`${dayCellBaseClass} ${dayCellMonthViewClass} ${cellBg} ${!isCurrentMonth ? 'bg-opacity-60 opacity-60' : ''} ${dayCellHoverBg} cursor-pointer flex flex-col group`}> <span className={`text-xs font-medium mb-1 self-end p-0.5 ${isToday ? `bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center` : (isCurrentMonth ? headingClass : subheadingClass)}`}>{format(day, "d")}</span> <div className="flex-1 space-y-0.5 overflow-hidden"> {dayItems.slice(0, isMobile ? 1 : 3).map((item) => ( <button key={item.id} onClick={(e) => { e.stopPropagation(); handleItemClick(item); }} title={item.title} className={`w-full text-left px-1 py-0.5 rounded text-[10px] md:text-[11px] flex items-center gap-1 truncate transition-colors duration-150 ${item.status === 'completed' ? 'line-through opacity-60' : ''}`} style={{ backgroundColor: `${item.color || getDefaultColor(item.type)}1A`, color: isIlluminateEnabled ? darkenColor(item.color || getDefaultColor(item.type), 20) : lightenColor(item.color || getDefaultColor(item.type), 30), borderLeft: `2px solid ${item.color || getDefaultColor(item.type)}` }}> {getTypeIcon(item.type)} <span className="truncate flex-grow font-medium">{item.title}</span> {item.priority === 'high' && !item.isAllDay && ( <PriorityBadge priority={item.priority} isIlluminateEnabled={isIlluminateEnabled} compact className="ml-auto flex-shrink-0 scale-[65%]" /> )} </button> ))} {dayItems.length > (isMobile ? 1 : 3) && ( <div className={`text-[9px] text-center ${subheadingClass} mt-0.5`}> +{dayItems.length - (isMobile ? 1 : 3)} more </div> )} </div> </div> ); })} </div> ) :
+            ( <div className="grid grid-cols-7 gap-px"> {currentWeekDates.map((day) => { const dayItems = getItemsForDay(day); const isToday = isSameDay(day, new Date()); const cellBg = isToday ? (isIlluminateEnabled ? 'bg-blue-50/70' : 'bg-blue-900/20') : (isIlluminateEnabled ? 'bg-white' : 'bg-gray-800/20'); return ( <div key={day.toISOString()} onClick={() => handleDateClick(day)} className={`${dayCellBaseClass} ${dayCellWeekViewClass} ${cellBg} ${dayCellHoverBg} cursor-pointer flex flex-col`}> <div className="flex-1 space-y-1 overflow-auto p-1 scrollbar-thin scrollbar-thumb-gray-400/50 scrollbar-track-transparent"> {dayItems.length === 0 && ( <div className={`text-xs text-center italic ${subheadingClass} mt-4`}>No items</div> )} {dayItems.map((item) => ( <button key={item.id} onClick={(e) => { e.stopPropagation(); handleItemClick(item); }} title={`${item.title}\n${item.isAllDay ? 'All Day' : format(item.startDate, 'h:mm a') + (isSameDay(item.startDate, item.endDate) ? '' : ' (' + format(item.startDate, 'MMM d') + ')') + ' - ' + format(item.endDate, 'h:mm a') + (isSameDay(item.startDate, item.endDate) ? '' : ' (' + format(item.endDate, 'MMM d') + ')')}`} className={`w-full text-left px-1.5 py-1 rounded text-xs flex items-center gap-1.5 transition-colors duration-150 ${item.status === 'completed' ? 'line-through opacity-60' : ''} ${item.isAllDay ? 'my-0.5 font-semibold' : ''}`} style={{ backgroundColor: `${item.color || getDefaultColor(item.type)}1A`, color: isIlluminateEnabled ? darkenColor(item.color || getDefaultColor(item.type), 20) : lightenColor(item.color || getDefaultColor(item.type), 30), borderLeft: `2px solid ${item.color || getDefaultColor(item.type)}` }}> {getTypeIcon(item.type)} <div className="flex-grow truncate"> <span>{item.title}</span> {!item.isAllDay && ( <span className={`ml-1 text-[10px] opacity-80`}>{format(item.startDate, 'h:mma')}</span> )} </div> {item.priority === 'high' && ( <PriorityBadge priority={item.priority} isIlluminateEnabled={isIlluminateEnabled} compact className="ml-auto flex-shrink-0 scale-[65%]" /> )} </button> ))} </div> </div> ); })} </div> )}
         </div>
 
         {/* Item Detail / Edit Modal (Unchanged) */}
-        {showModal && ( <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn"> <div className={`${modalClass} rounded-xl shadow-2xl p-5 md:p-6 max-w-lg w-full mx-auto max-h-[90vh] flex flex-col`}>
-              <div className="flex items-center justify-between mb-4 pb-3 border-b ${borderColor} flex-shrink-0"> <div className="flex items-center gap-2"> <span className="p-1.5 rounded-full" style={{ backgroundColor: `${itemForm.color || getDefaultColor(itemForm.type)}20`}}>{getTypeIcon(itemForm.type)}</span> <h3 className={`text-lg font-semibold ${headingClass}`}> {selectedItem ? "Edit Item" : "New Item"} </h3> </div> <button onClick={handleModalClose} className={`p-1.5 rounded-full ${iconColor} hover:bg-gray-500/10`} aria-label="Close modal"> <X className="w-5 h-5" /> </button> </div>
-               <div className="space-y-4 overflow-y-auto flex-grow pr-1 scrollbar-thin scrollbar-thumb-gray-400/50 scrollbar-track-transparent">
-                 <div> <label htmlFor="itemTitle" className="block text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">Title</label> <input id="itemTitle" type="text" value={itemForm.title} onChange={(e) => handleFormChange('title', e.target.value)} className={`w-full ${inputBg} rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent focus:ring-blue-500 border ${borderColor}`} placeholder={ itemForm.type ? `Enter ${itemForm.type} title` : "Enter title"} /> </div>
-                 <div className="flex items-center gap-2 justify-between pt-2"> <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Time</span> <label className="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-gray-500 dark:text-gray-400"> All-day <input type="checkbox" checked={itemForm.isAllDay} onChange={(e) => handleFormChange('isAllDay', e.target.checked)} className="form-checkbox h-4 w-4 text-blue-500 rounded focus:ring-blue-400 border-gray-400 dark:border-gray-600 bg-transparent dark:checked:bg-blue-500" /> </label> </div>
-                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"> <div> <label htmlFor="startDate" className="sr-only">Start Date/Time</label> <input id="startDate" type={itemForm.isAllDay ? "date" : "datetime-local"} value={formatDateForInput(itemForm.startDate, itemForm.isAllDay)} onChange={(e) => handleFormChange('startDate', e.target.value)} className={`w-full ${inputBg} rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent focus:ring-blue-500 border ${borderColor}`} style={{ colorScheme: isIlluminateEnabled ? 'light' : 'dark' }} /> </div> <div> <label htmlFor="endDate" className="sr-only">End Date/Time</label> <input id="endDate" type={itemForm.isAllDay ? "date" : "datetime-local"} value={formatDateForInput(itemForm.endDate, itemForm.isAllDay)} min={formatDateForInput(itemForm.startDate, itemForm.isAllDay)} onChange={(e) => handleFormChange('endDate', e.target.value)} className={`w-full ${inputBg} rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent focus:ring-blue-500 border ${borderColor}`} style={{ colorScheme: isIlluminateEnabled ? 'light' : 'dark' }} /> </div> </div>
-                 {(itemForm.originalCollection || itemForm.type !== 'event') && ( <div> <label htmlFor="itemPriority" className="block text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">Priority</label> <select id="itemPriority" value={itemForm.priority} onChange={(e) => handleFormChange('priority', e.target.value as typeof itemForm.priority)} className={`w-full ${inputBg} rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent focus:ring-blue-500 border ${borderColor} appearance-none bg-no-repeat bg-right`} style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundSize: '1.2em 1.2em' }} disabled={!itemForm.originalCollection && itemForm.type === 'event'}> <option value="high">High 🔥</option> <option value="medium">Medium</option> <option value="low">Low 🧊</option> </select> </div> )}
-                 <div> <label htmlFor="itemDescription" className="block text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">Description</label> <textarea id="itemDescription" value={itemForm.description} onChange={(e) => handleFormChange('description', e.target.value)} className={`w-full ${inputBg} rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent focus:ring-blue-500 border ${borderColor}`} placeholder="Add notes or details..." rows={3} /> </div>
-                 {itemForm.type === 'event' && ( <div> <label className="block text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">Color Tag</label> <div className="flex flex-wrap gap-2"> {["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899"].map((color) => ( <button key={color} onClick={() => handleFormChange('color', color)} className={`w-6 h-6 rounded-full transition-transform transform border-2 ${itemForm.color === color ? `scale-110 ring-2 ring-offset-2 ${isIlluminateEnabled ? 'ring-offset-white' : 'ring-offset-gray-800'} ring-current` : 'border-transparent hover:scale-110'}`} style={{ backgroundColor: color, color: color }} aria-label={`Select color ${color}`} /> ))} </div> </div> )}
-               </div>
-              <div className="flex flex-wrap justify-between items-center mt-5 pt-4 border-t ${borderColor} flex-shrink-0 gap-2"> <div> {selectedItem && ( <button onClick={handleDeleteItem} className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm ${buttonDangerClass} flex items-center gap-1`}> <Trash className="w-3.5 h-3.5" /> Delete </button> )} </div> <div className="flex gap-2"> <button onClick={handleModalClose} className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm ${buttonSecondaryClass}`}> Cancel </button> <button onClick={handleSaveItem} disabled={!itemForm.title.trim()} className={`px-4 py-1.5 rounded-lg text-xs sm:text-sm ${buttonPrimaryClass}`}> {selectedItem ? "Save Changes" : "Create Item"} </button> </div> </div>
-            </div> </div>
-        )}
+        {showModal && ( <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn"> <div className={`${modalClass} rounded-xl shadow-2xl p-5 md:p-6 max-w-lg w-full mx-auto max-h-[90vh] flex flex-col`}> <div className="flex items-center justify-between mb-4 pb-3 border-b ${borderColor} flex-shrink-0"> <div className="flex items-center gap-2"> <span className="p-1.5 rounded-full" style={{ backgroundColor: `${itemForm.color || getDefaultColor(itemForm.type)}20`}}>{getTypeIcon(itemForm.type)}</span> <h3 className={`text-lg font-semibold ${headingClass}`}> {selectedItem ? "Edit Item" : "New Item"} </h3> </div> <button onClick={handleModalClose} className={`p-1.5 rounded-full ${iconColor} hover:bg-gray-500/10`} aria-label="Close modal"> <X className="w-5 h-5" /> </button> </div> <div className="space-y-4 overflow-y-auto flex-grow pr-1 scrollbar-thin scrollbar-thumb-gray-400/50 scrollbar-track-transparent"> <div> <label htmlFor="itemTitle" className="block text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">Title</label> <input id="itemTitle" type="text" value={itemForm.title} onChange={(e) => handleFormChange('title', e.target.value)} className={`w-full ${inputBg} rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent focus:ring-blue-500 border ${borderColor}`} placeholder={ itemForm.type ? `Enter ${itemForm.type} title` : "Enter title"} /> </div> <div className="flex items-center gap-2 justify-between pt-2"> <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Time</span> <label className="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-gray-500 dark:text-gray-400"> All-day <input type="checkbox" checked={itemForm.isAllDay} onChange={(e) => handleFormChange('isAllDay', e.target.checked)} className="form-checkbox h-4 w-4 text-blue-500 rounded focus:ring-blue-400 border-gray-400 dark:border-gray-600 bg-transparent dark:checked:bg-blue-500" /> </label> </div> <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"> <div> <label htmlFor="startDate" className="sr-only">Start Date/Time</label> <input id="startDate" type={itemForm.isAllDay ? "date" : "datetime-local"} value={formatDateForInput(itemForm.startDate, itemForm.isAllDay)} onChange={(e) => handleFormChange('startDate', e.target.value)} className={`w-full ${inputBg} rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent focus:ring-blue-500 border ${borderColor}`} style={{ colorScheme: isIlluminateEnabled ? 'light' : 'dark' }} /> </div> <div> <label htmlFor="endDate" className="sr-only">End Date/Time</label> <input id="endDate" type={itemForm.isAllDay ? "date" : "datetime-local"} value={formatDateForInput(itemForm.endDate, itemForm.isAllDay)} min={formatDateForInput(itemForm.startDate, itemForm.isAllDay)} onChange={(e) => handleFormChange('endDate', e.target.value)} className={`w-full ${inputBg} rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent focus:ring-blue-500 border ${borderColor}`} style={{ colorScheme: isIlluminateEnabled ? 'light' : 'dark' }} /> </div> </div> {(itemForm.originalCollection || itemForm.type !== 'event') && ( <div> <label htmlFor="itemPriority" className="block text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">Priority</label> <select id="itemPriority" value={itemForm.priority} onChange={(e) => handleFormChange('priority', e.target.value as typeof itemForm.priority)} className={`w-full ${inputBg} rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent focus:ring-blue-500 border ${borderColor} appearance-none bg-no-repeat bg-right`} style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundSize: '1.2em 1.2em' }} disabled={!itemForm.originalCollection && itemForm.type === 'event'}> <option value="high">High 🔥</option> <option value="medium">Medium</option> <option value="low">Low 🧊</option> </select> </div> )} <div> <label htmlFor="itemDescription" className="block text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">Description</label> <textarea id="itemDescription" value={itemForm.description} onChange={(e) => handleFormChange('description', e.target.value)} className={`w-full ${inputBg} rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent focus:ring-blue-500 border ${borderColor}`} placeholder="Add notes or details..." rows={3} /> </div> {itemForm.type === 'event' && ( <div> <label className="block text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">Color Tag</label> <div className="flex flex-wrap gap-2"> {["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899"].map((color) => ( <button key={color} onClick={() => handleFormChange('color', color)} className={`w-6 h-6 rounded-full transition-transform transform border-2 ${itemForm.color === color ? `scale-110 ring-2 ring-offset-2 ${isIlluminateEnabled ? 'ring-offset-white' : 'ring-offset-gray-800'} ring-current` : 'border-transparent hover:scale-110'}`} style={{ backgroundColor: color, color: color }} aria-label={`Select color ${color}`} /> ))} </div> </div> )} </div> <div className="flex flex-wrap justify-between items-center mt-5 pt-4 border-t ${borderColor} flex-shrink-0 gap-2"> <div> {selectedItem && ( <button onClick={handleDeleteItem} className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm ${buttonDangerClass} flex items-center gap-1`}> <Trash className="w-3.5 h-3.5" /> Delete </button> )} </div> <div className="flex gap-2"> <button onClick={handleModalClose} className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm ${buttonSecondaryClass}`}> Cancel </button> <button onClick={handleSaveItem} disabled={!itemForm.title.trim()} className={`px-4 py-1.5 rounded-lg text-xs sm:text-sm ${buttonPrimaryClass}`}> {selectedItem ? "Save Changes" : "Create Item"} </button> </div> </div> </div> </div> )}
 
          {/* AI Chat Sidebar (UPDATED Usage Display) */}
-            <div aria-hidden={!isAiSidebarOpen} className={`fixed top-0 right-0 h-full w-full max-w-sm md:max-w-md lg:max-w-[440px] z-50 transform transition-transform duration-300 ease-in-out ${ isAiSidebarOpen ? 'translate-x-0' : 'translate-x-full' } ${cardClass} flex flex-col shadow-2xl border-l ${borderColor}`} role="complementary" aria-labelledby="ai-calendar-sidebar-title" >
+         <div aria-hidden={!isAiSidebarOpen} className={`fixed top-0 right-0 h-full w-full max-w-sm md:max-w-md lg:max-w-[440px] z-50 transform transition-transform duration-300 ease-in-out ${ isAiSidebarOpen ? 'translate-x-0' : 'translate-x-full' } ${cardClass} flex flex-col shadow-2xl border-l ${borderColor}`} role="complementary" aria-labelledby="ai-calendar-sidebar-title" >
                 {/* Sidebar Header */}
                 <div className={`p-3 sm:p-4 border-b ${borderColor} ${isIlluminateEnabled ? 'bg-gray-100/80' : 'bg-gray-800/90'} flex justify-between items-center flex-shrink-0 sticky top-0 backdrop-blur-sm z-10`}> <h3 id="ai-calendar-sidebar-title" className={`text-base sm:text-lg font-semibold flex items-center gap-2 ${illuminateTextBlue}`}> <BrainCircuit className="w-5 h-5" /> Scheduling Assistant </h3> <button onClick={() => setIsAiSidebarOpen(false)} className={`${iconColor} p-1 rounded-full hover:bg-gray-500/10 transition-colors transform hover:scale-110 active:scale-100`} title="Close Chat" aria-label="Close AI Chat Sidebar" > <X className="w-5 h-5" /> </button> </div>
                 {/* Chat History Area */}
                 <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-400/50 scrollbar-track-transparent" ref={chatEndRef}> {chatHistory.map((message, index) => ( <div key={message.id || index} className={`flex ${ message.role === 'user' ? 'justify-end' : 'justify-start' } animate-fadeIn`} style={{ animationDelay: `${index * 30}ms`, animationDuration: '300ms' }} > <div className={`max-w-[85%] rounded-lg px-3 py-1.5 text-sm shadow-sm break-words ${ message.role === 'user' ? (isIlluminateEnabled ? 'bg-blue-500 text-white' : 'bg-blue-600 text-white') : message.error ? (isIlluminateEnabled ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-red-900/30 text-red-300 border border-red-700/50') : (isIlluminateEnabled ? 'bg-gray-100 text-gray-800 border border-gray-200/80' : 'bg-gray-700/80 text-gray-200 border border-gray-600/50') }`} > {message.content && message.content !== "..." ? ( <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]} className={`prose prose-sm max-w-none ${isIlluminateEnabled ? 'prose-gray' : 'prose-invert'} text-current`} components={{ /* Add components if needed */ }} > {message.content} </ReactMarkdown> ) : (isChatLoading && index === chatHistory.length - 1 && message.content === "...") ? ( <div className="flex space-x-1 p-1"> <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce opacity-60"></div> <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce delay-100 opacity-60"></div> <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce delay-200 opacity-60"></div> </div> ) : null } </div> </div> ))} {isChatLoading && chatHistory[chatHistory.length - 1]?.content !== "..." && ( <div className="flex justify-start animate-fadeIn"> <div className={`${ isIlluminateEnabled ? 'bg-gray-100 border border-gray-200/80' : 'bg-gray-700/80 border border-gray-600/50' } rounded-lg px-3 py-1.5 max-w-[85%] shadow-sm`}> <div className="flex space-x-1 p-1"> <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></div> <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce delay-100"></div> <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce delay-200"></div> </div> </div> </div> )} <div ref={chatEndRef} /> </div>
-                {/* Chat Input Form (UPDATED) */}
+                {/* Chat Input Form */}
                 <div className={`p-2 sm:p-3 border-t ${borderColor} ${isIlluminateEnabled ? 'bg-gray-100/80' : 'bg-gray-800/90'} flex-shrink-0 sticky bottom-0 backdrop-blur-sm`}>
-                    {/* Usage Display */}
+                     {/* Usage Display */}
                     {userTier !== 'premium' && userTier !== 'loading' && (
                         <div className="pb-1.5 text-xs text-center">
                             <span className={isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}>
@@ -1056,18 +593,19 @@ Respond directly to the user's message following these guidelines.`;
                     )}
                     <form onSubmit={handleCalendarChatSubmit} >
                         <div className="flex gap-1.5 items-center">
-                            <input type="text" value={chatMessage} onChange={(e) => setChatMessage(e.target.value)} placeholder={isChatLimitReached ? "Monthly chat limit reached..." : "Ask about your schedule..."} className={`flex-1 ${inputBg} border ${borderColor} rounded-full px-4 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-150 shadow-sm placeholder-gray-400 dark:placeholder-gray-500 disabled:opacity-60 ${isChatLimitReached || isLoadingUsage ? 'cursor-not-allowed' : ''}`} disabled={isChatLoading || isChatLimitReached || isLoadingUsage} aria-label="Chat input" />
-                            <button type="submit" disabled={isChatLoading || isLoadingUsage || !chatMessage.trim() || isChatLimitReached} className={`bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-100 shadow-sm flex-shrink-0 ${isChatLimitReached || isLoadingUsage ? 'cursor-not-allowed' : ''}`} title="Send Message" aria-label="Send chat message" > {isChatLoading ? ( <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> ) : ( <Send className="w-4 h-4" /> )} </button>
+                            <input type="text" value={chatMessage} onChange={(e) => setChatMessage(e.target.value)} placeholder={isChatLimitReached ? "Monthly chat limit reached..." : "Ask about your schedule..."} className={`flex-1 ${inputBg} border ${borderColor} rounded-full px-4 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-150 shadow-sm placeholder-gray-400 dark:placeholder-gray-500 disabled:opacity-60 ${isChatLimitReached || isLoadingUsage || isLoadingAiContext ? 'cursor-not-allowed' : ''}`} disabled={isChatLoading || isChatLimitReached || isLoadingUsage || isLoadingAiContext} aria-label="Chat input" />
+                            <button type="submit" disabled={isChatLoading || isLoadingUsage || !chatMessage.trim() || isChatLimitReached || isLoadingAiContext} className={`bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-100 shadow-sm flex-shrink-0 ${isChatLimitReached || isLoadingUsage || isLoadingAiContext ? 'cursor-not-allowed' : ''}`} title="Send Message" aria-label="Send chat message" > {isChatLoading ? ( <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> ) : ( <Send className="w-4 h-4" /> )} </button>
                         </div>
                     </form>
                 </div>
             </div> {/* End AI Chat Sidebar */}
+
       </main>
     </div>
   );
 }
 
-// --- Color Utility Functions (keep at end) ---
+// --- Color Utility Functions (Unchanged) ---
 function darkenColor(hex: string, percent: number): string { hex = hex.replace(/^#/, ''); let r = parseInt(hex.substring(0, 2), 16); let g = parseInt(hex.substring(2, 4), 16); let b = parseInt(hex.substring(4, 6), 16); r = Math.max(0, Math.floor(r * (1 - percent / 100))); g = Math.max(0, Math.floor(g * (1 - percent / 100))); b = Math.max(0, Math.floor(b * (1 - percent / 100))); return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`; }
 function lightenColor(hex: string, percent: number): string { hex = hex.replace(/^#/, ''); let r = parseInt(hex.substring(0, 2), 16); let g = parseInt(hex.substring(2, 4), 16); let b = parseInt(hex.substring(4, 6), 16); r = Math.min(255, Math.floor(r * (1 + percent / 100))); g = Math.min(255, Math.floor(g * (1 + percent / 100))); b = Math.min(255, Math.floor(b * (1 + percent / 100))); return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`; }
 
