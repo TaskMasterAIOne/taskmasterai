@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react" // Use useState directly
+import React, { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Settings,
@@ -15,18 +15,25 @@ import {
   Menu,
   Folders,
   X,
-  // Star, // Original code had Star, keeping it commented unless needed elsewhere
-} from "lucide-react"
-import { Logo } from "./Logo"
-import { useLocation, useNavigate } from "react-router-dom"
-import { auth } from "../lib/firebase"
+  // Star,
+} from "lucide-react";
+import { Logo } from "./Logo";
+import { useLocation, useNavigate } from "react-router-dom";
+import { auth } from "../lib/firebase";
+import { User } from 'firebase/auth'; // Import User type for clarity
+
+// --- IMPORT Centralized Tier Logic ---
+import {
+  UserTier, // Import the type
+  getUserTier // Import the function
+} from '../lib/current-paying-user'; // Adjust path if needed
 
 interface SidebarProps {
-  userName: string
-  onToggle?: () => void
-  isCollapsed?: boolean
-  isBlackoutEnabled?: boolean
-  isIlluminateEnabled?: boolean
+  userName: string;
+  onToggle?: () => void;
+  isCollapsed?: boolean;
+  isBlackoutEnabled?: boolean;
+  isIlluminateEnabled?: boolean;
 }
 
 export function Sidebar({
@@ -36,29 +43,52 @@ export function Sidebar({
   isBlackoutEnabled = false,
   isIlluminateEnabled = false,
 }: SidebarProps) {
-  const location = useLocation()
-  const navigate = useNavigate()
-  const isSettingsPage = location.pathname === "/settings"
-  const currentUser = auth.currentUser
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false) // Changed React.useState to useState
+  const location = useLocation();
+  const navigate = useNavigate();
+  const isSettingsPage = location.pathname === "/settings";
+  const [currentUser, setCurrentUser] = useState<User | null>(null); // State for Firebase User
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // --- NEW State for User Tier ---
+  const [userTier, setUserTier] = useState<UserTier>('loading');
+
+  // --- State for Dev Status (Keep separate) ---
+  const [isDev, setIsDev] = useState<boolean>(false);
+  const DEV_EMAILS = ["bajinsrinivasr@lexington1.net", "fugegate@gmail.com"]; // Keep dev emails locally if needed
+
+  // Effect to listen to auth state changes and update user/tier/dev status
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      setCurrentUser(user); // Update Firebase user state
+      if (user) {
+        // Determine Tier using centralized function
+        const tier = getUserTier(user.email);
+        setUserTier(tier);
+        // Determine Dev status
+        setIsDev(user.email ? DEV_EMAILS.includes(user.email) : false);
+      } else {
+        // Reset state if user logs out
+        setUserTier('loading'); // Or 'basic' depending on desired behavior
+        setIsDev(false);
+      }
+    });
+    // Cleanup listener on component unmount
+    return () => unsubscribe();
+  }, []); // Run only once on mount
 
   // Close mobile menu when route changes
   useEffect(() => {
-    setIsMobileMenuOpen(false)
-  }, [location.pathname])
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
 
-  // --- START OF ORIGINAL USER LOGIC ---
-  // List of developer emails
-  const DEV_EMAILS = ["bajinsrinivasr@lexington1.net", "fugegate@gmail.com"]
-  // List of premium user emails
-  const PREMIUM_EMAILS = ["robinmyh@gmail.com", "oliverbeckett069420@gmail.com", "bajinsrinivasr@lexington1.net"] // Restored bajinsrinivasr@lexington1.net based on comparison
-  // List of PRO user emails
-  const PRO_EMAILS = ["srinibaj10@gmail.com"]
-
-  const isDev = currentUser?.email && DEV_EMAILS.includes(currentUser.email)
-  const isPremiumUser = currentUser?.email && PREMIUM_EMAILS.includes(currentUser.email)
-  const isProUser = currentUser?.email && PRO_EMAILS.includes(currentUser.email)
-  // --- END OF ORIGINAL USER LOGIC ---
+  // --- REMOVED ORIGINAL USER LOGIC ---
+  // const DEV_EMAILS = [...]; // Moved to state/effect
+  // const PREMIUM_EMAILS = [...]; // REMOVED
+  // const PRO_EMAILS = [...]; // REMOVED
+  // const isDev = ...; // Moved to state/effect
+  // const isPremiumUser = ...; // REMOVED
+  // const isProUser = ...; // REMOVED
+  // --- END OF REMOVED LOGIC ---
 
 
   // Define the menu items with label, icon, and path
@@ -72,87 +102,68 @@ export function Sidebar({
     { label: "Focus Mode", icon: ZapOff, path: "/focus-mode" },
     { label: "AI Assistant", icon: Bot, path: "/ai" },
     { label: "Settings", icon: Settings, path: "/settings" },
-  ]
+  ];
 
   const handleNavigation = (path: string) => {
-    navigate(path)
-    setIsMobileMenuOpen(false)
-  }
+    navigate(path);
+    setIsMobileMenuOpen(false);
+  };
 
   const handleUpgradeClick = () => {
-    navigate("/pricing")
-    setIsMobileMenuOpen(false)
-  }
+    navigate("/pricing");
+    setIsMobileMenuOpen(false);
+  };
 
   // -----------------------------
-  //   Determine Sidebar Colors
+  //   Determine Sidebar Colors (Unchanged)
   // -----------------------------
-  // Background & text color for the container
-  let sidebarContainerBg = "bg-[#0c111c] text-gray-300 border-gray-800/50"
+  let sidebarContainerBg = "bg-[#0c111c] text-gray-300 border-gray-800/50";
   if (isIlluminateEnabled) {
-    sidebarContainerBg = "bg-gray-100 text-gray-900 border-gray-300"
+    sidebarContainerBg = "bg-gray-100 text-gray-900 border-gray-300";
   } else if (isBlackoutEnabled) {
-    sidebarContainerBg = "bg-gray-950 text-white border-gray-800/50"
+    sidebarContainerBg = "bg-gray-950 text-white border-gray-800/50";
   }
-
-  // Toggle button background
-  let toggleButtonBg = "bg-[#0c111c] border-gray-800/50 text-gray-400 hover:text-white"
+  let toggleButtonBg = "bg-[#0c111c] border-gray-800/50 text-gray-400 hover:text-white";
   if (isIlluminateEnabled) {
-    toggleButtonBg = "bg-gray-100 border-gray-300 text-gray-500 hover:text-gray-800"
+    toggleButtonBg = "bg-gray-100 border-gray-300 text-gray-500 hover:text-gray-800";
   } else if (isBlackoutEnabled) {
-    toggleButtonBg = "bg-gray-950 border-gray-800/50 text-gray-400 hover:text-white"
+    toggleButtonBg = "bg-gray-950 border-gray-800/50 text-gray-400 hover:text-white";
   }
-
-  // For menu items, define normal, hover, and active states
-  const baseMenuItemClasses = "flex items-center gap-3 px-4 py-2.5 text-sm rounded-lg transition-all duration-200"
+  const baseMenuItemClasses = "flex items-center gap-3 px-4 py-2.5 text-sm rounded-lg transition-all duration-200";
   const isActiveClasses = isIlluminateEnabled
     ? "bg-gray-200 text-gray-900 font-medium"
-    : "bg-gray-800 text-white font-medium" // Default/Blackout active class
+    : "bg-gray-800 text-white font-medium";
   const hoverClasses = isIlluminateEnabled
     ? "hover:bg-gray-200 hover:text-gray-900"
-    : "hover:bg-gray-800/70 hover:text-white" // Default/Blackout hover class
-  const defaultTextColor = isIlluminateEnabled ? "text-gray-800" : "text-gray-300"
-
-  // For the user profile / bottom section
-  const userProfileHoverBg = isIlluminateEnabled ? "hover:bg-gray-200" : "hover:bg-gray-800/50"
-  const userProfileText = isIlluminateEnabled ? "text-gray-800" : "text-gray-300"
-
-  // --- START OF AVATAR & DEV TAG FIXES ---
-  // Determine background for the avatar circle (when no image)
-  const defaultAvatarBg = isIlluminateEnabled ? "bg-gray-300" : "bg-gray-800"; // Light mode uses light gray, dark/default uses original dark gray
-  // Determine icon color for the default avatar
-  const defaultAvatarIconColor = isIlluminateEnabled ? "text-gray-600" : "text-gray-400"; // Adjusted icon color for visibility in both modes (original dark mode didn't specify icon color, assuming gray-400 is okay)
-
-  // Determine styling for the DEV tag based on theme
+    : "hover:bg-gray-800/70 hover:text-white";
+  const defaultTextColor = isIlluminateEnabled ? "text-gray-800" : "text-gray-300";
+  const userProfileHoverBg = isIlluminateEnabled ? "hover:bg-gray-200" : "hover:bg-gray-800/50";
+  const userProfileText = isIlluminateEnabled ? "text-gray-800" : "text-gray-300";
+  const defaultAvatarBg = isIlluminateEnabled ? "bg-gray-300" : "bg-gray-800";
+  const defaultAvatarIconColor = isIlluminateEnabled ? "text-gray-600" : "text-gray-400";
   const devTagClasses = isIlluminateEnabled
-    ? "bg-indigo-100 text-indigo-700 border border-indigo-200" // Light mode: Light bg, dark text, subtle border
-    : "bg-gradient-to-r from-blue-500 to-indigo-600 text-white"; // Dark/Default mode: Original gradient
-  // --- END OF AVATAR & DEV TAG FIXES ---
-
-  // Mobile header colors - match sidebar theme
-  let mobileHeaderBg = "bg-[#0c111c] border-b border-gray-800/50"
+    ? "bg-indigo-100 text-indigo-700 border border-indigo-200"
+    : "bg-gradient-to-r from-blue-500 to-indigo-600 text-white";
+  let mobileHeaderBg = "bg-[#0c111c] border-b border-gray-800/50";
   if (isIlluminateEnabled) {
-    mobileHeaderBg = "bg-gray-100 border-b border-gray-300"
+    mobileHeaderBg = "bg-gray-100 border-b border-gray-300";
   } else if (isBlackoutEnabled) {
-    mobileHeaderBg = "bg-gray-950 border-b border-gray-800/50"
+    mobileHeaderBg = "bg-gray-950 border-b border-gray-800/50";
   }
+  const mobileHeaderText = isIlluminateEnabled ? "text-gray-900" : "text-gray-100";
 
-  // Mobile header text color
-  const mobileHeaderText = isIlluminateEnabled ? "text-gray-900" : "text-gray-100"
-
-  // Get current page title based on path (Original function)
+  // Get current page title based on path (Unchanged)
   const getCurrentPageTitle = () => {
-    const currentItem = menuItems.find((item) => item.path === location.pathname)
-    return currentItem ? currentItem.label : "Dashboard"
-  }
+    const currentItem = menuItems.find((item) => item.path === location.pathname);
+    return currentItem ? currentItem.label : "Dashboard";
+  };
 
   return (
     <>
-      {/* Mobile Header - Original Structure */}
+      {/* Mobile Header (Unchanged) */}
       <div
         className={`fixed top-0 left-0 right-0 ${mobileHeaderBg} h-14 z-40 md:hidden flex items-center px-4 justify-between`}
       >
-        {/* Hamburger / Close Button on the Left */}
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           className={`${mobileHeaderText} p-2 hover:opacity-80 transition-opacity`}
@@ -160,16 +171,14 @@ export function Sidebar({
         >
           {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
-        {/* Original - No content on the right */}
       </div>
 
-      {/* Main Content Wrapper - Original Structure */}
+      {/* Main Content Wrapper (Unchanged) */}
       <div className="md:ml-0 md:pt-0">
-        {/* Semi-transparent overlay when mobile menu is open */}
         {isMobileMenuOpen && (
           <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setIsMobileMenuOpen(false)} />
         )}
-        {/* Sidebar - Original Structure */}
+        {/* Sidebar (Unchanged structure) */}
         <div
           className={`
             fixed top-0 left-0 h-full ${sidebarContainerBg} flex flex-col
@@ -180,11 +189,11 @@ export function Sidebar({
             md:mt-0 h-full
           `}
         >
-          {/* Logo Section - Original Structure */}
+          {/* Logo Section (Unchanged) */}
           <div className="mb-6 flex items-center pl-3">
             {isCollapsed && !isMobileMenuOpen ? (
               <a href="/">
-                <svg /* Original Collapsed SVG */
+                <svg
                   className="w-8 h-8 text-indigo-500"
                   viewBox="0 0 24 24"
                   fill="none"
@@ -197,7 +206,6 @@ export function Sidebar({
                 </svg>
               </a>
             ) : (
-              /* Original Expanded Logo Structure */
               <div className="flex items-center justify-between w-full">
                 <a href="/" className="flex items-center space-x-2 whitespace-nowrap overflow-hidden">
                   <Logo className="w-8 h-8 flex-shrink-0" />
@@ -206,38 +214,28 @@ export function Sidebar({
             )}
           </div>
 
-          {/* Upper Section: Menu Items and Toggle Button - Original Structure */}
+          {/* Upper Section: Menu Items and Toggle Button (Unchanged) */}
           <div className="flex flex-col gap-1.5">
             {menuItems.map((item) => {
-              const Icon = item.icon
-              const isActive = location.pathname === item.path
-
+              const Icon = item.icon;
+              const isActive = location.pathname === item.path;
               return (
                 <button
                   key={item.label}
                   onClick={() => handleNavigation(item.path)}
-                  className={`
-                    ${baseMenuItemClasses}
-                    ${defaultTextColor}
-                    ${hoverClasses}
-                    ${isActive ? isActiveClasses : ""}
-                    transition-transform duration-200 hover:scale-[1.02]
-                  `}
-                   title={isCollapsed && !isMobileMenuOpen ? item.label : undefined} // Add tooltip only when collapsed
+                  className={` ${baseMenuItemClasses} ${defaultTextColor} ${hoverClasses} ${isActive ? isActiveClasses : ""} transition-transform duration-200 hover:scale-[1.02] `}
+                  title={isCollapsed && !isMobileMenuOpen ? item.label : undefined}
                 >
                   <Icon className="w-5 h-5 min-w-[1.25rem]" strokeWidth={2} />
-                   {/* Original span structure */}
                   {(!isCollapsed || isMobileMenuOpen) && <span>{item.label}</span>}
                 </button>
-              )
+              );
             })}
-
-            {/* Toggle Button (Collapse/Expand) - Original Structure */}
             {onToggle && (
               <button
                 onClick={onToggle}
                 className={`absolute -right-4 top-6 p-1.5 rounded-full border transition-colors z-50 ${toggleButtonBg} hidden md:block`}
-                aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"} // Keep improved label
+                aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               >
                 {isCollapsed ? (
                   <PanelLeftOpen className="w-4 h-4 min-w-[1rem]" strokeWidth={2} />
@@ -248,102 +246,58 @@ export function Sidebar({
             )}
           </div>
 
-          {/* Bottom Section: Premium Button and User Profile - Original Structure */}
+          {/* Bottom Section: Premium Button and User Profile (UPDATED) */}
           <div className="mt-auto flex flex-col gap-4">
-            {/* Upgrade Button Condition - Original Structure */}
-            {!isSettingsPage && !isPremiumUser && !isProUser && (
+            {/* Upgrade Button Condition (Uses userTier state) */}
+            {!isSettingsPage && userTier === 'basic' && ( // Show only if basic tier
               <button
                 onClick={handleUpgradeClick}
-                className={`
-                  mx-3 flex items-center justify-center /* Original mx-3 and justify-center */
-                  text-white rounded-lg
-                  transition-all duration-200 bg-gradient-to-r from-violet-600 to-indigo-600
-                  hover:from-violet-500 hover:to-indigo-500 shadow-lg shadow-indigo-500/20
-                  hover:scale-[1.02] /* Original hover effect */
-                  ${isCollapsed && !isMobileMenuOpen ? "aspect-square p-2.5" : "px-4 py-2.5"} /* Original sizing */
-                `}
-                 title={isCollapsed && !isMobileMenuOpen ? "Upgrade to Premium" : undefined} // Add tooltip only when collapsed
+                className={` mx-3 flex items-center justify-center text-white rounded-lg transition-all duration-200 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 shadow-lg shadow-indigo-500/20 hover:scale-[1.02] ${isCollapsed && !isMobileMenuOpen ? "aspect-square p-2.5" : "px-4 py-2.5"} `}
+                title={isCollapsed && !isMobileMenuOpen ? "Upgrade to Premium" : undefined}
               >
-                <Crown /* Original Crown Icon */
-                  className={`min-w-[1.25rem] ${isCollapsed && !isMobileMenuOpen ? "w-6 h-6" : "w-5 h-5 mr-2"}`}
-                  strokeWidth={2}
-                />
-                 {/* Original Text Span */}
-                {(!isCollapsed || isMobileMenuOpen) && (
-                  <span className="text-sm font-medium whitespace-nowrap">Upgrade to Premium</span>
-                )}
+                <Crown className={`min-w-[1.25rem] ${isCollapsed && !isMobileMenuOpen ? "w-6 h-6" : "w-5 h-5 mr-2"}`} strokeWidth={2} />
+                {(!isCollapsed || isMobileMenuOpen) && ( <span className="text-sm font-medium whitespace-nowrap">Upgrade to Premium</span> )}
               </button>
             )}
 
-            {/* User Profile with Plan Badge - Original Structure */}
+            {/* User Profile with Plan Badge (UPDATED) */}
             <button
               onClick={() => navigate("/settings")}
-              className={`
-                mx-3 flex items-center gap-3 rounded-lg transition-colors /* Original mx-3 */
-                ${userProfileText}
-                ${userProfileHoverBg}
-                ${isCollapsed && !isMobileMenuOpen ? "justify-center aspect-square" : "px-4 py-2.5"} /* Original sizing */
-                hover:scale-[1.02] transition-transform duration-200 /* Original hover */
-              `}
-               title={isCollapsed && !isMobileMenuOpen ? `${userName} - Settings` : undefined} // Add tooltip only when collapsed
+              className={` mx-3 flex items-center gap-3 rounded-lg transition-colors ${userProfileText} ${userProfileHoverBg} ${isCollapsed && !isMobileMenuOpen ? "justify-center aspect-square" : "px-4 py-2.5"} hover:scale-[1.02] transition-transform duration-200 `}
+              title={isCollapsed && !isMobileMenuOpen ? `${userName} - Settings` : undefined}
             >
-              {/* --- START OF AVATAR FIX INTEGRATION --- */}
+              {/* Avatar (Unchanged) */}
               <div className="relative flex-shrink-0 w-8 h-8">
-                {/* Apply dynamic background here to the container */}
                 <div className={`w-full h-full rounded-full overflow-hidden ${defaultAvatarBg}`}>
                   {currentUser?.photoURL ? (
-                    <img
-                      src={currentUser.photoURL || "/placeholder.svg"} // Kept original placeholder logic
-                      alt={userName || "User"} // Use userName or default
-                      className="w-full h-full object-cover" // Original class
-                    />
+                    <img src={currentUser.photoURL || "/placeholder.svg"} alt={userName || "User"} className="w-full h-full object-cover" />
                   ) : (
-                     // Fallback icon container, uses the background set on the parent div
                     <div className="w-full h-full flex items-center justify-center">
-                      <CircleUserRound
-                        // Apply dynamic icon color here
-                        className={`w-5 h-5 min-w-[1.25rem] ${defaultAvatarIconColor}`} // Original size + dynamic color
-                        strokeWidth={2}
-                      />
+                      <CircleUserRound className={`w-5 h-5 min-w-[1.25rem] ${defaultAvatarIconColor}`} strokeWidth={2} />
                     </div>
                   )}
                 </div>
               </div>
-              {/* --- END OF AVATAR FIX INTEGRATION --- */}
 
-              {/* Show name and plan only if not collapsed or in mobile menu - Original Structure */}
+              {/* Show name and plan only if not collapsed or in mobile menu */}
               {(!isCollapsed || isMobileMenuOpen) && (
                 <div className="flex flex-col items-start min-w-0">
                   <span className="text-left text-sm font-medium truncate max-w-[160px]">
                     {userName || "Loading..."}
                   </span>
                   <div className="flex items-center gap-1.5">
-                    {/* Display Plan - Original Logic */}
-                    {isPremiumUser ? (
-                      <span className="text-xs font-semibold bg-gradient-to-r from-amber-400 to-orange-500 text-transparent bg-clip-text">
-                        Premium
-                      </span>
-                    ) : isProUser ? (
-                      <span className="text-xs font-semibold bg-gradient-to-r from-teal-400 to-cyan-500 text-transparent bg-clip-text">
-                        Pro
-                      </span>
-                    ) : (
+                    {/* Display Plan Badge (Uses userTier state) */}
+                    {userTier === 'premium' ? (
+                      <span className="text-xs font-semibold bg-gradient-to-r from-amber-400 to-orange-500 text-transparent bg-clip-text"> Premium </span>
+                    ) : userTier === 'pro' ? (
+                      <span className="text-xs font-semibold bg-gradient-to-r from-teal-400 to-cyan-500 text-transparent bg-clip-text"> Pro </span>
+                    ) : userTier === 'basic' ? (
                       <span className="text-xs text-gray-500">Basic</span>
+                    ) : (
+                      <span className="text-xs text-gray-500">Loading...</span> // Show loading state
                     )}
-                    {/* --- START OF DEV TAG FIX INTEGRATION --- */}
-                    {isDev && (
-                      <span
-                        // Apply dynamic classes + original layout/size classes
-                        className={`
-                           ml-1 px-1 py-0.5 text-[9px] font-semibold /* Original layout/size */
-                           ${devTagClasses} /* Use dynamic classes for bg/text/border */
-                           rounded-full leading-none /* Original shape */
-                        `}
-                      >
-                        DEV
-                      </span>
-                    )}
-                    {/* --- END OF DEV TAG FIX INTEGRATION --- */}
+                    {/* Display DEV Tag (Uses isDev state) */}
+                    {isDev && ( <span className={` ml-1 px-1 py-0.5 text-[9px] font-semibold ${devTagClasses} rounded-full leading-none `}> DEV </span> )}
                   </div>
                 </div>
               )}
@@ -352,5 +306,5 @@ export function Sidebar({
         </div>
       </div>
     </>
-  )
+  );
 }
