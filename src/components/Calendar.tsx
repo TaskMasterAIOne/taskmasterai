@@ -1477,12 +1477,6 @@ Respond directly to the user's message following these guidelines.`;
                         Scheduling Assistant
                     </h3>
                      {/* --- NEW: Context Button --- */}
-                    <button
-                        onClick={() => setIsContextDialogOpen(true)}
-                        className={`${iconColor} p-1 rounded-full hover:bg-gray-500/10 transition-colors transform hover:scale-110 active:scale-100 mr-2`}
-                        title="Edit AI Context" aria-label="Edit AI Context">
-                        <Brain className="w-5 h-5" />
-                    </button>
                      {/* --- END: Context Button --- */}
                     <button
                         onClick={() => setIsAiSidebarOpen(false)}
