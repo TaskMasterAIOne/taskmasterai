@@ -387,9 +387,7 @@ export function Settings() {
   // ---------------------------
   //    RENDER (Unchanged Loading)
   // ---------------------------
-  if (isLoading && !user) {
-    return ( <div className={`flex items-center justify-center min-h-screen ${containerClass}`}> <Loader2 className="w-8 h-8 animate-spin text-blue-500" /> </div> );
-  }
+
   const closeDeleteModal = () => { setShowDeleteConfirm(false); setError(null); setFormData(prev => ({...prev, currentPassword: ''})); };
 
   return (
