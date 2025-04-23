@@ -27,6 +27,7 @@ import {
   CalendarDays,
   MapPin,
   Users,
+  Brain,
   Bell,
   BrainCircuit, // Added for AI Chat & Context
   Send,          // Added for AI Chat
