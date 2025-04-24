@@ -424,38 +424,82 @@ export function Calendar() {
     } catch { return ""; }
   };
 
-  // Enhanced date parsing to handle potential string inputs from AI
+  // Enhanced date parsing to handle potential string inputs from AI or UI
   const parseInputDateFlexible = (value: string | Date | null | undefined, isAllDay: boolean = false): Date | null => {
     if (!value) return null;
-    if (value instanceof Date && isValid(value)) return value; // Already a valid Date object
 
+    // 1. If it's already a valid Date object, return it
+    if (value instanceof Date) {
+        return isValid(value) ? value : null;
+    }
+
+    // 2. If it's a string, try parsing various formats
     if (typeof value === 'string') {
+        let parsedDate: Date | null = null;
+        const trimmedValue = value.trim(); // Trim whitespace
+
         try {
-            let parsedDate: Date | null = null;
-            // Try ISO format first (common from datetime-local or AI)
-            parsedDate = parseISO(value);
-            if (isValid(parsedDate)) return parsedDate;
+            // Priority 1: ISO format (YYYY-MM-DDTHH:mm:ss.sssZ or YYYY-MM-DDTHH:mm) - Handles datetime-local and common AI outputs
+            parsedDate = parseISO(trimmedValue);
+            if (isValid(parsedDate)) {
+                console.log(`Parsed "${trimmedValue}" as ISO ->`, parsedDate);
+                // If meant to be all-day, ensure it's start of day in local time
+                // Note: parseISO typically returns UTC if 'Z' is present, or local if not.
+                // For simplicity here, we might just take the date part if isAllDay is true.
+                // However, relying on AI for isAllDay might be better.
+                 // return isAllDay ? startOfDay(parsedDate) : parsedDate; // Let's keep the time for now unless isAllDay is explicitly true later
+                 return parsedDate;
+            }
 
-            // Try 'yyyy-MM-dd' (common from date input or AI)
-            parsedDate = parse(value, "yyyy-MM-dd", new Date());
-            if (isValid(parsedDate)) return startOfDay(parsedDate); // Ensure it's start of day for date-only
+            // Priority 2: Simple Date (YYYY-MM-DD) - Handles date input and AI
+            // Use date-fns parse for better locale handling if needed, but requires exact match
+            parsedDate = parse(trimmedValue, "yyyy-MM-dd", new Date());
+            if (isValid(parsedDate)) {
+                 console.log(`Parsed "${trimmedValue}" as yyyy-MM-dd ->`, parsedDate);
+                 // Return the start of that day (local time)
+                 return startOfDay(parsedDate);
+            }
 
-            // Add more formats if needed (e.g., 'MM/dd/yyyy', 'yyyy-MM-dd HH:mm')
-             parsedDate = parse(value, "yyyy-MM-dd HH:mm", new Date());
-             if (isValid(parsedDate)) return parsedDate;
+             // Priority 3: Date with Time (YYYY-MM-DD HH:mm) - Another possible AI format
+            parsedDate = parse(trimmedValue, "yyyy-MM-dd HH:mm", new Date());
+            if (isValid(parsedDate)) {
+                 console.log(`Parsed "${trimmedValue}" as yyyy-MM-dd HH:mm ->`, parsedDate);
+                 return parsedDate;
+            }
 
-            // If all specific formats fail, try generic Date constructor (less reliable)
-            parsedDate = new Date(value);
-            if (isValid(parsedDate)) return parsedDate;
+            // Priority 4: Standard JS Date.toString() format (like the error message)
+            // Use the native Date constructor for this, as it's good at parsing its own output
+            if (trimmedValue.includes("GMT")) { // Heuristic to detect this format
+                parsedDate = new Date(trimmedValue);
+                if (isValid(parsedDate)) {
+                     console.log(`Parsed "${trimmedValue}" using new Date() ->`, parsedDate);
+                     // If it parsed successfully and isAllDay is requested, return start of day
+                     // return isAllDay ? startOfDay(parsedDate) : parsedDate;
+                     return parsedDate; // Keep time info unless isAllDay is specified in payload
+                }
+            }
 
-            console.warn("Could not parse date string:", value);
+            // Add other common formats if needed (e.g., MM/dd/yyyy)
+            // parsedDate = parse(trimmedValue, "MM/dd/yyyy", new Date());
+            // if (isValid(parsedDate)) return startOfDay(parsedDate);
+
+            // Final Fallback: Try generic new Date() for anything else (less reliable)
+             parsedDate = new Date(trimmedValue);
+             if (isValid(parsedDate)) {
+                 console.log(`Parsed "${trimmedValue}" using fallback new Date() ->`, parsedDate);
+                 // return isAllDay ? startOfDay(parsedDate) : parsedDate;
+                  return parsedDate;
+             }
+
+            console.warn("Could not parse date string with any known format:", trimmedValue);
             return null; // Failed to parse
 
         } catch (e) {
-            console.error("Error parsing input date string:", value, e);
+            console.error(`Error during date string parsing ("${trimmedValue}"):`, e);
             return null;
         }
     }
+
     console.warn("Invalid date input type:", value);
     return null; // Not a string or Date
 };
