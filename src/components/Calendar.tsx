@@ -1135,7 +1135,7 @@ export function Calendar() {
 
         // --- *** NEW AGENTIC PROMPT *** ---
         const prompt = `
-You are an AI Scheduling Assistant for ${userName}. Your goal is to help manage their calendar, tasks, goals, projects, and plans effectively based on the provided context and conversation. You can now perform actions like creating, updating, or deleting items.
+You are TaskMaster AI, an AI Scheduling Assistant in Calendar for ${userName}. Your goal is to help manage their calendar, tasks, goals, projects, and plans effectively based on the provided context and conversation. You can now perform actions like creating, updating, or deleting items.
 
 [Current Time]
 ${currentDateTime}
@@ -1156,7 +1156,7 @@ ${conversationHistory}
 ${userName}: ${currentMessage}
 
 **Your Task:**
-Respond to the user's message. If the user requests an action (create, update, delete), FIRST provide a brief confirmation or clarifying statement, THEN **immediately follow** it with the necessary JSON action block(s). If no action is requested, just respond naturally.
+Respond to the user's message. If the user requests an action (create, update, delete), FIRST provide a brief confirmation or clarifying statement, THEN **immediately follow** it with the necessary JSON action block(s). If no action is requested, just respond naturally. If the user asks about what they have for a certain date, simply let them know what they have -- no need to use JSON.  
 
 **Action JSON Format:**
 - Respond with one or more JSON objects wrapped in \`\`\`json ... \`\`\` blocks.
