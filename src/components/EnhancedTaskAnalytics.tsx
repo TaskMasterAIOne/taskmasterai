@@ -1,5 +1,4 @@
 import React from 'react';
-Import a charting library like Recharts, Chart.js, Nivo etc.
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Lightbulb } from 'lucide-react';
 
