@@ -426,12 +426,203 @@ export function Dashboard() {
   // Greeting Update Effect - Unchanged
   useEffect(() => { const interval = setInterval(() => { setGreeting(getTimeBasedGreeting()); setQuote(getRandomQuote()); }, 60000); return () => clearInterval(interval); }, []);
 
-  // Smart Overview Generation Effect - Unchanged (uses flash model, should be fine)
-  const [smartOverview, setSmartOverview] = useState<string>(""); const [overviewLoading, setOverviewLoading] = useState(false); const [lastGeneratedDataSig, setLastGeneratedDataSig] = useState<string>(""); const [lastResponse, setLastResponse] = useState<string>(""); const overviewTimeoutRef = useRef<NodeJS.Timeout | null>(null); const [debouncedItemsSigForOverview, setDebouncedItemsSigForOverview] = useState(""); const createItemsSignatureForOverview = (items: any[][]): string => items.flat().map(item => `${item.id}-${item.data.completed}-${item.data.dueDate?.seconds || 'null'}-${item.data.priority || 'm'}-${item.data.task||item.data.goal||item.data.project||item.data.plan||''}`).sort().join('|'); useEffect(() => { if (!user) return; const currentSig = createItemsSignatureForOverview([tasks, goals, projects, plans]); if (overviewTimeoutRef.current) clearTimeout(overviewTimeoutRef.current); overviewTimeoutRef.current = setTimeout(() => setDebouncedItemsSigForOverview(currentSig), 1500); return () => { if (overviewTimeoutRef.current) clearTimeout(overviewTimeoutRef.current); }; }, [user, tasks, goals, projects, plans]); useEffect(() => { if (!user || !geminiApiKey || !debouncedItemsSigForOverview || userTier === 'loading' || userTier === 'basic') { setSmartOverview(""); setOverviewLoading(userTier === 'loading'); setLastGeneratedDataSig(""); setLastResponse(""); return; } if (debouncedItemsSigForOverview === lastGeneratedDataSig && !overviewLoading) return; const generateOverview = async () => { if (overviewLoading) return; setOverviewLoading(true); setSmartOverview(""); setLastGeneratedDataSig(debouncedItemsSigForOverview); const formatItem = (item: any, type: string) => { let dueDate: Date | null = null; if (item.data.dueDate?.toDate) dueDate = item.data.dueDate.toDate(); else if (item.data.dueDate) try { const d = new Date(item.data.dueDate); if (!isNaN(d.getTime())) dueDate = d; } catch { dueDate = null; } const title = item.data[type] || item.data.title || 'Untitled'; const priority = item.data.priority || calculatePriority(item); const completed = item.data.completed ? 'Completed' : 'Pending'; const dueDateFormatted = dueDate ? ` (Due: ${dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})` : ''; return `• ${title}${dueDateFormatted} [Priority: ${priority}] [Status: ${completed}]`; }; const allActiveItems = [...tasks, ...goals, ...projects, ...plans].filter(i => !i.data.completed); const formattedData = allActiveItems.length > 0 ? allActiveItems.map(item => { if (item.data.task !== undefined) return formatItem(item, 'task'); if (item.data.goal !== undefined) return formatItem(item, 'goal'); if (item.data.project !== undefined) return formatItem(item, 'project'); if (item.data.plan !== undefined) return formatItem(item, 'plan'); return null; }).filter(Boolean).join('\n') : "No pending items."; if (formattedData === "No pending items.") { setSmartOverview(`No pending items to generate overview from.`); setOverviewLoading(false); setLastResponse(""); return; } const firstName = userName.split(" ")[0]; const prompt = `Analyze these pending items for user "${firstName}" and provide a *very concise* (1-2 sentences, max 80 tokens) Smart Overview focusing on the single most immediate priority or suggestion. Format as plain text. No greetings, no fluff.\n\n${formattedData}\n\nExample: Focus on high-priority 'Submit Report' due today. Next, tackle 'Plan Project Kickoff'.\nAnother Example: Check the overdue 'Draft Proposal' task first. Then review upcoming goals.\nAnother Example: Looks clear for today. Consider planning your next project step.\n\n`; try { const overviewEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`; // Using generateContent non-streaming endpoint for overview
-           const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 80, temperature: 0.5 }, safetySettings: [ { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }, { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" }, { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }, { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" } ] }) }; const response = await fetchWithTimeout(overviewEndpoint, geminiOptions, 20000); if (!response.ok) { let errorBody = 'API Error'; try { errorBody = await response.text(); } catch {} throw new Error(`Gemini API error (${response.status}): ${errorBody}`); } const resultJson = await response.json(); const rawText = extractCandidateText(JSON.stringify(resultJson)); // extractCandidateText should still work for non-streamed structure
-           const cleanText = rawText.trim(); if (!cleanText || cleanText.toLowerCase().startsWith("error:") || cleanText.length < 5) { console.warn("Received invalid overview response:", cleanText); throw new Error("Received invalid overview response."); } if (cleanText !== lastResponse) { setLastResponse(cleanText); setSmartOverview(cleanText); } else {
-               setSmartOverview(lastResponse); } } catch (error: any) { console.error("Overview generation error:", error); let errorMsg = "AI overview currently unavailable."; if (error.message.includes('429') || error.message.includes('rate limit')) { errorMsg = "Overview limit reached. Try again later."; } else if (error.message.includes('API key not valid')) { errorMsg = "Invalid AI config."; } else if (error.message.includes('timed out') || error.message === 'Request timed out') { errorMsg = "Overview request timed out."; } else if (error.message.includes("invalid overview response")) { errorMsg = "AI failed to generate a valid overview."; } else if (error.message.includes("API Error")) { errorMsg = "Overview generation failed (API)."; } setSmartOverview(errorMsg); setLastResponse(""); setLastGeneratedDataSig("");
-           } finally { setOverviewLoading(false); } }; generateOverview(); }, [user, userTier, debouncedItemsSigForOverview, userName, geminiApiKey, lastResponse, lastGeneratedDataSig, overviewLoading]);
+  // ---------------------
+  // 10. SMART OVERVIEW GENERATION (TIER-BASED)
+  // ---------------------
+  // ... (smart overview generation effect remains unchanged, relies on userTier state) ...
+    const [smartOverview, setSmartOverview] = useState<string>(""); // Holds AI generated text (plain text) or error messages
+    const [overviewLoading, setOverviewLoading] = useState(false);
+    const [lastGeneratedDataSig, setLastGeneratedDataSig] = useState<string>("");
+    const [lastResponse, setLastResponse] = useState<string>(""); // Stores the actual text content of the last overview
+
+    const overviewTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const [debouncedItemsSigForOverview, setDebouncedItemsSigForOverview] = useState("");
+
+    // Signature includes more relevant fields for overview
+    const createItemsSignatureForOverview = (items: any[][]): string => {
+        return items
+        .flat()
+        .map(item => `${item.id}-${item.data.completed}-${item.data.dueDate?.seconds || 'null'}-${item.data.priority || 'm'}-${item.data.task||item.data.goal||item.data.project||item.data.plan||''}`)
+        .sort()
+        .join('|');
+    };
+
+     // Effect to update debounced signature for overview
+    useEffect(() => {
+        if (!user) return;
+        const currentSig = createItemsSignatureForOverview([tasks, goals, projects, plans]);
+
+        if (overviewTimeoutRef.current) {
+            clearTimeout(overviewTimeoutRef.current);
+        }
+
+        overviewTimeoutRef.current = setTimeout(() => {
+            setDebouncedItemsSigForOverview(currentSig);
+        }, 1500); // 1.5 seconds debounce
+
+        return () => {
+            if (overviewTimeoutRef.current) {
+                clearTimeout(overviewTimeoutRef.current);
+            }
+        };
+    }, [user, tasks, goals, projects, plans]);
+
+     // Effect to generate overview based on debounced signature and user tier
+    useEffect(() => {
+        // Exit if no user, key, signature, or tier is still loading
+        // Also exit if tier is 'basic' - rendering handled directly in JSX now
+        if (!user || !geminiApiKey || !debouncedItemsSigForOverview || userTier === 'loading' || userTier === 'basic') {
+            setSmartOverview(""); // Clear AI text
+            setOverviewLoading(userTier === 'loading'); // Show loading only if tier is loading
+            setLastGeneratedDataSig("");
+            setLastResponse("");
+            return;
+        }
+
+        // --- TIER CHECK ALREADY DONE (Exits if basic/loading) ---
+
+        // Only regenerate if the signature has changed or if we are not currently loading
+        // And if the tier allows generation (pro or premium)
+        if (debouncedItemsSigForOverview === lastGeneratedDataSig && !overviewLoading) {
+            return;
+        }
+
+        const generateOverview = async () => {
+            // Prevent concurrent runs
+            if (overviewLoading) return;
+
+            setOverviewLoading(true);
+            setSmartOverview(""); // Clear previous text while loading new one
+            setLastGeneratedDataSig(debouncedItemsSigForOverview); // Set signature *before* async call
+
+            const formatItem = (item: any, type: string) => {
+                 let dueDate: Date | null = null;
+                 if (item.data.dueDate?.toDate) dueDate = item.data.dueDate.toDate();
+                 else if (item.data.dueDate) try { dueDate = new Date(item.data.dueDate); if (isNaN(dueDate.getTime())) dueDate = null; } catch { dueDate = null; }
+
+                const title = item.data[type] || item.data.title || 'Untitled';
+                const priority = item.data.priority || calculatePriority(item);
+                const completed = item.data.completed ? 'Completed' : 'Pending';
+                const dueDateFormatted = dueDate
+                    ? ` (Due: ${dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`
+                    : '';
+                return `• ${title}${dueDateFormatted} [Priority: ${priority}] [Status: ${completed}]`;
+            };
+
+             const allActiveItems = [...tasks, ...goals, ...projects, ...plans].filter(i => !i.data.completed); // Focus overview on active items
+             const formattedData = allActiveItems.length > 0
+                ? allActiveItems.map(item => {
+                      if (item.data.task) return formatItem(item, 'task');
+                      if (item.data.goal) return formatItem(item, 'goal');
+                      if (item.data.project) return formatItem(item, 'project');
+                      if (item.data.plan) return formatItem(item, 'plan');
+                      return null;
+                  }).filter(Boolean).join('\n')
+                : "No pending items.";
+
+
+            if (formattedData === "No pending items.") {
+                setSmartOverview(`No pending items to generate overview from.`); // Set plain text message
+                setOverviewLoading(false);
+                setLastResponse(""); // Clear last response
+                return;
+            }
+
+            const firstName = userName.split(" ")[0];
+
+             // Refined prompt focusing on brevity and action
+              const prompt = `Analyze these pending items for user "${firstName}" and provide a *very concise* (1-2 sentences, max 80 tokens) Smart Overview focusing on the single most immediate priority or suggestion. Format as plain text. No greetings, no fluff.
+
+${formattedData}
+
+Example: Focus on high-priority 'Submit Report' due today. Next, tackle 'Plan Project Kickoff'.
+Another Example: Check the overdue 'Draft Proposal' task first. Then review upcoming goals.
+Another Example: Looks clear for today. Consider planning your next project step.
+
+`; // Simplified prompt structure
+
+            try {
+                // Using the non-streaming endpoint for overview
+                const overviewEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`;
+                const geminiOptions = {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: {
+                             maxOutputTokens: 80, // Keep it very short
+                             temperature: 0.5,
+                         },
+                         safetySettings: [ // Standard safety settings
+                            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                        ],
+                    })
+                };
+
+                 // Use fetchWithTimeout for the overview call
+                 const response = await fetchWithTimeout(overviewEndpoint, geminiOptions, 20000); // 20s timeout
+
+                 if (!response.ok) {
+                    let errorBody = 'API Error';
+                    try { errorBody = await response.text(); } catch {}
+                     throw new Error(`Gemini API error (${response.status}): ${errorBody}`);
+                 }
+                const resultJson = await response.json();
+
+                // Use the robust extractor, passing the full JSON response *as a string*
+                const rawText = extractCandidateText(JSON.stringify(resultJson));
+
+                // Minimal cleaning needed as extractor handles most issues
+                const cleanText = rawText.trim(); // Extractor already trims
+
+                // Check if the response is valid and different from the last one
+                if (!cleanText || cleanText.toLowerCase().startsWith("error:") || cleanText.length < 5) {
+                     // Treat very short, empty, or error-like responses as errors for overview
+                     console.warn("Received invalid overview response:", cleanText);
+                     throw new Error("Received invalid overview response.");
+                 }
+
+                // Only update state if the actual text content has changed
+                if (cleanText !== lastResponse) {
+                    setLastResponse(cleanText);
+                    setSmartOverview(cleanText); // Set the plain text
+                } else {
+                    // If response is same as last time, keep the current state (prevents flicker)
+                    setSmartOverview(lastResponse);
+                }
+
+
+            } catch (error: any) {
+                console.error("Overview generation error:", error);
+                 // Show more specific errors if possible
+                 let errorMsg = "AI overview currently unavailable.";
+                 if (error.message.includes('429') || error.message.includes('rate limit')) {
+                     errorMsg = "Overview limit reached. Try again later.";
+                 } else if (error.message.includes('API key not valid')) {
+                      errorMsg = "Invalid AI config.";
+                 } else if (error.message.includes('timed out') || error.message === 'Request timed out') {
+                     errorMsg = "Overview request timed out.";
+                 } else if (error.message.includes("invalid overview response")) {
+                      errorMsg = "AI failed to generate a valid overview.";
+                 } else if (error.message.includes("API Error")) {
+                      errorMsg = "Overview generation failed (API).";
+                 }
+                setSmartOverview(errorMsg); // Set error message as plain text
+                 setLastResponse(""); // Clear last response text on error to allow retry
+                 setLastGeneratedDataSig(""); // Also clear signature on error to force retry next time
+            } finally {
+                setOverviewLoading(false);
+            }
+        };
+
+        generateOverview();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user, userTier, debouncedItemsSigForOverview, userName, geminiApiKey, lastResponse]); // Removed isIlluminateEnabled dependency, added userTier and lastResponse
+
+
 
   // Client-Side Smart Insights Effect - Unchanged
   const createItemsSignatureForInsights = (items: any[][]): string => items.flat().map(item => `${item.id}-${item.data.completed}-${item.data.dueDate?.seconds || 'null'}`).sort().join('|'); useEffect(() => { if (!user) return; const currentSig = createItemsSignatureForInsights([tasks, goals, projects, plans]); if (insightTimeoutRef.current) clearTimeout(insightTimeoutRef.current); insightTimeoutRef.current = setTimeout(() => setDebouncedItemsSigForInsights(currentSig), 2000); return () => { if (insightTimeoutRef.current) clearTimeout(insightTimeoutRef.current); }; }, [user, tasks, goals, projects, plans]); useEffect(() => { if (!user || !debouncedItemsSigForInsights) return; const now = new Date(); now.setHours(0, 0, 0, 0); const allActiveItems = [...tasks, ...goals, ...projects, ...plans].filter(item => !item.data.completed); let newInsights: SmartInsight[] = []; allActiveItems.forEach(item => { if (item.data.dueDate) { let dueDate: Date | null = null; if (item.data.dueDate?.toDate) dueDate = item.data.dueDate.toDate(); else try { const d = new Date(item.data.dueDate); if (!isNaN(d.getTime())) dueDate = d; } catch { dueDate = null; } if (dueDate) { dueDate.setHours(0, 0, 0, 0); if (dueDate < now) { const itemType = item.data.task !== undefined ? 'task' : item.data.goal !== undefined ? 'goal' : item.data.project !== undefined ? 'project' : 'plan'; const itemName = item.data[itemType] || 'Untitled'; const insightId = `overdue-${item.id}`; newInsights.push({ id: insightId, text: `"${itemName}" (${itemType}) is overdue. Reschedule or mark complete?`, type: 'warning', relatedItemId: item.id, createdAt: new Date() }); } } } }); allActiveItems.forEach(item => { if (newInsights.some(ni => ni.relatedItemId === item.id && ni.type === 'warning')) return; if (item.data.dueDate) { let dueDate: Date | null = null; if (item.data.dueDate?.toDate) dueDate = item.data.dueDate.toDate(); else try { const d = new Date(item.data.dueDate); if (!isNaN(d.getTime())) dueDate = d; } catch { dueDate = null; } if (dueDate) { dueDate.setHours(0, 0, 0, 0); const diffTime = dueDate.getTime() - now.getTime(); const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); if (diffDays >= 0 && diffDays <= 2) { const itemType = item.data.task !== undefined ? 'task' : item.data.goal !== undefined ? 'goal' : item.data.project !== undefined ? 'project' : 'plan'; const itemName = item.data[itemType] || 'Untitled'; const insightId = `upcoming-${item.id}`; newInsights.push({ id: insightId, text: `"${itemName}" (${itemType}) is due soon (${diffDays === 0 ? 'Today' : diffDays === 1 ? 'Tomorrow' : 'in ' + diffDays + ' days'}). Plan time for it?`, type: 'suggestion', relatedItemId: item.id, createdAt: new Date() }); } } } }); setSmartInsights(prev => { const existingActive = prev.filter(i => !i.accepted && !i.rejected); const combined = [...newInsights, ...existingActive]; const uniqueMap = new Map<string, SmartInsight>(); combined.forEach(insight => uniqueMap.set(insight.id, insight)); return Array.from(uniqueMap.values()) .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
