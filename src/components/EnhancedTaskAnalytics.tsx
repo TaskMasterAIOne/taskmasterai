@@ -109,9 +109,7 @@ const EnhancedTaskAnalytics: React.FC<EnhancedTaskAnalyticsProps> = ({
 
        {/* Simple Text Fallback if no charts */}
        <div className="p-4 border rounded-lg ${isIlluminateEnabled ? 'border-gray-200 bg-gray-50' : 'border-gray-700 bg-gray-800'}">
-            <p className="text-center text-sm italic">
-              Enhanced charts require integrating a charting library (e.g., Recharts). Showing basic data for now.
-            </p>
+
              <ul className="text-xs mt-2 space-y-1">
                 {completionData.map((d, i) => (
                     <li key={d.name} className="flex justify-between">
