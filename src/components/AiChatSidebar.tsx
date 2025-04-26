@@ -14,7 +14,7 @@ import { User } from 'firebase/auth';
 import { Timer } from './Timer';
 import { FlashcardsQuestions } from './FlashcardsQuestions';
 import { UserTier, getChatLimitForTier, updateUserChatUsage } from '../lib/current-paying-user';
-import { ItemType, CollectionName, geminiApiKey, createItem, updateItem, deleteItem, findItemByName } from '../lib/dashboard-firebase';
+import { ItemType, CollectionName, geminiApiKey, createItem, updateItem, deleteItem} from '../lib/dashboard-firebase';
 import { UserContext } from '../lib/ai-context-firebase';
 import {
     createChatConversation,
