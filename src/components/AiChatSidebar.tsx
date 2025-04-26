@@ -276,19 +276,13 @@ ${itemsText}
     *   First, confirm the action conversationally (e.g., "Okay, adding task 'Buy milk'...", "Updating 'Project Alpha' deadline...", "Got it, removing the 'Old Goal'..."). Use the item name in your confirmation.
     *   **Immediately AFTER** the confirmation text, provide **ONE** valid JSON object in \`\`\`json ... \`\`\` format.
     *   Use the EXACT structure and payload schemas defined below.
-    *   Prioritize using `itemId` from the list above for `update`/`delete`. Use `itemName` only as a fallback if the ID is ambiguous.
     *   If optional details (dueDate, priority) are omitted by the user, either omit them in the payload or use sensible defaults (e.g., priority 'medium').
     *   Never invent actions. If the user's request is unclear, ask for clarification instead of generating JSON.
     *   JSON Structure:
         \`\`\`json
         { "type": "actionRecommendation", "data": { "id": "rec-${Date.now()}", "action": "create"|"update"|"delete", "itemType": "tasks"|"goals"|"projects"|"plans", "payload": { /* Schema Below */ }, "reasoning": "Brief confirmation, e.g., 'Creating task as requested.'" } }
         \`\`\`
-    *   Payload Schemas:
-        *   `create`: `{ "text": "...", "dueDate": "YYYY-MM-DD" | null, "priority": "high"|"medium"|"low" }` (text required)
-        *   `update`: `{ "itemId": "..." | null, "itemName": "..." | null, "text": "..." | null, "completed": true|false|null, "priority": "..."|null, "dueDate": "YYYY-MM-DD" | null }` (itemId/itemName required; >0 fields required; 'text' updates title)
-        *   `delete`: `{ "itemId": "..." | null, "itemName": "..." | null }` (itemId/itemName required)
-6.  **Educational Content (JSON):** Only if user explicitly asks for "flashcards" or "quiz". Provide text intro, then ONE \`\`\`json ... \`\`\` block (`type:"flashcard"` or `type:"question"`, `data:[...]`).
-7.  **Formatting:** Text ALWAYS first. Max ONE JSON block follows. No metadata/instructions outside JSON.
+
 
 Respond to the user's last message now.`;
 
