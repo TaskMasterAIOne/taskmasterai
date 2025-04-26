@@ -24,8 +24,7 @@ import {
     geminiApiKey, // Keep API key (or move to context/env)
     createSection, updateSection, deleteSection, onSectionsSnapshot, // Keep if section UI exists here
     ItemType,
-    CollectionName,
-    calculatePriority // Keep helper if used in Dashboard UI
+    CollectionName // Keep helper if used in Dashboard UI
 } from '../lib/dashboard-firebase';
 import {
     UserTier,
