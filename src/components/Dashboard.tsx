@@ -146,7 +146,8 @@ const streamResponse = async (
 
 
 const extractCandidateText = (rawResponseText: string): string => {
-    // Extracts text content from Gemini's streaming JSON format
+    // Extracts text content from Gemini's STREAMING JSON format
+    // NOTE: This should ONLY be used for streaming responses now.
     try {
         let combinedText = "";
         const jsonChunks = rawResponseText.trim().split('\n').filter(line => line.startsWith('data: '));
@@ -420,7 +421,7 @@ export function Dashboard() {
   useEffect(() => { const interval = setInterval(() => { setGreeting(getTimeBasedGreeting()); setQuote(getRandomQuote()); }, 60000); return () => clearInterval(interval); }, []);
 
   // ---------------------
-  // SMART OVERVIEW GENERATION (TIER-BASED) - REVISED
+  // SMART OVERVIEW GENERATION (TIER-BASED) - REVISED TO FIX EXTRACTION
   // ---------------------
     const [smartOverview, setSmartOverview] = useState<string>(""); // Holds AI generated text or error messages
     const [overviewLoading, setOverviewLoading] = useState(false);
@@ -448,7 +449,7 @@ export function Dashboard() {
         return () => { if (overviewTimeoutRef.current) { clearTimeout(overviewTimeoutRef.current); } };
     }, [user, tasks, goals, projects, plans]);
 
-     // Effect to generate overview based on debounced signature and user tier - REVISED for functionality
+     // Effect to generate overview based on debounced signature and user tier - REVISED for functionality & extraction
     useEffect(() => {
         // Exit conditions
         if (!user || !geminiApiKey || !debouncedItemsSigForOverview || userTier === 'loading' || userTier === 'basic') {
@@ -533,7 +534,7 @@ Example Output: Looks clear for today. Consider planning your next project step.
                         generationConfig: {
                              maxOutputTokens: 80, // Keep it short
                              temperature: 0.5,
-                             // responseMimeType: "text/plain" // Might help, but parsing text from JSON is safer fallback
+                             // responseMimeType: "text/plain" // Let's rely on parsing text from JSON first
                          },
                          safetySettings: [ // Standard safety settings
                             { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
@@ -556,18 +557,34 @@ Example Output: Looks clear for today. Consider planning your next project step.
                 const resultJson = await response.json();
                 console.log("Overview API Response JSON:", resultJson); // DEBUG
 
-                // Extract text using the *same* robust function, passing the JSON response as a string
-                // This handles the candidate structure even in non-streaming responses
-                const rawText = extractCandidateText(JSON.stringify(resultJson));
-                console.log("Overview Extracted Raw Text:", rawText); // DEBUG
+                // *** FIX: Directly parse text from the non-streaming JSON structure ***
+                let extractedOverviewText = "";
+                if (resultJson.candidates?.[0]?.content?.parts?.[0]?.text) {
+                    extractedOverviewText = resultJson.candidates[0].content.parts[0].text;
+                    console.log("Overview Extracted Directly:", extractedOverviewText); // DEBUG
+                } else {
+                    // Handle potential errors or empty responses more gracefully
+                    const finishReason = resultJson.candidates?.[0]?.finishReason;
+                    const blockReason = resultJson.promptFeedback?.blockReason;
+                    let errorMessage = "AI failed to provide overview text.";
+                    if (finishReason === 'SAFETY' || blockReason) {
+                         errorMessage = `Overview blocked: ${finishReason || blockReason || 'Safety'}`;
+                    } else if (resultJson.error?.message) {
+                         errorMessage = `API Error: ${resultJson.error.message}`;
+                    }
+                    console.error("Overview response missing text. JSON:", resultJson);
+                    // Throw specific error instead of letting validation catch generic one
+                    throw new Error(errorMessage);
+                }
+                // *** END FIX ***
 
-                // Minimal cleaning needed as extractor handles most issues
-                const cleanText = rawText.trim();
+                const cleanText = extractedOverviewText.trim(); // Basic trim
 
-                // Basic validation
+                // Basic validation (might still catch edge cases)
                 if (!cleanText || cleanText.toLowerCase().startsWith("[error") || cleanText.length < 5) {
-                     console.warn("Received invalid overview response:", cleanText);
-                     throw new Error("Received invalid overview response from AI.");
+                     console.warn("Received invalid overview content:", cleanText);
+                     // Throw a more specific error if direct extraction succeeded but content is bad
+                     throw new Error("Received empty or invalid overview content.");
                  }
 
                 // Only update state if the actual text content has changed
@@ -587,7 +604,8 @@ Example Output: Looks clear for today. Consider planning your next project step.
                  if (error.message.includes('429') || error.message.includes('rate limit')) { errorMsg = "Overview limit reached. Try again later."; }
                  else if (error.message.includes('API key not valid')) { errorMsg = "Invalid AI config."; }
                  else if (error.message.includes('timed out')) { errorMsg = "Overview request timed out."; }
-                 else if (error.message.includes("invalid overview response")) { errorMsg = "AI failed to generate a valid overview."; }
+                 // Use the more specific error messages thrown above
+                 else if (error.message.includes("invalid overview content") || error.message.includes("provide overview text") || error.message.includes("Overview blocked")) { errorMsg = `AI Error: ${error.message}`; }
                  else if (error.message.includes("API error")) { // Catch specific API errors if possible
                       const detailMatch = error.message.match(/Gemini API error \(\d+\): (.*)/);
                       errorMsg = `Overview generation failed: ${detailMatch ? detailMatch[1] : 'API issue'}`;
@@ -1064,6 +1082,7 @@ ${itemsText}
         // --- Initiate Streaming ---
         await streamResponse(geminiChatEndpoint, geminiOptions, (rawChunkAccumulated) => {
             finalAccumulatedRawText = rawChunkAccumulated; // Store full raw response
+            // Use extractCandidateText here as it's designed for streaming format
             const currentExtractedText = extractCandidateText(rawChunkAccumulated);
             if (currentExtractedText && currentExtractedText !== lastStreamedTextForDisplay) {
                  lastStreamedTextForDisplay = currentExtractedText;
@@ -1074,6 +1093,7 @@ ${itemsText}
 
         // --- Final Processing after Stream Ends ---
         console.log("Stream ended. Final Raw Text for Processing:", finalAccumulatedRawText); // DEBUG
+        // Use extractCandidateText for the final complete streaming response
         let finalExtractedAssistantText = extractCandidateText(finalAccumulatedRawText);
         console.log("Final Extracted Text:", finalExtractedAssistantText); // DEBUG
 
@@ -1403,6 +1423,7 @@ Return ONLY the JSON object. No other text. Ensure the JSON is valid.`;
 
   // Function to get a display name for chat conversation
   const getChatDisplayName = (conv: { id: string; data: { chatName?: string; createdAt?: Timestamp } }): string => {
+      // This function should correctly prioritize chatName, then format date, then fallback to ID.
       if (conv.data?.chatName && conv.data.chatName.trim() !== "") {
           return conv.data.chatName;
       }
@@ -1482,11 +1503,11 @@ Return ONLY the JSON object. No other text. Ensure the JSON is valid.`;
              ) : (
                  <>
                     {/* Ensure smartOverview state is used here */}
-                    <div className={`text-xs sm:text-sm prose-sm max-w-none animate-fadeIn ${isIlluminateEnabled ? 'text-gray-800' : 'text-gray-300'} leading-snug ${smartOverview.includes('unavailable') || smartOverview.includes('failed') || smartOverview.includes('limit') || smartOverview.toLowerCase().includes('error:') ? (isIlluminateEnabled ? 'text-yellow-700 italic' : 'text-yellow-500 italic') : ''}`} >
+                    <div className={`text-xs sm:text-sm prose-sm max-w-none animate-fadeIn ${isIlluminateEnabled ? 'text-gray-800' : 'text-gray-300'} leading-snug ${smartOverview.includes('unavailable') || smartOverview.includes('failed') || smartOverview.includes('limit') || smartOverview.toLowerCase().includes('error:') || smartOverview.toLowerCase().includes('blocked:') ? (isIlluminateEnabled ? 'text-yellow-700 italic' : 'text-yellow-500 italic') : ''}`} >
                         {smartOverview || "Add items or check back later for an overview."}
                     </div>
                     {/* Show disclaimer only if overview has content and isn't an error/default message */}
-                    {smartOverview && !smartOverview.includes('unavailable') && !smartOverview.includes('failed') && !smartOverview.includes('limit') && !smartOverview.includes('No pending items') && !smartOverview.toLowerCase().startsWith('error:') && smartOverview !== "Add items or check back later for an overview." && (
+                    {smartOverview && !smartOverview.includes('unavailable') && !smartOverview.includes('failed') && !smartOverview.includes('limit') && !smartOverview.includes('No pending items') && !smartOverview.toLowerCase().startsWith('error:') && !smartOverview.toLowerCase().includes('blocked:') && smartOverview !== "Add items or check back later for an overview." && (
                         <div className="mt-1.5 text-left text-[10px] text-gray-500/80"> AI responses may be inaccurate. Verify critical info. </div>
                     )}
                  </>
@@ -1555,7 +1576,7 @@ Return ONLY the JSON object. No other text. Ensure the JSON is valid.`;
       <div aria-hidden={!isAiSidebarOpen} className={`fixed top-0 right-0 h-full w-full max-w-sm md:max-w-md lg:max-w-[440px] z-50 transform transition-transform duration-300 ease-in-out ${ isAiSidebarOpen ? 'translate-x-0' : 'translate-x-full' } ${cardClass} flex flex-col shadow-2xl border-l ${illuminateBorder}`} role="complementary" aria-labelledby="ai-sidebar-title" >
         {/* Sidebar Header */}
         <div className={`p-3 sm:p-4 border-b ${illuminateBorder} ${isIlluminateEnabled ? 'bg-gray-100/80' : 'bg-gray-800/90'} flex-shrink-0 sticky top-0 backdrop-blur-sm z-20`} > <div className="flex justify-between items-center mb-2"> <h3 id="ai-sidebar-title" className={`text-base sm:text-lg font-semibold flex items-center gap-2 ${illuminateTextBlue}`}> <BrainCircuit className="w-5 h-5" /> TaskMaster AI </h3> <button onClick={() => setIsAiSidebarOpen(false)} className={`${ iconColor } p-1 rounded-full ${illuminateBgHover} transition-colors transform hover:scale-110 active:scale-100`} title="Close Chat" aria-label="Close AI Chat Sidebar" > <X className="w-5 h-5" /> </button> </div> <div className="flex items-center gap-2">
-           {/* Chat Conversation Selector - FIXED name display */}
+           {/* Chat Conversation Selector - FIXED name display by removing truncate */}
            <select
               value={selectedConversationId || ''}
               onChange={(e) => {
@@ -1567,7 +1588,8 @@ Return ONLY the JSON object. No other text. Ensure the JSON is valid.`;
                   }
               }}
               disabled={isConversationsLoading || chatConversations.length === 0}
-              className={`flex-grow ${inputBg} border ${illuminateBorder} rounded-md px-3 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-150 shadow-sm appearance-none ${iconColor} truncate`}
+              // *** FIX: Removed 'truncate' class to prevent cutting off names ***
+              className={`flex-grow ${inputBg} border ${illuminateBorder} rounded-md px-3 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-150 shadow-sm appearance-none ${iconColor}`}
               title="Select Conversation" >
               {isConversationsLoading ? ( <option value="">Loading chats...</option> ) :
                chatConversations.length > 0 ? (
@@ -1585,7 +1607,14 @@ Return ONLY the JSON object. No other text. Ensure the JSON is valid.`;
                  ))
                ) : ( <option value="">No chats yet</option> )}
            </select>
-           <button onClick={handleNewChat} disabled={isChatLoading || isConversationsLoading} className={`bg-blue-600 text-white p-1.5 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-100 shadow-sm flex-shrink-0 flex items-center gap-1 text-xs`} title="Start New Chat" > <PlusCircle className="w-3.5 h-3.5" /> New </button> </div> <div className={`mt-3 flex border-b ${illuminateBorder} -mb-[1px]`}> <button onClick={() => setAiSidebarTab('chat')} className={`flex-1 py-2 text-sm font-medium text-center border-b-2 transition-colors ${aiSidebarTab === 'chat' ? `border-blue-500 ${illuminateTextBlue}` : `border-transparent ${subheadingClass} hover:${illuminateTextBlue}`}`} > Chat </button> <button onClick={() => setAiSidebarTab('insights')} className={`flex-1 py-2 text-sm font-medium text-center border-b-2 transition-colors ${aiSidebarTab === 'insights' ? `border-purple-500 ${illuminateTextPurple}` : `border-transparent ${subheadingClass} hover:${illuminateTextPurple}`}`} > Insights </button> </div> </div>
+           {/* *** END FIX *** */}
+           <button onClick={handleNewChat} disabled={isChatLoading || isConversationsLoading} className={`bg-blue-600 text-white p-1.5 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-100 shadow-sm flex-shrink-0 flex items-center gap-1 text-xs`} title="Start New Chat" > <PlusCircle className="w-3.5 h-3.5" /> New </button> </div> <div className={`mt-3 flex border-b ${illuminateBorder} -mb-[1px]`}> <button onClick={() => setAiSidebarTab('chat')} className={`flex-1 py-2 text-sm font-medium text-center border-b-2 transition-colors ${aiSidebarTab === 'chat' ? `border-blue-500 ${illuminateTextBlue}` : `border-transparent ${subheadingClass} hover:${illuminateTextBlue}`}`} > Chat </button>
+             {/* *** FIX: Added BETA tag *** */}
+             <button onClick={() => setAiSidebarTab('insights')} className={`flex-1 py-2 text-sm font-medium text-center border-b-2 transition-colors ${aiSidebarTab === 'insights' ? `border-purple-500 ${illuminateTextPurple}` : `border-transparent ${subheadingClass} hover:${illuminateTextPurple}`}`} >
+                Insights <span className="text-xs font-normal opacity-70 ml-1">(BETA)</span>
+            </button>
+            {/* *** END FIX *** */}
+        </div> </div>
 
         {/* Sidebar Content (Scrollable) */}
         <div className="flex-1 overflow-y-auto" ref={aiSidebarTab === 'chat' ? chatEndRef : null}>
