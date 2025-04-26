@@ -1022,12 +1022,12 @@ ${itemsText}
         }
         \`\`\`
     *   **Payload Details:**
-        *   `create`: `{ "text": "Item Name", "dueDate": "YYYY-MM-DD" | null, "priority": "high"|"medium"|"low" }` (text required)
-        *   `update`: `{ "itemId": "existing_item_id" | null, "itemName": "Item Name If ID Unknown" | null, "text": "New Name" | null, "completed": true|false|null, "priority": "high"|"medium"|"low"|null, "dueDate": "YYYY-MM-DD" | null }` (MUST include `itemId` or `itemName`. Include at least one field to update. `text` updates the item's main name/title.)
-        *   `delete`: `{ "itemId": "existing_item_id" | null, "itemName": "Item Name If ID Unknown" | null }` (MUST include `itemId` or `itemName`)
-    *   **Crucially:** Use the `itemId` from the "[User's Current Items]" list above if you know which specific item to modify. Only use `itemName` for updates/deletes if the `itemId` is unclear from the conversation.
+        *   \`create\`: \`{ "text": "Item Name", "dueDate": "YYYY-MM-DD" | null, "priority": "high"|"medium"|"low" }\` (text required)
+        *   \`update\`: \`{ "itemId": "existing_item_id" | null, "itemName": "Item Name If ID Unknown" | null, "text": "New Name" | null, "completed": true|false|null, "priority": "high"|"medium"|"low"|null, "dueDate": "YYYY-MM-DD" | null }\` (MUST include \`itemId\` or \`itemName\`. Include at least one field to update. \`text\` updates the item's main name/title.)
+        *   \`delete\`: \`{ "itemId": "existing_item_id" | null, "itemName": "Item Name If ID Unknown" | null }\` (MUST include \`itemId\` or \`itemName\`)
+    *   **Crucially:** Use the \`itemId\` from the "[User's Current Items]" list above if you know which specific item to modify. Only use \`itemName\` for updates/deletes if the \`itemId\` is unclear from the conversation.
     *   Only include the JSON block if an action is strongly suggested and relevant. Do NOT invent actions. Ensure the JSON is valid.
-4.  **Flashcards/Quizzes (Optional JSON):** If the user *explicitly* asks for flashcards or a quiz, provide the data in ONE \`\`\`json ... \`\`\` block AFTER your text response, using the structure: `{ "type": "flashcard" | "question", "data": [...] }`. Do not include this unless asked.
+4.  **Flashcards/Quizzes (Optional JSON):** If the user *explicitly* asks for flashcards or a quiz, provide the data in ONE \`\`\`json ... \`\`\` block AFTER your text response, using the structure: \`{ "type": "flashcard" | "question", "data": [...] }\`. Do not include this unless asked.
 5.  **Response Format:** Conversational text response first. Then, optionally, ONE JSON block (either action or educational, not both). Be concise and helpful. Do not include instructions or metadata in your response.
 `;
 
