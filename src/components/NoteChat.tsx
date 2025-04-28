@@ -820,9 +820,6 @@ ${recentHistory
                                         <span className="text-red-500 ml-1 font-medium">(Limit Reached)</span>
                                     )}
                                      {!isChatLimitReached && userTier === 'basic' && (
-                                         <Link to="/pricing" className={`ml-2 font-medium ${isIlluminateEnabled ? 'text-blue-600 hover:text-blue-700' : 'text-blue-400 hover:text-blue-300'} hover:underline text-[10px]`}>
-                                             <Crown className="w-2.5 h-2.5 inline mr-0.5"/>Upgrade
-                                         </Link>
                                      )}
                                 </div>
                             )}
