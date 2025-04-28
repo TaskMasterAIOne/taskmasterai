@@ -1,7 +1,8 @@
 
 import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react';
-import { MessageCircle, Send, Timer as TimerIcon, Paperclip, Bot, X, AlertTriangle, Loader2, Sparkles, ChevronDown, Maximize, Minimize, Link, Edit, Check, RefreshCcw, Crown } from 'lucide-react';
+import { MessageCircle, Send, Timer as TimerIcon, Paperclip, Bot, X, AlertTriangle, Loader2, Sparkles, ChevronDown, Maximize, Minimize, Edit, Check, RefreshCcw, Crown } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { useNavigate, Link } from "react-router-dom"; // Added Link
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
@@ -819,10 +820,13 @@ ${recentHistory
                                     {isChatLimitReached && !isLoadingUsage && (
                                         <span className="text-red-500 ml-1 font-medium">(Limit Reached)</span>
                                     )}
-                                     {!isChatLimitReached && userTier === 'basic' && (
-                                     )}
-                                </div>
-                            )}
+                         {!isChatLimitReached && userTier === 'basic' && (
+                              <Link to="/pricing" className={`ml-2 font-medium ${isIlluminateEnabled ? 'text-blue-600 hover:text-blue-700' : 'text-blue-400 hover:text-blue-300'} hover:underline`}>
+                                 <Crown className="w-2.5 h-2.5 inline mr-0.5"/>Upgrade
+                             </Link>
+                         )}
+                     </div>
+                 )}
                             {/* File Pills */}
                             {selectedFiles.length > 0 && ( <div className="mb-1.5 flex flex-wrap gap-1.5 px-1"> {selectedFiles.map(file => ( <div key={file.name} className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${filePillBg} ${filePillText}`}> <span className="truncate max-w-[100px]">{file.name}</span> <span className="text-[10px] opacity-70">({formatBytes(file.size)})</span> <button type="button" onClick={() => handleRemoveFile(file.name)} className={`ml-0.5 p-0.5 rounded-full ${isIlluminateEnabled ? 'hover:bg-blue-200' : 'hover:bg-blue-700'} `} title="Remove"> <X className="w-2.5 h-2.5" /> </button> </div> ))} </div> )}
                             {/* Input Form */}
