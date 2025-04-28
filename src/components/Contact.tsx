@@ -263,15 +263,6 @@ function Contact() {
   );
 
 
-  // --- Loading State ---
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <Loader2 className="w-10 h-10 text-indigo-500 animate-spin" />
-      </div>
-    );
-  }
-
   // --- Main Component Return ---
   return (
     <div className="flex flex-col min-h-screen bg-gray-900 font-poppins text-gray-200">
