@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom"; // Added Link
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -22,6 +22,7 @@ import {
   GripVertical,
   Sun,
   Moon,
+  Crown,
   Circle,
   ListChecks,
   CalendarDays,
@@ -1976,13 +1977,18 @@ Assistant Response:`; // End of prompt
                     {userTier !== 'premium' && userTier !== 'loading' && (
                         <div className="pb-1.5 text-xs text-center">
                             <span className={isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}>
-                                Messages: {isLoadingUsage ? '...' : chatCount} / {currentChatLimit === Infinity ? 'Unlimited' : currentChatLimit}
+                                Messages this month: {isLoadingUsage ? '...' : chatCount} / {currentChatLimit === Infinity ? 'Unlimited' : currentChatLimit}
                             </span>
                             {isChatLimitReached && !isLoadingUsage && (
                                 <span className="text-red-500 ml-1 font-medium">(Limit Reached)</span>
                             )}
-                        </div>
-                    )}
+                         {!isChatLimitReached && userTier === 'basic' && (
+                              <Link to="/pricing" className={`ml-2 font-medium ${isIlluminateEnabled ? 'text-blue-600 hover:text-blue-700' : 'text-blue-400 hover:text-blue-300'} hover:underline`}>
+                                 <Crown className="w-2.5 h-2.5 inline mr-0.5"/>Upgrade
+                             </Link>
+                         )}
+                     </div>
+                 )}
                     <form onSubmit={handleCalendarChatSubmit} >
                         <div className="flex gap-1.5 items-center">
                             <input
