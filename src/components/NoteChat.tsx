@@ -815,7 +815,7 @@ ${recentHistory
                             {userTier !== 'premium' && userTier !== 'loading' && (
                                 <div className="pb-1 text-xs text-center">
                                     <span className={isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}>
-                                        Messages: {isLoadingUsage ? '...' : chatCount} / {currentChatLimit === Infinity ? '∞' : currentChatLimit}
+                                        Messages this month: {isLoadingUsage ? '...' : chatCount} / {currentChatLimit === Infinity ? '∞' : currentChatLimit}
                                     </span>
                                     {isChatLimitReached && !isLoadingUsage && (
                                         <span className="text-red-500 ml-1 font-medium">(Limit Reached)</span>
