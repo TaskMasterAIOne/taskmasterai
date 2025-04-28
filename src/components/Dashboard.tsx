@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react'; // Added useMemo
 import { useNavigate, Link } from 'react-router-dom'; // Import Link
 // Ensure all used icons are imported
-import { Play, Pause, PlusCircle, Edit, Trash, Sparkles, CheckCircle, MessageCircle, RotateCcw, Square, X, TimerIcon, Send, ChevronLeft, ChevronRight, Moon, Sun, Star, Wind, Droplets, Zap, Calendar, Clock, MoreHorizontal, ArrowUpRight, Bookmark, BookOpen, Lightbulb, Flame, Award, TrendingUp, Rocket, Target, Layers, Clipboard, AlertCircle, ThumbsUp, ThumbsDown, BrainCircuit, ArrowRight, Flag, Bell, Filter, Tag, BarChart, PieChart, ChevronDown } from 'lucide-react';
+import { Play, Pause, PlusCircle, Edit, Trash, Sparkles, CheckCircle, MessageCircle, Crown, RotateCcw, Square, X, TimerIcon, Send, ChevronLeft, ChevronRight, Moon, Sun, Star, Wind, Droplets, Zap, Calendar, Clock, MoreHorizontal, ArrowUpRight, Bookmark, BookOpen, Lightbulb, Flame, Award, TrendingUp, Rocket, Target, Layers, Clipboard, AlertCircle, ThumbsUp, ThumbsDown, BrainCircuit, ArrowRight, Flag, Bell, Filter, Tag, BarChart, PieChart, ChevronDown } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { Timer } from './Timer'; // Ensure this component exists and accepts props like initialDuration, onComplete, compact
 import { FlashcardsQuestions } from './FlashcardsQuestions'; // Ensure this component exists and accepts props like type, data, onComplete, isIlluminateEnabled
