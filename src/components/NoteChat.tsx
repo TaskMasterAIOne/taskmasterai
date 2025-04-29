@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react';
 import { MessageCircle, Send, Timer as TimerIcon, Paperclip, Bot, X, AlertTriangle, Loader2, Sparkles, ChevronDown, Maximize, Minimize, Edit, Check, RefreshCcw, Crown } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -15,11 +14,11 @@ import { auth } from '../lib/firebase';
 import {
     UserTier, // Import the type
     getUserTier,
-    getUserChatUsage, // Use the specific chat usage getter
-    updateUserChatUsage, // Use the specific chat usage updater
+    // getUserChatUsage, // OLD - Use getCurrentMonthUserChatUsage
+    // updateUserChatUsage, // OLD - Use incrementUserChatUsage
+    getCurrentMonthUserChatUsage, // *** NEW: Use this for reading ***
+    incrementUserChatUsage,      // *** NEW: Use this for writing/incrementing ***
     getChatLimitForTier,
-    // BASIC_CHAT_LIMIT, // Use getChatLimitForTier instead
-    // PRO_CHAT_LIMIT, // Use getChatLimitForTier instead
 } from '../lib/current-paying-user'; // Correct path
 
 // Types (Remain the same)
@@ -234,7 +233,7 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
 
         // --- Effects ---
 
-        // --- Effect to load user, tier, and usage (UPDATED) ---
+        // --- Effect to load user, tier, and usage (*** UPDATED with new logic ***) ---
         useEffect(() => {
             if (!isVisible) return; // Only load when chat becomes visible
 
@@ -252,21 +251,26 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
             const tier = getUserTier(currentUser.email);
             setUserTier(tier);
 
-            // Load Chat Usage Data (if not premium)
+            // Load Chat Usage Data (if not premium) using NEW function
             if (tier !== 'premium') {
                 const currentMonthYear = new Date().toISOString().slice(0, 7);
-                getUserChatUsage(currentUser.uid) // Use centralized function
+                getCurrentMonthUserChatUsage(currentUser.uid, currentMonthYear) // Use NEW function
                     .then(usageData => {
-                        if (usageData?.month === currentMonthYear) {
+                        if (usageData) {
+                            // Data exists for current month
                             setChatCount(usageData.count);
-                            setUsageMonth(usageData.month);
+                            setUsageMonth(usageData.month); // Should match currentMonthYear
                             const limit = getChatLimitForTier(tier);
                             setIsChatLimitReached(usageData.count >= limit);
+                             console.log(`NoteChat: Loaded chat usage for ${currentMonthYear}: ${usageData.count}`);
                         } else {
+                            // No data for the CURRENT month found.
+                            // Reset local state. Firestore update handled by increment.
+                            console.log(`NoteChat: No chat usage data for ${currentUser.uid} for ${currentMonthYear}. Resetting local count.`);
                             setChatCount(0);
                             setUsageMonth(currentMonthYear);
                             setIsChatLimitReached(false);
-                            updateUserChatUsage(currentUser.uid, 0, currentMonthYear).catch(err => console.error("NoteChat: Failed initial usage reset:", err));
+                            // NO Firestore write here.
                         }
                     })
                     .catch(err => {
@@ -276,11 +280,12 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
                         setIsChatLimitReached(false);
                     })
                     .finally(() => setIsLoadingUsage(false));
-            } else {
+            } else { // Premium user
                 setChatCount(0);
                 setUsageMonth('');
                 setIsChatLimitReached(false);
                 setIsLoadingUsage(false);
+                console.log("NoteChat: Premium user detected, usage check skipped.");
             }
 
         }, [isVisible]); // Trigger when visibility changes
@@ -437,28 +442,48 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
         const handleRemoveFile = (fileName: string) => setSelectedFiles(prev => prev.filter(f => f.name !== fileName));
         const triggerFileSelect = () => fileInputRef.current?.click();
 
-        // --- Core Chat Submit Logic (UPDATED with Usage Check using centralized functions) ---
+        // --- Core Chat Submit Logic (*** UPDATED with new usage logic ***) ---
         const submitMessageToAI = async (messageContent: string, filesToSend?: SelectedFile[]) => {
             const currentFiles = filesToSend || selectedFiles;
             if ((!messageContent && currentFiles.length === 0) || isChatLoading || !geminiApiKey || !note || !user) return;
 
-            // --- Usage Check ---
-            if (userTier !== 'premium') {
-                 const currentMonthYear = usageMonth || new Date().toISOString().slice(0, 7); // Use state month or current
-                 const limit = currentChatLimit; // Use memoized limit
+            // --- START: Usage Check (Use state and imported functions) ---
+            const currentMonthYear = new Date().toISOString().slice(0, 7);
+            let limitReached = false;
+            const limit = currentChatLimit; // Use memoized limit
 
-                if (chatCount >= limit) {
-                    setChatHistory(prev => [...prev, {
-                        id: `limit-${Date.now()}`,
-                        role: 'assistant',
-                        content: `You've reached your ${limit === Infinity ? 'monthly' : limit} chat message limit. Upgrade for more interactions!`,
-                        error: true
-                    }]);
-                    setChatMessage(''); // Clear input if limit reached
-                    return; // Stop submission
+            if (userTier !== 'premium') {
+                 let currentCount = chatCount; // Use state value
+
+                // Check if the stored month matches the current month. If not, reset local count.
+                if (usageMonth !== currentMonthYear) {
+                    console.log(`NoteChat: Month mismatch (State: ${usageMonth}, Current: ${currentMonthYear}). Resetting local count.`);
+                    currentCount = 0; // Reset count locally for the check below
+                    setChatCount(0); // Update state
+                    setUsageMonth(currentMonthYear); // Update state
+                    setIsChatLimitReached(false); // Update state
+                    limitReached = false; // Ensure limit isn't triggered by outdated state
+                    // NO Firestore write here - handled by incrementUserChatUsage
+                } else {
+                    // Month matches, check current count against limit
+                    limitReached = currentCount >= limit;
+                    // Update state just in case it was out of sync
+                    setIsChatLimitReached(limitReached);
                 }
             }
-            // --- End Usage Check ---
+
+            if (limitReached) {
+                 setChatHistory(prev => [...prev, {
+                     id: `limit-${Date.now()}`,
+                     role: 'assistant',
+                     content: `You've reached your ${limit === Infinity ? 'monthly' : limit} chat message limit. Upgrade for more interactions!`,
+                     error: true
+                 }]);
+                 setChatMessage(''); // Clear input if limit reached
+                 return; // Stop submission
+            }
+            // --- END: Usage Check ---
+
 
             const timerDuration = parseTimerRequest(messageContent);
 
@@ -484,17 +509,31 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
             }
 
             setIsChatLoading(true);
-            // --- Increment Usage Count (Use imported function) ---
-            if (userTier !== 'premium') {
-                const newCount = chatCount + 1;
-                const currentMonth = usageMonth || new Date().toISOString().slice(0, 7); // Ensure we use the correct month
-                const limit = currentChatLimit;
-                setChatCount(newCount); // Optimistic UI update
-                setIsChatLimitReached(newCount >= limit); // Update limit state
-                updateUserChatUsage(user.uid, newCount, currentMonth).catch(err => { // Use imported function
-                    console.error("NoteChat: Failed to update chat usage in Firestore:", err);
-                    // Optionally revert count or show error
-                });
+
+            // --- Increment Usage Count (Use ATOMIC function) ---
+            let incrementFailed = false;
+            if (userTier !== 'premium' && user?.uid) {
+                try {
+                    // Call the ATOMIC increment function
+                    await incrementUserChatUsage(user.uid);
+
+                    // Optimistic UI update *after* successful increment
+                    const newLocalCount = chatCount + 1;
+                    setChatCount(newLocalCount);
+                    setIsChatLimitReached(newLocalCount >= limit);
+
+                } catch (err) {
+                    incrementFailed = true;
+                    console.error("NoteChat: Failed to increment chat usage:", err);
+                    // Add error message to chat history for user feedback
+                    setChatHistory(prevHist => [...prevHist, {
+                        id:`usage-err-${Date.now()}`,
+                        role: 'assistant',
+                        content: "⚠️ Error saving chat usage count. Your message was sent, but the count might be inaccurate.",
+                        error: true
+                    }]);
+                    // Do not block the chat functionality itself
+                }
             }
             // --- End Increment Logic ---
 
@@ -641,7 +680,12 @@ ${recentHistory
                 let requestBody = JSON.stringify({
                     contents: apiContent,
                     generationConfig: { temperature: 0.6, maxOutputTokens: 8192, topP: 0.95, responseMimeType: "text/plain" },
-                    // safetySettings: [...] // Add safety settings if needed
+                     safetySettings: [ // Standard safety settings
+                        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                    ],
                 });
 
                 const geminiOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: requestBody };
@@ -834,14 +878,16 @@ ${recentHistory
                         {/* Suggestions Area (Unchanged) */}
                         {suggestedPrompts.length > 0 && !isChatLoading && ( <div className={`px-3 py-2 border-t ${isIlluminateEnabled ? 'border-gray-200' : 'border-gray-700'}`}> <p className={`text-xs font-medium w-full mb-2 ${isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}`}>Suggestions:</p> <div className="flex flex-wrap gap-2"> {suggestedPrompts.map((prompt, idx) => ( <button key={idx} onClick={() => handleSuggestionClick(prompt)} className={`${suggestionButtonClass} text-xs px-2.5 py-1 rounded-md hover:shadow-sm transition-all duration-150 cursor-pointer`} title={prompt} > {prompt} </button> ))} </div> </div> )}
 
-                        {/* Input Form Area (UPDATED with usage display) */}
+                        {/* Input Form Area (*** UPDATED with new usage logic ***) */}
                         <div className={`p-2 border-t ${headerBg} shrink-0 sticky bottom-0`}>
                              {/* Usage Display */}
                             {userTier !== 'premium' && userTier !== 'loading' && (
                                 <div className="pb-1 text-xs text-center">
                                     <span className={isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}>
+                                        {/* Use chatCount state and currentChatLimit memo */}
                                         Messages this month: {isLoadingUsage ? '...' : chatCount} / {currentChatLimit === Infinity ? '∞' : currentChatLimit}
                                     </span>
+                                    {/* Use isChatLimitReached state */}
                                     {isChatLimitReached && !isLoadingUsage && (
                                         <span className="text-red-500 ml-1 font-medium">(Limit Reached)</span>
                                     )}
@@ -856,10 +902,17 @@ ${recentHistory
                             {selectedFiles.length > 0 && ( <div className="mb-1.5 flex flex-wrap gap-1.5 px-1"> {selectedFiles.map(file => ( <div key={file.name} className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${filePillBg} ${filePillText}`}> <span className="truncate max-w-[100px]">{file.name}</span> <span className="text-[10px] opacity-70">({formatBytes(file.size)})</span> <button type="button" onClick={() => handleRemoveFile(file.name)} className={`ml-0.5 p-0.5 rounded-full ${isIlluminateEnabled ? 'hover:bg-blue-200' : 'hover:bg-blue-700'} `} title="Remove"> <X className="w-2.5 h-2.5" /> </button> </div> ))} </div> )}
                             {/* Input Form */}
                             <form onSubmit={handleChatSubmit} className="flex gap-1.5 items-end">
-                                 <textarea ref={textareaRef} rows={1} value={chatMessage} onChange={handleTextareaInput} onKeyDown={handleKeyDown} onPaste={handlePaste} placeholder={isChatLimitReached ? "Monthly chat limit reached..." : "Ask, paste an image, or attach files..."} className={`flex-1 ${inputBg} ${inputTextColor} ${placeholderColor} rounded-lg px-3 py-1.5 text-sm focus:ring-1 focus:outline-none resize-none overflow-y-auto max-h-[100px] leading-snug ${isChatLoading || isChatLimitReached || isLoadingUsage ? 'opacity-60 cursor-not-allowed' : ''}`} disabled={isChatLoading || isChatLimitReached || isLoadingUsage} style={{ height: 'auto' }} aria-label="Chat input" />
+                                 <textarea ref={textareaRef} rows={1} value={chatMessage} onChange={handleTextareaInput} onKeyDown={handleKeyDown} onPaste={handlePaste} placeholder={isChatLimitReached ? "Monthly chat limit reached..." : "Ask, paste an image, or attach files..."} className={`flex-1 ${inputBg} ${inputTextColor} ${placeholderColor} rounded-lg px-3 py-1.5 text-sm focus:ring-1 focus:outline-none resize-none overflow-y-auto max-h-[100px] leading-snug ${isChatLoading || isChatLimitReached || isLoadingUsage ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                  // Use state to disable
+                                  disabled={isChatLoading || isChatLimitReached || isLoadingUsage}
+                                  style={{ height: 'auto' }} aria-label="Chat input" />
                                  <input type="file" ref={fileInputRef} onChange={handleFileSelect} multiple accept="image/*,application/pdf" className="hidden" />
                                  <button type="button" onClick={triggerFileSelect} disabled={isChatLoading || isLoadingUsage} className={`${buttonSecondaryClass} p-2 rounded-full self-end mb-[1px] transition-all duration-150 ${isChatLoading || isLoadingUsage ? buttonDisabledClass : 'hover:scale-105 active:scale-100'}`} title="Attach Files (Image/PDF)"> <Paperclip className="w-4 h-4" /> </button>
-                                 <button type="submit" disabled={isChatLoading || isLoadingUsage || (!chatMessage.trim() && selectedFiles.length === 0) || isChatLimitReached} className={`${buttonPrimaryClass} p-2 rounded-full self-end mb-[1px] transition-all duration-150 ${isChatLoading || isLoadingUsage || (!chatMessage.trim() && selectedFiles.length === 0) || isChatLimitReached ? buttonDisabledClass : 'hover:scale-105 active:scale-100'}`}> {isChatLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} </button>
+                                 <button type="submit"
+                                  // Use state to disable
+                                  disabled={isChatLoading || isLoadingUsage || (!chatMessage.trim() && selectedFiles.length === 0) || isChatLimitReached}
+                                  className={`${buttonPrimaryClass} p-2 rounded-full self-end mb-[1px] transition-all duration-150 ${isChatLoading || isLoadingUsage || (!chatMessage.trim() && selectedFiles.length === 0) || isChatLimitReached ? buttonDisabledClass : 'hover:scale-105 active:scale-100'}`}
+                                  > {isChatLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} </button>
                             </form>
                         </div>
                     </>
