@@ -76,24 +76,56 @@ export async function processYouTube(
         safeProgress({ progress: 40, status: 'Generating detailed note...', error: null });
 
         // --- Detailed Note Generation ---
-        const detailedNotePrompt = `Analyze the following YouTube video information (title, description/transcript). Generate a detailed, well-structured note using Markdown.
+const detailedNotePrompt = `Analyze the following **YouTube video information** (Title and Transcript/Description) provided below. Your task is to generate an **exceptionally detailed, comprehensive, and well-structured set of notes *derived directly from this video's content*** using Markdown format. Aim for significant length and depth, reproducing the level of detail found in a study guide or detailed lecture notes, focusing *only* on the information present in the provided video title and transcript/description.
 
 **Instructions:**
-*   **Structure:** Use headings (#, ##), bullet points (* or -), numbered lists.
-*   **Formatting:** Use bold text (**bold**) for emphasis. Create Markdown tables if suitable.
-*   **Content:** Cover main topics and important details thoroughly. Aim for comprehensiveness.
-*   **Length:** Produce a detailed note, not just a summary.
-*   **Math:** Use LaTeX ($inline$ or $$block$$).
 
-**Video Title:** ${videoTitle}
+1.  **Source Focus:** Base your analysis and note generation **strictly and solely** on the content within the provided \`Video Information\` section below (Title and Transcript/Description). Do not introduce outside information, interpretations, or general knowledge about the video's topic *not explicitly mentioned* in the provided text.
+2.  **Structure:** Use Markdown extensively to organize the information logically based on the **video's apparent flow and topics** as revealed by the transcript/description. Employ the following Markdown elements:
+    *   **Headings:** Use \`# Main Topics/Sections\`, \`## Sub-Topics\`, and \`### Specific Points\` to create a clear hierarchical structure reflecting the video's likely organization. Use the Video Title possibly as a main heading (\`#\`) or part of it.
+    *   **Lists:** Utilize \`*\`, \`-\`, or \`+\` for bullet points and numbered lists (\`1.\`, \`2.\`, etc.) where appropriate to present key ideas, steps, arguments, examples, or sequences *mentioned in the video*.
+    *   **Emphasis:** Use \`**bold**\` for key terms, concepts, speakers (if mentioned), important figures/data *highlighted in the video's content*, \`*italics*\` for emphasis or definitions *from the video*, \`***bold italics***\` for strong emphasis, and \`\`\`inline code\`\`\` for short code snippets or technical terms *shown or spoken in the video*. Use \`~~strikethrough~~\` if the transcript indicates corrected or retracted statements.
+    *   **Tables:** If the **video's transcript/description presents data** (e.g., comparisons, results, feature lists) that can be effectively presented in a tabular format, reproduce it using Markdown tables based on the information given. Ensure clear headers and well-organized rows/columns. Use colons (:) for alignment. Example:
+        \`\`\`markdown
+        | Feature/Aspect | Detail 1 (from video) | Detail 2 (from video) |
+        |:---------------|:----------------------|:----------------------|
+        | Topic A        | Point X               | Point Y               |
+        | Topic B        | Point Z               | ...                   |
+        \`\`\`
+    *   **Code Blocks:** Use fenced code blocks (\`\`\`) for multi-line code examples **shown or dictated in the video**. Specify the language if apparent from the transcript (e.g., \`\`\`python\`).
+    *   **Blockquotes:** Use \`>\` for direct, significant quotes **spoken by speakers in the video** or important statements highlighted in the description.
+    *   **Horizontal Rules:** Use \`---\`, \`***\`, or \`___\` to visually separate distinct sections or topic shifts *apparent in the transcript*.
+    *   **Footnotes:** Use footnotes (\`[^label]\` and \`[^label]: Explanation from video...\`) sparingly for tangential points or specific references *mentioned explicitly* in the video content.
+    *   **Definition Lists:** If the **video explicitly defines terms**, use definition lists:
+        \`\`\`markdown
+        Term Mentioned in Video
+        : Definition given in the Video.
+        \`\`\`
+    *   **Task Lists (Checkboxes):** Only if the **video itself outlines steps as a checklist** or actionable tasks.
+        \`\`\`markdown
+        - [ ] Step 1 mentioned in video.
+        - [ ] Step 2 mentioned in video.
+        \`\`\`
+    *   **Emoji:** Avoid unless part of the actual transcript/description text.
+    *   **Subscript/Superscript:** Use HTML tags (\`<sub>\`, \`<sup>\`) if the transcript includes formulas or notation requiring them (e.g., chemical formulas, math).
+    *   **Highlighting:** Use \`==highlighted text==\` only if the transcript *itself* denotes emphasis in a way that suggests highlighting (rare).
+    *   **LaTeX:** Use LaTeX (\`$\` \`$\` for inline, \`$$\` \`$$\` for display) **only if the video transcript contains complex mathematical/scientific notation** requiring it for accurate representation.
+3.  **Comprehensiveness & Detail:** Do **NOT** summarize briefly. Your goal is to **extract and meticulously present** the key concepts, arguments, explanations, examples, steps, data, visuals described, and supporting details **conveyed in the video's title and transcript/description**. Go into substantial detail for each point.
+4.  **Length:** Generate a **lengthy and exhaustive** output. Capture as much specific information **from the video's content (as represented by the transcript/description)** as possible. Err on the side of including more detail. The length should reflect the detail available in the source material.
+5.  **Visuals Mentioned:** If the **transcript explicitly mentions or describes visuals** (e.g., "As you can see on this slide...", "This graph shows...", "Look at this diagram..."), *describe* these visuals based *only* on the information provided in the transcript. Note what is being shown and its purpose according to the speaker.
+6.  **Output Format:** Provide **only** the generated Markdown note content below. Do not include any introductory phrases (like "Here are the notes:") or concluding remarks. Start directly with the first Markdown heading or point derived from the video information.
+
+**Video Information:**
+
+**Title:** ${videoTitle}
+
 **Transcript/Description:**
 ---
 ${transcript.slice(0, 25000)}
 ---
 
-**Output:**
-Provide *only* the generated Markdown note content below.
-`;
+**Generated Markdown Notes:**
+`; // No trailing characters or comments after this line
         let detailedNoteContent = 'AI detailed note generation failed.';
         try {
             const noteOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: detailedNotePrompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 4096 } }) };
