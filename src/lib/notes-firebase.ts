@@ -168,55 +168,7 @@ export async function processTextToAINoteData( text: string, userId: string, api
   try {
     console.log("AI processing text...");
     // 1. Generate Detailed Note
-const detailedNotePrompt = `Analyze the **following text** provided below. Your task is to generate an **exceptionally detailed, comprehensive, and well-structured set of notes *derived directly from this text*** using Markdown format. Aim for significant length and depth, reproducing the level of detail found in a study guide or textbook chapter summary, focusing *only* on the information present in the provided text.
-
-**Instructions:**
-
-1.  **Source Focus:** Base your analysis and note generation **strictly and solely** on the content within the provided \`Source Text\` section below. Do not introduce outside information or general knowledge about the topic not mentioned in the text.
-2.  **Structure:** Use Markdown extensively to organize the information logically based on the **text's flow and topics**. Employ the following Markdown elements:
-    *   **Headings:** Use \`# Main Headings\`, \`## Subheadings\`, and \`### Sub-subheadings\` to create a clear hierarchical structure reflecting the text's organization.
-    *   **Lists:** Utilize \`*\`, \`-\`, or \`+\` for bullet points and numbered lists (\`1.\`, \`2.\`, etc.) where appropriate to present items, steps, or sequences *found in the text*.
-    *   **Emphasis:** Use \`**bold**\` for key terms, concepts, and important figures *mentioned in the text*, \`*italics*\` for emphasis or definitions *from the text*, \`***bold italics***\` for strong emphasis, and \`\`\`inline code\`\`\` for short code snippets or technical terms *present in the text*. Use \`~~strikethrough~~\` if the text indicates deleted or superseded information.
-    *   **Tables:** If the **source text contains data** that can be effectively presented in a tabular format, reproduce it using Markdown tables. Ensure clear headers and well-organized rows and columns based on the text's presentation. Use colons (:) in the separator row to indicate column alignment (e.g., \`:--\`: left, \`--:\`: right, \`:-:\`: center). Example:
-        \`\`\`markdown
-        | Header 1 | Header 2 | Header 3 |
-        |:---|:---:|---:|
-        | Left     | Center | Right    |
-        | Data A   | Data B | Data C   |
-        | More data| Even more| ...      |
-        \`\`\`
-    *   **Code Blocks:** Use fenced code blocks (\`\`\`) for multi-line code or examples **quoted from the text**. Specify the language for syntax highlighting if applicable and indicated or obvious from the text (e.g., \`\`\`python\`).
-    *   **Blockquotes:** Use \`>\` for quoted text or important excerpts **taken directly from the source text**. Multiple \`>\` can create nested blockquotes if relevant to the text's structure.
-    *   **Horizontal Rules:** Use \`---\`, \`***\`, or \`___\` on a separate line to visually separate distinct sections *as suggested by the text's structure*.
-    *   **Footnotes:** If the text contains explicit references or details suitable for footnotes, use the syntax \`[^label]\` for the reference in the text and \`[^label]: detailed explanation from text\` elsewhere in the notes.
-    *   **Definition Lists:** If the **text explicitly presents terms and their definitions**, use definition lists:
-        \`\`\`markdown
-        Term from Text
-        : Definition provided in the Text.
-        Term 2 from Text
-        : A more detailed explanation found in the Text.
-        \`\`\`
-    *   **Task Lists (Checkboxes):** Only if the **text itself includes actions or items** that are presented as checkable tasks, use task lists:
-        \`\`\`markdown
-        - [ ] Item mentioned as needing to be done in text.
-        - [x] Item mentioned as completed in text.
-        \`\`\`
-    *   **Emoji:** Avoid using emoji unless they are explicitly part of the source text itself. Prioritize faithful representation of the text.
-    *   **Subscript and Superscript:** If the **text contains mathematical or chemical formulas** requiring them, use HTML tags \`<sub>\` (e.g., \`H<sub>2</sub>O\`) and \`<sup>\` (e.g., \`E=mc<sup>2</sup>\`).
-    *   **Highlighting:** Use \`==highlighted text==\` only if the *source text itself uses* a clear visual highlighting method you need to represent.
-    *   **LaTeX:** Use LaTeX (\`$\` \`$\` for inline, \`$$\` \`$$\` for display) **only if the source text contains complex mathematical/scientific notation** that requires it for accurate representation.
-3.  **Comprehensiveness & Detail:** Do **NOT** summarize briefly. Your goal is to **extract and meticulously present** the key facts, concepts, definitions, arguments, data, examples, and supporting details **mentioned explicitly in the provided text**. Go into substantial detail for each point, reflecting the depth of the source material.
-4.  **Length:** Generate a **lengthy and exhaustive** output. Capture as much specific information **from the source text** as possible. Err on the side of including more detail rather than less. The length should reflect the detail present in the original text.
-5.  **Diagrams and Graphs:** If the **source text describes diagrams or graphs**, describe them in detail within the notes, including their apparent title, labels, axes (if applicable), and the key relationships or data they present *as described in the text*. Do not attempt to render diagrams unless the text provides explicit code (like Mermaid/PlantUML) for it.
-6.  **Output Format:** Provide **only** the generated Markdown note content below. Do not include any introductory phrases (like "Here are the notes:") or concluding remarks. Start directly with the first Markdown heading or point derived from the text.
-
-**Source Text:**
----
-${text.slice(0, 30000)}
----
-
-**Generated Markdown Notes:**
-`; 
+    const detailedNotePrompt = `Analyze the following text. Generate a detailed, structured note using Markdown (headings # ## ###, lists * -, tables, bold **, LaTeX $ $ or $$ $$). Cover main topics thoroughly, aiming for comprehensiveness, not just a summary. Text:\n---\n${text.slice(0, 30000)}\n---\nOutput:\nProvide only the generated Markdown note content below.`;
     const noteOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: detailedNotePrompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 4096 } }) };
     const noteResponse = await fetchWithRetry(currentGeminiEndpoint, noteOptions); const noteRawText = extractCandidateText(await noteResponse.text());
     if (noteRawText.startsWith("Error:")) { console.error("Note generation failed:", noteRawText); detailedNoteContent = `Error generating note: ${noteRawText}\n\nOriginal Text:\n${text.slice(0, 500)}...`; } else { detailedNoteContent = noteRawText.trim(); console.log("Detailed note content generated."); }
