@@ -69,14 +69,12 @@ import {
   createEvent,
   updateEvent,
   deleteEvent,
+  type CalendarEventData, // Import type for payload
 } from "../lib/calendar-firebase"; // Correct imports for events
 import {
   // Dashboard item functions (Snapshot only needed from here)
   onCollectionSnapshot as onDashboardCollectionSnapshot,
   geminiApiKey,
-  // updateItem as updateDashboardItem, // Use ai-actions-firebase version
-  // deleteItem as deleteDashboardItem, // Use ai-actions-firebase version
-  // markItemComplete as markDashboardItemComplete, // Keep if needed for UI actions
 } from '../lib/dashboard-firebase';
 import {
   // --- NEW: Import AI Action Functions ---
@@ -98,12 +96,13 @@ import { findItemByName } from '../lib/ai-chat-firebase'; // Import helper to fi
 import {
   // --- Import Pricing/Usage Logic ---
   getUserTier,
-  getUserChatUsage,
-  updateUserChatUsage,
+  // getUserChatUsage, // OLD - Use getCurrentMonthUserChatUsage
+  // updateUserChatUsage, // OLD - Use incrementUserChatUsage
+  getCurrentMonthUserChatUsage, // *** NEW: Use this for reading ***
+  incrementUserChatUsage,      // *** NEW: Use this for writing/incrementing ***
   getChatLimitForTier,
   UserTier,
-  BASIC_CHAT_LIMIT,
-  PRO_CHAT_LIMIT,
+  // Removed BASIC/PRO limits as they are handled by getChatLimitForTier
 } from '../lib/current-paying-user';
 import {
     // --- Import AI Context Logic ---
@@ -124,7 +123,7 @@ import 'katex/dist/katex.min.css';
 // ---------------------
 // Helper functions for Gemini integration
 // ---------------------
-const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}&alt=sse`;
+const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}&alt=sse`; // Use 1.5 flash
 
 const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 30000) => {
   const controller = new AbortController();
@@ -321,6 +320,8 @@ interface AiActionPayload {
     newGoal?: string;
     newProject?: string;
     newPlan?: string;
+    // --- Add userId for internal use ---
+    userId?: string;
     // ... any other fields the AI might modify
 }
 
@@ -658,7 +659,7 @@ export function Calendar() {
     useEffect(() => localStorage.setItem('isSidebarIlluminateEnabled', JSON.stringify(isSidebarIlluminateEnabled)), [isSidebarIlluminateEnabled]);
 
 
-    // Auth Listener (Loads Tier/Usage/Name)
+    // Auth Listener (Loads Tier/Usage/Name) - *** UPDATED with new logic ***
     useEffect(() => {
         setLoading(true);
         setUserTier('loading');
@@ -680,25 +681,37 @@ export function Calendar() {
 
                 // Usage
                 if (tier !== 'premium') {
+                    const currentMonthYear = new Date().toISOString().slice(0, 7); // "YYYY-MM"
                     try {
-                        const currentMonthYear = new Date().toISOString().slice(0, 7);
-                        const usageData = await getUserChatUsage(firebaseUser.uid);
-                        if (usageData?.month === currentMonthYear) {
+                        // Use the NEW imported function to get usage ONLY for the current month
+                        const usageData = await getCurrentMonthUserChatUsage(firebaseUser.uid, currentMonthYear);
+
+                        if (usageData) {
+                            // Data exists for current month
                             setChatCount(usageData.count);
-                            setUsageMonth(usageData.month);
+                            setUsageMonth(usageData.month); // Should match currentMonthYear
                             setIsChatLimitReached(usageData.count >= getChatLimitForTier(tier));
+                            console.log(`Calendar: Loaded chat usage for ${currentMonthYear}: ${usageData.count}`);
                         } else {
+                            // No data for the CURRENT month found in Firestore.
+                            // Reset local state. The count will be set to 1 in Firestore
+                            // on the *first* incrementUserChatUsage call this month.
+                            console.log(`Calendar: No chat usage data found for ${firebaseUser.uid} for current month ${currentMonthYear}. Resetting local count.`);
                             setChatCount(0);
                             setUsageMonth(currentMonthYear);
                             setIsChatLimitReached(false);
-                            await updateUserChatUsage(firebaseUser.uid, 0, currentMonthYear);
+                            // NO Firestore write here.
                         }
                     } catch (err) {
-                        console.error("Error loading/updating chat usage:", err);
-                        setChatCount(0); setUsageMonth(new Date().toISOString().slice(0, 7)); setIsChatLimitReached(false);
+                        console.error("Calendar: Error loading chat usage data:", err);
+                        // Handle error - default to 0 count, not limited
+                        setChatCount(0);
+                        setUsageMonth(currentMonthYear);
+                        setIsChatLimitReached(false);
                     } finally { setIsLoadingUsage(false); }
-                } else {
+                } else { // Premium user
                     setChatCount(0); setUsageMonth(''); setIsChatLimitReached(false); setIsLoadingUsage(false);
+                    console.log("Calendar: Premium user detected, usage check skipped.");
                 }
 
             } else {
@@ -709,7 +722,7 @@ export function Calendar() {
             }
         });
         return () => unsubscribe();
-    }, [navigate]);
+    }, [navigate]); // Added navigate
 
     // User Context Listener
     useEffect(() => {
@@ -1132,26 +1145,47 @@ export function Calendar() {
     };
 
 
-    // --- *** AI Chat Submission (Agentic Version) *** ---
-    const handleCalendarChatSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    // --- *** AI Chat Submission (Agentic Version) - UPDATED with new usage logic *** ---
+    const handleCalendarChatSubmit = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault(); // Prevent default form submission if called from form
         if (!chatMessage.trim() || isChatLoading || !geminiApiKey || !user) return;
 
-        // --- Usage Check (Remains the same) ---
+        // --- START: Usage Check (Use state and imported functions) ---
+        const currentMonthYear = new Date().toISOString().slice(0, 7);
+        let limitReached = false;
+        const currentLimit = getChatLimitForTier(userTier); // Use helper
+
         if (userTier !== 'premium') {
-            const currentMonthYear = new Date().toISOString().slice(0, 7);
-            let currentCount = chatCount;
+            let currentCount = chatCount; // Use state value
+
+            // Check if the stored month matches the current month. If not, reset local count.
             if (usageMonth !== currentMonthYear) {
-                currentCount = 0; setChatCount(0); setUsageMonth(currentMonthYear); setIsChatLimitReached(false);
-                updateUserChatUsage(user.uid, 0, currentMonthYear).catch(err => console.error("Failed reset usage:", err));
-            }
-            const limit = getChatLimitForTier(userTier);
-            if (currentCount >= limit) {
-                setChatHistory(prev => [...prev, { id: `cal-limit-${Date.now()}`, role: 'assistant', content: `Monthly chat limit (${limit}) reached. Upgrade for more actions!`, error: true }]);
-                setChatMessage(''); return;
+                console.log(`Calendar Chat: Month mismatch (State: ${usageMonth}, Current: ${currentMonthYear}). Resetting local count.`);
+                currentCount = 0; // Reset count locally for the check below
+                setChatCount(0); // Update state
+                setUsageMonth(currentMonthYear); // Update state
+                setIsChatLimitReached(false); // Update state
+                limitReached = false; // Ensure limit isn't triggered by outdated state
+                // NO Firestore write here - handled by incrementUserChatUsage
+            } else {
+                // Month matches, check current count against limit
+                limitReached = currentCount >= currentLimit;
+                // Update state just in case it was out of sync
+                setIsChatLimitReached(limitReached);
             }
         }
-        // --- End Usage Check ---
+
+        if (limitReached) {
+              setChatHistory(prev => [...prev, {
+                  id: `cal-limit-${Date.now()}`,
+                  role: 'assistant',
+                  content: `Monthly chat limit (${currentLimit === Infinity ? '∞' : currentLimit}) reached. Upgrade for more interactions!`,
+                  error: true
+              }]);
+              setChatMessage(''); // Clear input
+              return; // Stop submission
+        }
+        // --- END: Usage Check ---
 
         const currentMessage = chatMessage;
         setChatMessage('');
@@ -1165,13 +1199,30 @@ export function Calendar() {
         setChatHistory(prev => [...prev, placeholderMsg]);
 
 
-        // --- Increment Usage Count (Before API Call) ---
-        if (userTier !== 'premium') {
-            const newCount = chatCount + 1;
-            const limit = getChatLimitForTier(userTier);
-            setChatCount(newCount);
-            setIsChatLimitReached(newCount >= limit);
-            updateUserChatUsage(user.uid, newCount, usageMonth).catch(err => console.error("Failed to update usage:", err));
+        // --- Increment Usage Count (Use ATOMIC function) ---
+        let incrementFailed = false;
+        if (userTier !== 'premium' && user?.uid) {
+            try {
+                // Call the ATOMIC increment function
+                await incrementUserChatUsage(user.uid);
+
+                // Optimistic UI update *after* successful increment
+                const newLocalCount = chatCount + 1;
+                setChatCount(newLocalCount);
+                setIsChatLimitReached(newLocalCount >= currentLimit);
+
+            } catch (err) {
+                incrementFailed = true;
+                console.error("Calendar: Failed to increment chat usage:", err);
+                // Add error message to chat history for user feedback
+                setChatHistory(prevHist => [...prevHist, {
+                    id:`usage-err-${Date.now()}`,
+                    role: 'assistant',
+                    content: "⚠️ Error saving chat usage count. Your message was sent, but the count might be inaccurate.",
+                    error: true
+                }]);
+                // Do not block the chat functionality itself
+            }
         }
         // --- End Increment Logic ---
 
@@ -1194,7 +1245,7 @@ export function Calendar() {
 `;
         }
 
-        // --- *** NEW AGENTIC PROMPT *** ---
+        // --- *** AGENTIC PROMPT *** ---
         const prompt = `
 You are TaskMaster AI, an AI Scheduling Assistant in Calendar for ${userName}. Your goal is to help manage their calendar, tasks, goals, projects, and plans effectively based on the provided context and conversation. You can now perform actions like creating, updating, or deleting items.
 
@@ -1217,7 +1268,7 @@ ${conversationHistory}
 ${userName}: ${currentMessage}
 
 **Your Task:**
-Respond to the user's message. If the user requests an action (create, update, delete), FIRST provide a brief confirmation or clarifying statement, THEN **immediately follow** it with the necessary JSON action block(s). If no action is requested, just respond naturally. If the user asks about what they have for a certain date, simply let them know what they have -- no need to use JSON.  
+Respond to the user's message. If the user requests an action (create, update, delete), FIRST provide a brief confirmation or clarifying statement, THEN **immediately follow** it with the necessary JSON action block(s). If no action is requested, just respond naturally. If the user asks about what they have for a certain date, simply let them know what they have -- no need to use JSON.
 
 **Action JSON Format:**
 - Respond with one or more JSON objects wrapped in \`\`\`json ... \`\`\` blocks.
@@ -1919,7 +1970,7 @@ Assistant Response:`; // End of prompt
           </div>
         )} {/* End Modal */}
 
-         {/* AI Chat Sidebar */}
+         {/* AI Chat Sidebar - *** UPDATED with new usage logic *** */}
             <div
                 aria-hidden={!isAiSidebarOpen}
                 className={`fixed top-0 right-0 h-full w-full max-w-sm md:max-w-md lg:max-w-[440px] z-50 transform transition-transform duration-300 ease-in-out ${
@@ -1936,7 +1987,12 @@ Assistant Response:`; // End of prompt
                     </h3>
                      <div className="flex items-center">
                          {/* Context Button */}
-
+                        <button
+                            onClick={() => setIsContextDialogOpen(true)}
+                            className={`${iconColor} p-1 mr-1 rounded-full hover:bg-gray-500/10 transition-colors`}
+                            title="Set AI Context" aria-label="Set AI Context" >
+                            <Brain className="w-4 h-4" />
+                        </button>
                         {/* Close Button */}
                         <button
                             onClick={() => setIsAiSidebarOpen(false)}
@@ -1973,12 +2029,14 @@ Assistant Response:`; // End of prompt
 
                 {/* Chat Input Form */}
                 <div className={`p-2 sm:p-3 border-t ${borderColor} ${isIlluminateEnabled ? 'bg-gray-100/80' : 'bg-gray-800/90'} flex-shrink-0 sticky bottom-0 backdrop-blur-sm`}>
-                     {/* Usage Display */}
+                     {/* Usage Display - Uses state and useMemo */}
                     {userTier !== 'premium' && userTier !== 'loading' && (
                         <div className="pb-1.5 text-xs text-center">
                             <span className={isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}>
+                                {/* Use chatCount state and currentChatLimit memo */}
                                 Messages this month: {isLoadingUsage ? '...' : chatCount} / {currentChatLimit === Infinity ? 'Unlimited' : currentChatLimit}
                             </span>
+                            {/* Use isChatLimitReached state */}
                             {isChatLimitReached && !isLoadingUsage && (
                                 <span className="text-red-500 ml-1 font-medium">(Limit Reached)</span>
                             )}
@@ -1997,11 +2055,13 @@ Assistant Response:`; // End of prompt
                                 onChange={(e) => setChatMessage(e.target.value)}
                                 placeholder={isChatLimitReached ? "Monthly limit reached..." : "Add event, update task..."}
                                 className={`flex-1 ${inputBg} border ${borderColor} rounded-full px-4 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-150 shadow-sm placeholder-gray-400 dark:placeholder-gray-500 disabled:opacity-60 ${isChatLimitReached || isLoadingUsage || isChatLoading ? 'cursor-not-allowed' : ''}`}
+                                // Use state to disable
                                 disabled={isChatLoading || isChatLimitReached || isLoadingUsage}
                                 aria-label="Chat input"
                             />
                             <button
                                 type="submit"
+                                // Use state to disable
                                 disabled={isChatLoading || isLoadingUsage || !chatMessage.trim() || isChatLimitReached}
                                 className={`bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-100 shadow-sm flex-shrink-0 ${isChatLimitReached || isLoadingUsage || isChatLoading ? 'cursor-not-allowed' : ''}`}
                                 title="Send Message"
