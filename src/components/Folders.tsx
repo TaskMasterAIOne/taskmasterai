@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useState, useEffect, useRef, useMemo } from "react"; // Added useMemo
 import { useNavigate, Link } from "react-router-dom"; // Added Link
 import {
@@ -18,8 +19,10 @@ import { geminiApiKey } from "../lib/dashboard-firebase";
 import {
     UserTier, // Import the type
     getUserTier,
-    getUserChatUsage, // Use the specific chat usage getter
-    updateUserChatUsage, // Use the specific chat usage updater
+    // getUserChatUsage,      // OLD - Replaced by getCurrentMonthUserChatUsage
+    // updateUserChatUsage,   // OLD - Replaced by incrementUserChatUsage
+    getCurrentMonthUserChatUsage, // *** NEW: Use this for reading ***
+    incrementUserChatUsage,      // *** NEW: Use this for writing/incrementing ***
     getChatLimitForTier,
 } from '../lib/current-paying-user'; // Correct path to the new file
 
@@ -61,12 +64,9 @@ import "katex/dist/katex.min.css";
 
 
 // ---------------------
-// Constants for Tiers & Limits - REMOVED (Now derived from current-paying-user.ts)
+// Constants for Tiers & Limits - REMOVED
 // ---------------------
-// const PREMIUM_EMAILS = [...]; // REMOVED
-// const PRO_EMAILS = [...]; // REMOVED
-// const BASIC_CHAT_LIMIT = 10; // REMOVED
-// const PRO_CHAT_LIMIT = 200; // REMOVED
+
 
 // ---------------------
 // Gemini Integration (Remains the same)
@@ -444,10 +444,8 @@ export function Folders() {
   const [chatMessage, setChatMessage] = useState("");
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
-  // Removed streamingAssistantContent as direct history update is used now
 
   // Refs
-  // const tagsDropdownRef = useRef<HTMLDivElement>(null); // Seems unused
   const filterPanelRef = useRef<HTMLDivElement>(null);
   const folderDropdownRef = useRef<HTMLDivElement>(null); // Ref for the dropdown container div if needed for closing logic
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -566,7 +564,7 @@ export function Folders() {
     }
   }, [isIlluminateEnabled, isBlackoutEnabled]); // Depend on both
 
-  // Auth listener & Initial Data Fetch - UPDATED
+  // Auth listener & Initial Data Fetch - *** UPDATED with new logic ***
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
       setUser(firebaseUser);
@@ -578,37 +576,40 @@ export function Folders() {
         const tier = getUserTier(firebaseUser.email);
         setUserTier(tier); // Set state
 
-        // --- Load Usage Data (if not premium) using imported functions ---
+        // --- Load Usage Data (if not premium) using NEW imported function ---
         if (tier !== 'premium') {
+            const currentMonthYear = new Date().toISOString().slice(0, 7); // "YYYY-MM"
             try {
-                const currentMonthYear = new Date().toISOString().slice(0, 7); // "YYYY-MM"
-                // Use the imported function
-                const usageData = await getUserChatUsage(firebaseUser.uid);
+                // Use the NEW imported function to get usage ONLY for the current month
+                const usageData = await getCurrentMonthUserChatUsage(firebaseUser.uid, currentMonthYear);
 
-                if (usageData && usageData.month === currentMonthYear) {
+                if (usageData) {
                     // Data exists for current month
                     setChatCount(usageData.count);
-                    setChatMonth(usageData.month);
+                    setChatMonth(usageData.month); // Should match currentMonthYear
                     const limit = getChatLimitForTier(tier); // Use helper
                     setIsChatLimitReached(usageData.count >= limit);
+                    console.log(`Folders: Loaded chat usage for ${currentMonthYear}: ${usageData.count}`);
                 } else {
-                    // No data OR data from previous month - reset
-                    console.log(`Resetting chat usage for ${firebaseUser.uid} in Folders for month ${currentMonthYear}. Previous data:`, usageData);
+                    // No data for the CURRENT month found in Firestore.
+                    // Reset local state. The count will be set to 1 in Firestore
+                    // on the *first* incrementUserChatUsage call this month.
+                    console.log(`Folders: No chat usage data found for ${firebaseUser.uid} for current month ${currentMonthYear}. Resetting local count.`);
                     setChatCount(0);
                     setChatMonth(currentMonthYear);
                     setIsChatLimitReached(false);
-                    // Update Firestore with reset count using imported function
-                    await updateUserChatUsage(firebaseUser.uid, 0, currentMonthYear).catch(err => console.error("Failed initial chat usage reset:", err));
+                    // NO Firestore write here.
                 }
             } catch (err) {
-                console.error("Error loading/updating usage data:", err);
+                console.error("Folders: Error loading chat usage data:", err);
                 // Handle error - default to 0 count, not limited
                 setChatCount(0);
-                setChatMonth(new Date().toISOString().slice(0, 7));
+                setChatMonth(currentMonthYear);
                 setIsChatLimitReached(false);
             }
         } else { // Premium user
             setChatCount(0); setChatMonth(''); setIsChatLimitReached(false);
+            console.log("Folders: Premium user detected, usage check skipped.");
         }
 
         // --- Load Universal AI Context (Remains the same) ---
@@ -640,7 +641,7 @@ export function Folders() {
       }
     });
     return () => unsubscribe();
-  }, [navigate]);
+  }, [navigate]); // Added navigate to dependency array
 
   // ... (Rest of the useEffect hooks remain the same) ...
      // Fetch Top-Level Folders listener
@@ -746,7 +747,6 @@ export function Folders() {
              chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
         });
     }
-    // Removed streamingAssistantContent dependency as history update handles it
   }, [chatHistory, isAIChatOpen]);
 
 
@@ -1673,7 +1673,7 @@ export function Folders() {
   };
 
 
-  // --- AI Chat Handlers - UPDATED ---
+  // --- AI Chat Handlers - *** UPDATED with new logic *** ---
   const handleChatSubmit = async (e?: React.FormEvent) => {
       if (e) e.preventDefault();
       const messageContent = chatMessage.trim();
@@ -1682,22 +1682,21 @@ export function Folders() {
       // --- START: Usage Check (Use imported functions/state) ---
       const currentMonthYear = new Date().toISOString().slice(0, 7);
       let limitReached = false;
-      const currentLimit = getChatLimitForTier(userTier); // Use helper
+      const currentLimit = getChatLimitForTier(userTier);
 
       if (userTier !== 'premium') {
           let currentCount = chatCount; // Use state value
 
-          // Check if the stored month matches the current month
+          // Check if the stored month matches the current month. If not, reset local count.
           if (chatMonth !== currentMonthYear) {
-              console.log(`Folders Chat: Month mismatch (State: ${chatMonth}, Current: ${currentMonthYear}). Resetting count.`);
-              currentCount = 0; // Reset count locally
+              console.log(`Folders Chat: Month mismatch (State: ${chatMonth}, Current: ${currentMonthYear}). Resetting local count.`);
+              currentCount = 0; // Reset count locally for the check below
               setChatCount(0); setChatMonth(currentMonthYear); setIsChatLimitReached(false);
               limitReached = false;
-              // Use imported function
-              updateUserChatUsage(user.uid, 0, currentMonthYear).catch(err => console.error("Failed to reset chat usage:", err));
+              // NO Firestore write here - handled by incrementUserChatUsage
           } else {
               limitReached = currentCount >= currentLimit;
-              setIsChatLimitReached(limitReached); // Sync state just in case
+              setIsChatLimitReached(limitReached); // Sync state
           }
       }
 
@@ -1718,15 +1717,30 @@ export function Folders() {
       setChatMessage(""); // Clear input immediately
       setIsChatLoading(true);
 
-      // --- Increment Usage Count (Before API Call - Use imported function) ---
-      if (userTier !== 'premium') {
-          const newCount = chatCount + 1;
-          setChatCount(newCount); // Optimistic UI update
-          setIsChatLimitReached(newCount >= currentLimit); // Update limit state
-          updateUserChatUsage(user.uid, newCount, currentMonthYear).catch(err => {
-               console.error("Failed to update chat usage:", err);
-               // Optionally revert count or show error in chat
-          });
+      // --- Increment Usage Count (Use ATOMIC function) ---
+      let incrementFailed = false;
+      if (userTier !== 'premium' && user?.uid) {
+          try {
+              // Call the ATOMIC increment function
+              await incrementUserChatUsage(user.uid);
+
+              // Optimistic UI update *after* successful increment
+              const newLocalCount = chatCount + 1;
+              setChatCount(newLocalCount);
+              setIsChatLimitReached(newLocalCount >= currentLimit);
+
+          } catch (err) {
+              incrementFailed = true;
+              console.error("Folders: Failed to increment chat usage:", err);
+              // Add error message to chat history for user feedback
+              setChatHistory(prevHist => [...prevHist, {
+                  id:`usage-err-${Date.now()}`,
+                  role: 'assistant',
+                  content: "⚠️ Error saving chat usage count. Your message was sent, but the count might be inaccurate.",
+                  error: true
+              }]);
+              // Do not block the chat functionality itself
+          }
       }
       // --- End Increment Logic ---
 
@@ -1838,9 +1852,9 @@ export function Folders() {
       }
   };
 
-    // --- Use Memo for Chat Limit (UPDATED) ---
+    // --- Use Memo for Chat Limit (Use imported function) ---
     const currentChatLimit = useMemo(() => {
-        return getChatLimitForTier(userTier); // Use imported function
+        return getChatLimitForTier(userTier);
     }, [userTier]);
 
   // --- Filtering & Sorting (Remains the same) ---
@@ -2879,7 +2893,7 @@ export function Folders() {
 
       </main>
 
-      {/* AI Chat Sidebar/Panel - UPDATED */}
+       {/* AI Chat Sidebar/Panel - *** UPDATED with new logic *** */}
        <AnimatePresence>
          {isAIChatOpen && (
            <motion.div
@@ -2978,14 +2992,16 @@ export function Folders() {
              )}
 
 
-             {/* Chat Input Form - UPDATED with useMemo */}
+             {/* Chat Input Form - *** UPDATED with new logic *** */}
              <div className={`px-2 sm:px-3 pt-1 border-t ${illuminateBorder} ${isIlluminateEnabled ? 'bg-gray-100' : 'bg-gray-800/90 backdrop-blur-sm'} flex-shrink-0 sticky bottom-0`}>
                  {/* Usage Display - Use calculated currentChatLimit */}
                  {userTier !== 'premium' && userTier !== 'loading' && (
                      <div className="pb-1 text-xs text-center">
                          <span className={isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}>
+                             {/* Display chatCount state and currentChatLimit derived from userTier state */}
                              Messages this month: {chatCount} / {currentChatLimit === Infinity ? '∞' : currentChatLimit}
                          </span>
+                         {/* Use isChatLimitReached state */}
                          {isChatLimitReached && (
                              <span className="text-red-500 ml-1 font-medium">(Limit Reached)</span>
                          )}
@@ -3004,16 +3020,18 @@ export function Folders() {
                        onChange={(e) => setChatMessage(e.target.value)}
                        placeholder={
                             !selectedFolder ? "Select a folder first" :
-                            isChatLimitReached ? "Monthly limit reached..." :
+                            isChatLimitReached ? "Monthly limit reached..." : // Use state
                             isLoadingAiContext ? "Loading AI context..." :
                             "Ask about this folder..."
                         }
                        className={`flex-1 ${inputBg} rounded-full px-4 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-150 shadow-sm placeholder-gray-400 dark:placeholder-gray-500 disabled:opacity-60 ${isChatLimitReached ? 'cursor-not-allowed' : ''}`}
+                       // Use state to disable
                        disabled={isChatLoading || !selectedFolder || isChatLimitReached || userTier === 'loading' || isLoadingAiContext}
                        aria-label="Chat input"
                      />
                      <button
                        type="submit"
+                       // Use state to disable
                        disabled={isChatLoading || !chatMessage.trim() || !selectedFolder || isChatLimitReached || userTier === 'loading' || isLoadingAiContext}
                        className={`${buttonPrimaryClass} p-2 rounded-full transition-colors flex-shrink-0 ${isChatLimitReached ? 'cursor-not-allowed' : ''}`} // Removed extra hover/active styles handled by class
                        title="Send Message"
