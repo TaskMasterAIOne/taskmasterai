@@ -1,4 +1,4 @@
-
+/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useState, useRef, useMemo } from 'react'; // Added useMemo
 import { useNavigate, Link } from 'react-router-dom'; // Import Link
 // Ensure all used icons are imported
@@ -31,21 +31,18 @@ import {
   hfApiKey, // hfApiKey seems unused, but kept import as per instruction
   geminiApiKey,
   // --- REMOVED Usage imports from dashboard-firebase ---
-  // getUserUsageData, // REMOVED
-  // updateUserChatUsage, // REMOVED
 } from '../lib/dashboard-firebase'; // Ensure this file exports all functions and constants
 
 // --- IMPORT NEW TIER/USAGE FUNCTIONS AND TYPES ---
 import {
     UserTier,
-    ChatUsageData, // If needed elsewhere in component, otherwise remove
+    ChatUsageData, // Keep if needed elsewhere, currently only used indirectly via functions
     getUserTier,
-    getUserChatUsage,
-    updateUserChatUsage,
+    // getUserChatUsage, // OLD function, not needed
+    // updateUserChatUsage, // OLD function, not needed
+    getCurrentMonthUserChatUsage, // *** NEW: Use this for reading ***
+    incrementUserChatUsage,      // *** NEW: Use this for writing/incrementing ***
     getChatLimitForTier,
-    // Optionally import limits if needed directly, or use getChatLimitForTier
-    // BASIC_CHAT_LIMIT,
-    // PRO_CHAT_LIMIT,
 } from '../lib/current-paying-user'; // Assuming current-paying-user.ts is in src/lib
 
 import { auth, db } from '../lib/firebase';
@@ -60,10 +57,6 @@ import { TaskAnalytics } from './TaskAnalytics'; // Ensure this component exists
 // ---------------------
 // Constants for Tiers & Limits - REMOVED (Now imported or derived)
 // ---------------------
-// const PREMIUM_EMAILS = [...]; // REMOVED - Logic is in getUserTier
-// const PRO_EMAILS = [...]; // REMOVED - Logic is in getUserTier
-// const BASIC_CHAT_LIMIT = 10; // REMOVED - Use imported constant or getChatLimitForTier
-// const PRO_CHAT_LIMIT = 200; // REMOVED - Use imported constant or getChatLimitForTier
 
 
 // ---------------------
@@ -496,36 +489,33 @@ export function Dashboard() {
     return lines.join('\n');
   };
 
-  // Handle Chat Submit - UPDATED to use imported functions/state
+  // Handle Chat Submit - *** UPDATED with new ATOMIC INCREMENT logic ***
     const handleChatSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!chatMessage.trim() || isChatLoading || !user) return; // Added !user check
+      if (!chatMessage.trim() || isChatLoading || !user) return;
 
       // --- Usage Check (Uses state and imported functions) ---
       const currentMonthYear = new Date().toISOString().slice(0, 7);
       let limitReached = false;
-      let currentLimit = getChatLimitForTier(userTier); // Use helper function
+      let currentLimit = getChatLimitForTier(userTier);
 
       if (userTier !== 'premium') {
           let currentCount = chatCount; // Use state value
 
-          // Check if the stored month matches the current month
+          // Check if the stored month matches the current month. If not, reset local count.
+          // Firestore will handle the reset on the first increment of the new month.
           if (chatMonth !== currentMonthYear) {
-              console.log(`Chat month mismatch (State: ${chatMonth}, Current: ${currentMonthYear}). Resetting count.`);
-              currentCount = 0; // Reset count locally
+              console.log(`Chat month mismatch (State: ${chatMonth}, Current: ${currentMonthYear}). Resetting local count.`);
+              currentCount = 0; // Reset count locally for the check below
               setChatCount(0); // Update state
               setChatMonth(currentMonthYear); // Update state
-              setIsChatLimitReached(false); // Reset limit flag
-              limitReached = false; // Reset limit flag for this check
-              // Update Firestore asynchronously using imported function
-              updateUserChatUsage(user.uid, 0, currentMonthYear).catch(err => {
-                  console.error("Failed to reset chat usage in Firestore on month change:", err);
-                  // Consider adding UI feedback for the user about the failure
-              });
+              setIsChatLimitReached(false); // Update state
+              limitReached = false; // Ensure limit isn't triggered by outdated state
+              // NO Firestore write here - handled by incrementUserChatUsage
           } else {
               // Month matches, check current count against limit
               limitReached = currentCount >= currentLimit;
-              // Update state just in case it was out of sync (e.g., another device)
+              // Update state just in case it was out of sync
               setIsChatLimitReached(limitReached);
           }
       }
@@ -556,22 +546,30 @@ export function Dashboard() {
       setChatHistory(prev => [...prev, userMsg]);
       setIsChatLoading(true); // Set loading early
 
-      // --- Increment Usage Count (Before API Call) ---
-      let newCount = chatCount;
+      // --- Increment Usage Count (Call Atomic Increment Function) ---
+      let incrementFailed = false;
       if (userTier !== 'premium' && user?.uid) {
-          newCount = chatCount + 1;
-          setChatCount(newCount); // Optimistic UI update
-          setIsChatLimitReached(newCount >= currentLimit); // Update limit state too
-          // Update Firestore (using imported function)
-          updateUserChatUsage(user.uid, newCount, currentMonthYear).catch(err => {
-              console.error("Failed to update chat usage in Firestore:", err);
-              // Consider reverting optimistic update or showing warning? For now, log error.
-              // Example: Revert count, show message
-              // setChatCount(oldCount);
-              // setIsChatLimitReached(oldCount >= currentLimit);
-              // Show error message in chat?
-              setChatHistory(prevHist => [...prevHist, { id:`usage-err-${Date.now()}`, role: 'assistant', content: "⚠️ Error saving chat usage count. Please try again later.", error: true }]);
-          });
+          try {
+              // Call the ATOMIC increment function from current-paying-user.ts
+              await incrementUserChatUsage(user.uid);
+
+              // OPTIMISTIC UI UPDATE: Increment local state AFTER successful Firestore call
+              const newLocalCount = chatCount + 1;
+              setChatCount(newLocalCount);
+              setIsChatLimitReached(newLocalCount >= currentLimit);
+
+          } catch (err) {
+              incrementFailed = true;
+              console.error("Failed to increment chat usage in Firestore:", err);
+              // Add error message to chat history for user feedback
+              setChatHistory(prevHist => [...prevHist, {
+                  id:`usage-err-${Date.now()}`,
+                  role: 'assistant',
+                  content: "⚠️ Error saving chat usage count. Your message was sent, but the count might be inaccurate.",
+                  error: true
+              }]);
+              // Do not block the chat functionality itself, just log the error and inform the user.
+          }
       }
       // --- End Increment Logic ---
 
@@ -847,6 +845,7 @@ Follow these instructions strictly.`;
         setIsChatLoading(false);
       }
     };
+
 
   // ---------------------
   // 2. COLLECTION STATES
@@ -1127,7 +1126,7 @@ Follow these instructions strictly.`;
   }, []);
 
   // ---------------------
-  // 7. AUTH LISTENER & TIER/USAGE CHECK - UPDATED
+  // 7. AUTH LISTENER & TIER/USAGE CHECK - *** UPDATED with new logic ***
   // ---------------------
   useEffect(() => {
     const unsubscribe = onFirebaseAuthStateChanged(async (firebaseUser) => { // Make async
@@ -1154,33 +1153,35 @@ Follow these instructions strictly.`;
         const tier = getUserTier(firebaseUser.email);
         setUserTier(tier); // Set state
 
-        // --- Load Usage Data (if not premium) using imported functions ---
+        // --- Load Usage Data (if not premium) using NEW imported function ---
         if (tier !== 'premium') {
+            const currentMonthYear = new Date().toISOString().slice(0, 7); // "YYYY-MM"
             try {
-                const currentMonthYear = new Date().toISOString().slice(0, 7); // "YYYY-MM"
-                // Use the imported function
-                const usageData = await getUserChatUsage(firebaseUser.uid);
+                // Use the NEW imported function to get usage ONLY for the current month
+                const usageData = await getCurrentMonthUserChatUsage(firebaseUser.uid, currentMonthYear);
 
-                if (usageData && usageData.month === currentMonthYear) {
+                if (usageData) {
                     // Data exists for current month
                     setChatCount(usageData.count);
-                    setChatMonth(usageData.month);
+                    setChatMonth(usageData.month); // Should match currentMonthYear
                     const limit = getChatLimitForTier(tier); // Use helper
                     setIsChatLimitReached(usageData.count >= limit);
+                    console.log(`Loaded chat usage for ${currentMonthYear}: ${usageData.count}`);
                 } else {
-                    // No data OR data from previous month - reset
-                    console.log(`Resetting chat usage for ${firebaseUser.uid} for month ${currentMonthYear}. Previous data:`, usageData);
+                    // No data for the CURRENT month found in Firestore.
+                    // Reset local state. The count will be set to 1 in Firestore
+                    // on the *first* incrementUserChatUsage call this month.
+                    console.log(`No chat usage data found for ${firebaseUser.uid} for current month ${currentMonthYear}. Resetting local count.`);
                     setChatCount(0);
                     setChatMonth(currentMonthYear);
                     setIsChatLimitReached(false);
-                    // Update Firestore with reset count using imported function
-                    await updateUserChatUsage(firebaseUser.uid, 0, currentMonthYear);
+                    // NO Firestore write here.
                 }
             } catch (err) {
-                console.error("Error loading/updating usage data:", err);
+                console.error("Error loading chat usage data:", err);
                 // Handle error - default to 0 count, not limited
                 setChatCount(0);
-                setChatMonth(new Date().toISOString().slice(0, 7));
+                setChatMonth(currentMonthYear);
                 setIsChatLimitReached(false);
             }
         } else {
@@ -3128,7 +3129,7 @@ Another Example: Looks clear for today. Consider planning your next project step
 
       </main> {/* End Main Content Area */}
 
-      {/* AI Chat Sidebar - UPDATED Usage Display */}
+      {/* AI Chat Sidebar - Uses NEW Usage Logic/State */}
       <div
         // Use `aria-hidden` for accessibility when closed
         aria-hidden={!isAiSidebarOpen}
@@ -3275,14 +3276,16 @@ Another Example: Looks clear for today. Consider planning your next project step
         </div>
 
 
-        {/* Chat Input Form - UPDATED */}
+        {/* Chat Input Form - *** UPDATED with new usage state/limit *** */}
          <div className={`px-2 sm:px-3 pt-1 border-t ${isIlluminateEnabled ? 'border-gray-200 bg-gray-100/80' : 'border-gray-700 bg-gray-800/90'} flex-shrink-0 sticky bottom-0 backdrop-blur-sm`}>
-            {/* Usage Display - Uses calculated currentChatLimit */}
+            {/* Usage Display - Uses calculated currentChatLimit and state */}
              {userTier !== 'premium' && userTier !== 'loading' && (
                  <div className="pb-1.5 text-xs text-center">
                     <span className={isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}>
+                        {/* Display chatCount state and currentChatLimit derived from userTier state */}
                         Messages this month: {chatCount} / {currentChatLimit === Infinity ? '∞' : currentChatLimit}
                     </span>
+                    {/* Use isChatLimitReached state */}
                     {isChatLimitReached && (
                         <span className="text-red-500 ml-1 font-medium">(Limit Reached)</span>
                     )}
@@ -3301,11 +3304,13 @@ Another Example: Looks clear for today. Consider planning your next project step
                     onChange={(e) => setChatMessage(e.target.value)}
                     placeholder={isChatLimitReached ? "Monthly limit reached..." : "Ask TaskMaster AI..."}
                     className={`flex-1 ${inputBg} border ${isIlluminateEnabled ? 'border-gray-300' : 'border-gray-600'} rounded-full px-4 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-150 shadow-sm placeholder-gray-400 dark:placeholder-gray-500 disabled:opacity-60 ${isChatLimitReached ? 'cursor-not-allowed' : ''}`}
-                    disabled={isChatLoading || isChatLimitReached || userTier === 'loading'} // Disable input when loading, limit reached, or tier unknown
+                    // Use isChatLimitReached state for disabling
+                    disabled={isChatLoading || isChatLimitReached || userTier === 'loading'}
                     aria-label="Chat input" // Accessibility
                 />
                 <button
                     type="submit"
+                    // Use isChatLimitReached state for disabling
                     disabled={isChatLoading || !chatMessage.trim() || isChatLimitReached || userTier === 'loading'}
                     className={`bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-100 shadow-sm flex-shrink-0 ${isChatLimitReached ? 'cursor-not-allowed' : ''}`}
                     title="Send Message"
