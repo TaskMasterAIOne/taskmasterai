@@ -305,7 +305,7 @@ function Contact() {
             <div className="hidden md:flex items-center space-x-8">
               <a href="/#features" className="text-gray-300 hover:text-indigo-400 transition-colors">Features</a>
               <a href="/pricing" className="text-gray-300 hover:text-indigo-400 transition-colors">Pricing</a>
-              <a href="/contact" className="font-semibold text-indigo-400">Contact</a> {/* Keep highlight */}
+              <a href="/contact" className="text-gray-300 hover:text-indigo-400 transition-colors">Pricing</a>
               {/* Use motion.a for hover/tap effect, original classes */}
               <motion.a
                 href={user ? "/dashboard" : "/signup"}
