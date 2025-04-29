@@ -9,19 +9,20 @@ import {
   doc,
   getDoc,
   setDoc,
+  updateDoc, // Import updateDoc
   serverTimestamp,
-  Timestamp, // Keep import
+  Timestamp,
+  increment, // Import increment
 } from "firebase/firestore";
 
 // --- Tier Definitions ---
-// These emails determine the user's tier. Ensure this list is kept up-to-date.
 const PREMIUM_EMAILS = [
     "robinmyh@gmail.com",
     "oliverbeckett069420@gmail.com",
     "bajinsrinivasr@lexington1.net",
    "jason@thealphafix.com"
 ];
-export const PRO_EMAILS = ["srinibaj10@gmail.com"]; // Export if needed elsewhere, but primarily used internally
+export const PRO_EMAILS = ["srinibaj10@gmail.com"];
 
 // --- User Tier Type ---
 export type UserTier = 'basic' | 'pro' | 'premium' | 'loading';
@@ -37,23 +38,20 @@ export const NOTE_LIMITS = {
 // --- Chat Usage Limits ---
 export const BASIC_CHAT_LIMIT = 10;
 export const PRO_CHAT_LIMIT = 200;
-// Premium has effectively unlimited chats (represented as Infinity in checks)
 
 // --- Data Structures ---
 export interface ChatUsageData {
     count: number;
     month: string; // Format: YYYY-MM
-    lastUpdated?: Timestamp; // Optional: Track when usage was last updated
+    lastUpdated?: Timestamp;
 }
 
-// --- START: Added Note Usage Data Structure ---
 export interface NoteUsageData {
     pdfAi: number;
     youtube: number;
     month: string; // Format: YYYY-MM
     // lastUpdated?: Timestamp; // Optional
 }
-// --- END: Added Note Usage Data Structure ---
 
 
 // --- Core Logic ---
@@ -65,8 +63,8 @@ export interface NoteUsageData {
  * @returns {UserTier} The calculated user tier.
  */
 export const getUserTier = (email: string | null | undefined): UserTier => {
-    if (email === undefined) return 'loading'; // Still determining auth state
-    if (!email) return 'basic'; // Logged in but no email somehow? -> basic
+    if (email === undefined) return 'loading';
+    if (!email) return 'basic';
     if (PREMIUM_EMAILS.includes(email)) return 'premium';
     if (PRO_EMAILS.includes(email)) return 'pro';
     return 'basic';
@@ -82,12 +80,11 @@ export const getChatLimitForTier = (tier: UserTier): number => {
         case 'premium': return Infinity;
         case 'pro': return PRO_CHAT_LIMIT;
         case 'basic': return BASIC_CHAT_LIMIT;
-        case 'loading': return 0; // No limit applies while loading
-        default: return BASIC_CHAT_LIMIT; // Default fallback
+        case 'loading': return 0;
+        default: return BASIC_CHAT_LIMIT;
     }
 };
 
-// --- START: Added Note Limit Retrieval Function ---
 /**
  * Retrieves the note creation limits for a given user tier.
  * @param {UserTier} tier - The user's tier.
@@ -98,11 +95,10 @@ export const getNoteLimitsForTier = (tier: UserTier): { pdfAi: number; youtube: 
         case 'premium': return NOTE_LIMITS.premium;
         case 'pro': return NOTE_LIMITS.pro;
         case 'basic': return NOTE_LIMITS.basic;
-        case 'loading': return { pdfAi: 0, youtube: 0 }; // No limits apply while loading
-        default: return NOTE_LIMITS.basic; // Default fallback
+        case 'loading': return { pdfAi: 0, youtube: 0 };
+        default: return NOTE_LIMITS.basic;
     }
 };
-// --- END: Added Note Limit Retrieval Function ---
 
 
 // --- START: Chat Usage Functions ---
@@ -110,28 +106,35 @@ export const getNoteLimitsForTier = (tier: UserTier): { pdfAi: number; youtube: 
 /**
  * Fetches the user's chat usage data for the current month from Firestore.
  * Reads from `users/{userId}/usage/chat`.
+ * Returns the data only if it exists and matches the current month.
  * @param {string} userId - The user's Firebase UID.
- * @returns {Promise<ChatUsageData | null>} A promise resolving to the usage data or null if not found/error/wrong month.
+ * @param {string} currentMonth - The current month in "YYYY-MM" format.
+ * @returns {Promise<ChatUsageData | null>} A promise resolving to the usage data or null.
  */
-export const getUserChatUsage = async (userId: string): Promise<ChatUsageData | null> => {
+export const getCurrentMonthUserChatUsage = async (userId: string, currentMonth: string): Promise<ChatUsageData | null> => {
   if (!userId) {
-      console.warn("getUserChatUsage called without userId.");
+      console.warn("getCurrentMonthUserChatUsage called without userId.");
       return null;
   }
+  if (!currentMonth || !/^\d{4}-\d{2}$/.test(currentMonth)) {
+    console.error("getCurrentMonthUserChatUsage called with invalid currentMonth:", currentMonth);
+    return null;
+  }
+
   try {
-    const usageRef = doc(db, `users/${userId}/usage/chat`); // Path to the chat usage doc
+    const usageRef = doc(db, `users/${userId}/usage/chat`);
     const docSnap = await getDoc(usageRef);
 
     if (docSnap.exists()) {
       const data = docSnap.data() as ChatUsageData;
-      const currentMonthYear = new Date().toISOString().slice(0, 7);
 
       // Validate data structure and month match
-      if (data && typeof data.count === 'number' && data.month === currentMonthYear) {
+      if (data && typeof data.count === 'number' && data.month === currentMonth) {
         return { count: data.count, month: data.month, lastUpdated: data.lastUpdated };
       } else {
-         console.log(`Chat usage data found for user ${userId} but for month ${data?.month} (current: ${currentMonthYear}) or invalid format.`);
-         return null;
+         // Data exists but is for a previous month or invalid
+         console.log(`Chat usage data found for user ${userId} but for month ${data?.month} (current: ${currentMonth}) or invalid format. Will reset on next increment.`);
+         return null; // Treat as non-existent for the *current* month
       }
     } else {
       return null; // No chat usage document found
@@ -143,35 +146,54 @@ export const getUserChatUsage = async (userId: string): Promise<ChatUsageData | 
 };
 
 /**
- * Updates or creates the user's chat usage count for a specific month in Firestore.
+ * Atomically increments the user's chat usage count for the current month in Firestore.
+ * If the usage document doesn't exist or is for a previous month, it resets the count to 1 for the current month.
  * Writes to `users/{userId}/usage/chat`.
  * @param {string} userId - The user's Firebase UID.
- * @param {number} newCount - The new chat count for the month.
- * @param {string} currentMonth - The current month in "YYYY-MM" format.
  * @returns {Promise<void>} A promise that resolves when the update is complete or rejects on error.
  */
-export const updateUserChatUsage = async (userId: string, newCount: number, currentMonth: string): Promise<void> => {
-  if (!userId || typeof newCount !== 'number' || !currentMonth || !/^\d{4}-\d{2}$/.test(currentMonth)) {
-      console.error("Invalid parameters for updateUserChatUsage:", { userId, newCount, currentMonth });
-      throw new Error("Invalid parameters for updating chat usage.");
+export const incrementUserChatUsage = async (userId: string): Promise<void> => {
+  if (!userId) {
+      console.error("Invalid parameters for incrementUserChatUsage: userId is required.");
+      throw new Error("Invalid parameters for incrementing chat usage.");
   }
+
+  const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+  const usageRef = doc(db, `users/${userId}/usage/chat`); // Path to the chat usage doc
+
   try {
-    const usageRef = doc(db, `users/${userId}/usage/chat`); // Path to the chat usage doc
-    await setDoc(usageRef, {
-      count: newCount,
-      month: currentMonth,
-      lastUpdated: serverTimestamp()
-    });
-     // console.log(`Chat usage updated for user ${userId} for month ${currentMonth}: ${newCount}`);
+      // We still need to get the document to check the month
+      const docSnap = await getDoc(usageRef);
+
+      if (docSnap.exists() && docSnap.data()?.month === currentMonth) {
+          // Document exists and is for the current month: Increment Atomically
+          await updateDoc(usageRef, {
+              count: increment(1), // Use atomic increment
+              lastUpdated: serverTimestamp()
+          });
+          // console.log(`Chat usage incremented for user ${userId} for month ${currentMonth}`);
+      } else {
+          // Document doesn't exist OR exists but is for a previous month: Reset for current month
+          await setDoc(usageRef, {
+              count: 1, // Start count at 1 for the first message of the month
+              month: currentMonth,
+              lastUpdated: serverTimestamp()
+          });
+           console.log(`Chat usage reset to 1 for user ${userId} for new month ${currentMonth}`);
+      }
   } catch (error) {
-    console.error(`Error updating user chat usage for ${userId}:`, error);
-    throw new Error(`Failed to update chat usage: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(`Error incrementing/resetting user chat usage for ${userId}:`, error);
+      throw new Error(`Failed to update chat usage: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 };
+
 // --- END: Chat Usage Functions ---
 
 
 // --- START: Note Usage Functions ---
+// Note: Note usage uses setDoc with merge:true, which is generally safe for overwriting
+// specific month fields. If atomic increments were needed here (e.g., tracking total notes ever),
+// a similar `increment` approach would be used. Current logic seems okay for monthly counts.
 
 /**
  * Fetches the user's note creation usage data for the current month from Firestore.
@@ -194,26 +216,22 @@ export const getUserNoteUsage = async (userId: string): Promise<NoteUsageData | 
             const usageFieldName = `noteCounts_${currentMonthYear}`;
 
             if (userData && userData[usageFieldName] && typeof userData[usageFieldName].pdfAi === 'number' && typeof userData[usageFieldName].youtube === 'number') {
-                // Data exists and looks valid for the current month
                 return {
                     pdfAi: userData[usageFieldName].pdfAi,
                     youtube: userData[usageFieldName].youtube,
                     month: currentMonthYear
-                    // lastUpdated: userData[usageFieldName].lastUpdated // Optional: if you add this field later
                 };
             } else {
-                // User exists, but no usage data for this month or data is invalid
                 console.log(`Note usage data not found or invalid for user ${userId} for month ${currentMonthYear}.`);
                 return null;
             }
         } else {
-             // User document doesn't exist
              console.warn(`User document not found for userId: ${userId} when fetching note usage.`);
              return null;
         }
     } catch (error) {
         console.error(`Error getting user note usage for ${userId}:`, error);
-        return null; // Return null on error
+        return null;
     }
 };
 
@@ -236,20 +254,15 @@ export const updateUserNoteUsage = async (userId: string, usageCounts: { pdfAi: 
         const userRef = doc(db, 'users', userId);
         const usageFieldName = `noteCounts_${currentMonth}`;
 
-        // Prepare the update object specifically for the monthly usage field
         const updateData = {
             [usageFieldName]: {
                 pdfAi: usageCounts.pdfAi,
                 youtube: usageCounts.youtube,
-                // lastUpdated: serverTimestamp() // Optional: track last update time for this field
+                // lastUpdated: serverTimestamp() // Optional
             }
         };
-
-        // Use setDoc with merge: true to update or create the specific month's field
-        // without overwriting other fields in the user document.
         await setDoc(userRef, updateData, { merge: true });
-
-        // console.log(`Note usage updated for user ${userId} for month ${currentMonth}:`, usageCounts); // Optional success log
+        // console.log(`Note usage updated for user ${userId} for month ${currentMonth}:`, usageCounts);
     } catch (error) {
         console.error(`Error updating user note usage for ${userId}:`, error);
         throw new Error(`Failed to update note usage: ${error instanceof Error ? error.message : 'Unknown error'}`);
