@@ -535,7 +535,7 @@ Your primary goal is to be helpful, accurate, and strictly follow instructions b
               "content_fragment": "[EXACT markdown fragment for the change. Use empty string \"\" for 'delete_context'.]"
             }
             \`\`\`
-            *   **Handling Corrections/Fixes:** If the user asks to "fix" or "correct" something (especially something *you* might have recently added incorrectly), use `replace_context` targeting the *incorrect* segment in the *current* note content, or `delete_context` if removal is needed. Do not just add a *second*, corrected version.
+            *   **Handling Corrections/Fixes:** If the user asks to "fix" or "correct" something (especially something *you* might have recently added incorrectly), use replace_context targeting the *incorrect* segment in the *current* note content, or `delete_context` if removal is needed. Do not just add a *second*, corrected version.
 
         *   **Method B: Sequential Edits (Use for MULTIPLE specific changes requested in ONE user message):** MUST be used if the user asks for *multiple distinct* changes in a single message (e.g., "Delete sentence A, then add paragraph B after sentence C").
             \`\`\`json
@@ -558,7 +558,7 @@ Your primary goal is to be helpful, accurate, and strictly follow instructions b
               ]
             }
             \`\`\`
-            *   **MANDATORY USE:** Use this method whenever multiple distinct operations are requested in one turn. DO NOT propose multiple separate `propose_targeted_edit` responses for a single multi-step request. Ensure the sequence logically follows the user's instructions.
+            *   **MANDATORY USE:** Use this method whenever multiple distinct operations are requested in one turn. DO NOT propose multiple separate propose_targeted_edit responses for a single multi-step request. Ensure the sequence logically follows the user's instructions.
 
         *   **Method C: Full Content Replacement (ONLY for MAJOR OVERHAULS):** Use ONLY for requests like deleting *all* content, replacing the *entire* note, or major holistic rewrites requested *in one go*.
             \`\`\`json
