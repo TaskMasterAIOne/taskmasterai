@@ -137,7 +137,7 @@ function App() {
               <a href="/terms" className="text-sm text-gray-400 hover:text-indigo-400">Terms & Conditions</a>
             </div>
             <p className="text-sm text-gray-400 mt-4 md:mt-0">
-              © 2024 TaskMaster AI. All rights reserved.
+              © 2025 TaskMaster AI. All rights reserved.
             </p>
           </div>
         </div>
