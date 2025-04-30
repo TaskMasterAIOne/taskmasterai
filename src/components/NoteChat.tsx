@@ -279,17 +279,15 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
                  if (currentFiles.length > 0) { currentFiles.forEach(file => { if (file.type.startsWith('image/') || file.type === 'application/pdf') { currentUserParts.push({ inline_data: { mime_type: file.type, data: file.base64Data } }); } else { console.warn(`Skipping file with unsupported MIME type for API: ${file.name} (${file.type})`); } }); }
                 apiContent.push({ role: "user", parts: currentUserParts });
 
-                // *** Construct Request Body WITH top-level responseMimeTypes ***
+                // Construct Request Body WITH top-level responseMimeTypes
                 const requestPayload = {
                     contents: apiContent,
                     generationConfig: {
                         temperature: 0.6,
                         maxOutputTokens: 8192,
                         topP: 0.95,
-                        // No responseMimeType HERE
                     },
-                    // *** ADDED THIS TOP-LEVEL FIELD ***
-                    responseMimeTypes: ["image/png", "image/jpeg", "image/webp", "text/plain"] // Explicitly request image types AND text
+                    responseMimeTypes: ["image/png", "image/jpeg", "image/webp", "text/plain"]
                 };
 
                 let requestBody = JSON.stringify(requestPayload);
@@ -304,16 +302,12 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
                 const response = await fetchWithRetry(fullGeminiEndpoint, geminiOptions);
                 const responseText = await response.text();
 
-                // Parse Response (same logic as before, including logging)
+                // Parse Response
                 let parsedResponse: any;
                 try { /* ... (parse JSON response and log) ... */
-                     parsedResponse = JSON.parse(responseText);
-                     console.log("--- Raw API Response ---");
-                     console.log(JSON.stringify(parsedResponse, null, 2));
-                     console.log("--------------------------");
+                     parsedResponse = JSON.parse(responseText); console.log("--- Raw API Response ---"); console.log(JSON.stringify(parsedResponse, null, 2)); console.log("--------------------------");
                  } catch (jsonError) { /* ... (handle JSON parse error) ... */
-                      console.error("Failed to parse API response as JSON:", responseText);
-                      throw new Error("Received invalid response from AI service.");
+                      console.error("Failed to parse API response as JSON:", responseText); throw new Error("Received invalid response from AI service.");
                  }
 
                 let assistantTextContent = "";
@@ -322,23 +316,26 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
                 let extractedSuggestions: string[] = [];
                 let assistantFinalMessage: ChatMessage = { id: newLoadingMsgId, role: 'assistant', content: "", error: false };
 
-                // Process API response parts (same logic as before)
+                // Process API response parts
                 if (parsedResponse?.error?.message) { /* ... (handle top-level error) ... */
                       console.error("API Error Received:", parsedResponse.error.message); assistantErrorContent = `Error: ${parsedResponse.error.message}`;
-                      // Map specific errors...
-                      else if (assistantErrorContent.toLowerCase().includes("api key not valid")) assistantErrorContent = "Error: Invalid API Key.";
-                      else if (assistantErrorContent.toLowerCase().includes("quota exceeded")) assistantErrorContent = "Error: API Quota Exceeded.";
-                      else if (/* ... */) assistantErrorContent = "Error: AI service temporarily unavailable...";
-                      else if (/* ... */) assistantErrorContent = "Error: Image format not supported...";
+                      // *** FIXED SYNTAX ERROR HERE ***
+                      if (assistantErrorContent.toLowerCase().includes("context length") || assistantErrorContent.toLowerCase().includes("request payload size") || assistantErrorContent.toLowerCase().includes("request entity too large")) {
+                          assistantErrorContent = "Error: The note content and/or attached files are too large for the AI to process.";
+                      }
+                      else if (assistantErrorContent.toLowerCase().includes("api key not valid")) { assistantErrorContent = "Error: Invalid API Key."; }
+                      else if (assistantErrorContent.toLowerCase().includes("quota exceeded")) { assistantErrorContent = "Error: API Quota Exceeded."; }
+                      else if (assistantErrorContent.toLowerCase().includes("internal server error") || assistantErrorContent.toLowerCase().includes("service unavailable")) { assistantErrorContent = "Error: AI service temporarily unavailable. Please try again later."; }
+                      else if (assistantErrorContent.toLowerCase().includes("image format not supported")) { assistantErrorContent = "Error: One of the provided image formats is not supported by the AI model."; }
+                      // Keep the original error message if none of the above match
                       assistantFinalMessage = { ...assistantFinalMessage, content: assistantErrorContent, error: true };
-                 } else if (parsedResponse?.candidates?.[0]?.content?.parts && Array.isArray(parsedResponse.candidates[0].content.parts)) { /* ... (process parts for text/image) ... */
-                      const parts = parsedResponse.candidates[0].content.parts; console.log(`Processing ${parts.length} response part(s)...`);
-                      parts.forEach((part: any, index: number) => { console.log(`Part ${index}:`, part); if (part.text) { console.log(`Part ${index} is text.`); assistantTextContent += part.text + "\n"; } else if (part.inlineData && part.inlineData.data && part.inlineData.mimeType?.startsWith('image/')) { console.log(`Part ${index} is image data (${part.inlineData.mimeType}).`); if (!assistantImageDataUrl) { assistantImageDataUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`; console.log("Constructed Image Data URL (first 100 chars):", assistantImageDataUrl.substring(0, 100) + "..."); } else { console.warn("Multiple images found, using the first."); } } else { console.log(`Part ${index} is neither text nor recognized image data.`); } });
-                      assistantTextContent = assistantTextContent.trim(); const finishReason = parsedResponse.candidates[0]?.finishReason; console.log("Finish Reason:", finishReason);
+
+                 } else if (parsedResponse?.candidates?.[0]?.content?.parts && Array.isArray(parsedResponse.candidates[0].content.parts)) { /* ... (process parts for text/image - unchanged) ... */
+                      const parts = parsedResponse.candidates[0].content.parts; console.log(`Processing ${parts.length} response part(s)...`); parts.forEach((part: any, index: number) => { console.log(`Part ${index}:`, part); if (part.text) { console.log(`Part ${index} is text.`); assistantTextContent += part.text + "\n"; } else if (part.inlineData && part.inlineData.data && part.inlineData.mimeType?.startsWith('image/')) { console.log(`Part ${index} is image data (${part.inlineData.mimeType}).`); if (!assistantImageDataUrl) { assistantImageDataUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`; console.log("Constructed Image Data URL (first 100 chars):", assistantImageDataUrl.substring(0, 100) + "..."); } else { console.warn("Multiple images found, using the first."); } } else { console.log(`Part ${index} is neither text nor recognized image data.`); } }); assistantTextContent = assistantTextContent.trim(); const finishReason = parsedResponse.candidates[0]?.finishReason; console.log("Finish Reason:", finishReason);
                       if (!assistantTextContent && !assistantImageDataUrl && !assistantFinalMessage.error) { /* handle empty content */ if (finishReason === 'STOP') { assistantTextContent = "(Received empty response)"; } else if (finishReason === 'SAFETY') { assistantTextContent = "My response was blocked..."; assistantFinalMessage.error = true; } else if (finishReason === 'MAX_TOKENS') { assistantTextContent = "The response was cut off..."; } else if (finishReason) { assistantTextContent = `Response generation stopped: ${finishReason}.`; assistantFinalMessage.error = true; } else { assistantTextContent = "(Received empty/unprocessable response)"; assistantFinalMessage.error = true; } }
                       if (assistantTextContent) { /* parse suggestions */ const suggestionRegex = /\[SUGGESTIONS\]([\s\S]*?)\[\/SUGGESTIONS\]/i; const suggestionMatch = assistantTextContent.match(suggestionRegex); if (suggestionMatch && suggestionMatch[1]) { extractedSuggestions = suggestionMatch[1].split('\n').map(s => s.trim().replace(/^- /, '').trim()).filter(s => s.length > 1 && s.length < 120); assistantTextContent = assistantTextContent.replace(suggestionRegex, '').trim(); extractedSuggestions = extractedSuggestions.slice(0, 4); setSuggestedPrompts(extractedSuggestions); console.log("Extracted Suggestions:", extractedSuggestions); } else { setSuggestedPrompts([]); } } else { setSuggestedPrompts([]); }
                       assistantFinalMessage = { ...assistantFinalMessage, content: assistantTextContent, generatedImageData: assistantImageDataUrl };
-                      if (assistantTextContent && !assistantImageDataUrl) { /* parse JSON edits */ const jsonMatch = assistantTextContent.match(/```json\s*([\s\S]*?)\s*```/); if (jsonMatch && jsonMatch[1]) { const potentialJsonString = jsonMatch[1].trim(); console.log("Potential JSON block found:", potentialJsonString); let parsedSuccessfully = false; try { const parsedJson = JSON.parse(potentialJsonString); if (parsedJson.action === "propose_targeted_edit" /* valid */) { /* ... handle targeted ... */ parsedSuccessfully = true; } else if (parsedJson.action === "propose_full_content_replacement" /* valid */) { /* ... handle full ... */ parsedSuccessfully = true; } else if (parsedJson.action === "propose_sequential_edits" /* valid */) { /* ... handle sequential ... */ parsedSuccessfully = true; } else { console.log("JSON found, but not edit."); } if (parsedSuccessfully) { const textWithoutJson = assistantTextContent.replace(jsonMatch[0], '').trim(); assistantFinalMessage.content = textWithoutJson || parsedJson.explanation || "(Edit proposed)"; if (!assistantFinalMessage.content.trim()) assistantFinalMessage.content = "(Edit proposed)"; } } catch (parseError: any) { console.error("Failed to parse JSON edit:", parseError); assistantFinalMessage.content = `Warning: Found JSON-like block, failed process.\n\n---\n${assistantTextContent}`; assistantFinalMessage.error = true; } } }
+                      if (assistantTextContent && !assistantImageDataUrl) { /* parse JSON edits */ const jsonMatch = assistantTextContent.match(/```json\s*([\s\S]*?)\s*```/); if (jsonMatch && jsonMatch[1]) { const potentialJsonString = jsonMatch[1].trim(); console.log("Potential JSON block found:", potentialJsonString); let parsedSuccessfully = false; try { const parsedJson = JSON.parse(potentialJsonString); if (parsedJson.action === "propose_targeted_edit" /* valid */) { console.log("Parsed targeted edit proposal."); assistantFinalMessage = { ...assistantFinalMessage, content: parsedJson.explanation, isEditSuggestion: true, editAction: "propose_targeted_edit", editExplanation: parsedJson.explanation, editType: parsedJson.edit_type, targetContext: parsedJson.target_context, contentFragment: parsedJson.content_fragment, generatedImageData: undefined }; parsedSuccessfully = true; } else if (parsedJson.action === "propose_full_content_replacement" /* valid */) { console.log("Parsed full replacement proposal."); assistantFinalMessage = { ...assistantFinalMessage, content: parsedJson.explanation, isEditSuggestion: true, editAction: "propose_full_content_replacement", editExplanation: parsedJson.explanation, newFullContent: parsedJson.new_full_content, generatedImageData: undefined }; parsedSuccessfully = true; } else if (parsedJson.action === "propose_sequential_edits" /* valid */) { console.log("Parsed sequential edit proposal."); const validEdits = parsedJson.edits; assistantFinalMessage = { ...assistantFinalMessage, content: parsedJson.explanation, isEditSuggestion: true, editAction: "propose_sequential_edits", editExplanation: parsedJson.explanation, sequentialEdits: validEdits, generatedImageData: undefined }; parsedSuccessfully = true; } else { console.log("JSON found, but not a recognized edit action."); } if (parsedSuccessfully) { const textWithoutJson = assistantTextContent.replace(jsonMatch[0], '').trim(); assistantFinalMessage.content = textWithoutJson || parsedJson.explanation || "(Edit proposed)"; if (!assistantFinalMessage.content.trim()) assistantFinalMessage.content = "(Edit proposed)"; } } catch (parseError: any) { console.error("Failed to parse JSON edit block:", parseError); assistantFinalMessage.content = `Warning: Found something that looks like an edit proposal, but failed to process it.\n\n---\n${assistantTextContent}`; assistantFinalMessage.error = true; } } }
                  } else if (parsedResponse?.candidates?.[0]?.finishReason === 'SAFETY') { /* handle safety block */ console.warn("Response blocked (safety)."); assistantFinalMessage = { ...assistantFinalMessage, content: "My response was blocked...", error: true }; }
                  else { /* handle unexpected */ console.warn("Unrecognized API response:", parsedResponse); assistantFinalMessage = { ...assistantFinalMessage, content: "Unexpected response from AI.", error: true }; }
                  if (!assistantFinalMessage.content?.trim() && !assistantFinalMessage.generatedImageData && !assistantFinalMessage.isEditSuggestion && !assistantFinalMessage.timer && !assistantFinalMessage.error) { /* final empty check */ console.warn("Final message empty."); assistantFinalMessage.content = "(Received empty response)"; assistantFinalMessage.error = true; }
