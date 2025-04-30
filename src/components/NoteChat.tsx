@@ -326,7 +326,6 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
                 if (parsedResponse?.error?.message) { /* ... (handle top-level error) ... */
                       console.error("API Error Received:", parsedResponse.error.message); assistantErrorContent = `Error: ${parsedResponse.error.message}`;
                       // Map specific errors...
-                      if (assistantErrorContent.toLowerCase().includes("context length") || /* ... */) assistantErrorContent = "Error: The note content and/or attached files are too large...";
                       else if (assistantErrorContent.toLowerCase().includes("api key not valid")) assistantErrorContent = "Error: Invalid API Key.";
                       else if (assistantErrorContent.toLowerCase().includes("quota exceeded")) assistantErrorContent = "Error: API Quota Exceeded.";
                       else if (/* ... */) assistantErrorContent = "Error: AI service temporarily unavailable...";
