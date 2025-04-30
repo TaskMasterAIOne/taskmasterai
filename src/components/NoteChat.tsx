@@ -280,16 +280,17 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
                 apiContent.push({ role: "user", parts: currentUserParts });
 
                 // Construct Request Body WITH top-level responseMimeTypes
-                const requestPayload = {
-                    contents: apiContent,
-                    generationConfig: {
-                        temperature: 0.6,
-                        maxOutputTokens: 8192,
-                        topP: 0.95,
-                    },
-                    responseMimeTypes: ["image/png", "image/jpeg", "image/webp", "text/plain"]
-                };
-
+const requestPayload = {
+    contents: apiContent,
+    generationConfig: {
+        temperature: 0.6,
+        maxOutputTokens: 8192,
+        topP: 0.95,
+        // *** ADDED THIS FIELD INSIDE generationConfig ***
+        responseMimeTypes: ["image/png", "image/jpeg", "image/webp", "text/plain"]
+    }
+    // No top-level responseMimeTypes here
+};
                 let requestBody = JSON.stringify(requestPayload);
 
                 console.log("--- Sending API Request Body ---");
