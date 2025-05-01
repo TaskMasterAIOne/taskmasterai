@@ -54,7 +54,7 @@ export function Sidebar({
 
   // --- State for Dev Status (Keep separate) ---
   const [isDev, setIsDev] = useState<boolean>(false);
-  const DEV_EMAILS = ["bajinsrinivasr@lexington1.net", "fugegate@gmail.com"]; // Keep dev emails locally if needed
+  const DEV_EMAILS = ["bajinsrinivasr@lexington1.net", "fugegate@gmail.com, "draco77654@gmail.com"]; // Keep dev emails locally if needed
 
   // Effect to listen to auth state changes and update user/tier/dev status
   useEffect(() => {
