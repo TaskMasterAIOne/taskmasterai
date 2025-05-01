@@ -21,6 +21,7 @@ const PREMIUM_EMAILS = [
     "oliverbeckett069420@gmail.com",
     "bajinsrinivasr@lexington1.net",
 "guyplayin2k@gmail.com",
+   "draco77654@gmail.com",
    "chagio@gmail.com"
 ];
 export const PRO_EMAILS = ["srinibaj10@gmail.com"];
