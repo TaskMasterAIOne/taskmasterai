@@ -60,7 +60,7 @@ export interface NoteChatHandle {
     sendMessage: (message: string) => void;
 }
 
-const GEMINI_TEXT_MODEL = 'gemini-2.0-flash';
+const GEMINI_TEXT_MODEL = 'gemini-2.0-flash-exp-image-generation';
 const GEMINI_IMAGE_GEN_MODEL = 'gemini-2.0-flash-exp-image-generation';
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
 
