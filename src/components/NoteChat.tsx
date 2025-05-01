@@ -760,7 +760,6 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                 )}
             </div>
         );
-    } // Removed the extra closing parenthesis here
 );
 
 NoteChat.displayName = 'NoteChat';
