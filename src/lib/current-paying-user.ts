@@ -15,7 +15,7 @@ import {
   increment, // Import increment
 } from "firebase/firestore";
 
-// --- Tier Definitions ---
+// --- Tier Definition ---
 const PREMIUM_EMAILS = [
     "robinmyh@gmail.com",
     "oliverbeckett069420@gmail.com",
