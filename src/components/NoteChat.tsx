@@ -60,7 +60,8 @@ export interface NoteChatHandle {
     sendMessage: (message: string) => void;
 }
 
-const GEMINI_MODEL_NAME = 'gemini-2.0-flash-exp-image-generation';
+const GEMINI_TEXT_MODEL = 'gemini-2.0-flash';
+const GEMINI_IMAGE_GEN_MODEL = 'gemini-2.0-flash-exp-image-generation';
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
 
 const readFileAsBase64 = (file: File): Promise<SelectedFile> => {
@@ -93,9 +94,7 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 3, de
                  try { const errJson = await response.json(); errorText = errJson?.error?.message || errorText; } catch { }
                  if (errorText.toLowerCase().includes("context length") || errorText.toLowerCase().includes("request payload size") || errorText.toLowerCase().includes("request entity too large")) { throw new Error("Error: The note content and/or attached files are too large for the AI to process."); }
                  if (errorText.toLowerCase().includes("unsupported user location")) { throw new Error("Error: Image generation is not available in your region."); }
-                 if (errorText.toLowerCase().includes("response must contain text") || errorText.toLowerCase().includes("failed to generate the expected content")) {
-                    throw new Error("Error: The AI failed to generate the expected content (text or image). This might be due to safety settings, the nature of the request, or an internal issue.");
-                 }
+                 if (errorText.toLowerCase().includes("response must contain text") && url.includes(GEMINI_IMAGE_GEN_MODEL)) { throw new Error("Error: Image generation failed. The model might require a different prompt or could not fulfill the request safely."); }
                 throw new Error(errorText);
             }
             return response;
@@ -107,7 +106,7 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 3, de
     throw new Error(`Max retries reached for: ${url}`);
 }
 
-const parseGeminiResponse = (responseText: string): { text: string | null; imageData: ImageData | null; error: string | null; finishReason: string | null; suggestions: string[] } => {
+const parseGeminiResponse = (responseText: string, isImageGenCall: boolean): { text: string | null; imageData: ImageData | null; error: string | null; finishReason: string | null; suggestions: string[] } => {
     let textContent: string | null = null;
     let imageContent: ImageData | null = null;
     let errorMessage: string | null = null;
@@ -131,9 +130,9 @@ const parseGeminiResponse = (responseText: string): { text: string | null; image
                 for (const part of candidate.content.parts) {
                     if (part.text) {
                         textContent = (textContent ? textContent + "\n" : "") + part.text;
-                    } else if (part.inlineData?.mimeType?.startsWith('image/') && part.inlineData?.data) {
+                    } else if (isImageGenCall && part.inlineData?.mimeType?.startsWith('image/') && part.inlineData?.data) {
                         imageContent = { base64: part.inlineData.data, type: part.inlineData.mimeType, name: "generated_image.png" };
-                    }
+                    } else if (part.inlineData) { }
                 }
             }
 
@@ -157,10 +156,6 @@ const parseGeminiResponse = (responseText: string): { text: string | null; image
                 }
             }
 
-            if (imageContent) {
-                responseSuggestions = [];
-            }
-
         } else if (jsonResponse?.error?.message) {
              errorMessage = `API Error: ${jsonResponse.error.message}`;
              if (errorMessage.toLowerCase().includes("context length") || errorMessage.toLowerCase().includes("request payload size") || errorMessage.toLowerCase().includes("request entity too large")) { errorMessage = "Error: The note content and/or attached files are too large for the AI to process."; }
@@ -168,14 +163,11 @@ const parseGeminiResponse = (responseText: string): { text: string | null; image
              else if (errorMessage.toLowerCase().includes("quota exceeded")) { errorMessage = "Error: API Quota Exceeded."; }
              else if (errorMessage.toLowerCase().includes("internal server error") || errorMessage.toLowerCase().includes("service unavailable")) { errorMessage = "Error: AI service is temporarily unavailable. Please try again later."; }
              else if (errorMessage.toLowerCase().includes("unsupported user location")) { errorMessage = "Error: Image generation is not available in your region."; }
-             else if (errorMessage.toLowerCase().includes("response must contain text") || errorMessage.toLowerCase().includes("failed to generate the expected content")) { errorMessage = "Error: The AI failed to generate the expected content (text or image). This might be due to safety settings, the nature of the request, or an internal issue."; }
-
+             else if (errorMessage.toLowerCase().includes("response must contain text") && isImageGenCall) { errorMessage = "Error: Image generation failed. The model might require a different prompt or could not fulfill the request safely.";}
         } else { errorMessage = "Sorry, I received an empty or non-standard response format."; }
 
-
-        if (!textContent && !imageContent && !errorMessage) {
-            textContent = "(Received empty response content)";
-        }
+        if (isImageGenCall && !imageContent && !errorMessage && reason !== 'SAFETY' && reason !== 'BLOCKED') { if (textContent) { if (!textContent.trim()) { textContent = "(No image generated and no text explanation provided)"; } } else { errorMessage = "Image generation request processed, but no image was returned."; } }
+        if (!textContent && !imageContent && !errorMessage) { textContent = "(Received empty response content)"; }
 
         return { text: textContent, imageData: imageContent, error: errorMessage, finishReason: reason, suggestions: responseSuggestions };
 
@@ -223,7 +215,7 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
 
         const overlayBg = isIlluminateEnabled ? "bg-white" : isBlackoutEnabled ? "bg-black border border-gray-700/60" : "bg-gray-800"; const headerBg = isIlluminateEnabled ? "bg-gray-50/90 border-gray-200" : "bg-gray-900/80 border-gray-700"; const headingColor = isIlluminateEnabled ? "text-gray-800" : "text-white"; const inputBg = isIlluminateEnabled ? "bg-gray-100 border-gray-300 focus:border-blue-500 focus:ring-blue-500" : "bg-gray-700 border-gray-600 focus:border-blue-500 focus:ring-blue-500"; const inputTextColor = isIlluminateEnabled ? "text-gray-900" : "text-gray-200"; const placeholderColor = isIlluminateEnabled ? "placeholder-gray-400" : "placeholder-gray-500"; const buttonPrimaryClass = "bg-blue-600 hover:bg-blue-700 text-white"; const buttonSecondaryClass = isIlluminateEnabled ? "bg-gray-200 hover:bg-gray-300 text-gray-700" : "bg-gray-600 hover:bg-gray-500 text-gray-300"; const suggestionButtonClass = isIlluminateEnabled ? "bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200" : "bg-gray-700 hover:bg-gray-600 text-gray-300 border border-gray-600"; const buttonDisabledClass = "opacity-50 cursor-not-allowed"; const userBubbleClass = isIlluminateEnabled ? 'bg-blue-500 text-white' : 'bg-blue-600 text-white'; const assistantBubbleClass = isIlluminateEnabled ? 'bg-gray-100 text-gray-800 border border-gray-200/80' : 'bg-gray-700/80 text-gray-200 border border-gray-600/50'; const errorBubbleClass = isIlluminateEnabled ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-red-900/30 text-red-300 border border-red-700/50'; const editSuggestionBubbleClass = isIlluminateEnabled ? 'bg-yellow-50 border border-yellow-200 text-yellow-800' : 'bg-yellow-900/30 border border-yellow-700/50 text-yellow-300'; const confirmationBubbleClass = isIlluminateEnabled ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-green-900/30 border border-green-700/50 text-green-200'; const iconColor = isIlluminateEnabled ? "text-gray-500 hover:text-gray-700" : "text-gray-400 hover:text-gray-200"; const filePillBg = isIlluminateEnabled ? "bg-blue-100 border-blue-200" : "bg-blue-900/50 border-blue-700/50"; const filePillText = isIlluminateEnabled ? "text-blue-800" : "text-blue-300"; const downloadButtonClass = isIlluminateEnabled ? "bg-gray-200 hover:bg-gray-300 text-gray-600" : "bg-gray-600 hover:bg-gray-500 text-gray-300";
 
-        useEffect(() => { if (!isVisible) return; setIsLoadingUsage(true); const currentUser = auth.currentUser; if (!currentUser) { setUserTier('basic'); setIsLoadingUsage(false); return; } setUser(currentUser); const tier = getUserTier(currentUser.email); setUserTier(tier); if (tier !== 'premium') { const currentMonthYear = new Date().toISOString().slice(0, 7); getCurrentMonthUserChatUsage(currentUser.uid, currentMonthYear) .then(usageData => { if (usageData) { setChatCount(usageData.count); setUsageMonth(usageData.month); const limit = getChatLimitForTier(tier); setIsChatLimitReached(usageData.count >= limit); } else { setChatCount(0); setUsageMonth(currentMonthYear); setIsChatLimitReached(false); } }) .catch(err => { console.error("Error fetching chat usage:", err); setChatCount(0); setUsageMonth(new Date().toISOString().slice(0, 7)); setIsChatLimitReached(false); }) .finally(() => setIsLoadingUsage(false)); } else { setChatCount(0); setUsageMonth(''); setIsChatLimitReached(false); setIsLoadingUsage(false); } }, [isVisible]);
+        useEffect(() => { if (!isVisible) return; setIsLoadingUsage(true); const currentUser = auth.currentUser; if (!currentUser) { setUserTier('basic'); setIsLoadingUsage(false); return; } setUser(currentUser); const tier = getUserTier(currentUser.email); setUserTier(tier); if (tier !== 'premium') { const currentMonthYear = new Date().toISOString().slice(0, 7); getCurrentMonthUserChatUsage(currentUser.uid, currentMonthYear) .then(usageData => { if (usageData) { setChatCount(usageData.count); setUsageMonth(usageData.month); const limit = getChatLimitForTier(tier); setIsChatLimitReached(usageData.count >= limit); } else { setChatCount(0); setUsageMonth(currentMonthYear); setIsChatLimitReached(false); } }) .catch(err => { setChatCount(0); setUsageMonth(new Date().toISOString().slice(0, 7)); setIsChatLimitReached(false); }) .finally(() => setIsLoadingUsage(false)); } else { setChatCount(0); setUsageMonth(''); setIsChatLimitReached(false); setIsLoadingUsage(false); } }, [isVisible]);
         useEffect(() => { if (note && (note.id !== currentNoteId.current || (displayMode === 'overlay' && isVisible && !initialMessageSent.current))) { const initialPrompt = `Hi ${userName}! Ask about **"${note.title}"**, ask me to change it, generate an image, or attach/paste a file.`; setChatHistory([{ id: `init-${Date.now()}`, role: 'assistant', content: initialPrompt }]); setChatMessage(''); setSelectedFiles([]); setSuggestedPrompts([]); setIsChatLoading(false); initialMessageSent.current = true; currentNoteId.current = note.id; setLoadingMsgId(null); } else if (displayMode === 'overlay' && !isVisible) { initialMessageSent.current = false; currentNoteId.current = null; } }, [note, isVisible, userName, displayMode]);
         useEffect(() => { if (!isMinimized || displayMode === 'inline') { setTimeout(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, 150); } }, [chatHistory, isMinimized, displayMode, suggestedPrompts]);
 
@@ -234,7 +226,6 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
         const handleRemoveFile = (fileName: string) => setSelectedFiles(prev => prev.filter(f => f.name !== fileName));
         const triggerFileSelect = () => fileInputRef.current?.click();
         const handlePaste = useCallback(async (event: React.ClipboardEvent<HTMLTextAreaElement>) => { const items = event.clipboardData?.items; if (!items) return; let imagePasted = false; const filePromises: Promise<SelectedFile>[] = []; const existingFileNames = new Set(selectedFiles.map(f => f.name)); for (let i = 0; i < items.length; i++) { const item = items[i]; if (item.kind === 'file' && item.type.startsWith('image/')) { const file = item.getAsFile(); if (file) { if (existingFileNames.has(file.name)) { setChatHistory(prev => [...prev, { id: `paste-err-dup-${Date.now()}-${file.name}`, role: 'assistant', content: `ℹ️ Skipped duplicate pasted file: "${file.name}".`, error: false }]); continue; } if (file.size > 20 * 1024 * 1024) { setChatHistory(prev => [...prev, { id: `paste-err-size-${Date.now()}`, role: 'assistant', content: `❌ Pasted image "${file.name}" is too large (max 20MB).`, error: true }]); continue; } filePromises.push(readFileAsBase64(file)); existingFileNames.add(file.name); imagePasted = true; } } } if (imagePasted) { event.preventDefault(); setIsChatLoading(true); try { const results = await Promise.all(filePromises); setSelectedFiles(prev => [...prev, ...results]); } catch (error) { setChatHistory(prev => [...prev, { id: `paste-err-read-${Date.now()}`, role: 'assistant', content: `❌ Error processing pasted image. Please try again.`, error: true }]); } finally { setIsChatLoading(false); } } }, [selectedFiles]);
-        const validateSequentialEdits = (editsJson: any[]): { valid: boolean, edits: EditStep[] } => { const validEdits: EditStep[] = []; let sequenceIsValid = true; for (let i = 0; i < editsJson.length; i++) { const step = editsJson[i]; if (typeof step.edit_type === 'string' && typeof step.content_fragment === 'string' && (typeof step.target_context === 'string' || step.target_context === null) && ['insert_after_context', 'replace_context', 'delete_context', 'insert_at_start', 'append_at_end'].includes(step.edit_type) && (step.edit_type === 'insert_at_start' || step.edit_type === 'append_at_end' || step.target_context !== null) && !(step.edit_type === 'delete_context' && typeof step.target_context !== 'string') ) { validEdits.push({ editType: step.edit_type as EditStep['editType'], targetContext: step.target_context, contentFragment: step.content_fragment }); } else { sequenceIsValid = false; break; } } return { valid: sequenceIsValid, edits: validEdits }; };
 
         const submitMessageToAI = async (messageContent: string, filesToSend?: SelectedFile[]) => {
             const currentFiles = filesToSend || selectedFiles;
@@ -256,7 +247,7 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
 
             setIsChatLoading(true);
 
-            if (userTier !== 'premium' && user?.uid) { try { await incrementUserChatUsage(user.uid); const newLocalCount = chatCount + 1; setChatCount(newLocalCount); setIsChatLimitReached(newLocalCount >= limit); } catch (err) { console.error("Failed to increment usage:", err); setChatHistory(prevHist => [...prevHist, { id:`usage-err-${Date.now()}`, role: 'assistant', content: "⚠️ Error saving chat usage count. Your message was sent, but the count might be inaccurate.", error: true }]); } }
+            if (userTier !== 'premium' && user?.uid) { try { await incrementUserChatUsage(user.uid); const newLocalCount = chatCount + 1; setChatCount(newLocalCount); setIsChatLimitReached(newLocalCount >= limit); } catch (err) { setChatHistory(prevHist => [...prevHist, { id:`usage-err-${Date.now()}`, role: 'assistant', content: "⚠️ Error saving chat usage count. Your message was sent, but the count might be inaccurate.", error: true }]); } }
 
             const newLoadingMsgId = `load-${Date.now()}`;
             setLoadingMsgId(newLoadingMsgId);
@@ -265,7 +256,7 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
 
             const recentHistory = chatHistory.slice(-8);
 
-            const systemInstruction = `You are TaskMaster, a highly meticulous, context-aware, and **conversational** multimodal AI agent integrated into Notes. You are chatting with "${userName}" about their note titled "${note.title}". You can process text and images, generate text, and generate images.
+            const systemInstruction = `You are TaskMaster, a highly meticulous, context-aware, and **conversational** AI agent integrated into Notes. You are chatting with "${userName}" about their note titled "${note.title}".
 
 Your primary goal is to be helpful, accurate, and strictly follow instructions based on the user's request, the provided note content, **and any attached images**. Adhere to the following functions and rules with **absolute precision**, in this order of priority:
 
@@ -284,7 +275,7 @@ Your primary goal is to be helpful, accurate, and strictly follow instructions b
     *   **Handling Missing Information:** If the note or images *don't* contain the answer to the user's question, **avoid stiff phrases like "The note doesn't mention X" or "The note does not contain information on X."** Instead, state clearly but naturally that the info isn't present in the note context (e.g., "That specific detail isn't in this note," or "Hmm, I don't see that covered here.") and *then* leverage your general knowledge to provide a helpful and accurate supplementary answer where appropriate, clearly indicating its origin (e.g., "...but generally speaking...", "...however, typical approaches include..."). Avoid fabricating information not present in the note or general knowledge.
 
 2.  **Generate Image (ONLY if EXPLICITLY Asked - NO JSON Output):**
-    *   **TRIGGER:** Activate **ONLY** if the user *explicitly* asks you to "generate an image", "create a picture", "draw", "show me an image of", etc., followed by a description.
+    *   **TRIGGER:** Activate **ONLY** if the user *explicitly* asks you to "generate an image", "create a picture", "draw", "show me an image of", etc., followed by a description. Use the \`gemini-2.0-flash-exp-image-generation\` model for this.
     *   **ACTION:** Use your image generation capability based on the user's description.
     *   **OUTPUT:** Your response should contain the generated image data directly (via \`inlineData\`). You MAY include a brief preceding text (e.g., "Okay, here's an image of [subject]:" or "Here's the image you requested:"). **Keep this preceding text concise.**
     *   **CRITICAL (LIMITATION): You CANNOT add the generated image *directly* into the note text.** If the user asks to "add the image to the note" or similar *after* you generate it, explain politely that you cannot embed it in the note, but they can download it. Example: "Here is the image you requested. I can't add images directly to the note text, but you can download it using the button." **Do not proactively state this limitation unless the user asks to add the generated image.**
@@ -293,7 +284,7 @@ Your primary goal is to be helpful, accurate, and strictly follow instructions b
     *   **CRITICAL (NO SUGGESTIONS):** **DO NOT** provide suggestions after successfully generating an image OR explaining a generation failure.
 
 3.  **Modify Note (ONLY if EXPLICITLY Asked & Not Image Gen - Requires JSON Output):**
-    *   **TRIGGER:** Propose an edit **ONLY** if the user *explicitly* uses action verbs indicating a desire to *change* the note content. Examples: "add", "remove", "delete", "change", "rewrite", "update", "replace", "insert", "correct", "fix", "append", "revise". Simple questions or statements like "This section is unclear" or "What about adding Y?" DO NOT automatically trigger an edit proposal (treat them as questions or discussion points first).
+    *   **TRIGGER:** Propose an edit **ONLY** if the user *explicitly* uses action verbs indicating a desire to *change* the note content. Examples: "add", "remove", "delete", "change", "rewrite", "update", "replace", "insert", "correct", "fix", "append", "revise". Simple questions or statements like "This section is unclear" or "What about adding Y?" DO NOT automatically trigger an edit proposal (treat them as questions or discussion points first). Use the standard text model (\`gemini-2.0-flash\`) for this.
     *   **Choose ONE Method (A, B, or C) per response. Ensure JSON is valid.**
     *   **CRITICAL - NO CODE LEAKS:** **NEVER** include the raw JSON structure or code fragments (like markdown tables, lists, etc.) intended for the edit directly within your conversational text response (outside the JSON block). Your user-facing chat text *before* the JSON block must be natural, friendly conversation (e.g., "Okay, I can add that list for you." or "Sure thing, here's the proposed correction:") explaining *what* you're doing conversationally. The structured data *only* goes inside the designated JSON block.
 
@@ -314,17 +305,19 @@ Your primary goal is to be helpful, accurate, and strictly follow instructions b
             {
               "action": "propose_sequential_edits",
               "explanation": "[Overall explanation summarizing ALL the sequential changes.]",
-              "edits": [
-                {
+              "edits": [ // An array of edit steps, executed STRICTLY in order
+                { // First edit step
                   "edit_type": "[Type]",
                   "target_context": "[Context for *first* edit, based on ORIGINAL note content. null for start/end.]",
                   "content_fragment": "[Fragment for *first* edit.]"
                 },
-                {
+                { // Second edit step
                   "edit_type": "[Type]",
+                  // CRITICAL: target_context for step N MUST exist in the note content *AFTER* steps 1 to N-1 have been virtually applied. Be precise.
                   "target_context": "[Context for *second* edit, based on content *after* first edit is applied. null for start/end.]",
                   "content_fragment": "[Fragment for *second* edit.]"
                 }
+                // ... add more steps exactly as needed for the user's request
               ]
             }
             \`\`\`
@@ -340,7 +333,7 @@ Your primary goal is to be helpful, accurate, and strictly follow instructions b
             \`\`\`
 
 4.  **General Chat:**
-    *   If the user's input isn't a question about content/images, an explicit image generation request, or an explicit note change request, engage in helpful conversation related to the note's topic, note-taking strategies, or clarifying their request.
+    *   If the user's input isn't a question about content/images, an explicit image generation request, or an explicit note change request, engage in helpful conversation related to the note's topic, note-taking strategies, or clarifying their request. Use the standard text model.
     *   **DO NOT** process timer requests (e.g., "set timer 5 min"); state that they are handled separately if asked.
 
 5.  **Generate Suggestions (Conditional - See Rule #3 Above):**
@@ -385,176 +378,40 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
 **Assistant:**`;
 
             try {
-                const fullGeminiEndpoint = `${GEMINI_API_BASE}${GEMINI_MODEL_NAME}:generateContent?key=${geminiApiKey}`;
-
-                let generationConfig: any = {
-                    temperature: 0.7,
-                    maxOutputTokens: 8192,
-                    topP: 0.95,
-                    responseModalities: ["TEXT", "IMAGE"],
-                };
-
+                const targetModel = isImageGen ? GEMINI_IMAGE_GEN_MODEL : GEMINI_TEXT_MODEL;
+                const fullGeminiEndpoint = `${GEMINI_API_BASE}${targetModel}:generateContent?key=${geminiApiKey}`;
+                let generationConfig: any = { temperature: isImageGen ? 0.7 : 0.6, maxOutputTokens: isImageGen ? 1024 : 8192, topP: 0.95, };
+                if (isImageGen) { generationConfig.responseModalities = ["TEXT", "IMAGE"]; }
+                else { generationConfig.responseMimeType = "text/plain"; }
                 const apiContent: any[] = [];
-                recentHistory.forEach(msg => {
-                     if (msg.role === 'user') {
-                         const userParts: any[] = [{ text: msg.content.replace(/\[(?:Image )?Attached:.*?\]/g, '').trim() }];
-                         if (msg.imageData) {
-                             userParts.push({ inline_data: { mime_type: msg.imageData.type, data: msg.imageData.base64 } });
-                         }
-                         apiContent.push({ role: "user", parts: userParts });
-                     } else if (msg.role === 'assistant' && !msg.timer && !msg.isUpdateConfirmation && msg.content !== '...' && !msg.isGeneratingImage) {
-                         let assistantHistoryContent = msg.content?.replace(/```json[\s\S]*?```/g, msg.isEditSuggestion ? `(Proposed Edit: ${msg.editExplanation || 'Details omitted'})` : '(Response provided)');
-                         if (msg.wasImageGenerated && msg.imageData) {
-                             assistantHistoryContent += " [Generated Image Provided]";
-                         } else if (msg.imageData) {
-                            assistantHistoryContent += " [Image Data Present]";
-                         }
-
-                         if (assistantHistoryContent?.trim()) {
-                             const assistantParts: any[] = [{ text: assistantHistoryContent.trim() }];
-                             apiContent.push({ role: "model", parts: assistantParts });
-                         }
-                     }
-                 });
-
+                recentHistory.forEach(msg => { if (msg.role === 'user') { const userParts: any[] = [{ text: msg.content.replace(/\[(?:Image )?Attached:.*?\]/g, '').trim() }]; if (msg.imageData) { userParts.push({ inline_data: { mime_type: msg.imageData.type, data: msg.imageData.base64 } }); } apiContent.push({ role: "user", parts: userParts }); } else if (msg.role === 'assistant' && !msg.timer && !msg.isUpdateConfirmation && msg.content !== '...' && !msg.isGeneratingImage) { let assistantHistoryContent = msg.content?.replace(/```json[\s\S]*?```/g, msg.isEditSuggestion ? `(Proposed Edit: ${msg.editExplanation || 'Details omitted'})` : '(Response provided)'); if (msg.wasImageGenerated) { assistantHistoryContent += " [Generated Image Provided]"; } if (assistantHistoryContent?.trim()) { apiContent.push({ role: "model", parts: [{ text: assistantHistoryContent.trim() }] }); } } });
                 const currentUserParts: any[] = [{ text: systemInstruction }];
-                if (currentFiles.length > 0 && !isImageGen) {
-                    currentFiles.forEach(file => {
-                        if (file.type.startsWith('image/') || file.type === 'application/pdf') {
-                            currentUserParts.push({ inline_data: { mime_type: file.type, data: file.base64Data } });
-                        }
-                    });
-                }
-                 apiContent.push({ role: "user", parts: currentUserParts });
-
-                let requestBody = JSON.stringify({
-                    contents: apiContent,
-                    generationConfig
-                 });
-
-                const geminiOptions = {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: requestBody
-                };
+                if (currentFiles.length > 0 && !isImageGen) { currentFiles.forEach(file => { if (file.type.startsWith('image/') || file.type === 'application/pdf') { currentUserParts.push({ inline_data: { mime_type: file.type, data: file.base64Data } }); } }); }
+                apiContent.push({ role: "user", parts: currentUserParts });
+                let requestBody = JSON.stringify({ contents: apiContent, generationConfig });
+                const geminiOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: requestBody };
 
                 const response = await fetchWithRetry(fullGeminiEndpoint, geminiOptions);
                 const responseText = await response.text();
 
-                const parsedResult = parseGeminiResponse(responseText);
+                const parsedResult = parseGeminiResponse(responseText, isImageGen);
+                setSuggestedPrompts(parsedResult.suggestions);
 
-                let assistantFinalMessage: ChatMessage = {
-                    id: newLoadingMsgId,
-                    role: 'assistant',
-                    content: parsedResult.text || (parsedResult.imageData ? "" : "(No text content received)"),
-                    imageData: parsedResult.imageData,
-                    error: !!parsedResult.error,
-                    isEditSuggestion: false,
-                    wasImageGenerated: !!parsedResult.imageData && !parsedResult.error,
-                };
+                let assistantFinalMessage: ChatMessage = { id: newLoadingMsgId, role: 'assistant', content: parsedResult.text || (parsedResult.imageData ? "" : "(No text content received)"), imageData: parsedResult.imageData, error: !!parsedResult.error, isEditSuggestion: false, wasImageGenerated: isImageGen && !!parsedResult.imageData && !parsedResult.error, };
+                if (parsedResult.error) { assistantFinalMessage.content = parsedResult.error; assistantFinalMessage.imageData = null; assistantFinalMessage.error = true; assistantFinalMessage.wasImageGenerated = false; setSuggestedPrompts([]); }
 
-                if (parsedResult.error) {
-                    assistantFinalMessage.content = parsedResult.error;
-                    assistantFinalMessage.imageData = null;
-                    assistantFinalMessage.error = true;
-                    assistantFinalMessage.wasImageGenerated = false;
-                    setSuggestedPrompts([]);
-                } else {
-                    setSuggestedPrompts(parsedResult.suggestions);
-                }
-
-                 if (!assistantFinalMessage.error && !assistantFinalMessage.wasImageGenerated && parsedResult.text) {
+                 if (!isImageGen && !assistantFinalMessage.error && parsedResult.text) {
                     const jsonMatch = parsedResult.text.match(/```json\s*([\s\S]*?)\s*```/);
-                    if (jsonMatch && jsonMatch[1]) {
-                        let potentialJsonString = jsonMatch[1].trim();
-                        try {
-                            const parsedJson = JSON.parse(potentialJsonString);
-                            let parsedSuccessfully = false;
-                            assistantFinalMessage.error = false;
-
-                            if (parsedJson.action === "propose_targeted_edit" ) {
-                                if (typeof parsedJson.explanation === 'string' && typeof parsedJson.edit_type === 'string' && typeof parsedJson.content_fragment === 'string' && (typeof parsedJson.target_context === 'string' || parsedJson.target_context === null)) {
-                                    Object.assign(assistantFinalMessage, {
-                                        isEditSuggestion: true,
-                                        editAction: "propose_targeted_edit",
-                                        editExplanation: parsedJson.explanation,
-                                        editType: parsedJson.edit_type as EditStep['editType'],
-                                        targetContext: parsedJson.target_context,
-                                        contentFragment: parsedJson.content_fragment
-                                    });
-                                    parsedSuccessfully = true;
-                                }
-                            } else if (parsedJson.action === "propose_full_content_replacement" ) {
-                                if (typeof parsedJson.explanation === 'string' && typeof parsedJson.new_full_content === 'string') {
-                                    Object.assign(assistantFinalMessage, {
-                                        isEditSuggestion: true,
-                                        editAction: "propose_full_content_replacement",
-                                        editExplanation: parsedJson.explanation,
-                                        newFullContent: parsedJson.new_full_content
-                                    });
-                                    parsedSuccessfully = true;
-                                }
-                            } else if (parsedJson.action === "propose_sequential_edits" ) {
-                                if (typeof parsedJson.explanation === 'string' && Array.isArray(parsedJson.edits) && parsedJson.edits.length > 0) {
-                                    const { valid, edits } = validateSequentialEdits(parsedJson.edits);
-                                    if (valid) {
-                                        Object.assign(assistantFinalMessage, {
-                                            isEditSuggestion: true,
-                                            editAction: "propose_sequential_edits",
-                                            editExplanation: parsedJson.explanation,
-                                            sequentialEdits: edits
-                                        });
-                                        parsedSuccessfully = true;
-                                    } else {
-                                        assistantFinalMessage.content = `Warning: AI proposed sequential edits, but the format was invalid. \n\n---\n${parsedResult.text}`;
-                                        assistantFinalMessage.error = true;
-                                        setSuggestedPrompts([]);
-                                    }
-                                }
-                            }
-
-                            if (parsedSuccessfully) {
-                                const remainingText = parsedResult.text.replace(jsonMatch[0], '').trim();
-                                assistantFinalMessage.content = remainingText || parsedJson.explanation || "(Edit proposed)";
-                                if (!assistantFinalMessage.content.trim()) {
-                                    assistantFinalMessage.content = "(Edit proposed without explanation)";
-                                }
-                                assistantFinalMessage.imageData = undefined;
-                                assistantFinalMessage.wasImageGenerated = false;
-                            } else if (!assistantFinalMessage.error) {
-                                assistantFinalMessage.content = `Warning: AI proposed an edit, but the format was invalid. \n\n---\n${parsedResult.text}`;
-                                assistantFinalMessage.error = true;
-                                setSuggestedPrompts([]);
-                            }
-
-                        } catch (parseError: any) {
-                            assistantFinalMessage.content = `Error: Failed to process edit (JSON Parse Error: ${parseError.message}).\n\n---\n${parsedResult.text}`;
-                            assistantFinalMessage.error = true;
-                            assistantFinalMessage.imageData = undefined;
-                            assistantFinalMessage.wasImageGenerated = false;
-                            setSuggestedPrompts([]);
-                        }
-                    }
+                    if (jsonMatch && jsonMatch[1]) { let potentialJsonString = jsonMatch[1].trim(); try { const parsedJson = JSON.parse(potentialJsonString); let parsedSuccessfully = false; assistantFinalMessage.error = false; if (parsedJson.action === "propose_targeted_edit" ) { if (typeof parsedJson.explanation === 'string' && typeof parsedJson.edit_type === 'string' && typeof parsedJson.content_fragment === 'string' && (typeof parsedJson.target_context === 'string' || parsedJson.target_context === null)) { Object.assign(assistantFinalMessage, { content: parsedJson.explanation, isEditSuggestion: true, editAction: "propose_targeted_edit", editExplanation: parsedJson.explanation, editType: parsedJson.edit_type as EditStep['editType'], targetContext: parsedJson.target_context, contentFragment: parsedJson.content_fragment }); parsedSuccessfully = true; } } else if (parsedJson.action === "propose_full_content_replacement" ) { if (typeof parsedJson.explanation === 'string' && typeof parsedJson.new_full_content === 'string') { Object.assign(assistantFinalMessage, { content: parsedJson.explanation, isEditSuggestion: true, editAction: "propose_full_content_replacement", editExplanation: parsedJson.explanation, newFullContent: parsedJson.new_full_content }); parsedSuccessfully = true; } } else if (parsedJson.action === "propose_sequential_edits" ) { if (typeof parsedJson.explanation === 'string' && Array.isArray(parsedJson.edits) && parsedJson.edits.length > 0) { const { valid, edits } = validateSequentialEdits(parsedJson.edits); if (valid) { Object.assign(assistantFinalMessage, { content: parsedJson.explanation, isEditSuggestion: true, editAction: "propose_sequential_edits", editExplanation: parsedJson.explanation, sequentialEdits: edits }); parsedSuccessfully = true; } else { assistantFinalMessage.content = `Warning: AI proposed sequential edits, but the format was invalid. \n\n---\n${parsedResult.text}`; assistantFinalMessage.error = true; } } } if (parsedSuccessfully) { const remainingText = parsedResult.text.replace(jsonMatch[0], '').trim(); assistantFinalMessage.content = remainingText || parsedJson.explanation || "(Edit proposed)"; if (!assistantFinalMessage.content.trim()) assistantFinalMessage.content = "(Edit proposed without explanation)"; assistantFinalMessage.imageData = undefined; assistantFinalMessage.wasImageGenerated = false; } else if (!assistantFinalMessage.error) { assistantFinalMessage.content = `Warning: AI proposed an edit, but the format was invalid. \n\n---\n${parsedResult.text}`; assistantFinalMessage.error = true; } } catch (parseError: any) { assistantFinalMessage.content = `Error: Failed to process edit (JSON Parse Error: ${parseError.message}).\n\n---\n${parsedResult.text}`; assistantFinalMessage.error = true; assistantFinalMessage.imageData = undefined; assistantFinalMessage.wasImageGenerated = false; } }
                  }
 
-                 if (!assistantFinalMessage.content?.trim() && !assistantFinalMessage.imageData && !assistantFinalMessage.error && !assistantFinalMessage.isEditSuggestion && !assistantFinalMessage.timer) {
-                    assistantFinalMessage.content = "(Received empty response)";
-                    assistantFinalMessage.error = true;
-                    setSuggestedPrompts([]);
-                 }
+                 if (!assistantFinalMessage.content?.trim() && !assistantFinalMessage.imageData && !assistantFinalMessage.error && !assistantFinalMessage.isEditSuggestion && !assistantFinalMessage.timer) { assistantFinalMessage.content = "(Received empty response)"; assistantFinalMessage.error = true; }
 
                  setChatHistory(prev => prev.map(msg => msg.id === newLoadingMsgId ? assistantFinalMessage : msg ));
 
             } catch (err: any) {
                  const errorMsg = err instanceof Error ? err.message : 'Unknown error processing request.';
-                 const errorFinalMessage: ChatMessage = {
-                     id: newLoadingMsgId,
-                     role: 'assistant',
-                     content: `❌ ${errorMsg}. Please check connection or try again.`,
-                     error: true,
-                     isGeneratingImage: false,
-                     wasImageGenerated: false,
-                 };
+                 const errorFinalMessage = { id: newLoadingMsgId, role: 'assistant', content: `❌ ${errorMsg}. Please check console or try again.`, error: true, isGeneratingImage: false, wasImageGenerated: false };
                  setChatHistory(prev => prev.map(msg => msg.id === newLoadingMsgId ? errorFinalMessage : msg ));
                  setSuggestedPrompts([]);
              } finally {
@@ -562,6 +419,8 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                  setLoadingMsgId(null);
              }
         };
+
+        const validateSequentialEdits = (editsJson: any[]): { valid: boolean, edits: EditStep[] } => { const validEdits: EditStep[] = []; let sequenceIsValid = true; for (let i = 0; i < editsJson.length; i++) { const step = editsJson[i]; if (typeof step.edit_type === 'string' && typeof step.content_fragment === 'string' && (typeof step.target_context === 'string' || step.target_context === null) && ['insert_after_context', 'replace_context', 'delete_context', 'insert_at_start', 'append_at_end'].includes(step.edit_type) && (step.edit_type === 'insert_at_start' || step.edit_type === 'append_at_end' || step.target_context !== null) && !(step.edit_type === 'delete_context' && typeof step.target_context !== 'string') ) { validEdits.push({ editType: step.edit_type as EditStep['editType'], targetContext: step.target_context, contentFragment: step.content_fragment }); } else { sequenceIsValid = false; break; } } return { valid: sequenceIsValid, edits: validEdits }; };
 
         const handleChatSubmit = async (e?: React.FormEvent) => { e?.preventDefault(); const currentMessage = chatMessage.trim(); if (!currentMessage && selectedFiles.length === 0) return; const filesToSubmit = [...selectedFiles]; setChatMessage(''); await submitMessageToAI(currentMessage, filesToSubmit); if (textareaRef.current) { textareaRef.current.style.height = 'auto'; } };
         const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSubmit(); } };
@@ -590,10 +449,10 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                         </div>
                     )}
                     {displayMode === 'inline' && (
-                         <button onClick={onClose} className={`${iconColor} rounded-full p-1`} title="Close Chat & PDF View">
-                             <X className="w-4 h-4" />
-                         </button>
-                     )}
+                        <button onClick={onClose} className={`${iconColor} rounded-full p-1`} title="Close Chat & PDF View">
+                            <X className="w-4 h-4" />
+                        </button>
+                    )}
                 </div>
 
                 {(!isMinimized || displayMode === 'inline') && (
@@ -661,7 +520,7 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
 
                         <div className={`p-2 border-t ${headerBg} shrink-0 sticky bottom-0`}>
                              {userTier !== 'premium' && userTier !== 'loading' && ( <div className="pb-1 text-xs text-center"> <span className={isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}> Messages this month: {isLoadingUsage ? '...' : chatCount} / {currentChatLimit === Infinity ? '∞' : currentChatLimit} </span> {isChatLimitReached && !isLoadingUsage && ( <span className="text-red-500 ml-1 font-medium">(Limit Reached)</span> )} {!isChatLimitReached && userTier === 'basic' && ( <Link to="/pricing" className={`ml-2 font-medium ${isIlluminateEnabled ? 'text-blue-600 hover:text-blue-700' : 'text-blue-400 hover:text-blue-300'} hover:underline`}> <Crown className="w-2.5 h-2.5 inline mr-0.5"/>Upgrade </Link> )} </div> )}
-                             {selectedFiles.length > 0 && ( <div className="mb-1.5 flex flex-wrap gap-1.5 px-1"> {selectedFiles.map(file => ( <div key={file.name} className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${filePillBg} ${filePillText}`}> <span className="truncate max-w-[100px]">{file.name}</span> <span className="text-[10px] opacity-70">({formatBytes(file.size)})</span> <button type="button" onClick={() => handleRemoveFile(file.name)} className={`ml-0.5 p-0.5 rounded-full ${isIlluminateEnabled ? 'hover:bg-blue-200' : 'hover:bg-blue-700'} `} title="Remove"> <X className="w-2.5 h-2.5" /> </button> </div> ))} </div> )}
+                            {selectedFiles.length > 0 && ( <div className="mb-1.5 flex flex-wrap gap-1.5 px-1"> {selectedFiles.map(file => ( <div key={file.name} className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${filePillBg} ${filePillText}`}> <span className="truncate max-w-[100px]">{file.name}</span> <span className="text-[10px] opacity-70">({formatBytes(file.size)})</span> <button type="button" onClick={() => handleRemoveFile(file.name)} className={`ml-0.5 p-0.5 rounded-full ${isIlluminateEnabled ? 'hover:bg-blue-200' : 'hover:bg-blue-700'} `} title="Remove"> <X className="w-2.5 h-2.5" /> </button> </div> ))} </div> )}
                             <form onSubmit={handleChatSubmit} className="flex gap-1.5 items-end">
                                  <textarea ref={textareaRef} rows={1} value={chatMessage} onChange={handleTextareaInput} onKeyDown={handleKeyDown} onPaste={handlePaste} placeholder={isChatLimitReached ? "Monthly chat limit reached..." : "Ask, 'generate image of...', or attach..."} className={`flex-1 ${inputBg} ${inputTextColor} ${placeholderColor} rounded-lg px-3 py-1.5 text-sm focus:ring-1 focus:outline-none resize-none overflow-y-auto max-h-[100px] leading-snug ${isChatLoading || isChatLimitReached || isLoadingUsage ? 'opacity-60 cursor-not-allowed' : ''}`} disabled={isChatLoading || isChatLimitReached || isLoadingUsage} style={{ height: 'auto' }} aria-label="Chat input" />
                                  <input type="file" ref={fileInputRef} onChange={handleFileSelect} multiple accept="image/*,application/pdf" className="hidden" />
