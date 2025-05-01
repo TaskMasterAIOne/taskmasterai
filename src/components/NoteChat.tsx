@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react';
-import { MessageCircle, Send, Timer as TimerIcon, Paperclip, Bot, X, AlertTriangle, Loader2, Sparkles, ChevronDown, Maximize, Minimize, Edit, Check, RefreshCcw, Crown, Image as ImageIcon, Download } from 'lucide-react';
+import { MessageCircle, Send, Timer as TimerIcon, Paperclip, Bot, X, AlertTriangle, Loader2, Image as ImageIcon, ChevronDown, Maximize, Minimize, Edit, Check, RefreshCcw, Crown, Download } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useNavigate, Link } from "react-router-dom";
 import remarkMath from 'remark-math';
@@ -223,7 +223,7 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
             : (isImageGenModeActive ? "bg-purple-800/60 hover:bg-purple-700/60 text-purple-300" : "bg-gray-600 hover:bg-gray-500 text-gray-300");
 
         useEffect(() => { if (!isVisible) return; setIsLoadingUsage(true); const currentUser = auth.currentUser; if (!currentUser) { setUserTier('basic'); setIsLoadingUsage(false); return; } setUser(currentUser); const tier = getUserTier(currentUser.email); setUserTier(tier); if (tier !== 'premium') { const currentMonthYear = new Date().toISOString().slice(0, 7); getCurrentMonthUserChatUsage(currentUser.uid, currentMonthYear) .then(usageData => { if (usageData) { setChatCount(usageData.count); setUsageMonth(usageData.month); const limit = getChatLimitForTier(tier); setIsChatLimitReached(usageData.count >= limit); } else { setChatCount(0); setUsageMonth(currentMonthYear); setIsChatLimitReached(false); } }) .catch(err => { console.error("Error fetching usage:", err); setChatCount(0); setUsageMonth(new Date().toISOString().slice(0, 7)); setIsChatLimitReached(false); }) .finally(() => setIsLoadingUsage(false)); } else { setChatCount(0); setUsageMonth(''); setIsChatLimitReached(false); setIsLoadingUsage(false); } }, [isVisible]);
-        useEffect(() => { if (note && (note.id !== currentNoteId.current || (displayMode === 'overlay' && isVisible && !initialMessageSent.current))) { const initialPrompt = `Hi ${userName}! Ask about **"${note.title}"**, ask me to change it, generate an image (click the ✨ button!), or attach/paste a file.`; setChatHistory([{ id: `init-${Date.now()}`, role: 'assistant', content: initialPrompt }]); setChatMessage(''); setSelectedFiles([]); setSuggestedPrompts([]); setIsChatLoading(false); initialMessageSent.current = true; currentNoteId.current = note.id; setLoadingMsgId(null); setIsImageGenModeActive(false); } else if (displayMode === 'overlay' && !isVisible) { initialMessageSent.current = false; currentNoteId.current = null; setIsImageGenModeActive(false); } }, [note, isVisible, userName, displayMode]);
+        useEffect(() => { if (note && (note.id !== currentNoteId.current || (displayMode === 'overlay' && isVisible && !initialMessageSent.current))) { const initialPrompt = `Hi ${userName}! Ask about **"${note.title}"**, ask me to change it, generate an image (click the 🖼️ button!), or attach/paste a file.`; setChatHistory([{ id: `init-${Date.now()}`, role: 'assistant', content: initialPrompt }]); setChatMessage(''); setSelectedFiles([]); setSuggestedPrompts([]); setIsChatLoading(false); initialMessageSent.current = true; currentNoteId.current = note.id; setLoadingMsgId(null); setIsImageGenModeActive(false); } else if (displayMode === 'overlay' && !isVisible) { initialMessageSent.current = false; currentNoteId.current = null; setIsImageGenModeActive(false); } }, [note, isVisible, userName, displayMode]);
         useEffect(() => { if (!isMinimized || displayMode === 'inline') { setTimeout(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, 150); } }, [chatHistory, isMinimized, displayMode, suggestedPrompts]);
 
         const handleTimerComplete = (timerId: string) => setChatHistory(prev => [...prev, { id: `timer-comp-${timerId}`, role: 'assistant', content: "⏰ Time's up!" }]);
@@ -332,16 +332,16 @@ Your primary goal is to be helpful, accurate, and strictly follow instructions b
     *   **Handling Missing Information:** If the note or images *don't* contain the answer to the user's question, **avoid stiff phrases like "The note doesn't mention X" or "The note does not contain information on X."** Instead, state clearly but naturally that the info isn't present in the note context (e.g., "That specific detail isn't in this note," or "Hmm, I don't see that covered here.") and *then* leverage your general knowledge to provide a helpful and accurate supplementary answer where appropriate, clearly indicating its origin (e.g., "...but generally speaking...", "...however, typical approaches include..."). Avoid fabricating information not present in the note or general knowledge.
 
 2.  **Generate Image (ONLY if EXPLICITLY Asked - NO JSON Output):**
-    *   **TRIGGER:** Activate **ONLY** if the user *explicitly* asks you to "generate an image", "create a picture", "draw", "show me an image of", etc., followed by a description. Use the \`gemini-2.0-flash-exp-image-generation\` model for this.
+    *   **TRIGGER:** Activate **ONLY** if the user *explicitly* asks you to "generate an image", "create a picture", "draw", "show me an image of", etc., followed by a description. They might ask for multiple images (e.g., "generate 3 images of..."), but please note the system will typically generate **one** image per request based on the overall prompt. Use the \`${GEMINI_IMAGE_GEN_MODEL}\` model for this.
     *   **ACTION:** Use your image generation capability based on the user's description.
     *   **OUTPUT:** Your response should contain the generated image data directly (via \`inlineData\`). You MAY include a brief preceding text (e.g., "Okay, here's an image of [subject]:" or "Here's the image you requested:"). **Keep this preceding text concise.**
-    *   **CRITICAL (LIMITATION): You CANNOT add the generated image *directly* into the note text.** If the user asks to "add the image to the note" or similar *after* you generate it, explain politely that you cannot embed it in the note, but they can download it. Example: "Here is the image you requested. I can't add images directly to the note text, but you can download it using the button." **Do not proactively state this limitation unless the user asks to add the generated image.**
+    *   **CRITICAL (LIMITATION):** You CANNOT add the generated image *directly* into the note text. If the user asks to "add the image to the note" or similar *after* you generate it, explain politely that you cannot embed it in the note, but they can download it. Example: "Here is the image you requested. I can't add images directly to the note text, but you can download it using the button." **Do not proactively state this limitation unless the user asks to add the generated image.**
     *   **CRITICAL:** **DO NOT** output JSON for image generation requests. The image data should be returned via the appropriate API mechanism.
     *   **FALLBACK:** If generation fails or is blocked (e.g., safety, unsupported request, unclear prompt), explain why clearly and politely IN TEXT (e.g., "I couldn't generate that image due to safety guidelines." or "Sorry, I encountered an error generating the image." or "Could you please provide a more specific description for the image?"). Do not attempt to generate an image if blocked.
     *   **CRITICAL (NO SUGGESTIONS):** **DO NOT** provide suggestions after successfully generating an image OR explaining a generation failure.
 
 3.  **Modify Note (ONLY if EXPLICITLY Asked & Not Image Gen - Requires JSON Output):**
-    *   **TRIGGER:** Propose an edit **ONLY** if the user *explicitly* uses action verbs indicating a desire to *change* the note content. Examples: "add", "remove", "delete", "change", "rewrite", "update", "replace", "insert", "correct", "fix", "append", "revise". Simple questions or statements like "This section is unclear" or "What about adding Y?" DO NOT automatically trigger an edit proposal (treat them as questions or discussion points first). Use the standard text model (\`gemini-2.0-flash\`) for this.
+    *   **TRIGGER:** Propose an edit **ONLY** if the user *explicitly* uses action verbs indicating a desire to *change* the note content. Examples: "add", "remove", "delete", "change", "rewrite", "update", "replace", "insert", "correct", "fix", "append", "revise". Simple questions or statements like "This section is unclear" or "What about adding Y?" DO NOT automatically trigger an edit proposal (treat them as questions or discussion points first). Use the standard text model (\`${GEMINI_TEXT_MODEL}\`) for this.
     *   **Choose ONE Method (A, B, or C) per response. Ensure JSON is valid.**
     *   **CRITICAL - NO CODE LEAKS:** **NEVER** include the raw JSON structure or code fragments (like markdown tables, lists, etc.) intended for the edit directly within your conversational text response (outside the JSON block). Your user-facing chat text *before* the JSON block must be natural, friendly conversation (e.g., "Okay, I can add that list for you." or "Sure thing, here's the proposed correction:") explaining *what* you're doing conversationally. The structured data *only* goes inside the designated JSON block.
 
@@ -362,19 +362,18 @@ Your primary goal is to be helpful, accurate, and strictly follow instructions b
             {
               "action": "propose_sequential_edits",
               "explanation": "[Overall explanation summarizing ALL the sequential changes.]",
-              "edits": [ // An array of edit steps, executed STRICTLY in order
-                { // First edit step
+              "edits": [
+                {
                   "edit_type": "[Type]",
                   "target_context": "[Context for *first* edit, based on ORIGINAL note content. null for start/end.]",
                   "content_fragment": "[Fragment for *first* edit.]"
                 },
-                { // Second edit step
+                {
                   "edit_type": "[Type]",
-                  // CRITICAL: target_context for step N MUST exist in the note content *AFTER* steps 1 to N-1 have been virtually applied. Be precise.
                   "target_context": "[Context for *second* edit, based on content *after* first edit is applied. null for start/end.]",
                   "content_fragment": "[Fragment for *second* edit.]"
                 }
-                // ... add more steps exactly as needed for the user's request
+
               ]
             }
             \`\`\`
@@ -431,7 +430,7 @@ ${note.keyPoints?.map(p => `- ${p}`).join('\n') || 'N/A'}
 ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.content !== '...' && !msg.isGeneratingImage).map(msg => { let prefix = msg.role === 'user' ? userName : 'Assistant'; let displayContent = msg.content; if (msg.isEditSuggestion) displayContent = `[Proposed Edit: ${msg.editExplanation || 'details omitted'}]`; if (msg.imageData && !msg.wasImageGenerated) displayContent += ' [User Image Attached]'; if (msg.wasImageGenerated) displayContent += ' [Generated Image Provided]'; displayContent = displayContent.replace(/```json[\s\S]*?```/g, '[Edit JSON Proposed]'); return `${prefix}: ${displayContent.trim()}`; }).join('\n')}
 ---
 
-**${userName}: ${messageContent}** ${currentFiles.length > 0 && !isImageGen ? `(Files Attached: ${currentFiles.map(f=>f.name).join(', ')})` : ''}
+**${userName}: ${messageContent}** ${currentFiles.length > 0 && !isUsingImageGenModel ? `(Files Attached: ${currentFiles.map(f=>f.name).join(', ')})` : ''}
 **Assistant:**`;
 
             try {
@@ -583,9 +582,6 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
              } finally {
                  setIsChatLoading(false);
                  setLoadingMsgId(null);
-                 if (isImageGenModeActive) {
-                     setIsImageGenModeActive(false);
-                 }
              }
         };
 
@@ -740,7 +736,7 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                                      className={`${imageGenButtonClass} p-2 rounded-full self-end mb-[1px] transition-all duration-150 ${isChatLoading || isLoadingUsage || isChatLimitReached ? buttonDisabledClass : 'hover:scale-105 active:scale-100'} ${isImageGenModeActive ? 'ring-2 ring-purple-400 dark:ring-purple-500 ring-offset-1 dark:ring-offset-black' : ''}`}
                                      title={isImageGenModeActive ? "Switch to Text/File Mode" : "Switch to Image Generation Mode"}
                                  >
-                                     <Sparkles className="w-4 h-4" />
+                                     <ImageIcon className="w-4 h-4" />
                                  </button>
                                  <button
                                      type="submit"
