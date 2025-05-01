@@ -1,7 +1,5 @@
-// NoteChat.tsx
-// --- IMPORTS (remain mostly the same, add necessary types if needed) ---
 import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react';
-import { MessageCircle, Send, Timer as TimerIcon, Paperclip, Bot, X, AlertTriangle, Loader2, Sparkles, ChevronDown, Maximize, Minimize, Edit, Check, RefreshCcw, Crown, Image as ImageIcon } from 'lucide-react'; // Added ImageIcon
+import { MessageCircle, Send, Timer as TimerIcon, Paperclip, Bot, X, AlertTriangle, Loader2, Sparkles, ChevronDown, Maximize, Minimize, Edit, Check, RefreshCcw, Crown, Image as ImageIcon, Download } from 'lucide-react'; // Added ImageIcon and Download
 import ReactMarkdown from 'react-markdown';
 import { useNavigate, Link } from "react-router-dom";
 import remarkMath from 'remark-math';
@@ -21,15 +19,15 @@ import {
     getChatLimitForTier,
 } from '../lib/current-paying-user';
 
-// --- Types (Add generatedImageData maybe? Or reuse imageData carefully) ---
+// --- Types ---
 interface TimerMessage { type: 'timer'; duration: number; id: string; }
-interface ImageData { base64: string; type: string; name: string; } // Reused for both uploaded and generated
+interface ImageData { base64: string; type: string; name: string; }
 interface EditStep { editType: 'insert_after_context' | 'replace_context' | 'delete_context' | 'insert_at_start' | 'append_at_end'; targetContext: string | null; contentFragment: string; }
 interface ChatMessage {
     id?: string;
     role: 'user' | 'assistant';
-    content: string;        // Text content
-    imageData?: ImageData;  // For user-uploaded OR AI-generated images
+    content: string;
+    imageData?: ImageData;
     timer?: TimerMessage;
     error?: boolean;
     isEditSuggestion?: boolean;
@@ -44,7 +42,8 @@ interface ChatMessage {
     canRevert?: boolean;
     previousContent?: string;
     noteIdToRevert?: string;
-    isGeneratingImage?: boolean; // Flag to indicate image generation context
+    isGeneratingImage?: boolean;
+    wasImageGenerated?: boolean; // Flag specifically for assistant messages that contain a generated image
 }
 interface SelectedFile { name: string; type: string; size: number; base64Data: string; }
 interface Note { id: string; title: string; content: string; keyPoints?: string[]; questions?: { question: string }[]; }
@@ -62,7 +61,6 @@ interface NoteChatProps {
 }
 export interface NoteChatHandle {
     sendMessage: (message: string) => void;
-    // focusInput: () => void;
 }
 
 // --- Constants ---
@@ -70,9 +68,8 @@ const GEMINI_TEXT_MODEL = 'gemini-2.0-flash';
 const GEMINI_IMAGE_GEN_MODEL = 'gemini-2.0-flash-exp-image-generation';
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
 
-// --- Helper Functions (Unchanged - readFileAsBase64, formatBytes, fetchWithRetry, parseTimerRequest) ---
+// --- Helper Functions ---
 const readFileAsBase64 = (file: File): Promise<SelectedFile> => {
-    // ... (implementation unchanged)
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => {
@@ -86,7 +83,6 @@ const readFileAsBase64 = (file: File): Promise<SelectedFile> => {
 };
 
 function formatBytes(bytes: number, decimals = 2): string {
-  // ... (implementation unchanged)
   if (bytes === 0) return '0 Bytes';
   const k = 1024;
   const dm = decimals < 0 ? 0 : decimals;
@@ -96,12 +92,19 @@ function formatBytes(bytes: number, decimals = 2): string {
 }
 
 async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delayMs = 3000): Promise<Response> {
-    // ... (implementation unchanged, maybe log URL for debugging)
-    console.log("API Fetch:", url, JSON.parse(options.body as string)?.generationConfig); // Log URL and config
+    console.log("API Fetch:", url); // Log URL
+    // Avoid logging full body if it contains large base64 data
+    try {
+        const parsedBody = JSON.parse(options.body as string);
+        console.log("API Config:", parsedBody?.generationConfig);
+        // console.log("API Contents (Structure):", parsedBody?.contents?.map((c:any) => ({ role: c.role, parts: c.parts.map((p:any) => p.text ? {type: 'text', len: p.text.length} : {type: 'data', mime: p.inline_data?.mime_type}) })));
+    } catch {
+        console.log("API Body: (Could not parse or log safely)");
+    }
+
     for (let attempt = 0; attempt < retries; attempt++) {
         try {
             const response = await fetch(url, options);
-            // ... (rest of retry logic unchanged)
             if (!response.ok && (response.status === 429 || response.status >= 500)) {
                 console.warn(`Attempt ${attempt + 1} failed: ${response.status}. Retrying...`);
                 if (attempt === retries - 1) {
@@ -120,6 +123,10 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 3, de
                  if (errorText.toLowerCase().includes("unsupported user location")) {
                      throw new Error("Error: Image generation is not available in your region.");
                  }
+                 // Add check for image generation specific block
+                 if (errorText.toLowerCase().includes("response must contain text") && url.includes(GEMINI_IMAGE_GEN_MODEL)) {
+                    throw new Error("Error: Image generation failed. The model might require a different prompt or could not fulfill the request safely.");
+                 }
                 throw new Error(errorText);
             }
             return response;
@@ -132,9 +139,9 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 3, de
     throw new Error(`Max retries reached for: ${url}`);
 }
 
-// --- MODIFIED Response Parsing: Now handles potential image data ---
-// Note: This replaces the old extractCandidateText as direct parsing is needed
+
 const parseGeminiResponse = (responseText: string, isImageGenCall: boolean): { text: string | null; imageData: ImageData | null; error: string | null; finishReason: string | null; suggestions: string[] } => {
+    // ... (Implementation remains the same as previous correct version)
     let textContent: string | null = null;
     let imageContent: ImageData | null = null;
     let errorMessage: string | null = null;
@@ -145,118 +152,73 @@ const parseGeminiResponse = (responseText: string, isImageGenCall: boolean): { t
         const jsonResponse = JSON.parse(responseText);
         console.log("Raw API Response JSON:", jsonResponse); // Debugging
 
-        // Check for Prompt Feedback (Blocking) first
         if (jsonResponse?.promptFeedback?.blockReason) {
             errorMessage = `Request blocked: ${jsonResponse.promptFeedback.blockReason}.`;
-            if(jsonResponse.promptFeedback.safetyRatings) {
-                errorMessage += ` Safety: ${JSON.stringify(jsonResponse.promptFeedback.safetyRatings)}`;
-            }
+            if(jsonResponse.promptFeedback.safetyRatings) { errorMessage += ` Safety: ${JSON.stringify(jsonResponse.promptFeedback.safetyRatings)}`; }
             return { text: null, imageData: null, error: errorMessage, finishReason: 'BLOCKED', suggestions: [] };
         }
 
-        // Check for Candidates
         if (jsonResponse?.candidates?.[0]) {
             const candidate = jsonResponse.candidates[0];
             reason = candidate.finishReason || null;
 
             if (candidate.content?.parts && Array.isArray(candidate.content.parts)) {
-                // Iterate through parts to find text and image data
                 for (const part of candidate.content.parts) {
                     if (part.text) {
-                        textContent = (textContent ? textContent + "\n" : "") + part.text; // Append text parts
+                        textContent = (textContent ? textContent + "\n" : "") + part.text;
                     } else if (isImageGenCall && part.inlineData?.mimeType?.startsWith('image/') && part.inlineData?.data) {
-                        // Only process image data if we requested it
-                        imageContent = {
-                            base64: part.inlineData.data,
-                            type: part.inlineData.mimeType,
-                            name: "generated_image.png" // Assign a default name
-                        };
-                    } else if (part.inlineData) {
-                         console.warn("Received unexpected inlineData type:", part.inlineData.mimeType);
-                    }
+                        imageContent = { base64: part.inlineData.data, type: part.inlineData.mimeType, name: "generated_image.png" };
+                    } else if (part.inlineData) { console.warn("Received unexpected inlineData type:", part.inlineData.mimeType); }
                 }
             }
 
-            // Handle finish reasons like SAFETY or MAX_TOKENS if no primary content found
             if (!textContent && !imageContent) {
-                if (reason === 'SAFETY') {
-                    errorMessage = "Response blocked due to safety concerns.";
-                    if (candidate.safetyRatings) {
-                       errorMessage += ` Details: ${JSON.stringify(candidate.safetyRatings)}`;
-                    }
-                } else if (reason === 'MAX_TOKENS') {
-                    errorMessage = "The response was cut off as it reached the maximum length.";
-                } else if (reason) {
-                     errorMessage = `Response generation stopped: ${reason}.`;
-                } else if (!candidate.content) {
-                     errorMessage = "Received an empty response candidate.";
-                }
+                if (reason === 'SAFETY') { errorMessage = "Response blocked due to safety concerns."; if (candidate.safetyRatings) { errorMessage += ` Details: ${JSON.stringify(candidate.safetyRatings)}`; } }
+                else if (reason === 'MAX_TOKENS') { errorMessage = "The response was cut off as it reached the maximum length."; }
+                else if (reason === 'RECITATION') { errorMessage = "Response blocked due to potential recitation issues."; } // Added Recitation
+                else if (reason) { errorMessage = `Response generation stopped: ${reason}.`; }
+                else if (!candidate.content) { errorMessage = "Received an empty response candidate."; }
             }
 
-            // Suggestion Parsing (applied to text content if it exists)
             if (textContent) {
                 const suggestionRegex = /\[SUGGESTIONS\]([\s\S]*?)\[\/SUGGESTIONS\]/i;
                 const suggestionMatch = textContent.match(suggestionRegex);
                 if (suggestionMatch && suggestionMatch[1]) {
-                    responseSuggestions = suggestionMatch[1].split('\n')
-                        .map(s => s.trim().replace(/^- /, '').trim())
-                        .filter(s => s.length > 1 && s.length < 120)
-                        .slice(0, 4);
-                    // Remove suggestions from the main text content
+                    responseSuggestions = suggestionMatch[1].split('\n').map(s => s.trim().replace(/^- /, '').trim()).filter(s => s.length > 1 && s.length < 120).slice(0, 4);
                     textContent = textContent.replace(suggestionRegex, '').trim();
                 }
             }
 
         } else if (jsonResponse?.error?.message) {
-            // Handle top-level API errors
             errorMessage = `API Error: ${jsonResponse.error.message}`;
-            if (errorMessage.toLowerCase().includes("context length") || errorMessage.toLowerCase().includes("request payload size") || errorMessage.toLowerCase().includes("request entity too large")) {
-                 errorMessage = "Error: The note content and/or attached files are too large for the AI to process.";
-            } else if (errorMessage.toLowerCase().includes("api key not valid")) {
-                errorMessage = "Error: Invalid API Key.";
-            } else if (errorMessage.toLowerCase().includes("quota exceeded")) {
-                errorMessage = "Error: API Quota Exceeded.";
-            } else if (errorMessage.toLowerCase().includes("internal server error") || errorMessage.toLowerCase().includes("service unavailable")) {
-                errorMessage = "Error: AI service is temporarily unavailable. Please try again later.";
-            } else if (errorMessage.toLowerCase().includes("unsupported user location")) {
-                errorMessage = "Error: Image generation is not available in your region.";
-            }
+             if (errorMessage.toLowerCase().includes("context length") || errorMessage.toLowerCase().includes("request payload size") || errorMessage.toLowerCase().includes("request entity too large")) { errorMessage = "Error: The note content and/or attached files are too large for the AI to process."; }
+             else if (errorMessage.toLowerCase().includes("api key not valid")) { errorMessage = "Error: Invalid API Key."; }
+             else if (errorMessage.toLowerCase().includes("quota exceeded")) { errorMessage = "Error: API Quota Exceeded."; }
+             else if (errorMessage.toLowerCase().includes("internal server error") || errorMessage.toLowerCase().includes("service unavailable")) { errorMessage = "Error: AI service is temporarily unavailable. Please try again later."; }
+             else if (errorMessage.toLowerCase().includes("unsupported user location")) { errorMessage = "Error: Image generation is not available in your region."; }
+             else if (errorMessage.toLowerCase().includes("response must contain text") && isImageGenCall) { errorMessage = "Error: Image generation failed. The model might require a different prompt or could not fulfill the request safely.";}
         } else {
             errorMessage = "Sorry, I received an empty or non-standard response format.";
             console.warn("Unparseable response:", responseText);
         }
 
-        // If we requested an image but didn't get one, and got no other error, report that.
         if (isImageGenCall && !imageContent && !errorMessage && reason !== 'SAFETY' && reason !== 'BLOCKED') {
-            if (textContent) {
-                // Model might have just explained why it couldn't generate.
-                // No need for an additional error message here unless textContent is also empty.
-                 if (!textContent.trim()) {
-                    textContent = "(No image generated and no text explanation provided)";
-                 }
-            } else {
-                errorMessage = "Image generation request processed, but no image was returned.";
-            }
+            if (textContent) { if (!textContent.trim()) { textContent = "(No image generated and no text explanation provided)"; } }
+            else { errorMessage = "Image generation request processed, but no image was returned."; }
         }
 
-        // Ensure some content exists if no error
-        if (!textContent && !imageContent && !errorMessage) {
-           textContent = "(Received empty response content)";
-        }
-
+        if (!textContent && !imageContent && !errorMessage) { textContent = "(Received empty response content)"; }
 
         return { text: textContent, imageData: imageContent, error: errorMessage, finishReason: reason, suggestions: responseSuggestions };
 
     } catch (err) {
         console.error('Error parsing Gemini response:', err, 'Raw Text:', responseText);
-         // Handle non-JSON errors or generic failures
          if (typeof responseText === 'string') {
             if (responseText.toLowerCase().includes("api key not valid")) return { text: null, imageData: null, error: "Error: Invalid API Key.", finishReason: null, suggestions: [] };
             if (responseText.toLowerCase().includes("quota exceeded")) return { text: null, imageData: null, error: "Error: API Quota Exceeded.", finishReason: null, suggestions: [] };
             if (responseText.toLowerCase().includes("internal server error") || responseText.toLowerCase().includes("service unavailable")) return { text: null, imageData: null, error: "Error: AI service is temporarily unavailable. Please try again later.", finishReason: null, suggestions: [] };
             if (responseText.toLowerCase().includes("context length") || responseText.toLowerCase().includes("request payload size") || responseText.toLowerCase().includes("request entity too large")) return { text: null, imageData: null, error: "Error: The note content and/or attached files are too large for the AI to process.", finishReason: null, suggestions: [] };
             if (responseText.toLowerCase().includes("unsupported user location")) return { text: null, imageData: null, error: "Error: Image generation is not available in your region.", finishReason: null, suggestions: [] };
-            // Return the raw text as an error if it's not JSON and not a known text error
             return { text: null, imageData: null, error: `Error: Could not process AI response. Raw: ${responseText.substring(0, 100)}...`, finishReason: null, suggestions: [] };
         }
         return { text: null, imageData: null, error: "Error: Could not process AI response (Invalid format).", finishReason: null, suggestions: [] };
@@ -284,19 +246,35 @@ const parseTimerRequest = (message: string): number | null => {
     return null;
 };
 
-// --- NEW Helper Function: Check for Image Generation Intent ---
+// --- Helper Function: Check for Image Generation Intent ---
 const isImageGenerationRequest = (message: string): boolean => {
     const lowerCaseMessage = message.toLowerCase().trim();
+    // More robust check: requires keywords AND some description after it
     const keywords = [
-        "generate image", "generate an image", "create image", "create an image",
-        "make image", "make an image", "draw image", "draw an image",
-        "generate picture", "generate a picture", "create picture", "create a picture",
-        "make picture", "make a picture", "draw picture", "draw a picture",
+        "generate image of", "generate an image of", "create image of", "create an image of",
+        "make image of", "make an image of", "draw image of", "draw an image of",
+        "generate picture of", "generate a picture of", "create picture of", "create a picture of",
+        "make picture of", "make a picture of", "draw picture of", "draw a picture of",
         "show me an image of", "show image of", "show picture of", "image of", "picture of"
     ];
-    // Check if the message starts with any of the keywords
-    return keywords.some(keyword => lowerCaseMessage.startsWith(keyword + " "));
+    // Ensure there's content after the keyword phrase
+    return keywords.some(keyword => lowerCaseMessage.startsWith(keyword + " ") && lowerCaseMessage.length > (keyword.length + 1));
 };
+
+// --- NEW Helper Function: Download Image ---
+const handleDownloadImage = (imageData: ImageData) => {
+    if (!imageData) return;
+    const link = document.createElement('a');
+    link.href = `data:${imageData.type};base64,${imageData.base64}`;
+    // Create a filename, e.g., "generated-image-timestamp.png"
+    const fileExtension = imageData.type.split('/')[1] || 'png'; // Default to png if type is weird
+    const fileName = `generated-image-${Date.now()}.${fileExtension}`;
+    link.download = fileName;
+    document.body.appendChild(link); // Required for Firefox
+    link.click();
+    document.body.removeChild(link); // Clean up
+};
+
 
 // --- Loading Indicator Component (Unchanged) ---
 const LoadingIndicator = ({ isIlluminateEnabled }: { isIlluminateEnabled: boolean }) => (
@@ -354,42 +332,20 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
         const iconColor = isIlluminateEnabled ? "text-gray-500 hover:text-gray-700" : "text-gray-400 hover:text-gray-200";
         const filePillBg = isIlluminateEnabled ? "bg-blue-100 border-blue-200" : "bg-blue-900/50 border-blue-700/50";
         const filePillText = isIlluminateEnabled ? "text-blue-800" : "text-blue-300";
+        const downloadButtonClass = isIlluminateEnabled
+            ? "bg-gray-200 hover:bg-gray-300 text-gray-600"
+            : "bg-gray-600 hover:bg-gray-500 text-gray-300";
+
 
         // --- Effects (Unchanged: User/Tier/Usage Loading, Initial Message, Scroll) ---
         useEffect(() => {
             // ... (user/tier/usage loading logic unchanged) ...
-            if (!isVisible) return;
-            setIsLoadingUsage(true);
-            const currentUser = auth.currentUser;
-            if (!currentUser) {
-                console.error("NoteChat: No authenticated user found when becoming visible.");
-                setUserTier('basic'); setIsLoadingUsage(false); return;
-            }
-            setUser(currentUser);
-            const tier = getUserTier(currentUser.email); setUserTier(tier);
-            if (tier !== 'premium') {
-                const currentMonthYear = new Date().toISOString().slice(0, 7);
-                getCurrentMonthUserChatUsage(currentUser.uid, currentMonthYear)
-                    .then(usageData => {
-                        if (usageData) {
-                            setChatCount(usageData.count); setUsageMonth(usageData.month);
-                            const limit = getChatLimitForTier(tier); setIsChatLimitReached(usageData.count >= limit);
-                            console.log(`NoteChat: Loaded chat usage for ${currentMonthYear}: ${usageData.count}`);
-                        } else {
-                            console.log(`NoteChat: No chat usage data for ${currentUser.uid} for ${currentMonthYear}. Resetting local count.`);
-                            setChatCount(0); setUsageMonth(currentMonthYear); setIsChatLimitReached(false);
-                        }
-                    }) .catch(err => { console.error("NoteChat: Error loading chat usage data:", err); setChatCount(0); setUsageMonth(new Date().toISOString().slice(0, 7)); setIsChatLimitReached(false); }) .finally(() => setIsLoadingUsage(false));
-            } else { setChatCount(0); setUsageMonth(''); setIsChatLimitReached(false); setIsLoadingUsage(false); console.log("NoteChat: Premium user detected, usage check skipped."); }
+            if (!isVisible) return; setIsLoadingUsage(true); const currentUser = auth.currentUser; if (!currentUser) { console.error("NoteChat: No authenticated user found."); setUserTier('basic'); setIsLoadingUsage(false); return; } setUser(currentUser); const tier = getUserTier(currentUser.email); setUserTier(tier); if (tier !== 'premium') { const currentMonthYear = new Date().toISOString().slice(0, 7); getCurrentMonthUserChatUsage(currentUser.uid, currentMonthYear) .then(usageData => { if (usageData) { setChatCount(usageData.count); setUsageMonth(usageData.month); const limit = getChatLimitForTier(tier); setIsChatLimitReached(usageData.count >= limit); console.log(`NoteChat: Loaded chat usage for ${currentMonthYear}: ${usageData.count}`); } else { console.log(`NoteChat: No chat usage data for ${currentUser.uid} for ${currentMonthYear}. Resetting local count.`); setChatCount(0); setUsageMonth(currentMonthYear); setIsChatLimitReached(false); } }) .catch(err => { console.error("NoteChat: Error loading chat usage data:", err); setChatCount(0); setUsageMonth(new Date().toISOString().slice(0, 7)); setIsChatLimitReached(false); }) .finally(() => setIsLoadingUsage(false)); } else { setChatCount(0); setUsageMonth(''); setIsChatLimitReached(false); setIsLoadingUsage(false); console.log("NoteChat: Premium user detected."); }
         }, [isVisible]);
 
         useEffect(() => {
             // ... (initial message logic unchanged) ...
-             if (note && (note.id !== currentNoteId.current || (displayMode === 'overlay' && isVisible && !initialMessageSent.current))) {
-                 const initialPrompt = `Hi ${userName}! Ask about **"${note.title}"**, ask me to change it, generate an image, or attach/paste a file.`;
-                 setChatHistory([{ id: `init-${Date.now()}`, role: 'assistant', content: initialPrompt }]);
-                 setChatMessage(''); setSelectedFiles([]); setSuggestedPrompts([]); setIsChatLoading(false); initialMessageSent.current = true; currentNoteId.current = note.id; setLoadingMsgId(null);
-            } else if (displayMode === 'overlay' && !isVisible) { initialMessageSent.current = false; currentNoteId.current = null; }
+             if (note && (note.id !== currentNoteId.current || (displayMode === 'overlay' && isVisible && !initialMessageSent.current))) { const initialPrompt = `Hi ${userName}! Ask about **"${note.title}"**, ask me to change it, generate an image, or attach/paste a file.`; setChatHistory([{ id: `init-${Date.now()}`, role: 'assistant', content: initialPrompt }]); setChatMessage(''); setSelectedFiles([]); setSuggestedPrompts([]); setIsChatLoading(false); initialMessageSent.current = true; currentNoteId.current = note.id; setLoadingMsgId(null); } else if (displayMode === 'overlay' && !isVisible) { initialMessageSent.current = false; currentNoteId.current = null; }
         }, [note, isVisible, userName, displayMode]);
 
         useEffect(() => { if (!isMinimized || displayMode === 'inline') { setTimeout(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, 150); } }, [chatHistory, isMinimized, displayMode, suggestedPrompts]);
@@ -397,85 +353,14 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
 
         // --- Handlers (Unchanged: Timer, Edit Accept/Revert, File Select/Remove/Trigger, Paste) ---
         const handleTimerComplete = (timerId: string) => setChatHistory(prev => [...prev, { id: `timer-comp-${timerId}`, role: 'assistant', content: "⏰ Time's up!" }]);
-        const handleAcceptEdit = async (message: ChatMessage) => { /* ... (implementation unchanged) ... */
-             if (!note || isChatLoading || !message.isEditSuggestion || !message.editAction) { console.error("Invalid edit proposal:", message); setChatHistory(prev => [...prev, { id: `edit-app-err-${Date.now()}`, role: 'assistant', content: `❌ Error: Could not apply edit. Invalid proposal data.`, error: true }]); return; }
-             setIsChatLoading(true); setLoadingMsgId(null); let finalContent: string | null = null; const contentBeforeEdit = note.content;
-             try {
-                 let currentContent = contentBeforeEdit;
-                 if (message.editAction === 'propose_targeted_edit') { /* ... */
-                      if (!message.editType) throw new Error("Missing edit type."); let applied = false; const { editType, targetContext, contentFragment = "" } = message;
-                      switch (editType) {
-                          case 'insert_at_start': currentContent = contentFragment + (currentContent ? "\n" + currentContent : ""); applied = true; break;
-                          case 'append_at_end': currentContent = (currentContent ? currentContent + "\n" : "") + contentFragment; applied = true; break;
-                          case 'insert_after_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { const p = i + targetContext.length; const x = currentContent.endsWith('\n') || currentContent.slice(p).startsWith('\n') || p === 0 ? "" : "\n"; currentContent = currentContent.slice(0, p) + x + contentFragment + currentContent.slice(p); applied = true; } else throw new Error("Target context for insertion not found."); } else throw new Error("Missing target context for insert."); break;
-                          case 'replace_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { currentContent = currentContent.slice(0, i) + contentFragment + currentContent.slice(i + targetContext.length); applied = true; } else throw new Error("Target context for replacement not found."); } else throw new Error("Missing target context for replace."); break;
-                          case 'delete_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { currentContent = currentContent.slice(0, i) + currentContent.slice(i + targetContext.length); currentContent = currentContent.replace(/\n\n+/g, '\n').trim(); applied = true; } else throw new Error("Target context for deletion not found."); } else throw new Error("Missing target context for delete."); break;
-                          default: throw new Error(`Unsupported edit type: ${editType}`);
-                     } if (applied) finalContent = currentContent; else throw new Error("Targeted edit failed.");
-                 } else if (message.editAction === 'propose_full_content_replacement') { /* ... */
-                      if (typeof message.newFullContent === 'string') { finalContent = message.newFullContent; } else { throw new Error("Missing new full content for replacement."); }
-                 } else if (message.editAction === 'propose_sequential_edits') { /* ... */
-                      if (!message.sequentialEdits || !Array.isArray(message.sequentialEdits) || message.sequentialEdits.length === 0) { throw new Error("Invalid sequential edit proposal: 'edits' array is missing or empty."); }
-                      let allApplied = true;
-                      for (let i = 0; i < message.sequentialEdits.length; i++) {
-                          const editStep = message.sequentialEdits[i]; const { editType, targetContext, contentFragment } = editStep; let appliedThisStep = false; const stepNumber = i + 1;
-                          switch (editType) {
-                              case 'insert_at_start': currentContent = contentFragment + (currentContent ? "\n" + currentContent : ""); appliedThisStep = true; break;
-                              case 'append_at_end': currentContent = (currentContent ? currentContent + "\n" : "") + contentFragment; appliedThisStep = true; break;
-                              case 'insert_after_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { const p = idx + targetContext.length; const x = currentContent.endsWith('\n') || currentContent.slice(p).startsWith('\n') || p === 0 ? "" : "\n"; currentContent = currentContent.slice(0, p) + x + contentFragment + currentContent.slice(p); appliedThisStep = true; } else { allApplied = false; console.error(`Sequential edit step ${stepNumber} failed: Target context for insertion not found.`); throw new Error(`Step ${stepNumber}: Target context for insertion not found.`); } } else { allApplied = false; throw new Error(`Step ${stepNumber}: Missing target context for insert.`); } break;
-                              case 'replace_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { currentContent = currentContent.slice(0, idx) + contentFragment + currentContent.slice(idx + targetContext.length); appliedThisStep = true; } else { allApplied = false; console.error(`Sequential edit step ${stepNumber} failed: Target context for replacement not found.`); throw new Error(`Step ${stepNumber}: Target context for replacement not found.`); } } else { allApplied = false; throw new Error(`Step ${stepNumber}: Missing target context for replace.`); } break;
-                              case 'delete_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { currentContent = currentContent.slice(0, idx) + currentContent.slice(idx + targetContext.length); currentContent = currentContent.replace(/\n\n+/g, '\n').trim(); appliedThisStep = true; } else { allApplied = false; console.error(`Sequential edit step ${stepNumber} failed: Target context for deletion not found.`); throw new Error(`Step ${stepNumber}: Target context for deletion not found.`); } } else { allApplied = false; throw new Error(`Step ${stepNumber}: Missing target context for delete.`); } break;
-                              default: allApplied = false; throw new Error(`Step ${stepNumber}: Unsupported edit type: ${editType}`);
-                          } if (!appliedThisStep) { allApplied = false; throw new Error(`Sequential edit step ${stepNumber} failed unexpectedly.`); }
-                      } if (allApplied) { finalContent = currentContent; }
-                 } else { throw new Error(`Unknown edit action: ${message.editAction}`); }
-                 if (finalContent !== null) { await onUpdateNoteContent(note.id, finalContent); const confirmationMsgId = `edit-ok-${Date.now()}`; setChatHistory(prev => [ ...prev, { id: confirmationMsgId, role: 'assistant', content: "✅ Note updated!", isUpdateConfirmation: true, canRevert: true, previousContent: contentBeforeEdit, noteIdToRevert: note.id } ]); }
-             } catch (error) { console.error("Error applying edit:", error); const eMsg = error instanceof Error ? error.message : 'Unknown error during update.'; setChatHistory(prev => [...prev, { id: `edit-err-${Date.now()}`, role: 'assistant', content: `❌ Update failed: ${eMsg}`, error: true }]); } finally { setIsChatLoading(false); }
-        };
-        const handleRevertEdit = async (message: ChatMessage) => { /* ... (implementation unchanged) ... */
-             if (!message.canRevert || typeof message.previousContent !== 'string' || !message.noteIdToRevert || isChatLoading || !message.id) { console.error("Cannot revert this action. Invalid message state:", message); setChatHistory(prev => [...prev, { id: `revert-err-state-${Date.now()}`, role: 'assistant', content: `❌ Cannot revert. Invalid state.`, error: true }]); return; }
-             setIsChatLoading(true); setLoadingMsgId(null); const originalMessageId = message.id;
-             try { await onUpdateNoteContent(message.noteIdToRevert, message.previousContent); setChatHistory(prev => [ ...prev.map(msg => msg.id === originalMessageId ? { ...msg, canRevert: false } : msg ), { id: `revert-ok-${Date.now()}`, role: 'assistant', content: "🔄 Change reverted." } ]); }
-             catch (error) { console.error("Error reverting edit:", error); const eMsg = error instanceof Error ? error.message : 'Unknown error during revert.'; setChatHistory(prev => [...prev, { id: `revert-err-${Date.now()}`, role: 'assistant', content: `❌ Revert failed: ${eMsg}`, error: true }]); }
-             finally { setIsChatLoading(false); }
-        };
-        const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => { /* ... (implementation unchanged) ... */
-             const files = event.target.files; if (!files) return; setIsChatLoading(true); const newFiles: SelectedFile[] = []; const filePromises: Promise<SelectedFile>[] = []; const existingFileNames = new Set(selectedFiles.map(f => f.name));
-             for (let i = 0; i < files.length; i++) {
-                const file = files[i];
-                if (existingFileNames.has(file.name)) { console.log(`Skipping duplicate file: ${file.name}`); setChatHistory(prev => [...prev, { id: `file-err-dup-${Date.now()}-${file.name}`, role: 'assistant', content: `ℹ️ Skipped duplicate file: "${file.name}".`, error: false }]); continue; }
-                if (file.size > 20 * 1024 * 1024) { setChatHistory(prev => [...prev, { id: `file-err-size-${Date.now()}`, role: 'assistant', content: `❌ File "${file.name}" is too large (max 20MB).`, error: true }]); continue; }
-                if (!file.type.startsWith('image/') && file.type !== 'application/pdf') { setChatHistory(prev => [...prev, { id: `file-err-type-${Date.now()}`, role: 'assistant', content: `❌ File type for "${file.name}" is not supported (only images and PDFs).`, error: true }]); continue; }
-                filePromises.push(readFileAsBase64(file)); existingFileNames.add(file.name);
-             }
-             try { const results = await Promise.all(filePromises); setSelectedFiles(prev => [...prev, ...results]); }
-             catch (error) { console.error("Error reading files:", error); setChatHistory(prev => [...prev, { id: `file-err-read-${Date.now()}`, role: 'assistant', content: `❌ Error processing selected file(s). Please try again.`, error: true }]); }
-             finally { setIsChatLoading(false); if (fileInputRef.current) { fileInputRef.current.value = ''; } }
-        };
+        const handleAcceptEdit = async (message: ChatMessage) => { /* ... (implementation unchanged) ... */ if (!note || isChatLoading || !message.isEditSuggestion || !message.editAction) { console.error("Invalid edit proposal:", message); setChatHistory(prev => [...prev, { id: `edit-app-err-${Date.now()}`, role: 'assistant', content: `❌ Error: Could not apply edit. Invalid proposal data.`, error: true }]); return; } setIsChatLoading(true); setLoadingMsgId(null); let finalContent: string | null = null; const contentBeforeEdit = note.content; try { let currentContent = contentBeforeEdit; if (message.editAction === 'propose_targeted_edit') { if (!message.editType) throw new Error("Missing edit type."); let applied = false; const { editType, targetContext, contentFragment = "" } = message; switch (editType) { case 'insert_at_start': currentContent = contentFragment + (currentContent ? "\n" + currentContent : ""); applied = true; break; case 'append_at_end': currentContent = (currentContent ? currentContent + "\n" : "") + contentFragment; applied = true; break; case 'insert_after_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { const p = i + targetContext.length; const x = currentContent.endsWith('\n') || currentContent.slice(p).startsWith('\n') || p === 0 ? "" : "\n"; currentContent = currentContent.slice(0, p) + x + contentFragment + currentContent.slice(p); applied = true; } else throw new Error("Target context for insertion not found."); } else throw new Error("Missing target context for insert."); break; case 'replace_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { currentContent = currentContent.slice(0, i) + contentFragment + currentContent.slice(i + targetContext.length); applied = true; } else throw new Error("Target context for replacement not found."); } else throw new Error("Missing target context for replace."); break; case 'delete_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { currentContent = currentContent.slice(0, i) + currentContent.slice(i + targetContext.length); currentContent = currentContent.replace(/\n\n+/g, '\n').trim(); applied = true; } else throw new Error("Target context for deletion not found."); } else throw new Error("Missing target context for delete."); break; default: throw new Error(`Unsupported edit type: ${editType}`); } if (applied) finalContent = currentContent; else throw new Error("Targeted edit failed."); } else if (message.editAction === 'propose_full_content_replacement') { if (typeof message.newFullContent === 'string') { finalContent = message.newFullContent; } else { throw new Error("Missing new full content for replacement."); } } else if (message.editAction === 'propose_sequential_edits') { if (!message.sequentialEdits || !Array.isArray(message.sequentialEdits) || message.sequentialEdits.length === 0) { throw new Error("Invalid sequential edit proposal: 'edits' array is missing or empty."); } let allApplied = true; for (let i = 0; i < message.sequentialEdits.length; i++) { const editStep = message.sequentialEdits[i]; const { editType, targetContext, contentFragment } = editStep; let appliedThisStep = false; const stepNumber = i + 1; switch (editType) { case 'insert_at_start': currentContent = contentFragment + (currentContent ? "\n" + currentContent : ""); appliedThisStep = true; break; case 'append_at_end': currentContent = (currentContent ? currentContent + "\n" : "") + contentFragment; appliedThisStep = true; break; case 'insert_after_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { const p = idx + targetContext.length; const x = currentContent.endsWith('\n') || currentContent.slice(p).startsWith('\n') || p === 0 ? "" : "\n"; currentContent = currentContent.slice(0, p) + x + contentFragment + currentContent.slice(p); appliedThisStep = true; } else { allApplied = false; console.error(`Sequential edit step ${stepNumber} failed: Target context for insertion not found.`); throw new Error(`Step ${stepNumber}: Target context for insertion not found.`); } } else { allApplied = false; throw new Error(`Step ${stepNumber}: Missing target context for insert.`); } break; case 'replace_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { currentContent = currentContent.slice(0, idx) + contentFragment + currentContent.slice(idx + targetContext.length); appliedThisStep = true; } else { allApplied = false; console.error(`Sequential edit step ${stepNumber} failed: Target context for replacement not found.`); throw new Error(`Step ${stepNumber}: Target context for replacement not found.`); } } else { allApplied = false; throw new Error(`Step ${stepNumber}: Missing target context for replace.`); } break; case 'delete_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { currentContent = currentContent.slice(0, idx) + currentContent.slice(idx + targetContext.length); currentContent = currentContent.replace(/\n\n+/g, '\n').trim(); appliedThisStep = true; } else { allApplied = false; console.error(`Sequential edit step ${stepNumber} failed: Target context for deletion not found.`); throw new Error(`Step ${stepNumber}: Target context for deletion not found.`); } } else { allApplied = false; throw new Error(`Step ${stepNumber}: Missing target context for delete.`); } break; default: allApplied = false; throw new Error(`Step ${stepNumber}: Unsupported edit type: ${editType}`); } if (!appliedThisStep) { allApplied = false; throw new Error(`Sequential edit step ${stepNumber} failed unexpectedly.`); } } if (allApplied) { finalContent = currentContent; } } else { throw new Error(`Unknown edit action: ${message.editAction}`); } if (finalContent !== null) { await onUpdateNoteContent(note.id, finalContent); const confirmationMsgId = `edit-ok-${Date.now()}`; setChatHistory(prev => [ ...prev, { id: confirmationMsgId, role: 'assistant', content: "✅ Note updated!", isUpdateConfirmation: true, canRevert: true, previousContent: contentBeforeEdit, noteIdToRevert: note.id } ]); } } catch (error) { console.error("Error applying edit:", error); const eMsg = error instanceof Error ? error.message : 'Unknown error during update.'; setChatHistory(prev => [...prev, { id: `edit-err-${Date.now()}`, role: 'assistant', content: `❌ Update failed: ${eMsg}`, error: true }]); } finally { setIsChatLoading(false); } };
+        const handleRevertEdit = async (message: ChatMessage) => { /* ... (implementation unchanged) ... */ if (!message.canRevert || typeof message.previousContent !== 'string' || !message.noteIdToRevert || isChatLoading || !message.id) { console.error("Cannot revert this action. Invalid message state:", message); setChatHistory(prev => [...prev, { id: `revert-err-state-${Date.now()}`, role: 'assistant', content: `❌ Cannot revert. Invalid state.`, error: true }]); return; } setIsChatLoading(true); setLoadingMsgId(null); const originalMessageId = message.id; try { await onUpdateNoteContent(message.noteIdToRevert, message.previousContent); setChatHistory(prev => [ ...prev.map(msg => msg.id === originalMessageId ? { ...msg, canRevert: false } : msg ), { id: `revert-ok-${Date.now()}`, role: 'assistant', content: "🔄 Change reverted." } ]); } catch (error) { console.error("Error reverting edit:", error); const eMsg = error instanceof Error ? error.message : 'Unknown error during revert.'; setChatHistory(prev => [...prev, { id: `revert-err-${Date.now()}`, role: 'assistant', content: `❌ Revert failed: ${eMsg}`, error: true }]); } finally { setIsChatLoading(false); } };
+        const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => { /* ... (implementation unchanged) ... */ const files = event.target.files; if (!files) return; setIsChatLoading(true); const newFiles: SelectedFile[] = []; const filePromises: Promise<SelectedFile>[] = []; const existingFileNames = new Set(selectedFiles.map(f => f.name)); for (let i = 0; i < files.length; i++) { const file = files[i]; if (existingFileNames.has(file.name)) { console.log(`Skipping duplicate file: ${file.name}`); setChatHistory(prev => [...prev, { id: `file-err-dup-${Date.now()}-${file.name}`, role: 'assistant', content: `ℹ️ Skipped duplicate file: "${file.name}".`, error: false }]); continue; } if (file.size > 20 * 1024 * 1024) { setChatHistory(prev => [...prev, { id: `file-err-size-${Date.now()}`, role: 'assistant', content: `❌ File "${file.name}" is too large (max 20MB).`, error: true }]); continue; } if (!file.type.startsWith('image/') && file.type !== 'application/pdf') { setChatHistory(prev => [...prev, { id: `file-err-type-${Date.now()}`, role: 'assistant', content: `❌ File type for "${file.name}" is not supported (only images and PDFs).`, error: true }]); continue; } filePromises.push(readFileAsBase64(file)); existingFileNames.add(file.name); } try { const results = await Promise.all(filePromises); setSelectedFiles(prev => [...prev, ...results]); } catch (error) { console.error("Error reading files:", error); setChatHistory(prev => [...prev, { id: `file-err-read-${Date.now()}`, role: 'assistant', content: `❌ Error processing selected file(s). Please try again.`, error: true }]); } finally { setIsChatLoading(false); if (fileInputRef.current) { fileInputRef.current.value = ''; } } };
         const handleRemoveFile = (fileName: string) => setSelectedFiles(prev => prev.filter(f => f.name !== fileName));
         const triggerFileSelect = () => fileInputRef.current?.click();
-        const handlePaste = useCallback(async (event: React.ClipboardEvent<HTMLTextAreaElement>) => { /* ... (implementation unchanged) ... */
-             const items = event.clipboardData?.items; if (!items) return; let imagePasted = false; const filePromises: Promise<SelectedFile>[] = []; const existingFileNames = new Set(selectedFiles.map(f => f.name));
-             for (let i = 0; i < items.length; i++) {
-                const item = items[i];
-                if (item.kind === 'file' && item.type.startsWith('image/')) {
-                    const file = item.getAsFile();
-                    if (file) {
-                        if (existingFileNames.has(file.name)) { setChatHistory(prev => [...prev, { id: `paste-err-dup-${Date.now()}-${file.name}`, role: 'assistant', content: `ℹ️ Skipped duplicate pasted file: "${file.name}".`, error: false }]); continue; }
-                        if (file.size > 20 * 1024 * 1024) { setChatHistory(prev => [...prev, { id: `paste-err-size-${Date.now()}`, role: 'assistant', content: `❌ Pasted image "${file.name}" is too large (max 20MB).`, error: true }]); continue; }
-                        filePromises.push(readFileAsBase64(file)); existingFileNames.add(file.name); imagePasted = true;
-                    }
-                }
-             }
-             if (imagePasted) {
-                event.preventDefault(); setIsChatLoading(true);
-                try { const results = await Promise.all(filePromises); setSelectedFiles(prev => [...prev, ...results]); }
-                catch (error) { console.error("Error processing pasted image:", error); setChatHistory(prev => [...prev, { id: `paste-err-read-${Date.now()}`, role: 'assistant', content: `❌ Error processing pasted image. Please try again.`, error: true }]); }
-                finally { setIsChatLoading(false); }
-             }
-        }, [selectedFiles]);
+        const handlePaste = useCallback(async (event: React.ClipboardEvent<HTMLTextAreaElement>) => { /* ... (implementation unchanged) ... */ const items = event.clipboardData?.items; if (!items) return; let imagePasted = false; const filePromises: Promise<SelectedFile>[] = []; const existingFileNames = new Set(selectedFiles.map(f => f.name)); for (let i = 0; i < items.length; i++) { const item = items[i]; if (item.kind === 'file' && item.type.startsWith('image/')) { const file = item.getAsFile(); if (file) { if (existingFileNames.has(file.name)) { setChatHistory(prev => [...prev, { id: `paste-err-dup-${Date.now()}-${file.name}`, role: 'assistant', content: `ℹ️ Skipped duplicate pasted file: "${file.name}".`, error: false }]); continue; } if (file.size > 20 * 1024 * 1024) { setChatHistory(prev => [...prev, { id: `paste-err-size-${Date.now()}`, role: 'assistant', content: `❌ Pasted image "${file.name}" is too large (max 20MB).`, error: true }]); continue; } filePromises.push(readFileAsBase64(file)); existingFileNames.add(file.name); imagePasted = true; } } } if (imagePasted) { event.preventDefault(); setIsChatLoading(true); try { const results = await Promise.all(filePromises); setSelectedFiles(prev => [...prev, ...results]); } catch (error) { console.error("Error processing pasted image:", error); setChatHistory(prev => [...prev, { id: `paste-err-read-${Date.now()}`, role: 'assistant', content: `❌ Error processing pasted image. Please try again.`, error: true }]); } finally { setIsChatLoading(false); } } }, [selectedFiles]);
 
-        // --- Core Chat Submit Logic (*** MODIFIED for Image Gen ***) ---
+        // --- Core Chat Submit Logic ---
         const submitMessageToAI = async (messageContent: string, filesToSend?: SelectedFile[]) => {
             const currentFiles = filesToSend || selectedFiles;
             if ((!messageContent && currentFiles.length === 0) || isChatLoading || !geminiApiKey || !note || !user) return;
@@ -484,87 +369,83 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
             const currentMonthYear = new Date().toISOString().slice(0, 7);
             let limitReached = false;
             const limit = currentChatLimit;
-            if (userTier !== 'premium') {
-                 let currentCount = chatCount;
-                 if (usageMonth !== currentMonthYear) { console.log(`NoteChat: Month mismatch. Resetting local count.`); currentCount = 0; setChatCount(0); setUsageMonth(currentMonthYear); setIsChatLimitReached(false); limitReached = false; }
-                 else { limitReached = currentCount >= limit; setIsChatLimitReached(limitReached); }
-            }
-            if (limitReached) {
-                 setChatHistory(prev => [...prev, { id: `limit-${Date.now()}`, role: 'assistant', content: `You've reached your ${limit === Infinity ? 'monthly' : limit} chat message limit. Upgrade for more interactions!`, error: true }]);
-                 setChatMessage(''); return;
-            }
+            if (userTier !== 'premium') { let currentCount = chatCount; if (usageMonth !== currentMonthYear) { console.log(`NoteChat: Month mismatch. Resetting local count.`); currentCount = 0; setChatCount(0); setUsageMonth(currentMonthYear); setIsChatLimitReached(false); limitReached = false; } else { limitReached = currentCount >= limit; setIsChatLimitReached(limitReached); } }
+            if (limitReached) { setChatHistory(prev => [...prev, { id: `limit-${Date.now()}`, role: 'assistant', content: `You've reached your ${limit === Infinity ? 'monthly' : limit} chat message limit. Upgrade for more interactions!`, error: true }]); setChatMessage(''); return; }
             // --- END: Usage Check ---
 
             const timerDuration = parseTimerRequest(messageContent);
 
             // --- Determine Intent: Is it an Image Generation request? ---
             const isImageGen = isImageGenerationRequest(messageContent);
-            // Prevent image generation if files are attached (for now, simplify)
              if (isImageGen && currentFiles.length > 0) {
                   setChatHistory(prev => [...prev, { id: `img-gen-file-err-${Date.now()}`, role: 'assistant', content: `ℹ️ Please remove attached files before generating an image.`, error: false }]);
-                  return; // Stop submission
+                  return;
             }
 
-            // Prepare user message (Unchanged logic, just uses imageData)
+            // Prepare user message
             let userMsgContent = messageContent;
             let userMsgImageData: ImageData | undefined = undefined;
             const imageFiles = currentFiles.filter(f => f.type.startsWith('image/'));
-            // Attach only the *first* image to the user message bubble display, but all files will be sent to API if not image gen
             if (imageFiles.length > 0) { userMsgImageData = { base64: imageFiles[0].base64Data, type: imageFiles[0].type, name: imageFiles[0].name }; }
             const userMsg: ChatMessage = { id: `user-${Date.now()}`, role: 'user', content: userMsgContent, imageData: userMsgImageData };
             setChatHistory(prev => [...prev, userMsg]);
-            setSuggestedPrompts([]); // Clear suggestions
-            if (!filesToSend) { setSelectedFiles([]); } // Clear files if not explicitly passed
+            setSuggestedPrompts([]);
+            if (!filesToSend) { setSelectedFiles([]); }
 
-            // Handle Timer (Unchanged)
-            if (timerDuration) { /* ... (timer logic unchanged) ... */
-                 const tId = `t-${Date.now()}`; const dTxt = timerDuration >= 3600 ? `${Math.round(timerDuration / 3600)}h` : timerDuration >= 60 ? `${Math.round(timerDuration / 60)}m` : `${timerDuration}s`;
-                setChatHistory(prev => [ ...prev, { id: `tstart-${tId}`, role: 'assistant', content: `Timer set: ${dTxt}.`, timer: { type: 'timer', duration: timerDuration, id: tId } } ]);
-                if (messageContent.toLowerCase().startsWith('set timer') || messageContent.toLowerCase().startsWith('timer for')) { setChatMessage(''); }
-                return; // Stop if it was ONLY a timer command
-            }
+            // Handle Timer
+            if (timerDuration) { const tId = `t-${Date.now()}`; const dTxt = timerDuration >= 3600 ? `${Math.round(timerDuration / 3600)}h` : timerDuration >= 60 ? `${Math.round(timerDuration / 60)}m` : `${timerDuration}s`; setChatHistory(prev => [ ...prev, { id: `tstart-${tId}`, role: 'assistant', content: `Timer set: ${dTxt}.`, timer: { type: 'timer', duration: timerDuration, id: tId } } ]); if (messageContent.toLowerCase().startsWith('set timer') || messageContent.toLowerCase().startsWith('timer for')) { setChatMessage(''); } return; }
 
             setIsChatLoading(true);
 
-            // --- Increment Usage Count (Unchanged logic) ---
-            if (userTier !== 'premium' && user?.uid) { /* ... (increment logic unchanged) ... */
-                try { await incrementUserChatUsage(user.uid); const newLocalCount = chatCount + 1; setChatCount(newLocalCount); setIsChatLimitReached(newLocalCount >= limit); }
-                catch (err) { console.error("NoteChat: Failed to increment chat usage:", err); setChatHistory(prevHist => [...prevHist, { id:`usage-err-${Date.now()}`, role: 'assistant', content: "⚠️ Error saving chat usage count. Your message was sent, but the count might be inaccurate.", error: true }]); }
-            }
+            // --- Increment Usage Count (Unchanged) ---
+            if (userTier !== 'premium' && user?.uid) { try { await incrementUserChatUsage(user.uid); const newLocalCount = chatCount + 1; setChatCount(newLocalCount); setIsChatLimitReached(newLocalCount >= limit); } catch (err) { console.error("NoteChat: Failed to increment chat usage:", err); setChatHistory(prevHist => [...prevHist, { id:`usage-err-${Date.now()}`, role: 'assistant', content: "⚠️ Error saving chat usage count. Your message was sent, but the count might be inaccurate.", error: true }]); } }
             // --- End Increment Logic ---
 
             const newLoadingMsgId = `load-${Date.now()}`;
             setLoadingMsgId(newLoadingMsgId);
-             // Add specific loading message for image generation
              const loadingContent = isImageGen ? "Generating image..." : "...";
-             setChatHistory(prev => [...prev, { id: newLoadingMsgId, role: 'assistant', content: loadingContent, isGeneratingImage: isImageGen }]); // Add placeholder
+             // Set isGeneratingImage flag for loading indicator
+             setChatHistory(prev => [...prev, { id: newLoadingMsgId, role: 'assistant', content: loadingContent, isGeneratingImage: isImageGen }]);
 
-            const recentHistory = chatHistory.slice(-8); // Keep history length reasonable
+            const recentHistory = chatHistory.slice(-8);
 
-             // --- *** UPDATED System Prompt with Image Generation Instructions *** ---
-            // --- System Prompt (Same as your previous version, assumed correct) ---
-            const systemInstruction = `You are TaskMaster, a highly meticulous, context-aware, and **conversational** AI agent integrated into Notes. You are chatting with "${userName}" about their note titled "${note.title}".
+            // --- *** RESTORED & AUGMENTED System Prompt *** ---
+             const systemInstruction = `You are TaskMaster, a highly meticulous, context-aware, and **conversational** AI agent integrated into Notes. You are chatting with "${userName}" about their note titled "${note.title}".
 
-Your primary goal is to be helpful, accurate, and strictly follow instructions based on the user's request, the provided note content, **and any attached images**. Adhere to the following functions and rules with **absolute precision**, in this order of priority:
+Your primary goal is to be helpful, accurate, and strictly follow instructions based on the user's request, the provided note content, **and any attached images/files**. Adhere to the following functions and rules with **absolute precision**, in this order of priority:
 
 **Core Logic Flow:**
 
-1.  **Analyze User Intent:** First, determine if the user is ASKING a question *about* the note (or related images) or if they are EXPLICITLY requesting a *change* to the note text. This distinction is CRITICAL.
-2.  **Execute Correct Function:** Based on the intent, follow the corresponding function below (Answer Questions, Modify Note, or General Chat).
+1.  **Analyze User Intent:** First, determine if the user is:
+    a) ASKING a question *about* the note/files.
+    b) EXPLICITLY requesting *image generation* (check for keywords like "generate image of", "create picture of", "draw image of", etc. followed by a description).
+    c) EXPLICITLY requesting a *change* to the note text (check for action verbs like "add", "remove", "change", "rewrite", "update").
+    d) Engaging in general chat or making a statement *not* covered by a, b, or c.
+    **CRITICAL DISTINCTION:** Simple questions ("What about adding Y?") or statements ("This section is unclear") are NOT edit requests. Asking to *describe* an image is NOT an image generation request.
+
+2.  **Execute Correct Function:** Based on the intent, follow the corresponding function below (Answer, Generate Image, Modify Note, General Chat).
 3.  **Provide Suggestions:** ALWAYS conclude your response with relevant suggestions.
 
 **Functions (Strict Order of Priority):**
 
-1.  **Answer Questions Directly (Highest Priority):**
-    *   **PRIORITY:** If the user asks a question *about* the note's content or attached images (e.g., "What does the diagram show?", "Summarize this section", "Explain the process mentioned"), provide a direct, helpful answer based primarily on the "Current Note Content" **and any relevant attached images.**
+1.  **Answer Questions Directly (Highest Priority if not Image Gen or Edit):**
+    *   **PRIORITY:** If the user asks a question *about* the note's content or attached files (e.g., "What does the diagram show?", "Summarize this section", "Explain the process mentioned"), provide a direct, helpful answer based primarily on the "Current Note Content" **and any relevant attached files.**
     *   **Natural Phrasing:** **CRITICAL:** Integrate information smoothly into your conversational response. **Avoid overly robotic phrasing** like "The note states..." or "According to the note...". Use more natural language (e.g., "Looking at the plan here, the first step is...", "Yes, the meeting notes mention that point.", "The image shows...", "Based on the details in the note...").
-    *   **CRITICAL:** **DO NOT** propose an edit (JSON response) if the user is merely asking for information, clarification, or summarization.
-    *   **Handling Missing Information:** If the note or images *don't* contain the answer to the user's question, **avoid stiff phrases like "The note doesn't mention X" or "The note does not contain information on X."** Instead, state clearly but naturally that the info isn't present in the note context (e.g., "That specific detail isn't in this note," or "Hmm, I don't see that covered here.") and *then* leverage your general knowledge to provide a helpful and accurate supplementary answer where appropriate, clearly indicating its origin (e.g., "...but generally speaking...", "...however, typical approaches include..."). Avoid fabricating information not present in the note or general knowledge.
+    *   **CRITICAL:** **DO NOT** propose an edit (JSON response) or generate an image if the user is merely asking for information, clarification, or summarization of existing content.
+    *   **Handling Missing Information:** If the note or files *don't* contain the answer to the user's question, **avoid stiff phrases like "The note doesn't mention X" or "The note does not contain information on X."** Instead, state clearly but naturally that the info isn't present in the note context (e.g., "That specific detail isn't in this note," or "Hmm, I don't see that covered here.") and *then* leverage your general knowledge to provide a helpful and accurate supplementary answer where appropriate, clearly indicating its origin (e.g., "...but generally speaking...", "...however, typical approaches include..."). Avoid fabricating information not present in the note or general knowledge.
 
-2.  **Modify Note (ONLY if EXPLICITLY Asked - Requires JSON Output):**
-    *   **TRIGGER:** Propose an edit **ONLY** if the user *explicitly* uses action verbs indicating a desire to *change* the note content. Examples: "add", "remove", "delete", "change", "rewrite", "update", "replace", "insert", "correct", "fix", "append", "revise". Simple questions or statements like "This section is unclear" or "What about adding Y?" DO NOT automatically trigger an edit proposal (treat them as questions or discussion points first).
+2.  **Generate Image (ONLY if EXPLICITLY Asked - NO JSON Output):**
+    *   **TRIGGER:** Activate **ONLY** if the user *explicitly* asks you to "generate an image", "create a picture", "draw", "show me an image of", etc., followed by a description. Use the \`gemini-2.0-flash-exp-image-generation\` model for this.
+    *   **ACTION:** Use your image generation capability based on the user's description.
+    *   **OUTPUT:** Your response should contain the generated image data directly (via \`inlineData\`). You MAY include a brief preceding text (e.g., "Okay, here's an image of [subject]:" or "Here's the image you requested:"). **Keep this preceding text concise.**
+    *   **CRITICAL:** **DO NOT** output JSON for image generation requests. The image data should be returned via the appropriate API mechanism.
+    *   **FALLBACK:** If generation fails or is blocked (e.g., safety, unsupported request, unclear prompt), explain why clearly and politely IN TEXT (e.g., "I couldn't generate that image due to safety guidelines." or "Sorry, I encountered an error generating the image." or "Could you please provide a more specific description for the image?"). Do not attempt to generate an image if blocked.
+    *   **SUGGESTIONS:** After successfully generating an image OR explaining a failure, *still provide suggestions* using the standard format.
+
+3.  **Modify Note (ONLY if EXPLICITLY Asked & Not Image Gen - Requires JSON Output):**
+    *   **TRIGGER:** Propose an edit **ONLY** if the user *explicitly* uses action verbs indicating a desire to *change* the note text. Examples: "add", "remove", "delete", "change", "rewrite", "update", "replace", "insert", "correct", "fix", "append", "revise". Simple questions or statements DO NOT automatically trigger an edit proposal. Use the standard text model (\`gemini-2.0-flash\`) for this.
     *   **Choose ONE Method (A, B, or C) per response. Ensure JSON is valid.**
-    *   **CRITICAL - NO CODE LEAKS:** **NEVER** include the raw JSON structure or code fragments (like markdown tables, lists, etc.) intended for the edit directly within your conversational text response (outside the JSON block). Your user-facing chat text *before* the JSON block must be natural, friendly conversation (e.g., "Okay, I can add that list for you." or "Sure thing, here's the proposed correction:") explaining *what* you're doing conversationally. The structured data *only* goes inside the designated JSON block.
+    *   **CRITICAL - NO CODE LEAKS:** **NEVER** include the raw JSON structure or code fragments directly within your conversational text response (outside the JSON block). Explain *what* you're doing conversationally before the JSON.
 
         *   **Method A: Single Targeted Edit (PREFERRED for ONE specific change):** For a single, localized change.
             \`\`\`json
@@ -610,33 +491,30 @@ Your primary goal is to be helpful, accurate, and strictly follow instructions b
             }
             \`\`\`
 
-3.  **Generate Suggestions (Always Include):**
-    *   **MANDATORY:** **ALWAYS** conclude every response (whether answering, editing, or chatting) with 3 relevant follow-up suggestions.
-    *   **Content:** Suggestions should be context-aware, based on the current note content, attached files, and recent chat history. They should anticipate what the *user* might want to do or ask next.
-    *   **Format:** Enclose them clearly at the **VERY END** of your response:
-
-        [SUGGESTIONS]
-        What are the key takeaways from the conclusion?
-        Can you add a section comparing Option A and Option B?
-        Rewrite the first paragraph to be more engaging.
-        [/SUGGESTIONS]
-
-    *   **Style:** Make suggestions concise, actionable, and phrased as questions the user might ask you, or direct edit commands they might give you (e.g., "Add X", "Summarize Y", "What about Z?"). **DO NOT** phrase them as things *you* can do (e.g., "I can add a table..." is WRONG. Use "Add a table summarizing..." instead). Mix question and edit prompts appropriately.
-
 4.  **General Chat:**
-    *   If the user's input isn't a direct question about the note content/images (handled by #1) and isn't an explicit command to change the note (handled by #2), engage in helpful conversation related to the note's topic, note-taking strategies, or clarifying their request.
-    *   **DO NOT** process timer requests (e.g., "set timer 5 min"); state that they are handled separately.
+    *   If the user's input isn't a question about content, an explicit image generation request, or an explicit note change request, engage in helpful conversation related to the note's topic, note-taking strategies, or clarifying their request. Use the standard text model.
+    *   **DO NOT** process timer requests (handled separately).
+
+5.  **Generate Suggestions (Always Include):**
+    *   **MANDATORY:** **ALWAYS** conclude every response (whether answering, editing, generating image, or chatting) with 3 relevant follow-up suggestions.
+    *   **Content:** Suggestions should be context-aware, based on the current note content, attached files, recent chat history, and the *last interaction* (including generated images or edits). They should anticipate what the *user* might want to do or ask next.
+    *   **Format:** Enclose them clearly at the **VERY END** of your response:
+        \`[SUGGESTIONS]\`
+        \`Suggestion 1?\`
+        \`Can you add suggestion 2? \`
+        \`Rewrite suggestion 3.\`
+        \`[/SUGGESTIONS]\`
+    *   **Style:** Make suggestions concise, actionable, and phrased as questions the user might ask you, or direct edit/generation commands they might give you. Mix types. **DO NOT** phrase them as things *you* can do (e.g., "I can add..." is WRONG. Use "Add..." instead).
 
 **Important Reminders & Constraints:**
 
-*   **Context is Key:** Pay close attention to the Current Note Content, Chat History, **and any attached Images**. Your responses and edit proposals MUST be relevant to the *current* state.
-*   **Image Interpretation:** You **CAN** see and interpret images attached to user messages or linked/described within the note. Integrate information from images naturally into your responses when relevant. **Do not claim you are only text-based.** Refer to image content when appropriate (e.g., "The diagram you sent shows...", "Looking at the screenshot...").
-*   **Explicit Edits Only:** Do not infer an edit request. Wait for clear action verbs indicating a change *to the note text*.
-*   **Accuracy of target_context:** This is critical for edits, especially sequential ones. It MUST uniquely identify the location in the note *at the time that specific edit step is executed*. Double-check this.
-*   **Follow Hierarchy:** Prioritize answering questions over proposing edits.
-*   **No JSON/Code Leaks:** Keep your conversational text clean, natural, and friendly. Structured data belongs ONLY in the JSON block.
-*   **Conversational Tone:** While maintaining accuracy and following instructions, aim for a natural, helpful, and collaborative tone. You're an assistant *within* their notes environment.
-*   **Be Helpful:** Even when the note lacks information, try to assist using your general knowledge where appropriate and clearly indicated.
+*   **Context is Key:** Pay close attention to the Current Note Content, Chat History, **and any attached Images/Files**. Responses MUST be relevant to the *current* state.
+*   **Image Interpretation:** You **CAN** see and interpret images/PDFs attached by the user. Integrate information from them naturally when answering questions or discussing content. **Do not claim you are only text-based.**
+*   **Explicit Intent:** Do not infer edit or image generation requests. Wait for clear commands/keywords.
+*   **Follow Hierarchy:** Answer Questions > Generate Image > Modify Note > General Chat > Suggestions (roughly, image gen trigger is specific).
+*   **No JSON/Code Leaks (Except for Edits):** Keep conversational text clean. Structured data belongs ONLY in the designated JSON block for edits. Image generation does not use JSON.
+*   **Conversational Tone:** Aim for a natural, helpful, collaborative tone.
+*   **Be Helpful:** Even when the note lacks information, try to assist using general knowledge where appropriate, clearly indicating it.
 
 **Current Note Content (Full):**
 """
@@ -649,15 +527,23 @@ ${note.keyPoints?.map(p => `- ${p}`).join('\n') || 'N/A'}
 ---
 **Chat History (Recent):**
 ${recentHistory
-    .filter(m => !m.content?.startsWith("Timer set:") && !m.timer && !m.content?.startsWith("✅ Note updated!") && !m.content?.startsWith("🔄 Change reverted.") && m.content !== '...' && !m.isUpdateConfirmation) // Exclude confirmation/revert/loading messages
-    .map(m => `${m.role === 'user' ? userName : 'Assistant'}: ${m.content.replace(/```json[\s\S]*?```/g, '[Edit Proposed]').replace(/\[(?:Image )?Attached:.*?\]/g, '[File Attached]')}`)
+    .filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.content !== '...' && !msg.isGeneratingImage) // Filter out transient messages
+    .map(msg => {
+        let prefix = msg.role === 'user' ? userName : 'Assistant';
+        let displayContent = msg.content;
+        // Simplify history entries for context
+        if (msg.isEditSuggestion) displayContent = `[Proposed Edit: ${msg.editExplanation || 'details omitted'}]`;
+        if (msg.imageData && !msg.wasImageGenerated) displayContent += ' [User Image Attached]'; // Mark user images in history
+        if (msg.wasImageGenerated) displayContent += ' [Generated Image Provided]'; // Mark generated images in history
+        displayContent = displayContent.replace(/```json[\s\S]*?```/g, '[Edit JSON Proposed]'); // Simplify JSON further
+        return `${prefix}: ${displayContent.trim()}`;
+    })
     .join('\n')}
 ---
 
-**${userName}: ${messageContent}** (Note: Files might be attached separately)
+**${userName}: ${messageContent}** ${currentFiles.length > 0 && !isImageGen ? `(Files Attached: ${currentFiles.map(f=>f.name).join(', ')})` : ''}
 **Assistant:**`;
-
-            // --- End of Updated System Prompt ---
+            // --- End of System Prompt ---
 
 
             try {
@@ -665,65 +551,55 @@ ${recentHistory
                 const targetModel = isImageGen ? GEMINI_IMAGE_GEN_MODEL : GEMINI_TEXT_MODEL;
                 const fullGeminiEndpoint = `${GEMINI_API_BASE}${targetModel}:generateContent?key=${geminiApiKey}`;
 
-                // Base generation config
                 let generationConfig: any = {
-                    temperature: isImageGen ? 0.7 : 0.6, // Slightly different defaults maybe
-                    maxOutputTokens: isImageGen ? 1024 : 8192, // Image gen might need fewer text tokens
+                    temperature: isImageGen ? 0.7 : 0.6,
+                    maxOutputTokens: isImageGen ? 1024 : 8192,
                     topP: 0.95,
-                    // responseMimeType: "text/plain" // REMOVE this for image gen - let model decide based on modalities
                 };
 
-                // Add image generation specific config
                 if (isImageGen) {
-                    generationConfig.responseModalities = ["TEXT", "IMAGE"]; // Request image capability
-                     // Optional: Add safety settings if needed, e.g.,
-                     // safetySettings: [
-                     //   { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-                     //   { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-                     //   { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-                     //   { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }
-                     // ]
+                    generationConfig.responseModalities = ["TEXT", "IMAGE"];
+                    // // Optional Safety Settings:
+                    // generationConfig.safetySettings = [
+                    //      { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                    //      { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                    //      { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                    //      { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }
+                    // ];
                 } else {
-                     generationConfig.responseMimeType = "text/plain"; // Specify for text-only
+                     generationConfig.responseMimeType = "text/plain";
                 }
 
 
                 // --- Prepare API Request Body ---
                 const apiContent: any[] = [];
 
-                // --- *** FIXED History Processing Loop *** ---
+                 // Build API history (using corrected logic)
                  recentHistory.forEach(msg => {
                      if (msg.role === 'user') {
-                         // Simple text part for user history
                          const userParts: any[] = [{ text: msg.content.replace(/\[(?:Image )?Attached:.*?\]/g, '').trim() }];
-                         // Include user-uploaded image data *in history* if it existed
-                         if (msg.imageData) {
+                         if (msg.imageData) { // Include user-uploaded images in history context
                              userParts.push({ inline_data: { mime_type: msg.imageData.type, data: msg.imageData.base64 } });
                          }
                          apiContent.push({ role: "user", parts: userParts });
-
-                     // --- Corrected 'm.content' to 'msg.content' ---
                      } else if (msg.role === 'assistant' && !msg.timer && !msg.isUpdateConfirmation && msg.content !== '...' && !msg.isGeneratingImage) {
-                         // Simple text part for assistant history
-                         // Don't include previously *generated* images in history to save tokens/complexity
-                         const assistantContent = msg.content?.replace(/```json[\s\S]*?```/g, msg.isEditSuggestion ? `(Proposed Edit: ${msg.editExplanation || 'Details omitted'})` : '(Response provided)');
-                         if (assistantContent?.trim()) {
-                             apiContent.push({ role: "model", parts: [{ text: assistantContent }] });
+                          // History for assistant: text, simplified edits, mark generated images
+                         let assistantHistoryContent = msg.content?.replace(/```json[\s\S]*?```/g, msg.isEditSuggestion ? `(Proposed Edit: ${msg.editExplanation || 'Details omitted'})` : '(Response provided)');
+                         if (msg.wasImageGenerated) { // Add marker if image was generated in this turn
+                            assistantHistoryContent += " [Generated Image Provided]";
                          }
+                          if (assistantHistoryContent?.trim()) {
+                             apiContent.push({ role: "model", parts: [{ text: assistantHistoryContent.trim() }] });
+                          }
                      }
                  });
-                 // --- End of FIXED History Processing Loop ---
 
                 // Add current user message + system prompt + files (if any, and not image gen)
-                 const currentUserParts: any[] = [];
-                 // Add system prompt FIRST for the current turn
-                 currentUserParts.push({ text: systemInstruction });
-                 // Note: messageContent is now part of systemInstruction
+                 const currentUserParts: any[] = [{ text: systemInstruction }]; // System prompt first
 
                  // Add files if they exist AND it's NOT an image generation request
                  if (currentFiles.length > 0 && !isImageGen) {
                     currentFiles.forEach(file => {
-                        // Only send image/pdf to the text model
                         if (file.type.startsWith('image/') || file.type === 'application/pdf') {
                             currentUserParts.push({ inline_data: { mime_type: file.type, data: file.base64Data } });
                         } else { console.warn(`Skipping file with unsupported MIME type for API: ${file.name} (${file.type})`); }
@@ -732,99 +608,81 @@ ${recentHistory
                  // Add the final user turn content object
                  apiContent.push({ role: "user", parts: currentUserParts });
 
-
-                 // Construct final request body
-                 let requestBody = JSON.stringify({
-                    contents: apiContent,
-                    generationConfig: generationConfig
-                    // Add safetySettings here if needed and defined above
-                 });
+                 let requestBody = JSON.stringify({ contents: apiContent, generationConfig });
 
                 // --- Make API Call ---
                 const geminiOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: requestBody };
                 const response = await fetchWithRetry(fullGeminiEndpoint, geminiOptions);
-                const responseText = await response.text(); // Get raw text first
+                const responseText = await response.text();
 
-                // --- Process Response using NEW Parser ---
+                // --- Process Response ---
                 const parsedResult = parseGeminiResponse(responseText, isImageGen);
-
-                setSuggestedPrompts(parsedResult.suggestions); // Set suggestions regardless of content type
+                setSuggestedPrompts(parsedResult.suggestions);
 
                 // Prepare the final message state
                 let assistantFinalMessage: ChatMessage = {
-                    id: newLoadingMsgId,
-                    role: 'assistant',
-                    content: parsedResult.text || (parsedResult.imageData ? "" : "(No text content received)"), // Default text if only image
-                    imageData: parsedResult.imageData, // Assign generated image data
+                    id: newLoadingMsgId, role: 'assistant',
+                    content: parsedResult.text || (parsedResult.imageData ? "" : "(No text content received)"),
+                    imageData: parsedResult.imageData,
                     error: !!parsedResult.error,
-                    isEditSuggestion: false, // Reset defaults
-                    isGeneratingImage: isImageGen && !!parsedResult.imageData, // Mark if image was actually generated
+                    isEditSuggestion: false,
+                    // Set flag if image was successfully generated in this response
+                    wasImageGenerated: isImageGen && !!parsedResult.imageData && !parsedResult.error,
                 };
 
-                // If there was an error, override content with the error message
+                // Handle Errors
                 if (parsedResult.error) {
                     assistantFinalMessage.content = parsedResult.error;
-                    assistantFinalMessage.imageData = null; // Don't show partial images on error
+                    assistantFinalMessage.imageData = null;
                     assistantFinalMessage.error = true;
-                    assistantFinalMessage.isGeneratingImage = false; // Not generating if error
+                    assistantFinalMessage.wasImageGenerated = false;
                 }
 
-                // --- Handle JSON Edit Proposals (ONLY if NOT an image gen request) ---
-                 if (!isImageGen && parsedResult.text) {
+                // --- Handle JSON Edit Proposals (ONLY if NOT image gen and no error) ---
+                 if (!isImageGen && !assistantFinalMessage.error && parsedResult.text) {
                     const jsonMatch = parsedResult.text.match(/```json\s*([\s\S]*?)\s*```/);
                     if (jsonMatch && jsonMatch[1]) {
                         let potentialJsonString = jsonMatch[1].trim();
                         try {
                             const parsedJson = JSON.parse(potentialJsonString);
                             let parsedSuccessfully = false;
-                            // Reset error state if JSON parsing starts
-                            assistantFinalMessage.error = false;
+                            assistantFinalMessage.error = false; // Reset potential errors if JSON found
 
-                            if (parsedJson.action === "propose_targeted_edit" /* ... validation ... */) {
-                                // ... (Existing targeted edit logic) ...
+                             if (parsedJson.action === "propose_targeted_edit" /* && validation ... */) {
                                 if (typeof parsedJson.explanation === 'string' && typeof parsedJson.edit_type === 'string' && typeof parsedJson.content_fragment === 'string' && (typeof parsedJson.target_context === 'string' || parsedJson.target_context === null)) {
-                                     assistantFinalMessage = { ...assistantFinalMessage, content: parsedJson.explanation, isEditSuggestion: true, editAction: "propose_targeted_edit", editExplanation: parsedJson.explanation, editType: parsedJson.edit_type as EditStep['editType'], targetContext: parsedJson.target_context, contentFragment: parsedJson.content_fragment };
+                                     Object.assign(assistantFinalMessage, { content: parsedJson.explanation, isEditSuggestion: true, editAction: "propose_targeted_edit", editExplanation: parsedJson.explanation, editType: parsedJson.edit_type as EditStep['editType'], targetContext: parsedJson.target_context, contentFragment: parsedJson.content_fragment });
                                      parsedSuccessfully = true;
                                 }
-                            } else if (parsedJson.action === "propose_full_content_replacement" /* ... validation ... */) {
-                                // ... (Existing full replacement logic) ...
+                            } else if (parsedJson.action === "propose_full_content_replacement" /* && validation ... */) {
                                 if (typeof parsedJson.explanation === 'string' && typeof parsedJson.new_full_content === 'string') {
-                                    assistantFinalMessage = { ...assistantFinalMessage, content: parsedJson.explanation, isEditSuggestion: true, editAction: "propose_full_content_replacement", editExplanation: parsedJson.explanation, newFullContent: parsedJson.new_full_content };
+                                    Object.assign(assistantFinalMessage, { content: parsedJson.explanation, isEditSuggestion: true, editAction: "propose_full_content_replacement", editExplanation: parsedJson.explanation, newFullContent: parsedJson.new_full_content });
                                     parsedSuccessfully = true;
                                 }
-                            } else if (parsedJson.action === "propose_sequential_edits" /* ... validation ... */) {
-                                // ... (Existing sequential edit logic) ...
+                            } else if (parsedJson.action === "propose_sequential_edits" /* && validation ... */) {
                                 if (typeof parsedJson.explanation === 'string' && Array.isArray(parsedJson.edits) && parsedJson.edits.length > 0) {
-                                    const { valid, edits } = validateSequentialEdits(parsedJson.edits); // Extracted validation logic
+                                    const { valid, edits } = validateSequentialEdits(parsedJson.edits);
                                     if (valid) {
-                                         assistantFinalMessage = { ...assistantFinalMessage, content: parsedJson.explanation, isEditSuggestion: true, editAction: "propose_sequential_edits", editExplanation: parsedJson.explanation, sequentialEdits: edits };
+                                         Object.assign(assistantFinalMessage, { content: parsedJson.explanation, isEditSuggestion: true, editAction: "propose_sequential_edits", editExplanation: parsedJson.explanation, sequentialEdits: edits });
                                          parsedSuccessfully = true;
-                                    } else {
-                                        assistantFinalMessage.content = `Warning: AI proposed sequential edits, but the format was invalid. \n\n---\n${parsedResult.text}`; assistantFinalMessage.error = true;
-                                    }
+                                    } else { assistantFinalMessage.content = `Warning: AI proposed sequential edits, but the format was invalid. \n\n---\n${parsedResult.text}`; assistantFinalMessage.error = true; }
                                 }
                             }
 
-                            // Update content if JSON was parsed and valid
                             if (parsedSuccessfully) {
                                 const remainingText = parsedResult.text.replace(jsonMatch[0], '').trim();
                                 assistantFinalMessage.content = remainingText || parsedJson.explanation || "(Edit proposed)";
                                 if (!assistantFinalMessage.content.trim()) assistantFinalMessage.content = "(Edit proposed without explanation)";
-                                // Ensure imageData is cleared if an edit is proposed
-                                assistantFinalMessage.imageData = undefined;
-                                assistantFinalMessage.isGeneratingImage = false;
-                            } else if (!assistantFinalMessage.error) { // Only set error if not already set by validation
-                                // Invalid JSON structure found
+                                assistantFinalMessage.imageData = undefined; // Clear image if edit proposed
+                                assistantFinalMessage.wasImageGenerated = false;
+                            } else if (!assistantFinalMessage.error) { // JSON was present but invalid structure
                                 assistantFinalMessage.content = `Warning: AI proposed an edit, but the format was invalid. \n\n---\n${parsedResult.text}`;
                                 assistantFinalMessage.error = true;
                             }
-
-                        } catch (parseError: any) {
-                            // JSON syntax error
+                        } catch (parseError: any) { // JSON Syntax Error
                             assistantFinalMessage.content = `Error: Failed to process edit (JSON Parse Error: ${parseError.message}).\n\n---\n${parsedResult.text}`;
                             assistantFinalMessage.error = true;
-                            assistantFinalMessage.imageData = undefined; // Clear image data on JSON error
-                            assistantFinalMessage.isGeneratingImage = false;
+                            assistantFinalMessage.imageData = undefined;
+                            assistantFinalMessage.wasImageGenerated = false;
                         }
                     }
                  }
@@ -832,54 +690,30 @@ ${recentHistory
                  // Final check for empty content if no error/image/edit
                  if (!assistantFinalMessage.content?.trim() && !assistantFinalMessage.imageData && !assistantFinalMessage.error && !assistantFinalMessage.isEditSuggestion && !assistantFinalMessage.timer) {
                     assistantFinalMessage.content = "(Received empty response)";
-                    assistantFinalMessage.error = true; // Treat as error if completely empty
+                    assistantFinalMessage.error = true;
                  }
 
                 // --- Update Chat History ---
-                setChatHistory(prev => prev.map(msg => msg.id === newLoadingMsgId ? assistantFinalMessage : msg ));
+                // Replace the loading message with the final message
+                 setChatHistory(prev => prev.map(msg => msg.id === newLoadingMsgId ? assistantFinalMessage : msg ));
 
             } catch (err: any) {
                 console.error('Chat submit fetch/process error:', err);
                 const errorMsg = err instanceof Error ? err.message : 'Unknown error processing request.';
-                // Update the loading message with the error
-                 // Make sure to reset isGeneratingImage flag on error
-                setChatHistory(prev => prev.map(msg =>
-                    msg.id === newLoadingMsgId
-                        ? { id: newLoadingMsgId, role: 'assistant', content: `❌ ${errorMsg}. Please check console or try again.`, error: true, isGeneratingImage: false }
-                        : msg
-                ));
-                 setSuggestedPrompts([]); // Clear suggestions on error
+                setChatHistory(prev => prev.map(msg => msg.id === newLoadingMsgId ? { ...msg, role: 'assistant', content: `❌ ${errorMsg}. Please check console or try again.`, error: true, isGeneratingImage: false, wasImageGenerated: false } : msg )); // Ensure flags are reset on error
+                 setSuggestedPrompts([]);
              } finally {
                  setIsChatLoading(false);
-                 setLoadingMsgId(null); // Clear loading message ID when done
+                 setLoadingMsgId(null);
              }
         };
 
-        // Helper function for sequential edit validation (extracted for clarity)
-        const validateSequentialEdits = (editsJson: any[]): { valid: boolean, edits: EditStep[] } => {
-            const validEdits: EditStep[] = [];
-            let sequenceIsValid = true;
-            for (let i = 0; i < editsJson.length; i++) {
-                 const step = editsJson[i];
-                 if (typeof step.edit_type === 'string' && typeof step.content_fragment === 'string' && (typeof step.target_context === 'string' || step.target_context === null) &&
-                     ['insert_after_context', 'replace_context', 'delete_context', 'insert_at_start', 'append_at_end'].includes(step.edit_type) &&
-                     (step.edit_type === 'insert_at_start' || step.edit_type === 'append_at_end' || step.target_context !== null) && // Target context required unless start/end
-                     !(step.edit_type === 'delete_context' && typeof step.target_context !== 'string') // Delete needs target
-                 ) { validEdits.push({ editType: step.edit_type as EditStep['editType'], targetContext: step.target_context, contentFragment: step.content_fragment }); }
-                 else { sequenceIsValid = false; console.warn("Invalid sequential edit step:", step); break; } // Added log
-             }
-            return { valid: sequenceIsValid, edits: validEdits };
-        };
+        // Helper function for sequential edit validation (Unchanged)
+        const validateSequentialEdits = (editsJson: any[]): { valid: boolean, edits: EditStep[] } => { const validEdits: EditStep[] = []; let sequenceIsValid = true; for (let i = 0; i < editsJson.length; i++) { const step = editsJson[i]; if (typeof step.edit_type === 'string' && typeof step.content_fragment === 'string' && (typeof step.target_context === 'string' || step.target_context === null) && ['insert_after_context', 'replace_context', 'delete_context', 'insert_at_start', 'append_at_end'].includes(step.edit_type) && (step.edit_type === 'insert_at_start' || step.edit_type === 'append_at_end' || step.target_context !== null) && !(step.edit_type === 'delete_context' && typeof step.target_context !== 'string') ) { validEdits.push({ editType: step.edit_type as EditStep['editType'], targetContext: step.target_context, contentFragment: step.content_fragment }); } else { sequenceIsValid = false; console.warn("Invalid sequential edit step:", step); break; } } return { valid: sequenceIsValid, edits: validEdits }; };
 
 
-        // --- Other Handlers (Unchanged: handleChatSubmit, handleKeyDown, handleTextareaInput, handleSuggestionClick) ---
-        const handleChatSubmit = async (e?: React.FormEvent) => {
-            e?.preventDefault(); const currentMessage = chatMessage.trim();
-            if (!currentMessage && selectedFiles.length === 0) return;
-            const filesToSubmit = [...selectedFiles]; setChatMessage('');
-            await submitMessageToAI(currentMessage, filesToSubmit);
-            if (textareaRef.current) { textareaRef.current.style.height = 'auto'; }
-        };
+        // --- Other Handlers (Unchanged) ---
+        const handleChatSubmit = async (e?: React.FormEvent) => { e?.preventDefault(); const currentMessage = chatMessage.trim(); if (!currentMessage && selectedFiles.length === 0) return; const filesToSubmit = [...selectedFiles]; setChatMessage(''); await submitMessageToAI(currentMessage, filesToSubmit); if (textareaRef.current) { textareaRef.current.style.height = 'auto'; } };
         const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSubmit(); } };
         const handleTextareaInput = (e: React.FormEvent<HTMLTextAreaElement>) => { const ta = e.currentTarget; ta.style.height = 'auto'; ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`; setChatMessage(ta.value); };
         const handleSuggestionClick = (suggestion: string) => { submitMessageToAI(suggestion); };
@@ -887,7 +721,6 @@ ${recentHistory
 
         useImperativeHandle(ref, () => ({
             sendMessage: (message: string) => { submitMessageToAI(message); },
-            // focusInput: () => { textareaRef.current?.focus(); }
         }));
 
 
@@ -895,7 +728,7 @@ ${recentHistory
         const rootClasses = displayMode === 'overlay' ? `fixed bottom-4 right-4 z-50 ${overlayBg} rounded-lg w-full max-w-sm flex flex-col shadow-xl transition-all duration-300 ease-in-out ${isMinimized ? 'h-12 overflow-hidden' : 'h-[75vh] max-h-[650px]'}` : `h-full w-full flex flex-col ${overlayBg}`;
         if (displayMode === 'overlay' && !isVisible) return null;
 
-        // --- JSX Structure (Mostly Unchanged, relies on existing rendering for imageData) ---
+        // --- JSX Structure (Added Download Button) ---
         return (
             <div className={rootClasses}>
                 {/* Header (Unchanged) */}
@@ -905,75 +738,62 @@ ${recentHistory
                      {displayMode === 'inline' && ( <button onClick={onClose} className={`${iconColor} rounded-full p-1`} title="Close Chat & PDF View"> <X className="w-4 h-4" /> </button> )}
                 </div>
 
-                 {/* Chat Body (Unchanged - logic handles imageData rendering) */}
+                 {/* Chat Body (Modified to include Download Button) */}
                 {(!isMinimized || displayMode === 'inline') && (
                     <>
                         <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-400 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
                             {chatHistory.map((message, index) => {
                                 const isCurrentLoadingMsg = message.role === 'assistant' && isChatLoading && message.id === loadingMsgId;
-                                const bubbleClass = message.role === 'user' ? userBubbleClass
-                                    : message.error ? errorBubbleClass
-                                    : message.isEditSuggestion ? editSuggestionBubbleClass
-                                    : message.isUpdateConfirmation ? confirmationBubbleClass
-                                    : assistantBubbleClass;
-                                // Dynamic prose class based on theme and message type (slightly adjusted for clarity)
-                                 const getProseClass = (msg: ChatMessage) => {
-                                     let base = `prose prose-sm max-w-none prose-p:text-xs prose-p:my-1 prose-ul:text-xs prose-ol:text-xs prose-li:my-0 prose-code:text-[11px] prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:text-[11px] prose-pre:my-1 prose-pre:p-1.5 prose-pre:rounded`;
-                                     if (isIlluminateEnabled) {
-                                         if (msg.isEditSuggestion) base += ' prose-yellow text-yellow-900';
-                                         else if (msg.error) base += ' prose-red text-red-800';
-                                         else if (msg.isUpdateConfirmation) base += ' prose-green text-green-900';
-                                         else base += ' prose-gray text-gray-800'; // Default assistant text
-                                     } else { // Dark modes
-                                         base += ' prose-invert'; // Invert base colors
-                                         if (msg.isEditSuggestion) base += ' text-yellow-200';
-                                         else if (msg.error) base += ' text-red-300';
-                                         else if (msg.isUpdateConfirmation) base += ' text-green-200';
-                                         else base += ' text-gray-200'; // Default assistant text
-                                     }
-                                     return base;
+                                const bubbleClass = message.role === 'user' ? userBubbleClass : message.error ? errorBubbleClass : message.isEditSuggestion ? editSuggestionBubbleClass : message.isUpdateConfirmation ? confirmationBubbleClass : assistantBubbleClass;
+                                const getProseClass = (msg: ChatMessage) => { /* ... (prose class logic unchanged) ... */
+                                    let base = `prose prose-sm max-w-none prose-p:text-xs prose-p:my-1 prose-ul:text-xs prose-ol:text-xs prose-li:my-0 prose-code:text-[11px] prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:text-[11px] prose-pre:my-1 prose-pre:p-1.5 prose-pre:rounded`; if (isIlluminateEnabled) { if (msg.isEditSuggestion) base += ' prose-yellow text-yellow-900'; else if (msg.error) base += ' prose-red text-red-800'; else if (msg.isUpdateConfirmation) base += ' prose-green text-green-900'; else base += ' prose-gray text-gray-800'; } else { base += ' prose-invert'; if (msg.isEditSuggestion) base += ' text-yellow-200'; else if (msg.error) base += ' text-red-300'; else if (msg.isUpdateConfirmation) base += ' text-green-200'; else base += ' text-gray-200'; } return base;
                                  };
                                 const proseClass = getProseClass(message);
+                                // Determine if this message contains an AI-generated image to show download button
+                                const showDownloadButton = message.role === 'assistant' && message.wasImageGenerated && message.imageData && !message.error;
 
                                 return (
                                     <div key={message.id || index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                        <div className={`max-w-[85%] rounded-lg px-2.5 py-1.5 text-sm shadow-sm break-words ${bubbleClass}`}>
+                                        <div className={`relative group max-w-[85%] rounded-lg px-2.5 py-1.5 text-sm shadow-sm break-words ${bubbleClass}`}>
                                              {/* Loading Indicator */}
                                             {isCurrentLoadingMsg ? (
                                                 <div className={`flex items-center gap-2 p-1 ${isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}`}>
                                                     <Loader2 className="w-4 h-4 animate-spin" />
-                                                    {/* Show specific loading text */}
-                                                     <span className="text-xs">{message.isGeneratingImage ? "Generating image..." : "Thinking..."}</span>
+                                                    <span className="text-xs">{message.isGeneratingImage ? "Generating image..." : "Thinking..."}</span>
                                                 </div>
-                                            ) : // --- Render Text Content (If any) ---
+                                            ) : // Render Text Content (If any)
                                                message.content ? (
-                                                <ReactMarkdown
-                                                    remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}
-                                                    className={proseClass}
-                                                    components={{ /* ... markdown components unchanged ... */
-                                                        a: ({node, ...props}) => <a target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-600" {...props} />,
-                                                        code: ({node, inline, className, children, ...props}) => { /* ... */
-                                                            const match = /language-(\w+)/.exec(className || ''); const isJson = className === 'language-json';
-                                                            if (inline) { return <code className={`${isIlluminateEnabled ? 'bg-gray-200/70 text-gray-800' : 'bg-gray-600/70 text-gray-100'} px-1 py-0.5 rounded text-[10px]`} {...props}>{children}</code>; }
-                                                            return <pre className={`${isIlluminateEnabled ? '!bg-gray-200/70 !text-gray-800' : '!bg-gray-600/70 !text-gray-100'} p-1.5 rounded my-1 text-[11px] overflow-x-auto`} {...props}><code>{children}</code></pre>;
-                                                         },
-                                                    }}
-                                                >{message.content}</ReactMarkdown>
+                                                <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]} className={proseClass} components={{ /* ... markdown components unchanged ... */ a: ({node, ...props}) => <a target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-600" {...props} />, code: ({node, inline, className, children, ...props}) => { const match = /language-(\w+)/.exec(className || ''); const isJson = className === 'language-json'; if (inline) { return <code className={`${isIlluminateEnabled ? 'bg-gray-200/70 text-gray-800' : 'bg-gray-600/70 text-gray-100'} px-1 py-0.5 rounded text-[10px]`} {...props}>{children}</code>; } return <pre className={`${isIlluminateEnabled ? '!bg-gray-200/70 !text-gray-800' : '!bg-gray-600/70 !text-gray-100'} p-1.5 rounded my-1 text-[11px] overflow-x-auto`} {...props}><code>{children}</code></pre>; }, }} >{message.content}</ReactMarkdown>
                                             ) : null}
 
-                                            {/* --- Render Image Data (Handles BOTH user-uploaded AND AI-generated) --- */}
+                                            {/* Render Image Data (User uploaded OR AI Generated) */}
                                             {message.imageData && (
                                                  <div className={`mt-1.5 ${message.content ? 'border-t pt-1.5' : ''} ${isIlluminateEnabled ? 'border-gray-300/50' : 'border-gray-600/50'}`}>
                                                      <img
                                                          src={`data:${message.imageData.type};base64,${message.imageData.base64}`}
-                                                         // Use a more specific alt text for generated images if possible
                                                          alt={message.imageData.name || "Chat Image"}
                                                          className="max-w-full h-auto max-h-60 object-contain rounded-md border border-gray-300 dark:border-gray-600 cursor-pointer"
                                                          onClick={() => window.open(`data:${message.imageData.type};base64,${message.imageData.base64}`, '_blank')}
-                                                         title={`Click to view full image: ${message.imageData.name || 'Generated Image'}`}
+                                                         title={`Click to view full image: ${message.imageData.name || (message.wasImageGenerated ? 'Generated Image' : 'Uploaded Image')}`}
                                                      />
                                                  </div>
                                              )}
+
+                                             {/* --- *** NEW: Download Button for Generated Images *** --- */}
+                                             {showDownloadButton && message.imageData && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation(); // Prevent triggering bubble actions if any
+                                                        handleDownloadImage(message.imageData!); // Call helper
+                                                    }}
+                                                    className={`absolute top-1 right-1 p-1 rounded opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-200 ${downloadButtonClass}`}
+                                                    title="Download Image"
+                                                >
+                                                    <Download className="w-3.5 h-3.5" />
+                                                </button>
+                                             )}
+                                             {/* --- End Download Button --- */}
+
 
                                             {/* Timer Rendering (Unchanged) */}
                                             {message.timer && ( <div className="mt-1.5"><div className={`flex items-center space-x-2 rounded-md px-2 py-1 text-xs border ${isIlluminateEnabled ? 'bg-blue-50 border-blue-200 text-blue-800' : 'bg-gray-800/60 border-gray-600 text-blue-300'}`}><TimerIcon className="w-3.5 h-3.5"/> <Timer key={message.timer.id} initialDuration={message.timer.duration} onComplete={() => handleTimerComplete(message.timer.id)} compact={true} isIlluminateEnabled={isIlluminateEnabled}/></div></div> )}
@@ -991,23 +811,15 @@ ${recentHistory
                         {/* Suggestions Area (Unchanged) */}
                         {suggestedPrompts.length > 0 && !isChatLoading && ( <div className={`px-3 py-2 border-t ${isIlluminateEnabled ? 'border-gray-200' : 'border-gray-700'}`}> <p className={`text-xs font-medium w-full mb-2 ${isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}`}>Suggestions:</p> <div className="flex flex-wrap gap-2"> {suggestedPrompts.map((prompt, idx) => ( <button key={idx} onClick={() => handleSuggestionClick(prompt)} className={`${suggestionButtonClass} text-xs px-2.5 py-1 rounded-md hover:shadow-sm transition-all duration-150 cursor-pointer`} title={prompt} > {prompt} </button> ))} </div> </div> )}
 
-                         {/* Input Form Area (Unchanged - usage display logic correct) */}
+                         {/* Input Form Area (Unchanged) */}
                         <div className={`p-2 border-t ${headerBg} shrink-0 sticky bottom-0`}>
                              {/* Usage Display */}
-                             {userTier !== 'premium' && userTier !== 'loading' && ( /* ... usage display unchanged ... */
-                                <div className="pb-1 text-xs text-center">
-                                    <span className={isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}> Messages this month: {isLoadingUsage ? '...' : chatCount} / {currentChatLimit === Infinity ? '∞' : currentChatLimit} </span>
-                                    {isChatLimitReached && !isLoadingUsage && ( <span className="text-red-500 ml-1 font-medium">(Limit Reached)</span> )}
-                                    {!isChatLimitReached && userTier === 'basic' && ( <Link to="/pricing" className={`ml-2 font-medium ${isIlluminateEnabled ? 'text-blue-600 hover:text-blue-700' : 'text-blue-400 hover:text-blue-300'} hover:underline`}> <Crown className="w-2.5 h-2.5 inline mr-0.5"/>Upgrade </Link> )}
-                                </div>
-                            )}
+                             {userTier !== 'premium' && userTier !== 'loading' && ( /* ... usage display unchanged ... */ <div className="pb-1 text-xs text-center"> <span className={isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}> Messages this month: {isLoadingUsage ? '...' : chatCount} / {currentChatLimit === Infinity ? '∞' : currentChatLimit} </span> {isChatLimitReached && !isLoadingUsage && ( <span className="text-red-500 ml-1 font-medium">(Limit Reached)</span> )} {!isChatLimitReached && userTier === 'basic' && ( <Link to="/pricing" className={`ml-2 font-medium ${isIlluminateEnabled ? 'text-blue-600 hover:text-blue-700' : 'text-blue-400 hover:text-blue-300'} hover:underline`}> <Crown className="w-2.5 h-2.5 inline mr-0.5"/>Upgrade </Link> )} </div> )}
                             {/* File Pills */}
-                            {selectedFiles.length > 0 && ( /* ... file pills unchanged ... */
-                                <div className="mb-1.5 flex flex-wrap gap-1.5 px-1"> {selectedFiles.map(file => ( <div key={file.name} className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${filePillBg} ${filePillText}`}> <span className="truncate max-w-[100px]">{file.name}</span> <span className="text-[10px] opacity-70">({formatBytes(file.size)})</span> <button type="button" onClick={() => handleRemoveFile(file.name)} className={`ml-0.5 p-0.5 rounded-full ${isIlluminateEnabled ? 'hover:bg-blue-200' : 'hover:bg-blue-700'} `} title="Remove"> <X className="w-2.5 h-2.5" /> </button> </div> ))} </div>
-                             )}
+                            {selectedFiles.length > 0 && ( /* ... file pills unchanged ... */ <div className="mb-1.5 flex flex-wrap gap-1.5 px-1"> {selectedFiles.map(file => ( <div key={file.name} className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${filePillBg} ${filePillText}`}> <span className="truncate max-w-[100px]">{file.name}</span> <span className="text-[10px] opacity-70">({formatBytes(file.size)})</span> <button type="button" onClick={() => handleRemoveFile(file.name)} className={`ml-0.5 p-0.5 rounded-full ${isIlluminateEnabled ? 'hover:bg-blue-200' : 'hover:bg-blue-700'} `} title="Remove"> <X className="w-2.5 h-2.5" /> </button> </div> ))} </div> )}
                             {/* Input Form */}
                             <form onSubmit={handleChatSubmit} className="flex gap-1.5 items-end">
-                                 <textarea ref={textareaRef} rows={1} value={chatMessage} onChange={handleTextareaInput} onKeyDown={handleKeyDown} onPaste={handlePaste} placeholder={isChatLimitReached ? "Monthly chat limit reached..." : "Ask, generate image, or attach..."} className={`flex-1 ${inputBg} ${inputTextColor} ${placeholderColor} rounded-lg px-3 py-1.5 text-sm focus:ring-1 focus:outline-none resize-none overflow-y-auto max-h-[100px] leading-snug ${isChatLoading || isChatLimitReached || isLoadingUsage ? 'opacity-60 cursor-not-allowed' : ''}`} disabled={isChatLoading || isChatLimitReached || isLoadingUsage} style={{ height: 'auto' }} aria-label="Chat input" />
+                                 <textarea ref={textareaRef} rows={1} value={chatMessage} onChange={handleTextareaInput} onKeyDown={handleKeyDown} onPaste={handlePaste} placeholder={isChatLimitReached ? "Monthly chat limit reached..." : "Ask, 'generate image of...', or attach..."} className={`flex-1 ${inputBg} ${inputTextColor} ${placeholderColor} rounded-lg px-3 py-1.5 text-sm focus:ring-1 focus:outline-none resize-none overflow-y-auto max-h-[100px] leading-snug ${isChatLoading || isChatLimitReached || isLoadingUsage ? 'opacity-60 cursor-not-allowed' : ''}`} disabled={isChatLoading || isChatLimitReached || isLoadingUsage} style={{ height: 'auto' }} aria-label="Chat input" />
                                  <input type="file" ref={fileInputRef} onChange={handleFileSelect} multiple accept="image/*,application/pdf" className="hidden" />
                                  <button type="button" onClick={triggerFileSelect} disabled={isChatLoading || isLoadingUsage} className={`${buttonSecondaryClass} p-2 rounded-full self-end mb-[1px] transition-all duration-150 ${isChatLoading || isLoadingUsage ? buttonDisabledClass : 'hover:scale-105 active:scale-100'}`} title="Attach Files (Image/PDF)"> <Paperclip className="w-4 h-4" /> </button>
                                  <button type="submit" disabled={isChatLoading || isLoadingUsage || (!chatMessage.trim() && selectedFiles.length === 0) || isChatLimitReached} className={`${buttonPrimaryClass} p-2 rounded-full self-end mb-[1px] transition-all duration-150 ${isChatLoading || isLoadingUsage || (!chatMessage.trim() && selectedFiles.length === 0) || isChatLimitReached ? buttonDisabledClass : 'hover:scale-105 active:scale-100'}`} > {isChatLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} </button>
