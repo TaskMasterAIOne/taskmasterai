@@ -760,6 +760,5 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                 )}
             </div>
         );
-);
 
 NoteChat.displayName = 'NoteChat';
