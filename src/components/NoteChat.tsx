@@ -443,9 +443,9 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                                                      <img src={`data:${message.imageData.type};base64,${message.imageData.base64}`} alt={message.imageData.name || "Chat Image"} className="max-w-full h-auto max-h-60 object-contain rounded-md border border-gray-300 dark:border-gray-600 cursor-pointer" onClick={(e) => { e.stopPropagation(); window.open(`data:${message.imageData.type};base64,${message.imageData.base64}`, '_blank')}} title={`Click to view full image: ${message.imageData.name || (message.wasImageGenerated ? 'Generated Image' : 'Uploaded Image')}`} />
                                                       {showDownloadButton && ( <button onClick={(e) => { e.stopPropagation(); handleDownloadImage(message.imageData!); }} className={`absolute top-1 right-1 p-1 rounded opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-200 ${downloadButtonClass}`} title="Download Image" > <Download className="w-3.5 h-3.5" /> </button> )}
                                                  </div> )}
-                                            {message.timer && ( /* ... */ )}
-                                            {message.isEditSuggestion && message.editAction && !isChatLoading && !message.error && ( /* ... */ )}
-                                            {message.isUpdateConfirmation && message.canRevert && !message.error && ( /* ... */ )}
+                                            {message.timer}
+                                            {message.isEditSuggestion && message.editAction && !isChatLoading && !message.error}
+                                            {message.isUpdateConfirmation && message.canRevert && !message.error}
                                         </div>
                                     </div> );
                              })}
