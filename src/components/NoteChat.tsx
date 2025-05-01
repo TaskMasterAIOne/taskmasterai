@@ -93,13 +93,8 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 3, de
                  try { const errJson = await response.json(); errorText = errJson?.error?.message || errorText; } catch { }
                  if (errorText.toLowerCase().includes("context length") || errorText.toLowerCase().includes("request payload size") || errorText.toLowerCase().includes("request entity too large")) { throw new Error("Error: The note content and/or attached files are too large for the AI to process."); }
                  if (errorText.toLowerCase().includes("unsupported user location")) { throw new Error("Error: Image generation is not available in your region."); }
-                 if (errorText.toLowerCase().includes("response must contain text") && url.includes(GEMINI_MODEL_NAME)) {
-                    const isLikelyImageIntent = options.body && JSON.parse(options.body as string)?.generationConfig?.temperature > 0.65;
-                    if (isLikelyImageIntent) {
-                        throw new Error("Error: Image generation failed. The model might require a different prompt or could not fulfill the request safely.");
-                    } else {
-                        throw new Error("Error: The AI could not generate a response. This might be due to safety settings or the nature of the request.");
-                    }
+                 if (errorText.toLowerCase().includes("response must contain text") || errorText.toLowerCase().includes("failed to generate the expected content")) {
+                    throw new Error("Error: The AI failed to generate the expected content (text or image). This might be due to safety settings, the nature of the request, or an internal issue.");
                  }
                 throw new Error(errorText);
             }
@@ -112,7 +107,7 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 3, de
     throw new Error(`Max retries reached for: ${url}`);
 }
 
-const parseGeminiResponse = (responseText: string, isOriginalIntentImageGen: boolean): { text: string | null; imageData: ImageData | null; error: string | null; finishReason: string | null; suggestions: string[] } => {
+const parseGeminiResponse = (responseText: string): { text: string | null; imageData: ImageData | null; error: string | null; finishReason: string | null; suggestions: string[] } => {
     let textContent: string | null = null;
     let imageContent: ImageData | null = null;
     let errorMessage: string | null = null;
@@ -138,7 +133,7 @@ const parseGeminiResponse = (responseText: string, isOriginalIntentImageGen: boo
                         textContent = (textContent ? textContent + "\n" : "") + part.text;
                     } else if (part.inlineData?.mimeType?.startsWith('image/') && part.inlineData?.data) {
                         imageContent = { base64: part.inlineData.data, type: part.inlineData.mimeType, name: "generated_image.png" };
-                    } else if (part.inlineData) { }
+                    }
                 }
             }
 
@@ -162,6 +157,10 @@ const parseGeminiResponse = (responseText: string, isOriginalIntentImageGen: boo
                 }
             }
 
+            if (imageContent) {
+                responseSuggestions = [];
+            }
+
         } else if (jsonResponse?.error?.message) {
              errorMessage = `API Error: ${jsonResponse.error.message}`;
              if (errorMessage.toLowerCase().includes("context length") || errorMessage.toLowerCase().includes("request payload size") || errorMessage.toLowerCase().includes("request entity too large")) { errorMessage = "Error: The note content and/or attached files are too large for the AI to process."; }
@@ -169,18 +168,10 @@ const parseGeminiResponse = (responseText: string, isOriginalIntentImageGen: boo
              else if (errorMessage.toLowerCase().includes("quota exceeded")) { errorMessage = "Error: API Quota Exceeded."; }
              else if (errorMessage.toLowerCase().includes("internal server error") || errorMessage.toLowerCase().includes("service unavailable")) { errorMessage = "Error: AI service is temporarily unavailable. Please try again later."; }
              else if (errorMessage.toLowerCase().includes("unsupported user location")) { errorMessage = "Error: Image generation is not available in your region."; }
-             else if (errorMessage.toLowerCase().includes("response must contain text") && isOriginalIntentImageGen) { errorMessage = "Error: Image generation failed. The model might require a different prompt or could not fulfill the request safely.";}
-             else if (errorMessage.toLowerCase().includes("response must contain text") && !isOriginalIntentImageGen) { errorMessage = "Error: The AI could not generate a text response. This might be due to safety settings or the nature of the request."; }
+             else if (errorMessage.toLowerCase().includes("response must contain text") || errorMessage.toLowerCase().includes("failed to generate the expected content")) { errorMessage = "Error: The AI failed to generate the expected content (text or image). This might be due to safety settings, the nature of the request, or an internal issue."; }
 
         } else { errorMessage = "Sorry, I received an empty or non-standard response format."; }
 
-        if (isOriginalIntentImageGen && !imageContent && !errorMessage && reason !== 'SAFETY' && reason !== 'BLOCKED') {
-            if (textContent) {
-                if (!textContent.trim()) { textContent = "(No image generated and no text explanation provided)"; }
-            } else {
-                errorMessage = "Image generation request processed, but no image was returned.";
-            }
-        }
 
         if (!textContent && !imageContent && !errorMessage) {
             textContent = "(Received empty response content)";
@@ -274,7 +265,7 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
 
             const recentHistory = chatHistory.slice(-8);
 
-            const systemInstruction = `You are TaskMaster, a highly meticulous, context-aware, and **conversational** AI agent integrated into Notes. You are chatting with "${userName}" about their note titled "${note.title}".
+            const systemInstruction = `You are TaskMaster, a highly meticulous, context-aware, and **conversational** multimodal AI agent integrated into Notes. You are chatting with "${userName}" about their note titled "${note.title}". You can process text and images, generate text, and generate images.
 
 Your primary goal is to be helpful, accurate, and strictly follow instructions based on the user's request, the provided note content, **and any attached images**. Adhere to the following functions and rules with **absolute precision**, in this order of priority:
 
@@ -293,7 +284,7 @@ Your primary goal is to be helpful, accurate, and strictly follow instructions b
     *   **Handling Missing Information:** If the note or images *don't* contain the answer to the user's question, **avoid stiff phrases like "The note doesn't mention X" or "The note does not contain information on X."** Instead, state clearly but naturally that the info isn't present in the note context (e.g., "That specific detail isn't in this note," or "Hmm, I don't see that covered here.") and *then* leverage your general knowledge to provide a helpful and accurate supplementary answer where appropriate, clearly indicating its origin (e.g., "...but generally speaking...", "...however, typical approaches include..."). Avoid fabricating information not present in the note or general knowledge.
 
 2.  **Generate Image (ONLY if EXPLICITLY Asked - NO JSON Output):**
-    *   **TRIGGER:** Activate **ONLY** if the user *explicitly* asks you to "generate an image", "create a picture", "draw", "show me an image of", etc., followed by a description. Use the \`gemini-2.0-flash-exp-image-generation\` model for this.
+    *   **TRIGGER:** Activate **ONLY** if the user *explicitly* asks you to "generate an image", "create a picture", "draw", "show me an image of", etc., followed by a description.
     *   **ACTION:** Use your image generation capability based on the user's description.
     *   **OUTPUT:** Your response should contain the generated image data directly (via \`inlineData\`). You MAY include a brief preceding text (e.g., "Okay, here's an image of [subject]:" or "Here's the image you requested:"). **Keep this preceding text concise.**
     *   **CRITICAL (LIMITATION): You CANNOT add the generated image *directly* into the note text.** If the user asks to "add the image to the note" or similar *after* you generate it, explain politely that you cannot embed it in the note, but they can download it. Example: "Here is the image you requested. I can't add images directly to the note text, but you can download it using the button." **Do not proactively state this limitation unless the user asks to add the generated image.**
@@ -302,7 +293,7 @@ Your primary goal is to be helpful, accurate, and strictly follow instructions b
     *   **CRITICAL (NO SUGGESTIONS):** **DO NOT** provide suggestions after successfully generating an image OR explaining a generation failure.
 
 3.  **Modify Note (ONLY if EXPLICITLY Asked & Not Image Gen - Requires JSON Output):**
-    *   **TRIGGER:** Propose an edit **ONLY** if the user *explicitly* uses action verbs indicating a desire to *change* the note content. Examples: "add", "remove", "delete", "change", "rewrite", "update", "replace", "insert", "correct", "fix", "append", "revise". Simple questions or statements like "This section is unclear" or "What about adding Y?" DO NOT automatically trigger an edit proposal (treat them as questions or discussion points first). Use the standard text model (\`gemini-2.0-flash\`) for this.
+    *   **TRIGGER:** Propose an edit **ONLY** if the user *explicitly* uses action verbs indicating a desire to *change* the note content. Examples: "add", "remove", "delete", "change", "rewrite", "update", "replace", "insert", "correct", "fix", "append", "revise". Simple questions or statements like "This section is unclear" or "What about adding Y?" DO NOT automatically trigger an edit proposal (treat them as questions or discussion points first).
     *   **Choose ONE Method (A, B, or C) per response. Ensure JSON is valid.**
     *   **CRITICAL - NO CODE LEAKS:** **NEVER** include the raw JSON structure or code fragments (like markdown tables, lists, etc.) intended for the edit directly within your conversational text response (outside the JSON block). Your user-facing chat text *before* the JSON block must be natural, friendly conversation (e.g., "Okay, I can add that list for you." or "Sure thing, here's the proposed correction:") explaining *what* you're doing conversationally. The structured data *only* goes inside the designated JSON block.
 
@@ -323,19 +314,17 @@ Your primary goal is to be helpful, accurate, and strictly follow instructions b
             {
               "action": "propose_sequential_edits",
               "explanation": "[Overall explanation summarizing ALL the sequential changes.]",
-              "edits": [ // An array of edit steps, executed STRICTLY in order
-                { // First edit step
+              "edits": [
+                {
                   "edit_type": "[Type]",
                   "target_context": "[Context for *first* edit, based on ORIGINAL note content. null for start/end.]",
                   "content_fragment": "[Fragment for *first* edit.]"
                 },
-                { // Second edit step
+                {
                   "edit_type": "[Type]",
-                  // CRITICAL: target_context for step N MUST exist in the note content *AFTER* steps 1 to N-1 have been virtually applied. Be precise.
                   "target_context": "[Context for *second* edit, based on content *after* first edit is applied. null for start/end.]",
                   "content_fragment": "[Fragment for *second* edit.]"
                 }
-                // ... add more steps exactly as needed for the user's request
               ]
             }
             \`\`\`
@@ -351,7 +340,7 @@ Your primary goal is to be helpful, accurate, and strictly follow instructions b
             \`\`\`
 
 4.  **General Chat:**
-    *   If the user's input isn't a question about content/images, an explicit image generation request, or an explicit note change request, engage in helpful conversation related to the note's topic, note-taking strategies, or clarifying their request. Use the standard text model.
+    *   If the user's input isn't a question about content/images, an explicit image generation request, or an explicit note change request, engage in helpful conversation related to the note's topic, note-taking strategies, or clarifying their request.
     *   **DO NOT** process timer requests (e.g., "set timer 5 min"); state that they are handled separately if asked.
 
 5.  **Generate Suggestions (Conditional - See Rule #3 Above):**
@@ -399,7 +388,7 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                 const fullGeminiEndpoint = `${GEMINI_API_BASE}${GEMINI_MODEL_NAME}:generateContent?key=${geminiApiKey}`;
 
                 let generationConfig: any = {
-                    temperature: isImageGen ? 0.7 : 0.6,
+                    temperature: 0.7,
                     maxOutputTokens: 8192,
                     topP: 0.95,
                     responseModalities: ["TEXT", "IMAGE"],
@@ -436,7 +425,7 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                         }
                     });
                 }
-                apiContent.push({ role: "user", parts: currentUserParts });
+                 apiContent.push({ role: "user", parts: currentUserParts });
 
                 let requestBody = JSON.stringify({
                     contents: apiContent,
@@ -452,8 +441,7 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                 const response = await fetchWithRetry(fullGeminiEndpoint, geminiOptions);
                 const responseText = await response.text();
 
-                const parsedResult = parseGeminiResponse(responseText, isImageGen);
-                setSuggestedPrompts(parsedResult.suggestions);
+                const parsedResult = parseGeminiResponse(responseText);
 
                 let assistantFinalMessage: ChatMessage = {
                     id: newLoadingMsgId,
@@ -471,9 +459,11 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                     assistantFinalMessage.error = true;
                     assistantFinalMessage.wasImageGenerated = false;
                     setSuggestedPrompts([]);
+                } else {
+                    setSuggestedPrompts(parsedResult.suggestions);
                 }
 
-                 if (!isImageGen && !assistantFinalMessage.error && parsedResult.text) {
+                 if (!assistantFinalMessage.error && !assistantFinalMessage.wasImageGenerated && parsedResult.text) {
                     const jsonMatch = parsedResult.text.match(/```json\s*([\s\S]*?)\s*```/);
                     if (jsonMatch && jsonMatch[1]) {
                         let potentialJsonString = jsonMatch[1].trim();
@@ -518,6 +508,7 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                                     } else {
                                         assistantFinalMessage.content = `Warning: AI proposed sequential edits, but the format was invalid. \n\n---\n${parsedResult.text}`;
                                         assistantFinalMessage.error = true;
+                                        setSuggestedPrompts([]);
                                     }
                                 }
                             }
@@ -533,6 +524,7 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                             } else if (!assistantFinalMessage.error) {
                                 assistantFinalMessage.content = `Warning: AI proposed an edit, but the format was invalid. \n\n---\n${parsedResult.text}`;
                                 assistantFinalMessage.error = true;
+                                setSuggestedPrompts([]);
                             }
 
                         } catch (parseError: any) {
@@ -540,6 +532,7 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                             assistantFinalMessage.error = true;
                             assistantFinalMessage.imageData = undefined;
                             assistantFinalMessage.wasImageGenerated = false;
+                            setSuggestedPrompts([]);
                         }
                     }
                  }
@@ -547,6 +540,7 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                  if (!assistantFinalMessage.content?.trim() && !assistantFinalMessage.imageData && !assistantFinalMessage.error && !assistantFinalMessage.isEditSuggestion && !assistantFinalMessage.timer) {
                     assistantFinalMessage.content = "(Received empty response)";
                     assistantFinalMessage.error = true;
+                    setSuggestedPrompts([]);
                  }
 
                  setChatHistory(prev => prev.map(msg => msg.id === newLoadingMsgId ? assistantFinalMessage : msg ));
