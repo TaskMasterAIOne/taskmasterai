@@ -61,8 +61,8 @@ export interface NoteChatHandle {
     sendMessage: (message: string) => void;
 }
 
-const GEMINI_TEXT_MODEL = 'gemini-1.5-flash-latest'; // Updated model
-const GEMINI_IMAGE_GEN_MODEL = 'gemini-1.5-flash-latest'; // Use the same multi-modal model
+const GEMINI_TEXT_MODEL = 'gemini-2.0-flash';
+ const GEMINI_IMAGE_GEN_MODEL = 'gemini-2.0-flash-exp-image-generation';
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
 
 const readFileAsBase64 = (file: File): Promise<SelectedFile> => {
