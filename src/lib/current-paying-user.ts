@@ -23,7 +23,7 @@ const PREMIUM_EMAILS = [
 "guyplayin2k@gmail.com",
    "chagio@gmail.com"
 ];
-export const PRO_EMAILS = ["srinibaj10@gmail.com", "mateusz.ruszkowski@gmail.com"];
+export const PRO_EMAILS = ["srinibaj10@gmail.com"];
 
 // --- User Tier Type ---
 export type UserTier = 'basic' | 'pro' | 'premium' | 'loading';
