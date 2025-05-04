@@ -6,11 +6,11 @@
   html {
     scroll-behavior: smooth;
   }
-  
+
   body {
     @apply bg-gray-900 text-gray-100;
   }
-  
+
   /* Blackout mode styling */
   body.blackout-mode {
     @apply bg-gray-950;
@@ -26,4 +26,46 @@
   .container {
     @apply max-w-7xl mx-auto;
   }
+
+  /* Custom Scrollbar */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-gray-400/40 rounded-full; /* Light mode thumb */
+  }
+  html.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-gray-500/50 rounded-full; /* Dark mode thumb */
+  }
+  /* Firefox */
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.gray.400/0.4') transparent; /* Light mode */
+  }
+  html.dark .custom-scrollbar {
+    scrollbar-color: theme('colors.gray.500/0.5') transparent; /* Dark mode */
+  }
+
+  /* Animations */
+  .animate-fadeIn {
+    animation: fadeIn 0.3s ease-out forwards;
+  }
+  .animate-pulse {
+     animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+}
+
+/* Keyframes MUST be outside @layer */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
