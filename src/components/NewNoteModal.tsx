@@ -522,7 +522,7 @@ export function NewNoteModal({
              </div>
           )}
 
-           {isLoading && <div className="h-[26px] w-full"></div> }
+           {isLoading && <div className="h-[16px] w-full"></div> }
         </div>
       </div>
     </div>
