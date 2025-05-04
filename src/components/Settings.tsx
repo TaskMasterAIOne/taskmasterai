@@ -3,17 +3,17 @@ import { useNavigate, Link } from 'react-router-dom';
 import {
   User as UserIcon, Settings as SettingsIcon, Mail, Key, LogOut,
   Trash2, Save, X, AlertCircle, Crown, Upload, Camera, Moon, Sun,
-  PanelLeftDashed, Loader2, Info, BrainCircuit, Star, CreditCard, // Added CreditCard
+  PanelLeftDashed, Loader2, Info, BrainCircuit, Star, CreditCard,
 } from 'lucide-react';
-import { Sidebar } from './Sidebar'; // Adjust path if needed
+import { Sidebar } from './Sidebar';
 import {
   updateUserProfile, signOutUser, deleteUserAccount, AuthError,
   getCurrentUser, getUserData, deleteProfilePicture,
-} from '../lib/settings-firebase'; // Adjust path
-import { saveUserContext, getUserContext, UserContext } from '../lib/ai-context-firebase'; // Adjust path
-import { getUserTier } from '../lib/current-paying-user'; // Using Firestore-based tier check
-import { createPortalSession } from '../lib/stripe-client'; // Import portal function
-import { User } from 'firebase/auth'; // Firebase User type
+} from '../lib/settings-firebase';
+import { saveUserContext, getUserContext, UserContext } from '../lib/ai-context-firebase';
+import { getUserTier } from '../lib/current-paying-user';
+import { createPortalSession } from '../lib/stripe-client';
+import { User } from 'firebase/auth';
 
 export function Settings() {
   const navigate = useNavigate();
@@ -26,9 +26,8 @@ export function Settings() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
   const [userData, setUserData] = useState({ name: '', email: '', photoURL: '' });
-  const [aiContextData, setAiContextData] = useState<Partial<UserContext>>({ workDescription: '', shortTermFocus: '', longTermGoals: '', otherContext: '' });
+  const [aiContextData, setAiContextData] = useState<Partial<UserContext>>({});
   const [initialAiContextData, setInitialAiContextData] = useState<Partial<UserContext>>({});
   const [isLoadingAiContext, setIsLoadingAiContext] = useState(true);
   const [isSavingAiContext, setIsSavingAiContext] = useState(false);
@@ -41,50 +40,42 @@ export function Settings() {
   const [isSidebarBlackoutEnabled, setIsSidebarBlackoutEnabled] = useState(() => JSON.parse(localStorage.getItem('isSidebarBlackoutEnabled') || 'false'));
   const [formData, setFormData] = useState({ name: '', email: '', currentPassword: '', newPassword: '', confirmPassword: '' });
   const [isGoogleUser, setIsGoogleUser] = useState<boolean>(false);
-  const [userCurrentTier, setUserCurrentTier] = useState<'basic' | 'pro' | 'premium' | 'loading'>('loading'); // Use string type for tier
-
-  // --- State for Stripe Portal ---
+  const [userCurrentTier, setUserCurrentTier] = useState<'basic' | 'pro' | 'premium' | 'loading'>('loading');
   const [stripeCustomerId, setStripeCustomerId] = useState<string | null>(null);
   const [isManagingSubscription, setIsManagingSubscription] = useState(false);
   const [portalError, setPortalError] = useState<string | null>(null);
-  // --- End Portal State ---
 
-  // --- Theme Effect ---
   useEffect(() => {
     document.body.classList.remove('illuminate-mode', 'blackout-mode');
-    if (isIlluminateEnabled) { document.body.classList.add('illuminate-mode'); }
-    else if (isBlackoutEnabled) { document.body.classList.add('blackout-mode'); }
+    if (isIlluminateEnabled) {
+      document.body.classList.add('illuminate-mode');
+    } else if (isBlackoutEnabled) {
+      document.body.classList.add('blackout-mode');
+    }
     localStorage.setItem('isIlluminateEnabled', JSON.stringify(isIlluminateEnabled));
     localStorage.setItem('isBlackoutEnabled', JSON.stringify(isBlackoutEnabled));
     localStorage.setItem('isSidebarIlluminateEnabled', JSON.stringify(isSidebarIlluminateEnabled));
     localStorage.setItem('isSidebarBlackoutEnabled', JSON.stringify(isSidebarBlackoutEnabled));
   }, [isIlluminateEnabled, isBlackoutEnabled, isSidebarIlluminateEnabled, isSidebarBlackoutEnabled]);
 
-  // --- Load User Data, Tier, Context, Stripe ID ---
   useEffect(() => {
     setIsLoading(true);
     setIsLoadingAiContext(true);
-    setUserCurrentTier('loading'); // Reset tier on load
+    setUserCurrentTier('loading');
 
     const loadData = async () => {
       const currentUser = getCurrentUser();
       if (!currentUser) { navigate('/login'); return; }
       setUser(currentUser);
-
       const googleFlag = currentUser.providerData?.some((p: any) => p.providerId === 'google.com');
       setIsGoogleUser(!!googleFlag);
 
       try {
-        // Fetch Tier and Firestore data
-        // getUserTier now reads from Firestore
         const [tier, firestoreData] = await Promise.all([
           getUserTier(currentUser.uid),
           getUserData(currentUser.uid)
         ]);
-
-        setUserCurrentTier(tier); // Set the actual tier string
-
-        // Process Firestore Data
+        setUserCurrentTier(tier);
         const loadedUserData = {
           name: firestoreData?.name || currentUser.displayName || '',
           email: currentUser.email || '',
@@ -95,8 +86,6 @@ export function Settings() {
           ...prev, name: loadedUserData.name, email: loadedUserData.email,
           currentPassword: '', newPassword: '', confirmPassword: '',
         }));
-
-        // --- Fetch and set Stripe Customer ID ---
         if (firestoreData?.stripeCustomerId) {
           setStripeCustomerId(firestoreData.stripeCustomerId);
           console.log("Stripe Customer ID found:", firestoreData.stripeCustomerId);
@@ -104,17 +93,14 @@ export function Settings() {
           setStripeCustomerId(null);
           console.log("Stripe Customer ID not found in Firestore.");
         }
-        // --- End Fetch Stripe Customer ID ---
-
       } catch (error) {
         console.error('Error loading user data/tier:', error);
-        setError('Failed to load user data. Please refresh.');
-        setUserCurrentTier('basic'); // Default on error
+        setError('Failed to load user data.');
+        setUserCurrentTier('basic');
       } finally {
         setIsLoading(false);
       }
 
-      // Load AI Context
       try {
           const context = await getUserContext(currentUser.uid);
           const loadedContext = {
@@ -135,11 +121,12 @@ export function Settings() {
     loadData();
   }, [navigate]);
 
-  // --- Sidebar Toggle ---
-  useEffect(() => { localStorage.setItem('isSidebarCollapsed', JSON.stringify(isSidebarCollapsed)); }, [isSidebarCollapsed]);
-  const handleToggleSidebar = () => setIsSidebarCollapsed(prev => !prev);
+  useEffect(() => {
+    localStorage.setItem('isSidebarCollapsed', JSON.stringify(isSidebarCollapsed));
+  }, [isSidebarCollapsed]);
 
-  // --- Theme Toggles ---
+  const handleToggleSidebar = () => { setIsSidebarCollapsed(prev => !prev); };
+
   const handleToggleIlluminate = (checked: boolean) => {
     setIsIlluminateEnabled(checked);
     if (checked) { setIsBlackoutEnabled(false); setIsSidebarIlluminateEnabled(true); setIsSidebarBlackoutEnabled(false); }
@@ -151,12 +138,10 @@ export function Settings() {
     else { if (!isIlluminateEnabled) { setIsSidebarBlackoutEnabled(false); } }
   };
 
-  // --- Input Handlers ---
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => { setError(null); setFormData({ ...formData, [e.target.name]: e.target.value }); };
   const handleAiContextInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => { setAiContextError(null); setAiContextData(prev => ({ ...prev, [e.target.name]: e.target.value })); };
-
-  // --- Profile Picture Handlers ---
   const handleProfilePictureClick = () => { if (!isUploading) fileInputRef.current?.click(); };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file || !user) return;
     if (!file.type.startsWith('image/')) { setError('Invalid file type.'); return; }
@@ -175,6 +160,7 @@ export function Settings() {
     } catch (err) { console.error("Upload Error:", err); setError(err instanceof AuthError ? err.message : 'Failed to upload.'); }
     finally { setIsUploading(false); if (fileInputRef.current) fileInputRef.current.value = ""; }
   };
+
   const handleRemoveProfilePicture = async () => {
     if (!user || !userData.photoURL) return; if (!window.confirm('Remove profile picture?')) return;
     setIsUploading(true); setError(null);
@@ -187,7 +173,6 @@ export function Settings() {
     finally { setIsUploading(false); }
   };
 
-  // --- Profile Save Handler ---
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault(); setError(null); setIsSaving(true);
     try {
@@ -196,22 +181,22 @@ export function Settings() {
       let requiresPassword = false;
       const trimmedName = formData.name.trim();
       if (trimmedName !== userData.name) {
-          if (!trimmedName) { throw new AuthError('Name cannot be empty.'); }
+          if (!trimmedName) throw new AuthError('Name cannot be empty.');
           updateData.name = trimmedName;
       }
       if (!isGoogleUser) {
           const trimmedEmail = formData.email.trim();
           if (trimmedEmail !== userData.email) {
-              if (!trimmedEmail) { throw new AuthError('Email cannot be empty.'); }
+              if (!trimmedEmail) throw new AuthError('Email cannot be empty.');
               updateData.email = trimmedEmail; requiresPassword = true;
           }
           if (formData.newPassword) {
-              if (formData.newPassword.length < 6) { throw new AuthError('New password min 6 chars.'); }
-              if (formData.newPassword !== formData.confirmPassword) { throw new AuthError('New passwords do not match.'); }
+              if (formData.newPassword.length < 6) throw new AuthError('New password min 6 chars.');
+              if (formData.newPassword !== formData.confirmPassword) throw new AuthError('New passwords do not match.');
               updateData.newPassword = formData.newPassword; requiresPassword = true;
           }
-          if (requiresPassword && !formData.currentPassword) { throw new AuthError('Current password required.'); }
-          if (requiresPassword && formData.currentPassword) { updateData.currentPassword = formData.currentPassword; }
+          if (requiresPassword && !formData.currentPassword) throw new AuthError('Current password required.');
+          if (requiresPassword && formData.currentPassword) updateData.currentPassword = formData.currentPassword;
       }
       if (Object.keys(updateData).length > 0) {
           await updateUserProfile(updateData, user.uid);
@@ -227,7 +212,6 @@ export function Settings() {
     finally { setIsSaving(false); }
   };
 
-  // --- AI Context Handlers ---
   const handleSaveAiContext = async () => {
        if (!user?.uid) { setAiContextError("User not authenticated."); return; }
        setIsSavingAiContext(true); setAiContextError(null);
@@ -245,28 +229,23 @@ export function Settings() {
    };
   const handleCancelAiContextEdit = () => { setAiContextData(initialAiContextData); setIsEditingAiContext(false); setAiContextError(null); };
 
-  // --- Sign Out Handler ---
   const handleSignOut = async () => { setError(null); try { await signOutUser(); navigate('/login'); } catch (err) { console.error("Sign Out Error:", err); setError(err instanceof AuthError ? err.message : 'Failed to sign out.'); } };
 
-  // --- Delete Account Handlers ---
   const handleDeleteAccount = async () => { setError(null); setIsDeleting(true); try { if (!user) throw new AuthError('Auth session expired.'); if (!isGoogleUser && !formData.currentPassword) { throw new AuthError('Current password required.'); } await deleteUserAccount(isGoogleUser ? undefined : formData.currentPassword); navigate('/login'); } catch (err) { console.error("Delete Account Error:", err); setError(err instanceof AuthError ? err.message : 'Failed to delete account.'); } finally { setIsDeleting(false); } };
   const closeDeleteModal = () => { setShowDeleteConfirm(false); setError(null); setFormData(prev => ({...prev, currentPassword: ''})); };
 
-  // --- Manage Subscription Handler ---
   const handleManageSubscription = async () => {
     setIsManagingSubscription(true);
     setPortalError(null);
-    setError(null); // Clear general page errors
-
+    setError(null);
     if (!stripeCustomerId) {
-      setPortalError("Subscription details not found. Refresh may be needed.");
+      setPortalError("Subscription details not found.");
       setIsManagingSubscription(false);
       return;
     }
-
     try {
-      const { portalUrl } = await createPortalSession(); // Calls client func -> backend func
-      window.location.href = portalUrl; // Redirect browser
+      const { portalUrl } = await createPortalSession();
+      window.location.href = portalUrl;
     } catch (err: any) {
       console.error("Manage Subscription Error:", err);
       setPortalError(err.message || "Could not load billing page.");
@@ -274,7 +253,6 @@ export function Settings() {
     }
   };
 
-  // --- Dynamic Theme Classes ---
   const containerClass = isIlluminateEnabled ? "bg-gray-50 text-gray-900" : isBlackoutEnabled ? "bg-black text-gray-200" : "bg-gray-900 text-gray-200";
   const cardClass = isIlluminateEnabled ? "bg-white text-gray-900 border border-gray-200/70 shadow-sm" : isBlackoutEnabled ? "bg-gray-900 text-gray-300 border border-gray-700/50 shadow-md shadow-black/20" : "bg-gray-800 text-gray-300 border border-gray-700/50 shadow-lg shadow-black/20";
   const headingClass = isIlluminateEnabled ? "text-gray-800" : "text-gray-100";
@@ -295,7 +273,6 @@ export function Settings() {
   const deleteModalText = isIlluminateEnabled ? 'text-gray-700' : 'text-gray-200';
   const deleteModalOverlay = 'bg-black/60 backdrop-blur-sm';
 
-  // --- RENDER ---
   return (
     <div className={`flex flex-col min-h-screen ${containerClass}`}>
       <Sidebar
@@ -306,7 +283,6 @@ export function Settings() {
         isIlluminateEnabled={isIlluminateEnabled && isSidebarIlluminateEnabled}
       />
 
-      {/* Delete Modal */}
       {showDeleteConfirm && (
         <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${deleteModalOverlay}`}>
           <div className={`${deleteModalBg} rounded-xl p-5 sm:p-6 max-w-md w-full`}>
@@ -336,37 +312,28 @@ export function Settings() {
         </div>
       )}
 
-      {/* Main Content */}
       <main className={`flex-1 overflow-y-auto transition-all duration-300 pt-14 md:pt-0 ${isSidebarCollapsed ? 'md:ml-20' : 'md:ml-64'}`}>
         <div className="container mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-5 sm:py-7">
-          {/* Header */}
           <div className="mb-6 sm:mb-8">
             <h1 className={`text-xl sm:text-2xl font-bold flex items-center gap-2 ${headingClass}`}>
               <SettingsIcon className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400" />Settings
             </h1>
             <p className={`${subheadingClass} mt-1 text-sm`}>Manage your account settings and preferences</p>
           </div>
-          {/* General Error */}
           {error && !showDeleteConfirm && (
             <div className={`mb-4 p-3 rounded-lg flex items-start gap-2 ${errorBoxBg}`}>
               <AlertCircle className={`w-4 h-4 shrink-0 mt-px ${errorTextColor}`} />
               <p className={`${errorTextColor} text-xs sm:text-sm`}>{error}</p>
             </div>
           )}
-
-          {/* Loading Indicator */}
           {isLoading && (
             <div className="flex justify-center items-center py-10">
-                <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+              <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
             </div>
           )}
-
-          {/* Main Grid (Only render content after initial load) */}
           {!isLoading && user && (
              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
-               {/* === Column 1 === */}
                <div className="flex flex-col gap-4 lg:gap-6">
-                 {/* Profile Picture Card */}
                  <div className={`${cardClass} rounded-xl p-4 sm:p-5`}>
                    <h2 className={`text-base sm:text-lg font-semibold mb-4 ${headingClass}`}>Profile Picture</h2>
                    <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-5">
@@ -395,15 +362,12 @@ export function Settings() {
                      </div>
                    </div>
                  </div>
-
-                 {/* Profile Settings Card */}
                  <div className={`${cardClass} rounded-xl p-4 sm:p-5`}>
                     <div className="flex items-center justify-between mb-4">
                       <h2 className={`text-base sm:text-lg font-semibold ${headingClass}`}>Profile Details</h2>
                       {!isEditing && (<button type="button" onClick={() => { setIsEditing(true); setError(null); }} disabled={isLoading} className={`px-3 py-1 text-xs sm:text-sm font-medium rounded-md ${buttonSecondaryClass}`}>Edit</button>)}
                     </div>
                     <form onSubmit={handleSave}>
-                      {/* ... Form Inputs (Name, Email, Passwords conditional) ... */}
                        <div className="space-y-4">
                           <div>
                             <label htmlFor="name" className={`block text-xs font-medium mb-1 ${subheadingClass}`}>Name</label>
@@ -442,8 +406,6 @@ export function Settings() {
                       )}
                     </form>
                  </div>
-
-                 {/* Account Actions Card */}
                  <div className={`${cardClass} rounded-xl p-4 sm:p-5`}>
                     <h2 className={`text-base sm:text-lg font-semibold mb-4 ${headingClass}`}>Account Actions</h2>
                     <div className="space-y-3">
@@ -451,10 +413,7 @@ export function Settings() {
                         <button onClick={() => { setShowDeleteConfirm(true); setFormData(prev => ({ ...prev, currentPassword: '' })); setError(null); }} className={`w-full flex items-center justify-start gap-2.5 px-3 py-2.5 text-sm font-medium rounded-md ${buttonDangerClass}`}><Trash2 className="w-4 h-4" /> Delete Account...</button>
                     </div>
                  </div>
-
-                 {/* AI Context Card */}
                  <div className={`${cardClass} rounded-xl p-4 sm:p-5`}>
-                   {/* ... AI Context JSX ... */}
                     <div className="flex items-center justify-between mb-3">
                         <h2 className={`text-base sm:text-lg font-semibold flex items-center gap-2 ${headingClass}`}><BrainCircuit className="w-5 h-5 text-purple-400" /> Universal AI Context</h2>
                         {!isEditingAiContext && (<button type="button" onClick={() => { setIsEditingAiContext(true); setAiContextError(null); }} disabled={isLoadingAiContext || isSavingAiContext} className={`px-3 py-1 text-xs sm:text-sm font-medium rounded-md ${buttonSecondaryClass}`}>Edit</button>)}
@@ -472,11 +431,8 @@ export function Settings() {
                  </div>
                </div>
 
-               {/* === Column 2 === */}
                <div className="flex flex-col gap-4 lg:gap-6">
-                 {/* Appearance Card */}
                  <div className={`${cardClass} rounded-xl p-4 sm:p-5`}>
-                   {/* ... Theme toggles JSX ... */}
                     <h2 className={`text-base sm:text-lg font-semibold mb-4 ${headingClass}`}>Appearance</h2>
                     <div className="space-y-4">
                         <div className="flex items-center justify-between"><label htmlFor="illuminate-toggle" className="flex items-center cursor-pointer gap-3"><Sun className={`w-5 h-5 shrink-0 ${isIlluminateEnabled ? 'text-yellow-500' : placeholderIconColor}`} /><div><span className={`font-medium text-sm ${headingClass}`}>Illuminate</span><p className={`${subheadingClass} text-xs mt-0.5`}>Light mode.</p></div></label><label className="relative inline-flex items-center cursor-pointer"><input id="illuminate-toggle" type="checkbox" checked={isIlluminateEnabled} onChange={(e) => handleToggleIlluminate(e.target.checked)} className="sr-only peer"/><div className={`w-9 h-5 rounded-full peer transition-colors ${isIlluminateEnabled ? 'bg-blue-600' : 'bg-gray-600'} peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all`}></div></label></div>
@@ -488,24 +444,55 @@ export function Settings() {
                     </div>
                  </div>
 
-                 {/* Subscription Card */}
                  <div className={`${cardClass} rounded-xl p-4 sm:p-5`}>
                    <div className="flex items-center justify-between mb-4">
                      <h2 className={`text-base sm:text-lg font-semibold flex items-center gap-1.5 ${headingClass}`}>Subscription</h2>
-                     {/* Tier Badge Logic */}
                      {userCurrentTier === 'loading' && <span className="text-xs text-gray-500">Checking...</span>}
                      {userCurrentTier === 'premium' && (<span className="px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wider bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-sm">Premium</span>)}
                      {userCurrentTier === 'pro' && (<span className="px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wider bg-gradient-to-r from-teal-400 to-cyan-500 text-white shadow-sm">Pro</span>)}
                      {userCurrentTier === 'basic' && (<span className={`px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wider ${isIlluminateEnabled ? 'bg-blue-100 text-blue-800' : 'bg-blue-900/70 text-blue-200'}`}>Basic</span>)}
                    </div>
                    <div className="space-y-3">
-                      {/* Conditional Feature Lists */}
-                      {userCurrentTier === 'loading' && <div className="text-sm text-gray-400">Loading subscription details...</div>}
-                      {userCurrentTier === 'premium' && (<ul>{/* Premium Features */}</ul>)}
-                      {userCurrentTier === 'pro' && (<ul>{/* Pro Features */}</ul>)}
-                      {userCurrentTier === 'basic' && (<ul>{/* Basic Features */}</ul>)}
+                     {userCurrentTier === 'loading' && <div className="text-sm text-gray-400">Loading subscription details...</div>}
+                      {userCurrentTier === 'premium' && (
+                          <>
+                              <p className={`text-sm ${subheadingClass} mb-2`}>Your premium plan includes:</p>
+                              <ul className={`list-disc list-outside pl-5 space-y-1.5 text-xs sm:text-sm ${subheadingClass}`}>
+                                  <li>Unlimited PDF and Text Notes</li>
+                                  <li>Unlimited YouTube Notes</li>
+                                  <li>Unlimited AI Chat Interactions</li>
+                                  <li>2,500 Tokens Included</li>
+                                  <li>Add Unlimited Friends</li>
+                                  <li>Unlimited Access to Smart Overview</li>
+                              </ul>
+                          </>
+                      )}
+                      {userCurrentTier === 'pro' && (
+                          <>
+                              <p className={`text-sm ${subheadingClass} mb-2`}>Your pro plan includes:</p>
+                              <ul className={`list-disc list-outside pl-5 space-y-1.5 text-xs sm:text-sm ${subheadingClass}`}>
+                                  <li>10 PDF and Text Notes per month</li>
+                                  <li>5 YouTube Notes per month</li>
+                                  <li>200 AI Chat Interactions per month</li>
+                                  <li>1,000 Tokens Included</li>
+                                  <li>Add up to 10 Friends</li>
+                                  <li>Limited Access to Smart Overview</li>
+                              </ul>
+                          </>
+                      )}
+                      {userCurrentTier === 'basic' && (
+                          <>
+                              <p className={`text-sm ${subheadingClass} mb-2`}>Your free plan includes:</p>
+                              <ul className={`list-disc list-outside pl-5 space-y-1.5 text-xs sm:text-sm ${subheadingClass}`}>
+                                  <li>2 PDF and Text Notes per month</li>
+                                  <li>1 Youtube Note per month</li>
+                                  <li>10 AI Chat Interactions per month</li>
+                                  <li>500 Tokens Included</li>
+                                  <li>Add Up to 3 Friends</li>
+                              </ul>
+                          </>
+                      )}
 
-                      {/* Manage/Upgrade Buttons */}
                       {(userCurrentTier === 'premium' || userCurrentTier === 'pro') && stripeCustomerId && (
                         <div className="pt-4 border-t border-gray-700/30 dark:border-gray-700/50">
                           {portalError && (<p className="text-xs text-red-400 mb-2 flex items-center gap-1"><AlertCircle size={14} /> {portalError}</p>)}
@@ -529,10 +516,12 @@ export function Settings() {
                  </div>
                </div>
              </div>
-           )} {/* End conditional render for !isLoading && user */}
+           )}
         </div>
       </main>
     </div>
   );
 }
-export default { Settings };
+
+// Removed default export based on previous feedback, assuming named export usage
+// export default Settings;
