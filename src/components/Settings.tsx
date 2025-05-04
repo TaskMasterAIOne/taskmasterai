@@ -524,4 +524,4 @@ export function Settings() {
 }
 
 // Removed default export based on previous feedback, assuming named export usage
-// export default Settings;
+export default Settings; // Export as default if needed
