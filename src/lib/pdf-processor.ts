@@ -139,7 +139,7 @@ export async function processPDF(
     }
 
     // Using Gemini 1.5 Flash - balances speed, cost, and large context.
-    const GEMINI_MODEL = 'gemini-1.5-flash-latest'; // Use 'latest' tag
+    const GEMINI_MODEL = 'gemini-2.0-flash'; // Use 'latest' tag
     const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiApiKey}`;
 
     let extractedText = '';
