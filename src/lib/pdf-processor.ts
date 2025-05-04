@@ -227,18 +227,18 @@ export async function processPDF(
 1.  **Study Focus:** Ensure the notes are pedagogically valuable. Explain concepts, define key terms clearly, connect related ideas (even if presented separately in the text), and highlight important facts, principles, or processes.
 2.  **Comprehensiveness & Depth:** Cover ALL significant topics, sub-topics, arguments, data, and examples present in the text. Go into substantial detail. Aim for lengthy and exhaustive notes that capture the nuances of the source material.
 3.  **Structure & Formatting:** Utilize Markdown extensively and strategically:
-    *   **Headings:** Use multiple levels (`#`, `##`, `###`) for a clear hierarchy reflecting the subject's structure.
-    *   **Lists:** Use bulleted (`*`, `-`, `+`) and numbered (`1.`, `2.`) lists prolifically for details, steps, components, pros/cons, etc. Use nesting.
-    *   **Emphasis:** Use `**bold**` for critical terms/concepts. Use `*italics*` for definitions or emphasis. Use \`\`\`inline code\`\`\` for technical terms/syntax.
+    *   **Headings:** Use multiple levels (#, ##, ###) for a clear hierarchy reflecting the subject's structure.
+    *   **Lists:** Use bulleted (*, -, +) and numbered (1., 2.) lists prolifically for details, steps, components, pros/cons, etc. Use nesting.
+    *   **Emphasis:** Use **bold** for critical terms/concepts. Use *italics* for definitions or emphasis. Use \`\`\`inline code\`\`\` for technical terms/syntax.
     *   **Tables:** If the text presents comparative data, features, etc., construct well-formatted Markdown tables.
     *   **Code Blocks:** Use fenced code blocks (\`\`\`) for multi-line code examples or data snippets (specify language if possible).
-    *   **Blockquotes:** Use `>` for key definitions, principles, or direct (but concise) quotes that are particularly insightful.
-    *   **Other Elements (Use as appropriate):** Definition lists, footnotes (`[^tag]`), HTML sub/superscript (`<sub>`, `<sup>`), horizontal rules (`---` sparingly).
+    *   **Blockquotes:** Use > for key definitions, principles, or direct (but concise) quotes that are particularly insightful.
+    *   **Other Elements (Use as appropriate):** Definition lists, footnotes ([^tag]), HTML sub/superscript (<sub>, <sup>), horizontal rules (--- sparingly).
     *   **Diagrams/Graphs:** Describe any visuals (charts, graphs, diagrams) mentioned in the text in detail: type, purpose, key data/relationships shown, and conclusion.
 4.  **Output Requirements:**
     *   Generate **only** the raw Markdown note content.
     *   **NO** introductory or concluding phrases.
-    *   Start *immediately* with the first Markdown element (e.g., `# Main Topic`).
+    *   Start *immediately* with the first Markdown element (e.g., # Main Topic).
 
 **Source Text Content:**
 ---
