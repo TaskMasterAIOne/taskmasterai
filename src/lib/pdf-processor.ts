@@ -85,52 +85,48 @@ export async function processPDF( file: File, userId: string, geminiApiKey: stri
 
    // REVISED PROMPT for exceptionally detailed and long notes, mirroring the example structure,
     // explicitly instructing on various Markdown formats including extended features, tables, and checking for diagram/graph support.
-    const detailedNotePrompt = `Analyze the following text extracted from the PDF "${file.name}". Your task is to generate an exceptionally detailed, comprehensive, and well-structured set of notes in Markdown format. Aim for significant length and depth, reproducing the level of detail found in a study guide or textbook chapter summary.
+    const detailedNotePrompt = `Analyze the following text extracted from the PDF "${file.name}". Your task is to generate **exceptionally detailed, exhaustive, and meticulously structured study notes** in Markdown format. The output MUST be **significantly lengthy**, capturing the full depth, nuance, specifics, and structure of the source material. Treat this as creating a comprehensive reference guide based *only* on the provided text.
 
-**Instructions:**
-1.  **Structure:** Use Markdown extensively to organize the information logically based on the text's flow and topics. Employ the following Markdown elements:
-    * **Headings:** Use \`# Main Headings\`, \`## Subheadings\`, and \`### Sub-subheadings\` to create a clear hierarchical structure.
-    * **Lists:** Utilize \`*\`, \`-\`, or \`+\` for bullet points and numbered lists (\`1.\`, \`2.\`, etc.) where appropriate to present items, steps, or sequences.
-    * **Emphasis:** Use \`**bold**\` for key terms, concepts, and important figures, \`*italics*\` for emphasis or definitions, \`***bold italics***\` for strong emphasis, and \`\`\`inline code\`\`\` for short code snippets or technical terms. Use \`~~strikethrough~~\` to indicate deleted or superseded information.
-    * **Tables:** If the source text contains data that can be effectively presented in a tabular format, use Markdown tables. Ensure clear headers and well-organized rows and columns. Use colons (:) in the separator row to indicate column alignment (e.g., \`:--\`: left, \`--:\`: right, \`:-:\`: center). Example:
-        \`\`\`markdown
-        | Header 1 | Header 2 | Header 3 |
-        |:---|:---:|---:|
-        | Left     | Center | Right  |
-        | Data A   | Data B | Data C |
-        | More data| Even more| ...    |
-        \`\`\`
-    * **Code Blocks:** Use fenced code blocks with triple backticks (\`\`\`) for multi-line code or examples. Specify the language for syntax highlighting if applicable (e.g., \`\`\`python\`).
-    * **Blockquotes:** Use \`>\` for quoted text or important excerpts. Multiple \`>\` can create nested blockquotes.
-    * **Horizontal Rules:** Use \`---\`, \`***\`, or \`___\` on a separate line to visually separate different sections of the notes.
-    * **Footnotes:** If the text contains references or requires additional explanations, use footnotes with the syntax \`[^label]\` for the reference in the text and \`[^label]: detailed explanation\` elsewhere in the notes.
-    * **Definition Lists:** If the text presents terms and their definitions, use definition lists:
-        \`\`\`markdown
-        Term 1
-        : Definition of Term 1.
-        Term 2
-        : A more detailed explanation of Term 2.
-        \`\`\`
-    * **Task Lists (Checkboxes):** If the text includes actions or items that can be checked off, use task lists:
-        \`\`\`markdown
-        - [ ] Item that needs to be done.
-        - [x] Item that is completed.
-        \`\`\`
-    * **Emoji:** If relevant and if the AI can reliably render them, use standard emoji shortcodes (e.g., \`:information_source:\`). However, prioritize clarity and avoid excessive use.
-    * **Subscript and Superscript:** If the text contains mathematical or chemical formulas, use HTML tags \`<sub>\` for subscript (e.g., \`H<sub>2</sub>O\`) and \`<sup>\` for superscript (e.g., \`E=mc<sup>2</sup>\`). If a specific Markdown extension syntax is commonly used and reliably rendered, you may use that (e.g., sometimes \`H~2~O\` and \`E=mc^2\`).
-    * **Highlighting:** If the text emphasizes specific parts that would benefit from highlighting, use the \`==highlighted text==\` syntax if supported by common Markdown processors.
-2.  **Comprehensiveness:** Do NOT just summarize briefly. Extract and present key facts, concepts, definitions, arguments, events, historical figures, dates, and supporting details mentioned in the text. Go into substantial detail for each point, utilizing the various Markdown formatting options to structure and emphasize the information.
-3.  **Length & Detail:** Generate a lengthy output. Your primary goal is to be thorough and capture as much specific information from the source text as possible. Err on the side of including more detail rather than less. Aim to produce notes that are significantly long and cover the material exhaustively.
-4.  **Formatting:** Ensure clear separation between sections and points. LaTeX (\`$\` \`$\`/\`$$\` \`$$\`) can be used if relevant for mathematical or scientific notation, but prioritize clear textual explanation and structure using the Markdown elements listed above.
-5.  **Diagrams and Graphs:** Determine if the AI can directly render diagrams or graphs using extensions like Mermaid or PlantUML within Markdown code blocks (e.g., \`\`\`mermaid\`\`\`, \`\`\`plantuml\`\`\`). If direct rendering is not reliably supported, describe any diagrams or graphs mentioned in the text in detail, including their title, labels, axes (if applicable), and the key relationships or data they present. If the text provides data suitable for a simple textual representation of a graph (e.g., trends, comparisons), you may attempt to create a basic textual representation within a table or using lists.
-6.  **Output:** Provide *only* the generated Markdown note content. Do not include introductory phrases like "Here are the detailed notes:" or concluding remarks. Start directly with the first heading or point.
+**Mandatory Instructions:**
 
-**Text Content:**
+1.  **Depth, Detail, and Length (Paramount):**
+    *   Produce notes that are **substantially long and dense with information**. This is NOT a summary.
+    *   Extract and **elaborate in detail** on ALL key facts, concepts, definitions, arguments, processes, examples, data points, findings, dates, figures, and supporting details mentioned.
+    *   Capture **nuance and subtleties**. If the text makes distinctions, comparisons, or qualifications, reflect these precisely and thoroughly in the notes.
+    *   Ensure **complete coverage** of ALL topics, sub-topics, and sections presented in the source text. Omit nothing significant. Actively seek out all pieces of information.
+    *   Include **all examples** provided in the text to illustrate concepts.
+
+2.  **Strict & Sophisticated Markdown Formatting:** Utilize the following Markdown elements **extensively, appropriately, and strategically throughout the entire output** to maximize clarity, structure, and information density:
+    *   **Headings:** Employ multiple levels (\`#\`, \`##\`, \`###\`, etc.) to create a deep hierarchical structure accurately reflecting the text's organization.
+    *   **Lists:** Use bulleted (\`*\`, \`-\`, \`+\`) and numbered (\`1.\`, \`2.\`) lists prolifically for sequences, components, features, pros/cons, etc. Utilize nested lists for sub-details.
+    *   **Emphasis:** Use \`**bold**\` for critical terms, key concepts, names, results. Use \`*italics*\` for definitions, titles, or nuanced emphasis. Use \`\`\`inline code\`\`\` for technical syntax, filenames, code elements. Use other emphasis (\`***\`, \`~~\`) *only* if the text's meaning dictates it.
+    *   **Tables:** Identify *any* data suitable for tabulation (comparisons, feature sets, structured data) and **construct** clear, well-formatted Markdown tables with headers and correct alignment (\`:--\`, \`:-:\`, \`--:\`).
+    *   **Code Blocks:** For *any* multi-line code, configuration snippets, or textual data examples, use fenced code blocks (\`\`\`) and specify the language (e.g., \`\`\`python\`) if known from context.
+    *   **Blockquotes:** Use \`>\` to set apart direct quotes, key definitions, important principles, or significant passages extracted verbatim.
+    *   **Horizontal Rules:** Use \`---\` *very sparingly* only to denote major thematic shifts if headings alone are insufficient for clarity across large sections.
+    *   **Definition Lists:** When the text defines multiple terms, systematically use the definition list format:
+        \`\`\`markdown
+        Term Being Defined
+        : Detailed definition or explanation derived from the text.
+        \`\`\`
+    *   **Task Lists:** Use \`- [ ]\` / \`- [x]\` *only if* the source text explicitly describes actionable steps or checklists.
+    *   **Mathematical/Scientific Notation:** When the text contains formulas or specific notation, represent them using HTML tags: \`<sub>subscript</sub>\` (e.g., \`H<sub>2</sub>O\`) and \`<sup>superscript</sup>\` (e.g., \`E=mc<sup>2</sup>\`).
+    *   **Footnotes:** If the text includes citations or asides that function like footnotes, replicate them using Markdown footnotes: \`[^tag]\` in the text and \`[^tag]: Full note content.\` at the end of a section or document.
+    *   **Diagrams/Graphs (Textual Representation):** Describe any diagrams, charts, or graphs mentioned in the text in **thorough detail**. Include: title, type (bar, line, pie, flow), axes labels, key data points, trends, relationships shown, and the overall conclusion or purpose of the visual as stated or implied by the text. **Do not** use placeholder language like "A graph shows...". *Describe* the graph's content and meaning. If the text provides data suitable for a simple textual chart (e.g., using characters or tables), attempt to create one.
+    *   **Highlighting:** Use \`==highlighted text==\` *only* if the source text uses explicit visual highlighting (e.g., yellow marker) or extremely strong emphasis that needs special distinction beyond bold/italics.
+
+3.  **Output Requirements:**
+    *   Generate **only** the raw Markdown note content.
+    *   **ABSOLUTELY NO** introductory sentences (e.g., "Here are the notes...") or concluding remarks.
+    *   Begin the output *immediately* with the first Markdown element (likely a `# Heading`).
+    *   Ensure the entire output is syntactically correct, highly structured, and information-rich Markdown.
+
+**Input Text Content:**
 ---
 ${noteInputText}
 ---
 
-**Generated Markdown Notes:**
+**Generated Exhaustive Markdown Notes (Adhering Strictly to ALL Instructions):**
 `; // No trailing characters
 
     let detailedNoteContent = 'AI detailed note generation failed.'; // Fallback content
@@ -234,29 +230,41 @@ Key Points:
     // Use a moderate slice for questions - enough context but not overwhelming
     const MAX_INPUT_CHARS_QUESTIONS = 25000; // ~6k tokens
 
-    const questionsPrompt = `Based on the following text content (and key points if available), generate exactly 10 multiple-choice study questions with 4 options (A, B, C, D), the correct answer letter, and a brief explanation for the correct answer.
+    const questionsPrompt = `Objective: Generate **ten (10) high-depth, intellectually stimulating multiple-choice questions (MCQs)** rigorously designed for effective studying and knowledge assessment. These questions MUST be based *exclusively* on the provided text content. They are required to probe deep understanding, critical analysis, and application of the material, extending significantly beyond elementary recall.
 
-Key Points (for context only):
-${keyPoints.join('\n')}
-
-Full Text (excerpt for question generation):
+Input Text:
 ---
 ${extractedText.slice(0, MAX_INPUT_CHARS_QUESTIONS)}
 ---
+(Context Only - Do Not Base Questions Solely Here: ${keyPoints.join('\n')})
 
-Format each question strictly as follows, separating each complete question block with '---DIVIDER---':
+**Mandatory Instructions:**
 
-Question: [Your question here]
-A) [Option A]
-B) [Option B]
-C) [Option C]
-D) [Option D]
-Correct: [Correct Answer Letter (A, B, C, or D)]
-Explanation: [Brief explanation why the chosen answer is correct]
+1.  **Quantity & Scope:** Generate **exactly 10** distinct MCQs. Collectively, these 10 questions MUST cover a **broad range** of the core concepts, arguments, and significant details presented throughout the *entire* provided text excerpt. Do not concentrate all questions on a single paragraph or idea.
+2.  **Strict Formatting:** Adhere **unfailingly** to the following format for *each* of the 10 questions. Separate each complete question block *only* with '---DIVIDER---'. No extra text before the first question or after the last divider.
+    Question: [Your insightful question requiring analysis, application, or interpretation of the text]
+    A) [Option A - Highly plausible distractor, incorrect based *only* on the text]
+    B) [Option B - Highly plausible distractor, incorrect based *only* on the text]
+    C) [Option C - The single, unambiguously correct answer, directly supported or inferred *only* from the text]
+    D) [Option D - Highly plausible distractor, incorrect based *only* on the text]
+    Correct: [Correct Answer Letter (A, B, C, or D)]
+    Explanation: [Detailed explanation justifying the correct answer by referencing specific evidence or logic within the text, AND concisely explaining why *each* distractor is textually incorrect.]
+3.  **Cognitive Depth & Quality (Non-Negotiable):**
+    *   **Required Question Types:** Focus exclusively on questions demanding:
+        *   **Analysis:** Break down information, identify relationships, differentiate components (e.g., "According to the text, what is the primary *relationship* between X and Y?").
+        *   **Application:** Apply concepts or principles from the text to a related hypothetical situation (must remain solvable *solely* from the text, e.g., "Based on the criteria described, which of the following would qualify as Z?").
+        *   **Interpretation:** Determine implications, meaning, or consequences suggested by the text (e.g., "The author implies that the main challenge is...?").
+        *   **Evaluation/Critique (if text supports):** Assess the validity of an argument or compare methods *as presented within the text* (e.g., "Based on the text, a key limitation of Method A compared to Method B is...?").
+    *   **Strictly Prohibited:** Generate **ZERO** questions that:
+        *   Merely ask for a definition already stated verbatim.
+        *   Are simple fill-in-the-blanks from text sentences.
+        *   Test isolated, trivial facts devoid of conceptual context.
+        *   Can be answered without genuinely understanding the text's core arguments or information.
+    *   **Distractor Design:** Incorrect options MUST be sophisticated. They must be relevant to the topic and plausibly confusable with the correct answer, representing common misunderstandings or subtle misreadings of the provided text. Avoid obviously wrong or irrelevant options.
+    *   **Text-Bound:** All elements (question stem, options, answer, explanation) MUST be derivable *solely and exclusively* from the provided text excerpt. **ABSOLUTELY NO external knowledge** is permitted. Explanations must pinpoint textual evidence.
+    *   **Clarity & Precision:** Ensure flawless grammar, unambiguous wording, and precise terminology as used in the text.
 
----DIVIDER---
-
-Generate exactly 10 distinct questions in this precise format. Ensure all parts (Question, A, B, C, D, Correct, Explanation) are present for every question.`;
+Generate **exactly 10** MCQs fulfilling **all** these stringent requirements. Prioritize cognitive depth and textual accuracy above all else. Produce a substantial and challenging set of study questions.`;
 
     const questionsOptions = {
       method: 'POST',
@@ -265,7 +273,7 @@ Generate exactly 10 distinct questions in this precise format. Ensure all parts 
         contents: [{ parts: [{ text: questionsPrompt }] }],
         generationConfig: {
             temperature: 0.5,
-            maxOutputTokens: 3000 // Increased slightly for potentially more complex explanations/questions
+            maxOutputTokens: 5000 // Increased slightly for potentially more complex explanations/questions
         }
       })
     };
