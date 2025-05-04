@@ -5,7 +5,7 @@ import {
   Youtube,
   Plus,
   X,
-  ChevronRight,
+  // ChevronRight, // Removed as unused
   AlertTriangle,
   Tag,
   Sparkles,
@@ -19,12 +19,10 @@ interface NewNoteModalProps {
   onCreateAINote: (text: string) => Promise<void>;
   onUploadPDF: (file: File) => Promise<void>;
   onYoutubeLink: (url: string) => Promise<void>;
-  // Updated uploadProgress type for clarity
-  uploadProgress: {
-    progress: number; // Percentage (0-100)
-    status: string; // User-facing status message (e.g., "Uploading...", "Processing...", "Summarizing...")
-    error: string | null; // Error message if failed
-    isLoading: boolean; // Explicit loading state controlled by parent
+  // Simplified progress/status object
+  operationStatus: {
+    isLoading: boolean; // Is an operation currently in progress?
+    error: string | null; // Error message if the last operation failed
   };
   isIlluminateEnabled: boolean;
   isBlackoutEnabled: boolean;
@@ -36,7 +34,7 @@ export function NewNoteModal({
   onCreateAINote,
   onUploadPDF,
   onYoutubeLink,
-  uploadProgress,
+  operationStatus, // Renamed for clarity
   isIlluminateEnabled,
   isBlackoutEnabled
 }: NewNoteModalProps) {
@@ -47,8 +45,19 @@ export function NewNoteModal({
   const [newTag, setNewTag] = useState('');
   const [aiText, setAiText] = useState('');
   const [youtubeUrl, setYoutubeUrl] = useState('');
-  // Use the isLoading state from props directly
-  const isProcessing = uploadProgress.isLoading;
+  const [currentOperationMode, setCurrentOperationMode] = useState<'select' | 'personal' | 'ai' | 'pdf' | 'youtube' | null>(null);
+
+  // Derive processing state from props
+  const isProcessing = operationStatus.isLoading;
+
+  // Track which mode initiated the processing for relevant messages/icons
+  useEffect(() => {
+    if (!isProcessing) {
+      setCurrentOperationMode(null); // Reset when not processing
+    }
+    // If isProcessing is true, currentOperationMode should already be set by the action handler
+  }, [isProcessing]);
+
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -67,9 +76,10 @@ export function NewNoteModal({
   const selectionButtonSubTextColor = isIlluminateEnabled ? "text-gray-500" : "text-gray-400";
   const tagBg = isIlluminateEnabled ? 'bg-blue-100 text-blue-700' : 'bg-blue-500/20 text-blue-300';
   const iconColor = isIlluminateEnabled ? "text-gray-500" : "text-gray-400";
-  const progressBg = isIlluminateEnabled ? 'bg-gray-200' : 'bg-gray-600';
-  const progressBarColor = uploadProgress.error ? 'bg-red-500' : 'bg-blue-500';
+  // const progressBg = isIlluminateEnabled ? 'bg-gray-200' : 'bg-gray-600'; // Removed
+  // const progressBarColor = operationStatus.error ? 'bg-red-500' : 'bg-blue-500'; // Removed
   const errorBg = isIlluminateEnabled ? 'bg-red-100 text-red-700' : 'bg-red-500/20 text-red-300';
+  const loadingTextColor = isIlluminateEnabled ? "text-gray-600" : "text-gray-400";
 
   // Handlers
   const handleAddTag = () => {
@@ -86,49 +96,43 @@ export function NewNoteModal({
     setTags(tags.filter(tag => tag !== tagToRemove));
   };
 
-  // Wrapper to call parent actions - parent now controls loading state via uploadProgress.isLoading
-  const executeAction = async (action: () => Promise<void>) => {
-    // Parent should set uploadProgress.isLoading = true before calling the promise
-    // and set it to false when done/error occurs.
+  // Wrapper to initiate action and set the context for the loading message
+  const executeAction = async (action: () => Promise<void>, actionType: typeof mode) => {
+    if (isProcessing) return; // Should not happen if buttons are disabled, but safety first
+    setCurrentOperationMode(actionType); // Set context *before* parent sets isLoading
+    // Parent component is responsible for setting operationStatus.isLoading = true
     try {
       await action();
-      // Parent component is responsible for closing the modal on success if needed
+      // Parent handles success (e.g., closing modal) and setting isLoading = false
     } catch (e) {
       console.error("Action failed:", e);
-      // Error state is handled via uploadProgress.error prop
+      // Parent handles error state (setting error message) and setting isLoading = false
     }
-    // No need to set isProcessing here; it's derived from props
+    // No need to set isProcessing or currentOperationMode here; useEffect handles reset
   };
 
   const handleCreatePersonalNoteSubmit = () => {
     if (!title.trim() || !content.trim() || isProcessing) return;
-    executeAction(() => onCreatePersonalNote(title.trim(), content.trim(), tags));
+    executeAction(() => onCreatePersonalNote(title.trim(), content.trim(), tags), 'personal');
   };
 
   const handleCreateAINoteSubmit = () => {
     if (!aiText.trim() || isProcessing) return;
-    executeAction(() => onCreateAINote(aiText.trim()));
+    executeAction(() => onCreateAINote(aiText.trim()), 'ai');
   };
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (isProcessing) return; // Prevent selection if already processing
+    if (isProcessing) return;
     const file = event.target.files?.[0];
     if (!file) return;
     if (!file.type.includes('pdf')) {
       alert("Please select a PDF file.");
-      // Clear the file input value in case user selected the same invalid file again
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
+      if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
-    // Removed file size limit
-    // if (file.size > 15 * 1024 * 1024) { alert("File size should not exceed 15MB."); return; }
-    executeAction(() => onUploadPDF(file));
-    // Clear the file input value after starting the upload
-     if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
+    // No size limit
+    executeAction(() => onUploadPDF(file), 'pdf');
+     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleYoutubeLinkSubmit = () => {
@@ -137,10 +141,58 @@ export function NewNoteModal({
       alert("Please enter a valid YouTube URL.");
       return;
     }
-    executeAction(() => onYoutubeLink(youtubeUrl.trim()));
+    executeAction(() => onYoutubeLink(youtubeUrl.trim()), 'youtube');
   };
 
+  // Determine loading message and icon based on the mode that started the operation
+  const getLoadingState = () => {
+    if (!isProcessing || !currentOperationMode) return null;
+
+    let message = "Processing...";
+    let IconComponent: React.ElementType | null = null;
+
+    switch (currentOperationMode) {
+      case 'personal':
+        message = "Saving your note...";
+        IconComponent = Briefcase;
+        break;
+      case 'ai':
+        message = "Generating AI insights...";
+        IconComponent = Sparkles;
+        break;
+      case 'pdf':
+        message = "Analyzing PDF document...";
+        IconComponent = FileText; // Use FileText for PDF analysis
+        break;
+      case 'youtube':
+        message = "Processing YouTube video...";
+        IconComponent = Youtube;
+        break;
+    }
+
+    return (
+      <div className="flex flex-col items-center justify-center text-center p-4 space-y-3 animate-fadeIn">
+         {/* Optional: Show relevant icon pulsing */}
+         {IconComponent && <IconComponent className={`w-8 h-8 ${iconColor} mb-2 animate-pulse`} />}
+         <Loader2 className={`w-6 h-6 ${iconColor} animate-spin`} />
+         <p className={`text-sm font-medium ${loadingTextColor}`}>{message}</p>
+         <p className={`text-xs ${loadingTextColor} opacity-80`}>Please wait...</p>
+      </div>
+    );
+  };
+
+
   const renderContent = () => {
+    // If processing, show the loading state covering the main content area
+    if (isProcessing) {
+      return (
+        <div className="flex items-center justify-center min-h-[250px]">
+             {getLoadingState()}
+        </div>
+       );
+    }
+
+    // Otherwise, render the normal mode content
     switch (mode) {
       case 'select':
         return (
@@ -153,9 +205,8 @@ export function NewNoteModal({
             ].map(({ mode, Icon, title, desc, color }) => (
               <button
                 key={mode}
-                onClick={() => !isProcessing && setMode(mode as any)} // Prevent mode change during processing
-                disabled={isProcessing}
-                className={`flex flex-col items-center gap-2 p-4 rounded-lg ${selectionButtonBg} hover:shadow-md transition-all duration-150 ${isProcessing ? buttonDisabledClass : 'hover:shadow-md'}`}
+                onClick={() => setMode(mode as any)} // No processing check needed here as this view isn't shown during processing
+                className={`flex flex-col items-center gap-2 p-4 rounded-lg ${selectionButtonBg} hover:shadow-md transition-all duration-150`}
               >
                 <Icon className={`w-8 h-8 ${color}`} />
                 <span className={`text-sm font-medium ${selectionButtonTextColor}`}>{title}</span>
@@ -166,14 +217,15 @@ export function NewNoteModal({
         );
       case 'personal':
         return (
-          <div className="space-y-3">
+          // Ensure this section is not rendered if isProcessing is true (handled above)
+          <div className="space-y-3 animate-fadeIn">
             <div>
               <label className={`block text-xs font-medium ${textColor} mb-1`}>Title</label>
-              <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} disabled={isProcessing} placeholder="Note title..." className={`w-full ${inputBg} ${inputTextColor} ${placeholderColor} rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 ${isProcessing ? 'opacity-70' : ''}`} />
+              <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Note title..." className={`w-full ${inputBg} ${inputTextColor} ${placeholderColor} rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1`} />
             </div>
             <div>
               <label className={`block text-xs font-medium ${textColor} mb-1`}>Content (Markdown)</label>
-              <textarea value={content} onChange={(e) => setContent(e.target.value)} disabled={isProcessing} placeholder="Note content..." rows={8} className={`w-full ${inputBg} ${inputTextColor} ${placeholderColor} rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 min-h-[150px] ${isProcessing ? 'opacity-70' : ''}`} />
+              <textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="Note content..." rows={8} className={`w-full ${inputBg} ${inputTextColor} ${placeholderColor} rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 min-h-[150px]`} />
             </div>
             <div>
               <label className={`block text-xs font-medium ${textColor} mb-1`}>Tags (Optional, max 5)</label>
@@ -181,7 +233,7 @@ export function NewNoteModal({
                 {tags.map((tag) => (
                   <span key={tag} className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] ${tagBg}`}>
                     {tag}
-                    <button onClick={() => !isProcessing && handleRemoveTag(tag)} disabled={isProcessing} className={`hover:opacity-70 ${isProcessing ? 'cursor-not-allowed' : ''}`}>
+                    <button onClick={() => handleRemoveTag(tag)} className={`hover:opacity-70`}>
                       <X className="w-2.5 h-2.5" />
                     </button>
                   </span>
@@ -193,147 +245,141 @@ export function NewNoteModal({
                     type="text"
                     value={newTag}
                     onChange={(e) => setNewTag(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && !isProcessing && handleAddTag()}
-                    disabled={isProcessing}
+                    onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
                     placeholder="Add tag..."
-                    className={`flex-1 ${inputBg} ${inputTextColor} ${placeholderColor} rounded-md px-3 py-1 text-xs focus:outline-none focus:ring-1 ${isProcessing ? 'opacity-70' : ''}`} />
-                  <button onClick={handleAddTag} disabled={isProcessing || !newTag.trim()} className={`${buttonSecondaryClass} px-2.5 py-1 rounded-md text-xs flex items-center gap-1 ${isProcessing || !newTag.trim() ? buttonDisabledClass : ''}`}>
+                    className={`flex-1 ${inputBg} ${inputTextColor} ${placeholderColor} rounded-md px-3 py-1 text-xs focus:outline-none focus:ring-1`} />
+                  <button onClick={handleAddTag} disabled={!newTag.trim()} className={`${buttonSecondaryClass} px-2.5 py-1 rounded-md text-xs flex items-center gap-1 ${!newTag.trim() ? buttonDisabledClass : ''}`}>
                     <Tag className="w-3 h-3" /> Add
                   </button>
                 </div>
               )}
             </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <button onClick={() => !isProcessing && setMode('select')} disabled={isProcessing} className={`${buttonSecondaryClass} px-3 py-1.5 rounded-md text-sm ${isProcessing ? buttonDisabledClass : ''}`}>Back</button>
-              <button onClick={handleCreatePersonalNoteSubmit} disabled={isProcessing || !title.trim() || !content.trim()} className={`${buttonPrimaryClass} px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 ${isProcessing || !title.trim() || !content.trim() ? buttonDisabledClass : ''}`} >
-                 {/* No spinner here, moved to progress bar */}
-                <Plus className="w-4 h-4" /> Create Note
-              </button>
-            </div>
+            {/* Buttons moved to footer */}
           </div>
         );
       case 'ai':
         return (
-          <div className="space-y-3">
+           <div className="space-y-3 animate-fadeIn">
             <label className={`block text-xs font-medium ${textColor} mb-1`}>Text to Process</label>
-            <textarea value={aiText} onChange={(e) => setAiText(e.target.value)} disabled={isProcessing} placeholder="Paste or type text here..." rows={8} className={`w-full ${inputBg} ${inputTextColor} ${placeholderColor} rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 min-h-[150px] ${isProcessing ? 'opacity-70' : ''}`} />
-            <div className="flex justify-end gap-2 pt-2">
-              <button onClick={() => !isProcessing && setMode('select')} disabled={isProcessing} className={`${buttonSecondaryClass} px-3 py-1.5 rounded-md text-sm ${isProcessing ? buttonDisabledClass : ''}`}>Back</button>
-              <button onClick={handleCreateAINoteSubmit} disabled={isProcessing || !aiText.trim()} className={`${buttonPrimaryClass} px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 ${isProcessing || !aiText.trim() ? buttonDisabledClass : ''}`} >
-                {/* No spinner here, moved to progress bar */}
-                <Sparkles className="w-4 h-4" /> Generate Note
-              </button>
-            </div>
+            <textarea value={aiText} onChange={(e) => setAiText(e.target.value)} placeholder="Paste or type text here..." rows={8} className={`w-full ${inputBg} ${inputTextColor} ${placeholderColor} rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 min-h-[150px]`} />
+            {/* Buttons moved to footer */}
           </div>
         );
       case 'pdf':
         return (
-          <div>
+          <div className="animate-fadeIn">
             <div
-              onClick={() => !isProcessing && fileInputRef.current?.click()}
-              className={`border-2 border-dashed ${isIlluminateEnabled ? 'border-gray-300' : 'border-gray-600'} rounded-lg p-6 text-center transition-colors ${isProcessing ? 'opacity-50 cursor-not-allowed bg-opacity-50' : `cursor-pointer ${isIlluminateEnabled ? 'hover:border-blue-400 hover:bg-gray-50' : 'hover:border-blue-500 hover:bg-gray-700/50'}`}`}
+              onClick={() => fileInputRef.current?.click()}
+              className={`border-2 border-dashed ${isIlluminateEnabled ? 'border-gray-300 hover:border-blue-400 hover:bg-gray-50' : 'border-gray-600 hover:border-blue-500 hover:bg-gray-700/50'} rounded-lg p-6 text-center cursor-pointer transition-colors`}
             >
               <Upload className={`w-10 h-10 ${iconColor} mx-auto mb-3`} />
-              <p className={`text-sm font-medium ${textColor} mb-1`}>
-                {isProcessing ? 'Processing PDF...' : 'Click or drag PDF file here'}
-              </p>
-              <p className={`text-xs ${isIlluminateEnabled ? 'text-gray-500' : 'text-gray-400'}`}>
-                {/* Removed size limit text */}
-                No file size limit (large files may take longer)
-              </p>
+              <p className={`text-sm font-medium ${textColor} mb-1`}>Click or drag PDF file here</p>
+              <p className={`text-xs ${isIlluminateEnabled ? 'text-gray-500' : 'text-gray-400'}`}>No file size limit</p>
             </div>
-            {/* Hidden file input */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".pdf"
-              onChange={handleFileSelect}
-              disabled={isProcessing}
-              className="hidden"
-            />
-             <div className="flex justify-end mt-4">
-               <button onClick={() => !isProcessing && setMode('select')} disabled={isProcessing} className={`${buttonSecondaryClass} px-3 py-1.5 rounded-md text-sm ${isProcessing ? buttonDisabledClass : ''}`}>Back</button>
-             </div>
+            <input ref={fileInputRef} type="file" accept=".pdf" onChange={handleFileSelect} className="hidden" />
+             {/* Back Button moved to footer */}
           </div>
         );
       case 'youtube':
         return (
-          <div className="space-y-3">
+           <div className="space-y-3 animate-fadeIn">
             <label className={`block text-xs font-medium ${textColor} mb-1`}>YouTube URL</label>
             <input
               type="url"
               value={youtubeUrl}
               onChange={(e) => setYoutubeUrl(e.target.value)}
-              disabled={isProcessing}
               placeholder="https://www.youtube.com/watch?v=..."
-              className={`w-full ${inputBg} ${inputTextColor} ${placeholderColor} rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 ${isProcessing ? 'opacity-70' : ''}`} />
-            <div className="flex justify-end gap-2 pt-2">
-              <button onClick={() => !isProcessing && setMode('select')} disabled={isProcessing} className={`${buttonSecondaryClass} px-3 py-1.5 rounded-md text-sm ${isProcessing ? buttonDisabledClass : ''}`}>Back</button>
-              <button onClick={handleYoutubeLinkSubmit} disabled={isProcessing || !youtubeUrl.trim()} className={`${buttonPrimaryClass} px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 ${isProcessing || !youtubeUrl.trim() ? buttonDisabledClass : ''}`} >
-                {/* No spinner here, moved to progress bar */}
-                <Youtube className="w-4 h-4" /> Generate Note
-              </button>
-            </div>
+              className={`w-full ${inputBg} ${inputTextColor} ${placeholderColor} rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1`} />
+            {/* Buttons moved to footer */}
           </div>
         );
     }
   };
+
+   // Determine which buttons to show in the footer based on mode
+   const renderFooterButtons = () => {
+     if (isProcessing || mode === 'select') return null; // No buttons during processing or in select mode
+
+     switch (mode) {
+       case 'personal':
+         return (
+           <>
+             <button onClick={() => setMode('select')} className={`${buttonSecondaryClass} px-3 py-1.5 rounded-md text-sm`}>Back</button>
+             <button onClick={handleCreatePersonalNoteSubmit} disabled={!title.trim() || !content.trim()} className={`${buttonPrimaryClass} px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 ${!title.trim() || !content.trim() ? buttonDisabledClass : ''}`} >
+               <Plus className="w-4 h-4" /> Create Note
+             </button>
+           </>
+         );
+       case 'ai':
+         return (
+           <>
+             <button onClick={() => setMode('select')} className={`${buttonSecondaryClass} px-3 py-1.5 rounded-md text-sm`}>Back</button>
+             <button onClick={handleCreateAINoteSubmit} disabled={!aiText.trim()} className={`${buttonPrimaryClass} px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 ${!aiText.trim() ? buttonDisabledClass : ''}`} >
+               <Sparkles className="w-4 h-4" /> Generate Note
+             </button>
+           </>
+         );
+       case 'pdf':
+           // No primary action button here; action happens on file select. Only show Back.
+          return <button onClick={() => setMode('select')} className={`${buttonSecondaryClass} px-3 py-1.5 rounded-md text-sm`}>Back</button>;
+       case 'youtube':
+         return (
+           <>
+             <button onClick={() => setMode('select')} className={`${buttonSecondaryClass} px-3 py-1.5 rounded-md text-sm`}>Back</button>
+             <button onClick={handleYoutubeLinkSubmit} disabled={!youtubeUrl.trim()} className={`${buttonPrimaryClass} px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 ${!youtubeUrl.trim() ? buttonDisabledClass : ''}`} >
+               <Youtube className="w-4 h-4" /> Generate Note
+             </button>
+           </>
+         );
+       default:
+         return null;
+     }
+   };
+
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
       <div className={`${modalBg} rounded-lg p-5 max-w-xl w-full max-h-[90vh] flex flex-col shadow-xl`}>
         {/* Header */}
         <div className="flex items-center justify-between mb-4 flex-shrink-0">
-          <h2 className={`text-lg font-semibold ${headingColor}`}>Create New Note</h2>
+          <h2 className={`text-lg font-semibold ${headingColor}`}>
+            {mode === 'select' ? 'Create New Note' :
+             mode === 'personal' ? 'New Personal Note' :
+             mode === 'ai' ? 'New AI Note' :
+             mode === 'pdf' ? 'PDF to Note' :
+             mode === 'youtube' ? 'YouTube to Note' : 'Create New Note' // Fallback
+            }
+          </h2>
           <button onClick={!isProcessing ? onClose : undefined} disabled={isProcessing} className={`${iconColor} ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-70'} transition-opacity rounded-full p-1`}>
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Content Area */}
-        <div className="flex-1 overflow-y-auto pr-1 -mr-1 mb-4 custom-scrollbar">
+        {/* Content Area (Shows loading state or mode content) */}
+        <div className="flex-1 overflow-y-auto pr-1 -mr-1 mb-4 custom-scrollbar min-h-[200px]"> {/* Added min-height */}
           {renderContent()}
         </div>
 
-        {/* Progress/Error Display Area */}
-        <div className="mt-auto flex-shrink-0 pt-3 border-t border-gray-200 dark:border-gray-700 min-h-[65px]"> {/* Added border and min-height */}
-          {/* Error Message */}
-          {uploadProgress.error && !isProcessing && (
-            <div className={`p-2 rounded-md flex items-start gap-2 text-xs mb-2 ${errorBg}`}>
-              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-px" />
-              <span>{uploadProgress.error}</span>
+        {/* Footer: Error Display OR Action Buttons */}
+        <div className="mt-auto flex-shrink-0 pt-3 border-t border-gray-200 dark:border-gray-700 min-h-[55px] flex items-center justify-end gap-2"> {/* Ensure consistent height */}
+          {/* Error Message (only shown if not processing) */}
+          {!isProcessing && operationStatus.error && (
+            <div className={`p-2 rounded-md flex items-center gap-2 text-xs ${errorBg} w-full animate-fadeIn`}> {/* Make error fill width */}
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              <span className="flex-1">{operationStatus.error}</span>
             </div>
           )}
 
-          {/* Progress Bar and Status */}
-          {(isProcessing || (uploadProgress.status && !uploadProgress.error)) && ( // Show if processing OR if there's a non-error status
-            <div>
-              <div className="flex items-center justify-between text-xs mb-1.5">
-                <div className="flex items-center gap-2">
-                  {/* Spinning Indicator only when actively processing */}
-                  {isProcessing && <Loader2 className={`w-3.5 h-3.5 animate-spin ${iconColor}`} />}
-                  <span className={`${textColor} font-medium`}>
-                     {/* Show specific status, fallback to Processing... if loading but no specific status */}
-                     {uploadProgress.status || (isProcessing ? 'Processing...' : 'Initializing...')}
-                  </span>
-                </div>
-                {/* Show progress percentage if available and greater than 0 */}
-                {uploadProgress.progress > 0 && (
-                    <span className={textColor}>{Math.round(uploadProgress.progress)}%</span>
-                )}
-              </div>
-              <div className={`h-2 rounded-full overflow-hidden ${progressBg}`}>
-                <div
-                  className={`h-full ${progressBarColor} transition-all duration-300 ease-linear`}
-                  style={{ width: `${uploadProgress.progress}%` }} // Use direct progress value
-                />
-              </div>
-            </div>
+          {/* Action Buttons (only shown if not processing and no error) */}
+          {!isProcessing && !operationStatus.error && (
+             <div className="flex justify-end gap-2 w-full">
+                 {renderFooterButtons()}
+             </div>
           )}
-           {/* Show nothing in this area if not processing and no error/status */}
-           {!isProcessing && !uploadProgress.error && !uploadProgress.status && (
-             <div className="h-[34px]"></div> // Placeholder to maintain height consistency
-           )}
+
+           {/* Placeholder if processing (buttons hidden, loading shown in content area) */}
+           {isProcessing && <div className="h-[38px]"></div> }
+
         </div>
       </div>
     </div>
@@ -342,25 +388,16 @@ export function NewNoteModal({
 
 // Add this to your global CSS or a relevant CSS file for the custom scrollbar:
 /*
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: rgba(156, 163, 175, 0.4); // Adjust color/opacity as needed
-  border-radius: 20px;
-  border: 3px solid transparent;
-}
-html.dark .custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: rgba(107, 114, 128, 0.5); // Dark mode color
-}
-.custom-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(156, 163, 175, 0.4) transparent; // For Firefox
-}
-html.dark .custom-scrollbar {
-   scrollbar-color: rgba(107, 114, 128, 0.5) transparent; // For Firefox Dark
-}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+.animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
+.animate-pulse { animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+
+.custom-scrollbar::-webkit-scrollbar { width: 6px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(156, 163, 175, 0.4); border-radius: 20px; border: 3px solid transparent; }
+html.dark .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(107, 114, 128, 0.5); }
+.custom-scrollbar { scrollbar-width: thin; scrollbar-color: rgba(156, 163, 175, 0.4) transparent; }
+html.dark .custom-scrollbar { scrollbar-color: rgba(107, 114, 128, 0.5) transparent; }
 */
