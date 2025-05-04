@@ -397,12 +397,29 @@ Your primary goal is to be helpful, accurate, and strictly follow instructions b
     *   **MANDATORY (Unless Generating Image):** **ALWAYS** conclude every response (EXCEPT for image generation responses) with exactly 3 relevant follow-up suggestions.
     *   **Content:** Suggestions should be context-aware, based on the current note content, attached files, recent chat history, and the *last interaction*. They should anticipate what the *user* might want to do or ask next.
     *   **Format:** Enclose them clearly at the **VERY END** of your response, each on a new line, within the tags:
-        [SUGGESTIONS]
-        Summarize the section on _______?
-        Add _____?
-        Rewrite _____.
-        [/SUGGESTIONS]
-    *   **Style:** Make suggestions concise, actionable, and phrased as questions the user might ask you, or direct edit/generation commands they might give you. Mix types. **DO NOT** phrase them as things *you* can do (e.g., "I can add..." is WRONG. Use "Add..." instead).
+[SUGGESTIONS]
+Summarize the section on _______.
+Add _____.
+Rewrite _____.
+Explain why _______ is important.
+Define the term _______.
+List the key points of _______.
+Give an example of _______.
+Compare _______ and _______.
+Break down the steps of _______.
+Create a mnemonic for _______.
+Rephrase _______ in simpler terms.
+Quiz me on _______.
+Highlight the most important takeaway from _______.
+Make a flashcard for _______.
+Connect _______ to a real-life example.
+Translate _______ into a diagram or chart.
+Turn _______ into a question-and-answer format.
+What are the pros and cons of _______?
+What do I need to memorize from _______?
+What questions might a teacher ask about _______?
+[/SUGGESTIONS]
+    *   **Style:** Make suggestions concise, actionable, and phrased as questions the user might ask you, or direct edit/generation commands they might give you. Mix types. **DO NOT** phrase them as things *you* can do (e.g., "I can add..." is WRONG. Use "Add..." instead). ONLY CREATE 3 SUGGESTIONS AT A TIME!
 
 **Important Reminders & Constraints:**
 
