@@ -15,7 +15,7 @@ import {
 
 // --- Constants for Simulation ---
 const SIMULATION_INTERVAL = 150; // Update progress every 150ms
-const LONG_OPERATION_THRESHOLD = 10000; // Show warning after 10 seconds (10000ms)
+const LONG_OPERATION_THRESHOLD = 30000; // Show warning after 30 seconds (10000ms)
 
 // Simplified Status Update Times (adjust if needed based on new messages)
 const STATUS_UPDATE_TIMES = {
@@ -29,7 +29,7 @@ const ESTIMATED_DURATIONS = {
     pdf: 25000, // 25 seconds
     youtube: 30000, // 30 seconds
     ai: 12000, // 12 seconds
-    personal: 1500, // 1.5 seconds (very quick)
+    personal: 1000, // 1 seconds (very quick)
     select: 0,
 };
 
@@ -314,7 +314,7 @@ export function NewNoteModal({
          {showLongOperationWarning && (
             <div className={`flex items-center gap-1.5 text-xs ${loadingTextColor} opacity-90 mt-2 p-1.5 rounded-md ${isIlluminateEnabled ? 'bg-yellow-100/60' : 'bg-yellow-500/10'}`}>
                 <Clock className="w-3 h-3 text-yellow-500 dark:text-yellow-400" />
-                <span>This seems to be taking a while...</span>
+                <span>This may take a while...</span>
             </div>
          )}
       </div>
