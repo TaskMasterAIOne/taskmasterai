@@ -113,7 +113,7 @@ export async function processPDF(
     }
 
     // Using Gemini 1.5 Flash - chosen for its large context window suitable for entire documents.
-    const GEMINI_MODEL = 'gemini-2.0-flash'; // Using 1.5 for large context
+    const GEMINI_MODEL = 'gemini-2.5-flash-preview-04-17'; // Using 1.5 for large context
     const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiApiKey}`;
 
     let extractedText = '';
@@ -257,7 +257,7 @@ ${noteInputText}
                     contents: [{ parts: [{ text: detailedNotePrompt }] }],
                     generationConfig: {
                         temperature: 0.65, // Slightly increased temperature for more elaborative/explanatory style
-                        maxOutputTokens: 8192, // Keep high for potentially very long notes
+                        maxOutputTokens: 65536, // Keep high for potentially very long notes
                         // topP: 0.95,
                         // topK: 40
                     }
