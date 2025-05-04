@@ -139,7 +139,7 @@ export async function processPDF(
     }
 
     // Using Gemini 1.5 Flash - balances speed, cost, and large context.
-    const GEMINI_MODEL = 'gemini-2.0-flash'; // Use 'latest' tag
+    const GEMINI_MODEL = 'gemini-2.5-flash-preview-04-17'; // Use 'latest' tag
     const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiApiKey}`;
 
     let extractedText = '';
@@ -314,7 +314,7 @@ ${noteInputText}
                     generationConfig: {
                         temperature: 0.6, // Balanced temperature for detailed but creative text
                         // Max output tokens set high for Gemini 1.5 Flash capability
-                        maxOutputTokens: 8192,
+                        maxOutputTokens: 65536,
                         // topP and topK can also be adjusted if needed, but often temp is sufficient
                         // topP: 0.95,
                         // topK: 40
