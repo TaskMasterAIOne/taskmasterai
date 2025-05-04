@@ -21,7 +21,7 @@ import {
   BrainCircuit,
   Star,
 } from 'lucide-react';
-import { Sidebar } from './Sidebar'; // Assuming Sidebar is in the same directory or adjust path
+import { Sidebar } from './Sidebar'; // Adjust path if needed
 import {
   updateUserProfile,
   signOutUser,
@@ -37,13 +37,13 @@ import {
   saveUserContext,
   getUserContext,
   UserContext
-} from '../lib/ai-context-firebase'; // Adjusted path
+} from '../lib/ai-context-firebase'; // Adjust path as needed
 
 // --- IMPORT Centralized Tier Logic ---
 import {
   // UserTier, // Import the type if needed for other logic, currently just used internally
   getUserTier // Import the function
-} from '../lib/current-paying-user'; // Correct path
+} from '../lib/current-paying-user'; // Adjust path as needed
 
 // Firebase User type
 import { User } from 'firebase/auth';
@@ -82,28 +82,14 @@ export function Settings() {
 
 
   // Sidebar state
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
-    const stored = localStorage.getItem('isSidebarCollapsed');
-    return stored ? JSON.parse(stored) : false;
-  });
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => JSON.parse(localStorage.getItem('isSidebarCollapsed') || 'false'));
 
-  // --- Theme States (Unchanged from previous update) ---
-  const [isIlluminateEnabled, setIsIlluminateEnabled] = useState(() => {
-    const stored = localStorage.getItem('isIlluminateEnabled');
-    return stored !== null ? JSON.parse(stored) : false;
-  });
-  const [isBlackoutEnabled, setIsBlackoutEnabled] = useState(() => {
-    const stored = localStorage.getItem('isBlackoutEnabled');
-    return stored !== null ? JSON.parse(stored) : false;
-  });
-  const [isSidebarIlluminateEnabled, setIsSidebarIlluminateEnabled] = useState(() => {
-    const storedSidebar = localStorage.getItem('isSidebarIlluminateEnabled');
-    return storedSidebar !== null ? JSON.parse(storedSidebar) : false;
-  });
-  const [isSidebarBlackoutEnabled, setIsSidebarBlackoutEnabled] = useState(() => {
-    const storedSidebar = localStorage.getItem('isSidebarBlackoutEnabled');
-    return storedSidebar !== null ? JSON.parse(storedSidebar) : false;
-  });
+
+  // --- Theme States Initialization (Reads from localStorage, defaults to false) ---
+  const [isIlluminateEnabled, setIsIlluminateEnabled] = useState(() => JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'false'));
+  const [isBlackoutEnabled, setIsBlackoutEnabled] = useState(() => JSON.parse(localStorage.getItem('isBlackoutEnabled') || 'false'));
+  const [isSidebarIlluminateEnabled, setIsSidebarIlluminateEnabled] = useState(() => JSON.parse(localStorage.getItem('isSidebarIlluminateEnabled') || 'false'));
+  const [isSidebarBlackoutEnabled, setIsSidebarBlackoutEnabled] = useState(() => JSON.parse(localStorage.getItem('isSidebarBlackoutEnabled') || 'false'));
   // --- End Theme States ---
 
 
@@ -119,37 +105,36 @@ export function Settings() {
   // Determine if user signed in via Google
   const [isGoogleUser, setIsGoogleUser] = useState<boolean>(false);
 
-  // --- REMOVED Local Email Lists ---
-  // const PREMIUM_EMAILS = [...]; // REMOVED
-  // const PRO_EMAILS = [...]; // REMOVED
-
   // --- Tier State (Determined using getUserTier) ---
   const [isPremiumUser, setIsPremiumUser] = useState<boolean>(false);
   const [isProUser, setIsProUser] = useState<boolean>(false);
 
   // ---------------------------
-  //    APPLY & PERSIST THEME CHANGES (REVISED - Body class manipulation removed)
+  //    APPLY & PERSIST THEME CHANGES (REVISED - Reinstating body class management)
   // ---------------------------
   useEffect(() => {
-    // --- REMOVED BODY CLASS MANIPULATION ---
-    // document.body.classList.remove('illuminate-mode', 'blackout-mode');
-    // if (isIlluminateEnabled) {
-    //   document.body.classList.add('illuminate-mode');
-    // } else if (isBlackoutEnabled) {
-    //   document.body.classList.add('blackout-mode');
-    // }
-    // --- END REMOVED BODY CLASS MANIPULATION ---
+    // 1. Always remove both theme classes first to ensure a clean state
+    document.body.classList.remove('illuminate-mode', 'blackout-mode');
 
-    // Persist the current state to localStorage
+    // 2. Conditionally add the *correct* class based on the current state
+    if (isIlluminateEnabled) {
+      document.body.classList.add('illuminate-mode');
+    } else if (isBlackoutEnabled) {
+      // Only add blackout if illuminate is definitely off
+      document.body.classList.add('blackout-mode');
+    }
+    // If both are false, neither class is added, relying on default body styles or component styles
+
+    // 3. Persist all theme states to localStorage
     localStorage.setItem('isIlluminateEnabled', JSON.stringify(isIlluminateEnabled));
     localStorage.setItem('isBlackoutEnabled', JSON.stringify(isBlackoutEnabled));
     localStorage.setItem('isSidebarIlluminateEnabled', JSON.stringify(isSidebarIlluminateEnabled));
     localStorage.setItem('isSidebarBlackoutEnabled', JSON.stringify(isSidebarBlackoutEnabled));
-  }, [isIlluminateEnabled, isBlackoutEnabled, isSidebarIlluminateEnabled, isSidebarBlackoutEnabled]);
 
+  }, [isIlluminateEnabled, isBlackoutEnabled, isSidebarIlluminateEnabled, isSidebarBlackoutEnabled]); // Rerun when any theme state changes
 
   // ---------------------------
-  //    LOAD USER DATA & AI CONTEXT (UPDATED TIER LOGIC)
+  //    LOAD USER DATA & AI CONTEXT
   // ---------------------------
   useEffect(() => {
     setIsLoading(true);
@@ -163,14 +148,14 @@ export function Settings() {
       }
       setUser(currentUser);
 
-      // --- Determine Tier using centralized function ---
+      // Determine Tier using centralized function
       const tier = getUserTier(currentUser.email);
       setIsPremiumUser(tier === 'premium');
       setIsProUser(tier === 'pro');
       // --- End Tier Determination ---
 
       const googleFlag = currentUser.providerData?.some((p: any) => p.providerId === 'google.com');
-      setIsGoogleUser(googleFlag);
+      setIsGoogleUser(!!googleFlag); // Ensure boolean
 
       // Load Profile Data
       try {
@@ -217,7 +202,7 @@ export function Settings() {
   }, [navigate]); // Dependency array remains the same
 
   // ---------------------------
-  //    SIDEBAR COLLAPSE (Unchanged)
+  //    SIDEBAR COLLAPSE
   // ---------------------------
   useEffect(() => {
     localStorage.setItem('isSidebarCollapsed', JSON.stringify(isSidebarCollapsed));
@@ -228,43 +213,45 @@ export function Settings() {
   };
 
   // ---------------------------
-  //    THEME TOGGLE HANDLERS (Unchanged)
+  //    THEME TOGGLE HANDLERS (With Mutual Exclusion)
   // ---------------------------
   const handleToggleIlluminate = (checked: boolean) => {
     setIsIlluminateEnabled(checked);
     if (checked) {
+      // If turning Illuminate ON, ensure Blackout is OFF
       setIsBlackoutEnabled(false);
-      setIsSidebarIlluminateEnabled(true); // Keep sidebar sync logic
+      // Sync sidebar state
+      setIsSidebarIlluminateEnabled(true);
       setIsSidebarBlackoutEnabled(false);
-    }
-    else {
-        // Only turn off sidebar light if main light and main dark are off
-        if (!isBlackoutEnabled) {
-            setIsSidebarIlluminateEnabled(false);
-        }
+    } else {
+      // If turning Illuminate OFF, only turn off sidebar light if Blackout is also OFF
+      if (!isBlackoutEnabled) { // Check the *other* theme's state
+          setIsSidebarIlluminateEnabled(false);
+      }
     }
   };
 
   const handleToggleBlackout = (checked: boolean) => {
     setIsBlackoutEnabled(checked);
     if (checked) {
+      // If turning Blackout ON, ensure Illuminate is OFF
       setIsIlluminateEnabled(false);
-      setIsSidebarBlackoutEnabled(true); // Keep sidebar sync logic
+      // Sync sidebar state
+      setIsSidebarBlackoutEnabled(true);
       setIsSidebarIlluminateEnabled(false);
-    }
-    else {
-        // Only turn off sidebar dark if main dark and main light are off
-        if (!isIlluminateEnabled) {
-            setIsSidebarBlackoutEnabled(false);
-        }
+    } else {
+      // If turning Blackout OFF, only turn off sidebar dark if Illuminate is also OFF
+      if (!isIlluminateEnabled) { // Check the *other* theme's state
+          setIsSidebarBlackoutEnabled(false);
+      }
     }
   };
 
   // ---------------------------
-  //    DYNAMIC TAILWIND CLASSES (Unchanged)
+  //    DYNAMIC TAILWIND CLASSES (Crucially includes default dark theme)
   // ---------------------------
-  const containerClass = isIlluminateEnabled ? "bg-gray-50 text-gray-900" : isBlackoutEnabled ? "bg-black text-gray-200" : "bg-gray-900 text-gray-200"; // Default is dark
-  const cardClass = isIlluminateEnabled ? "bg-white text-gray-900 border border-gray-200/70 shadow-sm" : isBlackoutEnabled ? "bg-gray-900 text-gray-300 border border-gray-700/50 shadow-md shadow-black/20" : "bg-gray-800 text-gray-300 border border-gray-700/50 shadow-lg shadow-black/20";
+  const containerClass = isIlluminateEnabled ? "bg-gray-50 text-gray-900" : isBlackoutEnabled ? "bg-black text-gray-200" : "bg-gray-900 text-gray-200"; // Default: Dark Gray
+  const cardClass = isIlluminateEnabled ? "bg-white text-gray-900 border border-gray-200/70 shadow-sm" : isBlackoutEnabled ? "bg-gray-900 text-gray-300 border border-gray-700/50 shadow-md shadow-black/20" : "bg-gray-800 text-gray-300 border border-gray-700/50 shadow-lg shadow-black/20"; // Default: Lighter Dark Gray
   const headingClass = isIlluminateEnabled ? "text-gray-800" : "text-gray-100";
   const subheadingClass = isIlluminateEnabled ? "text-gray-600" : "text-gray-400";
   const inputBg = isIlluminateEnabled ? "bg-gray-100 hover:bg-gray-200/50 border-gray-300 focus:border-blue-500 focus:ring-blue-500" : "bg-gray-700 hover:bg-gray-600/50 border-gray-600 focus:border-blue-500 focus:ring-blue-500";
@@ -283,9 +270,8 @@ export function Settings() {
   const deleteModalText = isIlluminateEnabled ? 'text-gray-700' : 'text-gray-200';
   const deleteModalOverlay = 'bg-black/60 backdrop-blur-sm';
 
-
   // ---------------------------
-  //    FORM INPUT CHANGES (Unchanged)
+  //    FORM INPUT CHANGES
   // ---------------------------
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setError(null);
@@ -293,7 +279,7 @@ export function Settings() {
   };
 
   // ---------------------------
-  //    AI CONTEXT INPUT CHANGES (Unchanged)
+  //    AI CONTEXT INPUT CHANGES
   // ---------------------------
    const handleAiContextInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
      setAiContextError(null);
@@ -301,7 +287,7 @@ export function Settings() {
    };
 
   // ---------------------------
-  //    PROFILE PICTURE (Unchanged)
+  //    PROFILE PICTURE
   // ---------------------------
   const handleProfilePictureClick = () => { if (!isUploading) fileInputRef.current?.click(); };
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -310,22 +296,19 @@ export function Settings() {
     if (file.size > 5 * 1024 * 1024) { setError('Image is too large (max 5MB).'); return; }
     setIsUploading(true); setError(null);
     try {
+      // Use the imported function, passing the UID
       const updatedProfile = await updateUserProfile({ photoFile: file }, user.uid);
-      if (updatedProfile?.photoURL) { setUserData(prev => ({ ...prev, photoURL: updatedProfile.photoURL })); }
-      else {
-         // Fallback: Refresh user data if URL isn't directly returned
-         const refreshedUser = getCurrentUser();
-         if (refreshedUser) {
-           setUser(refreshedUser);
-           const refreshedFirestoreData = await getUserData(refreshedUser.uid);
-           setUserData(prev => ({
-               ...prev,
-               photoURL: refreshedFirestoreData?.photoURL || refreshedUser.photoURL || '',
-               name: refreshedFirestoreData?.name || refreshedUser.displayName || prev.name
-            }));
-         }
-         console.warn("Profile picture updated, but URL not returned directly. User data refreshed.");
-      }
+      // Use returned URL if available, otherwise refresh
+      const newPhotoURL = updatedProfile?.photoURL || getCurrentUser()?.photoURL || '';
+      // Update Firestore data as well if name was included in updatedProfile or needs refresh
+      const refreshedFirestoreData = await getUserData(user.uid);
+      setUserData(prev => ({
+          ...prev,
+          photoURL: refreshedFirestoreData?.photoURL || newPhotoURL, // Prefer Firestore URL after update
+          name: refreshedFirestoreData?.name || prev.name // Update name if changed in Firestore
+      }));
+      // Update the main user state if needed (though photoURL might be handled by listener)
+      const refreshedUser = getCurrentUser(); if (refreshedUser) setUser(refreshedUser);
     } catch (err) { console.error("Upload Error:", err); setError(err instanceof AuthError ? err.message : 'Failed to upload profile picture.'); }
     finally { setIsUploading(false); if (fileInputRef.current) fileInputRef.current.value = ""; }
   };
@@ -333,18 +316,16 @@ export function Settings() {
     if (!user || !userData.photoURL) return; if (!window.confirm('Are you sure you want to remove your profile picture?')) { return; }
     setIsUploading(true); setError(null);
     try {
-        await deleteProfilePicture(user.uid);
+        await deleteProfilePicture(user.uid); // Use the imported function
         setUserData(prev => ({ ...prev, photoURL: '' }));
-        // Also potentially update the user state if firebase auth profile was updated
-        const refreshedUser = getCurrentUser();
-        if (refreshedUser) setUser(refreshedUser);
+        const refreshedUser = getCurrentUser(); if (refreshedUser) setUser(refreshedUser); // Refresh user state
     }
     catch (err) { console.error("Remove Picture Error:", err); setError(err instanceof AuthError ? err.message : 'Failed to remove profile picture.'); }
     finally { setIsUploading(false); }
   };
 
   // ---------------------------
-  //    PROFILE SAVE (Unchanged)
+  //    PROFILE SAVE
   // ---------------------------
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault(); setError(null); setIsSaving(true);
@@ -357,7 +338,7 @@ export function Settings() {
       // Check Name
       const trimmedName = formData.name.trim();
       if (trimmedName !== userData.name) {
-          if (!trimmedName) throw new AuthError('Name cannot be empty.');
+          if (!trimmedName) { throw new AuthError('Name cannot be empty.'); }
           updateData.name = trimmedName;
       }
 
@@ -365,13 +346,13 @@ export function Settings() {
       if (!isGoogleUser) {
           const trimmedEmail = formData.email.trim();
           if (trimmedEmail !== userData.email) {
-              if (!trimmedEmail) throw new AuthError('Email cannot be empty.');
+              if (!trimmedEmail) { throw new AuthError('Email cannot be empty.'); }
               updateData.email = trimmedEmail;
               requiresPassword = true;
           }
           if (formData.newPassword) {
-              if (formData.newPassword.length < 6) throw new AuthError('New password must be at least 6 characters.');
-              if (formData.newPassword !== formData.confirmPassword) throw new AuthError('New passwords do not match.');
+              if (formData.newPassword.length < 6) { throw new AuthError('New password must be at least 6 characters.'); }
+              if (formData.newPassword !== formData.confirmPassword) { throw new AuthError('New passwords do not match.'); }
               updateData.newPassword = formData.newPassword;
               requiresPassword = true;
           }
@@ -387,7 +368,7 @@ export function Settings() {
 
       // Perform update if there are changes
       if (Object.keys(updateData).length > 0) {
-          await updateUserProfile(updateData, user.uid);
+          await updateUserProfile(updateData, user.uid); // Pass UID
 
           // Refresh user data from both Auth and Firestore after update
           const refreshedUser = getCurrentUser(); // Get updated Auth profile
@@ -424,7 +405,7 @@ export function Settings() {
 
 
   // ---------------------------
-  //    AI CONTEXT SAVE & CANCEL (Unchanged)
+  //    AI CONTEXT SAVE & CANCEL
   // ---------------------------
    const handleSaveAiContext = async () => {
        if (!user?.uid) { setAiContextError("User not authenticated."); return; }
@@ -454,7 +435,7 @@ export function Settings() {
     };
 
   // ---------------------------
-  //    SIGN OUT (Unchanged)
+  //    SIGN OUT
   // ---------------------------
   const handleSignOut = async () => {
     setError(null);
@@ -468,7 +449,7 @@ export function Settings() {
   };
 
   // ---------------------------
-  //    DELETE ACCOUNT (Unchanged)
+  //    DELETE ACCOUNT
   // ---------------------------
   const handleDeleteAccount = async () => {
     setError(null); setIsDeleting(true);
@@ -501,11 +482,11 @@ export function Settings() {
 
 
   // ---------------------------
-  //    RENDER (Main structure unchanged)
+  //    RENDER
   // ---------------------------
   return (
-    <div className={`flex flex-col min-h-screen ${containerClass}`}> {/* Root container applies theme */}
-      {/* Sidebar */}
+    // The root div now correctly applies the theme based on state
+    <div className={`flex flex-col min-h-screen ${containerClass}`}>
       <Sidebar
         isCollapsed={isSidebarCollapsed}
         onToggle={handleToggleSidebar}
@@ -1092,10 +1073,10 @@ export function Settings() {
                   </div>
               </div>
             </div>
-          </div>
-        </div>
+          </div> {/* End Grid */}
+        </div> {/* End Container */}
       </main>
-    </div>
+    </div> // End Root Div
   );
 }
 
