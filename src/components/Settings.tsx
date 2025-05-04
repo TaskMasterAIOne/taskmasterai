@@ -326,11 +326,6 @@ export function Settings() {
               <p className={`${errorTextColor} text-xs sm:text-sm`}>{error}</p>
             </div>
           )}
-          {isLoading && (
-            <div className="flex justify-center items-center py-10">
-              <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-            </div>
-          )}
           {!isLoading && user && (
              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
                <div className="flex flex-col gap-4 lg:gap-6">
