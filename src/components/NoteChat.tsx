@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react';
-import { MessageCircle, Send, Timer as TimerIcon, Paperclip, Bot, X, AlertTriangle, Loader2, Sparkles, ChevronDown, Maximize, Minimize, Edit, Check, RefreshCcw, Crown, Image as ImageIcon, Download } from 'lucide-react';
+// Changed Sparkles to ImageIcon here
+import { MessageCircle, Send, Timer as TimerIcon, Paperclip, Bot, X, AlertTriangle, Loader2, ImageIcon, ChevronDown, Maximize, Minimize, Edit, Check, RefreshCcw, Crown, Download } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useNavigate, Link } from "react-router-dom";
 import remarkMath from 'remark-math';
@@ -92,6 +93,7 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 3, de
             if (!response.ok) {
                 let errorText = `API Error (${response.status})`;
                  try { const errJson = await response.json(); errorText = errJson?.error?.message || errorText; } catch { }
+                 // Keep API-level size error handling
                  if (errorText.toLowerCase().includes("context length") || errorText.toLowerCase().includes("request payload size") || errorText.toLowerCase().includes("request entity too large")) { throw new Error("Error: The note content and/or attached files are too large for the AI to process."); }
                  if (errorText.toLowerCase().includes("unsupported user location")) { throw new Error("Error: Image generation is not available in your region."); }
                  if (errorText.toLowerCase().includes("response must contain text") && url.includes(GEMINI_IMAGE_GEN_MODEL)) { throw new Error("Error: Image generation failed. The model might require a different prompt or could not fulfill the request safely."); }
@@ -158,6 +160,7 @@ const parseGeminiResponse = (responseText: string, isImageGenCall: boolean): { t
 
         } else if (jsonResponse?.error?.message) {
              errorMessage = `API Error: ${jsonResponse.error.message}`;
+             // Keep API-level size error handling
              if (errorMessage.toLowerCase().includes("context length") || errorMessage.toLowerCase().includes("request payload size") || errorMessage.toLowerCase().includes("request entity too large")) { errorMessage = "Error: The note content and/or attached files are too large for the AI to process."; }
              else if (errorMessage.toLowerCase().includes("api key not valid")) { errorMessage = "Error: Invalid API Key."; }
              else if (errorMessage.toLowerCase().includes("quota exceeded")) { errorMessage = "Error: API Quota Exceeded."; }
@@ -179,6 +182,7 @@ const parseGeminiResponse = (responseText: string, isImageGenCall: boolean): { t
             if (responseText.toLowerCase().includes("api key not valid")) return { text: null, imageData: null, error: "Error: Invalid API Key.", finishReason: null, suggestions: [] };
             if (responseText.toLowerCase().includes("quota exceeded")) return { text: null, imageData: null, error: "Error: API Quota Exceeded.", finishReason: null, suggestions: [] };
             if (responseText.toLowerCase().includes("internal server error") || responseText.toLowerCase().includes("service unavailable")) return { text: null, imageData: null, error: "Error: AI service is temporarily unavailable. Please try again later.", finishReason: null, suggestions: [] };
+            // Keep API-level size error handling
             if (responseText.toLowerCase().includes("context length") || responseText.toLowerCase().includes("request payload size") || responseText.toLowerCase().includes("request entity too large")) return { text: null, imageData: null, error: "Error: The note content and/or attached files are too large for the AI to process.", finishReason: null, suggestions: [] };
             if (responseText.toLowerCase().includes("unsupported user location")) return { text: null, imageData: null, error: "Error: Image generation is not available in your region.", finishReason: null, suggestions: [] };
             return { text: null, imageData: null, error: `Error: Could not process AI response. Raw: ${responseText.substring(0, 100)}...`, finishReason: null, suggestions: [] };
@@ -218,21 +222,34 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
         const currentChatLimit = useMemo(() => getChatLimitForTier(userTier), [userTier]);
 
         const overlayBg = isIlluminateEnabled ? "bg-white" : isBlackoutEnabled ? "bg-black border border-gray-700/60" : "bg-gray-800"; const headerBg = isIlluminateEnabled ? "bg-gray-50/90 border-gray-200" : "bg-gray-900/80 border-gray-700"; const headingColor = isIlluminateEnabled ? "text-gray-800" : "text-white"; const inputBg = isIlluminateEnabled ? "bg-gray-100 border-gray-300 focus:border-blue-500 focus:ring-blue-500" : "bg-gray-700 border-gray-600 focus:border-blue-500 focus:ring-blue-500"; const inputTextColor = isIlluminateEnabled ? "text-gray-900" : "text-gray-200"; const placeholderColor = isIlluminateEnabled ? "placeholder-gray-400" : "placeholder-gray-500"; const buttonPrimaryClass = "bg-blue-600 hover:bg-blue-700 text-white"; const buttonSecondaryClass = isIlluminateEnabled ? "bg-gray-200 hover:bg-gray-300 text-gray-700" : "bg-gray-600 hover:bg-gray-500 text-gray-300"; const suggestionButtonClass = isIlluminateEnabled ? "bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200" : "bg-gray-700 hover:bg-gray-600 text-gray-300 border border-gray-600"; const buttonDisabledClass = "opacity-50 cursor-not-allowed"; const userBubbleClass = isIlluminateEnabled ? 'bg-blue-500 text-white' : 'bg-blue-600 text-white'; const assistantBubbleClass = isIlluminateEnabled ? 'bg-gray-100 text-gray-800 border border-gray-200/80' : 'bg-gray-700/80 text-gray-200 border border-gray-600/50'; const errorBubbleClass = isIlluminateEnabled ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-red-900/30 text-red-300 border border-red-700/50'; const editSuggestionBubbleClass = isIlluminateEnabled ? 'bg-yellow-50 border border-yellow-200 text-yellow-800' : 'bg-yellow-900/30 border border-yellow-700/50 text-yellow-300'; const confirmationBubbleClass = isIlluminateEnabled ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-green-900/30 border border-green-700/50 text-green-200'; const iconColor = isIlluminateEnabled ? "text-gray-500 hover:text-gray-700" : "text-gray-400 hover:text-gray-200"; const filePillBg = isIlluminateEnabled ? "bg-blue-100 border-blue-200" : "bg-blue-900/50 border-blue-700/50"; const filePillText = isIlluminateEnabled ? "text-blue-800" : "text-blue-300"; const downloadButtonClass = isIlluminateEnabled ? "bg-gray-200 hover:bg-gray-300 text-gray-600" : "bg-gray-600 hover:bg-gray-500 text-gray-300";
+        // Adjusted imageGenButtonClass for purple theme when active
         const imageGenButtonClass = isIlluminateEnabled
             ? (isImageGenModeActive ? "bg-purple-100 hover:bg-purple-200 text-purple-700" : "bg-gray-200 hover:bg-gray-300 text-gray-700")
             : (isImageGenModeActive ? "bg-purple-800/60 hover:bg-purple-700/60 text-purple-300" : "bg-gray-600 hover:bg-gray-500 text-gray-300");
 
         useEffect(() => { if (!isVisible) return; setIsLoadingUsage(true); const currentUser = auth.currentUser; if (!currentUser) { setUserTier('basic'); setIsLoadingUsage(false); return; } setUser(currentUser); const tier = getUserTier(currentUser.email); setUserTier(tier); if (tier !== 'premium') { const currentMonthYear = new Date().toISOString().slice(0, 7); getCurrentMonthUserChatUsage(currentUser.uid, currentMonthYear) .then(usageData => { if (usageData) { setChatCount(usageData.count); setUsageMonth(usageData.month); const limit = getChatLimitForTier(tier); setIsChatLimitReached(usageData.count >= limit); } else { setChatCount(0); setUsageMonth(currentMonthYear); setIsChatLimitReached(false); } }) .catch(err => { console.error("Error fetching usage:", err); setChatCount(0); setUsageMonth(new Date().toISOString().slice(0, 7)); setIsChatLimitReached(false); }) .finally(() => setIsLoadingUsage(false)); } else { setChatCount(0); setUsageMonth(''); setIsChatLimitReached(false); setIsLoadingUsage(false); } }, [isVisible]);
-        useEffect(() => { if (note && (note.id !== currentNoteId.current || (displayMode === 'overlay' && isVisible && !initialMessageSent.current))) { const initialPrompt = `Hi ${userName}! Ask about **"${note.title}"**, ask me to change it, generate an image (click the ✨ button!), or attach/paste a file.`; setChatHistory([{ id: `init-${Date.now()}`, role: 'assistant', content: initialPrompt }]); setChatMessage(''); setSelectedFiles([]); setSuggestedPrompts([]); setIsChatLoading(false); initialMessageSent.current = true; currentNoteId.current = note.id; setLoadingMsgId(null); setIsImageGenModeActive(false); } else if (displayMode === 'overlay' && !isVisible) { initialMessageSent.current = false; currentNoteId.current = null; setIsImageGenModeActive(false); } }, [note, isVisible, userName, displayMode]);
+        useEffect(() => { if (note && (note.id !== currentNoteId.current || (displayMode === 'overlay' && isVisible && !initialMessageSent.current))) { const initialPrompt = `Hi ${userName}! Ask about **"${note.title}"**, ask me to change it, generate an image (click the ${isIlluminateEnabled ? '🖼️' : '🖼️'} button!), or attach/paste a file.`; setChatHistory([{ id: `init-${Date.now()}`, role: 'assistant', content: initialPrompt }]); setChatMessage(''); setSelectedFiles([]); setSuggestedPrompts([]); setIsChatLoading(false); initialMessageSent.current = true; currentNoteId.current = note.id; setLoadingMsgId(null); setIsImageGenModeActive(false); } else if (displayMode === 'overlay' && !isVisible) { initialMessageSent.current = false; currentNoteId.current = null; setIsImageGenModeActive(false); } }, [note, isVisible, userName, displayMode, isIlluminateEnabled]); // Added isIlluminateEnabled dependency for the icon in the prompt
         useEffect(() => { if (!isMinimized || displayMode === 'inline') { setTimeout(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, 150); } }, [chatHistory, isMinimized, displayMode, suggestedPrompts]);
 
         const handleTimerComplete = (timerId: string) => setChatHistory(prev => [...prev, { id: `timer-comp-${timerId}`, role: 'assistant', content: "⏰ Time's up!" }]);
         const handleAcceptEdit = async (message: ChatMessage) => { if (!note || isChatLoading || !message.isEditSuggestion || !message.editAction) { setChatHistory(prev => [...prev, { id: `edit-app-err-${Date.now()}`, role: 'assistant', content: `❌ Error: Could not apply edit. Invalid proposal data.`, error: true }]); return; } setIsChatLoading(true); setLoadingMsgId(null); let finalContent: string | null = null; const contentBeforeEdit = note.content; try { let currentContent = contentBeforeEdit; if (message.editAction === 'propose_targeted_edit') { if (!message.editType) throw new Error("Missing edit type."); let applied = false; const { editType, targetContext, contentFragment = "" } = message; switch (editType) { case 'insert_at_start': currentContent = contentFragment + (currentContent ? "\n" + currentContent : ""); applied = true; break; case 'append_at_end': currentContent = (currentContent ? currentContent + "\n" : "") + contentFragment; applied = true; break; case 'insert_after_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { const p = i + targetContext.length; const x = currentContent.endsWith('\n') || currentContent.slice(p).startsWith('\n') || p === 0 ? "" : "\n"; currentContent = currentContent.slice(0, p) + x + contentFragment + currentContent.slice(p); applied = true; } else throw new Error("Target context for insertion not found."); } else throw new Error("Missing target context for insert."); break; case 'replace_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { currentContent = currentContent.slice(0, i) + contentFragment + currentContent.slice(i + targetContext.length); applied = true; } else throw new Error("Target context for replacement not found."); } else throw new Error("Missing target context for replace."); break; case 'delete_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { currentContent = currentContent.slice(0, i) + currentContent.slice(i + targetContext.length); currentContent = currentContent.replace(/\n\n+/g, '\n').trim(); applied = true; } else throw new Error("Target context for deletion not found."); } else throw new Error("Missing target context for delete."); break; default: throw new Error(`Unsupported edit type: ${editType}`); } if (applied) finalContent = currentContent; else throw new Error("Targeted edit failed."); } else if (message.editAction === 'propose_full_content_replacement') { if (typeof message.newFullContent === 'string') { finalContent = message.newFullContent; } else { throw new Error("Missing new full content for replacement."); } } else if (message.editAction === 'propose_sequential_edits') { if (!message.sequentialEdits || !Array.isArray(message.sequentialEdits) || message.sequentialEdits.length === 0) { throw new Error("Invalid sequential edit proposal: 'edits' array is missing or empty."); } let allApplied = true; for (let i = 0; i < message.sequentialEdits.length; i++) { const editStep = message.sequentialEdits[i]; const { editType, targetContext, contentFragment } = editStep; let appliedThisStep = false; const stepNumber = i + 1; switch (editType) { case 'insert_at_start': currentContent = contentFragment + (currentContent ? "\n" + currentContent : ""); appliedThisStep = true; break; case 'append_at_end': currentContent = (currentContent ? currentContent + "\n" : "") + contentFragment; appliedThisStep = true; break; case 'insert_after_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { const p = idx + targetContext.length; const x = currentContent.endsWith('\n') || currentContent.slice(p).startsWith('\n') || p === 0 ? "" : "\n"; currentContent = currentContent.slice(0, p) + x + contentFragment + currentContent.slice(p); appliedThisStep = true; } else { allApplied = false; throw new Error(`Step ${stepNumber}: Target context for insertion not found.`); } } else { allApplied = false; throw new Error(`Step ${stepNumber}: Missing target context for insert.`); } break; case 'replace_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { currentContent = currentContent.slice(0, idx) + contentFragment + currentContent.slice(idx + targetContext.length); appliedThisStep = true; } else { allApplied = false; throw new Error(`Step ${stepNumber}: Target context for replacement not found.`); } } else { allApplied = false; throw new Error(`Step ${stepNumber}: Missing target context for replace.`); } break; case 'delete_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { currentContent = currentContent.slice(0, idx) + currentContent.slice(idx + targetContext.length); currentContent = currentContent.replace(/\n\n+/g, '\n').trim(); appliedThisStep = true; } else { allApplied = false; throw new Error(`Step ${stepNumber}: Target context for deletion not found.`); } } else { allApplied = false; throw new Error(`Step ${stepNumber}: Missing target context for delete.`); } break; default: allApplied = false; throw new Error(`Step ${stepNumber}: Unsupported edit type: ${editType}`); } if (!appliedThisStep) { allApplied = false; throw new Error(`Sequential edit step ${stepNumber} failed unexpectedly.`); } } if (allApplied) { finalContent = currentContent; } } else { throw new Error(`Unknown edit action: ${message.editAction}`); } if (finalContent !== null) { await onUpdateNoteContent(note.id, finalContent); const confirmationMsgId = `edit-ok-${Date.now()}`; setChatHistory(prev => [ ...prev, { id: confirmationMsgId, role: 'assistant', content: "✅ Note updated!", isUpdateConfirmation: true, canRevert: true, previousContent: contentBeforeEdit, noteIdToRevert: note.id } ]); } } catch (error) { const eMsg = error instanceof Error ? error.message : 'Unknown error during update.'; console.error("Edit failed:", error); setChatHistory(prev => [...prev, { id: `edit-err-${Date.now()}`, role: 'assistant', content: `❌ Update failed: ${eMsg}`, error: true }]); } finally { setIsChatLoading(false); } };
         const handleRevertEdit = async (message: ChatMessage) => { if (!message.canRevert || typeof message.previousContent !== 'string' || !message.noteIdToRevert || isChatLoading || !message.id) { setChatHistory(prev => [...prev, { id: `revert-err-state-${Date.now()}`, role: 'assistant', content: `❌ Cannot revert. Invalid state.`, error: true }]); return; } setIsChatLoading(true); setLoadingMsgId(null); const originalMessageId = message.id; try { await onUpdateNoteContent(message.noteIdToRevert, message.previousContent); setChatHistory(prev => [ ...prev.map(msg => msg.id === originalMessageId ? { ...msg, canRevert: false } : msg ), { id: `revert-ok-${Date.now()}`, role: 'assistant', content: "🔄 Change reverted." } ]); } catch (error) { const eMsg = error instanceof Error ? error.message : 'Unknown error during revert.'; console.error("Revert failed:", error); setChatHistory(prev => [...prev, { id: `revert-err-${Date.now()}`, role: 'assistant', content: `❌ Revert failed: ${eMsg}`, error: true }]); } finally { setIsChatLoading(false); } };
-        const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => { const files = event.target.files; if (!files) return; setIsChatLoading(true); const newFiles: SelectedFile[] = []; const filePromises: Promise<SelectedFile>[] = []; const existingFileNames = new Set(selectedFiles.map(f => f.name)); for (let i = 0; i < files.length; i++) { const file = files[i]; if (existingFileNames.has(file.name)) { setChatHistory(prev => [...prev, { id: `file-err-dup-${Date.now()}-${file.name}`, role: 'assistant', content: `ℹ️ Skipped duplicate file: "${file.name}".`, error: false }]); continue; } if (file.size > 20 * 1024 * 1024) { setChatHistory(prev => [...prev, { id: `file-err-size-${Date.now()}`, role: 'assistant', content: `❌ File "${file.name}" is too large (max 20MB).`, error: true }]); continue; } if (!file.type.startsWith('image/') && file.type !== 'application/pdf') { setChatHistory(prev => [...prev, { id: `file-err-type-${Date.now()}`, role: 'assistant', content: `❌ File type for "${file.name}" is not supported (only images and PDFs).`, error: true }]); continue; } filePromises.push(readFileAsBase64(file)); existingFileNames.add(file.name); } try { const results = await Promise.all(filePromises); setSelectedFiles(prev => [...prev, ...results]); } catch (error) { console.error("File read error:", error); setChatHistory(prev => [...prev, { id: `file-err-read-${Date.now()}`, role: 'assistant', content: `❌ Error processing selected file(s). Please try again.`, error: true }]); } finally { setIsChatLoading(false); if (fileInputRef.current) { fileInputRef.current.value = ''; } } };
+        const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => { const files = event.target.files; if (!files) return; setIsChatLoading(true); const newFiles: SelectedFile[] = []; const filePromises: Promise<SelectedFile>[] = []; const existingFileNames = new Set(selectedFiles.map(f => f.name)); for (let i = 0; i < files.length; i++) { const file = files[i]; if (existingFileNames.has(file.name)) { setChatHistory(prev => [...prev, { id: `file-err-dup-${Date.now()}-${file.name}`, role: 'assistant', content: `ℹ️ Skipped duplicate file: "${file.name}".`, error: false }]); continue; }
+             // REMOVED: Client-side file size check
+             // if (file.size > 20 * 1024 * 1024) {
+             //    setChatHistory(prev => [...prev, { id: `file-err-size-${Date.now()}`, role: 'assistant', content: `❌ File "${file.name}" is too large (max 20MB).`, error: true }]);
+             //    continue;
+             // }
+             if (!file.type.startsWith('image/') && file.type !== 'application/pdf') { setChatHistory(prev => [...prev, { id: `file-err-type-${Date.now()}`, role: 'assistant', content: `❌ File type for "${file.name}" is not supported (only images and PDFs).`, error: true }]); continue; } filePromises.push(readFileAsBase64(file)); existingFileNames.add(file.name); } try { const results = await Promise.all(filePromises); setSelectedFiles(prev => [...prev, ...results]); } catch (error) { console.error("File read error:", error); setChatHistory(prev => [...prev, { id: `file-err-read-${Date.now()}`, role: 'assistant', content: `❌ Error processing selected file(s). Please try again.`, error: true }]); } finally { setIsChatLoading(false); if (fileInputRef.current) { fileInputRef.current.value = ''; } } };
         const handleRemoveFile = (fileName: string) => setSelectedFiles(prev => prev.filter(f => f.name !== fileName));
         const triggerFileSelect = () => fileInputRef.current?.click();
-        const handlePaste = useCallback(async (event: React.ClipboardEvent<HTMLTextAreaElement>) => { const items = event.clipboardData?.items; if (!items) return; let imagePasted = false; const filePromises: Promise<SelectedFile>[] = []; const existingFileNames = new Set(selectedFiles.map(f => f.name)); for (let i = 0; i < items.length; i++) { const item = items[i]; if (item.kind === 'file' && item.type.startsWith('image/')) { const file = item.getAsFile(); if (file) { if (existingFileNames.has(file.name)) { setChatHistory(prev => [...prev, { id: `paste-err-dup-${Date.now()}-${file.name}`, role: 'assistant', content: `ℹ️ Skipped duplicate pasted file: "${file.name}".`, error: false }]); continue; } if (file.size > 20 * 1024 * 1024) { setChatHistory(prev => [...prev, { id: `paste-err-size-${Date.now()}`, role: 'assistant', content: `❌ Pasted image "${file.name}" is too large (max 20MB).`, error: true }]); continue; } filePromises.push(readFileAsBase64(file)); existingFileNames.add(file.name); imagePasted = true; } } } if (imagePasted) { event.preventDefault(); setIsChatLoading(true); try { const results = await Promise.all(filePromises); setSelectedFiles(prev => [...prev, ...results]); } catch (error) { console.error("Paste read error:", error); setChatHistory(prev => [...prev, { id: `paste-err-read-${Date.now()}`, role: 'assistant', content: `❌ Error processing pasted image. Please try again.`, error: true }]); } finally { setIsChatLoading(false); } } }, [selectedFiles]);
+        const handlePaste = useCallback(async (event: React.ClipboardEvent<HTMLTextAreaElement>) => { const items = event.clipboardData?.items; if (!items) return; let imagePasted = false; const filePromises: Promise<SelectedFile>[] = []; const existingFileNames = new Set(selectedFiles.map(f => f.name)); for (let i = 0; i < items.length; i++) { const item = items[i]; if (item.kind === 'file' && item.type.startsWith('image/')) { const file = item.getAsFile(); if (file) { if (existingFileNames.has(file.name)) { setChatHistory(prev => [...prev, { id: `paste-err-dup-${Date.now()}-${file.name}`, role: 'assistant', content: `ℹ️ Skipped duplicate pasted file: "${file.name}".`, error: false }]); continue; }
+             // REMOVED: Client-side file size check
+             // if (file.size > 20 * 1024 * 1024) {
+             //    setChatHistory(prev => [...prev, { id: `paste-err-size-${Date.now()}`, role: 'assistant', content: `❌ Pasted image "${file.name}" is too large (max 20MB).`, error: true }]);
+             //    continue;
+             // }
+             filePromises.push(readFileAsBase64(file)); existingFileNames.add(file.name); imagePasted = true; } } } if (imagePasted) { event.preventDefault(); setIsChatLoading(true); try { const results = await Promise.all(filePromises); setSelectedFiles(prev => [...prev, ...results]); } catch (error) { console.error("Paste read error:", error); setChatHistory(prev => [...prev, { id: `paste-err-read-${Date.now()}`, role: 'assistant', content: `❌ Error processing pasted image. Please try again.`, error: true }]); } finally { setIsChatLoading(false); } } }, [selectedFiles]);
 
         const handleToggleImageGenMode = () => {
             if (isChatLoading || isLoadingUsage) return;
@@ -275,6 +292,7 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
             setSuggestedPrompts([]);
             setChatHistory(prev => [...prev, userMsg]);
             if (!filesToSend && !isUsingImageGenModel) {
+                // Clear files only if they weren't passed explicitly and not in image gen mode
                 setSelectedFiles([]);
             }
 
@@ -288,7 +306,8 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
                 if (messageContent.toLowerCase().startsWith('set timer') || messageContent.toLowerCase().startsWith('timer for')) {
                     setChatMessage('');
                 }
-                if (isImageGenModeActive) setIsImageGenModeActive(false);
+                 // Turn off image gen mode if a timer was set
+                 if (isImageGenModeActive) setIsImageGenModeActive(false);
                 return;
             }
 
@@ -313,6 +332,7 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
 
             const recentHistory = chatHistory.slice(-8);
 
+            // --- SYSTEM INSTRUCTION (No changes needed here, keeping it collapsed for brevity) ---
             const systemInstruction = `You are TaskMaster, a highly meticulous, context-aware, and **conversational** AI agent integrated into Notes. You are chatting with "${userName}" about their note titled "${note.title}".
 
 Your primary goal is to be helpful, accurate, and follow instructions based on the user's request, the provided note content, attached images, **and your general knowledge when appropriate**. While your main focus is assisting with the note, you are also equipped to answer general knowledge questions and engage in broader conversation. Adhere to the following functions and rules with **absolute precision**, in this order of priority:
@@ -453,8 +473,9 @@ ${note.keyPoints?.map(p => `- ${p}`).join('\n') || 'N/A'}
 ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.content !== '...' && !msg.isGeneratingImage).map(msg => { let prefix = msg.role === 'user' ? userName : 'Assistant'; let displayContent = msg.content; if (msg.isEditSuggestion) displayContent = `[Proposed Edit: ${msg.editExplanation || 'details omitted'}]`; if (msg.imageData && !msg.wasImageGenerated) displayContent += ' [User Image Attached]'; if (msg.wasImageGenerated) displayContent += ' [Generated Image Provided]'; displayContent = displayContent.replace(/```json[\s\S]*?```/g, '[Edit JSON Proposed]'); return `${prefix}: ${displayContent.trim()}`; }).join('\n')}
 ---
 
-**${userName}: ${messageContent}** ${currentFiles.length > 0 && !isImageGen ? `(Files Attached: ${currentFiles.map(f=>f.name).join(', ')})` : ''}
+**${userName}: ${messageContent}** ${currentFiles.length > 0 && !isUsingImageGenModel ? `(Files Attached: ${currentFiles.map(f=>f.name).join(', ')})` : ''}
 **Assistant:**`;
+            // --- END SYSTEM INSTRUCTION ---
 
             try {
                 const targetModel = isUsingImageGenModel ? GEMINI_IMAGE_GEN_MODEL : GEMINI_TEXT_MODEL;
@@ -472,23 +493,32 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                 }
 
                 const apiContent: any[] = [];
+                // Include system instruction first
+                apiContent.push({ role: "user", parts: [{ text: systemInstruction }]});
+                apiContent.push({ role: "model", parts: [{ text: "Okay, I understand. I'm ready to help with the note, answer questions, or generate images based on your instructions." }]}); // Priming response
+
+                // Add recent history, converting roles for the API
                 recentHistory.forEach(msg => {
-                    if (msg.role === 'user') {
+                    if (msg.role === 'user' && !msg.timer && !msg.isUpdateConfirmation && msg.content !== '...' && !msg.isGeneratingImage) {
                         const userParts: any[] = [{ text: msg.content.replace(/\[(?:Image )?Attached:.*?\]/g, '').trim() }];
                         if (msg.imageData && !isUsingImageGenModel) {
-                            userParts.push({ inline_data: { mime_type: msg.imageData.type, data: msg.imageData.base64 } });
+                           userParts.push({ inline_data: { mime_type: msg.imageData.type, data: msg.imageData.base64 } });
                         }
-                        apiContent.push({ role: "user", parts: userParts });
+                         // Only add if there's text or image data
+                        if (userParts[0].text || userParts.length > 1) {
+                            apiContent.push({ role: "user", parts: userParts });
+                        }
                     } else if (msg.role === 'assistant' && !msg.timer && !msg.isUpdateConfirmation && msg.content !== '...' && !msg.isGeneratingImage) {
-                        let assistantHistoryContent = msg.content?.replace(/```json[\s\S]*?```/g, msg.isEditSuggestion ? `(Proposed Edit: ${msg.editExplanation || 'Details omitted'})` : '(Response provided)');
-                        if (msg.wasImageGenerated) { assistantHistoryContent += " [Generated Image Provided]"; }
+                        let assistantHistoryContent = msg.content?.replace(/```json[\s\S]*?```/g, msg.isEditSuggestion ? `(I proposed an edit: ${msg.editExplanation || 'Details omitted'})` : '(I provided a response)');
+                        if (msg.wasImageGenerated) { assistantHistoryContent += " [I generated an image]"; }
                         if (assistantHistoryContent?.trim()) {
                             apiContent.push({ role: "model", parts: [{ text: assistantHistoryContent.trim() }] });
                         }
                     }
                 });
 
-                const currentUserParts: any[] = [{ text: systemInstruction }];
+                // Add the current user message with files
+                const currentUserParts: any[] = [{ text: messageContent }];
                 if (currentFiles.length > 0 && !isUsingImageGenModel) {
                     currentFiles.forEach(file => {
                         if (file.type.startsWith('image/') || file.type === 'application/pdf') {
@@ -496,9 +526,24 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                         }
                     });
                 }
-                apiContent.push({ role: "user", parts: currentUserParts });
+                // Ensure we don't send an empty user message if only files were attached initially
+                if (currentUserParts[0].text || currentUserParts.length > 1) {
+                     apiContent.push({ role: "user", parts: currentUserParts });
+                }
 
-                let requestBody = JSON.stringify({ contents: apiContent, generationConfig });
+                // Filter out consecutive messages from the same role before sending
+                const filteredApiContent = apiContent.reduce((acc, current) => {
+                    const last = acc[acc.length - 1];
+                    if (last && last.role === current.role) {
+                        // Merge parts if same role consecutively (simple merge, might need refinement)
+                        last.parts = [...last.parts, ...current.parts];
+                    } else {
+                        acc.push(current);
+                    }
+                    return acc;
+                }, [] as { role: string, parts: any[] }[]);
+
+                let requestBody = JSON.stringify({ contents: filteredApiContent, generationConfig });
                 const geminiOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: requestBody };
 
                 const response = await fetchWithRetry(fullGeminiEndpoint, geminiOptions);
@@ -605,9 +650,10 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
              } finally {
                  setIsChatLoading(false);
                  setLoadingMsgId(null);
-                 if (isImageGenModeActive) {
-                     setIsImageGenModeActive(false);
-                 }
+                 // REMOVED: No longer automatically turning off image gen mode here
+                 // if (isImageGenModeActive) {
+                 //    setIsImageGenModeActive(false);
+                 // }
              }
         };
 
@@ -625,6 +671,10 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
             }
             const filesToSubmit = [...selectedFiles];
             setChatMessage('');
+            // Clear files from state *before* sending if not in image gen mode
+            if (!isImageGenModeActive) {
+                setSelectedFiles([]);
+            }
             await submitMessageToAI(currentMessage, filesToSubmit, isImageGenModeActive);
             if (textareaRef.current) {
                 textareaRef.current.style.height = 'auto';
@@ -633,40 +683,51 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
         const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSubmit(); } };
         const handleTextareaInput = (e: React.FormEvent<HTMLTextAreaElement>) => { const ta = e.currentTarget; ta.style.height = 'auto'; ta.style.height = `${Math.min(ta.scrollHeight, 100)}px`; setChatMessage(ta.value); };
         const handleSuggestionClick = (suggestion: string) => {
-            setIsImageGenModeActive(false);
+            // Turn off image gen mode when a suggestion is clicked
+            if (isImageGenModeActive) {
+                 setIsImageGenModeActive(false);
+            }
             submitMessageToAI(suggestion);
         };
 
-        useImperativeHandle(ref, () => ({ sendMessage: (message: string) => { setIsImageGenModeActive(false); submitMessageToAI(message); }, }));
+        useImperativeHandle(ref, () => ({ sendMessage: (message: string) => {
+            // Ensure image gen mode is off when sending programmatically unless explicitly requested otherwise
+            if (isImageGenModeActive) {
+                 setIsImageGenModeActive(false);
+            }
+             submitMessageToAI(message);
+        }, }));
 
         const rootClasses = displayMode === 'overlay' ? `fixed bottom-4 right-4 z-50 ${overlayBg} rounded-lg w-full max-w-sm flex flex-col shadow-xl transition-all duration-300 ease-in-out ${isMinimized ? 'h-12 overflow-hidden' : 'h-[75vh] max-h-[650px]'}` : `h-full w-full flex flex-col ${overlayBg}`; if (displayMode === 'overlay' && !isVisible) return null;
 
         return (
             <div className={rootClasses}>
-                <div className={`p-2 border-b ${headerBg} flex justify-between items-center shrink-0 sticky top-0 z-10 ${displayMode === 'overlay' ? 'cursor-pointer' : ''}`} onClick={displayMode === 'overlay' ? () => setIsMinimized(!isMinimized) : undefined} title={displayMode === 'overlay' ? (isMinimized ? "Expand" : "Minimize") : undefined}>
-                    <h3 className={`text-sm font-semibold ${headingColor} flex items-center gap-1.5 truncate pr-2`}>
-                        <MessageCircle className={`w-4 h-4 shrink-0 ${isIlluminateEnabled ? 'text-blue-600' : 'text-blue-400'}`} />
-                        <span className="truncate" title={`Chat: ${note.title}`}>Chat: {note.title}</span>
-                    </h3>
-                    {displayMode === 'overlay' && (
-                        <div className="flex items-center">
-                            <button onClick={(e) => { e.stopPropagation(); setIsMinimized(!isMinimized); }} className={`${iconColor} rounded-full p-1 mr-1`} title={isMinimized ? "Expand" : "Minimize"}>
-                                {isMinimized ? <Maximize className="w-3 h-3" /> : <Minimize className="w-3 h-3" />}
-                            </button>
-                            <button onClick={(e) => { e.stopPropagation(); onClose(); }} className={`${iconColor} rounded-full p-1`} title="Close">
-                                <X className="w-4 h-4" />
-                            </button>
-                        </div>
-                    )}
-                    {displayMode === 'inline' && (
-                        <button onClick={onClose} className={`${iconColor} rounded-full p-1`} title="Close Chat & PDF View">
-                            <X className="w-4 h-4" />
-                        </button>
-                    )}
-                </div>
+                {/* Header */}
+                 <div className={`p-2 border-b ${headerBg} flex justify-between items-center shrink-0 sticky top-0 z-10 ${displayMode === 'overlay' ? 'cursor-pointer' : ''}`} onClick={displayMode === 'overlay' ? () => setIsMinimized(!isMinimized) : undefined} title={displayMode === 'overlay' ? (isMinimized ? "Expand" : "Minimize") : undefined}>
+                     <h3 className={`text-sm font-semibold ${headingColor} flex items-center gap-1.5 truncate pr-2`}>
+                         <MessageCircle className={`w-4 h-4 shrink-0 ${isIlluminateEnabled ? 'text-blue-600' : 'text-blue-400'}`} />
+                         <span className="truncate" title={`Chat: ${note.title}`}>Chat: {note.title}</span>
+                     </h3>
+                     {displayMode === 'overlay' && (
+                         <div className="flex items-center">
+                             <button onClick={(e) => { e.stopPropagation(); setIsMinimized(!isMinimized); }} className={`${iconColor} rounded-full p-1 mr-1`} title={isMinimized ? "Expand" : "Minimize"}>
+                                 {isMinimized ? <Maximize className="w-3 h-3" /> : <Minimize className="w-3 h-3" />}
+                             </button>
+                             <button onClick={(e) => { e.stopPropagation(); onClose(); }} className={`${iconColor} rounded-full p-1`} title="Close">
+                                 <X className="w-4 h-4" />
+                             </button>
+                         </div>
+                     )}
+                     {displayMode === 'inline' && (
+                         <button onClick={onClose} className={`${iconColor} rounded-full p-1`} title="Close Chat & PDF View">
+                             <X className="w-4 h-4" />
+                         </button>
+                     )}
+                 </div>
 
                 {(!isMinimized || displayMode === 'inline') && (
                     <>
+                        {/* Chat History Area */}
                         <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-400 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
                             {chatHistory.map((message, index) => {
                                 const isCurrentLoadingMsg = message.role === 'assistant' && isChatLoading && message.id === loadingMsgId;
@@ -717,6 +778,7 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                             <div ref={chatEndRef} className="h-0"></div>
                         </div>
 
+                         {/* Suggestions Area */}
                         {suggestedPrompts.length > 0 && !isChatLoading && (
                             <div className={`px-3 py-2 border-t ${isIlluminateEnabled ? 'border-gray-200' : 'border-gray-700'}`}>
                                 <p className={`text-xs font-medium w-full mb-2 ${isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}`}>Suggestions:</p>
@@ -728,10 +790,15 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                             </div>
                         )}
 
+                        {/* Input Area */}
                         <div className={`p-2 border-t ${headerBg} shrink-0 sticky bottom-0`}>
+                             {/* Usage Indicator */}
                              {userTier !== 'premium' && userTier !== 'loading' && ( <div className="pb-1 text-xs text-center"> <span className={isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}> Messages this month: {isLoadingUsage ? '...' : chatCount} / {currentChatLimit === Infinity ? '∞' : currentChatLimit} </span> {isChatLimitReached && !isLoadingUsage && ( <span className="text-red-500 ml-1 font-medium">(Limit Reached)</span> )} {!isChatLimitReached && userTier === 'basic' && ( <Link to="/pricing" className={`ml-2 font-medium ${isIlluminateEnabled ? 'text-blue-600 hover:text-blue-700' : 'text-blue-400 hover:text-blue-300'} hover:underline`}> <Crown className="w-2.5 h-2.5 inline mr-0.5"/>Upgrade </Link> )} </div> )}
+                             {/* Selected Files Pills */}
                              {selectedFiles.length > 0 && !isImageGenModeActive && ( <div className="mb-1.5 flex flex-wrap gap-1.5 px-1"> {selectedFiles.map(file => ( <div key={file.name} className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${filePillBg} ${filePillText}`}> <span className="truncate max-w-[100px]">{file.name}</span> <span className="text-[10px] opacity-70">({formatBytes(file.size)})</span> <button type="button" onClick={() => handleRemoveFile(file.name)} className={`ml-0.5 p-0.5 rounded-full ${isIlluminateEnabled ? 'hover:bg-blue-200' : 'hover:bg-blue-700'} `} title="Remove"> <X className="w-2.5 h-2.5" /> </button> </div> ))} </div> )}
+                             {/* Form */}
                              <form onSubmit={handleChatSubmit} className="flex gap-1.5 items-end">
+                                 {/* Textarea Input */}
                                  <textarea
                                      ref={textareaRef}
                                      rows={1}
@@ -745,7 +812,9 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                                      style={{ height: 'auto' }}
                                      aria-label="Chat input"
                                  />
+                                 {/* Hidden File Input */}
                                  <input type="file" ref={fileInputRef} onChange={handleFileSelect} multiple accept="image/*,application/pdf" className="hidden" disabled={isImageGenModeActive} />
+                                 {/* Attach File Button */}
                                  <button
                                      type="button"
                                      onClick={triggerFileSelect}
@@ -755,6 +824,7 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                                  >
                                      <Paperclip className="w-4 h-4" />
                                  </button>
+                                 {/* Image Generation Toggle Button */}
                                  <button
                                      type="button"
                                      onClick={handleToggleImageGenMode}
@@ -762,21 +832,26 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                                      className={`${imageGenButtonClass} p-2 rounded-full self-end mb-[1px] transition-all duration-150 ${isChatLoading || isLoadingUsage || isChatLimitReached ? buttonDisabledClass : 'hover:scale-105 active:scale-100'} ${isImageGenModeActive ? 'ring-2 ring-purple-400 dark:ring-purple-500 ring-offset-1 dark:ring-offset-black' : ''}`}
                                      title={isImageGenModeActive ? "Switch to Text/File Mode" : "Switch to Image Generation Mode"}
                                  >
-                                     <Sparkles className="w-4 h-4" />
+                                     {/* Icon Changed Here */}
+                                     <ImageIcon className="w-4 h-4" />
                                  </button>
+                                 {/* Send Button */}
                                  <button
                                      type="submit"
                                      disabled={
                                          isChatLoading ||
                                          isLoadingUsage ||
                                          isChatLimitReached ||
-                                         (!chatMessage.trim() && !isImageGenModeActive) ||
-                                         (!chatMessage.trim() && isImageGenModeActive) ||
-                                         (isImageGenModeActive && selectedFiles.length > 0)
+                                         (!chatMessage.trim() && selectedFiles.length === 0 && !isImageGenModeActive) || // Disabled if text empty AND no files AND not image gen mode
+                                         (!chatMessage.trim() && isImageGenModeActive) || // Disabled if image gen mode AND text empty
+                                         (isImageGenModeActive && selectedFiles.length > 0) // Disabled if image gen mode AND files attached (handled elsewhere too, but belt-and-suspenders)
                                      }
                                      className={`${buttonPrimaryClass} p-2 rounded-full self-end mb-[1px] transition-all duration-150 ${
-                                         isChatLoading || isLoadingUsage || isChatLimitReached || (!chatMessage.trim() && !isImageGenModeActive) || (!chatMessage.trim() && isImageGenModeActive) || (isImageGenModeActive && selectedFiles.length > 0) ? buttonDisabledClass : 'hover:scale-105 active:scale-100'
+                                         (isChatLoading || isLoadingUsage || isChatLimitReached || (!chatMessage.trim() && selectedFiles.length === 0 && !isImageGenModeActive) || (!chatMessage.trim() && isImageGenModeActive) || (isImageGenModeActive && selectedFiles.length > 0))
+                                             ? buttonDisabledClass
+                                             : 'hover:scale-105 active:scale-100'
                                      }`}
+                                     title="Send message" // Added title
                                  >
                                      {isChatLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                                  </button>
