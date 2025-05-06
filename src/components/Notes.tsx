@@ -409,7 +409,7 @@ export function Notes() {
              setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
              return;
          }
-         if (note.type === 'pdf' && note.sourceUrl && !isMobile) {
+         if (note.type === 'pdf' && note.sourceUrl) {
              if (!showPdfViewer) {
                  togglePdfViewer(true);
                  setTimeout(() => noteChatRef.current?.focusInput(), 150);
