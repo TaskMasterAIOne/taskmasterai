@@ -1021,123 +1021,123 @@ const TimerIconComponent = isRunning ? Pause : Play;
                 {pomodoroFinished && (<p className="text-center text-xs text-red-500 mt-2 animate-bounce font-medium">Time's up!</p>)}
               </div>
 
+              {/* Custom Timers List */}
              {customTimers.length > 0 && (
                 <div className={`${cardClass} rounded-xl p-3 sm:p-4 md:p-5 transition-all duration-300`}>
                   <h2 className={`text-base sm:text-lg font-semibold mb-3 ${headingClass} flex items-center`}><TimerIcon className="w-4 h-4 mr-1.5" /> Timers</h2>
                   <ul className="space-y-2">
                     {customTimers.map((timer, index) => {
-    // Variables specific to *this* timer instance in the map
-const timerId = timer.id;
-const runningState = runningTimers[timerId];
-const timeLeft = runningState ? runningState.timeLeft : timer.data.time;
-const isRunning = runningState ? runningState.isRunning : false;
-const isFinished = runningState ? (runningState.finished ?? timeLeft <= 0) : timer.data.time <= 0;
-const isEditing = editingTimerId === timerId;
+                            // Variables specific to *this* timer instance in the map
+                            const timerId = timer.id;
+                            const runningState = runningTimers[timerId];
+                            const timeLeft = runningState ? runningState.timeLeft : timer.data.time;
+                            const isRunning = runningState ? runningState.isRunning : false;
+                            const isFinished = runningState ? (runningState.finished ?? timeLeft <= 0) : timer.data.time <= 0;
+                            const isEditing = editingTimerId === timerId;
 
-let itemBgClass = isIlluminateEnabled ? 'bg-slate-100/80' : 'bg-slate-700/40';
-if (isFinished && !isEditing) itemBgClass = isIlluminateEnabled ? 'bg-yellow-100/70 opacity-80' : 'bg-yellow-900/30 opacity-70';
-if (isEditing) itemBgClass = isIlluminateEnabled ? 'bg-purple-100/50 ring-1 ring-purple-400' : 'bg-purple-900/20 ring-1 ring-purple-500';
+                            let itemBgClass = isIlluminateEnabled ? 'bg-slate-100/80' : 'bg-slate-700/40';
+                            if (isFinished && !isEditing) itemBgClass = isIlluminateEnabled ? 'bg-yellow-100/70 opacity-80' : 'bg-yellow-900/30 opacity-70';
+                            if (isEditing) itemBgClass = isIlluminateEnabled ? 'bg-purple-100/50 ring-1 ring-purple-400' : 'bg-purple-900/20 ring-1 ring-purple-500';
 
-return (
-    <li
-        key={timerId}
-        className={`p-2 sm:p-2.5 rounded-lg transition-all duration-150 animate-slideInUp ${itemBgClass}`}
-        style={{ animationDelay: `${index * 60}ms` }}
-    >
-        <div className="flex flex-col md:flex-row items-center justify-between gap-2 md:gap-3">
-            {isEditing ? (
-                // Timer Edit Form
-                <>
-                    <div className="flex flex-col sm:flex-row gap-1.5 w-full">
-                        <input
-                            type="text"
-                            className={`flex-grow ${inputBg} border ${isIlluminateEnabled ? 'border-slate-300' : 'border-slate-600'} rounded-lg px-3 py-1 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-150 shadow-sm`}
-                            value={editingTimerName}
-                            onChange={(e) => setEditingTimerName(e.target.value)}
-                            placeholder="Timer name"
-                            autoFocus
-                        />
-                        <input
-                            type="number"
-                            className={`w-20 ${inputBg} border ${isIlluminateEnabled ? 'border-slate-300' : 'border-slate-600'} rounded-lg px-3 py-1 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-150 shadow-sm appearance-none`}
-                            value={editingTimerMinutes}
-                            onChange={(e) => setEditingTimerMinutes(e.target.value)}
-                            placeholder="Min"
-                            min="1"
-                            onKeyDown={(e) => e.key === 'Enter' && handleEditTimerSave(timerId)}
-                        />
-                    </div>
-                    <div className="flex gap-1 flex-shrink-0 mt-1 sm:mt-0 self-end sm:self-center">
-                        <button
-                            className="bg-green-500 hover:bg-green-600 px-3 py-1 rounded-lg text-white transition-colors text-xs sm:text-sm font-medium"
-                            onClick={() => handleEditTimerSave(timerId)}
-                        >
-                            Save
-                        </button>
-                        <button
-                            className={`${isIlluminateEnabled ? 'bg-slate-500 hover:bg-slate-600':'bg-slate-600 hover:bg-slate-500'} px-3 py-1 rounded-lg text-white transition-colors text-xs sm:text-sm`}
-                            onClick={() => setEditingTimerId(null)}
-                        >
-                            Cancel
-                        </button>
-                    </div>
-                </>
-            ) : (
-                // Timer Display Mode
-                <>
-                    <div className="flex items-center gap-2 flex-grow overflow-hidden mr-2">
-                        <span className="font-medium text-sm sm:text-base truncate" title={timer.data.name}>
-                            {timer.data.name}
-                        </span>
-                        <span className={`text-xl sm:text-2xl font-semibold tabular-nums tracking-tight ${isIlluminateEnabled ? 'text-purple-700' : 'text-purple-400'} ${isRunning ? 'animate-pulse' : ''}`}>
-                            {formatCustomTime(timeLeft)}
-                        </span>
-                    </div>
-                    <div className="flex gap-1 sm:gap-1.5 flex-shrink-0">
-                        {(() => {
-                            // Define TimerIconToRender *inside* this scope where 'isRunning' is correctly defined for the current timer
-                            const TimerIconToRender = isRunning ? Pause : Play;
                             return (
-                                <button
-                                    className={`p-1.5 rounded-full text-white transition-colors ${isRunning ? 'bg-yellow-500 hover:bg-yellow-600' : isFinished ? 'bg-slate-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'}`}
-                                    onClick={() => isRunning ? pauseCustomTimer(timerId) : startCustomTimer(timerId)}
-                                    title={isRunning ? "Pause" : isFinished ? "Finished" : "Start"}
-                                    disabled={isFinished && !isRunning}
-                                >
-                                    <TimerIconToRender className={`w-4 h-4 ${isFinished && !isRunning ? 'opacity-50' : ''}`} />
-                                </button>
-                            );
-                        })()}
-                        <button
-                            className={`p-1.5 rounded-full transition-colors ${isRunning ? 'bg-slate-400/50 text-slate-600/50 cursor-not-allowed' : isIlluminateEnabled ? 'bg-slate-200 hover:bg-slate-300 text-slate-700' : 'bg-slate-600 hover:bg-slate-500 text-slate-200'}`}
-                            onClick={() => resetCustomTimer(timerId)}
-                            title="Reset"
-                            disabled={isRunning}
-                        >
-                            <RotateCcw className="w-4 h-4" />
-                        </button>
-                        <button
-                            className={`p-1.5 rounded-full transition-colors ${isRunning ? 'text-slate-400/50 cursor-not-allowed' : isIlluminateEnabled ? 'hover:bg-blue-100 text-blue-600' : 'hover:bg-blue-900/50 text-blue-400'}`}
-                            onClick={() => handleEditTimerClick(timerId, timer.data.name, timer.data.time)}
-                            title="Edit"
-                            disabled={isRunning}
-                        >
-                            <Edit className={`w-4 h-4 ${isRunning ? 'opacity-50' : ''}`} />
-                        </button>
-                        <button
-                            className={`p-1.5 rounded-full transition-colors ${isRunning ? 'text-slate-400/50 cursor-not-allowed' : isIlluminateEnabled ? 'hover:bg-red-100 text-red-600' : 'hover:bg-red-900/50 text-red-500'}`}
-                            onClick={() => handleDeleteTimer(timerId)}
-                            title="Delete"
-                            disabled={isRunning}
-                        >
-                            <Trash className={`w-4 h-4 ${isRunning ? 'opacity-50' : ''}`} />
-                        </button>
-                    </div>
-                </>
-            )}
-        </div>
-        {isFinished && !isEditing && (
-            <p className={`text-center text-[10px] mt-1 ${isIlluminateEnabled ? 'text-yellow-600':'text-yellow-500'}`}>
+                            <li
+                                key={timerId}
+                                className={`p-2 sm:p-2.5 rounded-lg transition-all duration-150 animate-slideInUp ${itemBgClass}`}
+                                style={{ animationDelay: `${index * 60}ms` }}
+                            >
+                                <div className="flex flex-col md:flex-row items-center justify-between gap-2 md:gap-3">
+                                    {isEditing ? (
+                                        // Timer Edit Form
+                                        <>
+                                            <div className="flex flex-col sm:flex-row gap-1.5 w-full">
+                                                <input
+                                                    type="text"
+                                                    className={`flex-grow ${inputBg} border ${isIlluminateEnabled ? 'border-slate-300' : 'border-slate-600'} rounded-lg px-3 py-1 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-150 shadow-sm`}
+                                                    value={editingTimerName}
+                                                    onChange={(e) => setEditingTimerName(e.target.value)}
+                                                    placeholder="Timer name"
+                                                    autoFocus
+                                                />
+                                                <input
+                                                    type="number"
+                                                    className={`w-20 ${inputBg} border ${isIlluminateEnabled ? 'border-slate-300' : 'border-slate-600'} rounded-lg px-3 py-1 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-150 shadow-sm appearance-none`}
+                                                    value={editingTimerMinutes}
+                                                    onChange={(e) => setEditingTimerMinutes(e.target.value)}
+                                                    placeholder="Min"
+                                                    min="1"
+                                                    onKeyDown={(e) => e.key === 'Enter' && handleEditTimerSave(timerId)}
+                                                />
+                                            </div>
+                                            <div className="flex gap-1 flex-shrink-0 mt-1 sm:mt-0 self-end sm:self-center">
+                                                <button
+                                                    className="bg-green-500 hover:bg-green-600 px-3 py-1 rounded-lg text-white transition-colors text-xs sm:text-sm font-medium"
+                                                    onClick={() => handleEditTimerSave(timerId)}
+                                                >
+                                                    Save
+                                                </button>
+                                                <button
+                                                    className={`${isIlluminateEnabled ? 'bg-slate-500 hover:bg-slate-600':'bg-slate-600 hover:bg-slate-500'} px-3 py-1 rounded-lg text-white transition-colors text-xs sm:text-sm`}
+                                                    onClick={() => setEditingTimerId(null)}
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        // Timer Display Mode
+                                        <>
+                                            <div className="flex items-center gap-2 flex-grow overflow-hidden mr-2">
+                                                <span className="font-medium text-sm sm:text-base truncate" title={timer.data.name}>
+                                                    {timer.data.name}
+                                                </span>
+                                                <span className={`text-xl sm:text-2xl font-semibold tabular-nums tracking-tight ${isIlluminateEnabled ? 'text-purple-700' : 'text-purple-400'} ${isRunning ? 'animate-pulse' : ''}`}>
+                                                    {formatCustomTime(timeLeft)}
+                                                </span>
+                                            </div>
+                                            <div className="flex gap-1 sm:gap-1.5 flex-shrink-0">
+                                                {(() => {
+                                                    const TimerIconToRender = isRunning ? Pause : Play;
+                                                    return (
+                                                        <button
+                                                            className={`p-1.5 rounded-full text-white transition-colors ${isRunning ? 'bg-yellow-500 hover:bg-yellow-600' : isFinished ? 'bg-slate-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'}`}
+                                                            onClick={() => isRunning ? pauseCustomTimer(timerId) : startCustomTimer(timerId)}
+                                                            title={isRunning ? "Pause" : isFinished ? "Finished" : "Start"}
+                                                            disabled={isFinished && !isRunning}
+                                                        >
+                                                            <TimerIconToRender className={`w-4 h-4 ${isFinished && !isRunning ? 'opacity-50' : ''}`} />
+                                                        </button>
+                                                    );
+                                                })()}
+                                                <button
+                                                    className={`p-1.5 rounded-full transition-colors ${isRunning ? 'bg-slate-400/50 text-slate-600/50 cursor-not-allowed' : isIlluminateEnabled ? 'bg-slate-200 hover:bg-slate-300 text-slate-700' : 'bg-slate-600 hover:bg-slate-500 text-slate-200'}`}
+                                                    onClick={() => resetCustomTimer(timerId)}
+                                                    title="Reset"
+                                                    disabled={isRunning}
+                                                >
+                                                    <RotateCcw className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    className={`p-1.5 rounded-full transition-colors ${isRunning ? 'text-slate-400/50 cursor-not-allowed' : isIlluminateEnabled ? 'hover:bg-blue-100 text-blue-600' : 'hover:bg-blue-900/50 text-blue-400'}`}
+                                                    onClick={() => handleEditTimerClick(timerId, timer.data.name, timer.data.time)}
+                                                    title="Edit"
+                                                    disabled={isRunning}
+                                                >
+                                                    <Edit className={`w-4 h-4 ${isRunning ? 'opacity-50' : ''}`} />
+                                                </button>
+                                                <button
+                                                    className={`p-1.5 rounded-full transition-colors ${isRunning ? 'text-slate-400/50 cursor-not-allowed' : isIlluminateEnabled ? 'hover:bg-red-100 text-red-600' : 'hover:bg-red-900/50 text-red-500'}`}
+                                                    onClick={() => handleDeleteTimer(timerId)}
+                                                    title="Delete"
+                                                    disabled={isRunning}
+                                                >
+                                                    <Trash className={`w-4 h-4 ${isRunning ? 'opacity-50' : ''}`} />
+                                                </button>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                                {isFinished && !isEditing && (
+                                    <p className={`text-center text-[10px] mt-1 ${isIlluminateEnabled ? 'text-yellow-600':'text-yellow-500'}`}>
                                         Timer finished!
                                     </p>
                                 )}
