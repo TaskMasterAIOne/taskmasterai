@@ -11,7 +11,7 @@ import {
     PanelRightClose, PanelLeftClose, GripVertical, PlusCircle, Trash,
     Image as ImageIcon, // Renamed to avoid conflict
     Layers, // Icon for Flashcards
-    ImagePlay, // Icon for Generate Image
+    ImagePlus, // Icon for Generate Image
 } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { auth, db } from '../lib/firebase';
@@ -1130,7 +1130,7 @@ export function Notes() {
                                                      title="Generate Image and add to Note"
                                                      disabled={isGeneratingImage}
                                                 >
-                                                     <ImagePlay className="w-4 h-4" /> Generate Image
+                                                     <ImagePlus className="w-4 h-4" /> Generate Image
                                                  </button>
                                              )}
 
