@@ -701,8 +701,7 @@ export function Notes() {
     const handleRegenerateQuestions = useCallback(async () => { // Added useCallback
         if (!selectedNote || !geminiApiKey || isRegeneratingQuestions) return;
         setIsRegeneratingQuestions(true);
-        // ... try/catch ...
-        finally { setIsRegeneratingQuestions(false); }
+
     }, [selectedNote, isRegeneratingQuestions]); // Dependencies
 
     const handleAnswerSelect = useCallback((questionKey: string, selectedOption: number) => setQuestionAnswers(prev => ({ ...prev, [questionKey]: selectedOption })), []); // No dependencies
