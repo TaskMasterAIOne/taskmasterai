@@ -1138,17 +1138,18 @@ return (
         </div>
         {isFinished && !isEditing && (
             <p className={`text-center text-[10px] mt-1 ${isIlluminateEnabled ? 'text-yellow-600':'text-yellow-500'}`}>
-                Timer finished!
-            </p>
-        )}
-    </li>
-                    })}
+                                        Timer finished!
+                                    </p>
+                                )}
+                            </li>
+                            );
+                    })} {/* This correctly closes the .map() function's callback */}
                   </ul>
                 </div>
-             )}
-           </div>
-         </div>
-      </main>
+             )} {/* This correctly closes the conditional rendering for customTimers.length > 0 */}
+           </div> {/* This correctly closes the "xl:col-span-1 flex flex-col ..." div (Secondary Column) */}
+         </div> {/* This correctly closes the "grid grid-cols-1 xl:grid-cols-3 ..." div (Main Content Grid) */}
+      </main> {/* This correctly closes the <main> element */}
 
       <div aria-hidden={!isAiSidebarOpen} className={`fixed top-0 right-0 h-full w-full max-w-sm md:max-w-md lg:max-w-[440px] z-50 transform transition-transform duration-300 ease-in-out ${isAiSidebarOpen ? 'translate-x-0' : 'translate-x-full'} ${cardClass} flex flex-col shadow-2xl border-l ${isIlluminateEnabled ? 'border-slate-200' : 'border-slate-700'}`} role="complementary" aria-labelledby="ai-sidebar-title">
         <div className={`p-3 sm:p-4 border-b ${isIlluminateEnabled ? 'border-slate-200 bg-slate-100/80' : 'border-slate-700 bg-slate-800/90'} flex justify-between items-center flex-shrink-0 sticky top-0 backdrop-blur-sm z-10`}>
