@@ -9,8 +9,9 @@ import {
     Lock, Trash2, Copy, RefreshCw, SplitSquareVertical, Menu, List, Briefcase,
     Share2, ClipboardCopy, Eye, ZoomIn, ZoomOut, RotateCcw, Crown, Info,
     PanelRightClose, PanelLeftClose, GripVertical, PlusCircle, Trash,
-    Image as ImageIcon,
-    Layers // Icon for Flashcards
+    Image as ImageIcon, // Renamed to avoid conflict
+    Layers, // Icon for Flashcards
+    ImagePlay, // Icon for Generate Image
 } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { auth, db } from '../lib/firebase';
@@ -26,7 +27,8 @@ import { processYouTube } from '../lib/youtube-processor';
 import {
     saveNote, savePersonalNote, updateNote, processTextToAINoteData,
     deleteNote, toggleNotePublicStatus, regenerateStudyQuestions,
-} from '../lib/notes-firebase';
+    generateImageWithImagen // Import the image generation function
+} from '../lib/notes-firebase'; // Assuming generateImageWithImagen is here
 import { NewNoteModal } from './NewNoteModal';
 import { SplitView } from './SplitView';
 import { NoteChat, NoteChatHandle, ImageData } from './NoteChat';
@@ -52,6 +54,32 @@ import 'react-pdf/dist/esm/Page/TextLayer.css';
 
 // --- Markdown Editor Import ---
 import MDEditor from '@uiw/react-md-editor';
+
+// --- Simple Modal Component ---
+const SimpleModal = ({ isOpen, onClose, title, children, isIlluminateEnabled }: { isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; isIlluminateEnabled: boolean; }) => {
+    if (!isOpen) return null;
+    const modalBg = isIlluminateEnabled ? "bg-white" : "bg-gray-800";
+    const textColor = isIlluminateEnabled ? "text-gray-900" : "text-gray-100";
+    const borderColor = isIlluminateEnabled ? 'border-gray-200' : 'border-gray-700';
+    const iconColor = isIlluminateEnabled ? "text-gray-500 hover:text-gray-700" : "text-gray-400 hover:text-gray-200";
+
+    return (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn" onClick={onClose}>
+            <div className={`${modalBg} rounded-lg shadow-xl w-full max-w-md flex flex-col overflow-hidden`} onClick={(e) => e.stopPropagation()}>
+                <div className={`flex justify-between items-center p-4 border-b ${borderColor}`}>
+                    <h2 className={`text-lg font-semibold ${textColor}`}>{title}</h2>
+                    <button onClick={onClose} className={`${iconColor} p-1 rounded-full hover:bg-gray-500/10`}>
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
+                <div className="p-4">
+                    {children}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 // Setup PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
@@ -150,6 +178,12 @@ export function Notes() {
     const [highlightButtonPosition, setHighlightButtonPosition] = useState<{ top: number; left: number } | null>(null);
     const [showHighlightButtons, setShowHighlightButtons] = useState(false);
 
+    // Image Generation State
+    const [showImageGenModal, setShowImageGenModal] = useState(false);
+    const [imageGenPrompt, setImageGenPrompt] = useState('');
+    const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+    const [imageGenError, setImageGenError] = useState<string | null>(null);
+
 
     // --- Effects ---
 
@@ -160,18 +194,32 @@ export function Notes() {
             setIsMobile(mobile);
             if (!mobile) {
                 setShowNotesListOnMobile(true);
+                // If not mobile and PDF viewer is on, ensure notes list isn't forced hidden UNLESS pdf viewer is explicitly toggled on
+                if (!showPdfViewer) {
+                    setIsNotesListHidden(false); // Ensure notes list isn't hidden by default on resize if pdf not shown
+                }
             } else {
                 setShowNotesListOnMobile(!(selectedNote || isEditing || showPdfViewer || (showSplitView && (splitViewNotes.left || splitViewNotes.right))));
-                 if (mobile && showPdfViewer) {
-                     setShowPdfViewer(false);
-                 }
+                if (mobile && showPdfViewer) {
+                    // Keep PDF viewer open on mobile if it was already open, but ensure chat is accessible
+                    // The side-by-side view won't work, so the chat should overlay or be accessed via button
+                    // Don't force close PDF viewer on mobile resize if it was open
+                    // setIsNotesListHidden(true); // Keep notes list hidden if PDF is shown on mobile
+                }
+                 // Don't force close PDF viewer on mobile resize if it was open
+                 // if (mobile && showPdfViewer) {
+                 //     setShowPdfViewer(false);
+                 // }
             }
+             if (!showPdfViewer && isNotesListHidden && !isMobile) {
+                 setIsNotesListHidden(false); // Re-show notes list if PDF view is closed on desktop
+             }
             setIsResizingPdfChatSplit(false);
         };
         window.addEventListener('resize', handleResize);
         handleResize();
         return () => window.removeEventListener('resize', handleResize);
-    }, [selectedNote, isEditing, showPdfViewer, showSplitView, splitViewNotes.left, splitViewNotes.right]);
+    }, [selectedNote, isEditing, showPdfViewer, showSplitView, splitViewNotes.left, splitViewNotes.right]); // Re-evaluate isNotesListHidden dependency
 
 
     // LocalStorage for theme/sidebar/layout
@@ -218,6 +266,7 @@ export function Notes() {
                 setShowSplitView(false); setIsChatOverlayVisible(false); setChatNoteForOverlay(null);
                 setUserTier('loading'); setNoteUsage({ pdfAi: 0, youtube: 0 }); setUsageMonth('');
                 setIsNotesListHidden(false); setIsSidebarCollapsed(false); setShowFlashcardStudyModal(false);
+                setShowImageGenModal(false); setImageGenPrompt(''); setImageGenError(null); setIsGeneratingImage(false);
                 navigate('/login');
             }
             setLoading(false);
@@ -242,6 +291,11 @@ export function Notes() {
                      if (chatNoteForOverlay?.id === updatedSelected.id) {
                          setChatNoteForOverlay(updatedSelected);
                      }
+                     // If editing, update the editable content only if not currently being typed
+                     if (isEditing && !isSaving) {
+                        setEditContent(updatedSelected.content || '');
+                        // Maybe update title/tags too if desired, but content is most likely
+                     }
                 } else {
                     setSelectedNote(null); currentSelectedNote = null; setShowPdfViewer(false);
                     setIsEditing(false); setIsChatOverlayVisible(false); setChatNoteForOverlay(null);
@@ -253,8 +307,9 @@ export function Notes() {
                 const uRight = notesList.find(n => n.id === splitViewNotes.right?.id);
                 setSplitViewNotes({ left: uLeft || null, right: uRight || null });
             }
+            // If PDF viewer is open but the selected note changed to non-PDF, or we entered edit mode, close PDF viewer
             if ((currentSelectedNote && currentSelectedNote.type !== 'pdf' && showPdfViewer) || (isEditing && showPdfViewer)) {
-                 setShowPdfViewer(false);
+                togglePdfViewer(false); // Use the toggle function to ensure proper state updates
             }
             setLoading(false);
         }, (error) => {
@@ -262,7 +317,7 @@ export function Notes() {
             setUploadProgress({ progress: 0, status: '', error: 'Could not load notes.' });
         });
         return () => unsubscribe();
-    }, [user?.uid, selectedNote?.id, showSplitView, splitViewNotes.left?.id, splitViewNotes.right?.id, chatNoteForOverlay?.id, showPdfViewer, isEditing]);
+    }, [user?.uid, selectedNote?.id, showSplitView, splitViewNotes.left?.id, splitViewNotes.right?.id, chatNoteForOverlay?.id, isEditing, isSaving]); // Removed showPdfViewer, isEditing from deps? Add isEditing back
 
 
     // Scroll non-PDF content area to top
@@ -275,11 +330,18 @@ export function Notes() {
 
     // Reset PDF viewer specific state
     useEffect(() => {
-        if (selectedNote?.type !== 'pdf' || !selectedNote.sourceUrl || !showPdfViewer) {
+        if (!showPdfViewer || selectedNote?.type !== 'pdf' || !selectedNote.sourceUrl) {
             setNumPages(null); setPdfError(null); setPdfScale(1.0); setPdfRotation(0);
             setShowHighlightButtons(false); setSelectedPdfText(null);
+            // If closing PDF viewer on desktop, make sure notes list is visible again
+            if (!showPdfViewer && !isMobile) {
+                setIsNotesListHidden(false);
+            }
+        } else if (showPdfViewer && !isMobile) {
+            // If opening PDF viewer on desktop, hide notes list
+             setIsNotesListHidden(true);
         }
-    }, [selectedNote?.id, selectedNote?.type, selectedNote?.sourceUrl, showPdfViewer]);
+    }, [showPdfViewer, selectedNote?.id, selectedNote?.type, selectedNote?.sourceUrl, isMobile]);
 
 
     // Click outside handler for highlight buttons
@@ -287,7 +349,8 @@ export function Notes() {
         const handleClickOutside = (event: MouseEvent) => {
             if (showHighlightButtons && highlightButtonPosition) {
                 const target = event.target as Element;
-                if (!target.closest('.highlight-buttons-container')) {
+                // Check if click is outside the buttons AND outside the PDF page text layer (to allow selection)
+                 if (!target.closest('.highlight-buttons-container') && !target.closest('.react-pdf__Page__textContent')) {
                     setShowHighlightButtons(false); setSelectedPdfText(null);
                     setHighlightButtonPosition(null); window.getSelection()?.removeAllRanges();
                 }
@@ -298,25 +361,30 @@ export function Notes() {
     }, [showHighlightButtons, highlightButtonPosition, showPdfViewer]);
 
     // PDF/Chat Resizing Handlers
-    const handleResizeMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    const handleResizeMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
         e.preventDefault();
         setIsResizingPdfChatSplit(true);
         document.addEventListener('mousemove', handleResizeMouseMove);
         document.addEventListener('mouseup', handleResizeMouseUp);
-    };
+    }, []); // Removed dependencies that cause re-creation
 
     const handleResizeMouseMove = useCallback((e: MouseEvent) => {
         if (!isResizingPdfChatSplit) return;
-        const mainContentArea = pdfViewerContainerRef.current?.closest('.flex.flex-row.h-full');
-        if (mainContentArea) {
+        // Use pdfViewerContainerRef which points to the PDF section
+        const pdfSection = pdfViewerContainerRef.current?.parentElement;
+        const mainContentArea = pdfSection?.parentElement; // The parent holding both PDF and Chat
+
+        if (mainContentArea && pdfSection) {
             const bounds = mainContentArea.getBoundingClientRect();
             const newPdfWidth = e.clientX - bounds.left;
             const totalWidth = bounds.width;
-            let newRatio = (newPdfWidth / totalWidth) * 100;
+            // Adjust for the resizer handle width (approx 6px or 1.5 tailwind unit)
+            const resizerWidth = 6;
+            let newRatio = (newPdfWidth / (totalWidth - resizerWidth)) * 100;
             newRatio = Math.max(20, Math.min(80, newRatio)); // Clamp ratio
             setPdfChatSplitRatio(newRatio);
         }
-    }, [isResizingPdfChatSplit]);
+    }, [isResizingPdfChatSplit]); // Added dependency
 
     const handleResizeMouseUp = useCallback(() => {
          if (isResizingPdfChatSplit) {
@@ -371,14 +439,37 @@ export function Notes() {
 
     // Handlers
     const handleToggleSidebar = () => setIsSidebarCollapsed(prev => !prev);
-    const handleToggleNotesList = () => setIsNotesListHidden(prev => !prev);
+    const handleToggleNotesList = () => {
+        if (showPdfViewer && !isMobile) {
+             // If hiding notes list while PDF viewer is open, do nothing extra
+             setIsNotesListHidden(true);
+        } else {
+             // Otherwise, toggle normally
+            setIsNotesListHidden(prev => !prev);
+        }
+    };
 
     const handleSelectNote = useCallback((note: Note) => {
-        setIsEditing(false); setShowPdfViewer(false); setIsChatOverlayVisible(false);
+        setIsEditing(false);
+        // Don't close PDF viewer automatically on select, only if switching from PDF to non-PDF or editing
+        // setShowPdfViewer(false);
+        setIsChatOverlayVisible(false);
         setChatNoteForOverlay(null); setQuestionAnswers({}); setShowFlashcardStudyModal(false);
         if (showSplitView) { handleSplitViewSelect(note); }
-        else { setSelectedNote(note); if (isMobile) { setShowNotesListOnMobile(false); } }
-    }, [showSplitView, isMobile]);
+        else {
+            const previousNote = selectedNote;
+            setSelectedNote(note);
+            // If switching from a PDF note to a non-PDF note, or vice-versa *and* PDF was visible, close PDF view
+            if (showPdfViewer && previousNote?.type !== note.type && (previousNote?.type === 'pdf' || note.type !== 'pdf')) {
+                togglePdfViewer(false);
+            }
+             // Close PDF if switching note *unless* the new note is also a PDF
+             // if (showPdfViewer && note.type !== 'pdf') {
+             //     togglePdfViewer(false);
+             // }
+            if (isMobile) { setShowNotesListOnMobile(false); }
+        }
+    }, [showSplitView, isMobile, showPdfViewer, selectedNote, togglePdfViewer]); // Added dependencies
 
     const handleSplitViewSelect = (note: Note) => {
         if (!splitViewNotes.left) { setSplitViewNotes({ ...splitViewNotes, left: note }); }
@@ -386,13 +477,17 @@ export function Notes() {
             setSplitViewNotes({ ...splitViewNotes, right: note });
             if (isMobile) { setShowNotesListOnMobile(false); }
         }
-        setIsChatOverlayVisible(false); setChatNoteForOverlay(null); setShowPdfViewer(false);
+        // Close overlay/PDF view when selecting for split view
+        setIsChatOverlayVisible(false); setChatNoteForOverlay(null);
+        if (showPdfViewer) togglePdfViewer(false);
     };
 
     const startSplitView = () => {
-        setShowSplitView(true); setSelectedNote(null); setShowPdfViewer(false);
+        setShowSplitView(true); setSelectedNote(null);
+        if (showPdfViewer) togglePdfViewer(false);
         setIsChatOverlayVisible(false); setSplitViewNotes({ left: null, right: null });
         if (isMobile) { setShowNotesListOnMobile(true); }
+        if (!isMobile) setIsNotesListHidden(false); // Ensure notes list is shown for split view selection
     };
 
     const closeSplitView = () => {
@@ -402,6 +497,7 @@ export function Notes() {
         if (isMobile) { setShowNotesListOnMobile(true); }
     };
 
+    // Opens the chat overlay for the given note
     const handleChatWithNote = (note: Note | null) => {
          if (!note || !geminiApiKey) {
              console.warn("Cannot chat: Note is null or Gemini API key not available.");
@@ -409,19 +505,18 @@ export function Notes() {
              setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
              return;
          }
-         if (note.type === 'pdf' && note.sourceUrl) {
-             if (!showPdfViewer) {
-                 togglePdfViewer(true);
-                 setTimeout(() => noteChatRef.current?.focusInput(), 150);
-             } else {
-                 noteChatRef.current?.focusInput();
-             }
-         } else {
-             setChatNoteForOverlay(note); setIsChatOverlayVisible(true);
-             setSelectedNote(note); setShowPdfViewer(false);
-             if (isMobile) { setShowNotesListOnMobile(false); }
-             setTimeout(() => noteChatRef.current?.focusInput(), 150);
-         }
+        setSelectedNote(note); // Ensure the note is selected
+        setChatNoteForOverlay(note);
+        setIsChatOverlayVisible(true);
+        // Do NOT automatically open PDF viewer here
+        // if (note.type === 'pdf' && note.sourceUrl && !isMobile) {
+        //     togglePdfViewer(true); // Open PDF view only if user clicks the dedicated button
+        // } else {
+        //     // Standard overlay logic
+        // }
+        if (showPdfViewer) togglePdfViewer(false); // Close PDF view if open when starting chat overlay
+        if (isMobile) setShowNotesListOnMobile(false);
+        setTimeout(() => noteChatRef.current?.focusInput(), 150);
     };
     const handleCloseChatOverlay = () => setIsChatOverlayVisible(false);
 
@@ -429,12 +524,13 @@ export function Notes() {
         if (!selectedNote) return;
         const markdownImageTag = `\n\n![Generated Image](${`data:${imageData.type};base64,${imageData.base64}`})\n\n`;
         if (!isEditing) {
-            handleEditNote();
+            handleEditNote(); // Switch to edit mode
+            // Use functional update for state based on previous state
             setTimeout(() => { setEditContent(prevContent => (prevContent || '') + markdownImageTag); }, 50);
         } else {
-            setEditContent(prevContent => (prevContent || '') + markdownImageTag);
+             setEditContent(prevContent => (prevContent || '') + markdownImageTag);
         }
-        if (isChatOverlayVisible) handleCloseChatOverlay();
+        if (isChatOverlayVisible) handleCloseChatOverlay(); // Close chat after adding
     };
 
     const handleUpdateNoteContentFromChat = async (noteId: string, newContent: string) => {
@@ -443,7 +539,13 @@ export function Notes() {
         try {
             await updateNote(noteId, { content: newContent, updatedAt: Timestamp.now() });
             setUploadProgress({ progress: 100, status: 'Updated via chat!', error: null });
-            if (isEditing && selectedNote?.id === noteId) { setEditContent(newContent); }
+            // If editing the same note, update the editor state
+            if (isEditing && selectedNote?.id === noteId) {
+                 setEditContent(newContent);
+                 // Need to re-fetch or update the selectedNote state here if we rely on it for other edit fields
+                 // Or, better, rely on the listener to update selectedNote, which will trickle down.
+                 // The useEffect listener for notes should handle updating selectedNote, which then updates editContent.
+            }
             setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 2000);
         } catch (error) {
             console.error('Error updating note from chat:', error);
@@ -458,8 +560,11 @@ export function Notes() {
         setEditTags(selectedNote.tags || []);
         setEditKeyPoints(selectedNote.keyPoints || []);
         setEditFlashcards(selectedNote.flashcards || []);
-        setNewTag(''); setIsEditing(true); setIsChatOverlayVisible(false);
-        setChatNoteForOverlay(null); setShowPdfViewer(false); setShowFlashcardStudyModal(false);
+        setNewTag(''); setIsEditing(true);
+        // Close other views when entering edit mode
+        setIsChatOverlayVisible(false); setChatNoteForOverlay(null);
+        if (showPdfViewer) togglePdfViewer(false);
+        setShowFlashcardStudyModal(false);
         if (isMobile) { setShowNotesListOnMobile(false); }
     };
 
@@ -475,8 +580,9 @@ export function Notes() {
                  updatedAt: Timestamp.now()
             };
             await updateNote(selectedNote.id, updatedData);
-            setIsEditing(false);
+            setIsEditing(false); // Exit edit mode on successful save
             setUploadProgress({ progress: 100, status: 'Saved!', error: null });
+            // The listener will update the selectedNote state, no need to manually set it here
             setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 2000);
         } catch (error) { console.error('Error saving note:', error); setUploadProgress({ progress: 0, status: '', error: 'Failed to save note' }); }
         finally { setIsSaving(false); }
@@ -487,8 +593,11 @@ export function Notes() {
         setUploadProgress({ progress: 0, status: 'Deleting...', error: null });
         try {
             await deleteNote(noteId);
+            // Reset states if the deleted note was selected/active
             if (selectedNote?.id === noteId) {
-                 setSelectedNote(null); setShowPdfViewer(false); setIsEditing(false);
+                 setSelectedNote(null);
+                 if (showPdfViewer) togglePdfViewer(false);
+                 setIsEditing(false);
             }
             if (chatNoteForOverlay?.id === noteId) {
                  handleCloseChatOverlay(); setChatNoteForOverlay(null);
@@ -498,6 +607,7 @@ export function Notes() {
                  const uRight = splitViewNotes.right?.id === noteId ? null : splitViewNotes.right;
                  setSplitViewNotes({ left: uLeft, right: uRight });
                  if (showSplitView && (!uLeft || !uRight) && isMobile) setShowNotesListOnMobile(true);
+                 if (showSplitView && !uLeft && !uRight) closeSplitView(); // Close if both are gone
             }
             setUploadProgress({ progress: 100, status: 'Deleted!', error: null });
             setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 2000);
@@ -513,7 +623,7 @@ export function Notes() {
             await toggleNotePublicStatus(noteId, !currentIsPublic);
             setUploadProgress({ progress: 100, status: 'Visibility updated!', error: null });
             setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 2000);
-            if (currentIsPublic) setLinkCopied(false);
+            if (currentIsPublic) setLinkCopied(false); // Reset copied status if made private
         } catch (error) {
             console.error('Error toggling public status:', error);
             setUploadProgress({ progress: 0, status: '', error: 'Failed to update note visibility' });
@@ -618,21 +728,32 @@ export function Notes() {
     const onDocumentLoadError = (error: Error) => { console.error('Failed to load PDF:', error); setPdfError(`Failed to load PDF: ${error.message}. Ensure URL is correct and file is accessible.`); setNumPages(null); setShowPdfViewer(false); };
 
     // Toggle PDF view
-    const togglePdfViewer = (forceOpen = false) => {
-        if (selectedNote?.type === 'pdf' && selectedNote.sourceUrl) {
-            const turningOn = forceOpen || !showPdfViewer;
-            setShowPdfViewer(turningOn);
-            if (turningOn) {
-                 setPdfScale(1.0); setPdfRotation(0); setShowHighlightButtons(false); setSelectedPdfText(null);
-                 if (isChatOverlayVisible && chatNoteForOverlay?.id === selectedNote.id) { setIsChatOverlayVisible(false); setChatNoteForOverlay(null); }
-                 if (!isMobile) { setIsNotesListHidden(true); }
+    const togglePdfViewer = useCallback((forceOpen?: boolean) => {
+        const turnOn = forceOpen !== undefined ? forceOpen : !showPdfViewer;
+
+        if (turnOn) {
+            // Check if we can open it
+            if (selectedNote?.type === 'pdf' && selectedNote.sourceUrl) {
+                setShowPdfViewer(true);
+                setPdfScale(1.0); setPdfRotation(0); setShowHighlightButtons(false); setSelectedPdfText(null);
+                 // Close chat overlay if it was open for the same note
+                 if (isChatOverlayVisible && chatNoteForOverlay?.id === selectedNote.id) {
+                     setIsChatOverlayVisible(false); setChatNoteForOverlay(null);
+                 }
+                 if (!isMobile) setIsNotesListHidden(true); // Hide notes list on desktop when PDF opens
             } else {
-                 setShowHighlightButtons(false); setSelectedPdfText(null); window.getSelection()?.removeAllRanges();
+                // Cannot open PDF viewer (not a PDF note or no URL)
+                console.warn("Cannot open PDF viewer for the current note.");
+                if (showPdfViewer) setShowPdfViewer(false); // Ensure it's closed if it somehow was true
+                if (!isMobile) setIsNotesListHidden(false); // Ensure notes list is visible if PDF can't open
             }
-        } else if (!forceOpen && showPdfViewer) {
+        } else {
+            // Turning off
             setShowPdfViewer(false);
+            setShowHighlightButtons(false); setSelectedPdfText(null); window.getSelection()?.removeAllRanges();
+            if (!isMobile) setIsNotesListHidden(false); // Show notes list on desktop when PDF closes
         }
-    };
+    }, [selectedNote, showPdfViewer, isChatOverlayVisible, chatNoteForOverlay, isMobile]); // Dependencies
 
     const changeScale = (amount: number) => setPdfScale(prevScale => Math.max(0.5, prevScale + amount));
     const changeRotation = (amount: number) => setPdfRotation(prevRotation => (prevRotation + amount + 360) % 360);
@@ -643,6 +764,7 @@ export function Notes() {
         const selection = window.getSelection();
         if (selection && !selection.isCollapsed && selection.rangeCount > 0) {
             const range = selection.getRangeAt(0);
+            // Check if selection is within the PDF text layer
             const textLayer = range.commonAncestorContainer.parentElement?.closest('.react-pdf__Page__textContent');
             if (textLayer) {
                 const selectedText = range.toString().trim();
@@ -652,30 +774,96 @@ export function Notes() {
                     const rangeRect = range.getBoundingClientRect();
                     const scrollTop = pdfViewerContainerRef.current.scrollTop;
                     const scrollLeft = pdfViewerContainerRef.current.scrollLeft;
-                    const top = rangeRect.top - containerRect.top + scrollTop - 35;
+                    // Position buttons slightly above the selection midpoint
+                    const top = rangeRect.top - containerRect.top + scrollTop - 35; // Adjust offset as needed
                     const left = rangeRect.left - containerRect.left + scrollLeft + (rangeRect.width / 2);
                     setHighlightButtonPosition({ top: Math.max(scrollTop + 5, top), left: Math.max(scrollLeft + 5, left) });
                     setShowHighlightButtons(true);
-                    return;
+                    return; // Don't hide buttons if selection is valid
                 }
             }
         }
-         if (showHighlightButtons) { setShowHighlightButtons(false); setSelectedPdfText(null); setHighlightButtonPosition(null); }
-     }, [showPdfViewer, showHighlightButtons]);
+         // If selection is invalid or collapsed, hide buttons
+         if (showHighlightButtons) {
+             setShowHighlightButtons(false); setSelectedPdfText(null); setHighlightButtonPosition(null);
+         }
+     }, [showPdfViewer, showHighlightButtons]); // Dependency
 
     // Highlight Button Actions
     const handleExplainHighlight = () => {
         if (selectedPdfText && noteChatRef.current) {
-            noteChatRef.current.sendMessage(`Explain:\n\n"${selectedPdfText}"`);
+            // Open chat overlay if not already open for this note
+            if (!isChatOverlayVisible || chatNoteForOverlay?.id !== selectedNote?.id) {
+                handleChatWithNote(selectedNote); // Open chat overlay
+                 // Need a slight delay for the chat component to mount and ref to be ready
+                 setTimeout(() => {
+                     noteChatRef.current?.sendMessage(`Explain:\n\n"${selectedPdfText}"`);
+                 }, 200);
+            } else {
+                 // Chat overlay already open for this note
+                 noteChatRef.current.sendMessage(`Explain:\n\n"${selectedPdfText}"`);
+            }
             setShowHighlightButtons(false); setSelectedPdfText(null); window.getSelection()?.removeAllRanges();
         } else { console.warn("Explain failed: No selected text or chat ref."); }
     };
 
     const handleChatAboutHighlight = () => {
         if (selectedPdfText && noteChatRef.current) {
-            noteChatRef.current.addContextToInput(selectedPdfText); // Use new method
+             // Open chat overlay if not already open for this note
+             if (!isChatOverlayVisible || chatNoteForOverlay?.id !== selectedNote?.id) {
+                 handleChatWithNote(selectedNote); // Open chat overlay
+                 // Need a slight delay for the chat component to mount and ref to be ready
+                 setTimeout(() => {
+                     noteChatRef.current?.addContextToInput(selectedPdfText); // Use new method
+                 }, 200);
+             } else {
+                 // Chat overlay already open for this note
+                 noteChatRef.current.addContextToInput(selectedPdfText); // Use new method
+             }
             setShowHighlightButtons(false); setSelectedPdfText(null); window.getSelection()?.removeAllRanges();
         } else { console.warn("Chat failed: No selected text or chat ref."); }
+    };
+
+    // --- Image Generation Handler ---
+    const handleGenerateImageForNote = async () => {
+        if (!imageGenPrompt.trim() || !selectedNote || !geminiApiKey || isGeneratingImage) {
+            setImageGenError("Please enter a prompt.");
+            return;
+        }
+        setIsGeneratingImage(true);
+        setImageGenError(null);
+        setUploadProgress({ progress: 0, status: 'Generating image...', error: null });
+
+        try {
+            const imageData = await generateImageWithImagen(
+                imageGenPrompt,
+                `Context: Note Title - "${selectedNote.title}". Content Snippet: ${selectedNote.content.substring(0, 300)}...`, // Add context
+                geminiApiKey
+            );
+
+            if (imageData) {
+                handleAddImageToNoteRequest(imageData); // Add to editor content
+                setUploadProgress({ progress: 100, status: 'Image added to note!', error: null });
+                setShowImageGenModal(false); // Close modal on success
+                setImageGenPrompt('');
+            } else {
+                throw new Error("Image generation succeeded but no image data was returned.");
+            }
+
+        } catch (error: any) {
+            console.error("Error generating image for note:", error);
+            const errorMsg = error instanceof Error ? error.message : "Failed to generate image.";
+            setImageGenError(errorMsg);
+            setUploadProgress({ progress: 0, status: '', error: errorMsg });
+        } finally {
+            setIsGeneratingImage(false);
+             // Keep modal open on error, clear progress indicator after delay
+             setTimeout(() => {
+                 if (uploadProgress.error) { // Only clear if there was an error
+                     setUploadProgress({ progress: 0, status: '', error: null });
+                 }
+             }, 3000);
+        }
     };
 
     // --- Theme Styles ---
@@ -710,6 +898,7 @@ export function Notes() {
     const proseClass = `prose prose-sm sm:prose-base max-w-none ${isIlluminateEnabled ? 'prose-gray' : 'prose-invert'} ${isIlluminateEnabled ? 'text-gray-800' : 'text-gray-300'} prose-a:text-blue-500 hover:prose-a:text-blue-600 prose-code:before:content-none prose-code:after:content-none prose-code:bg-gray-200/50 dark:prose-code:bg-gray-700/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-pre:bg-gray-100 dark:prose-pre:bg-gray-800 prose-pre:rounded-md prose-pre:p-3 prose-img:rounded-lg prose-img:shadow-sm prose-headings:font-semibold prose-h1:text-xl prose-h1:mb-2 prose-h1:mt-4 prose-h2:text-lg prose-h2:mb-1.5 prose-h2:mt-3 prose-h3:text-base prose-h3:mb-1 prose-h3:mt-2 prose-p:leading-relaxed prose-p:mb-2 prose-ul:list-disc prose-ul:my-1 prose-ul:ml-4 prose-ol:list-decimal prose-ol:my-1 prose-ol:ml-4 prose-li:my-0.5 prose-blockquote:border-l-4 ${isIlluminateEnabled ? 'prose-blockquote:border-gray-300' : 'prose-blockquote:border-gray-600'} prose-blockquote:pl-3 prose-blockquote:italic prose-blockquote:text-sm prose-blockquote:my-2 prose-table:text-sm prose-table:my-2 prose-thead:border-b ${isIlluminateEnabled ? 'prose-thead:border-gray-300' : 'prose-thead:border-gray-600'} prose-th:px-2 prose-th:py-1 prose-th:font-medium ${isIlluminateEnabled ? 'prose-th:bg-gray-100/50' : 'prose-th:bg-gray-700/30'} prose-td:border ${isIlluminateEnabled ? 'prose-td:border-gray-200' : 'prose-td:border-gray-700'} prose-td:px-2 prose-td:py-1`;
 
     // Determine if side-by-side chat should be active *and* rendered
+    // User must explicitly toggle the PDF viewer for this to be true
     const showSideBySideChat = selectedNote?.type === 'pdf' && showPdfViewer && !!selectedNote.sourceUrl && !!user && !!geminiApiKey && !isMobile;
 
     // Get current limits for display
@@ -724,10 +913,62 @@ export function Notes() {
             {/* Main Area */}
             <main className={`flex-1 flex overflow-hidden transition-all duration-300 ${ isSidebarCollapsed ? 'ml-16 md:ml-20' : 'ml-0 md:ml-64' }`}>
 
-                {/* === 1. Main Content Area === */}
-                <div ref={!showSideBySideChat ? contentRef : null} className={`flex-1 ${mainContentBg} relative ${showSideBySideChat ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+                 {/* === 1. Notes List Sidebar === */}
+                 {/* Conditional rendering ensures it's part of the layout flow on desktop */}
+                 {!isMobile && !isNotesListHidden && (
+                     <div className={`
+                        w-full md:w-72 lg:w-80 xl:w-96 border-r ${borderColor} flex-shrink-0 flex flex-col ${notesListBg}
+                        transition-transform duration-300 ease-in-out relative h-full z-10
+                    `}>
+                        {/* Header */}
+                         <div className={`p-3 border-b ${borderColor} flex items-center justify-between flex-shrink-0`}>
+                             <h2 className={`text-lg font-semibold ${headingClass} flex items-center gap-2`}> <FileText className={`w-5 h-5 ${iconActionColor}`} /> Notes </h2>
+                             <div className="flex items-center gap-1">
+                                {!isMobile && ( <button onClick={handleToggleNotesList} className={`${buttonSecondaryClass} p-1.5 rounded-full ${iconHoverColor}`} title={isNotesListHidden ? "Show Notes List" : "Hide Notes List"}> {isNotesListHidden ? <PanelLeftClose className="w-4 h-4" /> : <PanelRightClose className="w-4 h-4" />} </button> )}
+                                {!isMobile && notes.length >= 2 && !showPdfViewer && ( <button onClick={showSplitView ? closeSplitView : startSplitView} className={`${buttonSecondaryClass} p-1.5 rounded-full ${iconHoverColor}`} title={showSplitView ? "Close Comparison" : "Compare Notes"}> <SplitSquareVertical className={`w-4 h-4 ${showSplitView ? iconActionColor: ''}`} /> </button> )}
+                                <button onClick={() => setShowNewNoteModal(true)} className={`${buttonPrimaryClass} p-2 rounded-full hover:shadow-md transition-all duration-150`} title="New Note"> <Plus className="w-4 h-4" /> </button>
+                                {isMobile && ( <button onClick={() => setShowNotesListOnMobile(false)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Hide List"> <X className="w-4 h-4" /> </button> )}
+                             </div>
+                         </div>
+                        {/* Search/Filter */}
+                        <div className={`p-3 border-b ${borderColor} flex-shrink-0`}>
+                            <div className="relative mb-2"> <Search className={`absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 ${iconColor}`} /> <input type="text" placeholder="Search notes..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className={`w-full ${inputBg} ${inputTextColor} pl-8 pr-3 py-1.5 rounded-full text-sm focus:outline-none focus:ring-1 ${placeholderColor}`} /> </div>
+                            <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar"> {(['all', 'personal', 'pdf', 'youtube'] as const).map(type => ( <button key={type} onClick={() => setFilterType(type)} className={`px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap ${filterType === type ? `${buttonPrimaryClass} shadow-sm` : `${buttonSecondaryClass}`}`}> {type === 'all' ? 'All' : type.charAt(0).toUpperCase() + type.slice(1)} </button> ))} </div>
+                        </div>
+                        {/* Usage Info Display */}
+                        {userTier !== 'premium' && userTier !== 'loading' && currentLimits && (
+                            <div className={`px-3 py-2 text-[10px] border-b ${borderColor} ${isIlluminateEnabled ? 'text-gray-600 bg-gray-50' : 'text-gray-400 bg-gray-800/50'}`}>
+                                <div className="flex justify-between items-center gap-2">
+                                    <span>PDF/AI Notes: {noteUsage.pdfAi} / {currentLimits.pdfAi === Infinity ? '∞' : currentLimits.pdfAi}</span>
+                                    <span>YouTube Notes: {noteUsage.youtube} / {currentLimits.youtube === Infinity ? '∞' : currentLimits.youtube}</span>
+                                </div>
+                            </div>
+                        )}
+                        {/* Notes List */}
+                        <div className="flex-1 overflow-y-auto">
+                            {loading && notes.length === 0 ? ( <div className="flex justify-center items-center h-full p-6"> <Loader2 className={`w-6 h-6 animate-spin ${iconColor}`} /> </div> )
+                            : !loading && notes.length === 0 ? ( <div className="flex flex-col items-center justify-center h-full text-center p-6"> <FileQuestion className={`w-12 h-12 ${iconColor} mb-3`} /> <p className={`${subheadingClass} mb-4 text-sm`}>No notes yet.</p> <button onClick={() => setShowNewNoteModal(true)} className={`${buttonPrimaryClass} px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5`}> <Plus className="w-4 h-4" /> Create Note </button> </div> )
+                            : ( <div className={`divide-y ${divideColor}`}> {notes.filter((note) => { if (filterType !== 'all' && note.type !== filterType) return false; if (searchQuery) { const search = searchQuery.toLowerCase(); return (note.title.toLowerCase().includes(search) || note.content.toLowerCase().includes(search) || note.tags?.some((tag) => tag.toLowerCase().includes(search))); } return true; }).map((note) => { const isSel = (!showSplitView && selectedNote?.id === note.id); const isSplitL = showSplitView && splitViewNotes.left?.id === note.id; const isSplitR = showSplitView && splitViewNotes.right?.id === note.id; const isSelectedAny = isSel || isSplitL || isSplitR; let typeIcon; switch (note.type) { case 'personal': typeIcon = <Briefcase className="w-3 h-3"/>; break; case 'pdf': typeIcon = <FileText className="w-3 h-3"/>; break; case 'youtube': typeIcon = <Youtube className="w-3 h-3"/>; break; default: typeIcon = null; } return ( <div key={note.id} className={`p-3 cursor-pointer transition-colors duration-150 ${listItemHoverBg} ${listItemBaseClass} ${isSelectedAny ? listItemSelectedBg : ''}`} onClick={() => handleSelectNote(note)}> <div className="flex justify-between items-start gap-2"> <h3 className={`text-sm font-medium mb-0.5 line-clamp-1 ${headingClass}`}>{note.title || "Untitled"}</h3> {isSplitL && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-blue-500/20 text-blue-300`}>Left</span>} {isSplitR && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-purple-500/20 text-purple-300`}>Right</span>} </div> <p className={`${subheadingClass} text-xs line-clamp-2 mb-1.5`}>{note.content.substring(0, 100)}</p> <div className="flex flex-wrap items-center gap-1 text-[10px]"> <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${tagColors[note.type]} ${tagBaseBg} ${tagTextBase}`}> {typeIcon} {note.type.charAt(0).toUpperCase() + note.type.slice(1)} </span> {note.isPublic && <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${tagColors.public} ${tagBaseBg} ${tagTextBase}`}><Globe className="w-3 h-3"/> Public</span>} {note.tags?.slice(0, 2).map((tag) => <span key={tag} className={`px-1.5 py-0.5 rounded ${tagColors.custom} ${tagBaseBg} ${tagTextBase} truncate max-w-[60px]`} title={tag}>#{tag}</span>)} {note.tags && note.tags.length > 2 && <span className={`px-1.5 py-0.5 rounded ${tagColors.custom} ${tagBaseBg} ${tagTextBase}`}>+{note.tags.length - 2}</span>} <span className={`ml-auto text-gray-500 dark:text-gray-500`}>{note.updatedAt?.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span> </div> </div> ); })} </div> )}
+                        </div>
+                    </div>
+                 )}
 
-                     {/* Mobile Header */}
+                 {/* Notes List Toggle Button (when hidden on desktop) */}
+                 {!isMobile && isNotesListHidden && !showPdfViewer && (
+                    <button
+                        onClick={handleToggleNotesList}
+                        className={`fixed left-2 top-1/2 -translate-y-1/2 z-30 p-2 rounded-r-md shadow-lg transition-all duration-300 ${buttonSecondaryClass}`}
+                        title="Show Notes List"
+                        style={{ left: isSidebarCollapsed ? '5rem' : '16rem' }} // Adjust based on main content margin
+                    >
+                        <PanelLeftClose className="w-5 h-5" />
+                    </button>
+                 )}
+
+                 {/* === 2. Main Content Area === */}
+                 <div ref={!showSideBySideChat ? contentRef : null} className={`flex-1 ${mainContentBg} relative ${showSideBySideChat ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+
+                      {/* Mobile Header */}
                      {isMobile && !showNotesListOnMobile && !showSideBySideChat && (
                          <div className={`sticky top-0 z-10 p-2 border-b ${borderColor} ${isIlluminateEnabled ? 'bg-white/80 backdrop-blur-sm' : 'bg-gray-900/80 backdrop-blur-sm'} flex items-center justify-between`}>
                              <button onClick={() => setShowNotesListOnMobile(true)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Show Notes"> <List className="w-4 h-4" /> </button>
@@ -750,6 +991,7 @@ export function Notes() {
                                   {/* PDF Controls Header */}
                                   <div className={`flex-shrink-0 p-1.5 border-b ${borderColor} ${isIlluminateEnabled ? 'bg-gray-50' : 'bg-gray-800/50'} flex items-center justify-between gap-1 sticky top-0 z-10`}>
                                       <div className="flex items-center gap-1">
+                                            {/* Button to close PDF view and return to normal note view */}
                                           <button onClick={() => togglePdfViewer(false)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Show Note Content"> <FileText className="w-4 h-4" /> </button>
                                       </div>
                                       <div className="flex items-center gap-1"> {/* Zoom & Rotate */}
@@ -796,7 +1038,23 @@ export function Notes() {
 
                              {/* Chat Section (Inline) */}
                              <div className="h-full flex flex-col overflow-hidden" style={{ width: `${100 - pdfChatSplitRatio}%` }}>
-                                 <NoteChat ref={noteChatRef} key={selectedNote.id} note={selectedNote} onClose={() => togglePdfViewer(false)} geminiApiKey={geminiApiKey!} userName={userName} isIlluminateEnabled={isIlluminateEnabled} isBlackoutEnabled={isBlackoutEnabled} isVisible={true} onUpdateNoteContent={handleUpdateNoteContentFromChat} onAddImageToNoteRequest={handleAddImageToNoteRequest} displayMode="inline" />
+                                 {/* Render NoteChat only if selectedNote and geminiApiKey exist */}
+                                 {selectedNote && geminiApiKey && (
+                                    <NoteChat
+                                        ref={noteChatRef}
+                                        key={selectedNote.id} // Key ensures re-mount on note change if needed
+                                        note={selectedNote}
+                                        onClose={() => togglePdfViewer(false)} // Closing inline chat closes PDF view
+                                        geminiApiKey={geminiApiKey}
+                                        userName={userName}
+                                        isIlluminateEnabled={isIlluminateEnabled}
+                                        isBlackoutEnabled={isBlackoutEnabled}
+                                        isVisible={true} // Always visible in side-by-side mode
+                                        onUpdateNoteContent={handleUpdateNoteContentFromChat}
+                                        onAddImageToNoteRequest={handleAddImageToNoteRequest}
+                                        displayMode="inline"
+                                     />
+                                 )}
                              </div>
                          </div>
 
@@ -863,9 +1121,24 @@ export function Notes() {
                                          </div> {/* End Scrollable Edit Area */}
 
                                          {/* Edit Footer */}
-                                         <div className="flex justify-end gap-2 pt-3 mt-3 border-t border-gray-300 dark:border-gray-700 flex-shrink-0">
-                                             <button onClick={handleCancelEdit} className={`${buttonSecondaryClass} px-4 py-1.5 rounded-md text-sm`}>Cancel</button>
-                                             <button onClick={handleSaveEdit} disabled={isSaving || !editTitle.trim()} className={`${buttonPrimaryClass} px-4 py-1.5 rounded-md text-sm flex items-center gap-1.5 ${isSaving || !editTitle.trim() ? buttonDisabledClass : ''}`}> {isSaving ? (<> <Loader2 className="w-4 h-4 animate-spin" /> Saving... </>) : (<> <Save className="w-4 h-4" /> Save </>)} </button>
+                                         <div className="flex justify-between items-center gap-2 pt-3 mt-3 border-t border-gray-300 dark:border-gray-700 flex-shrink-0">
+                                             {/* Left side: Image Generation */}
+                                             {geminiApiKey && (
+                                                <button
+                                                     onClick={() => { setShowImageGenModal(true); setImageGenError(null); setImageGenPrompt('');}}
+                                                     className={`${buttonSecondaryClass} px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5`}
+                                                     title="Generate Image and add to Note"
+                                                     disabled={isGeneratingImage}
+                                                >
+                                                     <ImagePlay className="w-4 h-4" /> Generate Image
+                                                 </button>
+                                             )}
+
+                                             {/* Right side: Save/Cancel */}
+                                             <div className="flex gap-2">
+                                                 <button onClick={handleCancelEdit} className={`${buttonSecondaryClass} px-4 py-1.5 rounded-md text-sm`}>Cancel</button>
+                                                 <button onClick={handleSaveEdit} disabled={isSaving || !editTitle.trim()} className={`${buttonPrimaryClass} px-4 py-1.5 rounded-md text-sm flex items-center gap-1.5 ${isSaving || !editTitle.trim() ? buttonDisabledClass : ''}`}> {isSaving ? (<> <Loader2 className="w-4 h-4 animate-spin" /> Saving... </>) : (<> <Save className="w-4 h-4" /> Save </>)} </button>
+                                             </div>
                                          </div>
                                      </div>
                                 ) : (
@@ -876,7 +1149,7 @@ export function Notes() {
                                              <h2 className={`text-xl md:text-2xl font-semibold ${headingClass} break-words mr-auto`}>{selectedNote.title || "Untitled Note"}</h2>
                                              <div className={`flex items-center gap-1 flex-shrink-0 border rounded-full p-0.5 ${borderColor} ${isIlluminateEnabled ? 'bg-gray-50' : 'bg-gray-800/50'}`}>
                                                 <button onClick={handleEditNote} className={`p-1.5 rounded-full ${iconHoverColor} ${iconActionHoverBg}`} title="Edit"><Edit2 className="w-4 h-4" /></button>
-                                                {geminiApiKey && <button onClick={() => handleChatWithNote(selectedNote)} className={`p-1.5 rounded-full ${iconHoverColor} ${iconActionHoverBg}`} title={selectedNote.type === 'pdf' && !isMobile ? "Chat (Opens PDF View)" : "Chat (Overlay)"}><MessageCircle className="w-4 h-4" /></button>}
+                                                {geminiApiKey && <button onClick={() => handleChatWithNote(selectedNote)} className={`p-1.5 rounded-full ${iconHoverColor} ${iconActionHoverBg}`} title="Chat about this note"><MessageCircle className="w-4 h-4" /></button>}
                                                 {selectedNote.type === 'pdf' && selectedNote.sourceUrl && !isMobile && ( <button onClick={() => togglePdfViewer(true)} className={`p-1.5 rounded-full ${iconHoverColor} ${iconActionHoverBg}`} title={"View PDF & Chat"}> <Eye className="w-4 h-4" /> </button> )}
                                                 {selectedNote.flashcards && selectedNote.flashcards.length > 0 && ( <button onClick={handleStudyFlashcards} className={`p-1.5 rounded-full ${iconHoverColor} ${iconActionHoverBg}`} title="Study Flashcards"><Layers className="w-4 h-4" /> </button> )}
                                                 <button onClick={() => handleTogglePublic(selectedNote.id, selectedNote.isPublic)} className={`p-1.5 rounded-full ${iconHoverColor} ${selectedNote.isPublic ? 'hover:bg-cyan-100/50 dark:hover:bg-cyan-900/30' : iconActionHoverBg}`} title={selectedNote.isPublic ? 'Make private' : 'Make public'}>{selectedNote.isPublic ? <Globe className={`w-4 h-4 ${isIlluminateEnabled ? 'text-cyan-600' : 'text-cyan-400'}`} /> : <Lock className="w-4 h-4" />}</button>
@@ -891,7 +1164,7 @@ export function Notes() {
                                         <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
                                             {/* Note Content */}
                                             <div className={`${proseClass} mb-6`}>
-                                                 <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]} components={{ h1: ({node, ...props}) => <h1 className="text-xl font-semibold mb-2 mt-4 border-b pb-1" {...props} />, h2: ({node, ...props}) => <h2 className="text-lg font-semibold mb-1.5 mt-3 border-b pb-0.5" {...props} />, h3: ({node, ...props}) => <h3 className="text-base font-semibold mb-1 mt-2" {...props} />, table: ({node, ...props}) => <div className="overflow-x-auto"><table className="my-2" {...props} /></div>, th: ({node, ...props}) => <th className={`border px-2 py-1 font-medium ${isIlluminateEnabled ? 'border-gray-300 bg-gray-100' : 'border-gray-600 bg-gray-700/50'}`} {...props} />, td: ({node, ...props}) => <td className={`border px-2 py-1 ${isIlluminateEnabled ? 'border-gray-200' : 'border-gray-700'}`} {...props} />, p: ({node, ...props}) => <p className="text-sm leading-relaxed mb-2" {...props} />, ul: ({node, ...props}) => <ul className="list-disc list-outside ml-4 space-y-1 text-sm mb-2" {...props} />, ol: ({node, ...props}) => <ol className="list-decimal list-outside ml-4 space-y-1 text-sm mb-2" {...props} />, li: ({node, ...props}) => <li className="mb-0.5" {...props} />, blockquote: ({node, ...props}) => <blockquote className={`border-l-4 ${borderColor} pl-3 italic text-sm my-2 ${subheadingClass}`} {...props} />, code: ({node, inline, className, children, ...props}) => { const match = /language-(\w+)/.exec(className || ''); return !inline ? ( <pre className={`text-[11px] leading-snug ${isIlluminateEnabled ? '!bg-gray-100 !text-gray-800 border border-gray-200' : '!bg-gray-900/80 !text-gray-300 border border-gray-700'} p-2 rounded-md overflow-x-auto my-2`} {...props}> <code className={`language-${match?.[1] || 'plaintext'}`}>{children}</code> </pre> ) : ( <code className={`text-xs ${isIlluminateEnabled ? 'bg-gray-200/70 text-gray-800' : 'bg-gray-700/70 text-gray-200'} px-1 rounded`} {...props}>{children}</code> ); }, img: ({node, ...props}) => <img className="max-w-full h-auto rounded-md my-2" {...props} />, }}>{selectedNote.content}</ReactMarkdown>
+                                                 <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]} components={{ h1: ({node, ...props}) => <h1 className="text-xl font-semibold mb-2 mt-4 border-b pb-1" {...props} />, h2: ({node, ...props}) => <h2 className="text-lg font-semibold mb-1.5 mt-3 border-b pb-0.5" {...props} />, h3: ({node, ...props}) => <h3 className="text-base font-semibold mb-1 mt-2" {...props} />, table: ({node, ...props}) => <div className="overflow-x-auto"><table className="my-2" {...props} /></div>, th: ({node, ...props}) => <th className={`border px-2 py-1 font-medium ${isIlluminateEnabled ? 'border-gray-300 bg-gray-100' : 'border-gray-600 bg-gray-700/50'}`} {...props} />, td: ({node, ...props}) => <td className={`border px-2 py-1 ${isIlluminateEnabled ? 'border-gray-200' : 'border-gray-700'}`} {...props} />, p: ({node, ...props}) => <p className="text-sm leading-relaxed mb-2" {...props} />, ul: ({node, ...props}) => <ul className="list-disc list-outside ml-4 space-y-1 text-sm mb-2" {...props} />, ol: ({node, ...props}) => <ol className="list-decimal list-outside ml-4 space-y-1 text-sm mb-2" {...props} />, li: ({node, ...props}) => <li className="mb-0.5" {...props} />, blockquote: ({node, ...props}) => <blockquote className={`border-l-4 ${borderColor} pl-3 italic text-sm my-2 ${subheadingClass}`} {...props} />, code: ({node, inline, className, children, ...props}) => { const match = /language-(\w+)/.exec(className || ''); return !inline ? ( <pre className={`text-[11px] leading-snug ${isIlluminateEnabled ? '!bg-gray-100 !text-gray-800 border border-gray-200' : '!bg-gray-900/80 !text-gray-300 border border-gray-700'} p-2 rounded-md overflow-x-auto my-2`} {...props}> <code className={`language-${match?.[1] || 'plaintext'}`}>{children}</code> </pre> ) : ( <code className={`text-xs ${isIlluminateEnabled ? 'bg-gray-200/70 text-gray-800' : 'bg-gray-700/70 text-gray-200'} px-1 rounded`} {...props}>{children}</code> ); }, img: ({node, ...props}) => <img className="max-w-full h-auto rounded-md my-2 shadow-md" {...props} />, }}>{selectedNote.content}</ReactMarkdown>
                                             </div>
                                             {/* Key Points Section */}
                                             {selectedNote.keyPoints && selectedNote.keyPoints.length > 0 && ( <div className={`mt-6 border-t pt-4 ${borderColor}`}> <h3 className={`text-base font-semibold mb-3 flex items-center gap-1.5 ${headingClass}`}><Sparkles className={`w-4 h-4 ${isIlluminateEnabled ? 'text-yellow-500' : 'text-yellow-400'}`} />Key Points</h3> <ul className="space-y-1.5 text-sm"> {selectedNote.keyPoints.map((point, index) => (<li key={index} className={`flex items-start gap-2 ${textColor}`}><span className={`flex-shrink-0 mt-1 w-1.5 h-1.5 rounded-full ${isIlluminateEnabled ? 'bg-blue-500' : 'bg-blue-400'}`}></span>{point}</li>))} </ul> </div> )}
@@ -910,46 +1183,49 @@ export function Notes() {
                      )} {/* End Main Content Conditional Rendering */}
                 </div> {/* End Main Content Area Flex container */}
 
-                {/* === 2. Notes List Sidebar === */}
-                 <div className={`
-                    w-full md:w-72 lg:w-80 xl:w-96 border-l ${borderColor} flex-shrink-0 flex flex-col ${notesListBg}
-                    transition-transform duration-300 ease-in-out absolute md:relative top-0 right-0 h-full z-20 md:z-10 shadow-xl md:shadow-none
-                    ${ isMobile
-                        ? (showNotesListOnMobile ? 'translate-x-0' : 'translate-x-full')
-                        : (isNotesListHidden || showPdfViewer ? '-translate-x-full md:translate-x-0 md:hidden' : 'translate-x-0')
-                    }
-                `}>
-                    {/* Header */}
-                     <div className={`p-3 border-b ${borderColor} flex items-center justify-between flex-shrink-0`}>
-                         <h2 className={`text-lg font-semibold ${headingClass} flex items-center gap-2`}> <FileText className={`w-5 h-5 ${iconActionColor}`} /> Notes </h2>
-                         <div className="flex items-center gap-1">
-                            {!isMobile && ( <button onClick={handleToggleNotesList} className={`${buttonSecondaryClass} p-1.5 rounded-full ${iconHoverColor}`} title={isNotesListHidden ? "Show Notes List" : "Hide Notes List"}> {isNotesListHidden ? <PanelLeftClose className="w-4 h-4" /> : <PanelRightClose className="w-4 h-4" />} </button> )}
-                            {!isMobile && notes.length >= 2 && !showPdfViewer && ( <button onClick={showSplitView ? closeSplitView : startSplitView} className={`${buttonSecondaryClass} p-1.5 rounded-full ${iconHoverColor}`} title={showSplitView ? "Close Comparison" : "Compare Notes"}> <SplitSquareVertical className={`w-4 h-4 ${showSplitView ? iconActionColor: ''}`} /> </button> )}
-                            <button onClick={() => setShowNewNoteModal(true)} className={`${buttonPrimaryClass} p-2 rounded-full hover:shadow-md transition-all duration-150`} title="New Note"> <Plus className="w-4 h-4" /> </button>
-                             {isMobile && ( <button onClick={() => setShowNotesListOnMobile(false)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Hide List"> <X className="w-4 h-4" /> </button> )}
+
+                {/* === 3. Mobile Notes List Overlay === */}
+                 {isMobile && (
+                     <div className={`
+                        fixed inset-0 z-40 bg-black/50 transition-opacity duration-300 ease-in-out
+                        ${showNotesListOnMobile ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
+                     `} onClick={() => setShowNotesListOnMobile(false)}>
+                         <div className={`
+                            absolute top-0 right-0 h-full w-4/5 max-w-sm ${notesListBg} border-l ${borderColor} shadow-xl
+                            flex flex-col transform transition-transform duration-300 ease-in-out
+                            ${showNotesListOnMobile ? 'translate-x-0' : 'translate-x-full'}
+                         `} onClick={(e) => e.stopPropagation()}>
+                               {/* Header */}
+                             <div className={`p-3 border-b ${borderColor} flex items-center justify-between flex-shrink-0`}>
+                                 <h2 className={`text-lg font-semibold ${headingClass} flex items-center gap-2`}> <FileText className={`w-5 h-5 ${iconActionColor}`} /> Notes </h2>
+                                 <div className="flex items-center gap-1">
+                                    <button onClick={() => setShowNewNoteModal(true)} className={`${buttonPrimaryClass} p-1.5 rounded-full hover:shadow-md transition-all duration-150`} title="New Note"> <Plus className="w-4 h-4" /> </button>
+                                     <button onClick={() => setShowNotesListOnMobile(false)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Hide List"> <X className="w-4 h-4" /> </button>
+                                 </div>
+                             </div>
+                            {/* Search/Filter */}
+                            <div className={`p-3 border-b ${borderColor} flex-shrink-0`}>
+                                <div className="relative mb-2"> <Search className={`absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 ${iconColor}`} /> <input type="text" placeholder="Search notes..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className={`w-full ${inputBg} ${inputTextColor} pl-8 pr-3 py-1.5 rounded-full text-sm focus:outline-none focus:ring-1 ${placeholderColor}`} /> </div>
+                                <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar"> {(['all', 'personal', 'pdf', 'youtube'] as const).map(type => ( <button key={type} onClick={() => setFilterType(type)} className={`px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap ${filterType === type ? `${buttonPrimaryClass} shadow-sm` : `${buttonSecondaryClass}`}`}> {type === 'all' ? 'All' : type.charAt(0).toUpperCase() + type.slice(1)} </button> ))} </div>
+                            </div>
+                             {/* Usage Info Display */}
+                            {userTier !== 'premium' && userTier !== 'loading' && currentLimits && (
+                                <div className={`px-3 py-2 text-[10px] border-b ${borderColor} ${isIlluminateEnabled ? 'text-gray-600 bg-gray-50' : 'text-gray-400 bg-gray-800/50'}`}>
+                                    <div className="flex justify-between items-center gap-2">
+                                        <span>PDF/AI: {noteUsage.pdfAi}/{currentLimits.pdfAi === Infinity ? '∞' : currentLimits.pdfAi}</span>
+                                        <span>YT: {noteUsage.youtube}/{currentLimits.youtube === Infinity ? '∞' : currentLimits.youtube}</span>
+                                    </div>
+                                </div>
+                            )}
+                            {/* Notes List */}
+                            <div className="flex-1 overflow-y-auto">
+                                {loading && notes.length === 0 ? ( <div className="flex justify-center items-center h-full p-6"> <Loader2 className={`w-6 h-6 animate-spin ${iconColor}`} /> </div> )
+                                : !loading && notes.length === 0 ? ( <div className="flex flex-col items-center justify-center h-full text-center p-6"> <FileQuestion className={`w-12 h-12 ${iconColor} mb-3`} /> <p className={`${subheadingClass} mb-4 text-sm`}>No notes yet.</p> <button onClick={() => setShowNewNoteModal(true)} className={`${buttonPrimaryClass} px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5`}> <Plus className="w-4 h-4" /> Create Note </button> </div> )
+                                : ( <div className={`divide-y ${divideColor}`}> {notes.filter((note) => { if (filterType !== 'all' && note.type !== filterType) return false; if (searchQuery) { const search = searchQuery.toLowerCase(); return (note.title.toLowerCase().includes(search) || note.content.toLowerCase().includes(search) || note.tags?.some((tag) => tag.toLowerCase().includes(search))); } return true; }).map((note) => { const isSel = (!showSplitView && selectedNote?.id === note.id); const isSplitL = showSplitView && splitViewNotes.left?.id === note.id; const isSplitR = showSplitView && splitViewNotes.right?.id === note.id; const isSelectedAny = isSel || isSplitL || isSplitR; let typeIcon; switch (note.type) { case 'personal': typeIcon = <Briefcase className="w-3 h-3"/>; break; case 'pdf': typeIcon = <FileText className="w-3 h-3"/>; break; case 'youtube': typeIcon = <Youtube className="w-3 h-3"/>; break; default: typeIcon = null; } return ( <div key={note.id} className={`p-3 cursor-pointer transition-colors duration-150 ${listItemHoverBg} ${listItemBaseClass} ${isSelectedAny ? listItemSelectedBg : ''}`} onClick={() => handleSelectNote(note)}> <div className="flex justify-between items-start gap-2"> <h3 className={`text-sm font-medium mb-0.5 line-clamp-1 ${headingClass}`}>{note.title || "Untitled"}</h3> {isSplitL && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-blue-500/20 text-blue-300`}>Left</span>} {isSplitR && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-purple-500/20 text-purple-300`}>Right</span>} </div> <p className={`${subheadingClass} text-xs line-clamp-2 mb-1.5`}>{note.content.substring(0, 100)}</p> <div className="flex flex-wrap items-center gap-1 text-[10px]"> <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${tagColors[note.type]} ${tagBaseBg} ${tagTextBase}`}> {typeIcon} {note.type.charAt(0).toUpperCase() + note.type.slice(1)} </span> {note.isPublic && <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${tagColors.public} ${tagBaseBg} ${tagTextBase}`}><Globe className="w-3 h-3"/> Public</span>} {note.tags?.slice(0, 2).map((tag) => <span key={tag} className={`px-1.5 py-0.5 rounded ${tagColors.custom} ${tagBaseBg} ${tagTextBase} truncate max-w-[60px]`} title={tag}>#{tag}</span>)} {note.tags && note.tags.length > 2 && <span className={`px-1.5 py-0.5 rounded ${tagColors.custom} ${tagBaseBg} ${tagTextBase}`}>+{note.tags.length - 2}</span>} <span className={`ml-auto text-gray-500 dark:text-gray-500`}>{note.updatedAt?.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span> </div> </div> ); })} </div> )}
+                            </div>
                          </div>
                      </div>
-                    {/* Search/Filter */}
-                    <div className={`p-3 border-b ${borderColor} flex-shrink-0`}>
-                        <div className="relative mb-2"> <Search className={`absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 ${iconColor}`} /> <input type="text" placeholder="Search notes..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className={`w-full ${inputBg} ${inputTextColor} pl-8 pr-3 py-1.5 rounded-full text-sm focus:outline-none focus:ring-1 ${placeholderColor}`} /> </div>
-                        <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar"> {(['all', 'personal', 'pdf', 'youtube'] as const).map(type => ( <button key={type} onClick={() => setFilterType(type)} className={`px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap ${filterType === type ? `${buttonPrimaryClass} shadow-sm` : `${buttonSecondaryClass}`}`}> {type === 'all' ? 'All' : type.charAt(0).toUpperCase() + type.slice(1)} </button> ))} </div>
-                    </div>
-                    {/* Usage Info Display */}
-                    {userTier !== 'premium' && userTier !== 'loading' && currentLimits && (
-                        <div className={`px-3 py-2 text-[10px] border-b ${borderColor} ${isIlluminateEnabled ? 'text-gray-600 bg-gray-50' : 'text-gray-400 bg-gray-800/50'}`}>
-                             <div className="flex justify-between items-center gap-2">
-                                <span>PDF/AI Notes: {noteUsage.pdfAi} / {currentLimits.pdfAi === Infinity ? '∞' : currentLimits.pdfAi}</span>
-                                <span>YouTube Notes: {noteUsage.youtube} / {currentLimits.youtube === Infinity ? '∞' : currentLimits.youtube}</span>
-                             </div>
-                        </div>
-                    )}
-                    {/* Notes List */}
-                    <div className="flex-1 overflow-y-auto">
-                        {loading && notes.length === 0 ? ( <div className="flex justify-center items-center h-full p-6"> <Loader2 className={`w-6 h-6 animate-spin ${iconColor}`} /> </div> )
-                        : !loading && notes.length === 0 ? ( <div className="flex flex-col items-center justify-center h-full text-center p-6"> <FileQuestion className={`w-12 h-12 ${iconColor} mb-3`} /> <p className={`${subheadingClass} mb-4 text-sm`}>No notes yet.</p> <button onClick={() => setShowNewNoteModal(true)} className={`${buttonPrimaryClass} px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5`}> <Plus className="w-4 h-4" /> Create Note </button> </div> )
-                        : ( <div className={`divide-y ${divideColor}`}> {notes.filter((note) => { if (filterType !== 'all' && note.type !== filterType) return false; if (searchQuery) { const search = searchQuery.toLowerCase(); return (note.title.toLowerCase().includes(search) || note.content.toLowerCase().includes(search) || note.tags?.some((tag) => tag.toLowerCase().includes(search))); } return true; }).map((note) => { const isSel = (!showSplitView && selectedNote?.id === note.id); const isSplitL = showSplitView && splitViewNotes.left?.id === note.id; const isSplitR = showSplitView && splitViewNotes.right?.id === note.id; const isSelectedAny = isSel || isSplitL || isSplitR; let typeIcon; switch (note.type) { case 'personal': typeIcon = <Briefcase className="w-3 h-3"/>; break; case 'pdf': typeIcon = <FileText className="w-3 h-3"/>; break; case 'youtube': typeIcon = <Youtube className="w-3 h-3"/>; break; default: typeIcon = null; } return ( <div key={note.id} className={`p-3 cursor-pointer transition-colors duration-150 ${listItemHoverBg} ${listItemBaseClass} ${isSelectedAny ? listItemSelectedBg : ''}`} onClick={() => handleSelectNote(note)}> <div className="flex justify-between items-start gap-2"> <h3 className={`text-sm font-medium mb-0.5 line-clamp-1 ${headingClass}`}>{note.title || "Untitled"}</h3> {isSplitL && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-blue-500/20 text-blue-300`}>Left</span>} {isSplitR && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-purple-500/20 text-purple-300`}>Right</span>} </div> <p className={`${subheadingClass} text-xs line-clamp-2 mb-1.5`}>{note.content.substring(0, 100)}</p> <div className="flex flex-wrap items-center gap-1 text-[10px]"> <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${tagColors[note.type]} ${tagBaseBg} ${tagTextBase}`}> {typeIcon} {note.type.charAt(0).toUpperCase() + note.type.slice(1)} </span> {note.isPublic && <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${tagColors.public} ${tagBaseBg} ${tagTextBase}`}><Globe className="w-3 h-3"/> Public</span>} {note.tags?.slice(0, 2).map((tag) => <span key={tag} className={`px-1.5 py-0.5 rounded ${tagColors.custom} ${tagBaseBg} ${tagTextBase} truncate max-w-[60px]`} title={tag}>#{tag}</span>)} {note.tags && note.tags.length > 2 && <span className={`px-1.5 py-0.5 rounded ${tagColors.custom} ${tagBaseBg} ${tagTextBase}`}>+{note.tags.length - 2}</span>} <span className={`ml-auto text-gray-500 dark:text-gray-500`}>{note.updatedAt?.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span> </div> </div> ); })} </div> )}
-                    </div>
-                </div> {/* End Notes List Sidebar */}
+                 )}
 
             </main>
 
@@ -966,10 +1242,40 @@ export function Notes() {
                  />
             )}
 
+            {/* Image Generation Modal */}
+            <SimpleModal
+                isOpen={showImageGenModal}
+                onClose={() => { setShowImageGenModal(false); setIsGeneratingImage(false); setImageGenPrompt(''); setImageGenError(null);}}
+                title="Generate Image for Note"
+                isIlluminateEnabled={isIlluminateEnabled}
+            >
+                <div className="space-y-3">
+                    <p className={`${subheadingClass} text-sm`}>Enter a description for the image you want to generate. It will be added to the end of your current note content.</p>
+                    <textarea
+                        value={imageGenPrompt}
+                        onChange={(e) => setImageGenPrompt(e.target.value)}
+                        placeholder="e.g., A futuristic cityscape at sunset with flying cars..."
+                        rows={3}
+                        className={`w-full ${inputBg} ${inputTextColor} ${placeholderColor} rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 resize-y`}
+                        disabled={isGeneratingImage}
+                    />
+                    {imageGenError && <p className="text-xs text-red-500">{imageGenError}</p>}
+                    <div className="flex justify-end">
+                        <button
+                            onClick={handleGenerateImageForNote}
+                            disabled={isGeneratingImage || !imageGenPrompt.trim()}
+                            className={`${buttonPrimaryClass} px-4 py-1.5 rounded-md text-sm flex items-center gap-1.5 ${isGeneratingImage || !imageGenPrompt.trim() ? buttonDisabledClass : ''}`}
+                        >
+                            {isGeneratingImage ? (<> <Loader2 className="w-4 h-4 animate-spin" /> Generating... </>) : (<> Generate & Add </>)}
+                        </button>
+                    </div>
+                </div>
+            </SimpleModal>
+
             {/* Chat Overlay */}
             {chatNoteForOverlay && user && geminiApiKey && (
                  <NoteChat
-                     key={chatNoteForOverlay.id}
+                     key={chatNoteForOverlay.id} // Ensures re-mount when note changes
                      ref={noteChatRef}
                      note={chatNoteForOverlay}
                      onClose={handleCloseChatOverlay}
@@ -988,7 +1294,7 @@ export function Notes() {
              {isMobile && !showNotesListOnMobile && (
                  <button
                      onClick={() => setShowNotesListOnMobile(true)}
-                     className={`fixed bottom-4 right-4 z-30 p-3 rounded-full shadow-lg transition-all duration-300 ${buttonPrimaryClass} transform hover:scale-110 active:scale-100 ${isChatOverlayVisible ? 'bottom-16' : 'bottom-4'}`}
+                     className={`fixed bottom-4 right-4 z-30 p-3 rounded-full shadow-lg transition-all duration-300 ${buttonPrimaryClass} transform hover:scale-110 active:scale-100 ${isChatOverlayVisible ? 'bottom-16' : 'bottom-4'}`} // Adjust position if chat is open
                      title="Show Notes List"
                  >
                      <List className="w-5 h-5" />
