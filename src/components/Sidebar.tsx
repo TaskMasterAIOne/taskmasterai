@@ -29,7 +29,7 @@ import {
 } from '../lib/current-paying-user'; // Adjust path if needed
 
 interface SidebarProps {
-  userName: string;
+  userName: string; // userName is passed from parent, might be displayName or from Firestore
   onToggle?: () => void;
   isCollapsed?: boolean;
   isBlackoutEnabled?: boolean;
@@ -46,52 +46,48 @@ export function Sidebar({
   const location = useLocation();
   const navigate = useNavigate();
   const isSettingsPage = location.pathname === "/settings";
-  const [currentUser, setCurrentUser] = useState<User | null>(null); // State for Firebase User
+  const [currentUser, setCurrentUser] = useState<User | null>(null); // State for Firebase User object
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // --- NEW State for User Tier ---
+  // --- State for User Tier ---
   const [userTier, setUserTier] = useState<UserTier>('loading');
 
-  // --- State for Dev Status (Keep separate) ---
+  // --- State for Dev Status ---
   const [isDev, setIsDev] = useState<boolean>(false);
-  const DEV_EMAILS = ["bajinsrinivasr@lexington1.net", "fugegate@gmail.com", "draco77654@gmail.com"]; // Keep dev emails locally if needed
+  const DEV_EMAILS = ["bajinsrinivasr@lexington1.net", "fugegate@gmail.com", "draco77654@gmail.com"];
 
   // Effect to listen to auth state changes and update user/tier/dev status
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      setCurrentUser(user); // Update Firebase user state
+    const unsubscribe = auth.onAuthStateChanged(async (user) => { // Made callback async
+      setCurrentUser(user);
       if (user) {
-        // Determine Tier using centralized function
-        const tier = getUserTier(user.email);
-        setUserTier(tier);
+        setUserTier('loading'); // Set to loading while fetching tier
+        try {
+          // Determine Tier using centralized async function
+          const tier = await getUserTier(user.uid, user.email); // Pass uid and email
+          setUserTier(tier);
+        } catch (error) {
+          console.error("Sidebar: Error fetching user tier:", error);
+          setUserTier('basic'); // Fallback to 'basic' on error
+        }
         // Determine Dev status
         setIsDev(user.email ? DEV_EMAILS.includes(user.email) : false);
       } else {
         // Reset state if user logs out
-        setUserTier('loading'); // Or 'basic' depending on desired behavior
+        setCurrentUser(null);
+        setUserTier('loading'); // Or 'basic' depending on desired unauthenticated state
         setIsDev(false);
       }
     });
     // Cleanup listener on component unmount
     return () => unsubscribe();
-  }, []); // Run only once on mount
+  }, []); // Run only once on mount, DEV_EMAILS is stable
 
   // Close mobile menu when route changes
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [location.pathname]);
 
-  // --- REMOVED ORIGINAL USER LOGIC ---
-  // const DEV_EMAILS = [...]; // Moved to state/effect
-  // const PREMIUM_EMAILS = [...]; // REMOVED
-  // const PRO_EMAILS = [...]; // REMOVED
-  // const isDev = ...; // Moved to state/effect
-  // const isPremiumUser = ...; // REMOVED
-  // const isProUser = ...; // REMOVED
-  // --- END OF REMOVED LOGIC ---
-
-
-  // Define the menu items with label, icon, and path
   const menuItems = [
     { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
     { label: "Folders", icon: Folders, path: "/folders" },
@@ -115,7 +111,7 @@ export function Sidebar({
   };
 
   // -----------------------------
-  //   Determine Sidebar Colors (Unchanged)
+  //   Determine Sidebar Colors
   // -----------------------------
   let sidebarContainerBg = "bg-[#0c111c] text-gray-300 border-gray-800/50";
   if (isIlluminateEnabled) {
@@ -152,7 +148,6 @@ export function Sidebar({
   }
   const mobileHeaderText = isIlluminateEnabled ? "text-gray-900" : "text-gray-100";
 
-  // Get current page title based on path (Unchanged)
   const getCurrentPageTitle = () => {
     const currentItem = menuItems.find((item) => item.path === location.pathname);
     return currentItem ? currentItem.label : "Dashboard";
@@ -160,7 +155,6 @@ export function Sidebar({
 
   return (
     <>
-      {/* Mobile Header (Unchanged) */}
       <div
         className={`fixed top-0 left-0 right-0 ${mobileHeaderBg} h-14 z-40 md:hidden flex items-center px-4 justify-between`}
       >
@@ -171,25 +165,26 @@ export function Sidebar({
         >
           {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
+        {/* You can add a title here if needed for mobile view
+        <span className={`${mobileHeaderText} font-semibold`}>{getCurrentPageTitle()}</span>
+        <div className="w-8"></div> Placeholder for balance
+        */}
       </div>
 
-      {/* Main Content Wrapper (Unchanged) */}
-      <div className="md:ml-0 md:pt-0">
+      <div className="md:ml-0 md:pt-0"> {/* Adjusted for fixed mobile header */}
         {isMobileMenuOpen && (
           <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setIsMobileMenuOpen(false)} />
         )}
-        {/* Sidebar (Unchanged structure) */}
         <div
           className={`
             fixed top-0 left-0 h-full ${sidebarContainerBg} flex flex-col
             py-6 px-3 font-poppins border-r z-50
             transition-all duration-300 ease-in-out
             ${isCollapsed ? "md:w-20" : "md:w-64"}
-            ${isMobileMenuOpen ? "w-64 translate-x-0" : "-translate-x-full md:translate-x-0"}
-            md:mt-0 h-full
+            ${isMobileMenuOpen ? "w-64 translate-x-0 pt-14" : "-translate-x-full md:translate-x-0"}
+            md:pt-6 md:h-full 
           `}
         >
-          {/* Logo Section (Unchanged) */}
           <div className="mb-6 flex items-center pl-3">
             {isCollapsed && !isMobileMenuOpen ? (
               <a href="/">
@@ -209,12 +204,12 @@ export function Sidebar({
               <div className="flex items-center justify-between w-full">
                 <a href="/" className="flex items-center space-x-2 whitespace-nowrap overflow-hidden">
                   <Logo className="w-8 h-8 flex-shrink-0" />
+                  {/* <span className={`font-semibold ${mobileHeaderText}`}>TaskMasterAI</span> */}
                 </a>
               </div>
             )}
           </div>
 
-          {/* Upper Section: Menu Items and Toggle Button (Unchanged) */}
           <div className="flex flex-col gap-1.5">
             {menuItems.map((item) => {
               const Icon = item.icon;
@@ -246,31 +241,27 @@ export function Sidebar({
             )}
           </div>
 
-          {/* Bottom Section: Premium Button and User Profile (UPDATED) */}
           <div className="mt-auto flex flex-col gap-4">
-            {/* Upgrade Button Condition (Uses userTier state) */}
-            {!isSettingsPage && userTier === 'basic' && ( // Show only if basic tier
+            {!isSettingsPage && (userTier === 'basic' || userTier === 'pro') && (
               <button
                 onClick={handleUpgradeClick}
                 className={` mx-3 flex items-center justify-center text-white rounded-lg transition-all duration-200 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 shadow-lg shadow-indigo-500/20 hover:scale-[1.02] ${isCollapsed && !isMobileMenuOpen ? "aspect-square p-2.5" : "px-4 py-2.5"} `}
-                title={isCollapsed && !isMobileMenuOpen ? "Upgrade to Premium" : undefined}
+                title={isCollapsed && !isMobileMenuOpen ? (userTier === 'basic' ? "Upgrade Plan" : "Upgrade to Premium") : undefined}
               >
                 <Crown className={`min-w-[1.25rem] ${isCollapsed && !isMobileMenuOpen ? "w-6 h-6" : "w-5 h-5 mr-2"}`} strokeWidth={2} />
-                {(!isCollapsed || isMobileMenuOpen) && ( <span className="text-sm font-medium whitespace-nowrap">Upgrade to Premium</span> )}
+                {(!isCollapsed || isMobileMenuOpen) && ( <span className="text-sm font-medium whitespace-nowrap">{userTier === 'basic' ? "Upgrade Plan" : "Upgrade to Premium"}</span> )}
               </button>
             )}
 
-            {/* User Profile with Plan Badge (UPDATED) */}
             <button
               onClick={() => navigate("/settings")}
               className={` mx-3 flex items-center gap-3 rounded-lg transition-colors ${userProfileText} ${userProfileHoverBg} ${isCollapsed && !isMobileMenuOpen ? "justify-center aspect-square" : "px-4 py-2.5"} hover:scale-[1.02] transition-transform duration-200 `}
-              title={isCollapsed && !isMobileMenuOpen ? `${userName} - Settings` : undefined}
+              title={isCollapsed && !isMobileMenuOpen ? `${userName || "User"} - Settings` : undefined}
             >
-              {/* Avatar (Unchanged) */}
               <div className="relative flex-shrink-0 w-8 h-8">
                 <div className={`w-full h-full rounded-full overflow-hidden ${defaultAvatarBg}`}>
                   {currentUser?.photoURL ? (
-                    <img src={currentUser.photoURL || "/placeholder.svg"} alt={userName || "User"} className="w-full h-full object-cover" />
+                    <img src={currentUser.photoURL} alt={userName || "User"} className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
                       <CircleUserRound className={`w-5 h-5 min-w-[1.25rem] ${defaultAvatarIconColor}`} strokeWidth={2} />
@@ -279,14 +270,12 @@ export function Sidebar({
                 </div>
               </div>
 
-              {/* Show name and plan only if not collapsed or in mobile menu */}
               {(!isCollapsed || isMobileMenuOpen) && (
                 <div className="flex flex-col items-start min-w-0">
                   <span className="text-left text-sm font-medium truncate max-w-[160px]">
-                    {userName || "Loading..."}
+                    {userName || (currentUser ? "User" : "Loading...")}
                   </span>
                   <div className="flex items-center gap-1.5">
-                    {/* Display Plan Badge (Uses userTier state) */}
                     {userTier === 'premium' ? (
                       <span className="text-xs font-semibold bg-gradient-to-r from-amber-400 to-orange-500 text-transparent bg-clip-text"> Premium </span>
                     ) : userTier === 'pro' ? (
@@ -294,9 +283,8 @@ export function Sidebar({
                     ) : userTier === 'basic' ? (
                       <span className="text-xs text-gray-500">Basic</span>
                     ) : (
-                      <span className="text-xs text-gray-500">Loading...</span> // Show loading state
+                      <span className="text-xs text-gray-500">Loading...</span>
                     )}
-                    {/* Display DEV Tag (Uses isDev state) */}
                     {isDev && ( <span className={` ml-1 px-1 py-0.5 text-[9px] font-semibold ${devTagClasses} rounded-full leading-none `}> DEV </span> )}
                   </div>
                 </div>
