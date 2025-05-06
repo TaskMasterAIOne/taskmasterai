@@ -1,3 +1,4 @@
+
 // Notes.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -8,9 +9,9 @@ import {
     Lock, Trash2, Copy, RefreshCw, SplitSquareVertical, Menu, List, Briefcase,
     Share2, ClipboardCopy, Eye, ZoomIn, ZoomOut, RotateCcw, Crown, Info,
     PanelRightClose, PanelLeftClose, GripVertical, PlusCircle, Trash,
-    Image as ImageIcon, // Renamed to avoid conflict
-    Layers, // Icon for Flashcards
-    ImagePlus, // CORRECTED ICON: Replaced ImagePlay with ImagePlus
+    Image as ImageIcon,
+    Layers,
+    ImagePlus,
 } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { auth, db } from '../lib/firebase';
@@ -26,8 +27,8 @@ import { processYouTube } from '../lib/youtube-processor';
 import {
     saveNote, savePersonalNote, updateNote, processTextToAINoteData,
     deleteNote, toggleNotePublicStatus, regenerateStudyQuestions,
-    generateImageWithImagen // Import the image generation function
-} from '../lib/notes-firebase'; // Assuming generateImageWithImagen is here
+    generateImageWithImagen
+} from '../lib/notes-firebase';
 import { NewNoteModal } from './NewNoteModal';
 import { SplitView } from './SplitView';
 import { NoteChat, NoteChatHandle, ImageData } from './NoteChat';
@@ -35,7 +36,6 @@ import { getCurrentUser } from '../lib/settings-firebase';
 import { geminiApiKey } from '../lib/dashboard-firebase';
 import { FlashcardStudyModal } from './FlashcardStudyModal';
 
-// --- IMPORT Centralized Tier/Usage Functions ---
 import {
     UserTier,
     getUserTier,
@@ -46,26 +46,23 @@ import {
     updateUserNoteUsage
 } from '../lib/current-paying-user';
 
-// --- PDF Viewer Imports ---
 import { pdfjs, Document, Page } from 'react-pdf';
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
 import 'react-pdf/dist/esm/Page/TextLayer.css';
 
-// --- Markdown Editor Import ---
 import MDEditor from '@uiw/react-md-editor';
 
-// --- Simple Modal Component ---
 const SimpleModal = ({ isOpen, onClose, title, children, isIlluminateEnabled }: { isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; isIlluminateEnabled: boolean; }) => {
     if (!isOpen) return null;
     const modalBg = isIlluminateEnabled ? "bg-white" : "bg-gray-800";
     const textColor = isIlluminateEnabled ? "text-gray-900" : "text-gray-100";
-    const borderColor = isIlluminateEnabled ? 'border-gray-200' : 'border-gray-700';
+    const modalBorderColor = isIlluminateEnabled ? 'border-gray-200' : 'border-gray-700';
     const iconColor = isIlluminateEnabled ? "text-gray-500 hover:text-gray-700" : "text-gray-400 hover:text-gray-200";
 
     return (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn" onClick={onClose}>
             <div className={`${modalBg} rounded-lg shadow-xl w-full max-w-md flex flex-col overflow-hidden`} onClick={(e) => e.stopPropagation()}>
-                <div className={`flex justify-between items-center p-4 border-b ${borderColor}`}>
+                <div className={`flex justify-between items-center p-4 border-b ${modalBorderColor}`}>
                     <h2 className={`text-lg font-semibold ${textColor}`}>{title}</h2>
                     <button onClick={onClose} className={`${iconColor} p-1 rounded-full hover:bg-gray-500/10`}>
                         <X className="w-5 h-5" />
@@ -79,11 +76,8 @@ const SimpleModal = ({ isOpen, onClose, title, children, isIlluminateEnabled }: 
     );
 };
 
-
-// Setup PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
-// --- Types ---
 export interface Flashcard { front: string; back: string; }
 interface Note {
     id: string; title: string; content: string; type: 'personal' | 'pdf' | 'youtube' | 'audio';
@@ -95,16 +89,13 @@ interface Note {
 }
 interface UploadProgressState { progress: number; status: string; error: string | null; }
 interface NoteUsage { pdfAi: number; youtube: number; }
-// UserTier type defined in imported file
 
-// --- Tier Limits ---
 const NOTE_LIMITS = {
     basic: { pdfAi: 2, youtube: 1 },
     pro: { pdfAi: 10, youtube: 5 },
     premium: { pdfAi: Infinity, youtube: Infinity },
 };
 
-// --- Main Component ---
 export function Notes() {
     const navigate = useNavigate();
     const [user, setUser] = useState<User | null>(null);
@@ -117,12 +108,10 @@ export function Notes() {
     const [searchQuery, setSearchQuery] = useState('');
     const [filterType, setFilterType] = useState<'all' | 'personal' | 'pdf' | 'youtube' | 'audio'>('all');
 
-    // Tier and Usage State
     const [userTier, setUserTier] = useState<UserTier>('loading');
     const [noteUsage, setNoteUsage] = useState<NoteUsage>({ pdfAi: 0, youtube: 0 });
-    const [usageMonth, setUsageMonth] = useState<string>(''); // YYYY-MM
+    const [usageMonth, setUsageMonth] = useState<string>('');
 
-    // Theme & Layout State
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => JSON.parse(localStorage.getItem('isSidebarCollapsed') || 'false'));
     const [isNotesListHidden, setIsNotesListHidden] = useState(false);
     const [isBlackoutEnabled, setIsBlackoutEnabled] = useState(() => JSON.parse(localStorage.getItem('isBlackoutEnabled') || 'false'));
@@ -130,7 +119,6 @@ export function Notes() {
     const [isIlluminateEnabled, setIsIlluminateEnabled] = useState(() => JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'true'));
     const [isSidebarIlluminateEnabled, setIsSidebarIlluminateEnabled] = useState(() => JSON.parse(localStorage.getItem('isSidebarIlluminateEnabled') || 'false'));
 
-    // Editing state
     const [isEditing, setIsEditing] = useState(false);
     const [editTitle, setEditTitle] = useState('');
     const [editContent, setEditContent] = useState<string | undefined>('');
@@ -142,27 +130,21 @@ export function Notes() {
     const [isRegeneratingQuestions, setIsRegeneratingQuestions] = useState(false);
     const [linkCopied, setLinkCopied] = useState(false);
 
-    // Mobile state
     const [showNotesListOnMobile, setShowNotesListOnMobile] = useState(true);
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
-    // Split view state
     const [showSplitView, setShowSplitView] = useState(false);
     const [splitViewNotes, setSplitViewNotes] = useState<{left: Note | null; right: Note | null}>({ left: null, right: null });
 
-    // Chat State
     const [isChatOverlayVisible, setIsChatOverlayVisible] = useState(false);
     const [chatNoteForOverlay, setChatNoteForOverlay] = useState<Note | null>(null);
     const noteChatRef = useRef<NoteChatHandle>(null);
 
-    // Flashcard Study State
     const [showFlashcardStudyModal, setShowFlashcardStudyModal] = useState(false);
 
-    // Question answers state
     const [questionAnswers, setQuestionAnswers] = useState<{[key: string]: number | null}>({});
     const contentRef = useRef<HTMLDivElement>(null);
 
-    // PDF Viewer State
     const [numPages, setNumPages] = useState<number | null>(null);
     const [pdfError, setPdfError] = useState<string | null>(null);
     const [showPdfViewer, setShowPdfViewer] = useState(false);
@@ -172,44 +154,33 @@ export function Notes() {
     const [pdfChatSplitRatio, setPdfChatSplitRatio] = useState(65);
     const [isResizingPdfChatSplit, setIsResizingPdfChatSplit] = useState(false);
 
-    // PDF Highlighting State
     const [selectedPdfText, setSelectedPdfText] = useState<string | null>(null);
     const [highlightButtonPosition, setHighlightButtonPosition] = useState<{ top: number; left: number } | null>(null);
     const [showHighlightButtons, setShowHighlightButtons] = useState(false);
 
-    // Image Generation State
     const [showImageGenModal, setShowImageGenModal] = useState(false);
     const [imageGenPrompt, setImageGenPrompt] = useState('');
     const [isGeneratingImage, setIsGeneratingImage] = useState(false);
     const [imageGenError, setImageGenError] = useState<string | null>(null);
 
-    // --- useCallback Definitions ---
 
-    // Toggle PDF view (using useCallback)
     const togglePdfViewer = useCallback((forceOpen?: boolean) => {
         const turnOn = forceOpen !== undefined ? forceOpen : !showPdfViewer;
 
         if (turnOn) {
-            // Check if we *can* open it based on the *current* selectedNote
             if (selectedNote?.type === 'pdf' && selectedNote.sourceUrl) {
                 setShowPdfViewer(true);
-                // State resets for PDF content (scale, pages etc.) are handled by the useEffect watching showPdfViewer
                  if (isChatOverlayVisible && chatNoteForOverlay?.id === selectedNote.id) {
                      setIsChatOverlayVisible(false); setChatNoteForOverlay(null);
                  }
             } else {
-                // Cannot open PDF viewer
                 console.warn("Cannot open PDF viewer for the current note.");
-                // Ensure it's closed if it was somehow true
                 if (showPdfViewer) setShowPdfViewer(false);
             }
         } else {
-            // Turning off
             setShowPdfViewer(false);
-            // State resets and note list visibility handled by useEffect watching showPdfViewer
         }
-        // Note: isNotesListHidden logic is now managed in the useEffect watching showPdfViewer
-    }, [selectedNote, showPdfViewer, isChatOverlayVisible, chatNoteForOverlay?.id]); // Dependencies for togglePdfViewer
+    }, [selectedNote, showPdfViewer, isChatOverlayVisible, chatNoteForOverlay?.id]);
 
     const handleSelectNote = useCallback((note: Note) => {
         setIsEditing(false);
@@ -219,20 +190,17 @@ export function Notes() {
         setShowFlashcardStudyModal(false);
 
         if (showSplitView) {
-            // Need split view selection logic here
             if (!splitViewNotes.left) {
                 setSplitViewNotes({ ...splitViewNotes, left: note });
             } else if (!splitViewNotes.right && note.id !== splitViewNotes.left?.id) {
                 setSplitViewNotes({ ...splitViewNotes, right: note });
                 if (isMobile) { setShowNotesListOnMobile(false); }
             }
-            // Close overlay/PDF view when selecting for split view
             if (showPdfViewer) togglePdfViewer(false);
         } else {
             const previousNote = selectedNote;
             setSelectedNote(note);
 
-            // Close PDF viewer ONLY if switching from PDF to non-PDF, or vice-versa AND PDF was open
             if (showPdfViewer && previousNote?.id !== note.id && (previousNote?.type === 'pdf' || note.type !== 'pdf')) {
                 togglePdfViewer(false);
             }
@@ -241,10 +209,9 @@ export function Notes() {
                 setShowNotesListOnMobile(false);
             }
         }
-    }, [showSplitView, isMobile, showPdfViewer, selectedNote, togglePdfViewer, splitViewNotes]); // Added splitViewNotes dependency
+    }, [showSplitView, isMobile, showPdfViewer, selectedNote, togglePdfViewer, splitViewNotes]);
 
 
-    // PDF/Chat Resizing Handlers
     const handleResizeMouseMove = useCallback((e: MouseEvent) => {
         if (!isResizingPdfChatSplit) return;
         const pdfSection = pdfViewerContainerRef.current?.parentElement;
@@ -259,7 +226,7 @@ export function Notes() {
             newRatio = Math.max(20, Math.min(80, newRatio));
             setPdfChatSplitRatio(newRatio);
         }
-    }, [isResizingPdfChatSplit]); // Dependency
+    }, [isResizingPdfChatSplit]);
 
     const handleResizeMouseUp = useCallback(() => {
          if (isResizingPdfChatSplit) {
@@ -267,16 +234,15 @@ export function Notes() {
              document.removeEventListener('mousemove', handleResizeMouseMove);
              document.removeEventListener('mouseup', handleResizeMouseUp);
          }
-    }, [isResizingPdfChatSplit, handleResizeMouseMove]); // Added handleResizeMouseMove
+    }, [isResizingPdfChatSplit, handleResizeMouseMove]);
 
     const handleResizeMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
         e.preventDefault();
         setIsResizingPdfChatSplit(true);
         document.addEventListener('mousemove', handleResizeMouseMove);
         document.addEventListener('mouseup', handleResizeMouseUp);
-    }, [handleResizeMouseMove, handleResizeMouseUp]); // Add function dependencies
+    }, [handleResizeMouseMove, handleResizeMouseUp]);
 
-    // PDF Text Selection Handler
      const handlePdfTextSelection = useCallback(() => {
         if (!pdfViewerContainerRef.current || !showPdfViewer) { if (showHighlightButtons) setShowHighlightButtons(false); return; }
         const selection = window.getSelection();
@@ -302,46 +268,38 @@ export function Notes() {
          if (showHighlightButtons) {
              setShowHighlightButtons(false); setSelectedPdfText(null); setHighlightButtonPosition(null);
          }
-     }, [showPdfViewer, showHighlightButtons]); // Dependencies
+     }, [showPdfViewer, showHighlightButtons]);
 
-    // --- Effects ---
 
-    // Handle window resize for mobile state
     useEffect(() => {
         const handleResize = () => {
             const mobile = window.innerWidth < 768;
             setIsMobile(mobile);
             if (!mobile) {
                 setShowNotesListOnMobile(true);
-                // Only ensure notes list isn't hidden if PDF viewer is *not* shown
                 if (!showPdfViewer) {
                     setIsNotesListHidden(false);
                 }
             } else {
-                // On mobile, hide list if showing note/edit/pdf/split
                 setShowNotesListOnMobile(!(selectedNote || isEditing || showPdfViewer || (showSplitView && (splitViewNotes.left || splitViewNotes.right))));
             }
-            // Ensure notes list is shown if PDF view is closed and list was hidden (desktop)
              if (!showPdfViewer && isNotesListHidden && !isMobile) {
                  setIsNotesListHidden(false);
              }
-            setIsResizingPdfChatSplit(false); // Stop resize on window resize
+            setIsResizingPdfChatSplit(false);
         };
         window.addEventListener('resize', handleResize);
-        handleResize(); // Initial check
+        handleResize();
         return () => window.removeEventListener('resize', handleResize);
-    // Dependencies need to include states read inside the effect
     }, [selectedNote, isEditing, showPdfViewer, showSplitView, splitViewNotes.left, splitViewNotes.right, isNotesListHidden]);
 
 
-    // LocalStorage for theme/sidebar/layout
     useEffect(() => { localStorage.setItem('isSidebarCollapsed', JSON.stringify(isSidebarCollapsed)); }, [isSidebarCollapsed]);
     useEffect(() => { localStorage.setItem('isBlackoutEnabled', JSON.stringify(isBlackoutEnabled)); document.body.classList.toggle('blackout-mode', isBlackoutEnabled && !isIlluminateEnabled); }, [isBlackoutEnabled, isIlluminateEnabled]);
     useEffect(() => { localStorage.setItem('isIlluminateEnabled', JSON.stringify(isIlluminateEnabled)); document.body.classList.toggle('illuminate-mode', isIlluminateEnabled); }, [isIlluminateEnabled]);
     useEffect(() => { localStorage.setItem('isSidebarBlackoutEnabled', JSON.stringify(isSidebarBlackoutEnabled)); }, [isSidebarBlackoutEnabled]);
     useEffect(() => { localStorage.setItem('isSidebarIlluminateEnabled', JSON.stringify(isSidebarIlluminateEnabled)); }, [isSidebarIlluminateEnabled]);
 
-    // Auth listener and Tier/Usage Loading
     useEffect(() => {
         setLoading(true);
         setUserTier('loading');
@@ -384,9 +342,8 @@ export function Notes() {
             setLoading(false);
         });
         return () => unsubscribe();
-    }, [navigate]); // navigate is a stable function from react-router-dom
+    }, [navigate]);
 
-    // Notes listener - CORRECTED DEPENDENCY ARRAY
     useEffect(() => {
         if (!user?.uid) { setNotes([]); return; }
         const q = query(collection(db, 'notes'), where('userId', '==', user.uid), orderBy('updatedAt', 'desc'));
@@ -397,23 +354,17 @@ export function Notes() {
             if (selectedNote) {
                 const updatedSelected = notesList.find(n => n.id === selectedNote.id);
                 if (updatedSelected) {
-                    // Only update if the data actually changed to prevent potential loops
                     if (JSON.stringify(selectedNote) !== JSON.stringify(updatedSelected)) {
                         setSelectedNote(updatedSelected);
                     }
-                    currentSelectedNote = updatedSelected; // Use potentially updated note for logic
+                    currentSelectedNote = updatedSelected;
                      if (chatNoteForOverlay?.id === updatedSelected.id) {
                          setChatNoteForOverlay(updatedSelected);
                      }
-                     // Update editor state only if editing and content differs
                      if (isEditing && !isSaving && editContent !== updatedSelected.content) {
                          setEditContent(updatedSelected.content || '');
-                         // Potentially update other fields if needed, check for actual changes
-                         // if (editTitle !== updatedSelected.title) setEditTitle(updatedSelected.title);
-                         // ... etc for tags, keypoints, flashcards
                      }
                 } else {
-                    // Note deleted or no longer matches query
                     setSelectedNote(null); currentSelectedNote = null; setShowPdfViewer(false);
                     setIsEditing(false); setIsChatOverlayVisible(false); setChatNoteForOverlay(null);
                     setShowFlashcardStudyModal(false);
@@ -426,64 +377,55 @@ export function Notes() {
                      setSplitViewNotes({ left: uLeft || null, right: uRight || null });
                  }
             }
-            // Close PDF viewer if selected note is not PDF or if editing
             if ((currentSelectedNote && currentSelectedNote.type !== 'pdf' && showPdfViewer) || (isEditing && showPdfViewer)) {
-                togglePdfViewer(false); // Call the memoized function
+                togglePdfViewer(false);
             }
         }, (error) => {
             console.error("Error fetching notes:", error); setLoading(false);
             setUploadProgress({ progress: 0, status: '', error: 'Could not load notes.' });
         });
         return () => unsubscribe();
-    }, [ // FINAL CORRECTED DEPENDENCIES for notes listener
+    }, [
         user?.uid,
-        selectedNote?.id, // Reacts to note selection change
-        selectedNote?.type, // Reacts if the *type* changes (for PDF logic)
+        selectedNote?.id,
+        selectedNote?.type,
         showSplitView,
-        splitViewNotes.left?.id, // Reacts to split view note changes
+        splitViewNotes.left?.id,
         splitViewNotes.right?.id,
-        chatNoteForOverlay?.id, // Reacts to chat overlay note changes
-        isEditing, // Needed for logic inside
-        isSaving, // Needed for logic inside
-        editContent, // Needed for logic inside (updating editor)
-        showPdfViewer, // Needed for logic inside
-        togglePdfViewer // Include the memoized function because it's called inside
-                       // And its dependencies ensure it only changes when necessary
+        chatNoteForOverlay?.id,
+        isEditing,
+        isSaving,
+        editContent,
+        showPdfViewer,
+        togglePdfViewer
     ]);
 
-    // Scroll non-PDF content area to top
     useEffect(() => {
         const nonPdfScrollContainer = contentRef.current;
         if (!showPdfViewer && nonPdfScrollContainer) {
             nonPdfScrollContainer.scrollTop = 0;
         }
-    }, [selectedNote, isEditing, showPdfViewer]); // Dependencies are correct here
+    }, [selectedNote, isEditing, showPdfViewer]);
 
-    // Reset PDF viewer specific state and manage notes list visibility
     useEffect(() => {
         if (!showPdfViewer) {
-            // Reset PDF states only if viewer was previously open for a PDF
             if (numPages !== null || pdfError !== null) {
                  setNumPages(null); setPdfError(null); setPdfScale(1.0); setPdfRotation(0);
                  setShowHighlightButtons(false); setSelectedPdfText(null);
              }
-             // Ensure notes list is visible on desktop when PDF closes
             if (!isMobile && isNotesListHidden) {
                 setIsNotesListHidden(false);
             }
-        } else { // showPdfViewer is true
-             // Reset necessary PDF states when opening for a new PDF or reopening
+        } else {
              setNumPages(null); setPdfError(null); setPdfScale(1.0); setPdfRotation(0);
              setShowHighlightButtons(false); setSelectedPdfText(null);
-             // Hide notes list on desktop when PDF opens
              if (!isMobile) {
                  setIsNotesListHidden(true);
              }
         }
-    }, [showPdfViewer, isMobile, isNotesListHidden]); // Added isNotesListHidden, removed selectedNote deps
+    }, [showPdfViewer, isMobile, isNotesListHidden]);
 
 
-    // Click outside handler for highlight buttons
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (showHighlightButtons && highlightButtonPosition) {
@@ -496,33 +438,43 @@ export function Notes() {
         };
         if (showPdfViewer) { document.addEventListener('mousedown', handleClickOutside); }
         return () => { document.removeEventListener('mousedown', handleClickOutside); };
-    }, [showHighlightButtons, highlightButtonPosition, showPdfViewer]); // Dependencies are correct
+    }, [showHighlightButtons, highlightButtonPosition, showPdfViewer]);
 
-    // Cleanup resize listeners
     useEffect(() => {
-        // Define listeners here or ensure they are stable references
         const currentMouseMove = handleResizeMouseMove;
         const currentMouseUp = handleResizeMouseUp;
-
-        // Need to add/remove the *exact same* function references
-        // handled correctly by useCallback now
-
         return () => {
             document.removeEventListener('mousemove', currentMouseMove);
             document.removeEventListener('mouseup', currentMouseUp);
         };
-    }, [handleResizeMouseMove, handleResizeMouseUp]); // Depend on the memoized functions
+    }, [handleResizeMouseMove, handleResizeMouseUp]);
 
-    // --- Helper Functions (limits, usage) ---
-    // (These functions are simple and don't need useCallback/memoization here)
-    const checkNoteLimit = (noteType: 'pdfAi' | 'youtube'): boolean => { /* ... */ return true;};
-    const incrementNoteUsage = async (noteType: 'pdfAi' | 'youtube') => { /* ... */ };
 
-    // --- Core Handlers ---
+    const checkNoteLimit = (noteType: 'pdfAi' | 'youtube'): boolean => {
+        if (userTier === 'premium' || userTier === 'loading') return true;
+        const limits = NOTE_LIMITS[userTier];
+        return noteUsage[noteType] < limits[noteType];
+    };
+
+    const incrementNoteUsage = async (noteType: 'pdfAi' | 'youtube') => {
+        if (!user || userTier === 'premium' || userTier === 'loading') return;
+        const currentMonthYear = new Date().toISOString().slice(0, 7);
+        if (usageMonth !== currentMonthYear) {
+            setUsageMonth(currentMonthYear);
+            const newUsage = { pdfAi: noteType === 'pdfAi' ? 1 : 0, youtube: noteType === 'youtube' ? 1 : 0 };
+            setNoteUsage(newUsage);
+            await updateUserNoteUsage(user.uid, newUsage, currentMonthYear);
+        } else {
+            const newUsage = { ...noteUsage, [noteType]: noteUsage[noteType] + 1 };
+            setNoteUsage(newUsage);
+            await updateUserNoteUsage(user.uid, newUsage, currentMonthYear);
+        }
+    };
+
     const handleToggleSidebar = () => setIsSidebarCollapsed(prev => !prev);
     const handleToggleNotesList = () => setIsNotesListHidden(prev => !prev);
 
-    const handleSplitViewSelect = useCallback((note: Note) => { // Added useCallback
+    const handleSplitViewSelect = useCallback((note: Note) => {
         if (!splitViewNotes.left) { setSplitViewNotes({ ...splitViewNotes, left: note }); }
         else if (!splitViewNotes.right && note.id !== splitViewNotes.left?.id) {
             setSplitViewNotes({ ...splitViewNotes, right: note });
@@ -530,39 +482,42 @@ export function Notes() {
         }
         setIsChatOverlayVisible(false); setChatNoteForOverlay(null);
         if (showPdfViewer) togglePdfViewer(false);
-    }, [splitViewNotes, isMobile, showPdfViewer, togglePdfViewer]); // Dependencies
+    }, [splitViewNotes, isMobile, showPdfViewer, togglePdfViewer]);
 
-    const startSplitView = useCallback(() => { // Added useCallback
+    const startSplitView = useCallback(() => {
         setShowSplitView(true); setSelectedNote(null);
         if (showPdfViewer) togglePdfViewer(false);
         setIsChatOverlayVisible(false); setSplitViewNotes({ left: null, right: null });
         if (isMobile) { setShowNotesListOnMobile(true); }
         if (!isMobile) setIsNotesListHidden(false);
-    }, [showPdfViewer, isMobile, togglePdfViewer]); // Dependencies
+    }, [showPdfViewer, isMobile, togglePdfViewer]);
 
-    const closeSplitView = useCallback(() => { // Added useCallback
+    const closeSplitView = useCallback(() => {
         setShowSplitView(false); setSplitViewNotes({ left: null, right: null });
         if (notes.length > 0 && !isMobile) { handleSelectNote(notes[0]); }
         else { setSelectedNote(null); }
         if (isMobile) { setShowNotesListOnMobile(true); }
-    }, [notes, isMobile, handleSelectNote]); // Dependencies
+    }, [notes, isMobile, handleSelectNote]);
 
-    const handleChatWithNote = useCallback((note: Note | null) => { // Added useCallback
-         if (!note || !geminiApiKey) { /* ... error handling ... */ return; }
+    const handleChatWithNote = useCallback((note: Note | null) => {
+         if (!note || !geminiApiKey) {
+            setUploadProgress({progress: 0, status: '', error: 'Cannot initiate chat. Configuration missing.'});
+            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+            return;
+        }
         if (selectedNote?.id !== note.id) { setSelectedNote(note); }
         setChatNoteForOverlay(note);
         setIsChatOverlayVisible(true);
         if (showPdfViewer) togglePdfViewer(false);
         if (isMobile) setShowNotesListOnMobile(false);
         setTimeout(() => noteChatRef.current?.focusInput(), 150);
-    }, [selectedNote?.id, showPdfViewer, isMobile, togglePdfViewer]); // Dependencies
+    }, [selectedNote?.id, showPdfViewer, isMobile, togglePdfViewer]);
 
-    const handleCloseChatOverlay = useCallback(() => setIsChatOverlayVisible(false), []); // No dependencies needed
+    const handleCloseChatOverlay = useCallback(() => setIsChatOverlayVisible(false), []);
 
-    const handleAddImageToNoteRequest = useCallback((imageData: ImageData) => { // Added useCallback
+    const handleAddImageToNoteRequest = useCallback((imageData: ImageData) => {
         if (!selectedNote) return;
         const markdownImageTag = `\n\n![Generated Image](${`data:${imageData.type};base64,${imageData.base64}`})\n\n`;
-        // Need handleEditNote reference
         const switchToEditMode = () => {
             setEditTitle(selectedNote.title);
             setEditContent(selectedNote.content || '');
@@ -577,29 +532,31 @@ export function Notes() {
         };
 
         if (!isEditing) {
-            switchToEditMode(); // Call the defined function
+            switchToEditMode();
             setTimeout(() => { setEditContent(prevContent => (prevContent || '') + markdownImageTag); }, 50);
         } else {
              setEditContent(prevContent => (prevContent || '') + markdownImageTag);
         }
         if (isChatOverlayVisible) handleCloseChatOverlay();
-    // Dependencies for handleAddImageToNoteRequest
     }, [selectedNote, isEditing, isChatOverlayVisible, showPdfViewer, isMobile, togglePdfViewer, handleCloseChatOverlay]);
 
 
-    const handleUpdateNoteContentFromChat = useCallback(async (noteId: string, newContent: string) => { // Added useCallback
+    const handleUpdateNoteContentFromChat = useCallback(async (noteId: string, newContent: string) => {
         if (!user) return; console.log("Updating note from chat:", noteId);
         setIsSaving(true); setUploadProgress({ progress: 0, status: 'Updating via chat...', error: null });
         try {
             await updateNote(noteId, { content: newContent, updatedAt: Timestamp.now() });
             setUploadProgress({ progress: 100, status: 'Updated via chat!', error: null });
-            // Listener handles updating state
             setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 2000);
-        } catch (error) { /* ... error handling ... */ }
+        } catch (error) {
+            console.error("Error updating note from chat:", error);
+            setUploadProgress({ progress: 0, status: '', error: 'Failed to update note via chat.' });
+            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+        }
         finally { setIsSaving(false); }
-    }, [user?.uid]); // Dependency
+    }, [user?.uid]);
 
-    const handleEditNote = useCallback(() => { // Added useCallback
+    const handleEditNote = useCallback(() => {
         if (!selectedNote) return;
         setEditTitle(selectedNote.title);
         setEditContent(selectedNote.content || '');
@@ -611,9 +568,9 @@ export function Notes() {
         if (showPdfViewer) togglePdfViewer(false);
         setShowFlashcardStudyModal(false);
         if (isMobile) { setShowNotesListOnMobile(false); }
-    }, [selectedNote, showPdfViewer, isMobile, togglePdfViewer]); // Dependencies
+    }, [selectedNote, showPdfViewer, isMobile, togglePdfViewer]);
 
-    const handleSaveEdit = useCallback(async () => { // Added useCallback
+    const handleSaveEdit = useCallback(async () => {
         if (!selectedNote || !editTitle.trim() || isSaving) return;
         setIsSaving(true); setUploadProgress({ progress: 0, status: 'Saving...', error: null });
         try {
@@ -628,11 +585,15 @@ export function Notes() {
             setIsEditing(false);
             setUploadProgress({ progress: 100, status: 'Saved!', error: null });
             setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 2000);
-        } catch (error) { /* ... */ }
+        } catch (error) {
+            console.error("Error saving note:", error);
+            setUploadProgress({ progress: 0, status: '', error: 'Failed to save note.' });
+            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+         }
         finally { setIsSaving(false); }
-    }, [selectedNote, editTitle, isSaving, editKeyPoints, editFlashcards, editContent, editTags]); // Dependencies
+    }, [selectedNote, editTitle, isSaving, editKeyPoints, editFlashcards, editContent, editTags]);
 
-    const handleDeleteNote = useCallback(async (noteId: string) => { // Added useCallback
+    const handleDeleteNote = useCallback(async (noteId: string) => {
         if (!window.confirm('Are you sure you want to delete this note?')) return;
         setUploadProgress({ progress: 0, status: 'Deleting...', error: null });
         try {
@@ -649,148 +610,367 @@ export function Notes() {
                  const uLeft = splitViewNotes.left?.id === noteId ? null : splitViewNotes.left;
                  const uRight = splitViewNotes.right?.id === noteId ? null : splitViewNotes.right;
                  setSplitViewNotes({ left: uLeft, right: uRight });
-                 if (showSplitView && !uLeft && !uRight) closeSplitView(); // Close if both are gone
+                 if (showSplitView && !uLeft && !uRight) closeSplitView();
                  else if (showSplitView && (!uLeft || !uRight) && isMobile) setShowNotesListOnMobile(true);
             }
             setUploadProgress({ progress: 100, status: 'Deleted!', error: null });
             setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 2000);
-        } catch (error) { /* ... */ }
-    }, [selectedNote?.id, showPdfViewer, chatNoteForOverlay?.id, splitViewNotes, showSplitView, isMobile, togglePdfViewer, handleCloseChatOverlay, closeSplitView]); // Dependencies
+        } catch (error) {
+            console.error("Error deleting note:", error);
+            setUploadProgress({ progress: 0, status: '', error: 'Failed to delete note.' });
+            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+         }
+    }, [selectedNote?.id, showPdfViewer, chatNoteForOverlay?.id, splitViewNotes, showSplitView, isMobile, togglePdfViewer, handleCloseChatOverlay, closeSplitView]);
 
-    const handleTogglePublic = useCallback(async (noteId: string, currentIsPublic: boolean) => { // Added useCallback
+    const handleTogglePublic = useCallback(async (noteId: string, currentIsPublic: boolean) => {
         setUploadProgress({ progress: 0, status: 'Updating visibility...', error: null });
         try {
             await toggleNotePublicStatus(noteId, !currentIsPublic);
             setUploadProgress({ progress: 100, status: 'Visibility updated!', error: null });
             setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 2000);
             if (currentIsPublic) setLinkCopied(false);
-        } catch (error) { /* ... */ }
-    }, []); // No changing dependencies
+        } catch (error) {
+            console.error("Error updating visibility:", error);
+            setUploadProgress({ progress: 0, status: '', error: 'Failed to update visibility.' });
+            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+         }
+    }, []);
 
-    const handleGetShareLink = useCallback((noteId: string) => { // Added useCallback
+    const handleGetShareLink = useCallback((noteId: string) => {
         const shareUrl = `${window.location.origin}/public-note/${noteId}`;
         navigator.clipboard.writeText(shareUrl)
             .then(() => { setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2500); })
-            .catch(err => { /* ... */ });
-    }, []); // No changing dependencies
+            .catch(err => {
+                console.error('Failed to copy link: ', err);
+                setUploadProgress({ progress: 0, status: '', error: 'Could not copy link.' });
+                setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+            });
+    }, []);
 
-    const handleCancelEdit = useCallback(() => { setIsEditing(false); setEditTitle(''); setEditContent(''); setEditTags([]); setNewTag(''); setEditKeyPoints([]); setEditFlashcards([]); }, []); // No dependencies
+    const handleCancelEdit = useCallback(() => { setIsEditing(false); setEditTitle(''); setEditContent(''); setEditTags([]); setNewTag(''); setEditKeyPoints([]); setEditFlashcards([]); }, []);
 
-    // Note Creation Handlers (simple, no useCallback needed unless complex logic/deps)
-    const handleCreatePersonalNote = async (title: string, content: string, tags: string[]) => { /* ... */ };
-    const handleCreateAINote = async (text: string) => { /* ... */ };
-    const handlePDFUpload = async (file: File) => { /* ... */ };
-    const handleYoutubeLink = async (url: string) => { /* ... */ };
+    const handleCreatePersonalNote = async (title: string, content: string, tags: string[]) => {
+        if (!user) return;
+        setUploadProgress({ progress: 0, status: 'Creating note...', error: null });
+        try {
+            const newNote = await savePersonalNote(user.uid, title, content, tags);
+            setShowNewNoteModal(false);
+            handleSelectNote(newNote); // Select the newly created note
+            setUploadProgress({ progress: 100, status: 'Note created!', error: null });
+            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 2000);
+        } catch (error) {
+            console.error("Error creating personal note:", error);
+            setUploadProgress({ progress: 0, status: '', error: 'Failed to create note.' });
+        }
+    };
 
-    // Tag/KeyPoint/Flashcard Edit Handlers (simple state updates, no useCallback needed)
-    const handleAddTag = () => { /* ... */ };
+    const handleCreateAINote = async (text: string) => {
+        if (!user || !geminiApiKey) {
+            setUploadProgress({ progress: 0, status: '', error: 'AI features not available.' });
+            return;
+        }
+        if (!checkNoteLimit('pdfAi')) {
+            setUploadProgress({ progress: 0, status: '', error: 'AI note limit reached for this month.' });
+            return;
+        }
+        setUploadProgress({ progress: 0, status: 'Processing text...', error: null });
+        try {
+            const aiNoteData = await processTextToAINoteData(text, geminiApiKey);
+            setUploadProgress({ progress: 50, status: 'Saving AI note...', error: null });
+            const newNote = await saveNote(user.uid, {
+                ...aiNoteData,
+                userId: user.uid,
+                type: 'personal', // Or determine type based on source? For now, personal.
+                isPublic: false,
+                tags: [], // Start with empty tags
+                createdAt: Timestamp.now(),
+                updatedAt: Timestamp.now()
+            });
+            await incrementNoteUsage('pdfAi');
+            setShowNewNoteModal(false);
+            handleSelectNote(newNote); // Select the newly created note
+            setUploadProgress({ progress: 100, status: 'AI note created!', error: null });
+            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 2000);
+        } catch (error) {
+            console.error("Error creating AI note:", error);
+            setUploadProgress({ progress: 0, status: '', error: `Failed to create AI note: ${error instanceof Error ? error.message : String(error)}` });
+        }
+    };
+
+    const handlePDFUpload = async (file: File) => {
+        if (!user || !geminiApiKey) {
+             setUploadProgress({ progress: 0, status: '', error: 'AI features not available.' });
+             return;
+        }
+        if (!checkNoteLimit('pdfAi')) {
+            setUploadProgress({ progress: 0, status: '', error: 'PDF/AI note limit reached for this month.' });
+            return;
+        }
+        setUploadProgress({ progress: 0, status: 'Uploading PDF...', error: null });
+        try {
+            const { storagePath, fileUrl } = await processPDF(
+                user.uid,
+                file,
+                geminiApiKey,
+                (progress, status) => setUploadProgress({ progress, status, error: null })
+            );
+            setUploadProgress({ progress: 100, status: 'Generating summaries...', error: null });
+
+            const aiNoteData = await processTextToAINoteData(fileUrl, geminiApiKey, true); // Indicate it's a PDF URL for processing
+
+            setUploadProgress({ progress: 100, status: 'Saving PDF note...', error: null });
+            const newNote = await saveNote(user.uid, {
+                ...aiNoteData, // Includes title, content, keyPoints, questions, flashcards
+                userId: user.uid,
+                type: 'pdf',
+                sourceUrl: fileUrl,
+                isPublic: false,
+                tags: [],
+                createdAt: Timestamp.now(),
+                updatedAt: Timestamp.now(),
+            });
+            await incrementNoteUsage('pdfAi');
+            setShowNewNoteModal(false);
+            handleSelectNote(newNote); // Select the newly created note
+            setUploadProgress({ progress: 100, status: 'PDF processed & note created!', error: null });
+            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+
+        } catch (error) {
+            console.error("Error processing PDF:", error);
+            setUploadProgress({ progress: 0, status: '', error: `PDF processing failed: ${error instanceof Error ? error.message : String(error)}` });
+        }
+    };
+
+    const handleYoutubeLink = async (url: string) => {
+        if (!user || !geminiApiKey) {
+            setUploadProgress({ progress: 0, status: '', error: 'AI features not available.' });
+            return;
+        }
+        if (!checkNoteLimit('youtube')) {
+            setUploadProgress({ progress: 0, status: '', error: 'YouTube note limit reached for this month.' });
+            return;
+        }
+        setUploadProgress({ progress: 0, status: 'Processing YouTube link...', error: null });
+        try {
+            const aiNoteData = await processYouTube(url, geminiApiKey, (status) => setUploadProgress({ progress: 50, status, error: null }));
+
+            setUploadProgress({ progress: 90, status: 'Saving YouTube note...', error: null });
+            const newNote = await saveNote(user.uid, {
+                ...aiNoteData, // Includes title, content, keyPoints, questions, flashcards
+                userId: user.uid,
+                type: 'youtube',
+                sourceUrl: url,
+                isPublic: false,
+                tags: [],
+                createdAt: Timestamp.now(),
+                updatedAt: Timestamp.now(),
+            });
+            await incrementNoteUsage('youtube');
+            setShowNewNoteModal(false);
+            handleSelectNote(newNote); // Select the newly created note
+            setUploadProgress({ progress: 100, status: 'YouTube note created!', error: null });
+            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 2000);
+        } catch (error) {
+            console.error("Error processing YouTube link:", error);
+            setUploadProgress({ progress: 0, status: '', error: `YouTube processing failed: ${error instanceof Error ? error.message : String(error)}` });
+        }
+    };
+
+    const handleAddTag = () => {
+        const trimmedTag = newTag.trim().toLowerCase().replace(/[^a-z0-9-]/g, ''); // Basic sanitization
+        if (trimmedTag && editTags.length < 5 && !editTags.includes(trimmedTag)) {
+            setEditTags([...editTags, trimmedTag]);
+            setNewTag('');
+        }
+    };
+
     const handleRemoveTag = (tagToRemove: string) => setEditTags(editTags.filter(tag => tag !== tagToRemove));
-    const handleKeyPointChange = (index: number, value: string) => { /* ... */ };
+
+    const handleKeyPointChange = (index: number, value: string) => {
+        const updatedPoints = [...editKeyPoints];
+        updatedPoints[index] = value;
+        setEditKeyPoints(updatedPoints);
+    };
+
     const handleAddKeyPoint = () => setEditKeyPoints([...editKeyPoints, '']);
+
     const handleRemoveKeyPoint = (index: number) => setEditKeyPoints(editKeyPoints.filter((_, i) => i !== index));
-    const handleFlashcardChange = (index: number, field: 'front' | 'back', value: string) => { /* ... */ };
+
+    const handleFlashcardChange = (index: number, field: 'front' | 'back', value: string) => {
+        const updatedCards = [...editFlashcards];
+        updatedCards[index] = { ...updatedCards[index], [field]: value };
+        setEditFlashcards(updatedCards);
+    };
+
     const handleAddFlashcard = () => setEditFlashcards([...editFlashcards, { front: '', back: '' }]);
+
     const handleRemoveFlashcard = (index: number) => setEditFlashcards(editFlashcards.filter((_, i) => i !== index));
 
-    // Study/Regenerate Handlers
-    const handleStudyFlashcards = useCallback(() => { // Added useCallback
-        if (!selectedNote?.flashcards || selectedNote.flashcards.length === 0) { /* ... */ }
+    const handleStudyFlashcards = useCallback(() => {
+        if (!selectedNote?.flashcards || selectedNote.flashcards.length === 0) {
+             setUploadProgress({ progress: 0, status: '', error: 'No flashcards available for this note.' });
+             setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+        }
         else { setShowFlashcardStudyModal(true); }
-    }, [selectedNote?.flashcards]); // Dependency
+    }, [selectedNote?.flashcards]);
 
-    const handleRegenerateQuestions = useCallback(async () => { // Added useCallback
+    const handleRegenerateQuestions = useCallback(async () => {
         if (!selectedNote || !geminiApiKey || isRegeneratingQuestions) return;
+        if (!user || userTier === 'loading') return;
+
+        if (userTier !== 'premium' && !checkNoteLimit('pdfAi')) { // Assume question regen counts towards PDF/AI limit
+            setUploadProgress({ progress: 0, status: '', error: 'AI limit reached. Cannot regenerate questions.' });
+            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+            return;
+        }
+
         setIsRegeneratingQuestions(true);
+        setUploadProgress({ progress: 0, status: 'Regenerating questions...', error: null });
+        try {
+            const newQuestions = await regenerateStudyQuestions(selectedNote.content, geminiApiKey);
+            await updateNote(selectedNote.id, { questions: newQuestions, updatedAt: Timestamp.now() });
+            if (userTier !== 'premium') {
+                await incrementNoteUsage('pdfAi'); // Increment usage after successful generation
+            }
+            setUploadProgress({ progress: 100, status: 'Questions regenerated!', error: null });
+            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 2000);
+        } catch (error) {
+            console.error("Error regenerating questions:", error);
+            setUploadProgress({ progress: 0, status: '', error: `Failed to regenerate questions: ${error instanceof Error ? error.message : String(error)}` });
+            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+        } finally {
+            setIsRegeneratingQuestions(false);
+        }
+    }, [selectedNote, geminiApiKey, isRegeneratingQuestions, user, userTier, checkNoteLimit, incrementNoteUsage]);
 
-    }, [selectedNote, isRegeneratingQuestions]); // Dependencies
+    const handleAnswerSelect = useCallback((questionKey: string, selectedOption: number) => setQuestionAnswers(prev => ({ ...prev, [questionKey]: selectedOption })), []);
 
-    const handleAnswerSelect = useCallback((questionKey: string, selectedOption: number) => setQuestionAnswers(prev => ({ ...prev, [questionKey]: selectedOption })), []); // No dependencies
-
-    // PDF Viewer Handlers (simple state updates, no useCallback needed)
     const onDocumentLoadSuccess = ({ numPages: nextNumPages }: { numPages: number }) => { setNumPages(nextNumPages); setPdfError(null); };
-    const onDocumentLoadError = (error: Error) => { /* ... */ };
+
+    const onDocumentLoadError = (error: Error) => {
+        console.error("Error loading PDF document:", error);
+        setPdfError(error.message || 'Failed to load PDF file.');
+        setNumPages(null);
+    };
+
     const changeScale = (amount: number) => setPdfScale(prevScale => Math.max(0.5, prevScale + amount));
     const changeRotation = (amount: number) => setPdfRotation(prevRotation => (prevRotation + amount + 360) % 360);
 
-    // Highlight Button Actions
-    const handleExplainHighlight = useCallback(() => { // Added useCallback
+    const handleExplainHighlight = useCallback(() => {
         if (selectedPdfText && selectedNote) {
              handleChatWithNote(selectedNote);
              setTimeout(() => { noteChatRef.current?.sendMessage(`Explain:\n\n"${selectedPdfText}"`); }, 200);
             setShowHighlightButtons(false); setSelectedPdfText(null); window.getSelection()?.removeAllRanges();
         } else { console.warn("Explain failed: No selected text or note."); }
-    }, [selectedPdfText, selectedNote, handleChatWithNote]); // Dependencies
+    }, [selectedPdfText, selectedNote, handleChatWithNote]);
 
-    const handleChatAboutHighlight = useCallback(() => { // Added useCallback
+    const handleChatAboutHighlight = useCallback(() => {
         if (selectedPdfText && selectedNote) {
              handleChatWithNote(selectedNote);
              setTimeout(() => { noteChatRef.current?.addContextToInput(selectedPdfText); }, 200);
             setShowHighlightButtons(false); setSelectedPdfText(null); window.getSelection()?.removeAllRanges();
         } else { console.warn("Chat failed: No selected text or note."); }
-    }, [selectedPdfText, selectedNote, handleChatWithNote]); // Dependencies
+    }, [selectedPdfText, selectedNote, handleChatWithNote]);
 
-    // --- Image Generation Handler ---
-    const handleGenerateImageForNote = useCallback(async () => { // Added useCallback
-        if (!imageGenPrompt.trim() || !selectedNote || !geminiApiKey || isGeneratingImage) { /* ... */ return; }
+    const handleGenerateImageForNote = useCallback(async () => {
+        if (!imageGenPrompt.trim() || !selectedNote || !geminiApiKey || isGeneratingImage) {
+            setImageGenError("Prompt is required and note must be selected.");
+            return;
+        }
+        if (userTier === 'loading' || (userTier !== 'premium' && userTier !== 'pro')) { // Only Pro and Premium can generate images
+            setImageGenError("Image generation is available for Pro and Premium users only.");
+            setTimeout(() => setImageGenError(null), 4000);
+            return;
+        }
+
         setIsGeneratingImage(true); setImageGenError(null);
-        // ... try/catch ...
+        setUploadProgress({ progress: 0, status: 'Generating image...', error: null });
         try {
             const context = `Note Title: "${selectedNote.title}". Snippet: ${selectedNote.content.substring(0, 300)}...`;
-            const imageData = await generateImageWithImagen(imageGenPrompt, context, geminiApiKey!); // Assert non-null API key
+            const imageData = await generateImageWithImagen(imageGenPrompt, context, geminiApiKey!);
              if (imageData) {
                  handleAddImageToNoteRequest(imageData);
-                 // ... success progress ...
+                 setUploadProgress({ progress: 100, status: 'Image added to note!', error: null });
                  setShowImageGenModal(false); setImageGenPrompt('');
              } else { throw new Error("Image generation call succeeded but returned no data."); }
-         } catch (error: any) { /* ... error handling ... */ }
-        finally { setIsGeneratingImage(false); /* ... progress timeout ... */ }
-    }, [imageGenPrompt, selectedNote, isGeneratingImage, handleAddImageToNoteRequest]); // Dependencies
+         } catch (error: any) {
+            console.error("Image generation failed:", error);
+            setImageGenError(`Failed to generate image: ${error?.message || 'Unknown error'}`);
+            setUploadProgress({ progress: 0, status: '', error: 'Image generation failed.' });
+         }
+        finally {
+             setIsGeneratingImage(false);
+             setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+        }
+    }, [imageGenPrompt, selectedNote, geminiApiKey, isGeneratingImage, userTier, handleAddImageToNoteRequest]);
 
-    // --- Theme Styles ---
+
     const containerClass = isIlluminateEnabled ? "bg-gray-100 text-gray-900" : isBlackoutEnabled ? "bg-black text-gray-200" : "bg-gray-900 text-gray-200";
     const notesListBg = isIlluminateEnabled ? "bg-white border-gray-200" : isBlackoutEnabled ? "bg-black border-gray-800" : "bg-gray-800 border-gray-700";
-    // ... other style variables ...
+    const mainContentBg = isIlluminateEnabled ? "bg-gray-100" : isBlackoutEnabled ? "bg-black" : "bg-gray-900";
+    const noteViewBg = isIlluminateEnabled ? "bg-white border border-gray-200 shadow-sm" : isBlackoutEnabled ? "bg-black border border-gray-800" : "bg-gray-800 border border-gray-700";
+    const borderColor = isIlluminateEnabled ? 'border-gray-200' : 'border-gray-700'; // <-- *** ADDED DEFINITION ***
+    const divideColor = isIlluminateEnabled ? 'divide-gray-200' : 'divide-gray-700';
+    const headingClass = isIlluminateEnabled ? "text-gray-900" : "text-gray-100";
+    const subheadingClass = isIlluminateEnabled ? "text-gray-600" : "text-gray-400";
+    const textColor = isIlluminateEnabled ? "text-gray-900" : "text-gray-100";
+    const iconColor = isIlluminateEnabled ? "text-gray-400" : "text-gray-500";
+    const iconActionColor = isIlluminateEnabled ? "text-blue-600" : "text-blue-400";
+    const iconHoverColor = isIlluminateEnabled ? "text-gray-600 hover:text-gray-900" : "text-gray-400 hover:text-gray-100";
+    const iconActionHoverBg = isIlluminateEnabled ? "hover:bg-gray-200" : "hover:bg-gray-700";
+    const iconDeleteHoverColor = isIlluminateEnabled ? "text-red-500 hover:text-red-700" : "text-red-400 hover:text-red-300";
+    const iconDeleteHoverBg = isIlluminateEnabled ? "hover:bg-red-100" : "hover:bg-red-900/30";
+    const inputBg = isIlluminateEnabled ? "bg-gray-100 border border-gray-300 focus:ring-blue-500 focus:border-blue-500" : "bg-gray-700 border border-gray-600 focus:ring-blue-500 focus:border-blue-500";
+    const inputTextColor = isIlluminateEnabled ? "text-gray-900" : "text-white";
+    const placeholderColor = isIlluminateEnabled ? "placeholder-gray-400" : "placeholder-gray-500";
+    const buttonPrimaryClass = isIlluminateEnabled ? "bg-blue-600 text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-300" : "bg-blue-500 text-white hover:bg-blue-600 focus:ring-2 focus:ring-blue-400";
+    const buttonSecondaryClass = isIlluminateEnabled ? "bg-gray-200 text-gray-700 hover:bg-gray-300 focus:ring-2 focus:ring-gray-300" : "bg-gray-700 text-gray-300 hover:bg-gray-600 focus:ring-2 focus:ring-gray-500";
+    const buttonDisabledClass = "opacity-50 cursor-not-allowed";
+    const listItemBaseClass = isIlluminateEnabled ? "text-gray-800" : "text-gray-300";
+    const listItemHoverBg = isIlluminateEnabled ? "hover:bg-gray-50" : "hover:bg-gray-700/50";
+    const listItemSelectedBg = isIlluminateEnabled ? "!bg-blue-50 border-l-2 border-blue-500" : "!bg-gray-700 border-l-2 border-blue-500";
+    const tagBaseBg = isIlluminateEnabled ? 'bg-opacity-100' : 'bg-opacity-20';
+    const tagTextBase = isIlluminateEnabled ? '' : 'text-opacity-90';
+    const tagColors = {
+      personal: isIlluminateEnabled ? 'bg-green-100 text-green-800' : 'bg-green-500 text-green-100',
+      pdf: isIlluminateEnabled ? 'bg-red-100 text-red-800' : 'bg-red-500 text-red-100',
+      youtube: isIlluminateEnabled ? 'bg-purple-100 text-purple-800' : 'bg-purple-500 text-purple-100',
+      audio: isIlluminateEnabled ? 'bg-yellow-100 text-yellow-800' : 'bg-yellow-500 text-yellow-100',
+      public: isIlluminateEnabled ? 'bg-cyan-100 text-cyan-800' : 'bg-cyan-500 text-cyan-100',
+      custom: isIlluminateEnabled ? 'bg-gray-200 text-gray-700' : 'bg-gray-600 text-gray-300'
+    };
+
     const proseClass = `prose prose-sm sm:prose-base max-w-none ${isIlluminateEnabled ? 'prose-gray' : 'prose-invert'} ${isIlluminateEnabled ? 'text-gray-800' : 'text-gray-300'} prose-a:text-blue-500 hover:prose-a:text-blue-600 prose-code:before:content-none prose-code:after:content-none prose-code:bg-gray-200/50 dark:prose-code:bg-gray-700/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-pre:bg-gray-100 dark:prose-pre:bg-gray-800 prose-pre:rounded-md prose-pre:p-3 prose-img:rounded-lg prose-img:shadow-sm prose-headings:font-semibold prose-h1:text-xl prose-h1:mb-2 prose-h1:mt-4 prose-h2:text-lg prose-h2:mb-1.5 prose-h2:mt-3 prose-h3:text-base prose-h3:mb-1 prose-h3:mt-2 prose-p:leading-relaxed prose-p:mb-2 prose-ul:list-disc prose-ul:my-1 prose-ul:ml-4 prose-ol:list-decimal prose-ol:my-1 prose-ol:ml-4 prose-li:my-0.5 prose-blockquote:border-l-4 ${isIlluminateEnabled ? 'prose-blockquote:border-gray-300' : 'prose-blockquote:border-gray-600'} prose-blockquote:pl-3 prose-blockquote:italic prose-blockquote:text-sm prose-blockquote:my-2 prose-table:text-sm prose-table:my-2 prose-thead:border-b ${isIlluminateEnabled ? 'prose-thead:border-gray-300' : 'prose-thead:border-gray-600'} prose-th:px-2 prose-th:py-1 prose-th:font-medium ${isIlluminateEnabled ? 'prose-th:bg-gray-100/50' : 'prose-th:bg-gray-700/30'} prose-td:border ${isIlluminateEnabled ? 'prose-td:border-gray-200' : 'prose-td:border-gray-700'} prose-td:px-2 prose-td:py-1`;
 
-    // Derived State
     const showSideBySideChat = selectedNote?.type === 'pdf' && showPdfViewer && !!selectedNote.sourceUrl && !!user && !!geminiApiKey && !isMobile;
     const currentLimits = userTier === 'loading' ? null : NOTE_LIMITS[userTier];
 
 
-    // --- JSX ---
     return (
         <div className={`flex h-screen overflow-hidden ${containerClass} font-sans`}>
-            {/* Sidebar */}
             <Sidebar isCollapsed={isSidebarCollapsed} onToggle={handleToggleSidebar} userName={userName} isBlackoutEnabled={isBlackoutEnabled && isSidebarBlackoutEnabled} isIlluminateEnabled={isIlluminateEnabled && isSidebarIlluminateEnabled} />
 
-            {/* Main Area */}
             <main className={`flex-1 flex overflow-hidden transition-all duration-300 ${ isSidebarCollapsed ? 'ml-16 md:ml-20' : 'ml-0 md:ml-64' }`}>
 
-                 {/* === 1. Notes List Sidebar (Desktop) === */}
-                 {/* Renders only on desktop when not hidden */}
                  {!isMobile && !isNotesListHidden && (
                      <div className={`
                         w-full md:w-72 lg:w-80 xl:w-96 border-r ${borderColor} flex-shrink-0 flex flex-col ${notesListBg}
                         transition-transform duration-300 ease-in-out relative h-full z-10
                     `}>
-                         {/* Header */}
                          <div className={`p-3 border-b ${borderColor} flex items-center justify-between flex-shrink-0`}>
                              <h2 className={`text-lg font-semibold ${headingClass} flex items-center gap-2`}> <FileText className={`w-5 h-5 ${iconActionColor}`} /> Notes </h2>
                              <div className="flex items-center gap-1">
                                 <button onClick={handleToggleNotesList} className={`${buttonSecondaryClass} p-1.5 rounded-full ${iconHoverColor}`} title={isNotesListHidden ? "Show Notes List" : "Hide Notes List"}>
-                                     <PanelRightClose className="w-4 h-4" /> {/* Always show close when visible */}
+                                     <PanelRightClose className="w-4 h-4" />
                                 </button>
                                 {notes.length >= 2 && !showPdfViewer && ( <button onClick={showSplitView ? closeSplitView : startSplitView} className={`${buttonSecondaryClass} p-1.5 rounded-full ${iconHoverColor}`} title={showSplitView ? "Close Comparison" : "Compare Notes"}> <SplitSquareVertical className={`w-4 h-4 ${showSplitView ? iconActionColor: ''}`} /> </button> )}
                                 <button onClick={() => setShowNewNoteModal(true)} className={`${buttonPrimaryClass} p-2 rounded-full hover:shadow-md transition-all duration-150`} title="New Note"> <Plus className="w-4 h-4" /> </button>
                              </div>
                          </div>
-                        {/* Search/Filter */}
                         <div className={`p-3 border-b ${borderColor} flex-shrink-0`}>
-                            {/* ... search/filter inputs ... */}
                              <div className="relative mb-2"> <Search className={`absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 ${iconColor}`} /> <input type="text" placeholder="Search notes..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className={`w-full ${inputBg} ${inputTextColor} pl-8 pr-3 py-1.5 rounded-full text-sm focus:outline-none focus:ring-1 ${placeholderColor}`} /> </div>
                              <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar"> {(['all', 'personal', 'pdf', 'youtube'] as const).map(type => ( <button key={type} onClick={() => setFilterType(type)} className={`px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap ${filterType === type ? `${buttonPrimaryClass} shadow-sm` : `${buttonSecondaryClass}`}`}> {type === 'all' ? 'All' : type.charAt(0).toUpperCase() + type.slice(1)} </button> ))} </div>
                         </div>
-                        {/* Usage Info Display */}
                         {userTier !== 'premium' && userTier !== 'loading' && currentLimits && (
                            <div className={`px-3 py-2 text-[10px] border-b ${borderColor} ${isIlluminateEnabled ? 'text-gray-600 bg-gray-50' : 'text-gray-400 bg-gray-800/50'}`}>
                                  <div className="flex justify-between items-center gap-2">
@@ -799,9 +979,7 @@ export function Notes() {
                                  </div>
                             </div>
                         )}
-                        {/* Notes List */}
                         <div className="flex-1 overflow-y-auto">
-                            {/* ... notes list rendering ... */}
                             {loading && notes.length === 0 ? ( <div className="flex justify-center items-center h-full p-6"> <Loader2 className={`w-6 h-6 animate-spin ${iconColor}`} /> </div> )
                             : !loading && notes.length === 0 ? ( <div className="flex flex-col items-center justify-center h-full text-center p-6"> <FileQuestion className={`w-12 h-12 ${iconColor} mb-3`} /> <p className={`${subheadingClass} mb-4 text-sm`}>No notes yet.</p> <button onClick={() => setShowNewNoteModal(true)} className={`${buttonPrimaryClass} px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5`}> <Plus className="w-4 h-4" /> Create Note </button> </div> )
                             : ( <div className={`divide-y ${divideColor}`}> {notes.filter((note) => { if (filterType !== 'all' && note.type !== filterType) return false; if (searchQuery) { const search = searchQuery.toLowerCase(); return (note.title.toLowerCase().includes(search) || note.content.toLowerCase().includes(search) || note.tags?.some((tag) => tag.toLowerCase().includes(search))); } return true; }).map((note) => { const isSel = (!showSplitView && selectedNote?.id === note.id); const isSplitL = showSplitView && splitViewNotes.left?.id === note.id; const isSplitR = showSplitView && splitViewNotes.right?.id === note.id; const isSelectedAny = isSel || isSplitL || isSplitR; let typeIcon; switch (note.type) { case 'personal': typeIcon = <Briefcase className="w-3 h-3"/>; break; case 'pdf': typeIcon = <FileText className="w-3 h-3"/>; break; case 'youtube': typeIcon = <Youtube className="w-3 h-3"/>; break; default: typeIcon = null; } return ( <div key={note.id} className={`p-3 cursor-pointer transition-colors duration-150 ${listItemHoverBg} ${listItemBaseClass} ${isSelectedAny ? listItemSelectedBg : ''}`} onClick={() => handleSelectNote(note)}> <div className="flex justify-between items-start gap-2"> <h3 className={`text-sm font-medium mb-0.5 line-clamp-1 ${headingClass}`}>{note.title || "Untitled"}</h3> {isSplitL && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-blue-500/20 text-blue-300`}>Left</span>} {isSplitR && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-purple-500/20 text-purple-300`}>Right</span>} </div> <p className={`${subheadingClass} text-xs line-clamp-2 mb-1.5`}>{note.content.substring(0, 100)}</p> <div className="flex flex-wrap items-center gap-1 text-[10px]"> <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${tagColors[note.type]} ${tagBaseBg} ${tagTextBase}`}> {typeIcon} {note.type.charAt(0).toUpperCase() + note.type.slice(1)} </span> {note.isPublic && <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${tagColors.public} ${tagBaseBg} ${tagTextBase}`}><Globe className="w-3 h-3"/> Public</span>} {note.tags?.slice(0, 2).map((tag) => <span key={tag} className={`px-1.5 py-0.5 rounded ${tagColors.custom} ${tagBaseBg} ${tagTextBase} truncate max-w-[60px]`} title={tag}>#{tag}</span>)} {note.tags && note.tags.length > 2 && <span className={`px-1.5 py-0.5 rounded ${tagColors.custom} ${tagBaseBg} ${tagTextBase}`}>+{note.tags.length - 2}</span>} <span className={`ml-auto text-gray-500 dark:text-gray-500`}>{note.updatedAt?.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span> </div> </div> ); })} </div> )}
@@ -809,7 +987,6 @@ export function Notes() {
                     </div>
                  )}
 
-                 {/* Notes List Toggle Button (when hidden on desktop) */}
                  {!isMobile && isNotesListHidden && (
                     <button
                         onClick={handleToggleNotesList}
@@ -821,12 +998,9 @@ export function Notes() {
                     </button>
                  )}
 
-                 {/* === 2. Main Content Area === */}
                  <div ref={!showSideBySideChat ? contentRef : null} className={`flex-1 ${mainContentBg} relative ${showSideBySideChat ? 'overflow-hidden' : 'overflow-y-auto'}`}>
 
-                      {/* Mobile Header */}
                      {isMobile && !showNotesListOnMobile && !showSideBySideChat && (
-                        // ... mobile header JSX ...
                           <div className={`sticky top-0 z-10 p-2 border-b ${borderColor} ${isIlluminateEnabled ? 'bg-white/80 backdrop-blur-sm' : 'bg-gray-900/80 backdrop-blur-sm'} flex items-center justify-between`}>
                              <button onClick={() => setShowNotesListOnMobile(true)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Show Notes"> <List className="w-4 h-4" /> </button>
                              <span className={`text-sm font-medium truncate px-2 ${headingClass}`}> {isEditing ? 'Editing Note' : selectedNote?.title || 'Note'} </span>
@@ -837,21 +1011,16 @@ export function Notes() {
                          </div>
                     )}
 
-                    {/* --- Dynamic Content Rendering --- */}
                      {showSplitView && splitViewNotes.left && splitViewNotes.right ? (
-                        // ... split view JSX ...
                          <SplitView leftNote={splitViewNotes.left} rightNote={splitViewNotes.right} onClose={closeSplitView} onTogglePublic={handleTogglePublic} onDelete={handleDeleteNote} onChat={handleChatWithNote} isIlluminateEnabled={isIlluminateEnabled} isBlackoutEnabled={isBlackoutEnabled} />
                      ) : showSideBySideChat ? (
-                        // ... side-by-side PDF and Chat JSX ...
                          <div className="flex flex-row h-full overflow-hidden">
-                              {/* PDF Viewer Section */}
                              <div className="flex flex-col overflow-hidden relative border-r border-gray-200 dark:border-gray-700" style={{ width: `${pdfChatSplitRatio}%` }}>
-                                  {/* PDF Controls Header */}
                                   <div className={`flex-shrink-0 p-1.5 border-b ${borderColor} ${isIlluminateEnabled ? 'bg-gray-50' : 'bg-gray-800/50'} flex items-center justify-between gap-1 sticky top-0 z-10`}>
                                       <div className="flex items-center gap-1">
                                           <button onClick={() => togglePdfViewer(false)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Show Note Content"> <FileText className="w-4 h-4" /> </button>
                                       </div>
-                                      <div className="flex items-center gap-1"> {/* Zoom & Rotate */}
+                                      <div className="flex items-center gap-1">
                                           <div className={`w-px h-4 ${isIlluminateEnabled ? 'bg-gray-300' : 'bg-gray-600'} mx-0.5`}></div>
                                           <button onClick={() => changeScale(-0.1)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Zoom Out"> <ZoomOut className="w-4 h-4" /> </button>
                                           <span className={`text-xs font-medium px-1 ${textColor}`}>{Math.round(pdfScale * 100)}%</span>
@@ -861,11 +1030,9 @@ export function Notes() {
                                           <button onClick={() => changeRotation(90)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Rotate Right"> <RotateCcw className="w-4 h-4" /> </button>
                                        </div>
                                   </div>
-                                  {/* Highlight Instruction */}
                                   <p className={`flex-shrink-0 text-center text-[10px] p-0.5 ${isIlluminateEnabled ? 'bg-blue-50 text-blue-700' : 'bg-gray-800 text-gray-400'} sticky top-[37px] z-[9]`}>
                                       Highlight any text in the PDF to open the Explain or Chat options.
                                   </p>
-                                 {/* PDF Document Area */}
                                  <div ref={pdfViewerContainerRef} onMouseUp={handlePdfTextSelection} className={`flex-1 overflow-auto relative ${isIlluminateEnabled ? 'bg-gray-100' : 'bg-gray-800/30'}`} >
                                      {pdfError ? (
                                         <div className="p-6 text-center text-red-500 flex flex-col items-center justify-center h-full"> <AlertTriangle className="w-10 h-10 mb-3" /> <p className="text-sm font-medium">Error Loading PDF</p> <p className="text-xs mt-1">{pdfError}</p> </div>
@@ -878,7 +1045,6 @@ export function Notes() {
                                             )}
                                         </Document>
                                      )}
-                                     {/* Highlight Buttons */}
                                      {showHighlightButtons && highlightButtonPosition && (
                                          <div className="highlight-buttons-container absolute z-20 flex items-center gap-1 bg-gray-800 dark:bg-gray-200 p-1 rounded-md shadow-lg" style={{ top: `${highlightButtonPosition.top}px`, left: `${highlightButtonPosition.left}px`, transform: 'translateX(-50%)' }} onMouseDown={(e) => e.stopPropagation()} >
                                              <button onClick={handleExplainHighlight} className={`text-xs px-2 py-1 rounded transition-colors ${isIlluminateEnabled ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>Explain</button>
@@ -888,12 +1054,10 @@ export function Notes() {
                                  </div>
                              </div>
 
-                             {/* Resizable Handle */}
                              <div className={`w-1.5 cursor-col-resize flex items-center justify-center flex-shrink-0 ${isIlluminateEnabled ? 'bg-gray-300 hover:bg-gray-400' : 'bg-gray-600 hover:bg-gray-500'} ${isResizingPdfChatSplit ? (isIlluminateEnabled ? '!bg-blue-500' : '!bg-blue-500') : ''}`} onMouseDown={handleResizeMouseDown} title="Drag to resize panels">
                                  <GripVertical className={`w-4 h-4 pointer-events-none ${isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}`} />
                              </div>
 
-                             {/* Chat Section (Inline) */}
                              <div className="h-full flex flex-col overflow-hidden" style={{ width: `${100 - pdfChatSplitRatio}%` }}>
                                  {selectedNote && geminiApiKey && (
                                     <NoteChat
@@ -915,25 +1079,18 @@ export function Notes() {
                          </div>
 
                      ) : (
-                         // --- Default View: Single Note, Edit, Split Placeholder, or Initial ---
                          <div className={`p-0 md:p-6 lg:p-8 h-full ${isEditing ? 'flex flex-col' : ''} ${showSideBySideChat ? 'hidden': ''}`}>
                             {showSplitView && (!splitViewNotes.left || !splitViewNotes.right) ? (
-                                // ... split placeholder JSX ...
                                  <div className={`flex flex-col items-center justify-center rounded-lg ${noteViewBg} h-full text-center p-6`}> <SplitSquareVertical className={`w-12 h-12 ${iconColor} mb-4`} /> <h2 className={`text-lg font-semibold ${headingClass} mb-2`}>Compare Notes</h2> <p className={`${subheadingClass} text-sm mb-4`}>Select {splitViewNotes.left ? 'one more note' : 'two notes'} from the list.</p> <p className={`text-xs ${subheadingClass} mb-4`}>Selected: {splitViewNotes.left ? 1 : 0}/2</p> <button onClick={closeSplitView} className={`${buttonSecondaryClass} px-3 py-1.5 rounded-md text-sm`}>Cancel Comparison</button> </div>
                             ) : selectedNote ? (
                                 isEditing ? (
-                                    // ... edit mode JSX ...
                                     <div className={`${noteViewBg} rounded-lg p-4 md:p-6 flex flex-col h-full overflow-hidden`}>
-                                        {/* Edit Header */}
                                          <div className="space-y-3 flex-shrink-0">
-                                             {/* ... title input, tags ... */}
                                               <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className={`w-full ${inputBg} ${inputTextColor} text-xl font-semibold rounded-md px-3 py-2 focus:outline-none focus:ring-1 ${placeholderColor}`} placeholder="Note title..." />
                                               <div className="flex flex-wrap items-center gap-2"> {editTags.map((tag) => ( <span key={tag} className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${tagColors.custom} ${tagBaseBg} ${tagTextBase}`}> {tag} <button onClick={() => handleRemoveTag(tag)} className={`${iconHoverColor} rounded-full hover:bg-black/10 dark:hover:bg-white/10 p-0.5`} title={`Remove tag "${tag}"`}> <X className="w-2.5 h-2.5" /> </button> </span> ))} {editTags.length < 5 && ( <div className="flex items-center gap-1"> <input type="text" value={newTag} onChange={(e) => setNewTag(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleAddTag()} placeholder="Add tag..." className={`${inputBg} ${inputTextColor} ${placeholderColor} rounded-full px-2.5 py-0.5 text-xs focus:outline-none focus:ring-1 w-24`} /> <button onClick={handleAddTag} className={`${buttonSecondaryClass} px-2 py-0.5 rounded-full text-xs`}>Add</button> </div> )} </div>
                                          </div>
 
-                                         {/* Main Edit Area Container (Scrollable) */}
                                          <div className="flex-1 mt-3 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 pr-2">
-                                             {/* MDEditor */}
                                              <div className="mb-4" data-color-mode={isIlluminateEnabled ? 'light' : 'dark'}>
                                                   {/* @ts-ignore */}
                                                   <MDEditor
@@ -946,9 +1103,7 @@ export function Notes() {
                                                   />
                                               </div>
 
-                                             {/* Editable Key Points */}
                                              <div className="mt-4 pt-3 border-t dark:border-gray-700">
-                                                  {/* ... key points edit section ... */}
                                                   <h3 className={`text-sm font-semibold mb-2 flex items-center gap-1.5 ${headingClass}`}><Sparkles className={`w-4 h-4 ${isIlluminateEnabled ? 'text-yellow-500' : 'text-yellow-400'}`} />Edit Key Points</h3>
                                                    <div className="space-y-1.5">
                                                        {editKeyPoints.map((point, index) => (
@@ -961,9 +1116,7 @@ export function Notes() {
                                                    <button onClick={handleAddKeyPoint} className={`${buttonSecondaryClass} mt-2 px-2.5 py-1 rounded text-xs flex items-center gap-1`}> <PlusCircle className="w-3.5 h-3.5"/> Add Point </button>
                                               </div>
 
-                                              {/* Editable Flashcards */}
                                              <div className="mt-4 pt-3 border-t dark:border-gray-700">
-                                                  {/* ... flashcards edit section ... */}
                                                    <h3 className={`text-sm font-semibold mb-2 flex items-center gap-1.5 ${headingClass}`}><Layers className={`w-4 h-4 ${isIlluminateEnabled ? 'text-purple-600' : 'text-purple-400'}`} />Edit Flashcards</h3>
                                                    <div className="space-y-2">
                                                        {editFlashcards.map((card, index) => (
@@ -978,23 +1131,33 @@ export function Notes() {
                                                    </div>
                                                    <button onClick={handleAddFlashcard} className={`${buttonSecondaryClass} mt-2 px-2.5 py-1 rounded text-xs flex items-center gap-1`}> <PlusCircle className="w-3.5 h-3.5"/> Add Card </button>
                                               </div>
-                                         </div> {/* End Scrollable Edit Area */}
+                                         </div>
 
-                                         {/* Edit Footer */}
                                          <div className="flex justify-between items-center gap-2 pt-3 mt-3 border-t border-gray-300 dark:border-gray-700 flex-shrink-0">
-                                             {/* Left side: Image Generation */}
-                                             {geminiApiKey && (
+                                             {geminiApiKey && (userTier === 'pro' || userTier === 'premium') && (
                                                 <button
                                                      onClick={() => { setShowImageGenModal(true); setImageGenError(null); setImageGenPrompt('');}}
                                                      className={`${buttonSecondaryClass} px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5`}
                                                      title="Generate Image and add to Note"
                                                      disabled={isGeneratingImage}
                                                 >
-                                                     <ImagePlus className="w-4 h-4" /> {/* CORRECTED ICON */}
+                                                     <ImagePlus className="w-4 h-4" />
                                                      Generate Image
                                                  </button>
                                              )}
-                                             {/* Right side: Save/Cancel */}
+                                             {geminiApiKey && userTier !== 'pro' && userTier !== 'premium' && (
+                                                <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400" title="Image Generation is available for Pro and Premium users">
+                                                     <ImageIcon className="w-4 h-4" />
+                                                     <span>Image Gen (Pro+)</span>
+                                                     <Info className="w-3 h-3"/>
+                                                 </div>
+                                             )}
+                                              {!geminiApiKey && (
+                                                 <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400" title="API Key needed for image generation">
+                                                      <ImageIcon className="w-4 h-4 opacity-50" />
+                                                      <span>Image Gen</span>
+                                                  </div>
+                                              )}
                                              <div className="flex gap-2">
                                                  <button onClick={handleCancelEdit} className={`${buttonSecondaryClass} px-4 py-1.5 rounded-md text-sm`}>Cancel</button>
                                                  <button onClick={handleSaveEdit} disabled={isSaving || !editTitle.trim()} className={`${buttonPrimaryClass} px-4 py-1.5 rounded-md text-sm flex items-center gap-1.5 ${isSaving || !editTitle.trim() ? buttonDisabledClass : ''}`}> {isSaving ? (<> <Loader2 className="w-4 h-4 animate-spin" /> Saving... </>) : (<> <Save className="w-4 h-4" /> Save </>)} </button>
@@ -1002,11 +1165,8 @@ export function Notes() {
                                          </div>
                                      </div>
                                 ) : (
-                                    // --- View Mode ---
                                     <div className={`${noteViewBg} rounded-lg flex flex-col overflow-hidden h-full p-4 md:p-6 lg:p-8 animate-fadeIn`}>
-                                        {/* View Header */}
                                         <div className={`flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2 flex-shrink-0`}>
-                                            {/* ... title, action buttons ... */}
                                             <h2 className={`text-xl md:text-2xl font-semibold ${headingClass} break-words mr-auto`}>{selectedNote.title || "Untitled Note"}</h2>
                                              <div className={`flex items-center gap-1 flex-shrink-0 border rounded-full p-0.5 ${borderColor} ${isIlluminateEnabled ? 'bg-gray-50' : 'bg-gray-800/50'}`}>
                                                 <button onClick={handleEditNote} className={`p-1.5 rounded-full ${iconHoverColor} ${iconActionHoverBg}`} title="Edit"><Edit2 className="w-4 h-4" /></button>
@@ -1019,34 +1179,110 @@ export function Notes() {
                                                 <button onClick={() => handleDeleteNote(selectedNote.id)} className={`p-1.5 rounded-full ${iconDeleteHoverColor} ${iconDeleteHoverBg}`} title="Delete"><Trash2 className="w-4 h-4" /></button>
                                             </div>
                                         </div>
-                                        {/* Tags */}
                                         {((selectedNote.tags?.length ?? 0) > 0) && ( <div className={`flex flex-wrap gap-1.5 mb-4`}> {selectedNote.tags!.map((tag) => (<span key={tag} className={`px-2 py-0.5 rounded-full text-xs ${tagColors.custom} ${tagBaseBg} ${tagTextBase}`}>#{tag}</span>))} </div> )}
-                                        {/* Content Area */}
                                         <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
-                                            {/* Note Content */}
                                             <div className={`${proseClass} mb-6`}>
-                                                <ReactMarkdown /* ... props ... */ >{selectedNote.content}</ReactMarkdown>
+                                                <ReactMarkdown
+                                                    remarkPlugins={[remarkGfm, remarkMath]}
+                                                    rehypePlugins={[rehypeKatex]}
+                                                    components={{
+                                                        img: ({node, ...props}) => <img className="max-w-full h-auto rounded-md my-4 shadow-sm" {...props} />,
+                                                        a: ({node, ...props}) => <a target="_blank" rel="noopener noreferrer" {...props} />,
+                                                        // You can add more custom components here if needed
+                                                    }}
+                                                >{selectedNote.content}</ReactMarkdown>
                                             </div>
-                                            {/* Key Points */}
-                                            {selectedNote.keyPoints && selectedNote.keyPoints.length > 0 && ( <div className={`mt-6 border-t pt-4 ${borderColor}`}> {/* ... key points display ... */} </div> )}
-                                            {/* Flashcards */}
-                                            {selectedNote.flashcards && selectedNote.flashcards.length > 0 && ( <div className={`mt-6 border-t pt-4 ${borderColor}`}> {/* ... flashcards display/study button ... */} </div> )}
-                                            {/* Study Questions */}
-                                            {selectedNote.questions && selectedNote.questions.length > 0 && ( <div className={`mt-6 border-t pt-4 ${borderColor}`}> {/* ... questions display ... */} </div> )}
+                                            {selectedNote.keyPoints && selectedNote.keyPoints.length > 0 && (
+                                                <div className={`mt-6 border-t pt-4 ${borderColor}`}>
+                                                    <h3 className={`text-base font-semibold mb-3 flex items-center gap-1.5 ${headingClass}`}><Sparkles className={`w-4 h-4 ${isIlluminateEnabled ? 'text-yellow-500' : 'text-yellow-400'}`} /> Key Points</h3>
+                                                    <ul className={`list-none p-0 m-0 space-y-2`}>
+                                                        {selectedNote.keyPoints.map((point, index) => (
+                                                            <li key={index} className={`flex items-start gap-2 text-sm ${subheadingClass}`}>
+                                                                <Sparkles className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${isIlluminateEnabled ? 'text-yellow-500' : 'text-yellow-400'}`} />
+                                                                <span>{point}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
+                                            {selectedNote.flashcards && selectedNote.flashcards.length > 0 && (
+                                                <div className={`mt-6 border-t pt-4 ${borderColor}`}>
+                                                    <div className="flex justify-between items-center mb-3">
+                                                        <h3 className={`text-base font-semibold flex items-center gap-1.5 ${headingClass}`}><Layers className={`w-4 h-4 ${isIlluminateEnabled ? 'text-purple-600' : 'text-purple-400'}`} /> Flashcards ({selectedNote.flashcards.length})</h3>
+                                                        <button onClick={handleStudyFlashcards} className={`${buttonSecondaryClass} px-3 py-1 rounded-md text-xs flex items-center gap-1`}> <BookOpen className="w-3.5 h-3.5" /> Study </button>
+                                                    </div>
+                                                    <p className={`text-xs ${subheadingClass}`}>Flashcards generated from this note. Click 'Study' to review them.</p>
+                                                </div>
+                                            )}
+                                            {selectedNote.questions && selectedNote.questions.length > 0 && (
+                                                <div className={`mt-6 border-t pt-4 ${borderColor}`}>
+                                                     <div className="flex justify-between items-center mb-3">
+                                                        <h3 className={`text-base font-semibold flex items-center gap-1.5 ${headingClass}`}><FileQuestion className={`w-4 h-4 ${isIlluminateEnabled ? 'text-blue-600' : 'text-blue-400'}`} /> Study Questions</h3>
+                                                        <button onClick={handleRegenerateQuestions} disabled={isRegeneratingQuestions || !geminiApiKey} className={`${buttonSecondaryClass} px-3 py-1 rounded-md text-xs flex items-center gap-1 ${isRegeneratingQuestions || !geminiApiKey ? buttonDisabledClass : ''}`} title={!geminiApiKey ? "API Key required" : "Regenerate Questions"}>
+                                                            {isRegeneratingQuestions ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <RefreshCw className="w-3.5 h-3.5"/>}
+                                                            <span className="ml-1">{isRegeneratingQuestions ? 'Regenerating...' : 'Regenerate'}</span>
+                                                         </button>
+                                                    </div>
+                                                    <div className="space-y-4">
+                                                        {selectedNote.questions.map((q, index) => {
+                                                            const questionKey = `${selectedNote.id}_q${index}`;
+                                                            const selectedAnswer = questionAnswers[questionKey];
+                                                            const isAnswered = selectedAnswer !== null && selectedAnswer !== undefined;
+                                                            const isCorrect = isAnswered && selectedAnswer === q.correctAnswer;
+
+                                                            return (
+                                                                <div key={questionKey} className={`p-3 rounded-md border ${isAnswered ? (isCorrect ? (isIlluminateEnabled ? 'bg-green-50 border-green-200' : 'bg-green-900/30 border-green-700/50') : (isIlluminateEnabled ? 'bg-red-50 border-red-200' : 'bg-red-900/30 border-red-700/50')) : (isIlluminateEnabled ? 'bg-gray-50/50 border-gray-200' : 'bg-gray-800/40 border-gray-700/50')}`}>
+                                                                    <p className={`text-sm font-medium mb-2 ${headingClass}`}>{index + 1}. {q.question}</p>
+                                                                    <div className="space-y-1.5">
+                                                                        {q.options.map((option, optIndex) => {
+                                                                            let optionStyle = isIlluminateEnabled ? 'bg-white hover:bg-gray-100 border-gray-300' : 'bg-gray-700 hover:bg-gray-600 border-gray-600';
+                                                                            let textStyle = subheadingClass;
+                                                                            if (isAnswered) {
+                                                                                 if (optIndex === q.correctAnswer) {
+                                                                                     optionStyle = isIlluminateEnabled ? '!bg-green-100 border-green-400 ring-1 ring-green-400' : '!bg-green-800/50 border-green-600 ring-1 ring-green-600';
+                                                                                     textStyle = isIlluminateEnabled ? 'text-green-800 font-medium' : 'text-green-200 font-medium';
+                                                                                 } else if (optIndex === selectedAnswer) {
+                                                                                     optionStyle = isIlluminateEnabled ? '!bg-red-100 border-red-400 ring-1 ring-red-400' : '!bg-red-800/50 border-red-600 ring-1 ring-red-600';
+                                                                                     textStyle = isIlluminateEnabled ? 'text-red-800 font-medium' : 'text-red-200 font-medium';
+                                                                                 } else {
+                                                                                     optionStyle += ' opacity-70'; // Dim unselected options after answering
+                                                                                }
+                                                                             }
+
+                                                                            return (
+                                                                                <button
+                                                                                    key={optIndex}
+                                                                                    onClick={() => !isAnswered && handleAnswerSelect(questionKey, optIndex)}
+                                                                                    disabled={isAnswered}
+                                                                                    className={`w-full text-left text-xs px-3 py-1.5 rounded border transition-colors ${optionStyle} ${!isAnswered ? 'cursor-pointer' : 'cursor-default'}`}
+                                                                                >
+                                                                                    <span className={textStyle}>{option}</span>
+                                                                                 </button>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                    {isAnswered && (
+                                                                        <div className={`mt-2 p-2 rounded text-xs ${isCorrect ? (isIlluminateEnabled ? 'bg-green-100/70 text-green-700' : 'bg-green-900/50 text-green-300') : (isIlluminateEnabled ? 'bg-red-100/70 text-red-700' : 'bg-red-900/50 text-red-300')}`}>
+                                                                             <span className="font-semibold">{isCorrect ? 'Correct!' : 'Incorrect.'}</span> {q.explanation}
+                                                                         </div>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 )
                             ) : (
-                                // --- Initial Placeholder ---
                                 <div className={`flex flex-col items-center justify-center rounded-lg ${noteViewBg} h-full text-center p-6`}> <FileText className={`w-12 h-12 ${iconColor} mb-4`} /> <h2 className={`text-lg font-semibold ${headingClass} mb-2`}>No Note Selected</h2> <p className={`${subheadingClass} max-w-xs text-sm mb-4`}>Select a note from the list, or create a new one.</p> <button onClick={() => setShowNewNoteModal(true)} className={`${buttonPrimaryClass} px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 mb-2`}> <Plus className="w-4 h-4" /> Create Note </button> {!isMobile && notes.length >= 2 && !showSplitView && ( <button onClick={startSplitView} className={`${buttonSecondaryClass} px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5`}> <SplitSquareVertical className="w-4 h-4" /> Compare Notes </button> )} </div>
                             )}
                          </div>
-                     )} {/* End Main Content Conditional Rendering */}
-                </div> {/* End Main Content Area Flex container */}
+                     )}
+                </div>
 
-                {/* === 3. Mobile Notes List Overlay === */}
                  {isMobile && (
-                    // ... mobile notes list JSX ...
                      <div className={`
                         fixed inset-0 z-40 bg-black/50 transition-opacity duration-300 ease-in-out
                         ${showNotesListOnMobile ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
@@ -1056,7 +1292,6 @@ export function Notes() {
                             flex flex-col transform transition-transform duration-300 ease-in-out
                             ${showNotesListOnMobile ? 'translate-x-0' : 'translate-x-full'}
                          `} onClick={(e) => e.stopPropagation()}>
-                               {/* Header */}
                              <div className={`p-3 border-b ${borderColor} flex items-center justify-between flex-shrink-0`}>
                                  <h2 className={`text-lg font-semibold ${headingClass} flex items-center gap-2`}> <FileText className={`w-5 h-5 ${iconActionColor}`} /> Notes </h2>
                                  <div className="flex items-center gap-1">
@@ -1064,12 +1299,10 @@ export function Notes() {
                                      <button onClick={() => setShowNotesListOnMobile(false)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Hide List"> <X className="w-4 h-4" /> </button>
                                  </div>
                              </div>
-                            {/* Search/Filter */}
                             <div className={`p-3 border-b ${borderColor} flex-shrink-0`}>
                                 <div className="relative mb-2"> <Search className={`absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 ${iconColor}`} /> <input type="text" placeholder="Search notes..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className={`w-full ${inputBg} ${inputTextColor} pl-8 pr-3 py-1.5 rounded-full text-sm focus:outline-none focus:ring-1 ${placeholderColor}`} /> </div>
                                 <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar"> {(['all', 'personal', 'pdf', 'youtube'] as const).map(type => ( <button key={type} onClick={() => setFilterType(type)} className={`px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap ${filterType === type ? `${buttonPrimaryClass} shadow-sm` : `${buttonSecondaryClass}`}`}> {type === 'all' ? 'All' : type.charAt(0).toUpperCase() + type.slice(1)} </button> ))} </div>
                             </div>
-                             {/* Usage Info Display */}
                             {userTier !== 'premium' && userTier !== 'loading' && currentLimits && (
                                 <div className={`px-3 py-2 text-[10px] border-b ${borderColor} ${isIlluminateEnabled ? 'text-gray-600 bg-gray-50' : 'text-gray-400 bg-gray-800/50'}`}>
                                     <div className="flex justify-between items-center gap-2">
@@ -1078,7 +1311,6 @@ export function Notes() {
                                     </div>
                                 </div>
                             )}
-                            {/* Notes List */}
                             <div className="flex-1 overflow-y-auto">
                                 {loading && notes.length === 0 ? ( <div className="flex justify-center items-center h-full p-6"> <Loader2 className={`w-6 h-6 animate-spin ${iconColor}`} /> </div> )
                                 : !loading && notes.length === 0 ? ( <div className="flex flex-col items-center justify-center h-full text-center p-6"> <FileQuestion className={`w-12 h-12 ${iconColor} mb-3`} /> <p className={`${subheadingClass} mb-4 text-sm`}>No notes yet.</p> <button onClick={() => setShowNewNoteModal(true)} className={`${buttonPrimaryClass} px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5`}> <Plus className="w-4 h-4" /> Create Note </button> </div> )
@@ -1090,10 +1322,8 @@ export function Notes() {
 
             </main>
 
-            {/* Modals & Overlays */}
             {showNewNoteModal && ( <NewNoteModal onClose={() => { setShowNewNoteModal(false); setUploadProgress({ progress: 0, status: '', error: null }); }} onCreatePersonalNote={handleCreatePersonalNote} onCreateAINote={handleCreateAINote} onUploadPDF={handlePDFUpload} onYoutubeLink={handleYoutubeLink} uploadProgress={uploadProgress} isIlluminateEnabled={isIlluminateEnabled} isBlackoutEnabled={isBlackoutEnabled} /> )}
 
-            {/* Flashcard Study Modal */}
             {selectedNote && selectedNote.flashcards && selectedNote.flashcards.length > 0 && (
                 <FlashcardStudyModal
                     isOpen={showFlashcardStudyModal}
@@ -1103,7 +1333,6 @@ export function Notes() {
                  />
             )}
 
-            {/* Image Generation Modal */}
             <SimpleModal
                 isOpen={showImageGenModal}
                 onClose={() => { setShowImageGenModal(false); setIsGeneratingImage(false); setImageGenPrompt(''); setImageGenError(null);}}
@@ -1111,21 +1340,21 @@ export function Notes() {
                 isIlluminateEnabled={isIlluminateEnabled}
             >
                 <div className="space-y-3">
-                    <p className={`${subheadingClass} text-sm`}>Enter a description for the image. It will be added to the end of your current note content.</p>
+                    <p className={`${subheadingClass} text-sm`}>Enter a description for the image. It will be added to the end of your current note content. (Available for Pro/Premium users)</p>
                     <textarea
                         value={imageGenPrompt}
                         onChange={(e) => setImageGenPrompt(e.target.value)}
                         placeholder="e.g., A photorealistic image of a futuristic cityscape at sunset..."
                         rows={3}
                         className={`w-full ${inputBg} ${inputTextColor} ${placeholderColor} rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 resize-y`}
-                        disabled={isGeneratingImage}
+                        disabled={isGeneratingImage || (userTier !== 'pro' && userTier !== 'premium')}
                     />
                     {imageGenError && <p className="text-xs text-red-500">{imageGenError}</p>}
                     <div className="flex justify-end">
                         <button
                             onClick={handleGenerateImageForNote}
-                            disabled={isGeneratingImage || !imageGenPrompt.trim()}
-                            className={`${buttonPrimaryClass} px-4 py-1.5 rounded-md text-sm flex items-center gap-1.5 ${isGeneratingImage || !imageGenPrompt.trim() ? buttonDisabledClass : ''}`}
+                            disabled={isGeneratingImage || !imageGenPrompt.trim() || (userTier !== 'pro' && userTier !== 'premium')}
+                            className={`${buttonPrimaryClass} px-4 py-1.5 rounded-md text-sm flex items-center gap-1.5 ${isGeneratingImage || !imageGenPrompt.trim() || (userTier !== 'pro' && userTier !== 'premium') ? buttonDisabledClass : ''}`}
                         >
                             {isGeneratingImage ? (<> <Loader2 className="w-4 h-4 animate-spin" /> Generating... </>) : (<> Generate & Add </>)}
                         </button>
@@ -1133,7 +1362,6 @@ export function Notes() {
                 </div>
             </SimpleModal>
 
-            {/* Chat Overlay */}
             {chatNoteForOverlay && user && geminiApiKey && (
                  <NoteChat
                      key={chatNoteForOverlay.id}
@@ -1151,7 +1379,6 @@ export function Notes() {
                  />
             )}
 
-            {/* Mobile Floating Button (Show Notes) */}
              {isMobile && !showNotesListOnMobile && (
                  <button
                      onClick={() => setShowNotesListOnMobile(true)}
@@ -1161,7 +1388,6 @@ export function Notes() {
                      <List className="w-5 h-5" />
                  </button>
              )}
-            {/* Upload Progress Indicator */}
             {uploadProgress.status && (
                  <div className={`fixed bottom-4 left-4 z-[60] p-3 rounded-lg shadow-lg text-xs font-medium transition-opacity duration-300 ${isIlluminateEnabled ? 'bg-white border border-gray-200 text-gray-800' : 'bg-gray-800 border border-gray-700 text-gray-200'} ${uploadProgress.error ? (isIlluminateEnabled ? '!bg-red-100 !border-red-300 !text-red-700' : '!bg-red-900/50 !border-red-700 !text-red-300') : (uploadProgress.progress === 100 && !uploadProgress.error ? (isIlluminateEnabled ? '!bg-green-100 !border-green-300 !text-green-700' : '!bg-green-900/50 !border-green-700 !text-green-300') : '')}`}>
                     <div className="flex items-center gap-2"> {uploadProgress.error ? <AlertTriangle className="w-4 h-4 text-red-500" /> : (uploadProgress.progress === 100 && !uploadProgress.error) ? <Check className="w-4 h-4 text-green-500" /> : <Loader2 className="w-4 h-4 animate-spin text-blue-500" />} <span>{uploadProgress.error || uploadProgress.status}</span> {uploadProgress.progress > 0 && uploadProgress.progress < 100 && !uploadProgress.error && (<span className="text-gray-500">({uploadProgress.progress}%)</span>)} </div>
@@ -1169,7 +1395,7 @@ export function Notes() {
                  </div>
             )}
 
-        </div> // End Root Flex Container
+        </div>
     );
 };
 
