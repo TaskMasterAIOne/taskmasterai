@@ -246,7 +246,7 @@ export function Sidebar({
               <button
                 onClick={handleUpgradeClick}
                 className={` mx-3 flex items-center justify-center text-white rounded-lg transition-all duration-200 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 shadow-lg shadow-indigo-500/20 hover:scale-[1.02] ${isCollapsed && !isMobileMenuOpen ? "aspect-square p-2.5" : "px-4 py-2.5"} `}
-                title={isCollapsed && !isMobileMenuOpen ? (userTier === 'basic' ? "Upgrade Plan" : "Upgrade to Premium") : undefined}
+                title={isCollapsed && !isMobileMenuOpen ? (userTier === 'basic' ? "Upgrade to Premium" : "Upgrade to Premium") : undefined}
               >
                 <Crown className={`min-w-[1.25rem] ${isCollapsed && !isMobileMenuOpen ? "w-6 h-6" : "w-5 h-5 mr-2"}`} strokeWidth={2} />
                 {(!isCollapsed || isMobileMenuOpen) && ( <span className="text-sm font-medium whitespace-nowrap">{userTier === 'basic' ? "Upgrade Plan" : "Upgrade to Premium"}</span> )}
