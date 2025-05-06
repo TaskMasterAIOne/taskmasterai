@@ -1,3 +1,4 @@
+
 /* eslint-disable react-hooks/exhaustive-deps */
 import React, { useState, useEffect, useRef, useMemo } from "react"; // Added useMemo
 import { useNavigate, Link } from "react-router-dom"; // Added Link
@@ -18,11 +19,9 @@ import { geminiApiKey } from "../lib/dashboard-firebase";
 // --- IMPORT NEW TIER/USAGE FUNCTIONS AND TYPES ---
 import {
     UserTier, // Import the type
-    getUserTier,
-    // getUserChatUsage,      // OLD - Replaced by getCurrentMonthUserChatUsage
-    // updateUserChatUsage,   // OLD - Replaced by incrementUserChatUsage
-    getCurrentMonthUserChatUsage, // *** NEW: Use this for reading ***
-    incrementUserChatUsage,      // *** NEW: Use this for writing/incrementing ***
+    getUserTier, // <<< THIS IS THE ASYNC FUNCTION
+    getCurrentMonthUserChatUsage,
+    incrementUserChatUsage,
     getChatLimitForTier,
 } from '../lib/current-paying-user'; // Correct path to the new file
 
@@ -564,45 +563,46 @@ export function Folders() {
     }
   }, [isIlluminateEnabled, isBlackoutEnabled]); // Depend on both
 
-  // Auth listener & Initial Data Fetch - *** UPDATED with new logic ***
+  // Auth listener & Initial Data Fetch - *** UPDATED with new ASYNC tier logic ***
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
+    const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => { // Made async
       setUser(firebaseUser);
       if (firebaseUser) {
         setUserName(firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "User");
         await fetchAllTags(firebaseUser.uid); // Fetch global tags on login
 
-        // --- Determine Tier using imported function ---
-        const tier = getUserTier(firebaseUser.email);
-        setUserTier(tier); // Set state
+        // --- Determine Tier using ASYNC imported function ---
+        setUserTier('loading'); // Set to loading while fetching
+        let resolvedTier: UserTier = 'basic'; // Default to basic in case of error
+        try {
+            resolvedTier = await getUserTier(firebaseUser.uid, firebaseUser.email); // Pass both uid and email
+            setUserTier(resolvedTier); // Set state with the resolved tier
+        } catch (error) {
+            console.error("Folders: Error fetching user tier:", error);
+            setUserTier('basic'); // Fallback to basic on error
+            // resolvedTier remains 'basic'
+        }
 
         // --- Load Usage Data (if not premium) using NEW imported function ---
-        if (tier !== 'premium') {
+        if (resolvedTier !== 'premium') { // Use resolvedTier for immediate check
             const currentMonthYear = new Date().toISOString().slice(0, 7); // "YYYY-MM"
             try {
-                // Use the NEW imported function to get usage ONLY for the current month
                 const usageData = await getCurrentMonthUserChatUsage(firebaseUser.uid, currentMonthYear);
 
                 if (usageData) {
-                    // Data exists for current month
                     setChatCount(usageData.count);
-                    setChatMonth(usageData.month); // Should match currentMonthYear
-                    const limit = getChatLimitForTier(tier); // Use helper
+                    setChatMonth(usageData.month);
+                    const limit = getChatLimitForTier(resolvedTier); // Use resolvedTier for limit
                     setIsChatLimitReached(usageData.count >= limit);
                     console.log(`Folders: Loaded chat usage for ${currentMonthYear}: ${usageData.count}`);
                 } else {
-                    // No data for the CURRENT month found in Firestore.
-                    // Reset local state. The count will be set to 1 in Firestore
-                    // on the *first* incrementUserChatUsage call this month.
                     console.log(`Folders: No chat usage data found for ${firebaseUser.uid} for current month ${currentMonthYear}. Resetting local count.`);
                     setChatCount(0);
                     setChatMonth(currentMonthYear);
                     setIsChatLimitReached(false);
-                    // NO Firestore write here.
                 }
             } catch (err) {
                 console.error("Folders: Error loading chat usage data:", err);
-                // Handle error - default to 0 count, not limited
                 setChatCount(0);
                 setChatMonth(currentMonthYear);
                 setIsChatLimitReached(false);
@@ -2810,7 +2810,7 @@ export function Folders() {
                                              <div className="text-center py-8">
                                                  <FileText className="w-10 h-10 mx-auto mb-3 text-gray-500" />
                                                  <p className={`${subheadingClass} mb-4`}>This folder is empty.</p>
-                                                 <button onClick={() => { resetItemForm(); setIsAddingItem(true); setIsCreatingSubFolder(false); setShowImportModal(false); setNewItemType(selectedFolder.type === 'question' ? 'question' : selectedFolder.type === 'flashcard' ? 'flashcard' : 'flashcard'); }} className={`${buttonPrimaryClass} px-3 py-1.5 rounded-full text-sm inline-flex items-center space-x-1`}><Plus className="w-4 h-4" /><span>Add First Item</span></button>
+                                                 <button onClick={() => { resetItemForm(); setIsAddingItem(true); setIsCreatingSubFolder(false); setShowImportModal(false); setNewItemType(selectedFolder.type === 'question' ? 'question' : selectedFolder.type === 'flashcard' ? 'flashcard' : 'flashcard'); }} className={`${buttonPrimaryClass} px-4 py-2 rounded-full text-sm inline-flex items-center space-x-1`}><Plus className="w-4 h-4" /><span>Add First Item</span></button>
                                              </div>
                                          ) : viewMode === 'grid' ? (
                                               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
