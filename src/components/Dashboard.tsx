@@ -4,11 +4,11 @@ import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Play, Pause, PlusCircle, Edit, Trash, Sparkles, CheckCircle, MessageCircle, Crown, RotateCcw,
-  Square, X, TimerIcon, Send, ChevronLeft, ChevronRight, Moon, Sun, Star, /*Wind, Droplets, Zap,*/ // Removed weather icons
+  Square, X, TimerIcon, Send, ChevronLeft, ChevronRight, Moon, Sun, Star,
   Calendar, Clock, MoreHorizontal, ArrowUpRight, Bookmark, BookOpen, Lightbulb, Flame, Award,
   TrendingUp, Rocket, Target, Layers, Clipboard, AlertCircle, ThumbsUp, ThumbsDown, BrainCircuit,
   ArrowRight, Flag, Bell, Filter, Tag, BarChart, PieChart, ChevronDown, Info, Eye, EyeOff,
-} from 'lucide-react'; // Added Info, Eye, EyeOff for insights toggle
+} from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { Timer } from './Timer';
 import { FlashcardsQuestions } from './FlashcardsQuestions';
@@ -33,14 +33,11 @@ import {
   markItemComplete,
   updateCustomTimer,
   deleteCustomTimer,
-  // weatherApiKey, // Removed
-  // hfApiKey, // Unused
   geminiApiKey,
 } from '../lib/dashboard-firebase';
 
 import {
     UserTier,
-    // ChatUsageData, // Not directly used, functions handle it
     getUserTier,
     getCurrentMonthUserChatUsage,
     incrementUserChatUsage,
@@ -50,16 +47,11 @@ import {
 import { auth, db } from '../lib/firebase';
 import { User } from 'firebase/auth';
 import { getDoc, doc } from 'firebase/firestore';
-// import { updateUserProfile, signOutUser, deleteUserAccount, AuthError, getCurrentUser } from '../lib/settings-firebase'; // Not directly used in Dashboard
 import { SmartInsight as SmartInsightComponent } from './SmartInsight';
 import { PriorityBadge } from './PriorityBadge';
 import { TaskAnalytics } from './TaskAnalytics';
 
-
-// ---------------------
-// Helper functions for Gemini integration (Unchanged)
-// ---------------------
-const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}&alt=sse`;
+const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}&alt=sse`;
 
 const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 30000) => {
   const controller = new AbortController();
@@ -158,9 +150,7 @@ const extractCandidateText = (rawResponseText: string): string => {
         return "";
     }
 };
-// ---------------------
-// Helper functions (Unchanged Dates/Priority)
-// ---------------------
+
 const getWeekDates = (date: Date): Date[] => {
   const sunday = new Date(date);
   sunday.setDate(date.getDate() - date.getDay());
@@ -209,9 +199,6 @@ interface SmartInsight {
 }
 
 export function Dashboard() {
-  // ---------------------
-  // 1. USER & GENERAL STATE
-  // ---------------------
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [userName, setUserName] = useState<string>("Loading...");
@@ -251,7 +238,7 @@ export function Dashboard() {
 
   useEffect(() => {
     const checkAuth = async () => {
-        const authUser = auth.currentUser; // Check auth.currentUser directly
+        const authUser = auth.currentUser;
         if (!authUser) { navigate('/login'); }
         else { updateDashboardLastSeen(authUser.uid).catch(err => console.warn("Failed to update last seen:", err));}
     };
@@ -269,9 +256,6 @@ export function Dashboard() {
   interface QuestionMessage { type: 'question'; data: QuestionData[]; }
   interface ChatMessage { id?: string; role: 'user' | 'assistant'; content: string; timer?: TimerMessage; flashcard?: FlashcardMessage; question?: QuestionMessage; error?: boolean; }
 
-  // ---------------------
-  // CHAT FUNCTIONALITY
-  // ---------------------
   const [chatMessage, setChatMessage] = useState('');
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([{ id: 'initial-greet', role: 'assistant', content: "👋 Hi I'm TaskMaster, How can I help you today? Need help with your items? Simply ask me!" }]);
   const [isChatLoading, setIsChatLoading] = useState(false);
@@ -322,20 +306,14 @@ export function Dashboard() {
 
     if (userTier !== 'premium') {
         let currentUsageCount = chatCount;
-        if (chatMonth !== currentMonthYear) {
-            currentUsageCount = 0;
-            // No need to update state here yet, incrementUserChatUsage will handle the reset or first increment
-        }
+        if (chatMonth !== currentMonthYear) { currentUsageCount = 0; }
         limitReachedByCheck = currentUsageCount >= currentLimitNumber;
     }
-    // Update state based on the check before proceeding
     setIsChatLimitReached(limitReachedByCheck);
-
 
     if (limitReachedByCheck) {
           setChatHistory(prev => [...prev, { id: `limit-${Date.now()}`, role: 'assistant', content: `You've reached your ${currentLimitNumber} chat message limit for this month. Upgrade for more interactions!`, error: true }]);
-          setChatMessage('');
-          return;
+          setChatMessage(''); return;
     }
 
     const currentMessageText = chatMessage;
@@ -347,18 +325,13 @@ export function Dashboard() {
 
     if (userTier !== 'premium' && user?.uid) {
         try {
-            await incrementUserChatUsage(user.uid); // ATOMIC INCREMENT
-            // After successful increment, update local state (optimistic or re-fetch)
-            // For simplicity, let's optimistically update the local count if month matches
-            if (chatMonth === currentMonthYear || chatMonth === '') { // Also handle initial empty month
+            await incrementUserChatUsage(user.uid);
+            if (chatMonth === currentMonthYear || chatMonth === '') {
                 const newCount = chatCount + 1;
-                setChatCount(newCount);
-                setChatMonth(currentMonthYear); // Ensure month is set
+                setChatCount(newCount); setChatMonth(currentMonthYear);
                 setIsChatLimitReached(newCount >= currentLimitNumber);
             } else {
-                // Month changed, Firestore reset to 1, update local state
-                setChatCount(1);
-                setChatMonth(currentMonthYear);
+                setChatCount(1); setChatMonth(currentMonthYear);
                 setIsChatLimitReached(1 >= currentLimitNumber);
             }
         } catch (err) {
@@ -370,8 +343,7 @@ export function Dashboard() {
     if (timerDuration) {
       const timerId = Math.random().toString(36).substring(2, 9);
       setChatHistory(prev => [...prev, { id: `timer-start-${timerId}`, role: 'assistant', content: `Okay, starting a timer for ${Math.round(timerDuration / 60)} minutes.`, timer: { type: 'timer', duration: timerDuration, id: timerId } }]);
-      setIsChatLoading(false);
-      return;
+      setIsChatLoading(false); return;
     }
 
     const conversationHistory = chatHistory.slice(-6).map(m => `${m.role === 'user' ? userName : 'Assistant'}: ${m.content}`).join('\n');
@@ -388,8 +360,7 @@ export function Dashboard() {
     try {
       const geminiOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7, maxOutputTokens: 1000 }, safetySettings: [ { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }, { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" }, { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }, { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }] }) };
       await streamResponse(geminiEndpoint, geminiOptions, (rawChunkAccumulated) => {
-          const currentExtractedText = extractCandidateText(rawChunkAccumulated);
-          accumulatedStreamedText = extractCandidateText(rawChunkAccumulated); // Re-extract from full raw chunk
+          accumulatedStreamedText = extractCandidateText(rawChunkAccumulated);
           if (accumulatedStreamedText) { setChatHistory(prev => prev.map(msg => msg.id === assistantMsgId ? { ...msg, content: accumulatedStreamedText || "..." } : msg )); }
           finalRawResponseText = rawChunkAccumulated;
       });
@@ -438,9 +409,6 @@ export function Dashboard() {
     }
   };
 
-  // ---------------------
-  // 2. COLLECTION STATES
-  // ---------------------
   const [tasks, setTasks] = useState<Array<{ id: string; data: any }>>([]);
   const [goals, setGoals] = useState<Array<{ id: string; data: any }>>([]);
   const [projects, setProjects] = useState<Array<{ id: string; data: any }>>([]);
@@ -448,7 +416,7 @@ export function Dashboard() {
   const [customTimers, setCustomTimers] = useState<Array<{ id: string; data: any }>>([]);
 
   const [smartInsights, setSmartInsights] = useState<SmartInsight[]>([]);
-  const [showInsightsPanel, setShowInsightsPanel] = useState(true); // Default to expanded
+  const [showInsightsPanel, setShowInsightsPanel] = useState(true);
   const insightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [debouncedItemsSigForInsights, setDebouncedItemsSigForInsights] = useState("");
   const createItemsSignatureForInsights = (items: any[][]): string => items.flat().map(item => `${item.id}-${item.data.completed}-${item.data.dueDate?.seconds || 'null'}`).sort().join('|');
@@ -502,20 +470,14 @@ export function Dashboard() {
           const combined = [...newInsights, ...existingActive];
           const uniqueMap = new Map<string, SmartInsight>();
           combined.forEach(insight => uniqueMap.set(insight.id, insight));
-          return Array.from(uniqueMap.values()).slice(0, 5); // Limit to 5 active insights
+          return Array.from(uniqueMap.values()).slice(0, 5);
       });
   }, [user, debouncedItemsSigForInsights]);
   const handleMarkComplete = async (itemId: string) => { if (!user) return; try { await markItemComplete(activeTab, itemId); } catch (error) { console.error("Error marking item as complete:", error); }};
   const handleSetPriority = async (itemId: string, priority: 'high' | 'medium' | 'low') => { if (!user) return; try { await updateItem(activeTab, itemId, { priority }); } catch (error) { console.error("Error updating priority:", error); }};
 
-  // ---------------------
-  // 3. GREETING UPDATE (Unchanged)
-  // ---------------------
   useEffect(() => { const interval = setInterval(() => { setGreeting(getTimeBasedGreeting()); setQuote(getRandomQuote()); }, 60000); return () => clearInterval(interval); }, []);
 
-  // ---------------------
-  // 4. UI STATES (Unchanged)
-  // ---------------------
   const [activeTab, setActiveTab] = useState<"tasks" | "goals" | "projects" | "plans">("tasks");
   const [newItemText, setNewItemText] = useState("");
   const [newItemDate, setNewItemDate] = useState("");
@@ -531,9 +493,6 @@ export function Dashboard() {
   const [showAnalytics, setShowAnalytics] = useState(false);
   useEffect(() => { const timer = setTimeout(() => setCardVisible(true), 100); return () => clearTimeout(timer); }, []);
 
-  // ---------------------
-  // 5. MAIN POMODORO TIMER (Unchanged)
-  // ---------------------
   const [pomodoroTimeLeft, setPomodoroTimeLeft] = useState(25 * 60);
   const [pomodoroRunning, setPomodoroRunning] = useState(false);
   const pomodoroRef = useRef<NodeJS.Timer | null>(null);
@@ -561,9 +520,6 @@ export function Dashboard() {
   const formatPomodoroTime = (timeInSeconds: number) => { const mins = Math.floor(timeInSeconds / 60); const secs = timeInSeconds % 60; return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`; };
   useEffect(() => { return () => { if (pomodoroRef.current) clearInterval(pomodoroRef.current); if (pomodoroAudioRef.current) { pomodoroAudioRef.current.pause(); pomodoroAudioRef.current = null; }}; }, []);
 
-  // ---------------------
-  // 6. AUTH LISTENER & TIER/USAGE CHECK - *** UPDATED ***
-  // ---------------------
   useEffect(() => {
     const unsubscribe = onFirebaseAuthStateChanged(async (firebaseUser) => {
       setUser(firebaseUser);
@@ -578,8 +534,8 @@ export function Dashboard() {
             setUserName(firebaseUser.displayName || (firebaseUser.email ? firebaseUser.email.split('@')[0] : "User"));
         }
 
-        setUserTier('loading'); // Set tier to loading first
-        const fetchedTier = await getUserTier(firebaseUser.uid, firebaseUser.email); // Pass UID and EMAIL
+        setUserTier('loading');
+        const fetchedTier = await getUserTier(firebaseUser.uid, firebaseUser.email);
         setUserTier(fetchedTier);
 
         if (fetchedTier !== 'premium') {
@@ -587,14 +543,11 @@ export function Dashboard() {
             try {
                 const usageData = await getCurrentMonthUserChatUsage(firebaseUser.uid, currentMonthYear);
                 if (usageData) {
-                    setChatCount(usageData.count);
-                    setChatMonth(usageData.month);
+                    setChatCount(usageData.count); setChatMonth(usageData.month);
                     const limit = getChatLimitForTier(fetchedTier);
                     setIsChatLimitReached(usageData.count >= limit);
                 } else {
-                    setChatCount(0);
-                    setChatMonth(currentMonthYear);
-                    setIsChatLimitReached(false);
+                    setChatCount(0); setChatMonth(currentMonthYear); setIsChatLimitReached(false);
                 }
             } catch (err) {
                 console.error("Error loading chat usage data:", err);
@@ -614,9 +567,6 @@ export function Dashboard() {
     return () => unsubscribe();
   }, []);
 
-  // ---------------------
-  // 7. COLLECTION SNAPSHOTS (Unchanged)
-  // ---------------------
   useEffect(() => {
     if (!user?.uid) { setTasks([]); setGoals([]); setProjects([]); setPlans([]); setCustomTimers([]); return; };
     const unsubFunctions = [
@@ -629,9 +579,6 @@ export function Dashboard() {
     return () => { unsubFunctions.forEach(unsub => { try { unsub(); } catch (e) { console.warn("Error unsubscribing:", e); }}); };
   }, [user]);
 
-  // ---------------------
-  // 8. SMART OVERVIEW GENERATION (TIER-BASED)
-  // ---------------------
   const [smartOverview, setSmartOverview] = useState<string>("");
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [lastGeneratedDataSig, setLastGeneratedDataSig] = useState<string>("");
@@ -692,9 +639,6 @@ export function Dashboard() {
       generateOverview();
   }, [user, userTier, debouncedItemsSigForOverview, userName, geminiApiKey, lastResponse]);
 
-  // ---------------------
-  // 9. CREATE & EDIT & DELETE (Unchanged logic, but titleField/collectionName are dynamic)
-  // ---------------------
   const handleTabChange = (tabName: "tasks" | "goals" | "projects" | "plans") => { setActiveTab(tabName); setEditingItemId(null); };
   const handleCreate = async () => {
     if (!user || !newItemText.trim()) return;
@@ -741,9 +685,6 @@ export function Dashboard() {
     } catch (error) { console.error(`Error deleting ${itemType}:`, error); alert(`Failed to delete ${itemType}.`); }
   };
 
-  // ---------------------
-  // 10. CUSTOM TIMERS (Unchanged)
-  // ---------------------
   const [runningTimers, setRunningTimers] = useState<{ [id: string]: { isRunning: boolean; timeLeft: number; intervalRef: NodeJS.Timer | null; audio?: HTMLAudioElement | null; finished?: boolean; }; }>({});
   const handleAddCustomTimer = async () => {
     if (!user) return; try { const name = prompt("Enter timer name:", "Focus Block"); if (!name || !name.trim()) return; let durationMinutesStr = prompt("Enter duration in minutes:", "25"); if (durationMinutesStr === null) return; const durationMinutes = parseInt(durationMinutesStr, 10); if (isNaN(durationMinutes) || durationMinutes <= 0) { alert("Invalid duration."); return; } await addCustomTimer(name.trim(), durationMinutes * 60, user.uid); } catch (error) { console.error("Error adding custom timer:", error); alert("Failed to add custom timer."); }
@@ -800,17 +741,11 @@ export function Dashboard() {
   const handleEditTimerSave = async (timerId: string) => { if (!editingTimerName.trim()) { alert("Please enter a timer name."); return; }; const minutes = parseInt(editingTimerMinutes, 10); if (isNaN(minutes) || minutes <= 0) { alert("Please enter a valid positive number for minutes."); return; } try { const newTimeSeconds = minutes * 60; await updateCustomTimer(timerId, editingTimerName.trim(), newTimeSeconds); setEditingTimerId(null); } catch (error) { console.error("Error updating timer:", error); alert("Failed to update timer."); }};
   const handleDeleteTimer = async (timerId: string) => { if (!window.confirm("Are you sure you want to delete this timer?")) return; try { setRunningTimers(prev => { const timerState = prev[timerId]; if (timerState) { if (timerState.intervalRef) clearInterval(timerState.intervalRef); if (timerState.audio) { timerState.audio.pause(); timerState.audio.currentTime = 0; }} const { [timerId]: _, ...rest } = prev; return rest; }); await deleteCustomTimer(timerId); } catch (error) { console.error("Error deleting custom timer:", error); alert("Failed to delete timer."); }};
 
-  // ---------------------
-  // 11. PROGRESS BARS (Unchanged)
-  // ---------------------
   const tasksProgress = useMemo(() => { const totalTasks = tasks.length; if (totalTasks === 0) return 0; const completedTasks = tasks.filter((t) => t.data.completed).length; return Math.round((completedTasks / totalTasks) * 100); }, [tasks]);
   const goalsProgress = useMemo(() => { const totalGoals = goals.length; if (totalGoals === 0) return 0; const completedGoals = goals.filter((g) => g.data.completed).length; return Math.round((completedGoals / totalGoals) * 100); }, [goals]);
   const projectsProgress = useMemo(() => { const totalProjects = projects.length; if (totalProjects === 0) return 0; const completedProjects = projects.filter((p) => p.data.completed).length; return Math.round((completedProjects / totalProjects) * 100); }, [projects]);
   const plansProgress = useMemo(() => { const totalPlans = plans.length; if (totalPlans === 0) return 0; const completedPlans = plans.filter((pl) => pl.data.completed).length; return Math.round((completedPlans / totalPlans) * 100); }, [plans]);
 
-  // ---------------------
-  // 12. Smart Insights handlers (Unchanged)
-  // ---------------------
   const handleAcceptInsight = (insightId: string) => {
     const insight = smartInsights.find(i => i.id === insightId); if (!insight) return;
     setSmartInsights(prev => prev.map(i => i.id === insightId ? { ...i, accepted: true, rejected: false } : i ));
@@ -819,16 +754,13 @@ export function Dashboard() {
   };
   const handleRejectInsight = (insightId: string) => { setSmartInsights(prev => prev.map(i => i.id === insightId ? { ...i, accepted: false, rejected: true } : i )); setTimeout(() => { setSmartInsights(prev => prev.filter(i => i.id !== insightId || i.accepted)); }, 2000); };
 
-  // ---------------------
-  // 13. Theme & Style Variables
-  // ---------------------
   const containerClass = isIlluminateEnabled ? "bg-slate-50 text-slate-900" : isBlackoutEnabled ? "bg-black text-slate-200" : "bg-slate-900 text-slate-200";
   const cardClass = isIlluminateEnabled ? "bg-white text-slate-900 border border-slate-200/70 shadow-sm" : isBlackoutEnabled ? "bg-slate-900 text-slate-300 border border-slate-700/50 shadow-md shadow-black/20" : "bg-slate-800 text-slate-300 border border-slate-700/50 shadow-lg shadow-black/20";
   const headingClass = isIlluminateEnabled ? "text-slate-800" : "text-slate-100";
   const subheadingClass = isIlluminateEnabled ? "text-slate-600" : "text-slate-400";
   const inputBg = isIlluminateEnabled ? "bg-slate-100 hover:bg-slate-200/50 border-slate-300 focus:border-blue-500 focus:ring-blue-500" : "bg-slate-700 hover:bg-slate-600/50 border-slate-600 focus:border-blue-500 focus:ring-blue-500";
   const iconColor = isIlluminateEnabled ? "text-slate-500 hover:text-slate-700" : "text-slate-400 hover:text-slate-200";
-  const interactiveIconColor = isIlluminateEnabled ? "text-slate-600 hover:text-blue-600" : "text-slate-400 hover:text-blue-400"; // For clickable icons like chevron
+  const interactiveIconColor = isIlluminateEnabled ? "text-slate-600 hover:text-blue-600" : "text-slate-400 hover:text-blue-400";
 
   const currentChatLimit = useMemo(() => getChatLimitForTier(userTier), [userTier]);
 
@@ -848,14 +780,14 @@ export function Dashboard() {
 
       <main className={`transition-all duration-300 ease-in-out min-h-screen ${isSidebarCollapsed ? 'md:ml-20' : 'md:ml-64'} p-3 sm:p-4 md:p-5 lg:p-6 pt-16 md:pt-6`}>
         {/* Header Row */}
-         <div className={`dashboard-header w-full mb-5 sm:mb-6 animate-fadeIn ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} transition-all duration-500 ease-out`}>
+         <div className={`dashboard-header w-full mb-5 sm:mb-6 animate-fadeIn ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} transition-all duration-500 ease-out`}> {/* THIS IS THE OPENING DIV */}
             <h1 className={`text-xl md:text-2xl lg:text-3xl font-bold mb-0.5 ${headingClass} break-words`}>
               {React.cloneElement(greeting.icon, { className: `w-5 h-5 lg:w-6 lg:h-6 inline-block align-middle mr-1.5 -translate-y-0.5 ${greeting.color ? `text-${greeting.color}-500` : (isIlluminateEnabled ? 'text-slate-600' : 'text-slate-400')}`})}
               {greeting.greeting},{' '}
               <span className="font-semibold">{userName ? userName.split(' ')[0] : '...'}</span>
             </h1>
             <p className={`italic text-xs md:text-sm ${subheadingClass}`}>"{quote.text}" - <span className={isIlluminateEnabled ? "text-purple-600" : "text-purple-400"}>{quote.author}</span></p>
-          </header>
+          </div> {/* CORRECTED: This div now correctly closes the header section */}
 
         {/* Calendar Card - Enlarged and Prominent */}
         <div className={`${cardClass} rounded-xl p-3 sm:p-4 mb-5 sm:mb-6 animate-fadeIn ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} delay-100`}>
@@ -894,7 +826,7 @@ export function Dashboard() {
                             <p className={`text-lg sm:text-xl font-bold ${isToday ? (isIlluminateEnabled ? 'text-blue-800' : 'text-blue-200') : headingClass}`}>{date.getDate()}</p>
                             {hasDeadline && (
                                 <div className={`mt-auto flex items-center justify-center gap-0.5 pt-1 ${isIlluminateEnabled ? (isToday ? 'bg-blue-200' : 'bg-red-100/70') : (isToday ? 'bg-blue-600/30' : 'bg-red-700/30')} px-1 rounded-full`}>
-                                    {deadlinesOnDate.slice(0,3).map((_, idx) => ( // Show max 3 dots
+                                    {deadlinesOnDate.slice(0,3).map((_, idx) => (
                                         <div key={idx} className={`w-1.5 h-1.5 rounded-full ${isIlluminateEnabled ? 'bg-red-500' : 'bg-red-400'}`}></div>
                                     ))}
                                     {deadlinesOnDate.length > 3 && <span className="text-[9px] text-red-500 ml-0.5">+{deadlinesOnDate.length - 3}</span>}
@@ -906,14 +838,12 @@ export function Dashboard() {
             </div>
         </div>
 
-        {/* AI Insights Panel */}
         {smartInsights.filter(insight => !insight.accepted && !insight.rejected).length > 0 && (
           <div className={`${cardClass} rounded-xl p-3 sm:p-4 mb-5 sm:mb-6 animate-fadeIn relative overflow-hidden ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} delay-200`}>
             <div className={`absolute inset-0 ${isIlluminateEnabled ? 'bg-gradient-to-r from-blue-50/20 to-purple-50/20' : 'bg-gradient-to-r from-blue-900/10 to-purple-900/10'} pointer-events-none opacity-30`}></div>
             <div className="flex items-center justify-between mb-2 z-10 relative">
               <h2 className={`text-base sm:text-lg font-semibold flex items-center ${isIlluminateEnabled ? 'text-blue-700' : 'text-blue-400'}`}>
-                <BrainCircuit className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 animate-pulse" />
-                AI Insights
+                <BrainCircuit className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 animate-pulse" /> AI Insights
                 <span className={`ml-1.5 text-[10px] sm:text-xs font-medium px-1.5 py-0.5 rounded-full ${isIlluminateEnabled ? 'bg-blue-100 text-blue-700' : 'bg-blue-500/30 text-blue-300'}`}>
                   {smartInsights.filter(insight => !insight.accepted && !insight.rejected).length} New
                 </span>
@@ -941,7 +871,6 @@ export function Dashboard() {
           </div>
         )}
 
-        {/* Smart Overview Card */}
         <div className={`${cardClass} rounded-xl p-3 sm:p-4 relative min-h-[80px] transition-all duration-300 ease-out animate-fadeIn mb-5 sm:mb-6 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} delay-300`}>
           <div className="flex flex-wrap items-center gap-2 mb-1.5">
             <h2 className={`text-base sm:text-lg font-semibold mr-1 flex items-center ${isIlluminateEnabled ? 'text-blue-700' : 'text-blue-400'}`}>
@@ -971,9 +900,7 @@ export function Dashboard() {
           )}
         </div>
 
-        {/* Main Content Grid - Reordered for Productivity Focus */}
         <div className={`grid grid-cols-1 xl:grid-cols-3 gap-5 sm:gap-6 animate-fadeIn ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} delay-400`}>
-           {/* Primary Column: Tasks & Items Management (Takes more space) */}
            <div className="xl:col-span-2 flex flex-col gap-5 sm:gap-6">
              <div className={`${cardClass} rounded-xl p-3 sm:p-4 md:p-5 transition-all duration-300`}>
                <div className="overflow-x-auto no-scrollbar mb-4">
@@ -1054,9 +981,7 @@ export function Dashboard() {
              </div>
            </div>
 
-           {/* Secondary Column: Productivity Tools */}
            <div className="xl:col-span-1 flex flex-col gap-5 sm:gap-6">
-             {/* Productivity Card */}
              <div className={`${cardClass} rounded-xl p-3 sm:p-4 md:p-5 transition-all duration-300`}>
                 <div className="flex justify-between items-center mb-3">
                  <h2 className={`text-base sm:text-lg font-semibold ${isIlluminateEnabled ? 'text-purple-700' : 'text-purple-400'} flex items-center`}>
@@ -1079,7 +1004,6 @@ export function Dashboard() {
                  </div>)}
              </div>
 
-             {/* Pomodoro Timer Card */}
              <div className={`${cardClass} rounded-xl p-3 sm:p-4 md:p-5 transition-all duration-300`}>
                 <div className="flex items-center justify-between mb-2">
                   <h2 className={`text-base sm:text-lg font-semibold ${headingClass} flex items-center`}><Clock className="w-4 h-4 mr-1.5" /> Pomodoro</h2>
@@ -1094,7 +1018,6 @@ export function Dashboard() {
                 {pomodoroFinished && (<p className="text-center text-xs text-red-500 mt-2 animate-bounce font-medium">Time's up!</p>)}
               </div>
 
-             {/* Custom Timers List */}
              {customTimers.length > 0 && (
                 <div className={`${cardClass} rounded-xl p-3 sm:p-4 md:p-5 transition-all duration-300`}>
                   <h2 className={`text-base sm:text-lg font-semibold mb-3 ${headingClass} flex items-center`}><TimerIcon className="w-4 h-4 mr-1.5" /> Timers</h2>
@@ -1120,7 +1043,6 @@ export function Dashboard() {
          </div>
       </main>
 
-      {/* AI Chat Sidebar */}
       <div aria-hidden={!isAiSidebarOpen} className={`fixed top-0 right-0 h-full w-full max-w-sm md:max-w-md lg:max-w-[440px] z-50 transform transition-transform duration-300 ease-in-out ${isAiSidebarOpen ? 'translate-x-0' : 'translate-x-full'} ${cardClass} flex flex-col shadow-2xl border-l ${isIlluminateEnabled ? 'border-slate-200' : 'border-slate-700'}`} role="complementary" aria-labelledby="ai-sidebar-title">
         <div className={`p-3 sm:p-4 border-b ${isIlluminateEnabled ? 'border-slate-200 bg-slate-100/80' : 'border-slate-700 bg-slate-800/90'} flex justify-between items-center flex-shrink-0 sticky top-0 backdrop-blur-sm z-10`}>
           <h3 id="ai-sidebar-title" className={`text-base sm:text-lg font-semibold flex items-center gap-2 ${isIlluminateEnabled ? 'text-blue-700' : 'text-blue-400'}`}><BrainCircuit className="w-5 h-5" /> Chat with TaskMaster</h3>
@@ -1143,13 +1065,21 @@ export function Dashboard() {
          <div className={`px-2 sm:px-3 pt-1 border-t ${isIlluminateEnabled ? 'border-slate-200 bg-slate-100/80' : 'border-slate-700 bg-slate-800/90'} flex-shrink-0 sticky bottom-0 backdrop-blur-sm`}>
              {userTier !== 'premium' && userTier !== 'loading' && (
                  <div className="pb-1.5 text-xs text-center">
-                    <span className={isIlluminateEnabled ? 'text-slate-600' : 'text-slate-400'}>Messages this month: {chatCount} / {currentChatLimit === Infinity ? '∞' : currentChatLimit}</span>
+                    <span className={isIlluminateEnabled ? 'text-slate-600' : 'text-slate-400'}>
+                        Messages this month: {chatCount} / {currentChatLimit === Infinity ? '∞' : currentChatLimit}
+                    </span>
                     {isChatLimitReached && (<span className="text-red-500 ml-1 font-medium">(Limit Reached)</span>)}
-                         {!isChatLimitReached && (userTier === 'basic' || userTier === 'pro') && (
-                              <Link to="/pricing" className={`ml-2 font-medium ${isIlluminateEnabled ? 'text-blue-600 hover:text-blue-700' : 'text-blue-400 hover:text-blue-300'} hover:underline`}><Crown className="w-3 h-3 inline mr-0.5"/>Upgrade</Link>
-                         )}
-                     </div>
-                 )}
+                     {/* CORRECTED: Ensure the Link is properly formed */}
+                     {(!isChatLimitReached && (userTier === 'basic' || userTier === 'pro')) && (
+                          <Link
+                            to="/pricing"
+                            className={`ml-2 font-medium ${isIlluminateEnabled ? 'text-blue-600 hover:text-blue-700' : 'text-blue-400 hover:text-blue-300'} hover:underline`}
+                          >
+                             <Crown className="w-3 h-3 inline mr-0.5"/>Upgrade
+                         </Link>
+                     )}
+                 </div>
+             )}
             <form onSubmit={handleChatSubmit} className="flex gap-1.5 items-center pb-2">
                 <input type="text" value={chatMessage} onChange={(e) => setChatMessage(e.target.value)} placeholder={isChatLimitReached ? "Monthly limit reached..." : "Ask TaskMaster AI..."} className={`flex-1 ${inputBg} border ${isIlluminateEnabled ? 'border-slate-300' : 'border-slate-600'} rounded-full px-4 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-150 shadow-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 disabled:opacity-60 ${isChatLimitReached ? 'cursor-not-allowed' : ''}`} disabled={isChatLoading || isChatLimitReached || userTier === 'loading'} aria-label="Chat input"/>
                 <button type="submit" disabled={isChatLoading || !chatMessage.trim() || isChatLimitReached || userTier === 'loading'} className={`p-2 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-100 shadow-sm flex-shrink-0 ${isChatLimitReached ? 'cursor-not-allowed' : ''} ${isIlluminateEnabled ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'}`} title="Send Message" aria-label="Send chat message">
