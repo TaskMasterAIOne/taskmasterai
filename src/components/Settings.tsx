@@ -11,7 +11,7 @@ import {
   getCurrentUser, getUserData, deleteProfilePicture,
 } from '../lib/settings-firebase';
 import { saveUserContext, getUserContext, UserContext } from '../lib/ai-context-firebase';
-import { getUserTier } from '../lib/current-paying-user';
+import { getUserTier, UserTier } from '../lib/current-paying-user'; // Added UserTier type import
 import { createPortalSession } from '../lib/stripe-client';
 import { User } from 'firebase/auth';
 
@@ -40,7 +40,7 @@ export function Settings() {
   const [isSidebarBlackoutEnabled, setIsSidebarBlackoutEnabled] = useState(() => JSON.parse(localStorage.getItem('isSidebarBlackoutEnabled') || 'false'));
   const [formData, setFormData] = useState({ name: '', email: '', currentPassword: '', newPassword: '', confirmPassword: '' });
   const [isGoogleUser, setIsGoogleUser] = useState<boolean>(false);
-  const [userCurrentTier, setUserCurrentTier] = useState<'basic' | 'pro' | 'premium' | 'loading'>('loading');
+  const [userCurrentTier, setUserCurrentTier] = useState<UserTier>('loading'); // Used UserTier type
   const [stripeCustomerId, setStripeCustomerId] = useState<string | null>(null);
   const [isManagingSubscription, setIsManagingSubscription] = useState(false);
   const [portalError, setPortalError] = useState<string | null>(null);
@@ -72,7 +72,7 @@ export function Settings() {
 
       try {
         const [tier, firestoreData] = await Promise.all([
-          getUserTier(currentUser.uid),
+          getUserTier(currentUser.uid, currentUser.email), // MODIFIED: Pass both uid and email
           getUserData(currentUser.uid)
         ]);
         setUserCurrentTier(tier);
@@ -518,5 +518,4 @@ export function Settings() {
   );
 }
 
-// Removed default export based on previous feedback, assuming named export usage
-export default Settings; // Export as default if needed
+export default Settings;
