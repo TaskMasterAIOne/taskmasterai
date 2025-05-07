@@ -997,7 +997,19 @@ export function Notes() {
             </main>
 
             {/* Modals & Overlays */}
-            {showNewNoteModal && ( <NewNoteModal onClose={() => { setShowNewNoteModal(false); setUploadProgress({ progress: 0, status: '', error: null }); }} onCreatePersonalNote={handleCreatePersonalNote} onCreateAINote={handleCreateAINote} onUploadPDF={handlePDFUpload} onYoutubeLink={handleYoutubeLink} uploadProgress={uploadProgress} isIlluminateEnabled={isIlluminateEnabled} isBlackoutEnabled={isBlackoutEnabled} /> )}
+            {showNewNoteModal && (
+    <NewNoteModal
+        onClose={() => { setShowNewNoteModal(false); /* Reset internal modal progress/error if needed */ }}
+        onCreatePersonalNote={handleCreatePersonalNote}
+        onCreateAINote={handleCreateAINote}
+        onUploadPDF={handlePDFUpload}
+        onYoutubeLink={handleYoutubeLink}
+        isIlluminateEnabled={isIlluminateEnabled}
+        isBlackoutEnabled={isBlackoutEnabled}
+        userTier={userTier} // Pass the tier
+        noteUsage={noteUsage} // Pass the current note usage
+    />
+)}
 
             {/* Chat Overlay (Rendered conditionally based on state, not tied directly to PDF view) */}
             {/* Pass userTier to overlay chat */}
