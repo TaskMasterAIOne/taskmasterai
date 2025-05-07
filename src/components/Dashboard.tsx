@@ -922,7 +922,7 @@ export function Dashboard() {
             {/* Upcoming Deadlines Card - RE-ADDED */}
             <div className={`${cardClass} rounded-xl p-4 sm:p-5 transition-all duration-300`}>
                <h2 className={`text-base sm:text-lg font-semibold mb-3 ${illuminateTextBlue} flex items-center`}>
-                 <Calendar className="w-5 h-5 mr-1.5" /> Upcoming Items
+                 <Calendar className="w-5 h-5 mr-1.5" /> Upcoming
                </h2>
                {(() => {
                    const allItems = [...tasks, ...goals, ...projects, ...plans];
