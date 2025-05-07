@@ -609,7 +609,6 @@ export function Calendar() {
                             setChatCount(0);
                             setUsageMonth(currentMonthYear);
                             setIsChatLimitReached(false);
-                             console.log(`Calendar: No chat usage data for ${firebaseUser.uid} for ${currentMonthYear}. Resetting local count.`);
                         }
                     } catch (err) {
                         console.error("Calendar: Error loading chat usage data:", err);
@@ -625,7 +624,6 @@ export function Calendar() {
                     setIsChatLimitReached(false);
                     setIsLoadingUsage(false); // Ensure usage loading stops
                     if (fetchedTier === 'premium') {
-                        console.log("Calendar: Premium user detected, usage check skipped.");
                     }
                 }
                 setLoading(false); // All initial auth-dependent data fetched or attempted
@@ -1003,7 +1001,6 @@ export function Calendar() {
         if (userTier !== 'premium') {
             let currentCount = chatCount;
             if (usageMonth !== currentMonthYear) {
-                console.log(`Calendar Chat: Month mismatch (State: ${usageMonth}, Current: ${currentMonthYear}). Resetting local count.`);
                 currentCount = 0;
                 setChatCount(0);
                 setUsageMonth(currentMonthYear);
@@ -1193,7 +1190,6 @@ Assistant Response:`;
                         continue;
                     }
                     actionData.payload.userId = user.uid;
-                    console.log(`Executing action: ${actionData.action}`, actionData.payload);
 
                      switch (actionData.action) {
                         case 'createEvent':
