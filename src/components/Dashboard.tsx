@@ -315,7 +315,7 @@ export function Dashboard() {
   const [isIlluminateEnabled, setIsIlluminateEnabled] = useState(() => {
     // Default to true (light mode) if nothing is stored
     const stored = localStorage.getItem('isIlluminateEnabled');
-    return stored ? JSON.parse(stored) : true;
+    return stored ? JSON.parse(stored) : false;
   });
 
   const [isSidebarIlluminateEnabled, setIsSidebarIlluminateEnabled] = useState(() => {
