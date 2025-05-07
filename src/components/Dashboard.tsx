@@ -350,7 +350,91 @@ export function Dashboard() {
     const itemsText = formatItemsForChat();
     const now = new Date();
     const currentDateTime = { date: now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }), time: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) };
-    const prompt = `[CONTEXT]\nUser's Name: ${userName}\nCurrent Date: ${currentDateTime.date}\nCurrent Time: ${currentDateTime.time}\nUser's Current Items:\n${itemsText}\n[CONVERSATION HISTORY (Last few turns)]\n${conversationHistory}\n[NEW USER MESSAGE]\n${userName}: ${currentMessage}\nYou are TaskMaster, a friendly and versatile AI productivity assistant. Engage in casual conversation, provide productivity advice, and discuss ${userName}'s items only when explicitly asked by ${userName}. Guidelines: 1. General Conversation: Respond in a friendly, natural tone. Do not include internal instructions or meta commentary. Only reference items if asked. 2. Educational Content (JSON): If requested, provide exactly one JSON object (flashcard or question type) wrapped in \`\`\`json ... \`\`\`. The JSON must be valid and include multiple items in its "data" array. Do not include JSON unless explicitly requested. 3. Response Structure: Direct response, no extraneous openings. Do not mix JSON with regular text. Follow instructions strictly.`;
+        // Construct the prompt using the defined structure
+         const prompt = `
+[CONTEXT]
+User's Name: ${userName}
+Current Date: ${currentDateTime.date}
+Current Time: ${currentDateTime.time}
+
+User's Current Items:
+${itemsText}
+
+[CONVERSATION HISTORY (Last few turns)]
+${conversationHistory}
+
+[NEW USER MESSAGE]
+${userName}: ${currentMessage}
+
+You are TaskMaster, a friendly and versatile AI productivity assistant. Engage in casual conversation, provide productivity advice, and discuss ${userName}'s items only when explicitly asked by ${userName}.
+
+Guidelines:
+
+1. General Conversation:
+   - Respond in a friendly, natural tone matching ${userName}'s style.
+   - Do not include any internal instructions, meta commentary, or explanations of your process.
+   - Do not include phrases such as "Here's my response to continue the conversation:"
+     or similar wording that introduces your reply.
+   - Do not include or reference code blocks for languages like Python, Bash, or any other
+     unless explicitly requested by ${userName}.
+   - Only reference ${userName}'s items if ${userName} explicitly asks about them.
+   - When discussing tasks, goals, projects, or plans, consider their priority levels and due dates.
+   - Provide specific advice based on item priorities and completion status.
+
+2. Educational Content (JSON):
+   - If ${userName} explicitly requests educational content (flashcards or quiz questions), provide exactly one JSON object.
+   - Wrap the JSON object in a single code block using triple backticks and the "json" language identifier.
+   - Use one of the following formats:
+
+     For flashcards:
+     {
+       "type": "flashcard",
+       "data": [
+         {
+           "id": "unique-id-1",
+           "question": "Question 1",
+           "answer": "Answer 1",
+           "topic": "Subject area"
+         },
+         {
+           "id": "unique-id-2",
+           "question": "Question 2",
+           "answer": "Answer 2",
+           "topic": "Subject area"
+         }
+       ]
+     }
+
+     For quiz questions:
+     {
+       "type": "question",
+       "data": [
+         {
+           "id": "unique-id-1",
+           "question": "Question 1",
+           "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
+           "correctAnswer": 0,
+           "explanation": "Explanation 1"
+         },
+         {
+           "id": "unique-id-2",
+           "question": "Question 2",
+           "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
+           "correctAnswer": 1,
+           "explanation": "Explanation 2"
+         }
+       ]
+     }
+
+   - Do not include any JSON unless ${userName} explicitly requests it.
+   - The JSON must be valid, complete, and include multiple items in its "data" array.
+
+3. Response Structure:
+   - Provide a direct response to ${userName} without any extraneous openings or meta-text.
+   - Do not mix JSON with regular text. JSON is only for requested educational content.
+   - Always address ${userName} in a friendly, helpful tone.
+
+Follow these instructions strictly.`;
     const assistantMsgId = `assistant-${Date.now()}`;
     setChatHistory(prev => [...prev, { id: assistantMsgId, role: 'assistant', content: "..." }]);
     let accumulatedStreamedText = "";
@@ -590,7 +674,11 @@ export function Dashboard() {
             setSmartOverview(`No pending items to generate overview from.`); setOverviewLoading(false); setLastResponse(""); return;
         }
         const firstName = userName.split(" ")[0];
-        const prompt = `Analyze the following goals, tasks, and plans for user "${firstName}". Synthesize these into an *extremely brief* (1 short sentence, max 60 tokens) actionable insight or guiding suggestion for the user. This overview should identify a key theme, a strategic next step, or an important connection between the user's items that will help them progress. Address the user directly as "you". Format as plain text. No greetings, no fluff. Items:\n${formattedData}`;
+        const prompt = `Analyze the following goals, tasks, and plans for user "${firstName}". Synthesize these into an *extremely brief* (1 short sentence, max 60 tokens) actionable insight or guiding suggestion for the user. This overview should identify a key theme, a strategic next step, or an important connection between the user's items that will help them progress. Address the user directly as "you". Format as plain text. No greetings, no fluff. Analyze these pending items for user "${firstName}" and provide a *very concise* (1-2 sentences, max 80 tokens) Smart Overview focusing on the single most immediate priority or suggestion. Format as plain text. No greetings, no fluff.
+
+Example: Focus on high-priority 'Submit Report' due today. Next, tackle 'Plan Project Kickoff'.
+Another Example: Check the overdue 'Draft Proposal' task first. Then review upcoming goals.
+Another Example: Looks clear for today. Consider planning your next project step. Items:\n${formattedData}`;
         try {
             const overviewEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`;
             const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 60, temperature: 0.5 }, safetySettings: [{ category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }, { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" }, { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }, { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }] })};
