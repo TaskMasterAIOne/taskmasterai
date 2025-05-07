@@ -674,11 +674,27 @@ Follow these instructions strictly.`;
             setSmartOverview(`No pending items to generate overview from.`); setOverviewLoading(false); setLastResponse(""); return;
         }
         const firstName = userName.split(" ")[0];
-        const prompt = `Analyze the following goals, tasks, and plans for user "${firstName}". Synthesize these into an *extremely brief* (1 short sentence, max 60 tokens) actionable insight or guiding suggestion for the user. This overview should identify a key theme, a strategic next step, or an important connection between the user's items that will help them progress. Address the user directly as "you". Format as plain text. No greetings, no fluff. Analyze these pending items for user "${firstName}" and provide a *very concise* (1-2 sentences, max 80 tokens) Smart Overview focusing on the single most immediate priority or suggestion. Format as plain text. No greetings, no fluff.
+        const prompt = `Analyze the following goals, tasks, and plans for user "${firstName}".
+Synthesize these into a single, concise "Smart Overview".
 
-Example: Focus on high-priority 'Submit Report' due today. Next, tackle 'Plan Project Kickoff'.
-Another Example: Check the overdue 'Draft Proposal' task first. Then review upcoming goals.
-Another Example: Looks clear for today. Consider planning your next project step. Items:\n${formattedData}`;
+This Smart Overview must be:
+*   An actionable insight or guiding suggestion for the user.
+*   1-2 sentences total, strictly under 80 tokens.
+*   Focused on identifying a key theme, the most immediate priority, a strategic next step, or an important connection between the user's items that will help them progress.
+*   Addressed directly to the user (e.g., "You should...", "Focus on...").
+*   Formatted as plain text.
+
+**Important Constraints:**
+*   The *entire output* is the Smart Overview itself. Do NOT add any prefixes like "Smart Overview:".
+*   Do NOT repeat the same advice or instruction within the output.
+*   No greetings, no fluff, no conversational filler.
+
+Example: Focus on your high-priority 'Submit Report' due today before tackling 'Plan Project Kickoff'.
+Another Example: Prioritize checking your overdue 'Draft Proposal' task, then review upcoming goals.
+Another Example: Your schedule looks clear for today; consider planning your next project step.
+
+Items:
+${formattedData}`;
         try {
             const overviewEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`;
             const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 60, temperature: 0.5 }, safetySettings: [{ category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }, { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" }, { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }, { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }] })};
