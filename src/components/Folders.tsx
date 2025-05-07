@@ -594,9 +594,7 @@ export function Folders() {
                     setChatMonth(usageData.month);
                     const limit = getChatLimitForTier(resolvedTier); // Use resolvedTier for limit
                     setIsChatLimitReached(usageData.count >= limit);
-                    console.log(`Folders: Loaded chat usage for ${currentMonthYear}: ${usageData.count}`);
                 } else {
-                    console.log(`Folders: No chat usage data found for ${firebaseUser.uid} for current month ${currentMonthYear}. Resetting local count.`);
                     setChatCount(0);
                     setChatMonth(currentMonthYear);
                     setIsChatLimitReached(false);
@@ -609,7 +607,6 @@ export function Folders() {
             }
         } else { // Premium user
             setChatCount(0); setChatMonth(''); setIsChatLimitReached(false);
-            console.log("Folders: Premium user detected, usage check skipped.");
         }
 
         // --- Load Universal AI Context (Remains the same) ---
@@ -1689,7 +1686,6 @@ export function Folders() {
 
           // Check if the stored month matches the current month. If not, reset local count.
           if (chatMonth !== currentMonthYear) {
-              console.log(`Folders Chat: Month mismatch (State: ${chatMonth}, Current: ${currentMonthYear}). Resetting local count.`);
               currentCount = 0; // Reset count locally for the check below
               setChatCount(0); setChatMonth(currentMonthYear); setIsChatLimitReached(false);
               limitReached = false;
