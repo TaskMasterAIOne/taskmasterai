@@ -880,7 +880,7 @@ export function Dashboard() {
         )}
 
         <div className={`grid grid-cols-1 xl:grid-cols-5 gap-4 sm:gap-5 animate-fadeIn ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} delay-400`}>
-           <div className="xl:col-span-2 flex flex-col gap-4 sm:gap-5"> {/* Changed from xl:col-span-3 to xl:col-span-2 */}
+           <div className="xl:col-span-3 flex flex-col gap-4 sm:gap-5"> {/* MODIFIED: Was xl:col-span-2 */}
             {/* Smart Overview Card - MOVED HERE */}
             <div className={`${cardClass} rounded-xl p-3 sm:p-4 relative min-h-[60px] transition-all duration-300 ease-out animate-fadeIn ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} delay-300`}>
               <div className="flex flex-wrap items-center gap-2 mb-1.5">
@@ -1071,7 +1071,7 @@ export function Dashboard() {
              </div>
            </div>
 
-           <div className="xl:col-span-3 flex flex-col"> {/* Changed from xl:col-span-2 to xl:col-span-3, removed gap as it's single child now */}
+           <div className="xl:col-span-2 flex flex-col gap-4 sm:gap-5"> {/* MODIFIED: Was xl:col-span-3, re-added gap */}
                 <div className={`${cardClass} rounded-xl p-4 sm:p-5 transition-all duration-300 flex flex-col`} style={{ minHeight: '600px' }}> {/* Adjusted minHeight, removed maxHeight */}
                     <div className="flex items-center justify-between mb-3 sm:mb-4 flex-shrink-0"> {/* No grow for header */}
                         <button onClick={handlePreviousMonth} className={`p-2 rounded-full ${iconColor} ${isIlluminateEnabled ? 'hover:bg-gray-100' : 'hover:bg-gray-700'}`} title="Previous Month"><ChevronLeft className="w-5 h-5" /></button>
