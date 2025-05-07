@@ -24,8 +24,6 @@ const db = getFirestore(app);
 const functions = getFunctions(app); // Initialize Functions service for calling deployed functions
 const storage = getStorage(app);
 
-// Log connection status
-console.log("%c PRODUCTION MODE: Connected to live Firebase services.", "color: blue;");
 
 // Export the initialized services
 export { app, auth, db, functions, storage };
