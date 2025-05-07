@@ -32,12 +32,13 @@ import { geminiApiKey } from '../lib/dashboard-firebase'; // Assuming API key is
 // --- IMPORT Centralized Tier/Usage Functions ---
 import {
     UserTier, // Import the type
-    getUserTier,
-    getUserChatUsage, // Use the specific chat usage getter
-    updateUserChatUsage, // Use the specific chat usage updater
-    getChatLimitForTier,
-    getUserNoteUsage,
-    updateUserNoteUsage
+    getUserTier, // <<< THIS IS THE ASYNC FUNCTION
+    // getUserChatUsage, // REMOVED - Notes.tsx doesn't directly use chat usage functions in this way
+    // updateUserChatUsage, // REMOVED
+    // getChatLimitForTier, // REMOVED - Not directly used for notes list, chat limits are handled in NoteChat.tsx
+    getUserNoteUsage, // Keep for notes
+    updateUserNoteUsage, // Keep for notes
+    NOTE_LIMITS // Import NOTE_LIMITS from central location
 } from '../lib/current-paying-user'; // Correct path to the new file
 
 
@@ -61,14 +62,10 @@ interface Note {
 }
 interface UploadProgressState { progress: number; status: string; error: string | null; }
 interface NoteUsage { pdfAi: number; youtube: number; }
-type UserTier = 'basic' | 'pro' | 'premium' | 'loading';
+// Removed local UserTier type, using imported one
 
-// --- Tier Limits ---
-const NOTE_LIMITS = {
-    basic: { pdfAi: 2, youtube: 1 },
-    pro: { pdfAi: 10, youtube: 5 },
-    premium: { pdfAi: Infinity, youtube: Infinity },
-};
+
+// --- Tier Limits - REMOVED (Imported from current-paying-user.ts) ---
 
 // --- Main Component ---
 export function Notes() {
@@ -84,7 +81,7 @@ export function Notes() {
     const [filterType, setFilterType] = useState<'all' | 'personal' | 'pdf' | 'youtube' | 'audio'>('all');
 
     // Tier and Usage State
-    const [userTier, setUserTier] = useState<UserTier>('loading');
+    const [userTier, setUserTier] = useState<UserTier>('loading'); // Using imported UserTier type
     const [noteUsage, setNoteUsage] = useState<NoteUsage>({ pdfAi: 0, youtube: 0 });
     const [usageMonth, setUsageMonth] = useState<string>(''); // YYYY-MM
 
@@ -173,17 +170,24 @@ export function Notes() {
         setLoading(true);
         setUserTier('loading'); // Reset tier on auth change
 
-        const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
+        const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => { // Made async
             if (firebaseUser) {
                 setUser(firebaseUser);
                 setUserName(firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "User");
 
-                // Determine Tier
-                const tier = getUserTier(firebaseUser.email); // Use utility function
-                setUserTier(tier);
+                // Determine Tier using ASYNC imported function
+                let resolvedTier: UserTier = 'basic'; // Default to basic in case of error
+                try {
+                    resolvedTier = await getUserTier(firebaseUser.uid, firebaseUser.email); // Pass both uid and email
+                    setUserTier(resolvedTier); // Set state with the resolved tier
+                } catch (error) {
+                    console.error("Notes: Error fetching user tier:", error);
+                    setUserTier('basic'); // Fallback to basic on error
+                    // resolvedTier remains 'basic'
+                }
 
                 // Load Usage Data (only if not premium)
-                if (tier !== 'premium') {
+                if (resolvedTier !== 'premium') { // Use resolvedTier for immediate check
                     try {
                         const currentMonthYear = new Date().toISOString().slice(0, 7); // "YYYY-MM"
                         const usageData = await getUserNoteUsage(firebaseUser.uid);
@@ -221,7 +225,7 @@ export function Notes() {
                 setShowSplitView(false);
                 setIsChatOverlayVisible(false);
                 setChatNoteForOverlay(null);
-                setUserTier('loading');
+                setUserTier('loading'); // Important to reset to loading for next auth
                 setNoteUsage({ pdfAi: 0, youtube: 0 });
                 setUsageMonth('');
                 navigate('/login');
@@ -346,7 +350,7 @@ export function Notes() {
         }
         if (userTier === 'premium') return true;
 
-        const limits = NOTE_LIMITS[userTier];
+        const limits = NOTE_LIMITS[userTier]; // Use imported NOTE_LIMITS
         const currentCount = noteUsage[noteType];
         const limit = limits[noteType];
 
@@ -891,7 +895,7 @@ export function Notes() {
                                      isVisible={true} // Always visible in this layout
                                      onUpdateNoteContent={handleUpdateNoteContentFromChat}
                                      displayMode="inline" // Use inline styling
-                                     // userTier={userTier} // Pass tier
+                                     userTier={userTier} // Pass tier to NoteChat
                                  />
                              </div>
                          </div>
@@ -981,8 +985,8 @@ export function Notes() {
                     {userTier !== 'premium' && userTier !== 'loading' && currentLimits && (
                         <div className={`px-3 py-2 text-[10px] border-b ${borderColor} ${isIlluminateEnabled ? 'text-gray-600 bg-gray-50' : 'text-gray-400 bg-gray-800/50'}`}>
                              <div className="flex justify-between items-center gap-2">
-                                <span>PDF/AI Notes: {noteUsage.pdfAi} / {currentLimits.pdfAi}</span>
-                                <span>YouTube Notes: {noteUsage.youtube} / {currentLimits.youtube}</span>
+                                <span>PDF/AI Notes: {noteUsage.pdfAi} / {currentLimits.pdfAi === Infinity ? '∞' : currentLimits.pdfAi}</span>
+                                <span>YouTube Notes: {noteUsage.youtube} / {currentLimits.youtube === Infinity ? '∞' : currentLimits.youtube}</span>
                             </div>
                         </div>
                     )}
@@ -1009,7 +1013,7 @@ export function Notes() {
                      isVisible={isChatOverlayVisible} // Controlled by overlay state
                      onUpdateNoteContent={handleUpdateNoteContentFromChat}
                      displayMode="overlay" // Use overlay styling
-                    //  userTier={userTier} // Pass tier
+                     userTier={userTier} // Pass tier to NoteChat
                  />
             )}
 
