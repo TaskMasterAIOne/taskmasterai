@@ -790,14 +790,28 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                             </div>
                         )}
 
-                        {/* Input Area */}
+ {/* Input Area */}
                         <div className={`p-2 border-t ${headerBg} shrink-0 sticky bottom-0`}>
                              {/* Usage Indicator */}
-                             {userTier !== 'premium' && userTier !== 'loading' && ( <div className="pb-1 text-xs text-center"> <span className={isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}> Messages this month: {isLoadingUsage ? '...' : chatCount} / {currentChatLimit === Infinity ? '∞' : currentChatLimit} </span>                          {!isChatLimitReached && userTier === 'basic' && (
-                              <Link to="/pricing" className={`ml-2 font-medium ${isIlluminateEnabled ? 'text-blue-600 hover:text-blue-700' : 'text-blue-400 hover:text-blue-300'} hover:underline`}>
-                                 <Crown className="w-2.5 h-2.5 inline mr-0.5"/>Upgrade
-                             </Link>
-                         )} </div> )}
+                             {userTier !== 'premium' && userTier !== 'loading' && (
+                                 <div className="pb-1 text-xs text-center">
+                                     <span className={isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}>
+                                         Messages this month: {isLoadingUsage ? '...' : chatCount} / {currentChatLimit === Infinity ? '∞' : currentChatLimit}
+                                     </span>
+                                     {/*
+                                        FIX: Removed the restrictive conditions (!isChatLimitReached && userTier === 'basic').
+                                        The Link will now show for all non-premium users ('basic' or 'plus')
+                                        whose tier has loaded, regardless of whether they've hit their limit.
+                                        This makes the upgrade path more accessible.
+                                     */}
+                                     <Link
+                                         to="/pricing"
+                                         className={`ml-2 font-medium ${isIlluminateEnabled ? 'text-blue-600 hover:text-blue-700' : 'text-blue-400 hover:text-blue-300'} hover:underline`}
+                                     >
+                                         <Crown className="w-2.5 h-2.5 inline mr-0.5"/>Upgrade
+                                     </Link>
+                                 </div>
+                             )}
                              {/* Selected Files Pills */}
                              {selectedFiles.length > 0 && !isImageGenModeActive && ( <div className="mb-1.5 flex flex-wrap gap-1.5 px-1"> {selectedFiles.map(file => ( <div key={file.name} className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${filePillBg} ${filePillText}`}> <span className="truncate max-w-[100px]">{file.name}</span> <span className="text-[10px] opacity-70">({formatBytes(file.size)})</span> <button type="button" onClick={() => handleRemoveFile(file.name)} className={`ml-0.5 p-0.5 rounded-full ${isIlluminateEnabled ? 'hover:bg-blue-200' : 'hover:bg-blue-700'} `} title="Remove"> <X className="w-2.5 h-2.5" /> </button> </div> ))} </div> )}
                              {/* Form */}
