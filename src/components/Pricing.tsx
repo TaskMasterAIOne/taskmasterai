@@ -27,34 +27,34 @@ const STRIPE_PRICE_IDS = {
 type PlanName = 'PREMIUM' | 'PRO' | 'BASIC';
 
 function Pricing() {
-  const { loading } = useAuth(); // Kept 'loading' from OLD code's useAuth context
+  const { loading } = useAuth();
   const [user, setUser] = useState<any>(null);
   const [isYearly, setIsYearly] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
-  const [isCheckingOut, setIsCheckingOut] = useState<string | null>(null); // Added from NEW
-  const [checkoutError, setCheckoutError] = useState<string | null>(null); // Added from NEW
-  const [userCurrentTier, setUserCurrentTier] = useState<UserTier>('loading'); // State for user's current tier
+  const [isCheckingOut, setIsCheckingOut] = useState<string | null>(null);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [userCurrentTier, setUserCurrentTier] = useState<UserTier>('loading');
 
   const toggleMenu = () => {
     setIsOpen(!isOpen);
   };
 
   useEffect(() => {
-    const unsubscribe = subscribeToAuthState(async (firebaseUser) => { // Make async
+    const unsubscribe = subscribeToAuthState(async (firebaseUser) => {
       setUser(firebaseUser);
       setIsCheckingOut(null);
       setCheckoutError(null);
       if (firebaseUser) {
-        setUserCurrentTier('loading'); // Set to loading before fetching
+        setUserCurrentTier('loading');
         try {
-          const tier = await getUserTier(firebaseUser.uid, firebaseUser.email); // Pass UID and email
+          const tier = await getUserTier(firebaseUser.uid, firebaseUser.email);
           setUserCurrentTier(tier);
         } catch (error) {
           console.error("Error fetching user tier:", error);
-          setUserCurrentTier('basic'); // Fallback on error
+          setUserCurrentTier('basic');
         }
       } else {
-        setUserCurrentTier('loading'); // Reset if no user
+        setUserCurrentTier('loading');
       }
     });
     return () => unsubscribe();
@@ -67,13 +67,10 @@ function Pricing() {
     }
     if (isCheckingOut) return;
 
-    // Prevent subscribing to the current tier
     if (
         (targetPlan === 'PREMIUM' && userCurrentTier === 'premium') ||
         (targetPlan === 'PRO' && userCurrentTier === 'pro')
     ) {
-        // Optionally show a message or just do nothing
-        // setCheckoutError("This is already your current plan.");
         console.log("Attempted to subscribe to current plan.");
         return;
     }
@@ -103,35 +100,35 @@ function Pricing() {
     }
   };
 
-  const getButtonTextAndState = (planName: PlanName, targetPriceId: string) => {
+  const getButtonInfo = (planName: PlanName, targetPriceId: string) => {
     const isLoadingThisButton = isCheckingOut === targetPriceId;
 
     if (isLoadingThisButton) {
-        return { text: "Processing...", disabled: true, isCurrent: false };
+        return { text: "Processing...", disabled: true, isCurrent: false, isLoading: true };
     }
 
     if (userCurrentTier === 'loading') {
-        return { text: "Loading...", disabled: true, isCurrent: false };
+        return { text: "Loading Plans...", disabled: true, isCurrent: false, isLoading: false };
     }
 
     switch (planName) {
         case 'PREMIUM':
-            if (userCurrentTier === 'premium') return { text: "Current Plan", disabled: true, isCurrent: true };
-            if (userCurrentTier === 'pro' || userCurrentTier === 'basic') return { text: "Upgrade to Premium", disabled: false, isCurrent: false };
+            if (userCurrentTier === 'premium') return { text: "Current Plan", disabled: true, isCurrent: true, isLoading: false };
+            if (userCurrentTier === 'pro' || userCurrentTier === 'basic') return { text: "Upgrade to Premium", disabled: false, isCurrent: false, isLoading: false };
             break;
         case 'PRO':
-            if (userCurrentTier === 'pro') return { text: "Current Plan", disabled: true, isCurrent: true };
-            if (userCurrentTier === 'premium') return { text: "Manage Subscription", disabled: false, isCurrent: false, isDowngrade: true }; // Special case for downgrade
-            if (userCurrentTier === 'basic') return { text: "Upgrade to Pro", disabled: false, isCurrent: false };
+            if (userCurrentTier === 'pro') return { text: "Current Plan", disabled: true, isCurrent: true, isLoading: false };
+            if (userCurrentTier === 'premium') return { text: "Manage Subscription", disabled: false, isCurrent: false, isDowngrade: true, isLoading: false };
+            if (userCurrentTier === 'basic') return { text: "Upgrade to Pro", disabled: false, isCurrent: false, isLoading: false };
             break;
         default:
             break;
     }
-    return { text: "Subscribe Now", disabled: false, isCurrent: false };
+    return { text: "Subscribe Now", disabled: false, isCurrent: false, isLoading: false };
   };
 
 
-  if (loading && userCurrentTier === 'loading') { // Using 'loading' from OLD context destructuring AND current tier loading
+  if (loading && userCurrentTier === 'loading') {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
@@ -177,8 +174,11 @@ function Pricing() {
 
   const bannerHeightClass = "h-10";
 
-  const premiumButtonInfo = getButtonTextAndState('PREMIUM', STRIPE_PRICE_IDS.PREMIUM[isYearly ? 'yearly' : 'monthly']);
-  const proButtonInfo = getButtonTextAndState('PRO', STRIPE_PRICE_IDS.PRO[isYearly ? 'yearly' : 'monthly']);
+  const premiumStripePriceId = STRIPE_PRICE_IDS.PREMIUM[isYearly ? 'yearly' : 'monthly'];
+  const proStripePriceId = STRIPE_PRICE_IDS.PRO[isYearly ? 'yearly' : 'monthly'];
+
+  const premiumButtonInfo = getButtonInfo('PREMIUM', premiumStripePriceId);
+  const proButtonInfo = getButtonInfo('PRO', proStripePriceId);
 
 
   return (
@@ -367,21 +367,20 @@ function Pricing() {
                             whileHover={premiumButtonInfo.disabled ? "" : "hover"}
                             whileTap={premiumButtonInfo.disabled ? "" : "tap"}
                             onClick={() => {
-                                if(premiumButtonInfo.isDowngrade){
-                                    window.location.href = '/settings'; // Or Stripe portal directly
+                                if(premiumButtonInfo.isDowngrade){ // Should not happen for premium
+                                    window.location.href = '/settings';
                                 } else if (!premiumButtonInfo.disabled) {
-                                    handleSubscribe(STRIPE_PRICE_IDS.PREMIUM[isYearly ? 'yearly' : 'monthly'], 'PREMIUM');
+                                    handleSubscribe(premiumStripePriceId, 'PREMIUM');
                                 }
                             }}
-                            disabled={premiumButtonInfo.disabled || !!isCheckingOut} // Also disable if any checkout is in progress
+                            disabled={premiumButtonInfo.disabled || (!!isCheckingOut && !premiumButtonInfo.isLoading)}
                             className={`w-full text-center py-3 rounded-full font-semibold transition-transform flex items-center justify-center gap-2 ${
                                 premiumButtonInfo.disabled && premiumButtonInfo.isCurrent ? 'bg-gray-600 text-gray-400 cursor-default' :
-                                premiumButtonInfo.isDowngrade ? 'bg-purple-600 text-white hover:bg-purple-700' :
                                 'bg-white text-indigo-600 hover:bg-gray-100'
-                            } ${(!!isCheckingOut && !premiumButtonInfo.isCurrent) ? 'opacity-60 cursor-not-allowed' : ''}`}
+                            } ${(!!isCheckingOut && !premiumButtonInfo.isLoading) ? 'opacity-60 cursor-not-allowed' : ''}`}
                         >
-                            {isLoadingThisButton(STRIPE_PRICE_IDS.PREMIUM[isYearly ? 'yearly' : 'monthly']) ? (
-                                <> <Loader2 className="w-5 h-5 animate-spin" /> Processing... </>
+                            {premiumButtonInfo.isLoading ? (
+                                <> <Loader2 className="w-5 h-5 animate-spin" /> {premiumButtonInfo.text} </>
                             ) : (
                                 premiumButtonInfo.text
                             )}
@@ -433,18 +432,18 @@ function Pricing() {
                                 if(proButtonInfo.isDowngrade){
                                      window.location.href = '/settings'; // Or Stripe portal directly
                                 } else if (!proButtonInfo.disabled) {
-                                    handleSubscribe(STRIPE_PRICE_IDS.PRO[isYearly ? 'yearly' : 'monthly'], 'PRO');
+                                    handleSubscribe(proStripePriceId, 'PRO');
                                 }
                             }}
-                            disabled={proButtonInfo.disabled || !!isCheckingOut} // Also disable if any checkout is in progress
+                            disabled={proButtonInfo.disabled || (!!isCheckingOut && !proButtonInfo.isLoading)}
                             className={`w-full text-center py-3 rounded-full font-semibold transition-transform flex items-center justify-center gap-2 ${
                                 proButtonInfo.disabled && proButtonInfo.isCurrent ? 'bg-gray-600 text-gray-400 cursor-default' :
                                 proButtonInfo.isDowngrade ? 'bg-purple-600 text-white hover:bg-purple-700' :
                                 'bg-indigo-500 text-white hover:bg-indigo-600'
-                            } ${(!!isCheckingOut && !proButtonInfo.isCurrent) ? 'opacity-60 cursor-not-allowed' : ''}`}
+                            } ${(!!isCheckingOut && !proButtonInfo.isLoading) ? 'opacity-60 cursor-not-allowed' : ''}`}
                         >
-                           {isLoadingThisButton(STRIPE_PRICE_IDS.PRO[isYearly ? 'yearly' : 'monthly']) ? (
-                                <> <Loader2 className="w-5 h-5 animate-spin" /> Processing... </>
+                           {proButtonInfo.isLoading ? (
+                                <> <Loader2 className="w-5 h-5 animate-spin" /> {proButtonInfo.text} </>
                             ) : (
                                 proButtonInfo.text
                             )}
@@ -487,20 +486,5 @@ function Pricing() {
     </div>
   );
 }
-
-// Helper function to check if the current checkout process is for this specific button
-// This is needed because isCheckingOut holds the priceId
-function isLoadingThisButton(currentButtonPriceId: string): boolean {
-    // This function is a bit redundant with the logic inside getButtonTextAndState,
-    // but kept for clarity if you want to use it directly in JSX for the spinner.
-    // You'd call it like: isLoadingThisButton(STRIPE_PRICE_IDS.PREMIUM[isYearly ? 'yearly' : 'monthly'])
-    // However, the `getButtonTextAndState` already determines if the button should show "Processing..."
-    // For direct use:
-    // const [isCheckingOut, setIsCheckingOut] = useState<string | null>(null);
-    // return isCheckingOut === currentButtonPriceId;
-    return false; // Placeholder if not using directly, as getButtonTextAndState handles it.
-                  // Actual usage: return isCheckingOut === currentButtonPriceId from component state.
-}
-
 
 export default Pricing;
