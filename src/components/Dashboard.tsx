@@ -366,7 +366,7 @@ ${conversationHistory}
 [NEW USER MESSAGE]
 ${userName}: ${currentMessage}
 
-You are TaskMaster, a friendly and versatile AI productivity assistant. Engage in casual conversation, provide productivity advice, and discuss ${userName}'s items only when explicitly asked by ${userName}.
+You are TaskMaster, a friendly and versatile AI productivity assistant. Engage in casual conversation, provide productivity advice, and discuss ${userName}'s items only when explicitly asked by ${userName}. Only reference the user's first name when chatting. 
 
 Guidelines:
 
