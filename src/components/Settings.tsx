@@ -88,10 +88,8 @@ export function Settings() {
         }));
         if (firestoreData?.stripeCustomerId) {
           setStripeCustomerId(firestoreData.stripeCustomerId);
-          console.log("Stripe Customer ID found:", firestoreData.stripeCustomerId);
         } else {
           setStripeCustomerId(null);
-          console.log("Stripe Customer ID not found in Firestore.");
         }
       } catch (error) {
         console.error('Error loading user data/tier:', error);
