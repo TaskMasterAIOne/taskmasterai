@@ -452,7 +452,6 @@ export function Notes() {
         const shouldShowSideBySide = note.type === 'pdf' && showPdfViewer && note.sourceUrl && !isMobile;
 
         if (shouldShowSideBySide) {
-             console.log("Side-by-side chat is active.");
              // Optionally focus input: noteChatRef.current?.focusInput();
         } else {
             // Show overlay chat
@@ -469,7 +468,6 @@ export function Notes() {
 
     const handleUpdateNoteContentFromChat = async (noteId: string, newContent: string) => {
         if (!user) return;
-        console.log("Updating note from chat:", noteId);
         setIsSaving(true);
         setUploadProgress({ progress: 0, status: 'Updating via chat...', error: null });
         try {
