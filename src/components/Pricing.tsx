@@ -5,6 +5,11 @@ import { subscribeToAuthState } from '../lib/pricing-firebase'; // Adjust path i
 import { Logo } from './Logo'; // Adjust path if needed
 import { createCheckoutSession, getStripe } from '../lib/stripe-client'; // Added from NEW
 import { motion } from 'framer-motion';
+// --- IMPORT NEW TIER/USAGE FUNCTIONS AND TYPES ---
+import {
+    UserTier, // Import the type
+    getUserTier, // <<< THIS IS THE ASYNC FUNCTION
+} from '../lib/current-paying-user'; // Correct path to the new file
 
 // --- USE YOUR **LIVE** PRICE IDs --- (From NEW code)
 const STRIPE_PRICE_IDS = {
@@ -18,6 +23,9 @@ const STRIPE_PRICE_IDS = {
   }
 };
 
+// Helper type for plan names
+type PlanName = 'PREMIUM' | 'PRO' | 'BASIC';
+
 function Pricing() {
   const { loading } = useAuth(); // Kept 'loading' from OLD code's useAuth context
   const [user, setUser] = useState<any>(null);
@@ -25,32 +33,53 @@ function Pricing() {
   const [isOpen, setIsOpen] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState<string | null>(null); // Added from NEW
   const [checkoutError, setCheckoutError] = useState<string | null>(null); // Added from NEW
+  const [userCurrentTier, setUserCurrentTier] = useState<UserTier>('loading'); // State for user's current tier
 
   const toggleMenu = () => {
     setIsOpen(!isOpen);
   };
 
   useEffect(() => {
-    const unsubscribe = subscribeToAuthState((firebaseUser) => {
+    const unsubscribe = subscribeToAuthState(async (firebaseUser) => { // Make async
       setUser(firebaseUser);
-      // Reset checkout state on auth change (from NEW logic idea)
       setIsCheckingOut(null);
       setCheckoutError(null);
+      if (firebaseUser) {
+        setUserCurrentTier('loading'); // Set to loading before fetching
+        try {
+          const tier = await getUserTier(firebaseUser.uid, firebaseUser.email); // Pass UID and email
+          setUserCurrentTier(tier);
+        } catch (error) {
+          console.error("Error fetching user tier:", error);
+          setUserCurrentTier('basic'); // Fallback on error
+        }
+      } else {
+        setUserCurrentTier('loading'); // Reset if no user
+      }
     });
     return () => unsubscribe();
   }, []);
 
-  // Updated handleSubscribe function from NEW code
-  const handleSubscribe = async (priceId: string) => {
+  const handleSubscribe = async (priceId: string, targetPlan: PlanName) => {
     if (!user) {
-      // Use setCheckoutError instead of alert
       setCheckoutError('Please login or sign up to subscribe.');
       return;
     }
-    if (isCheckingOut) return; // Prevent multiple clicks
+    if (isCheckingOut) return;
 
-    setIsCheckingOut(priceId); // Set which button is loading
-    setCheckoutError(null); // Clear previous errors
+    // Prevent subscribing to the current tier
+    if (
+        (targetPlan === 'PREMIUM' && userCurrentTier === 'premium') ||
+        (targetPlan === 'PRO' && userCurrentTier === 'pro')
+    ) {
+        // Optionally show a message or just do nothing
+        // setCheckoutError("This is already your current plan.");
+        console.log("Attempted to subscribe to current plan.");
+        return;
+    }
+
+    setIsCheckingOut(priceId);
+    setCheckoutError(null);
 
     try {
       console.log(`Initiating LIVE checkout for priceId: ${priceId}`);
@@ -61,26 +90,48 @@ function Pricing() {
       if (!stripe) { throw new Error('Stripe.js failed to load.'); }
       console.log("Stripe.js loaded, redirecting to LIVE checkout...");
 
-      // Redirect to Stripe Checkout
       const { error } = await stripe.redirectToCheckout({ sessionId });
 
-      // If redirectToCheckout fails (e.g., network error), handle it
       if (error) {
         console.error("Stripe redirection error:", error);
         setCheckoutError(error.message || 'Could not redirect to Stripe.');
       }
-      // No need to reset isCheckingOut here, as the page redirects or shows an error
     } catch (error: any) {
       console.error("LIVE Subscription handling error:", error);
       setCheckoutError(error.message || 'Failed to initiate LIVE subscription.');
-       setIsCheckingOut(null); // Reset loading state on catch
+       setIsCheckingOut(null);
     }
-    // No finally block needed here as redirection means component might unmount
-    // or the error state is set. Resetting in catch is sufficient.
+  };
+
+  const getButtonTextAndState = (planName: PlanName, targetPriceId: string) => {
+    const isLoadingThisButton = isCheckingOut === targetPriceId;
+
+    if (isLoadingThisButton) {
+        return { text: "Processing...", disabled: true, isCurrent: false };
+    }
+
+    if (userCurrentTier === 'loading') {
+        return { text: "Loading...", disabled: true, isCurrent: false };
+    }
+
+    switch (planName) {
+        case 'PREMIUM':
+            if (userCurrentTier === 'premium') return { text: "Current Plan", disabled: true, isCurrent: true };
+            if (userCurrentTier === 'pro' || userCurrentTier === 'basic') return { text: "Upgrade to Premium", disabled: false, isCurrent: false };
+            break;
+        case 'PRO':
+            if (userCurrentTier === 'pro') return { text: "Current Plan", disabled: true, isCurrent: true };
+            if (userCurrentTier === 'premium') return { text: "Manage Subscription", disabled: false, isCurrent: false, isDowngrade: true }; // Special case for downgrade
+            if (userCurrentTier === 'basic') return { text: "Upgrade to Pro", disabled: false, isCurrent: false };
+            break;
+        default:
+            break;
+    }
+    return { text: "Subscribe Now", disabled: false, isCurrent: false };
   };
 
 
-  if (loading) { // Using 'loading' from OLD context destructuring
+  if (loading && userCurrentTier === 'loading') { // Using 'loading' from OLD context destructuring AND current tier loading
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
@@ -88,18 +139,15 @@ function Pricing() {
     );
   }
 
-  // Pricing logic - Kept exactly from OLD code for UI consistency
   const premiumPriceText = isYearly ? '$7.99 per month' : '$9.99 per month';
   const proPriceText = isYearly ? '$4.99 per month' : '$6.99 per month';
   const premiumBillingText = isYearly ? 'Billed yearly' : 'Billed monthly';
   const proBillingText = isYearly ? 'Billed yearly' : 'Billed monthly';
 
-  // Calculate savings for Premium plan when paid yearly - Kept from OLD code
   const premiumMonthlySavings = (9.99 - 7.99).toFixed(2);
   const premiumAnnualSavings = (Number(premiumMonthlySavings) * 12).toFixed(2);
   const recommendationText = `Recommended – Save $${premiumMonthlySavings}/month ($${premiumAnnualSavings}/year)`;
 
-  // Framer Motion Variants - Kept exactly from OLD code
   const headerVariants = {
     hidden: { opacity: 0, y: -50 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: 'easeOut' } }
@@ -120,7 +168,6 @@ function Pricing() {
     tap: { scale: 0.95 }
   };
 
-  // Helper to render list items - Kept exactly from OLD code
   const renderFeatureItem = (text: string) => (
     <li className="flex items-center">
       <Check className="w-5 h-5 text-green-500 mr-2 flex-shrink-0" />
@@ -128,13 +175,14 @@ function Pricing() {
     </li>
   );
 
-  // Height for the banner space - Kept from OLD code
   const bannerHeightClass = "h-10";
 
+  const premiumButtonInfo = getButtonTextAndState('PREMIUM', STRIPE_PRICE_IDS.PREMIUM[isYearly ? 'yearly' : 'monthly']);
+  const proButtonInfo = getButtonTextAndState('PRO', STRIPE_PRICE_IDS.PRO[isYearly ? 'yearly' : 'monthly']);
+
+
   return (
-    // Base structure and styles from OLD code
     <div className="flex flex-col min-h-screen bg-gray-900 font-poppins">
-      {/* --- START: NAV --- (Exactly from OLD code) */}
       <motion.header
         className="fixed w-full bg-gray-900/80 backdrop-blur-lg border-b border-gray-800 z-50"
         variants={headerVariants}
@@ -146,7 +194,6 @@ function Pricing() {
             <a href="/">
               <Logo />
             </a>
-            {/* Hamburger Menu Button */}
             <button
               className="md:hidden text-gray-300 hover:text-indigo-400 focus:outline-none"
               onClick={toggleMenu}
@@ -168,7 +215,6 @@ function Pricing() {
                 )}
               </svg>
             </button>
-            {/* Desktop Navigation */}
             <div className="hidden md:flex items-center space-x-8">
               <a href="/#features" className="text-gray-300 hover:text-indigo-400 transition-colors">Features</a>
               <a href="/pricing" className="text-gray-300 hover:text-indigo-400 transition-colors">Pricing</a>
@@ -180,7 +226,6 @@ function Pricing() {
                 {user ? "Dashboard" : "Get Started Today"}
               </a>
             </div>
-            {/* Mobile Navigation */}
             <div
               className={`absolute top-full left-0 right-0 bg-gray-900/95 border-b border-gray-800 md:hidden transition-all duration-300 ease-in-out ${ isOpen ? 'opacity-100 visible' : 'opacity-0 invisible' }`}
             >
@@ -196,11 +241,8 @@ function Pricing() {
           </nav>
         </div>
       </motion.header>
-      {/* --- END: NAV --- */}
 
-      {/* --- START: Main Pricing Content --- (Structure from OLD code) */}
       <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-8 text-white w-full">
-        {/* Heading - From OLD code */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -211,36 +253,34 @@ function Pricing() {
           <p className="text-gray-300">Select a plan that works best for you.</p>
         </motion.div>
 
-        {/* Toggle Button - From OLD code */}
         <motion.div
           initial="hidden"
           animate="visible"
-          variants={containerVariants} // Using OLD variants
+          variants={containerVariants}
           className="flex justify-center mb-8"
         >
           <div className="bg-gray-800 rounded-full flex">
             <motion.button
-              variants={buttonVariants} // Using OLD variants
+              variants={buttonVariants}
               whileHover="hover"
               whileTap="tap"
               className={`px-4 py-2 rounded-full transition-colors duration-300 ${isYearly ? 'bg-indigo-500 text-white' : 'text-gray-300'}`}
-              onClick={() => { setIsYearly(true); setCheckoutError(null); }} // Clear error on toggle
+              onClick={() => { setIsYearly(true); setCheckoutError(null); }}
             >
               Yearly
             </motion.button>
             <motion.button
-              variants={buttonVariants} // Using OLD variants
+              variants={buttonVariants}
               whileHover="hover"
               whileTap="tap"
               className={`px-4 py-2 rounded-full transition-colors duration-300 ${!isYearly ? 'bg-indigo-500 text-white' : 'text-gray-300'}`}
-              onClick={() => { setIsYearly(false); setCheckoutError(null); }} // Clear error on toggle
+              onClick={() => { setIsYearly(false); setCheckoutError(null); }}
             >
               Monthly
             </motion.button>
           </div>
         </motion.div>
 
-        {/* Checkout Error Display - Added from NEW code logic, styled similarly */}
         {checkoutError && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
@@ -252,25 +292,20 @@ function Pricing() {
           </motion.div>
         )}
 
-        {/* Pricing Cards Container - From OLD code structure */}
         <motion.div
           initial="hidden"
           animate="visible"
-          variants={containerVariants} // Using OLD variants
+          variants={containerVariants}
           className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch"
         >
 
-          {/* Basic Plan - OLD UI + NEW hover */}
           <motion.div
-            variants={cardVariants} // Using OLD variants
-            className="bg-gray-800 rounded-xl flex flex-col overflow-hidden border border-gray-800 hover:shadow-lg hover:shadow-indigo-500/30 transition-shadow duration-300" // Added hover effect classes from NEW
+            variants={cardVariants}
+            className="bg-gray-800 rounded-xl flex flex-col overflow-hidden border border-gray-800 hover:shadow-lg hover:shadow-indigo-500/30 transition-shadow duration-300"
           >
-             {/* Banner Placeholder: Kept from OLD */}
              <div className={`${bannerHeightClass} invisible`}></div>
-             {/* Card Content Area with Padding */}
-             <div className="p-6 flex flex-col flex-grow"> {/* OLD structure */}
-                {/* Content from OLD code */}
-                <div className="flex-grow mb-6"> {/* Added flex-grow and mb-6 for spacing like OLD */}
+             <div className="p-6 flex flex-col flex-grow">
+                <div className="flex-grow mb-6">
                     <h2 className="text-2xl font-bold mb-4">Basic</h2>
                     <p className="text-3xl font-extrabold text-indigo-400 mb-1">Free</p>
                     <p className="text-sm text-gray-400 mb-4">Forever free</p>
@@ -282,45 +317,38 @@ function Pricing() {
                         {renderFeatureItem("Add Up to 3 Friends")}
                     </ul>
                 </div>
-                {/* Button Section - OLD Structure */}
                 <div className="mt-auto">
                     <motion.a
-                        variants={buttonVariants} // OLD variants
+                        variants={buttonVariants}
                         whileHover="hover"
                         whileTap="tap"
                         href={user ? "/dashboard" : "/signup"}
-                        className="block w-full text-center py-3 rounded-full font-semibold bg-indigo-500 text-white transition-transform" // OLD styles
+                        className={`block w-full text-center py-3 rounded-full font-semibold transition-transform ${userCurrentTier === 'basic' ? 'bg-gray-600 text-gray-400 cursor-default' : 'bg-indigo-500 text-white'}`}
                     >
-                        {user ? 'Access Dashboard' : 'Sign Up Free'}
+                        {userCurrentTier === 'basic' ? 'Current Plan' : (user ? 'Access Dashboard' : 'Sign Up Free')}
                     </motion.a>
                 </div>
              </div>
           </motion.div>
 
-          {/* Premium Plan - OLD UI + NEW hover + NEW button logic */}
           <motion.div
-            variants={cardVariants} // OLD variants
-            className="bg-gray-800 rounded-xl flex flex-col border-2 border-indigo-500 overflow-hidden hover:shadow-xl hover:shadow-indigo-400/40 transition-shadow duration-300 relative" // Added hover effect classes from NEW, added relative for potential future absolute positioning inside if needed, kept OLD base styles
+            variants={cardVariants}
+            className="bg-gray-800 rounded-xl flex flex-col border-2 border-indigo-500 overflow-hidden hover:shadow-xl hover:shadow-indigo-400/40 transition-shadow duration-300 relative"
           >
-            {/* Recommendation Banner - Kept from OLD */}
             <div className={`${bannerHeightClass} flex items-center justify-center`}>
              {isYearly && (
-                <div className="bg-yellow-500 text-black text-xs font-bold w-full h-full flex items-center justify-center px-4 text-center truncate"> {/* OLD styles */}
+                <div className="bg-yellow-500 text-black text-xs font-bold w-full h-full flex items-center justify-center px-4 text-center truncate">
                  {recommendationText}
                 </div>
              )}
-             {/* Keep the space even if monthly */}
              {!isYearly && <div className="w-full h-full invisible"></div>}
             </div>
-            {/* Card Content Area with Padding */}
-            <div className="p-6 flex flex-col flex-grow"> {/* OLD structure */}
-                 {/* Content from OLD code */}
-                <div className="flex-grow mb-6"> {/* Added flex-grow and mb-6 for spacing like OLD */}
+            <div className="p-6 flex flex-col flex-grow">
+                <div className="flex-grow mb-6">
                     <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">
                         <Crown className="w-6 h-6 text-yellow-400" />
                         Premium
                     </h2>
-                    {/* Price and Billing - OLD Text */}
                     <p className="text-3xl font-extrabold text-indigo-400 mb-1">{premiumPriceText}</p>
                     <p className="text-sm text-gray-400 mb-4">{premiumBillingText}</p>
                     <ul className="mb-6 space-y-2 text-gray-300">
@@ -332,36 +360,38 @@ function Pricing() {
                         {renderFeatureItem("Unlimited Access to Smart Overview")}
                     </ul>
                 </div>
-                 {/* Button Section - OLD Structure + NEW Logic */}
                 <div className="mt-auto">
                     {user ? (
                         <motion.button
-                            variants={buttonVariants} // OLD variants
-                            whileHover="hover"
-                            whileTap="tap"
-                            // Call NEW handleSubscribe with correct price ID
-                            onClick={() => handleSubscribe(STRIPE_PRICE_IDS.PREMIUM[isYearly ? 'yearly' : 'monthly'])}
-                            // Disable button during checkout (from NEW)
-                            disabled={!!isCheckingOut}
-                            // OLD base styles + NEW disabled/flex styles
-                            className="w-full text-center py-3 rounded-full font-semibold bg-white text-indigo-600 transition-transform disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            variants={buttonVariants}
+                            whileHover={premiumButtonInfo.disabled ? "" : "hover"}
+                            whileTap={premiumButtonInfo.disabled ? "" : "tap"}
+                            onClick={() => {
+                                if(premiumButtonInfo.isDowngrade){
+                                    window.location.href = '/settings'; // Or Stripe portal directly
+                                } else if (!premiumButtonInfo.disabled) {
+                                    handleSubscribe(STRIPE_PRICE_IDS.PREMIUM[isYearly ? 'yearly' : 'monthly'], 'PREMIUM');
+                                }
+                            }}
+                            disabled={premiumButtonInfo.disabled || !!isCheckingOut} // Also disable if any checkout is in progress
+                            className={`w-full text-center py-3 rounded-full font-semibold transition-transform flex items-center justify-center gap-2 ${
+                                premiumButtonInfo.disabled && premiumButtonInfo.isCurrent ? 'bg-gray-600 text-gray-400 cursor-default' :
+                                premiumButtonInfo.isDowngrade ? 'bg-purple-600 text-white hover:bg-purple-700' :
+                                'bg-white text-indigo-600 hover:bg-gray-100'
+                            } ${(!!isCheckingOut && !premiumButtonInfo.isCurrent) ? 'opacity-60 cursor-not-allowed' : ''}`}
                         >
-                            {/* Conditional content from NEW */}
-                            {isCheckingOut === STRIPE_PRICE_IDS.PREMIUM[isYearly ? 'yearly' : 'monthly'] ? (
-                                <>
-                                    <Loader2 className="w-5 h-5 animate-spin" /> Processing...
-                                </>
+                            {isLoadingThisButton(STRIPE_PRICE_IDS.PREMIUM[isYearly ? 'yearly' : 'monthly']) ? (
+                                <> <Loader2 className="w-5 h-5 animate-spin" /> Processing... </>
                             ) : (
-                                "Subscribe Now"
+                                premiumButtonInfo.text
                             )}
                         </motion.button>
                     ) : (
                         <motion.a
-                            variants={buttonVariants} // OLD variants
+                            variants={buttonVariants}
                             whileHover="hover"
                             whileTap="tap"
                             href="/signup"
-                            // OLD styles
                             className="block w-full text-center py-3 rounded-full font-semibold bg-white text-indigo-600 transition-transform"
                         >
                             Sign Up to Subscribe
@@ -371,22 +401,17 @@ function Pricing() {
             </div>
           </motion.div>
 
-          {/* Pro Plan - OLD UI + NEW hover + NEW button logic */}
           <motion.div
-            variants={cardVariants} // OLD variants
-            className="bg-gray-800 rounded-xl flex flex-col overflow-hidden border border-gray-800 hover:shadow-lg hover:shadow-purple-500/30 transition-shadow duration-300" // Added hover effect classes from NEW, kept OLD base styles
+            variants={cardVariants}
+            className="bg-gray-800 rounded-xl flex flex-col overflow-hidden border border-gray-800 hover:shadow-lg hover:shadow-purple-500/30 transition-shadow duration-300"
           >
-             {/* Banner Placeholder: Kept from OLD */}
              <div className={`${bannerHeightClass} invisible`}></div>
-             {/* Card Content Area with Padding */}
-             <div className="p-6 flex flex-col flex-grow"> {/* OLD structure */}
-                {/* Content from OLD code */}
-                <div className="flex-grow mb-6"> {/* Added flex-grow and mb-6 for spacing like OLD */}
+             <div className="p-6 flex flex-col flex-grow">
+                <div className="flex-grow mb-6">
                     <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
                         <Gem className="w-6 h-6 text-purple-400" />
                         Pro
                     </h2>
-                     {/* Price and Billing - OLD Text */}
                     <p className="text-3xl font-extrabold text-indigo-400 mb-1">{proPriceText}</p>
                     <p className="text-sm text-gray-400 mb-4">{proBillingText}</p>
                     <ul className="mb-6 space-y-2 text-gray-300">
@@ -398,36 +423,38 @@ function Pricing() {
                         {renderFeatureItem("Limited Access to Smart Overview")}
                     </ul>
                 </div>
-                 {/* Button Section - OLD Structure + NEW Logic */}
                 <div className="mt-auto">
-                    {user ? (
+                     {user ? (
                         <motion.button
-                            variants={buttonVariants} // OLD variants
-                            whileHover="hover"
-                            whileTap="tap"
-                             // Call NEW handleSubscribe with correct price ID
-                            onClick={() => handleSubscribe(STRIPE_PRICE_IDS.PRO[isYearly ? 'yearly' : 'monthly'])}
-                            // Disable button during checkout (from NEW)
-                            disabled={!!isCheckingOut}
-                             // OLD base styles + NEW disabled/flex styles
-                            className="w-full text-center py-3 rounded-full font-semibold bg-indigo-500 text-white transition-transform disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            variants={buttonVariants}
+                            whileHover={proButtonInfo.disabled ? "" : "hover"}
+                            whileTap={proButtonInfo.disabled ? "" : "tap"}
+                            onClick={() => {
+                                if(proButtonInfo.isDowngrade){
+                                     window.location.href = '/settings'; // Or Stripe portal directly
+                                } else if (!proButtonInfo.disabled) {
+                                    handleSubscribe(STRIPE_PRICE_IDS.PRO[isYearly ? 'yearly' : 'monthly'], 'PRO');
+                                }
+                            }}
+                            disabled={proButtonInfo.disabled || !!isCheckingOut} // Also disable if any checkout is in progress
+                            className={`w-full text-center py-3 rounded-full font-semibold transition-transform flex items-center justify-center gap-2 ${
+                                proButtonInfo.disabled && proButtonInfo.isCurrent ? 'bg-gray-600 text-gray-400 cursor-default' :
+                                proButtonInfo.isDowngrade ? 'bg-purple-600 text-white hover:bg-purple-700' :
+                                'bg-indigo-500 text-white hover:bg-indigo-600'
+                            } ${(!!isCheckingOut && !proButtonInfo.isCurrent) ? 'opacity-60 cursor-not-allowed' : ''}`}
                         >
-                             {/* Conditional content from NEW */}
-                             {isCheckingOut === STRIPE_PRICE_IDS.PRO[isYearly ? 'yearly' : 'monthly'] ? (
-                                <>
-                                    <Loader2 className="w-5 h-5 animate-spin" /> Processing...
-                                </>
+                           {isLoadingThisButton(STRIPE_PRICE_IDS.PRO[isYearly ? 'yearly' : 'monthly']) ? (
+                                <> <Loader2 className="w-5 h-5 animate-spin" /> Processing... </>
                             ) : (
-                                "Subscribe Now"
+                                proButtonInfo.text
                             )}
                         </motion.button>
                     ) : (
                         <motion.a
-                            variants={buttonVariants} // OLD variants
+                            variants={buttonVariants}
                             whileHover="hover"
                             whileTap="tap"
                             href="/signup"
-                            // OLD styles
                             className="block w-full text-center py-3 rounded-full font-semibold bg-indigo-500 text-white transition-transform"
                         >
                             Sign Up to Subscribe
@@ -438,10 +465,7 @@ function Pricing() {
           </motion.div>
         </motion.div>
       </main>
-      {/* --- END: Main Pricing Content --- */}
 
-
-      {/* --- START: FOOTER --- (Kept OLD structure, added dynamic year from NEW) */}
       <footer className="bg-gray-900 border-t border-gray-800 mt-auto">
         <div className="container mx-auto px-4 py-6">
           <div className="flex flex-col md:flex-row items-center justify-between">
@@ -455,14 +479,28 @@ function Pricing() {
               </a>
             </div>
             <p className="text-sm text-gray-400 mt-4 md:mt-0">
-              © {new Date().getFullYear()} TaskMaster AI. All rights reserved. {/* Dynamic Year */}
+              © {new Date().getFullYear()} TaskMaster AI. All rights reserved.
             </p>
           </div>
         </div>
       </footer>
-      {/* --- END: FOOTER --- */}
     </div>
   );
 }
+
+// Helper function to check if the current checkout process is for this specific button
+// This is needed because isCheckingOut holds the priceId
+function isLoadingThisButton(currentButtonPriceId: string): boolean {
+    // This function is a bit redundant with the logic inside getButtonTextAndState,
+    // but kept for clarity if you want to use it directly in JSX for the spinner.
+    // You'd call it like: isLoadingThisButton(STRIPE_PRICE_IDS.PREMIUM[isYearly ? 'yearly' : 'monthly'])
+    // However, the `getButtonTextAndState` already determines if the button should show "Processing..."
+    // For direct use:
+    // const [isCheckingOut, setIsCheckingOut] = useState<string | null>(null);
+    // return isCheckingOut === currentButtonPriceId;
+    return false; // Placeholder if not using directly, as getButtonTextAndState handles it.
+                  // Actual usage: return isCheckingOut === currentButtonPriceId from component state.
+}
+
 
 export default Pricing;
