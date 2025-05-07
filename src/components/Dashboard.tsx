@@ -590,7 +590,7 @@ export function Dashboard() {
             setSmartOverview(`No pending items to generate overview from.`); setOverviewLoading(false); setLastResponse(""); return;
         }
         const firstName = userName.split(" ")[0];
-        const prompt = `Analyze the following goals, tasks, and plans for user "${firstName}". Synthesize these into an *extremely brief* (1 short sentence, max 60 tokens) actionable insight or guiding suggestion for the user. This overview should identify a key theme, a strategic next step, or an important connection between your items that will help you progress. Address the user directly as "you". Format as plain text. No greetings, no fluff. Items:\n${formattedData}`;
+        const prompt = `Analyze the following goals, tasks, and plans for user "${firstName}". Synthesize these into an *extremely brief* (1 short sentence, max 60 tokens) actionable insight or guiding suggestion for the user. This overview should identify a key theme, a strategic next step, or an important connection between the user's items that will help them progress. Address the user directly as "you". Format as plain text. No greetings, no fluff. Items:\n${formattedData}`;
         try {
             const overviewEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`;
             const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 60, temperature: 0.5 }, safetySettings: [{ category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }, { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" }, { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }, { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }] })};
@@ -879,23 +879,24 @@ export function Dashboard() {
           </div>
         )}
 
-        <div className={`${cardClass} rounded-xl p-3 sm:p-4 relative min-h-[60px] transition-all duration-300 ease-out animate-fadeIn mb-4 sm:mb-5 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} delay-300`}>
-          <div className="flex flex-wrap items-center gap-2 mb-1.5">
-            <h2 className={`text-base sm:text-lg font-semibold mr-1 flex items-center ${illuminateTextBlue}`}>
-              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 text-yellow-400 animate-pulse" /> Smart Overview
-            </h2>
-            {userTier === 'pro' && <span className="text-[9px] sm:text-[10px] bg-gradient-to-r from-teal-400 to-cyan-500 text-white px-1.5 py-0.5 rounded-full font-medium">PRO</span>}
-            {userTier === 'premium' && <span className="text-[9px] sm:text-[10px] bg-gradient-to-r from-amber-400 to-orange-500 text-white px-1.5 py-0.5 rounded-full font-medium">PREMIUM</span>}
-          </div>
-          {userTier === 'loading' ? <div className="animate-pulse space-y-1.5 pt-1"><div className={`h-3 rounded-full w-1/2 ${isIlluminateEnabled ? 'bg-gray-200' : 'bg-gray-700'}`}></div></div>
-           : userTier === 'basic' ? <div className={`text-xs italic flex items-center justify-start gap-1.5 py-2 ${isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}`}><span>Smart Overview is a Pro/Premium feature.</span><Link to="/pricing" className={`font-medium ml-1 ${isIlluminateEnabled ? 'text-blue-600 hover:text-blue-700' : 'text-blue-400 hover:text-blue-300'} hover:underline not-italic`}>Upgrade now</Link></div>
-           : overviewLoading ? <div className="space-y-1.5 animate-pulse pt-1"><div className={`h-3 rounded-full w-11/12 ${isIlluminateEnabled ? 'bg-gray-200' : 'bg-gray-700'}`}></div><div className={`h-3 rounded-full w-3/4 ${isIlluminateEnabled ? 'bg-gray-200' : 'bg-gray-700'}`}></div></div>
-           : <> <div className={`text-xs sm:text-sm prose-sm max-w-none animate-fadeIn ${isIlluminateEnabled ? 'text-gray-800' : 'text-gray-300'} leading-snug ${smartOverview.includes('unavailable') || smartOverview.includes('failed') || smartOverview.includes('limit') ? (isIlluminateEnabled ? 'text-yellow-700 italic' : 'text-yellow-500 italic') : ''}`}>{smartOverview || "Add items for an overview."}</div>
-                  {smartOverview && !smartOverview.includes('unavailable') && !smartOverview.includes('failed') && !smartOverview.includes('limit') && !smartOverview.includes('No pending items') && <div className="mt-1.5 text-left text-[10px] text-gray-500/80">AI responses may be inaccurate. Verify critical info.</div>} </>}
-        </div>
-
         <div className={`grid grid-cols-1 xl:grid-cols-5 gap-4 sm:gap-5 animate-fadeIn ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} delay-400`}>
-           <div className="xl:col-span-3 flex flex-col gap-4 sm:gap-5">
+           <div className="xl:col-span-2 flex flex-col gap-4 sm:gap-5"> {/* Changed from xl:col-span-3 to xl:col-span-2 */}
+            {/* Smart Overview Card - MOVED HERE */}
+            <div className={`${cardClass} rounded-xl p-3 sm:p-4 relative min-h-[60px] transition-all duration-300 ease-out animate-fadeIn ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} delay-300`}>
+              <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                <h2 className={`text-base sm:text-lg font-semibold mr-1 flex items-center ${illuminateTextBlue}`}>
+                  <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 text-yellow-400 animate-pulse" /> Smart Overview
+                </h2>
+                {userTier === 'pro' && <span className="text-[9px] sm:text-[10px] bg-gradient-to-r from-teal-400 to-cyan-500 text-white px-1.5 py-0.5 rounded-full font-medium">PRO</span>}
+                {userTier === 'premium' && <span className="text-[9px] sm:text-[10px] bg-gradient-to-r from-amber-400 to-orange-500 text-white px-1.5 py-0.5 rounded-full font-medium">PREMIUM</span>}
+              </div>
+              {userTier === 'loading' ? <div className="animate-pulse space-y-1.5 pt-1"><div className={`h-3 rounded-full w-1/2 ${isIlluminateEnabled ? 'bg-gray-200' : 'bg-gray-700'}`}></div></div>
+               : userTier === 'basic' ? <div className={`text-xs italic flex items-center justify-start gap-1.5 py-2 ${isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}`}><span>Smart Overview is a Pro/Premium feature.</span><Link to="/pricing" className={`font-medium ml-1 ${isIlluminateEnabled ? 'text-blue-600 hover:text-blue-700' : 'text-blue-400 hover:text-blue-300'} hover:underline not-italic`}>Upgrade now</Link></div>
+               : overviewLoading ? <div className="space-y-1.5 animate-pulse pt-1"><div className={`h-3 rounded-full w-11/12 ${isIlluminateEnabled ? 'bg-gray-200' : 'bg-gray-700'}`}></div><div className={`h-3 rounded-full w-3/4 ${isIlluminateEnabled ? 'bg-gray-200' : 'bg-gray-700'}`}></div></div>
+               : <> <div className={`text-xs sm:text-sm prose-sm max-w-none animate-fadeIn ${isIlluminateEnabled ? 'text-gray-800' : 'text-gray-300'} leading-snug ${smartOverview.includes('unavailable') || smartOverview.includes('failed') || smartOverview.includes('limit') ? (isIlluminateEnabled ? 'text-yellow-700 italic' : 'text-yellow-500 italic') : ''}`}>{smartOverview || "Add items for an overview."}</div>
+                      {smartOverview && !smartOverview.includes('unavailable') && !smartOverview.includes('failed') && !smartOverview.includes('limit') && !smartOverview.includes('No pending items') && <div className="mt-1.5 text-left text-[10px] text-gray-500/80">AI responses may be inaccurate. Verify critical info.</div>} </>}
+            </div>
+
             <div className={`${cardClass} rounded-xl p-4 sm:p-5 transition-all duration-300`}>
                 <div className="flex justify-between items-center mb-3">
                  <h2 className={`text-base sm:text-lg font-semibold ${illuminateTextPurple} flex items-center`}>
@@ -1070,8 +1071,8 @@ export function Dashboard() {
              </div>
            </div>
 
-           <div className="xl:col-span-2 flex flex-col gap-4 sm:gap-5">
-                <div className={`${cardClass} rounded-xl p-4 sm:p-5 transition-all duration-300 flex flex-col`} style={{ minHeight: '400px', maxHeight: 'calc(100vh - 200px)' }}> {/* Adjusted height and flex for growth */}
+           <div className="xl:col-span-3 flex flex-col"> {/* Changed from xl:col-span-2 to xl:col-span-3, removed gap as it's single child now */}
+                <div className={`${cardClass} rounded-xl p-4 sm:p-5 transition-all duration-300 flex flex-col`} style={{ minHeight: '600px' }}> {/* Adjusted minHeight, removed maxHeight */}
                     <div className="flex items-center justify-between mb-3 sm:mb-4 flex-shrink-0"> {/* No grow for header */}
                         <button onClick={handlePreviousMonth} className={`p-2 rounded-full ${iconColor} ${isIlluminateEnabled ? 'hover:bg-gray-100' : 'hover:bg-gray-700'}`} title="Previous Month"><ChevronLeft className="w-5 h-5" /></button>
                         <h2 className={`text-lg sm:text-xl font-semibold text-center ${headingClass}`}>
