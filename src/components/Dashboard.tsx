@@ -590,7 +590,7 @@ export function Dashboard() {
             setSmartOverview(`No pending items to generate overview from.`); setOverviewLoading(false); setLastResponse(""); return;
         }
         const firstName = userName.split(" ")[0];
-        const prompt = `Analyze these pending items for user "${firstName}" and provide an *extremely brief* (1 short sentence, max 60 tokens) Smart Overview. Focus on the most immediate priority or suggestion. Format as plain text. No greetings, no fluff. Items:\n${formattedData}`;
+        const prompt = `Analyze the following goals, tasks, and plans for user "${firstName}". Synthesize these into an *extremely brief* (1 short sentence, max 60 tokens) actionable insight or guiding suggestion for the user. This overview should identify a key theme, a strategic next step, or an important connection between your items that will help you progress. Address the user directly as "you". Format as plain text. No greetings, no fluff. Items:\n${formattedData}`;
         try {
             const overviewEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`;
             const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 60, temperature: 0.5 }, safetySettings: [{ category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }, { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" }, { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }, { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }] })};
