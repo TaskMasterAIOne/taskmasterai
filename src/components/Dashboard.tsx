@@ -1,9 +1,9 @@
-
 /* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useState, useRef, useMemo } from 'react'; // Added useMemo
 import { useNavigate, Link } from 'react-router-dom'; // Import Link
 // Ensure all used icons are imported
-import { Play, Pause, PlusCircle, Edit, Trash, Sparkles, CheckCircle, MessageCircle, Crown, RotateCcw, Square, X, TimerIcon, Send, ChevronLeft, ChevronRight, Moon, Sun, Star, Wind, Droplets, Zap, Calendar, Clock, MoreHorizontal, ArrowUpRight, Bookmark, BookOpen, Lightbulb, Flame, Award, TrendingUp, Rocket, Target, Layers, Clipboard, AlertCircle, ThumbsUp, ThumbsDown, BrainCircuit, ArrowRight, Flag, Bell, Filter, Tag, BarChart, PieChart, ChevronDown } from 'lucide-react';
+import { Play, Pause, PlusCircle, Edit, Trash, Sparkles, CheckCircle, MessageCircle, Crown, RotateCcw, Square, X, TimerIcon, Send, ChevronLeft, ChevronRight, Moon, Sun, Star, Calendar, Clock, MoreHorizontal, ArrowUpRight, Bookmark, BookOpen, Lightbulb, Flame, Award, TrendingUp, Rocket, Target, Layers, Clipboard, AlertCircle, ThumbsUp, ThumbsDown, BrainCircuit, ArrowRight, Flag, Bell, Filter, Tag, BarChart, PieChart, ChevronDown } from 'lucide-react';
+// REMOVED: Wind, Droplets, Zap as they were specific to the weather card
 import { Sidebar } from './Sidebar';
 import { Timer } from './Timer'; // Ensure this component exists and accepts props like initialDuration, onComplete, compact
 import { FlashcardsQuestions } from './FlashcardsQuestions'; // Ensure this component exists and accepts props like type, data, onComplete, isIlluminateEnabled
@@ -28,7 +28,7 @@ import {
   markItemComplete,
   updateCustomTimer,
   deleteCustomTimer,
-  weatherApiKey,
+  // weatherApiKey, // REMOVED weatherApiKey
   hfApiKey, // hfApiKey seems unused, but kept import as per instruction
   geminiApiKey,
   // --- REMOVED Usage imports from dashboard-firebase ---
@@ -997,12 +997,11 @@ Follow these instructions strictly.`;
   };
 
   // ---------------------
-  // 3. WEATHER STATE
+  // 3. WEATHER STATE - REMOVED
   // ---------------------
-  // ... (weather state remains unchanged) ...
-  const [weatherData, setWeatherData] = useState<any>(null);
-  const [weatherLoading, setWeatherLoading] = useState<boolean>(true); // Add loading state
-  const [weatherError, setWeatherError] = useState<string | null>(null); // Add error state
+  // const [weatherData, setWeatherData] = useState<any>(null); // REMOVED
+  // const [weatherLoading, setWeatherLoading] = useState<boolean>(true); // REMOVED
+  // const [weatherError, setWeatherError] = useState<string | null>(null); // REMOVED
 
 
   // ---------------------
@@ -1191,7 +1190,7 @@ Follow these instructions strictly.`;
          setProjects([]);
          setPlans([]);
          setCustomTimers([]);
-         setWeatherData(null);
+         // setWeatherData(null); // REMOVED
          setSmartOverview("");
          setSmartInsights([]);
          setChatHistory([ { id: 'initial-greet-logout', role: 'assistant', content: "👋 Hi I'm TaskMaster, How can I help you today?" } ]);
@@ -1240,20 +1239,20 @@ Follow these instructions strictly.`;
 
 
   // ---------------------
-  // 9. WEATHER FETCH
+  // 9. WEATHER FETCH - REMOVED
   // ---------------------
-  // ... (weather fetch effect remains unchanged) ...
+  /*
      useEffect(() => {
-    if (!user || !weatherApiKey) {
-        setWeatherLoading(false);
-        setWeatherData(null);
-        setWeatherError(null); // Ensure error is cleared if no user/key
+    if (!user || !weatherApiKey) { // REMOVED weatherApiKey check
+        // setWeatherLoading(false); // REMOVED
+        // setWeatherData(null); // REMOVED
+        // setWeatherError(null); // REMOVED
         return;
     }
 
     let isMounted = true; // Prevent state updates on unmounted component
-    setWeatherLoading(true);
-    setWeatherError(null);
+    // setWeatherLoading(true); // REMOVED
+    // setWeatherError(null); // REMOVED
 
     navigator.geolocation.getCurrentPosition(
       async (position) => {
@@ -1262,7 +1261,7 @@ Follow these instructions strictly.`;
         try {
           // Use fetchWithTimeout for weather API calls as well
           const response = await fetchWithTimeout(
-            `https://api.weatherapi.com/v1/forecast.json?key=${weatherApiKey}&q=${latitude},${longitude}&days=3`,
+            `https://api.weatherapi.com/v1/forecast.json?key=${weatherApiKey}&q=${latitude},${longitude}&days=3`, // REMOVED weatherApiKey
             {}, // Empty options object
             15000 // 15 second timeout for weather
           );
@@ -1272,32 +1271,32 @@ Follow these instructions strictly.`;
               try {
                  const errorData = await response.json();
                  errorMsg = errorData?.error?.message || errorMsg;
-              } catch { /* Ignore parsing error */ }
+              } catch { }
               throw new Error(errorMsg);
           }
           const data = await response.json();
            if (isMounted) {
-              setWeatherData(data);
-              setWeatherLoading(false);
+              // setWeatherData(data); // REMOVED
+              // setWeatherLoading(false); // REMOVED
            }
         } catch (error: any) {
            if (isMounted) {
               console.error("Failed to fetch weather:", error);
-              setWeatherData(null);
+              // setWeatherData(null); // REMOVED
               // Display specific error messages
               if (error.message === 'Request timed out') {
-                 setWeatherError("Weather request timed out.");
+                 // setWeatherError("Weather request timed out."); // REMOVED
               } else {
-                 setWeatherError(error.message || "Failed to fetch weather data.");
+                 // setWeatherError(error.message || "Failed to fetch weather data."); // REMOVED
               }
-              setWeatherLoading(false);
+              // setWeatherLoading(false); // REMOVED
            }
         }
       },
       (error) => {
          if (isMounted) {
               console.error("Geolocation error:", error);
-              setWeatherData(null);
+              // setWeatherData(null); // REMOVED
               // More specific geolocation errors
               let geoErrorMsg = "Geolocation Error";
               switch(error.code) {
@@ -1313,8 +1312,8 @@ Follow these instructions strictly.`;
                   default:
                       geoErrorMsg = `Geolocation Error: ${error.message}`;
               }
-              setWeatherError(geoErrorMsg);
-              setWeatherLoading(false);
+              // setWeatherError(geoErrorMsg); // REMOVED
+              // setWeatherLoading(false); // REMOVED
          }
       },
       { // Geolocation options
@@ -1327,6 +1326,7 @@ Follow these instructions strictly.`;
      return () => { isMounted = false; }; // Cleanup flag
 
   }, [user]); // Re-fetch only when user changes
+  */
 
 
   // ---------------------
@@ -2401,211 +2401,12 @@ Another Example: Looks clear for today. Consider planning your next project step
         </div>
 
 
-        {/* Main Content Grid */}
-        {/* ... (Productivity Card, Upcoming Deadlines, Tabs & List Card remain unchanged) ... */}
+        {/* Main Content Grid - RESTRUCTURED */}
         <div className={`grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 animate-fadeIn ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} delay-400`}>
-           {/* LEFT COLUMN */}
+           {/* LEFT COLUMN - Prioritizing Item Management */}
            <div className="flex flex-col gap-4 sm:gap-5">
 
-             {/* Productivity Card */}
-             <div className={`${cardClass} rounded-xl p-4 sm:p-5 transition-all duration-300`}>
-                <div className="flex justify-between items-center mb-3">
-                 <h2 className={`text-base sm:text-lg font-semibold ${illuminateTextPurple} flex items-center`}>
-                   <TrendingUp className="w-5 h-5 mr-1.5" />
-                   Productivity
-                 </h2>
-                 <button
-                    onClick={() => setShowAnalytics(prev => !prev)}
-                    className={`p-1 rounded-full transition-colors ${iconColor} ${ isIlluminateEnabled ? 'hover:bg-gray-200' : 'hover:bg-gray-700' } flex items-center gap-1 text-[10px] sm:text-xs`}
-                    title={showAnalytics ? "Show Basic Progress" : "Show Analytics"}
-                  >
-                    {showAnalytics ? <BarChart className="w-3.5 h-3.5" /> : <PieChart className="w-3.5 h-3.5" />}
-                    <span>{showAnalytics ? 'Basic' : 'Analytics'}</span>
-                  </button>
-               </div>
-
-               {showAnalytics ? (
-                 <div className="animate-fadeIn">
-                   <TaskAnalytics // Ensure this component is adapted for compact display
-                     tasks={tasks}
-                     goals={goals}
-                     projects={projects}
-                     plans={plans}
-                     isIlluminateEnabled={isIlluminateEnabled}
-                   />
-                 </div>
-               ) : (
-                  <div className="space-y-3 animate-fadeIn">
-                    {(tasks.length > 0 || goals.length > 0 || projects.length > 0 || plans.length > 0) ? ( // Check length instead of total
-                         <>
-                           {tasks.length > 0 && ( // Check length
-                             <div>
-                               <div className="flex justify-between items-center mb-0.5 text-xs sm:text-sm">
-                                 <p className="flex items-center font-medium">
-                                   <Clipboard className="w-3.5 h-3.5 mr-1 text-gray-400" /> Tasks
-                                 </p>
-                                  <p className={`${illuminateTextGreen} font-semibold text-xs`}>
-                                   {tasks.filter(t => t.data.completed).length}/{tasks.length} ({tasksProgress}%)
-                                 </p>
-                               </div>
-                                <div className={`w-full h-1.5 ${isIlluminateEnabled ? 'bg-gray-200' : 'bg-gray-600'} rounded-full overflow-hidden`}>
-                                 <div className="h-full bg-gradient-to-r from-green-400 to-green-500 rounded-full transition-all duration-700 ease-out" style={{ width: `${tasksProgress}%` }} />
-                               </div>
-                             </div>
-                           )}
-                            {goals.length > 0 && ( // Check length
-                             <div>
-                               <div className="flex justify-between items-center mb-0.5 text-xs sm:text-sm">
-                                 <p className="flex items-center font-medium">
-                                   <Target className="w-3.5 h-3.5 mr-1 text-gray-400" /> Goals
-                                 </p>
-                                  <p className={`${illuminateTextPink} font-semibold text-xs`}>
-                                   {goals.filter(g => g.data.completed).length}/{goals.length} ({goalsProgress}%)
-                                 </p>
-                               </div>
-                                <div className={`w-full h-1.5 ${isIlluminateEnabled ? 'bg-gray-200' : 'bg-gray-600'} rounded-full overflow-hidden`}>
-                                 <div className="h-full bg-gradient-to-r from-pink-400 to-pink-500 rounded-full transition-all duration-700 ease-out" style={{ width: `${goalsProgress}%` }} />
-                               </div>
-                             </div>
-                           )}
-                             {projects.length > 0 && ( // Check length
-                             <div>
-                               <div className="flex justify-between items-center mb-0.5 text-xs sm:text-sm">
-                                 <p className="flex items-center font-medium">
-                                   <Layers className="w-3.5 h-3.5 mr-1 text-gray-400" /> Projects
-                                 </p>
-                                  <p className={`${illuminateTextBlue} font-semibold text-xs`}>
-                                   {projects.filter(p => p.data.completed).length}/{projects.length} ({projectsProgress}%)
-                                 </p>
-                               </div>
-                                <div className={`w-full h-1.5 ${isIlluminateEnabled ? 'bg-gray-200' : 'bg-gray-600'} rounded-full overflow-hidden`}>
-                                 <div className="h-full bg-gradient-to-r from-blue-400 to-blue-500 rounded-full transition-all duration-700 ease-out" style={{ width: `${projectsProgress}%` }} />
-                               </div>
-                             </div>
-                           )}
-                             {plans.length > 0 && ( // Check length
-                             <div>
-                               <div className="flex justify-between items-center mb-0.5 text-xs sm:text-sm">
-                                 <p className="flex items-center font-medium">
-                                   <Rocket className="w-3.5 h-3.5 mr-1 text-gray-400" /> Plans
-                                 </p>
-                                  <p className={`${illuminateTextYellow} font-semibold text-xs`}>
-                                   {plans.filter(p => p.data.completed).length}/{plans.length} ({plansProgress}%)
-                                 </p>
-                               </div>
-                                <div className={`w-full h-1.5 ${isIlluminateEnabled ? 'bg-gray-200' : 'bg-gray-600'} rounded-full overflow-hidden`}>
-                                 <div className="h-full bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-full transition-all duration-700 ease-out" style={{ width: `${plansProgress}%` }} />
-                               </div>
-                             </div>
-                           )}
-                         </>
-                     ) : (
-                          <p className={`${subheadingClass} text-xs sm:text-sm flex items-center justify-center py-4 italic`}>
-                          <Lightbulb className="w-4 h-4 mr-1.5 text-yellow-400" />
-                          Add items to track your progress.
-                        </p>
-                     )}
-                 </div>
-               )}
-             </div>
-
-
-             {/* Upcoming Deadlines Card */}
-             <div className={`${cardClass} rounded-xl p-4 sm:p-5 transition-all duration-300`}>
-               <h2 className={`text-base sm:text-lg  font-semibold mb-3 ${illuminateTextBlue} flex items-center`}>
-                 <Calendar className="w-5 h-5 mr-1.5" />
-                 Upcoming
-               </h2>
-               {(() => {
-                   const allItems = [...tasks, ...goals, ...projects, ...plans];
-                   const now = new Date(); now.setHours(0, 0, 0, 0);
-
-                   const upcomingDeadlines = allItems
-                     .filter(item => {
-                        const { dueDate, completed } = item.data;
-                        if (!dueDate || completed) return false;
-                         try {
-                             const dueDateObj = dueDate.toDate ? dueDate.toDate() : new Date(dueDate);
-                             dueDateObj.setHours(0, 0, 0, 0);
-                             return dueDateObj >= now; // Due today or later
-                         } catch { return false; }
-                     })
-                      .sort((a, b) => {
-                         try {
-                             const aDate = a.data.dueDate.toDate ? a.data.dueDate.toDate() : new Date(a.data.dueDate);
-                             const bDate = b.data.dueDate.toDate ? b.data.dueDate.toDate() : new Date(b.data.dueDate);
-                             return aDate.getTime() - bDate.getTime();
-                         } catch { return 0; }
-                     })
-                     .slice(0, 5); // Show top 5
-
-                 if (!upcomingDeadlines.length) {
-                   return (
-                      <p className={`${subheadingClass} text-xs sm:text-sm flex items-center justify-center py-4 italic`}>
-                       <CheckCircle className="w-4 h-4 mr-1.5 text-green-400" />
-                       All caught up! No upcoming deadlines.
-                     </p>
-                   );
-                 }
-
-                 return (
-                    <ul className="space-y-2">
-                     {upcomingDeadlines.map((item, index) => {
-                        const { id, data } = item;
-                        const itemType = data.task ? 'Task' : data.goal ? 'Goal' : data.project ? 'Project' : 'Plan';
-                        const dueDateObj = data.dueDate.toDate ? data.dueDate.toDate() : new Date(data.dueDate);
-                        const dueDateStr = dueDateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-                        const itemName = data[itemType.toLowerCase()] || 'Untitled';
-
-                        dueDateObj.setHours(0,0,0,0);
-                        const daysRemaining = Math.ceil((dueDateObj.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-
-                        let urgencyColor = isIlluminateEnabled ? 'border-l-gray-300' : 'border-l-gray-600';
-                        let urgencyText = '';
-                        let urgencyClass = '';
-                         if (daysRemaining <= 0) { urgencyColor = 'border-l-red-500'; urgencyText = 'Today!'; urgencyClass = 'text-red-500'; }
-                         else if (daysRemaining <= 1) { urgencyColor = 'border-l-orange-500'; urgencyText = 'Tomorrow!'; urgencyClass = 'text-orange-500'; }
-                         else if (daysRemaining <= 3) { urgencyColor = 'border-l-yellow-500'; urgencyText = `${daysRemaining} days`; urgencyClass = 'text-yellow-600'; }
-                         else { urgencyColor = 'border-l-green-500'; urgencyText = `${daysRemaining} days`; urgencyClass = 'text-green-600'; }
-
-                       const priority = data.priority || calculatePriority(item);
-
-                       return (
-                         <li
-                           key={id}
-                            className={`${isIlluminateEnabled ? 'bg-gray-100/80 hover:bg-gray-200/60' : 'bg-gray-700/40 hover:bg-gray-700/60'} p-2.5 rounded-lg transition-colors duration-150 border-l-4 ${urgencyColor} animate-slideInRight flex items-center justify-between gap-2`}
-                           style={{ animationDelay: `${index * 60}ms` }}
-                         >
-                            <div className="flex-grow overflow-hidden mr-2">
-                               <div className="text-xs sm:text-sm font-medium flex items-center">
-                                 <span className={`font-semibold mr-1 ${isIlluminateEnabled ? 'text-gray-700' : 'text-gray-200'}`}>{itemType}:</span>
-                                 <span className="truncate" title={itemName}>{itemName}</span>
-                                  <PriorityBadge priority={priority} isIlluminateEnabled={isIlluminateEnabled} className="ml-1.5 flex-shrink-0" />
-                               </div>
-                            </div>
-                            <div className={`text-[10px] sm:text-xs flex-shrink-0 ${isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'} flex items-center whitespace-nowrap`}>
-                               <Clock className={`w-3 h-3 mr-0.5 ${isIlluminateEnabled ? urgencyClass : urgencyClass.replace('600', '400').replace('500','400')}`} />
-                               <span className={`font-medium mr-1.5 ${isIlluminateEnabled ? urgencyClass : urgencyClass.replace('600', '400').replace('500','400')}`}>{dueDateStr}</span>
-                               {urgencyText && (
-                                   <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-medium ${
-                                       daysRemaining <= 0 ? (isIlluminateEnabled ? 'bg-red-100 text-red-600' : 'bg-red-900/50 text-red-400') :
-                                       daysRemaining <= 1 ? (isIlluminateEnabled ? 'bg-orange-100 text-orange-600' : 'bg-orange-900/50 text-orange-400') :
-                                       daysRemaining <= 3 ? (isIlluminateEnabled ? 'bg-yellow-100 text-yellow-700' : 'bg-yellow-900/50 text-yellow-400') :
-                                       (isIlluminateEnabled ? 'bg-green-100 text-green-600' : 'bg-green-900/50 text-green-400')
-                                   }`}>
-                                       {urgencyText}
-                                   </span>
-                               )}
-                            </div>
-                         </li>
-                       );
-                     })}
-                   </ul>
-                 );
-               })()}
-             </div>
-
-             {/* Tabs & List Card */}
+            {/* Tabs & List Card - MOVED UP */}
              <div className={`${cardClass} rounded-xl p-4 sm:p-5 transition-all duration-300`}>
                 {/* Tabs List */}
                <div className="overflow-x-auto no-scrollbar mb-4">
@@ -2675,7 +2476,7 @@ Another Example: Looks clear for today. Consider planning your next project step
                </div>
 
                {/* Items List */}
-               <ul className="space-y-1.5 sm:space-y-2">
+               <ul className="space-y-1.5 sm:space-y-2 max-h-[400px] lg:max-h-[500px] overflow-y-auto pr-1"> {/* Added max-height and scroll */}
                  {currentItems.length === 0 ? (
                     <li className={`${subheadingClass} text-sm text-center py-6 italic`}>
                      No {activeTab} here yet... Add one above!
@@ -2683,7 +2484,22 @@ Another Example: Looks clear for today. Consider planning your next project step
                  ) : (
                    currentItems
                      // Optional: Sort items (e.g., by priority then due date, or by creation date)
-                     // .sort((a, b) => { ... sorting logic ... })
+                      .sort((a, b) => {
+                          const priorityOrder = { high: 0, medium: 1, low: 2 };
+                          const aPriority = priorityOrder[calculatePriority(a)];
+                          const bPriority = priorityOrder[calculatePriority(b)];
+                          if (aPriority !== bPriority) return aPriority - bPriority;
+
+                          const aDueDate = a.data.dueDate?.toDate ? a.data.dueDate.toDate() : (a.data.dueDate ? new Date(a.data.dueDate) : null);
+                          const bDueDate = b.data.dueDate?.toDate ? b.data.dueDate.toDate() : (b.data.dueDate ? new Date(b.data.dueDate) : null);
+
+                          if (aDueDate && bDueDate) return aDueDate.getTime() - bDueDate.getTime();
+                          if (aDueDate) return -1; // Items with due dates first
+                          if (bDueDate) return 1;
+
+                          // Fallback to creation date or other criteria if needed
+                          return (b.data.createdAt?.seconds || 0) - (a.data.createdAt?.seconds || 0); // Newest first by creation
+                      })
                      .map((item, index) => {
                        const itemId = item.id;
                        const { data } = item;
@@ -2822,111 +2638,209 @@ Another Example: Looks clear for today. Consider planning your next project step
                </ul>
              </div>
 
-           </div> {/* End Left Column */}
+            {/* Upcoming Deadlines Card */}
+             <div className={`${cardClass} rounded-xl p-4 sm:p-5 transition-all duration-300`}>
+               <h2 className={`text-base sm:text-lg  font-semibold mb-3 ${illuminateTextBlue} flex items-center`}>
+                 <Calendar className="w-5 h-5 mr-1.5" />
+                 Upcoming Deadlines
+               </h2>
+               {(() => {
+                   const allItems = [...tasks, ...goals, ...projects, ...plans];
+                   const now = new Date(); now.setHours(0, 0, 0, 0);
 
-           {/* RIGHT COLUMN */}
-           {/* ... (Weather Card, Pomodoro Card, Custom Timers Card remain unchanged) ... */}
-           <div className="flex flex-col gap-4 sm:gap-5">
+                   const upcomingDeadlines = allItems
+                     .filter(item => {
+                        const { dueDate, completed } = item.data;
+                        if (!dueDate || completed) return false;
+                         try {
+                             const dueDateObj = dueDate.toDate ? dueDate.toDate() : new Date(dueDate);
+                             dueDateObj.setHours(0, 0, 0, 0);
+                             return dueDateObj >= now; // Due today or later
+                         } catch { return false; }
+                     })
+                      .sort((a, b) => {
+                         try {
+                             const aDate = a.data.dueDate.toDate ? a.data.dueDate.toDate() : new Date(a.data.dueDate);
+                             const bDate = b.data.dueDate.toDate ? b.data.dueDate.toDate() : new Date(b.data.dueDate);
+                             return aDate.getTime() - bDate.getTime();
+                         } catch { return 0; }
+                     })
+                     .slice(0, 5); // Show top 5
 
-              {/* Weather Card */}
-              <div className={`${cardClass} rounded-xl p-3 sm:p-4 transition-all duration-300`}>
-                <h2 className={`text-base sm:text-lg font-semibold mb-2 ${headingClass} flex items-center`}>
-                  <Sun className={`w-4 h-4 mr-1.5 ${isIlluminateEnabled ? 'text-yellow-500' : 'text-yellow-400'}`} />
-                  Weather
-                  {weatherData?.location?.name && !weatherLoading && <span className="text-sm font-normal ml-1.5 text-gray-500 truncate hidden sm:inline"> / {weatherData.location.name}</span>}
-                </h2>
-               {weatherLoading ? (
-                  <div className="animate-pulse space-y-2 py-4">
-                    <div className={`h-5 rounded w-1/2 ${isIlluminateEnabled ? 'bg-gray-200' : 'bg-gray-700'}`}></div>
-                    <div className={`h-4 rounded w-3/4 ${isIlluminateEnabled ? 'bg-gray-200' : 'bg-gray-700'}`}></div>
-                    <div className={`h-3 rounded w-1/3 ${isIlluminateEnabled ? 'bg-gray-200' : 'bg-gray-700'}`}></div>
-                  </div>
-               ) : weatherError ? (
-                    <p className="text-center text-xs text-red-500 py-4">{weatherError}</p>
-               ) : weatherData ? (
-                 <>
-                   {/* Current weather */}
-                    <div className={`flex items-center gap-2 sm:gap-3 mb-3 border-b ${isIlluminateEnabled ? 'border-gray-200/80' : 'border-gray-700/80'} pb-3`}>
-                      <img
-                        src={weatherData.current.condition.icon ? `https:${weatherData.current.condition.icon}` : "/placeholder.svg"} // Ensure protocol is added
-                        alt={weatherData.current.condition.text}
-                        className="w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0"
-                        loading="lazy" // Lazy load weather icon
-                      />
-                      <div className="flex-grow">
-                        <p className={`text-lg sm:text-xl font-bold ${headingClass} leading-tight`}>
-                            {weatherData.current.temp_f}°F
-                            <span className={`ml-1 text-xs sm:text-sm font-normal ${subheadingClass}`}>
-                              ({weatherData.current.condition.text})
-                            </span>
-                        </p>
-                        <p className={`text-xs ${subheadingClass}`}>
-                            Feels like {weatherData.current.feelslike_f}°F
-                        </p>
-                      </div>
-                      <div className="flex flex-col items-end text-[10px] sm:text-xs gap-0.5 flex-shrink-0">
-                        <div className="flex items-center" title={`Wind: ${weatherData.current.wind_dir} ${Math.round(weatherData.current.wind_mph)} mph`}>
-                          <Wind className="w-3 h-3 mr-0.5 text-blue-400" />
-                          {Math.round(weatherData.current.wind_mph)} mph
-                        </div>
-                        <div className="flex items-center" title={`Humidity: ${weatherData.current.humidity}%`}>
-                          <Droplets className="w-3 h-3 mr-0.5 text-cyan-400" />
-                          {weatherData.current.humidity}%
-                        </div>
-                        <div className="flex items-center" title={`UV Index: ${weatherData.current.uv}`}>
-                          <Zap className="w-3 h-3 mr-0.5 text-yellow-400" />
-                          UV: {weatherData.current.uv}
-                        </div>
-                      </div>
-                    </div>
+                 if (!upcomingDeadlines.length) {
+                   return (
+                      <p className={`${subheadingClass} text-xs sm:text-sm flex items-center justify-center py-4 italic`}>
+                       <CheckCircle className="w-4 h-4 mr-1.5 text-green-400" />
+                       All caught up! No upcoming deadlines.
+                     </p>
+                   );
+                 }
 
-                   {/* Forecast */}
-                   {weatherData.forecast?.forecastday?.length > 0 && (
-                     <div className="space-y-1.5">
-                       {(() => {
-                         const now = new Date(); now.setHours(0, 0, 0, 0);
-                          const validDays = weatherData.forecast.forecastday.filter((day: any) => {
-                              try {
-                                const d = new Date(day.date_epoch * 1000);
-                                d.setHours(0, 0, 0, 0);
-                                return d >= now;
-                              } catch { return false; }
-                          });
-                          return validDays.slice(0, 3).map((day: any, idx: number) => {
-                            const dateObj = new Date(day.date_epoch * 1000);
-                            const dayLabel = dateObj.toLocaleDateString(undefined, { weekday: 'short' });
-                            const maxF = Math.round(day.day.maxtemp_f);
-                            const minF = Math.round(day.day.mintemp_f);
-                            const icon = day.day.condition.icon ? `https:${day.day.condition.icon}` : "/placeholder.svg";
-                            const forecastBg = isIlluminateEnabled ? 'bg-gray-100/70' : 'bg-gray-700/30';
+                 return (
+                    <ul className="space-y-2">
+                     {upcomingDeadlines.map((item, index) => {
+                        const { id, data } = item;
+                        const itemType = data.task ? 'Task' : data.goal ? 'Goal' : data.project ? 'Project' : 'Plan';
+                        const dueDateObj = data.dueDate.toDate ? data.dueDate.toDate() : new Date(data.dueDate);
+                        const dueDateStr = dueDateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                        const itemName = data[itemType.toLowerCase()] || 'Untitled';
 
-                           return (
-                              <div
-                               key={day.date_epoch}
-                                className={`flex items-center gap-2 ${forecastBg} p-1 rounded-md animate-slideInRight`}
-                               style={{ animationDelay: `${idx * 80}ms` }}
-                             >
-                                <img src={icon} alt={day.day.condition.text} className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" loading="lazy"/>
-                                <span className={`text-[10px] sm:text-xs font-medium w-7 sm:w-8 flex-shrink-0 text-center ${isIlluminateEnabled ? 'text-gray-700' : 'text-gray-300'}`}>{dayLabel}</span>
-                                {/* Optional simple temp bar */}
-                                <div className={`flex-grow h-1 rounded-full ${isIlluminateEnabled ? 'bg-gray-200': 'bg-gray-600'} overflow-hidden`}>
-                                   <div className="h-full bg-gradient-to-r from-blue-400 via-yellow-400 to-red-500" style={{width: `${Math.max(0,Math.min(100, (maxF / 100) * 100))}%`}}></div>
-                                </div>
-                                <span className={`text-[10px] sm:text-xs w-12 text-right flex-shrink-0 ${isIlluminateEnabled ? 'text-gray-700' : 'text-gray-300'}`}>
-                                    <span className="font-semibold">{maxF}°</span> / {minF}°
-                                </span>
-                              </div>
-                           );
-                         });
-                       })()}
-                     </div>
-                   )}
-                 </>
+                        dueDateObj.setHours(0,0,0,0);
+                        const daysRemaining = Math.ceil((dueDateObj.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+                        let urgencyColor = isIlluminateEnabled ? 'border-l-gray-300' : 'border-l-gray-600';
+                        let urgencyText = '';
+                        let urgencyClass = '';
+                         if (daysRemaining <= 0) { urgencyColor = 'border-l-red-500'; urgencyText = 'Today!'; urgencyClass = 'text-red-500'; }
+                         else if (daysRemaining <= 1) { urgencyColor = 'border-l-orange-500'; urgencyText = 'Tomorrow!'; urgencyClass = 'text-orange-500'; }
+                         else if (daysRemaining <= 3) { urgencyColor = 'border-l-yellow-500'; urgencyText = `${daysRemaining} days`; urgencyClass = 'text-yellow-600'; }
+                         else { urgencyColor = 'border-l-green-500'; urgencyText = `${daysRemaining} days`; urgencyClass = 'text-green-600'; }
+
+                       const priority = data.priority || calculatePriority(item);
+
+                       return (
+                         <li
+                           key={id}
+                            className={`${isIlluminateEnabled ? 'bg-gray-100/80 hover:bg-gray-200/60' : 'bg-gray-700/40 hover:bg-gray-700/60'} p-2.5 rounded-lg transition-colors duration-150 border-l-4 ${urgencyColor} animate-slideInRight flex items-center justify-between gap-2`}
+                           style={{ animationDelay: `${index * 60}ms` }}
+                         >
+                            <div className="flex-grow overflow-hidden mr-2">
+                               <div className="text-xs sm:text-sm font-medium flex items-center">
+                                 <span className={`font-semibold mr-1 ${isIlluminateEnabled ? 'text-gray-700' : 'text-gray-200'}`}>{itemType}:</span>
+                                 <span className="truncate" title={itemName}>{itemName}</span>
+                                  <PriorityBadge priority={priority} isIlluminateEnabled={isIlluminateEnabled} className="ml-1.5 flex-shrink-0" />
+                               </div>
+                            </div>
+                            <div className={`text-[10px] sm:text-xs flex-shrink-0 ${isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'} flex items-center whitespace-nowrap`}>
+                               <Clock className={`w-3 h-3 mr-0.5 ${isIlluminateEnabled ? urgencyClass : urgencyClass.replace('600', '400').replace('500','400')}`} />
+                               <span className={`font-medium mr-1.5 ${isIlluminateEnabled ? urgencyClass : urgencyClass.replace('600', '400').replace('500','400')}`}>{dueDateStr}</span>
+                               {urgencyText && (
+                                   <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-medium ${
+                                       daysRemaining <= 0 ? (isIlluminateEnabled ? 'bg-red-100 text-red-600' : 'bg-red-900/50 text-red-400') :
+                                       daysRemaining <= 1 ? (isIlluminateEnabled ? 'bg-orange-100 text-orange-600' : 'bg-orange-900/50 text-orange-400') :
+                                       daysRemaining <= 3 ? (isIlluminateEnabled ? 'bg-yellow-100 text-yellow-700' : 'bg-yellow-900/50 text-yellow-400') :
+                                       (isIlluminateEnabled ? 'bg-green-100 text-green-600' : 'bg-green-900/50 text-green-400')
+                                   }`}>
+                                       {urgencyText}
+                                   </span>
+                               )}
+                            </div>
+                         </li>
+                       );
+                     })}
+                   </ul>
+                 );
+               })()}
+             </div>
+
+             {/* Productivity Card */}
+             <div className={`${cardClass} rounded-xl p-4 sm:p-5 transition-all duration-300`}>
+                <div className="flex justify-between items-center mb-3">
+                 <h2 className={`text-base sm:text-lg font-semibold ${illuminateTextPurple} flex items-center`}>
+                   <TrendingUp className="w-5 h-5 mr-1.5" />
+                   Productivity
+                 </h2>
+                 <button
+                    onClick={() => setShowAnalytics(prev => !prev)}
+                    className={`p-1 rounded-full transition-colors ${iconColor} ${ isIlluminateEnabled ? 'hover:bg-gray-200' : 'hover:bg-gray-700' } flex items-center gap-1 text-[10px] sm:text-xs`}
+                    title={showAnalytics ? "Show Basic Progress" : "Show Analytics"}
+                  >
+                    {showAnalytics ? <BarChart className="w-3.5 h-3.5" /> : <PieChart className="w-3.5 h-3.5" />}
+                    <span>{showAnalytics ? 'Basic' : 'Analytics'}</span>
+                  </button>
+               </div>
+
+               {showAnalytics ? (
+                 <div className="animate-fadeIn">
+                   <TaskAnalytics // Ensure this component is adapted for compact display
+                     tasks={tasks}
+                     goals={goals}
+                     projects={projects}
+                     plans={plans}
+                     isIlluminateEnabled={isIlluminateEnabled}
+                   />
+                 </div>
                ) : (
-                  <p className="text-center text-xs text-gray-500 py-4">Weather data unavailable.</p>
+                  <div className="space-y-3 animate-fadeIn">
+                    {(tasks.length > 0 || goals.length > 0 || projects.length > 0 || plans.length > 0) ? ( // Check length instead of total
+                         <>
+                           {tasks.length > 0 && ( // Check length
+                             <div>
+                               <div className="flex justify-between items-center mb-0.5 text-xs sm:text-sm">
+                                 <p className="flex items-center font-medium">
+                                   <Clipboard className="w-3.5 h-3.5 mr-1 text-gray-400" /> Tasks
+                                 </p>
+                                  <p className={`${illuminateTextGreen} font-semibold text-xs`}>
+                                   {tasks.filter(t => t.data.completed).length}/{tasks.length} ({tasksProgress}%)
+                                 </p>
+                               </div>
+                                <div className={`w-full h-1.5 ${isIlluminateEnabled ? 'bg-gray-200' : 'bg-gray-600'} rounded-full overflow-hidden`}>
+                                 <div className="h-full bg-gradient-to-r from-green-400 to-green-500 rounded-full transition-all duration-700 ease-out" style={{ width: `${tasksProgress}%` }} />
+                               </div>
+                             </div>
+                           )}
+                            {goals.length > 0 && ( // Check length
+                             <div>
+                               <div className="flex justify-between items-center mb-0.5 text-xs sm:text-sm">
+                                 <p className="flex items-center font-medium">
+                                   <Target className="w-3.5 h-3.5 mr-1 text-gray-400" /> Goals
+                                 </p>
+                                  <p className={`${illuminateTextPink} font-semibold text-xs`}>
+                                   {goals.filter(g => g.data.completed).length}/{goals.length} ({goalsProgress}%)
+                                 </p>
+                               </div>
+                                <div className={`w-full h-1.5 ${isIlluminateEnabled ? 'bg-gray-200' : 'bg-gray-600'} rounded-full overflow-hidden`}>
+                                 <div className="h-full bg-gradient-to-r from-pink-400 to-pink-500 rounded-full transition-all duration-700 ease-out" style={{ width: `${goalsProgress}%` }} />
+                               </div>
+                             </div>
+                           )}
+                             {projects.length > 0 && ( // Check length
+                             <div>
+                               <div className="flex justify-between items-center mb-0.5 text-xs sm:text-sm">
+                                 <p className="flex items-center font-medium">
+                                   <Layers className="w-3.5 h-3.5 mr-1 text-gray-400" /> Projects
+                                 </p>
+                                  <p className={`${illuminateTextBlue} font-semibold text-xs`}>
+                                   {projects.filter(p => p.data.completed).length}/{projects.length} ({projectsProgress}%)
+                                 </p>
+                               </div>
+                                <div className={`w-full h-1.5 ${isIlluminateEnabled ? 'bg-gray-200' : 'bg-gray-600'} rounded-full overflow-hidden`}>
+                                 <div className="h-full bg-gradient-to-r from-blue-400 to-blue-500 rounded-full transition-all duration-700 ease-out" style={{ width: `${projectsProgress}%` }} />
+                               </div>
+                             </div>
+                           )}
+                             {plans.length > 0 && ( // Check length
+                             <div>
+                               <div className="flex justify-between items-center mb-0.5 text-xs sm:text-sm">
+                                 <p className="flex items-center font-medium">
+                                   <Rocket className="w-3.5 h-3.5 mr-1 text-gray-400" /> Plans
+                                 </p>
+                                  <p className={`${illuminateTextYellow} font-semibold text-xs`}>
+                                   {plans.filter(p => p.data.completed).length}/{plans.length} ({plansProgress}%)
+                                 </p>
+                               </div>
+                                <div className={`w-full h-1.5 ${isIlluminateEnabled ? 'bg-gray-200' : 'bg-gray-600'} rounded-full overflow-hidden`}>
+                                 <div className="h-full bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-full transition-all duration-700 ease-out" style={{ width: `${plansProgress}%` }} />
+                               </div>
+                             </div>
+                           )}
+                         </>
+                     ) : (
+                          <p className={`${subheadingClass} text-xs sm:text-sm flex items-center justify-center py-4 italic`}>
+                          <Lightbulb className="w-4 h-4 mr-1.5 text-yellow-400" />
+                          Add items to track your progress.
+                        </p>
+                     )}
+                 </div>
                )}
              </div>
 
+           </div> {/* End Left Column */}
+
+           {/* RIGHT COLUMN - Tools */}
+           <div className="flex flex-col gap-4 sm:gap-5">
+
+              {/* Weather Card - REMOVED */}
 
              {/* Pomodoro Timer Card */}
              <div className={`${cardClass} rounded-xl p-3 sm:p-4 transition-all duration-300`}>
@@ -2989,9 +2903,9 @@ Another Example: Looks clear for today. Consider planning your next project step
                     <TimerIcon className="w-4 h-4 mr-1.5" />
                     Timers
                   </h2>
-                  <ul className="space-y-2">
+                  <ul className="space-y-2 max-h-[300px] lg:max-h-[400px] overflow-y-auto pr-1"> {/* Added max-height and scroll */}
                     {customTimers
-                        // .sort((a, b) => a.data.createdAt?.seconds - b.data.createdAt?.seconds) // Optional sort
+                        .sort((a, b) => (a.data.createdAt?.seconds || 0) - (b.data.createdAt?.seconds || 0)) // Sort by creation time, oldest first
                         .map((timer, index) => {
                             const timerId = timer.id;
                             const runningState = runningTimers[timerId];
