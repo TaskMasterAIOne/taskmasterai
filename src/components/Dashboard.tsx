@@ -21,8 +21,8 @@ import {
   createProject,
   updateDashboardLastSeen,
   createPlan,
-  // addCustomTimer, // REMOVED
-  onCustomTimersSnapshot,
+  // addCustomTimer, // REMOVED as per new code's intention
+  onCustomTimersSnapshot, // This was present in new code, but customTimers state was removed. If custom timers are fully removed, this should go. Keeping for now if other parts rely on it.
   updateItem,
   deleteItem,
   markItemComplete,
@@ -152,7 +152,8 @@ const extractCandidateText = (rawResponseText: string): string => {
 
 // Helper function to format date as YYYY-MM-DD
 const formatDateForComparison = (date: Date): string => {
-  return date.toISOString().split('T')[0];
+  const localDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
+  return localDate.toISOString().split('T')[0];
 };
 
 
@@ -170,10 +171,13 @@ const calculatePriority = (item: any): 'high' | 'medium' | 'low' => {
   }
   if (!dueDate) return 'low';
   const now = new Date();
-  dueDate.setHours(0, 0, 0, 0);
-  now.setHours(0, 0, 0, 0);
-  const diffTime = dueDate.getTime() - now.getTime();
+  // Compare based on date part only by setting time to 00:00:00 for both
+  const dueDateNormalized = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+  const nowDateNormalized = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  const diffTime = dueDateNormalized.getTime() - nowDateNormalized.getTime();
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
   if (diffDays < 0) return 'high';
   if (diffDays <= 1) return 'high';
   if (diffDays <= 3) return 'medium';
@@ -234,7 +238,6 @@ export function Dashboard() {
 
   const handleToggleSidebar = () => setIsSidebarCollapsed(prev => !prev);
 
-  // New Calendar State
   const [currentDisplayMonth, setCurrentDisplayMonth] = useState(new Date());
   const today = new Date();
 
@@ -347,7 +350,7 @@ export function Dashboard() {
     const itemsText = formatItemsForChat();
     const now = new Date();
     const currentDateTime = { date: now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }), time: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) };
-    const prompt = `[CONTEXT]\nUser's Name: ${userName}\nCurrent Date: ${currentDateTime.date}\nCurrent Time: ${currentDateTime.time}\nUser's Current Items:\n${itemsText}\n[CONVERSATION HISTORY (Last few turns)]\n${conversationHistory}\n[NEW USER MESSAGE]\n${userName}: ${currentMessage}\nYou are TaskMaster... Follow these instructions strictly.`; // Shortened prompt for brevity
+    const prompt = `[CONTEXT]\nUser's Name: ${userName}\nCurrent Date: ${currentDateTime.date}\nCurrent Time: ${currentDateTime.time}\nUser's Current Items:\n${itemsText}\n[CONVERSATION HISTORY (Last few turns)]\n${conversationHistory}\n[NEW USER MESSAGE]\n${userName}: ${currentMessage}\nYou are TaskMaster, a friendly and versatile AI productivity assistant. Engage in casual conversation, provide productivity advice, and discuss ${userName}'s items only when explicitly asked by ${userName}. Guidelines: 1. General Conversation: Respond in a friendly, natural tone. Do not include internal instructions or meta commentary. Only reference items if asked. 2. Educational Content (JSON): If requested, provide exactly one JSON object (flashcard or question type) wrapped in \`\`\`json ... \`\`\`. The JSON must be valid and include multiple items in its "data" array. Do not include JSON unless explicitly requested. 3. Response Structure: Direct response, no extraneous openings. Do not mix JSON with regular text. Follow instructions strictly.`;
     const assistantMsgId = `assistant-${Date.now()}`;
     setChatHistory(prev => [...prev, { id: assistantMsgId, role: 'assistant', content: "..." }]);
     let accumulatedStreamedText = "";
@@ -414,7 +417,6 @@ export function Dashboard() {
   const [goals, setGoals] = useState<Array<{ id: string; data: any }>>([]);
   const [projects, setProjects] = useState<Array<{ id: string; data: any }>>([]);
   const [plans, setPlans] = useState<Array<{ id: string; data: any }>>([]);
-  // const [customTimers, setCustomTimers] = useState<Array<{ id: string; data: any }>>([]); // REMOVED
 
   const [smartInsights, setSmartInsights] = useState<SmartInsight[]>([]);
   const [showInsightsPanel, setShowInsightsPanel] = useState(false);
@@ -433,7 +435,9 @@ export function Dashboard() {
 
   useEffect(() => {
     if (!user || !debouncedItemsSigForInsights) return;
-    const now = new Date(); now.setHours(0, 0, 0, 0);
+    const now = new Date();
+    const nowNormalized = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
     const allActiveItems = [...tasks, ...goals, ...projects, ...plans].filter(item => !item.data.completed);
     let newInsights: SmartInsight[] = [];
     allActiveItems.forEach(item => {
@@ -442,12 +446,12 @@ export function Dashboard() {
             if (item.data.dueDate?.toDate) dueDate = item.data.dueDate.toDate();
             else try { dueDate = new Date(item.data.dueDate); if (isNaN(dueDate.getTime())) dueDate = null; } catch { dueDate = null; }
             if (dueDate) {
-                dueDate.setHours(0, 0, 0, 0);
+                const dueDateNormalized = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
                 const itemType = item.data.task ? 'task' : item.data.goal ? 'goal' : item.data.project ? 'project' : 'plan';
                 const itemName = item.data[itemType] || 'Untitled';
-                if (dueDate < now) newInsights.push({ id: `overdue-${item.id}`, text: `"${itemName}" (${itemType}) is overdue. Reschedule or mark complete?`, type: 'warning', relatedItemId: item.id, createdAt: new Date() });
+                if (dueDateNormalized < nowNormalized) newInsights.push({ id: `overdue-${item.id}`, text: `"${itemName}" (${itemType}) is overdue. Reschedule or mark complete?`, type: 'warning', relatedItemId: item.id, createdAt: new Date() });
                 else {
-                    const diffDays = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                    const diffDays = Math.ceil((dueDateNormalized.getTime() - nowNormalized.getTime()) / (1000 * 60 * 60 * 24));
                     if (diffDays >= 0 && diffDays <= 2 && !newInsights.some(ni => ni.relatedItemId === item.id && ni.type === 'warning')) {
                         newInsights.push({ id: `upcoming-${item.id}`, text: `"${itemName}" (${itemType}) is due soon (${diffDays === 0 ? 'Today' : diffDays === 1 ? 'Tomorrow' : 'in ' + diffDays + ' days'}). Plan time for it?`, type: 'suggestion', relatedItemId: item.id, createdAt: new Date() });
                     }
@@ -460,7 +464,7 @@ export function Dashboard() {
         const combined = [...newInsights, ...existingActive];
         const uniqueMap = new Map<string, SmartInsight>();
         combined.forEach(insight => uniqueMap.set(insight.id, insight));
-        return Array.from(uniqueMap.values()).slice(0, 10);
+        return Array.from(uniqueMap.values()).sort((a,b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, 10);
     });
   }, [user, debouncedItemsSigForInsights]);
 
@@ -481,8 +485,6 @@ export function Dashboard() {
   const [showAnalytics, setShowAnalytics] = useState(false);
 
   useEffect(() => { const timer = setTimeout(() => setCardVisible(true), 100); return () => clearTimeout(timer); }, []);
-
-  // REMOVED Pomodoro and Custom Timer states and handlers
 
   useEffect(() => {
     const unsubscribe = onFirebaseAuthStateChanged(async (firebaseUser) => {
@@ -521,7 +523,7 @@ export function Dashboard() {
         }
       } else {
         setUserName("Loading...");
-        setTasks([]); setGoals([]); setProjects([]); setPlans([]); /* setCustomTimers([]); */ // REMOVED customTimers reset
+        setTasks([]); setGoals([]); setProjects([]); setPlans([]);
         setSmartOverview(""); setSmartInsights([]);
         setChatHistory([ { id: 'initial-greet-logout', role: 'assistant', content: "👋 Hi I'm TaskMaster, How can I help you today?" } ]);
         setUserTier('loading'); setChatCount(0); setChatMonth(''); setIsChatLimitReached(false);
@@ -531,13 +533,13 @@ export function Dashboard() {
   }, []);
 
   useEffect(() => {
-    if (!user?.uid) { setTasks([]); setGoals([]); setProjects([]); setPlans([]); /* setCustomTimers([]); */ return; }; // REMOVED customTimers reset
+    if (!user?.uid) { setTasks([]); setGoals([]); setProjects([]); setPlans([]); return; };
     const unsubFunctions = [
         onCollectionSnapshot('tasks', user.uid, setTasks),
         onCollectionSnapshot('goals', user.uid, setGoals),
         onCollectionSnapshot('projects', user.uid, setProjects),
         onCollectionSnapshot('plans', user.uid, setPlans),
-        // onCustomTimersSnapshot(user.uid, setCustomTimers), // REMOVED
+        // onCustomTimersSnapshot(user.uid, setCustomTimers), // REMOVED Custom Timers logic
     ];
     return () => unsubFunctions.forEach(unsub => { try { unsub(); } catch (e) { console.warn("Error unsubscribing:", e); } });
   }, [user]);
@@ -588,10 +590,10 @@ export function Dashboard() {
             setSmartOverview(`No pending items to generate overview from.`); setOverviewLoading(false); setLastResponse(""); return;
         }
         const firstName = userName.split(" ")[0];
-        const prompt = `Analyze these pending items for user "${firstName}" and provide a *very concise* (1-2 sentences, max 80 tokens) Smart Overview...`; // Shortened
+        const prompt = `Analyze these pending items for user "${firstName}" and provide an *extremely brief* (1 short sentence, max 60 tokens) Smart Overview. Focus on the most immediate priority or suggestion. Format as plain text. No greetings, no fluff. Items:\n${formattedData}`;
         try {
             const overviewEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`;
-            const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 80, temperature: 0.5 }, safetySettings: [/* standard settings */] })};
+            const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 60, temperature: 0.5 }, safetySettings: [{ category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }, { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" }, { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }, { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }] })};
             const response = await fetchWithTimeout(overviewEndpoint, geminiOptions, 20000);
             if (!response.ok) { let errorBody = 'API Error'; try { errorBody = await response.text(); } catch {} throw new Error(`Gemini API error (${response.status}): ${errorBody}`); }
             const resultJson = await response.json();
@@ -602,7 +604,11 @@ export function Dashboard() {
             else setSmartOverview(lastResponse);
         } catch (error: any) {
             console.error("Overview generation error:", error);
-            let errorMsg = "AI overview currently unavailable."; /* more specific error messages */
+            let errorMsg = "AI overview currently unavailable.";
+            if (error.message.includes('429') || error.message.includes('rate limit')) errorMsg = "Overview limit reached. Try again later.";
+            else if (error.message.includes('API key not valid')) errorMsg = "Invalid AI config.";
+            else if (error.message.includes('timed out')) errorMsg = "Overview request timed out.";
+            else if (error.message.includes("invalid overview response")) errorMsg = "AI failed to generate a valid overview.";
             setSmartOverview(errorMsg); setLastResponse(""); setLastGeneratedDataSig("");
         } finally { setOverviewLoading(false); }
     };
@@ -640,9 +646,7 @@ export function Dashboard() {
         try {
              const dueDateObj = currentData.dueDate.toDate ? currentData.dueDate.toDate() : new Date(currentData.dueDate);
              if (!isNaN(dueDateObj.getTime())) {
-                 const tzOffset = dueDateObj.getTimezoneOffset() * 60000;
-                 const localDate = new Date(dueDateObj.getTime() - tzOffset);
-                 dateForInput = localDate.toISOString().split('T')[0];
+                 dateForInput = formatDateForComparison(dueDateObj); // Use helper
              }
          } catch (e) { console.warn("Error converting date for editing:", e); }
     }
@@ -671,8 +675,6 @@ export function Dashboard() {
     } catch (error) { console.error(`Error deleting ${itemType}:`, error); alert(`Failed to delete ${itemType}. Please try again.`); }
   };
 
-  // REMOVED Custom Timer Handlers
-
   const tasksProgress = useMemo(() => tasks.length === 0 ? 0 : Math.round((tasks.filter(t => t.data.completed).length / tasks.length) * 100), [tasks]);
   const goalsProgress = useMemo(() => goals.length === 0 ? 0 : Math.round((goals.filter(g => g.data.completed).length / goals.length) * 100), [goals]);
   const projectsProgress = useMemo(() => projects.length === 0 ? 0 : Math.round((projects.filter(p => p.data.completed).length / projects.length) * 100), [projects]);
@@ -698,18 +700,17 @@ export function Dashboard() {
     setTimeout(() => setSmartInsights(prev => prev.filter(i => i.id !== insightId || i.accepted)), 2000);
   };
 
-  // Updated Theme Variables for consistency
   const containerClass = isIlluminateEnabled
-    ? "bg-slate-50 text-gray-900" // Light mode: very light gray bg
+    ? "bg-slate-50 text-gray-900"
     : isBlackoutEnabled
-      ? "bg-black text-gray-200" // Blackout: pure black bg
-      : "bg-gray-900 text-gray-200"; // Default dark
+      ? "bg-black text-gray-200"
+      : "bg-gray-900 text-gray-200";
 
   const cardClass = isIlluminateEnabled
-    ? "bg-white text-gray-900 border border-gray-200/80 shadow-sm" // Light: white cards, subtle border
+    ? "bg-white text-gray-900 border border-gray-200/80 shadow-sm"
     : isBlackoutEnabled
-      ? "bg-black border border-gray-800 text-gray-300 shadow-md shadow-black/30" // Blackout: black cards, distinct border
-      : "bg-gray-800 text-gray-300 border border-gray-700/60 shadow-lg shadow-black/20"; // Dark: dark gray cards
+      ? "bg-gray-900 text-gray-300 border border-gray-700/50 shadow-md shadow-black/20" // Restored old blackout card style
+      : "bg-gray-800 text-gray-300 border border-gray-700/60 shadow-lg shadow-black/20";
 
   const headingClass = isIlluminateEnabled ? "text-gray-800" : "text-gray-100";
   const subheadingClass = isIlluminateEnabled ? "text-gray-600" : "text-gray-400";
@@ -723,17 +724,14 @@ export function Dashboard() {
   const iconColor = isIlluminateEnabled ? "text-gray-500 hover:text-gray-700" : "text-gray-400 hover:text-gray-200";
   const tabBorderColor = isIlluminateEnabled ? "border-gray-300" : "border-gray-700";
 
-  const illuminateTextBlue = isIlluminateEnabled ? "text-blue-600" : "text-blue-400"; // Adjusted for better contrast
+  const illuminateTextBlue = isIlluminateEnabled ? "text-blue-600" : "text-blue-400";
   const illuminateTextPurple = isIlluminateEnabled ? "text-purple-600" : "text-purple-400";
   const illuminateTextGreen = isIlluminateEnabled ? "text-green-600" : "text-green-400";
   const illuminateTextPink = isIlluminateEnabled ? "text-pink-600" : "text-pink-400";
   const illuminateTextYellow = isIlluminateEnabled ? "text-yellow-600" : "text-yellow-400";
-  const illuminateHighlightToday = isIlluminateEnabled ? "bg-blue-100 text-blue-700 font-semibold" : "bg-blue-700/40 text-blue-200 font-semibold";
-
 
   const currentChatLimit = useMemo(() => getChatLimitForTier(userTier), [userTier]);
 
-    // Calendar specific logic
     const deadlinesByDate = useMemo(() => {
         const deadlines = new Map<string, { count: number, types: Set<string>, priorities: Set<string> }>();
         const allItems = [...tasks, ...goals, ...projects, ...plans];
@@ -743,7 +741,7 @@ export function Dashboard() {
                 if (item.data.dueDate.toDate) dateObj = item.data.dueDate.toDate();
                 else try { dateObj = new Date(item.data.dueDate); if (isNaN(dateObj.getTime())) return; } catch { return; }
                 
-                const dateStr = formatDateForComparison(dateObj);
+                const dateStr = formatDateForComparison(dateObj); // Use helper for consistent local date string
                 const itemType = item.data.task ? 'Task' : item.data.goal ? 'Goal' : item.data.project ? 'Project' : 'Plan';
                 const priority = calculatePriority(item);
 
@@ -761,26 +759,48 @@ export function Dashboard() {
     const handlePreviousMonth = () => setCurrentDisplayMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
     const handleNextMonth = () => setCurrentDisplayMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
 
+    const handleCalendarDateClick = (date: Date) => {
+        setNewItemDate(formatDateForComparison(date)); // Use helper for YYYY-MM-DD
+        // Optional: scroll to add item section or focus input
+        const newItemTextInput = document.querySelector('input[placeholder^="Add a new"]');
+        if (newItemTextInput instanceof HTMLInputElement) {
+            newItemTextInput.focus();
+            // Scroll to view if not visible
+             if (!isElementInViewport(newItemTextInput)) {
+                newItemTextInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+    };
+
+    // Helper to check if element is in viewport
+    const isElementInViewport = (el: HTMLElement) => {
+        const rect = el.getBoundingClientRect();
+        return (
+            rect.top >= 0 &&
+            rect.left >= 0 &&
+            rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
+            rect.right <= (window.innerWidth || document.documentElement.clientWidth)
+        );
+    };
+
     const renderCalendarDays = () => {
         const year = currentDisplayMonth.getFullYear();
         const month = currentDisplayMonth.getMonth();
-        const firstDayOfMonth = new Date(year, month, 1).getDay(); // 0 (Sun) - 6 (Sat)
+        const firstDayOfMonth = new Date(year, month, 1).getDay();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
         const daysArray = [];
 
-        // Add blank days for the start of the month
         for (let i = 0; i < firstDayOfMonth; i++) {
-            daysArray.push(<div key={`blank-${i}`} className="h-16 sm:h-20"></div>);
+            daysArray.push(<div key={`blank-${i}`} className="min-h-[4rem] sm:min-h-[5rem] border border-transparent"></div>); // Use min-h
         }
 
-        // Add actual days
         for (let day = 1; day <= daysInMonth; day++) {
             const date = new Date(year, month, day);
             const dateStr = formatDateForComparison(date);
             const isToday = dateStr === formatDateForComparison(today);
             const deadlineInfo = deadlinesByDate.get(dateStr);
             
-            let dayClass = `${cardClass} p-1.5 text-xs sm:text-sm flex flex-col items-start justify-start h-16 sm:h-20 rounded-md transition-all duration-150 hover:shadow-md `;
+            let dayClass = `${cardClass} p-1.5 text-xs sm:text-sm flex flex-col items-start justify-start min-h-[4rem] sm:min-h-[5rem] rounded-md transition-all duration-150 hover:shadow-md cursor-pointer `;
             if (isToday) dayClass += `${isIlluminateEnabled ? 'bg-blue-50 border-blue-400 ring-1 ring-blue-400' : 'bg-blue-900/50 border-blue-500 ring-1 ring-blue-500'} `;
             else if (deadlineInfo) dayClass += `${isIlluminateEnabled ? 'bg-amber-50/70' : 'bg-amber-900/30'} `;
             else dayClass += `${isIlluminateEnabled ? 'hover:bg-gray-100' : 'hover:bg-gray-700'} `;
@@ -790,9 +810,8 @@ export function Dashboard() {
             else if (deadlineInfo?.priorities.has('medium')) priorityIndicatorColor = 'bg-yellow-500';
             else if (deadlineInfo?.priorities.has('low')) priorityIndicatorColor = 'bg-green-500';
 
-
             daysArray.push(
-                <div key={day} className={dayClass} title={date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}>
+                <div key={day} className={dayClass} title={date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })} onClick={() => handleCalendarDateClick(date)}>
                     <span className={`font-semibold mb-0.5 ${isToday ? (isIlluminateEnabled ? 'text-blue-700' : 'text-blue-300') : ''}`}>{day}</span>
                     {deadlineInfo && (
                         <div className="mt-auto w-full">
@@ -825,7 +844,6 @@ export function Dashboard() {
             </h1>
             <p className={`italic text-xs md:text-sm ${subheadingClass}`}>"{quote.text}" - <span className={illuminateTextPurple}>{quote.author}</span></p>
           </header>
-          {/* Small weekly calendar removed from header */}
         </div>
 
         {smartInsights.filter(insight => !insight.accepted && !insight.rejected).length > 0 && (
@@ -861,7 +879,7 @@ export function Dashboard() {
           </div>
         )}
 
-        <div className={`${cardClass} rounded-xl p-3 sm:p-4 relative min-h-[80px] transition-all duration-300 ease-out animate-fadeIn mb-4 sm:mb-5 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} delay-300`}>
+        <div className={`${cardClass} rounded-xl p-3 sm:p-4 relative min-h-[60px] transition-all duration-300 ease-out animate-fadeIn mb-4 sm:mb-5 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} delay-300`}>
           <div className="flex flex-wrap items-center gap-2 mb-1.5">
             <h2 className={`text-base sm:text-lg font-semibold mr-1 flex items-center ${illuminateTextBlue}`}>
               <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 text-yellow-400 animate-pulse" /> Smart Overview
@@ -876,11 +894,8 @@ export function Dashboard() {
                   {smartOverview && !smartOverview.includes('unavailable') && !smartOverview.includes('failed') && !smartOverview.includes('limit') && !smartOverview.includes('No pending items') && <div className="mt-1.5 text-left text-[10px] text-gray-500/80">AI responses may be inaccurate. Verify critical info.</div>} </>}
         </div>
 
-        {/* Main Content Grid - RESTRUCTURED */}
         <div className={`grid grid-cols-1 xl:grid-cols-5 gap-4 sm:gap-5 animate-fadeIn ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} delay-400`}>
-           {/* LEFT COLUMN - Item Management & Productivity (Wider) */}
            <div className="xl:col-span-3 flex flex-col gap-4 sm:gap-5">
-            {/* Productivity Card - MOVED UP */}
             <div className={`${cardClass} rounded-xl p-4 sm:p-5 transition-all duration-300`}>
                 <div className="flex justify-between items-center mb-3">
                  <h2 className={`text-base sm:text-lg font-semibold ${illuminateTextPurple} flex items-center`}>
@@ -904,8 +919,98 @@ export function Dashboard() {
                  </div> )}
             </div>
 
-            {/* Tabs & List Card */}
-             <div className={`${cardClass} rounded-xl p-4 sm:p-5 transition-all duration-300 flex flex-col`}> {/* Added flex flex-col */}
+            {/* Upcoming Deadlines Card - RE-ADDED */}
+            <div className={`${cardClass} rounded-xl p-4 sm:p-5 transition-all duration-300`}>
+               <h2 className={`text-base sm:text-lg font-semibold mb-3 ${illuminateTextBlue} flex items-center`}>
+                 <Calendar className="w-5 h-5 mr-1.5" /> Upcoming Items
+               </h2>
+               {(() => {
+                   const allItems = [...tasks, ...goals, ...projects, ...plans];
+                   const now = new Date();
+                   const nowDateNormalized = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+                   const upcomingDeadlines = allItems
+                     .filter(item => {
+                        const { dueDate, completed } = item.data;
+                        if (!dueDate || completed) return false;
+                         try {
+                             const dueDateObj = dueDate.toDate ? dueDate.toDate() : new Date(dueDate);
+                             const dueDateNormalized = new Date(dueDateObj.getFullYear(), dueDateObj.getMonth(), dueDateObj.getDate());
+                             return dueDateNormalized >= nowDateNormalized;
+                         } catch { return false; }
+                     })
+                      .sort((a, b) => {
+                         try {
+                             const aDate = a.data.dueDate.toDate ? a.data.dueDate.toDate() : new Date(a.data.dueDate);
+                             const bDate = b.data.dueDate.toDate ? b.data.dueDate.toDate() : new Date(b.data.dueDate);
+                             return aDate.getTime() - bDate.getTime();
+                         } catch { return 0; }
+                     })
+                     .slice(0, 5);
+
+                 if (!upcomingDeadlines.length) {
+                   return (
+                      <p className={`${subheadingClass} text-xs sm:text-sm flex items-center justify-center py-4 italic`}>
+                       <CheckCircle className="w-4 h-4 mr-1.5 text-green-400" />
+                       All caught up! No upcoming deadlines.
+                     </p>
+                   );
+                 }
+                 return (
+                    <ul className="space-y-2">
+                     {upcomingDeadlines.map((item, index) => {
+                        const { id, data } = item;
+                        const itemType = data.task ? 'Task' : data.goal ? 'Goal' : data.project ? 'Project' : 'Plan';
+                        const dueDateObj = data.dueDate.toDate ? data.dueDate.toDate() : new Date(data.dueDate);
+                        const dueDateStr = dueDateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                        const itemName = data[itemType.toLowerCase()] || 'Untitled';
+                        
+                        const dueDateNormalized = new Date(dueDateObj.getFullYear(), dueDateObj.getMonth(), dueDateObj.getDate());
+                        const daysRemaining = Math.ceil((dueDateNormalized.getTime() - nowDateNormalized.getTime()) / (1000 * 60 * 60 * 24));
+
+                        let urgencyColorClass = isIlluminateEnabled ? 'border-l-gray-300' : 'border-l-gray-600';
+                        let urgencyText = `${daysRemaining} days`;
+                        let urgencyTextClass = isIlluminateEnabled ? 'text-green-600' : 'text-green-400';
+                        let urgencyBgClass = isIlluminateEnabled ? 'bg-green-100 text-green-600' : 'bg-green-900/50 text-green-400';
+
+                        if (daysRemaining < 0) { /* Should not happen due to filter */ }
+                        else if (daysRemaining === 0) { 
+                            urgencyColorClass = 'border-l-red-500'; urgencyText = 'Today!'; 
+                            urgencyTextClass = isIlluminateEnabled ? 'text-red-600' : 'text-red-400';
+                            urgencyBgClass = isIlluminateEnabled ? 'bg-red-100 text-red-600' : 'bg-red-900/50 text-red-400';
+                        } else if (daysRemaining === 1) { 
+                            urgencyColorClass = 'border-l-orange-500'; urgencyText = 'Tomorrow!'; 
+                            urgencyTextClass = isIlluminateEnabled ? 'text-orange-600' : 'text-orange-400';
+                            urgencyBgClass = isIlluminateEnabled ? 'bg-orange-100 text-orange-600' : 'bg-orange-900/50 text-orange-400';
+                        } else if (daysRemaining <= 3) { 
+                            urgencyColorClass = 'border-l-yellow-500'; 
+                            urgencyTextClass = isIlluminateEnabled ? 'text-yellow-700' : 'text-yellow-400';
+                            urgencyBgClass = isIlluminateEnabled ? 'bg-yellow-100 text-yellow-700' : 'bg-yellow-900/50 text-yellow-400';
+                        }
+                       const priority = data.priority || calculatePriority(item);
+
+                       return (
+                         <li key={id} className={`${isIlluminateEnabled ? 'bg-gray-100/80 hover:bg-gray-200/60' : 'bg-gray-700/40 hover:bg-gray-700/60'} p-2.5 rounded-lg transition-colors duration-150 border-l-4 ${urgencyColorClass} animate-slideInRight flex items-center justify-between gap-2`} style={{ animationDelay: `${index * 60}ms` }}>
+                            <div className="flex-grow overflow-hidden mr-2">
+                               <div className="text-xs sm:text-sm font-medium flex items-center">
+                                 <span className={`font-semibold mr-1 ${isIlluminateEnabled ? 'text-gray-700' : 'text-gray-200'}`}>{itemType}:</span>
+                                 <span className="truncate" title={itemName}>{itemName}</span>
+                                  <PriorityBadge priority={priority} isIlluminateEnabled={isIlluminateEnabled} className="ml-1.5 flex-shrink-0" />
+                               </div>
+                            </div>
+                            <div className={`text-[10px] sm:text-xs flex-shrink-0 ${isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'} flex items-center whitespace-nowrap`}>
+                               <Clock className={`w-3 h-3 mr-0.5 ${urgencyTextClass}`} />
+                               <span className={`font-medium mr-1.5 ${urgencyTextClass}`}>{dueDateStr}</span>
+                               {urgencyText && (<span className={`px-1.5 py-0.5 rounded-full text-[9px] font-medium ${urgencyBgClass}`}>{urgencyText}</span>)}
+                            </div>
+                         </li>);
+                     })}
+                   </ul>);
+               })()}
+             </div>
+
+
+             <div className={`${cardClass} rounded-xl p-4 sm:p-5 transition-all duration-300 flex flex-col`}>
                <div className="overflow-x-auto no-scrollbar mb-4">
                  <div className={`flex space-x-1.5 w-full border-b pb-2 ${tabBorderColor}`}>
                    {["tasks", "goals", "projects", "plans"].map((tab) => (
@@ -928,14 +1033,13 @@ export function Dashboard() {
                    <button className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white p-2 rounded-full flex items-center justify-center hover:shadow-md hover:shadow-purple-500/20 transition-all duration-200 transform hover:scale-105 active:scale-100 min-w-[32px] min-h-[32px]" onClick={handleCreate} title={`Add new ${activeTab.slice(0,-1)}`}><PlusCircle className="w-4 h-4" /></button>
                  </div>
                </div>
-               {/* Item list with increased height and scrolling */}
-               <ul className="space-y-1.5 sm:space-y-2 flex-grow overflow-y-auto pr-1" style={{ maxHeight: 'calc(100vh - 450px)', minHeight: '300px' }}> {/* Adjusted max-height, min-height */}
+               <ul className="space-y-1.5 sm:space-y-2 flex-grow overflow-y-auto pr-1" style={{ maxHeight: 'calc(100vh - 550px)', minHeight: '250px' }}> {/* Adjusted max-height for upcoming section */}
                  {currentItems.length === 0 ? <li className={`${subheadingClass} text-sm text-center py-6 italic`}>No {activeTab} here yet... Add one above!</li>
                  : currentItems.sort((a, b) => { const po = { high: 0, medium: 1, low: 2 }; const ap = po[calculatePriority(a)]; const bp = po[calculatePriority(b)]; if (ap !== bp) return ap - bp; const ad = a.data.dueDate?.toDate ? a.data.dueDate.toDate() : (a.data.dueDate ? new Date(a.data.dueDate) : null); const bd = b.data.dueDate?.toDate ? b.data.dueDate.toDate() : (b.data.dueDate ? new Date(b.data.dueDate) : null); if (ad && bd) return ad.getTime() - bd.getTime(); if (ad) return -1; if (bd) return 1; return (b.data.createdAt?.seconds || 0) - (a.data.createdAt?.seconds || 0); })
                      .map((item, index) => {
                        const itemId = item.id; const { data } = item; const textValue = data[titleField] || 'Untitled'; const isCompleted = data.completed || false; const isEditing = editingItemId === itemId; const priority = data.priority || calculatePriority(item);
                        let dueDateStr = ''; let overdue = false;
-                       if (data.dueDate) { try { const ddo = data.dueDate.toDate ? data.dueDate.toDate() : new Date(data.dueDate); if (!isNaN(ddo.getTime())) { dueDateStr = ddo.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); const td = new Date(); td.setHours(0,0,0,0); const itd = new Date(ddo); itd.setHours(0,0,0,0); overdue = itd < td && !isCompleted; }} catch {} }
+                       if (data.dueDate) { try { const ddo = data.dueDate.toDate ? data.dueDate.toDate() : new Date(data.dueDate); if (!isNaN(ddo.getTime())) { dueDateStr = ddo.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); const td = new Date(); const todayNormalized = new Date(td.getFullYear(), td.getMonth(), td.getDate()); const itemDateNormalized = new Date(ddo.getFullYear(), ddo.getMonth(), ddo.getDate()); overdue = itemDateNormalized < todayNormalized && !isCompleted; }} catch {} }
                        return (
                          <li key={item.id} className={`group p-2 sm:p-2.5 rounded-lg flex flex-col md:flex-row md:items-center md:justify-between gap-1.5 md:gap-2 transition-all duration-150 animate-slideInUp ${isCompleted ? (isIlluminateEnabled ? 'bg-green-100/50 opacity-60' : 'bg-green-900/20 opacity-50') : overdue ? (isIlluminateEnabled ? 'bg-red-100/60' : 'bg-red-900/30') : isIlluminateEnabled ? 'bg-gray-100/70 hover:bg-gray-200/50' : 'bg-gray-700/30 hover:bg-gray-700/50'} ${isEditing ? (isIlluminateEnabled ? 'ring-1 ring-purple-400 bg-purple-50/50' : 'ring-1 ring-purple-500 bg-purple-900/20') : ''}`} style={{ animationDelay: `${index * 50}ms` }}>
                            {!isEditing ? (<> <div className="flex items-center gap-2 flex-grow overflow-hidden mr-2">
@@ -964,32 +1068,30 @@ export function Dashboard() {
                      })}
                </ul>
              </div>
-           </div> {/* End Left Column */}
+           </div>
 
-           {/* RIGHT COLUMN - New Calendar */}
            <div className="xl:col-span-2 flex flex-col gap-4 sm:gap-5">
-                <div className={`${cardClass} rounded-xl p-4 sm:p-5 transition-all duration-300`}>
-                    <div className="flex items-center justify-between mb-3 sm:mb-4">
+                <div className={`${cardClass} rounded-xl p-4 sm:p-5 transition-all duration-300 flex flex-col`} style={{ minHeight: '400px', maxHeight: 'calc(100vh - 200px)' }}> {/* Adjusted height and flex for growth */}
+                    <div className="flex items-center justify-between mb-3 sm:mb-4 flex-shrink-0"> {/* No grow for header */}
                         <button onClick={handlePreviousMonth} className={`p-2 rounded-full ${iconColor} ${isIlluminateEnabled ? 'hover:bg-gray-100' : 'hover:bg-gray-700'}`} title="Previous Month"><ChevronLeft className="w-5 h-5" /></button>
                         <h2 className={`text-lg sm:text-xl font-semibold text-center ${headingClass}`}>
                             {currentDisplayMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
                         </h2>
                         <button onClick={handleNextMonth} className={`p-2 rounded-full ${iconColor} ${isIlluminateEnabled ? 'hover:bg-gray-100' : 'hover:bg-gray-700'}`} title="Next Month"><ChevronRight className="w-5 h-5" /></button>
                     </div>
-                    <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center text-xs sm:text-sm font-medium mb-2">
-                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                            <div key={day} className={subheadingClass}>{day.substring(0,1)}</div> // Show S, M, T etc for smaller screens
+                    <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center text-xs sm:text-sm font-medium mb-2 flex-shrink-0"> {/* No grow for labels */}
+                        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(day => ( // Using S M T for smaller screens
+                            <div key={day} className={subheadingClass}>{day}</div>
                         ))}
                     </div>
-                    <div className="grid grid-cols-7 gap-1 sm:gap-2">
+                    <div className="grid grid-cols-7 gap-1 sm:gap-2 flex-grow overflow-y-auto"> {/* Calendar days container will grow and scroll */}
                         {renderCalendarDays()}
                     </div>
                 </div>
-           </div> {/* End Right Column */}
-         </div> {/* End Main Content Grid */}
+           </div>
+         </div>
       </main>
 
-      {/* AI Chat Sidebar */}
       <div aria-hidden={!isAiSidebarOpen} className={`fixed top-0 right-0 h-full w-full max-w-sm md:max-w-md lg:max-w-[440px] z-50 transform transition-transform duration-300 ease-in-out ${isAiSidebarOpen ? 'translate-x-0' : 'translate-x-full'} ${cardClass} flex flex-col shadow-2xl border-l ${isIlluminateEnabled ? 'border-gray-200' : 'border-gray-700'}`} role="complementary" aria-labelledby="ai-sidebar-title">
         <div className={`p-3 sm:p-4 border-b ${isIlluminateEnabled ? 'border-gray-200 bg-gray-100/80' : 'border-gray-700 bg-gray-800/90'} flex justify-between items-center flex-shrink-0 sticky top-0 backdrop-blur-sm z-10`}>
           <h3 id="ai-sidebar-title" className={`text-base sm:text-lg font-semibold flex items-center gap-2 ${illuminateTextBlue}`}><BrainCircuit className="w-5 h-5" />Chat with TaskMaster</h3>
