@@ -75,7 +75,6 @@ export const getUserTier = async (userId: string | null | undefined, email: stri
 
             // If user has an active Stripe subscription, that takes precedence
             if (stripeStatus === 'active' && (stripeTier === 'pro' || stripeTier === 'premium')) {
-                console.log(`User ${userId} has active Stripe tier: ${stripeTier}`);
                 return stripeTier;
             }
         }
@@ -93,11 +92,9 @@ export const getUserTier = async (userId: string | null | undefined, email: stri
     if (!email) return 'basic'; // No email provided for fallback
 
     if (PREMIUM_EMAILS.includes(email)) {
-        console.log(`User ${email} granted Premium via hardcoded list.`);
         return 'premium';
     }
     if (PRO_EMAILS.includes(email)) {
-        console.log(`User ${email} granted Pro via hardcoded list.`);
         return 'pro';
     }
 
