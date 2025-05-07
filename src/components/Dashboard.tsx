@@ -506,7 +506,6 @@ export function Dashboard() {
           // Check if the stored month matches the current month. If not, reset local count.
           // Firestore will handle the reset on the first increment of the new month.
           if (chatMonth !== currentMonthYear) {
-              console.log(`Chat month mismatch (State: ${chatMonth}, Current: ${currentMonthYear}). Resetting local count.`);
               currentCount = 0; // Reset count locally for the check below
               setChatCount(0); // Update state
               setChatMonth(currentMonthYear); // Update state
@@ -1166,9 +1165,7 @@ Follow these instructions strictly.`;
                     setChatMonth(usageData.month);
                     const limit = getChatLimitForTier(resolvedTier); // Use resolvedTier
                     setIsChatLimitReached(usageData.count >= limit);
-                    console.log(`Loaded chat usage for ${currentMonthYear}: ${usageData.count}`);
                 } else {
-                    console.log(`No chat usage data found for ${firebaseUser.uid} for current month ${currentMonthYear}. Resetting local count.`);
                     setChatCount(0);
                     setChatMonth(currentMonthYear);
                     setIsChatLimitReached(false);
@@ -1766,7 +1763,6 @@ Another Example: Looks clear for today. Consider planning your next project step
                          timerState.audio.pause();
                          timerState.audio.currentTime = 0;
                      }
-                      console.log(`Cleaned up removed timer state: ${id}`);
                  }
              });
 
