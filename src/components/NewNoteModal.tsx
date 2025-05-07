@@ -12,6 +12,10 @@ import {
   Briefcase,
   Clock
 } from 'lucide-react';
+import {
+    UserTier, // Import the type
+    NOTE_LIMITS // Import NOTE_LIMITS from central location
+} from '../lib/current-paying-user'; // Correct path
 
 // --- Constants for Simulation ---
 const SIMULATION_INTERVAL = 150; // Update progress every 150ms
@@ -43,6 +47,8 @@ interface NewNoteModalProps {
   onYoutubeLink: (url: string) => Promise<void>;
   isIlluminateEnabled: boolean;
   isBlackoutEnabled: boolean;
+  userTier: UserTier; // <-- ADDED PROP
+  noteUsage: { pdfAi: number; youtube: number; }; // <-- ADDED PROP
 }
 
 // --- Component ---
@@ -53,7 +59,9 @@ export function NewNoteModal({
   onUploadPDF,
   onYoutubeLink,
   isIlluminateEnabled,
-  isBlackoutEnabled
+  isBlackoutEnabled,
+  userTier, // <-- DESTRUCTURED PROP
+  noteUsage // <-- DESTRUCTURED PROP
 }: NewNoteModalProps) {
   // --- State ---
   const [mode, setMode] = useState<'select' | 'personal' | 'ai' | 'pdf' | 'youtube'>('select');
@@ -138,6 +146,28 @@ export function NewNoteModal({
   const progressBarColor = 'bg-blue-500';
 
 
+  // --- Helper Function to Check Limits (Uses Props) ---
+  const checkNoteLimit = (noteType: 'pdfAi' | 'youtube'): boolean => {
+    if (userTier === 'loading') {
+        setError('Verifying account status, please wait...');
+        return false;
+    }
+    if (userTier === 'premium') return true;
+
+    const limits = NOTE_LIMITS[userTier]; // Use imported NOTE_LIMITS
+    const currentCount = noteUsage[noteType];
+    const limit = limits[noteType];
+
+    if (currentCount >= limit) {
+        const typeName = noteType === 'pdfAi' ? 'PDF/AI Text Note' : 'YouTube Note';
+        setError(`Your monthly ${typeName} limit (${limit}) for the ${userTier} plan has been reached. Please upgrade for more notes.`);
+        // setTimeout(() => setError(null), 5000); // Optional: auto-clear error
+        return false;
+    }
+    return true;
+  };
+
+
   // --- Handlers ---
   const handleAddTag = () => {
     const trimmedTag = newTag.trim().toLowerCase().replace(/\s+/g, '-');
@@ -170,11 +200,10 @@ export function NewNoteModal({
   // --- Dynamic Status Messages Logic (Simplified) ---
   const getStatusMessages = (actionType: typeof mode): string[] => {
       switch (actionType) {
-          // [Initial Action, Creating Notes Step, Completion Message]
           case 'pdf': return ["Uploading PDF...", "Creating notes...", "Notes created from PDF!"];
           case 'youtube': return ["Fetching video info...", "Creating notes...", "Notes created from YouTube!"];
           case 'ai': return ["Processing text...", "Creating notes...", "AI notes generated!"];
-          case 'personal': return ["Saving note...", "Note saved!"]; // Only initial and final for short actions
+          case 'personal': return ["Saving note...", "Note saved!"];
           default: return ["Processing...", "Completed!"];
       }
   }
@@ -183,7 +212,6 @@ export function NewNoteModal({
   const executeAction = async (action: () => Promise<void>, actionType: Exclude<typeof mode, 'select'>) => {
     if (isLoading) return;
 
-    // --- Start Loading State ---
     setCurrentOperationMode(actionType);
     setIsLoading(true);
     setError(null);
@@ -192,21 +220,19 @@ export function NewNoteModal({
     clearAllTimers();
 
     const statusMessages = getStatusMessages(actionType);
-    setCurrentStatusMessage(statusMessages[0] || "Processing..."); // Set initial message
+    setCurrentStatusMessage(statusMessages[0] || "Processing...");
 
     const estimatedDuration = ESTIMATED_DURATIONS[actionType];
     const progressIncrement = (100 / (estimatedDuration / SIMULATION_INTERVAL));
 
-    // --- Start Simulation Timers ---
     progressIntervalRef.current = setInterval(() => {
         setProgress(prev => Math.min(prev + progressIncrement, 99));
     }, SIMULATION_INTERVAL);
 
-    // Status Update Timeouts (only for the "Creating notes..." step if applicable)
     const updateTimes = STATUS_UPDATE_TIMES[actionType] || [];
-    if (updateTimes.length > 0 && statusMessages.length > 2) { // Check if there's an intermediate message defined
+    if (updateTimes.length > 0 && statusMessages.length > 2) {
        const timeoutId = setTimeout(() => {
-         setCurrentStatusMessage(statusMessages[1]); // Set to "Creating notes..."
+         setCurrentStatusMessage(statusMessages[1]);
        }, updateTimes[0]);
        statusTimeoutRefs.current.push(timeoutId);
     }
@@ -215,19 +241,16 @@ export function NewNoteModal({
         setShowLongOperationWarning(true);
     }, LONG_OPERATION_THRESHOLD);
 
-    // --- Execute Actual Action ---
     try {
       await action();
-      // --- Success ---
       clearAllTimers();
       setProgress(100);
-      // Use the *last* message in the array as the final success message
       setCurrentStatusMessage(statusMessages[statusMessages.length - 1] || "Completed!");
-      // Let parent handle close immediately on promise resolve
       setIsLoading(false);
+      // Parent now handles onClose via the promise resolution in Notes.tsx
+      // onClose(); // No longer call onClose directly here if parent handles it based on promise
 
     } catch (e: any) {
-      // --- Failure ---
       clearAllTimers();
       console.error("Action failed:", e);
       setError(e.message || "An unexpected error occurred. Please try again.");
@@ -240,11 +263,13 @@ export function NewNoteModal({
   // Specific action triggers
   const handleCreatePersonalNoteSubmit = () => {
     if (!title.trim() || !content.trim() || isLoading) return;
+    // Personal notes usually don't have hard limits, but can add if needed
     executeAction(() => onCreatePersonalNote(title.trim(), content.trim(), tags), 'personal');
   };
 
   const handleCreateAINoteSubmit = () => {
     if (!aiText.trim() || isLoading) return;
+    if (!checkNoteLimit('pdfAi')) return; // Check limit before executing
     executeAction(() => onCreateAINote(aiText.trim()), 'ai');
   };
 
@@ -257,6 +282,10 @@ export function NewNoteModal({
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
+    if (!checkNoteLimit('pdfAi')) { // Check limit before executing
+        if (fileInputRef.current) fileInputRef.current.value = ""; // Clear file input if limit reached
+        return;
+    }
     executeAction(() => onUploadPDF(file), 'pdf');
      if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -268,13 +297,13 @@ export function NewNoteModal({
       setError("Please enter a valid YouTube URL.");
       return;
     }
+    if (!checkNoteLimit('youtube')) return; // Check limit before executing
     executeAction(() => onYoutubeLink(youtubeUrl.trim()), 'youtube');
   };
 
 
   // --- Rendering Logic ---
 
-  // Loading state display with progress, icons, and simplified messages
   const getLoadingState = () => {
     if (!isLoading || !currentOperationMode) return null;
 
@@ -287,18 +316,12 @@ export function NewNoteModal({
      }
 
     return (
-      <div className="flex flex-col items-center justify-center text-center p-4 space-y-3 animate-fadeIn min-h-[200px]"> {/* Adjusted min-height slightly */}
-
-         {/* Icon + Spinner Row */}
+      <div className="flex flex-col items-center justify-center text-center p-4 space-y-3 animate-fadeIn min-h-[200px]">
          <div className="flex items-center justify-center gap-3 mb-2">
             {IconComponent && <IconComponent className={`w-7 h-7 ${iconColor} animate-pulse`} />}
             <Loader2 className={`w-6 h-6 ${iconColor} animate-spin`} />
          </div>
-
-         {/* Status Message */}
          <p className={`text-sm font-medium ${loadingTextColor}`}>{currentStatusMessage}</p>
-
-         {/* Progress Bar */}
          <div className={`w-full h-2 rounded-full overflow-hidden ${progressBg}`}>
             <div
               className={`h-full ${progressBarColor} transition-all duration-150 ease-linear`}
@@ -306,11 +329,7 @@ export function NewNoteModal({
             />
           </div>
           <p className={`text-xs ${loadingTextColor} opacity-80`}>{Math.round(progress)}%</p>
-
-         {/* Static Wait Message */}
          <p className={`text-xs ${loadingTextColor} opacity-70 mt-1`}>Please wait...</p>
-
-         {/* Long Operation Warning */}
          {showLongOperationWarning && (
             <div className={`flex items-center gap-1.5 text-xs ${loadingTextColor} opacity-90 mt-2 p-1.5 rounded-md ${isIlluminateEnabled ? 'bg-yellow-100/60' : 'bg-yellow-500/10'}`}>
                 <Clock className="w-3 h-3 text-yellow-500 dark:text-yellow-400" />
@@ -321,7 +340,6 @@ export function NewNoteModal({
     );
   };
 
-  // Main content rendering
   const renderContent = () => {
     if (isLoading) {
       return (
@@ -331,8 +349,6 @@ export function NewNoteModal({
        );
     }
 
-    // Render mode-specific content when not loading
-    // (Rest of the switch case remains the same as the previous version)
     switch (mode) {
        case 'select':
         return (
@@ -431,9 +447,7 @@ export function NewNoteModal({
     }
   };
 
-   // Footer buttons rendering
    const renderFooterButtons = () => {
-     // (Footer button logic remains the same as the previous version)
      if (isLoading || mode === 'select') return null;
 
      const goBackAction = () => handleSetMode('select');
@@ -474,12 +488,10 @@ export function NewNoteModal({
    };
 
 
-  // --- JSX Structure ---
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
       <div className={`${modalBg} rounded-lg shadow-xl max-w-xl w-full max-h-[90vh] flex flex-col`}>
 
-        {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
            <h2 className={`text-lg font-semibold ${headingColor}`}>
              {isLoading ? (currentOperationMode === 'personal' ? 'Saving Note...' :
@@ -499,12 +511,10 @@ export function NewNoteModal({
           </button>
         </div>
 
-        {/* Content Area (Scrollable, shows form or loading state) */}
         <div className="flex-1 overflow-y-auto p-4 custom-scrollbar min-h-[250px]">
           {renderContent()}
         </div>
 
-        {/* Footer: Error Display OR Action Buttons */}
         <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0 min-h-[68px] flex items-center justify-end gap-2">
           {!isLoading && error && (
             <div className={`p-2 rounded-md flex items-center gap-2 text-xs ${errorBg} w-full animate-fadeIn`}>
