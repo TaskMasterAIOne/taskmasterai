@@ -32,7 +32,7 @@ interface SidebarProps {
 }
 
 const DEV_EMAILS = ["bajinsrinivasr@lexington1.net", "fugegate@gmail.com", "draco77654@gmail.com"];
-const INTERN_EMAILS = ["srinibaj10@gmail.com"]; // Add intern emails here
+const INTERN_EMAILS = ["intern_example@example.com"]; // Add intern emails here
 
 export function Sidebar({
   userName,
@@ -251,55 +251,62 @@ export function Sidebar({
               `}
               title={isCollapsed && !isMobileMenuOpen ? `${userName || "User"} - Settings` : undefined}
             >
-              {/* Avatar Container - THIS IS THE PARENT FOR ABSOLUTELY POSITIONED TAGS */}
-              <div
-                className={`
-                  relative flex-shrink-0 w-8 h-8 rounded-full
-                  ${initialAvatarGlowClass}
-                  ${isCollapsed && !isMobileMenuOpen ? 'mb-0' : ''}
-                `}
-                onAnimationEnd={handleInitialGlowEnd}
-              >
-                <div className={`w-full h-full rounded-full overflow-hidden ${defaultAvatarBg}`}>
-                  {currentUser?.photoURL ? (
-                    <img src={currentUser.photoURL} alt={userName || "User"} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <CircleUserRound className={`w-5 h-5 min-w-[1.25rem] ${defaultAvatarIconColor}`} strokeWidth={2} />
-                    </div>
-                  )}
+              {/* Wrapper for Avatar and its Tags, arranged vertically */}
+              <div className="flex flex-col items-center">
+                {/* Avatar Image Wrapper */}
+                <div
+                  className={`
+                    flex-shrink-0 w-8 h-8 rounded-full
+                    ${initialAvatarGlowClass}
+                  `}
+                  onAnimationEnd={handleInitialGlowEnd}
+                >
+                  <div className={`w-full h-full rounded-full overflow-hidden ${defaultAvatarBg}`}>
+                    {currentUser?.photoURL ? (
+                      <img src={currentUser.photoURL} alt={userName || "User"} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <CircleUserRound className={`w-5 h-5 min-w-[1.25rem] ${defaultAvatarIconColor}`} strokeWidth={2} />
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                {/* DEV Tag - Positioned on Avatar */}
-                {showTags && isDev && (!isCollapsed || isMobileMenuOpen) && (
-                  <span
-                    className={`
-                      absolute -top-1.5 -right-1.5 px-1.5 py-0.5 text-[9px] font-bold text-white
-                      bg-gradient-to-br from-indigo-500 to-purple-600
-                      rounded-full shadow-md
-                      border-2 ${tagBorderColor}
-                      select-none animate-tag-animated-dev
-                    `}
-                    title="Developer"
-                  >
-                    DEV
-                  </span>
-                )}
+                {/* Tags Container - Shown below avatar if conditions met */}
+                {showTags && (isDev || isIntern) && (!isCollapsed || isMobileMenuOpen) && (
+                  <div className="flex items-center justify-center gap-1 mt-1.5"> {/* mt-1.5 for spacing below avatar */}
+                    {/* DEV Tag */}
+                    {isDev && (
+                      <span
+                        className={`
+                          px-1.5 py-0.5 text-[9px] font-bold text-white
+                          bg-gradient-to-br from-indigo-500 to-purple-600
+                          rounded-full shadow-md
+                          border-2 ${tagBorderColor}
+                          select-none animate-tag-animated-dev
+                        `}
+                        title="Developer"
+                      >
+                        DEV
+                      </span>
+                    )}
 
-                {/* INTERN Tag - Positioned on Avatar */}
-                {showTags && isIntern && (!isCollapsed || isMobileMenuOpen) && (
-                  <span
-                    className={`
-                      absolute -bottom-1.5 ${isDev ? '-left-1.5' : '-right-1.5'} px-1.5 py-0.5 text-[9px] font-bold text-white
-                      bg-gradient-to-br from-teal-500 to-green-600
-                      rounded-full shadow-md
-                      border-2 ${tagBorderColor}
-                      select-none animate-tag-animated-intern
-                    `}
-                    title="Intern"
-                  >
-                    INT
-                  </span>
+                    {/* INTERN Tag */}
+                    {isIntern && (
+                      <span
+                        className={`
+                          px-1.5 py-0.5 text-[9px] font-bold text-white
+                          bg-gradient-to-br from-teal-500 to-green-600
+                          rounded-full shadow-md
+                          border-2 ${tagBorderColor}
+                          select-none animate-tag-animated-intern
+                        `}
+                        title="Intern"
+                      >
+                        INT
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
 
