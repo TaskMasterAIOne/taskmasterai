@@ -32,7 +32,7 @@ interface SidebarProps {
 }
 
 const DEV_EMAILS = ["bajinsrinivasr@lexington1.net", "fugegate@gmail.com", "draco77654@gmail.com"];
-const INTERN_EMAILS = ["srinibaj10@gmail.com"]; // Add intern emails here
+const INTERN_EMAILS = ["intern_example@example.com"]; // Add intern emails here
 
 export function Sidebar({
   userName,
@@ -251,46 +251,8 @@ export function Sidebar({
               `}
               title={isCollapsed && !isMobileMenuOpen ? `${userName || "User"} - Settings` : undefined}
             >
-              {/* Wrapper for Tags and Avatar, arranged vertically */}
+              {/* Avatar Area */}
               <div className="flex flex-col items-center">
-                {/* Tags Container - Shown above avatar if conditions met */}
-                {showTags && (isDev || isIntern) && (!isCollapsed || isMobileMenuOpen) && (
-                  <div className="flex items-center justify-center gap-1 mb-1.5"> {/* mb-1.5 for spacing above avatar */}
-                    {/* DEV Tag */}
-                    {isDev && (
-                      <span
-                        className={`
-                          px-1.5 py-0.5 text-[9px] font-bold text-white
-                          bg-gradient-to-br from-indigo-500 to-purple-600
-                          rounded-full shadow-md
-                          border-2 ${tagBorderColor}
-                          select-none animate-tag-animated-dev
-                        `}
-                        title="Developer"
-                      >
-                        DEV
-                      </span>
-                    )}
-
-                    {/* INTERN Tag */}
-                    {isIntern && (
-                      <span
-                        className={`
-                          px-1.5 py-0.5 text-[9px] font-bold text-white
-                          bg-gradient-to-br from-teal-500 to-green-600
-                          rounded-full shadow-md
-                          border-2 ${tagBorderColor}
-                          select-none animate-tag-animated-intern
-                        `}
-                        title="Intern"
-                      >
-                        INT
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                {/* Avatar Image Wrapper */}
                 <div
                   className={`
                     flex-shrink-0 w-8 h-8 rounded-full
@@ -310,12 +272,51 @@ export function Sidebar({
                 </div>
               </div>
 
-              {/* User Info (Name and Tier) */}
+              {/* User Info (Name, Tags, and Tier) */}
               {(!isCollapsed || isMobileMenuOpen) && (
                 <div className="flex flex-col items-start min-w-0">
-                  <span className="text-left text-sm font-medium truncate max-w-[160px]">
-                    {userName || (currentUser ? "User" : "Loading...")}
-                  </span>
+                  {/* Row 1: Name + Tags */}
+                  <div className="flex items-center min-w-0">
+                    <span className="text-left text-sm font-medium truncate max-w-[160px]">
+                      {userName || (currentUser ? "User" : "Loading...")}
+                    </span>
+                    {/* Tags Container - Next to Name */}
+                    {showTags && (isDev || isIntern) && (
+                      <div className="flex items-center gap-1 ml-1.5 flex-shrink-0">
+                        {/* DEV Tag */}
+                        {isDev && (
+                          <span
+                            className={`
+                              px-1.5 py-0.5 text-[9px] font-bold text-white
+                              bg-gradient-to-br from-indigo-500 to-purple-600
+                              rounded-full shadow-md
+                              border-2 ${tagBorderColor}
+                              select-none animate-tag-animated-dev
+                            `}
+                            title="Developer"
+                          >
+                            DEV
+                          </span>
+                        )}
+                        {/* INTERN Tag */}
+                        {isIntern && (
+                          <span
+                            className={`
+                              px-1.5 py-0.5 text-[9px] font-bold text-white
+                              bg-gradient-to-br from-teal-500 to-green-600
+                              rounded-full shadow-md
+                              border-2 ${tagBorderColor}
+                              select-none animate-tag-animated-intern
+                            `}
+                            title="Intern"
+                          >
+                            INT
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {/* Row 2: Tier */}
                   <div className="flex items-center gap-1.5">
                     {userTier === 'premium' ? (
                       <span className="text-xs font-semibold bg-gradient-to-r from-amber-400 to-orange-500 text-transparent bg-clip-text"> Premium </span>
