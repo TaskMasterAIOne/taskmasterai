@@ -36,6 +36,10 @@ interface SidebarProps {
   isIlluminateEnabled?: boolean;
 }
 
+// --- Emails for Special Roles ---
+const DEV_EMAILS = ["bajinsrinivasr@lexington1.net", "fugegate@gmail.com", "draco77654@gmail.com"];
+const INTERN_EMAILS = ["intern_example@example.com"]; // Add intern emails here
+
 export function Sidebar({
   userName,
   onToggle,
@@ -46,44 +50,36 @@ export function Sidebar({
   const location = useLocation();
   const navigate = useNavigate();
   const isSettingsPage = location.pathname === "/settings";
-  const [currentUser, setCurrentUser] = useState<User | null>(null); // State for Firebase User object
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  // --- State for User Tier ---
   const [userTier, setUserTier] = useState<UserTier>('loading');
-
-  // --- State for Dev Status ---
   const [isDev, setIsDev] = useState<boolean>(false);
-  const DEV_EMAILS = ["bajinsrinivasr@lexington1.net", "fugegate@gmail.com", "draco77654@gmail.com"];
+  const [isIntern, setIsIntern] = useState<boolean>(false); // State for Intern status
 
-  // Effect to listen to auth state changes and update user/tier/dev status
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (user) => { // Made callback async
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
       setCurrentUser(user);
       if (user) {
-        setUserTier('loading'); // Set to loading while fetching tier
+        setUserTier('loading');
         try {
-          // Determine Tier using centralized async function
-          const tier = await getUserTier(user.uid, user.email); // Pass uid and email
+          const tier = await getUserTier(user.uid, user.email);
           setUserTier(tier);
         } catch (error) {
           console.error("Sidebar: Error fetching user tier:", error);
-          setUserTier('basic'); // Fallback to 'basic' on error
+          setUserTier('basic');
         }
-        // Determine Dev status
         setIsDev(user.email ? DEV_EMAILS.includes(user.email) : false);
+        setIsIntern(user.email ? INTERN_EMAILS.includes(user.email) : false); // Set Intern status
       } else {
-        // Reset state if user logs out
         setCurrentUser(null);
-        setUserTier('loading'); // Or 'basic' depending on desired unauthenticated state
+        setUserTier('loading');
         setIsDev(false);
+        setIsIntern(false); // Reset Intern status
       }
     });
-    // Cleanup listener on component unmount
     return () => unsubscribe();
-  }, []); // Run only once on mount, DEV_EMAILS is stable
+  }, []);
 
-  // Close mobile menu when route changes
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [location.pathname]);
@@ -110,9 +106,7 @@ export function Sidebar({
     setIsMobileMenuOpen(false);
   };
 
-  // -----------------------------
-  //   Determine Sidebar Colors
-  // -----------------------------
+  // Determine Sidebar Colors
   let sidebarContainerBg = "bg-[#0c111c] text-gray-300 border-gray-800/50";
   if (isIlluminateEnabled) {
     sidebarContainerBg = "bg-gray-100 text-gray-900 border-gray-300";
@@ -137,9 +131,7 @@ export function Sidebar({
   const userProfileText = isIlluminateEnabled ? "text-gray-800" : "text-gray-300";
   const defaultAvatarBg = isIlluminateEnabled ? "bg-gray-300" : "bg-gray-800";
   const defaultAvatarIconColor = isIlluminateEnabled ? "text-gray-600" : "text-gray-400";
-  const devTagClasses = isIlluminateEnabled
-    ? "bg-indigo-100 text-indigo-700 border border-indigo-200"
-    : "bg-gradient-to-r from-blue-500 to-indigo-600 text-white";
+
   let mobileHeaderBg = "bg-[#0c111c] border-b border-gray-800/50";
   if (isIlluminateEnabled) {
     mobileHeaderBg = "bg-gray-100 border-b border-gray-300";
@@ -148,10 +140,12 @@ export function Sidebar({
   }
   const mobileHeaderText = isIlluminateEnabled ? "text-gray-900" : "text-gray-100";
 
-  const getCurrentPageTitle = () => {
-    const currentItem = menuItems.find((item) => item.path === location.pathname);
-    return currentItem ? currentItem.label : "Dashboard";
-  };
+  // Tag border color based on sidebar theme for "cutout" effect
+  const tagBorderColor = isIlluminateEnabled
+    ? "border-gray-100" // Matches light sidebar bg
+    : isBlackoutEnabled
+    ? "border-gray-950" // Matches blackout sidebar bg
+    : "border-[#0c111c]"; // Matches default dark sidebar bg
 
   return (
     <>
@@ -165,13 +159,9 @@ export function Sidebar({
         >
           {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
-        {/* You can add a title here if needed for mobile view
-        <span className={`${mobileHeaderText} font-semibold`}>{getCurrentPageTitle()}</span>
-        <div className="w-8"></div> Placeholder for balance
-        */}
       </div>
 
-      <div className="md:ml-0 md:pt-0"> {/* Adjusted for fixed mobile header */}
+      <div className="md:ml-0 md:pt-0">
         {isMobileMenuOpen && (
           <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setIsMobileMenuOpen(false)} />
         )}
@@ -182,7 +172,7 @@ export function Sidebar({
             transition-all duration-300 ease-in-out
             ${isCollapsed ? "md:w-20" : "md:w-64"}
             ${isMobileMenuOpen ? "w-64 translate-x-0 pt-14" : "-translate-x-full md:translate-x-0"}
-            md:pt-6 md:h-full 
+            md:pt-6 md:h-full
           `}
         >
           <div className="mb-6 flex items-center pl-3">
@@ -204,7 +194,6 @@ export function Sidebar({
               <div className="flex items-center justify-between w-full">
                 <a href="/" className="flex items-center space-x-2 whitespace-nowrap overflow-hidden">
                   <Logo className="w-8 h-8 flex-shrink-0" />
-                  {/* <span className={`font-semibold ${mobileHeaderText}`}>TaskMasterAI</span> */}
                 </a>
               </div>
             )}
@@ -268,6 +257,36 @@ export function Sidebar({
                     </div>
                   )}
                 </div>
+                {/* DEV Tag */}
+                {isDev && (
+                  <span
+                    className={`
+                      absolute -top-[6px] -right-[6px] px-1.5 py-0.5 text-[9px] font-bold text-white
+                      bg-gradient-to-br from-indigo-500 to-purple-600
+                      rounded-full shadow-lg
+                      border-2 ${tagBorderColor}
+                      select-none animate-dev-pulse
+                    `}
+                    title="Developer"
+                  >
+                    DEV
+                  </span>
+                )}
+                {/* INTERN Tag */}
+                {isIntern && (
+                  <span
+                    className={`
+                      absolute -bottom-[6px] ${isDev ? '-left-[6px]' : '-right-[6px]'} px-1.5 py-0.5 text-[9px] font-bold text-white
+                      bg-gradient-to-br from-teal-500 to-green-600
+                      rounded-full shadow-lg
+                      border-2 ${tagBorderColor}
+                      select-none animate-intern-glow
+                    `}
+                    title="Intern"
+                  >
+                    INT
+                  </span>
+                )}
               </div>
 
               {(!isCollapsed || isMobileMenuOpen) && (
@@ -285,7 +304,7 @@ export function Sidebar({
                     ) : (
                       <span className="text-xs text-gray-500">Loading...</span>
                     )}
-                    {isDev && ( <span className={` ml-1 px-1 py-0.5 text-[9px] font-semibold ${devTagClasses} rounded-full leading-none `}> DEV </span> )}
+                    {/* Removed old inline DEV tag here */}
                   </div>
                 </div>
               )}
