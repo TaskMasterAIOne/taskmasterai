@@ -15,14 +15,14 @@ pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 
 import { motion } from 'framer-motion';
 import App from './App';
-import { useBlackoutMode } from './hooks/useBlackoutMode';
-import { useIlluminateMode } from './hooks/useIlluminateMode';
+// import { useBlackoutMode } from './hooks/useBlackoutMode'; // Not used directly in main.tsx
+// import { useIlluminateMode } from './hooks/useIlluminateMode'; // Not used directly in main.tsx
 import Login from './components/Login';
 import { SignUp } from './components/SignUp';
 import { AuthProvider } from './contexts/AuthContext';
 import Pricing from './components/Pricing';
 import Terms from './components/Terms';
-import Friends from './components/Friends';
+// import Friends from './components/Friends'; // Imported but potentially unused if FriendsOutage is always used
 import Settings from './components/Settings';
 import SplashScreen from './components/SplashScreen';
 import ForgotPassword from './components/Forgot-Password';
@@ -41,6 +41,10 @@ import FriendsOutage from './outage-pages/FriendsOutage';
 import Status from './status/Status'; // Import the new Status page
 import { PublicNoteView } from './components/PublicNoteView'; // Adjust path if needed
 import ComingSoon from './components/ComingSoon'; // Import the component
+
+// --- Vercel Analytics & Speed Insights ---
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 
 // Global Helmet component to include favicon and related tags
 const DefaultHelmet = () => (
@@ -192,11 +196,16 @@ createRoot(document.getElementById('root')!).render(
       <DefaultHelmet />
       <BrowserRouter>
         <AuthProvider>
+          {/* Vercel Analytics and Speed Insights should be placed here */}
+          {/* They will be rendered once and persist across route changes */}
+          <Analytics />
+          <SpeedInsights />
           <Routes>
             <Route path="/login" element={<PageTitle title="Login"><Login /></PageTitle>} />
             <Route path="/signup" element={<PageTitle title="Sign Up"><SignUp /></PageTitle>} />
             <Route path="/pricing" element={<PageTitle title="Pricing"><Pricing /></PageTitle>} />
             <Route path="/terms" element={<PageTitle title="Terms of Service"><Terms /></PageTitle>} />
+            {/* Assuming FriendsOutage is the intended component for /friends */}
             <Route path="/friends" element={<PageTitle title="Friends"><FriendsOutage /></PageTitle>} />
             <Route path="/settings" element={<PageTitle title="Settings"><Settings /></PageTitle>} />
             <Route path="/splashscreen" element={<PageTitle title="Welcome"><SplashScreen /></PageTitle>} />
@@ -207,13 +216,14 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/folders" element={<PageTitle title="Folders"><Folders /></PageTitle>} />
             <Route path="/ai" element={<PageTitle title="AI Assistant"><AIChat /></PageTitle>} />
             <Route path="/calendar" element={<PageTitle title="Calendar"><Calendar /></PageTitle>} />
-            <Route path="/notes" element={<PageTitle title="Notes"><Notes /></PageTitle>} />
+            {/* Assuming NotesOutage might be used for /notes if there's an outage condition, otherwise Notes */}
+            <Route path="/notes" element={<PageTitle title="Notes"><Notes /></PageTitle>} /> 
             <Route path="/school" element={<PageTitle title="School"><SchoolPage /></PageTitle>} />
             <Route path="/community" element={<PageTitle title="Community"><Community /></PageTitle>} />
             <Route path="/" element={<RootTitle><App /></RootTitle>} />
             <Route path="/status" element={<PageTitle title="Status"><Status /></PageTitle>} />
             <Route path="/focus-mode" element={<PageTitle title="Focus Mode"><ComingSoon /></PageTitle>} />
-            <Route path="/api/*" element={null} />
+            <Route path="/api/*" element={null} /> {/* This route likely serves no visual component */}
             <Route path="/public-note/:noteId" element={<PageTitle title="Public Note"><PublicNoteView /></PageTitle>} />
             
             {/* Catch-all route for 404 */}
@@ -225,4 +235,4 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>
 );
 
-export {};
+export {}; // This ensures the file is treated as a module, good practice
