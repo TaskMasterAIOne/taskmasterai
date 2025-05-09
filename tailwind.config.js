@@ -32,6 +32,10 @@ export default {
         'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'pulse-slower': 'pulse 6s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'spin-slow': 'spin 20s linear infinite',
+        // --- ADDED ---
+        'dev-pulse': 'dev-pulse 2s infinite ease-in-out',
+        'intern-glow': 'intern-glow 2.2s infinite ease-in-out',
+        // --- END ADDED ---
       },
       keyframes: {
         gradient: {
@@ -44,6 +48,16 @@ export default {
             'background-position': 'right center',
           },
         },
+        // --- ADDED ---
+        'dev-pulse': {
+          '0%, 100%': { transform: 'scale(1)', boxShadow: '0 0 6px 2px rgba(99, 102, 241, 0.6)' }, // indigo-500 based (using your defined indigo-500: #6366f1)
+          '50%': { transform: 'scale(1.15)', boxShadow: '0 0 10px 4px rgba(129, 140, 248, 0.75)' }, // a lighter indigo
+        },
+        'intern-glow': {
+          '0%, 100%': { transform: 'scale(1)', boxShadow: '0 0 6px 2px rgba(16, 185, 129, 0.6)' },   // teal-500/green-500 like
+          '50%': { transform: 'scale(1.15)', boxShadow: '0 0 10px 4px rgba(52, 211, 153, 0.75)' },  // a lighter version
+        },
+        // --- END ADDED ---
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
