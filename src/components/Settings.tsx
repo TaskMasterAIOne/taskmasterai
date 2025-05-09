@@ -11,7 +11,7 @@ import {
   getCurrentUser, getUserData, deleteProfilePicture,
 } from '../lib/settings-firebase';
 import { saveUserContext, getUserContext, UserContext } from '../lib/ai-context-firebase';
-import { getUserTier, UserTier } from '../lib/current-paying-user'; // Added UserTier type import
+import { getUserTier, UserTier } from '../lib/current-paying-user';
 import { createPortalSession } from '../lib/stripe-client';
 import { User } from 'firebase/auth';
 
@@ -21,7 +21,7 @@ export function Settings() {
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // Still useful for initial data population like name/email
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -40,7 +40,7 @@ export function Settings() {
   const [isSidebarBlackoutEnabled, setIsSidebarBlackoutEnabled] = useState(() => JSON.parse(localStorage.getItem('isSidebarBlackoutEnabled') || 'false'));
   const [formData, setFormData] = useState({ name: '', email: '', currentPassword: '', newPassword: '', confirmPassword: '' });
   const [isGoogleUser, setIsGoogleUser] = useState<boolean>(false);
-  const [userCurrentTier, setUserCurrentTier] = useState<UserTier>('loading'); // Used UserTier type
+  const [userCurrentTier, setUserCurrentTier] = useState<UserTier>('loading');
   const [stripeCustomerId, setStripeCustomerId] = useState<string | null>(null);
   const [isManagingSubscription, setIsManagingSubscription] = useState(false);
   const [portalError, setPortalError] = useState<string | null>(null);
@@ -66,19 +66,33 @@ export function Settings() {
     const loadData = async () => {
       const currentUser = getCurrentUser();
       if (!currentUser) { navigate('/login'); return; }
-      setUser(currentUser);
+      setUser(currentUser); // Set user early
       const googleFlag = currentUser.providerData?.some((p: any) => p.providerId === 'google.com');
       setIsGoogleUser(!!googleFlag);
 
       try {
+        // Initialize userData with what's available from auth, then update from Firestore
+        setUserData({
+            name: currentUser.displayName || '',
+            email: currentUser.email || '',
+            photoURL: currentUser.photoURL || '',
+        });
+        setFormData(prev => ({
+            ...prev,
+            name: currentUser.displayName || '',
+            email: currentUser.email || '',
+            currentPassword: '', newPassword: '', confirmPassword: '',
+        }));
+
         const [tier, firestoreData] = await Promise.all([
-          getUserTier(currentUser.uid, currentUser.email), // MODIFIED: Pass both uid and email
+          getUserTier(currentUser.uid, currentUser.email),
           getUserData(currentUser.uid)
         ]);
         setUserCurrentTier(tier);
+        
         const loadedUserData = {
           name: firestoreData?.name || currentUser.displayName || '',
-          email: currentUser.email || '',
+          email: currentUser.email || '', // Email is primarily from auth user
           photoURL: firestoreData?.photoURL || currentUser.photoURL || '',
         };
         setUserData(loadedUserData);
@@ -94,9 +108,9 @@ export function Settings() {
       } catch (error) {
         console.error('Error loading user data/tier:', error);
         setError('Failed to load user data.');
-        setUserCurrentTier('basic');
+        setUserCurrentTier('basic'); // Default to basic on error
       } finally {
-        setIsLoading(false);
+        setIsLoading(false); // This indicates primary user data is loaded or failed
       }
 
       try {
@@ -148,13 +162,13 @@ export function Settings() {
     try {
       const updatedProfile = await updateUserProfile({ photoFile: file }, user.uid);
       const newPhotoURL = updatedProfile?.photoURL || getCurrentUser()?.photoURL || '';
-      const refreshedFirestoreData = await getUserData(user.uid);
+      const refreshedFirestoreData = await getUserData(user.uid); // Re-fetch to ensure consistency
       setUserData(prev => ({
           ...prev,
           photoURL: refreshedFirestoreData?.photoURL || newPhotoURL,
-          name: refreshedFirestoreData?.name || prev.name
+          name: refreshedFirestoreData?.name || prev.name // Keep name if not changed by this op
       }));
-      const refreshedUser = getCurrentUser(); if (refreshedUser) setUser(refreshedUser);
+      const refreshedUser = getCurrentUser(); if (refreshedUser) setUser(refreshedUser); // Refresh auth user state
     } catch (err) { console.error("Upload Error:", err); setError(err instanceof AuthError ? err.message : 'Failed to upload.'); }
     finally { setIsUploading(false); if (fileInputRef.current) fileInputRef.current.value = ""; }
   };
@@ -178,13 +192,13 @@ export function Settings() {
       const updateData: { name?: string; email?: string; currentPassword?: string; newPassword?: string } = {};
       let requiresPassword = false;
       const trimmedName = formData.name.trim();
-      if (trimmedName !== userData.name) {
+      if (trimmedName !== userData.name) { // Compare with current userData, not initial form data
           if (!trimmedName) throw new AuthError('Name cannot be empty.');
           updateData.name = trimmedName;
       }
       if (!isGoogleUser) {
           const trimmedEmail = formData.email.trim();
-          if (trimmedEmail !== userData.email) {
+          if (trimmedEmail !== userData.email) { // Compare with current userData
               if (!trimmedEmail) throw new AuthError('Email cannot be empty.');
               updateData.email = trimmedEmail; requiresPassword = true;
           }
@@ -196,12 +210,19 @@ export function Settings() {
           if (requiresPassword && !formData.currentPassword) throw new AuthError('Current password required.');
           if (requiresPassword && formData.currentPassword) updateData.currentPassword = formData.currentPassword;
       }
-      if (Object.keys(updateData).length > 0) {
+
+      if (Object.keys(updateData).length > 0 || (updateData.newPassword && !isGoogleUser)) { // Check if there's anything to save
           await updateUserProfile(updateData, user.uid);
-          const refreshedUser = getCurrentUser();
-          const refreshedFirestoreData = await getUserData(user.uid);
-          setUserData(prev => ({...prev, name: refreshedFirestoreData?.name || refreshedUser?.displayName || prev.name, email: refreshedUser?.email || prev.email, photoURL: refreshedFirestoreData?.photoURL || refreshedUser?.photoURL || prev.photoURL }));
-          setFormData(prev => ({ ...prev, name: refreshedFirestoreData?.name || refreshedUser?.displayName || prev.name, email: refreshedUser?.email || prev.email, currentPassword: '', newPassword: '', confirmPassword: '' }));
+          const refreshedUser = getCurrentUser(); // Get fresh auth user
+          const refreshedFirestoreData = await getUserData(user.uid); // Get fresh firestore data
+
+          const newName = refreshedFirestoreData?.name || refreshedUser?.displayName || userData.name;
+          const newEmail = refreshedUser?.email || userData.email;
+          const newPhotoURL = refreshedFirestoreData?.photoURL || refreshedUser?.photoURL || userData.photoURL;
+
+          setUserData({ name: newName, email: newEmail, photoURL: newPhotoURL });
+          setFormData(prev => ({ ...prev, name: newName, email: newEmail, currentPassword: '', newPassword: '', confirmPassword: '' }));
+          if(refreshedUser) setUser(refreshedUser); // Update user state
           setIsEditing(false);
       } else {
           setIsEditing(false); setFormData(prev => ({ ...prev, currentPassword: '', newPassword: '', confirmPassword: '' }));
@@ -271,12 +292,16 @@ export function Settings() {
   const deleteModalText = isIlluminateEnabled ? 'text-gray-700' : 'text-gray-200';
   const deleteModalOverlay = 'bg-black/60 backdrop-blur-sm';
 
+  // If initial loading is happening and user is not yet set, we might show a minimal loading screen
+  // or allow rendering the structure with placeholders. The current approach is to render structure.
+  // The redirect in useEffect handles the "no user" case.
+  
   return (
     <div className={`flex flex-col min-h-screen ${containerClass}`}>
       <Sidebar
         isCollapsed={isSidebarCollapsed}
         onToggle={handleToggleSidebar}
-        userName={userData.name || 'User'}
+        userName={userData.name || 'User'} // Uses `userData` which initializes to empty string
         isBlackoutEnabled={isBlackoutEnabled && isSidebarBlackoutEnabled}
         isIlluminateEnabled={isIlluminateEnabled && isSidebarIlluminateEnabled}
       />
@@ -318,13 +343,17 @@ export function Settings() {
             </h1>
             <p className={`${subheadingClass} mt-1 text-sm`}>Manage your account settings and preferences</p>
           </div>
-          {error && !showDeleteConfirm && (
+          {error && !showDeleteConfirm && ( // General errors
             <div className={`mb-4 p-3 rounded-lg flex items-start gap-2 ${errorBoxBg}`}>
               <AlertCircle className={`w-4 h-4 shrink-0 mt-px ${errorTextColor}`} />
               <p className={`${errorTextColor} text-xs sm:text-sm`}>{error}</p>
             </div>
           )}
-          {!isLoading && user && (
+
+          {/* Main content grid is now rendered immediately. 
+              Individual sections will show their content or loading states.
+              isLoading (for primary user data) disables "Edit Profile" button.
+          */}
              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
                <div className="flex flex-col gap-4 lg:gap-6">
                  <div className={`${cardClass} rounded-xl p-4 sm:p-5`}>
@@ -358,17 +387,19 @@ export function Settings() {
                  <div className={`${cardClass} rounded-xl p-4 sm:p-5`}>
                     <div className="flex items-center justify-between mb-4">
                       <h2 className={`text-base sm:text-lg font-semibold ${headingClass}`}>Profile Details</h2>
-                      {!isEditing && (<button type="button" onClick={() => { setIsEditing(true); setError(null); }} disabled={isLoading} className={`px-3 py-1 text-xs sm:text-sm font-medium rounded-md ${buttonSecondaryClass}`}>Edit</button>)}
+                      {/* Edit button is disabled while initial user data is loading */}
+                      {!isEditing && (<button type="button" onClick={() => { setIsEditing(true); setError(null); }} disabled={isLoading || isSaving} className={`px-3 py-1 text-xs sm:text-sm font-medium rounded-md ${buttonSecondaryClass}`}>Edit</button>)}
                     </div>
                     <form onSubmit={handleSave}>
                        <div className="space-y-4">
                           <div>
                             <label htmlFor="name" className={`block text-xs font-medium mb-1 ${subheadingClass}`}>Name</label>
-                            <input id="name" type="text" name="name" value={formData.name} onChange={handleInputChange} disabled={!isEditing || isSaving} className={`w-full ${inputBg} rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 disabled:opacity-60 disabled:cursor-not-allowed`} required/>
+                            {/* formData.name is initialized from userData, which itself is initialized from auth/firestore */}
+                            <input id="name" type="text" name="name" value={formData.name} onChange={handleInputChange} disabled={!isEditing || isSaving || isLoading} className={`w-full ${inputBg} rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 disabled:opacity-60 disabled:cursor-not-allowed`} required/>
                           </div>
                           <div>
                             <label htmlFor="email" className={`flex items-center text-xs font-medium mb-1 ${subheadingClass}`}>Email {isGoogleUser && <span className="ml-1.5 text-[10px] text-gray-500">(Managed by Google)</span>}</label>
-                            <input id="email" type="email" name="email" value={formData.email} onChange={handleInputChange} disabled={!isEditing || isSaving || isGoogleUser} className={`w-full ${inputBg} rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 disabled:opacity-60 disabled:cursor-not-allowed`} required/>
+                            <input id="email" type="email" name="email" value={formData.email} onChange={handleInputChange} disabled={!isEditing || isSaving || isGoogleUser || isLoading} className={`w-full ${inputBg} rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 disabled:opacity-60 disabled:cursor-not-allowed`} required/>
                           </div>
                           {isEditing && !isGoogleUser && (
                               <>
@@ -392,7 +423,7 @@ export function Settings() {
                       {isEditing && (
                         <div className="flex justify-end gap-2 mt-5">
                           <button type="button" onClick={() => { setIsEditing(false); setError(null); setFormData({name: userData.name, email: userData.email, currentPassword: '', newPassword: '', confirmPassword: ''}); }} disabled={isSaving} className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md ${buttonSecondaryClass}`}>Cancel</button>
-                          <button type="submit" disabled={isSaving} className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md ${buttonPrimaryClass} ${buttonPrimaryHoverEffect} flex items-center justify-center min-w-[80px]`}>
+                          <button type="submit" disabled={isSaving || isLoading} className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md ${buttonPrimaryClass} ${buttonPrimaryHoverEffect} flex items-center justify-center min-w-[80px]`}>
                               {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 mr-1.5" /> Save</>}
                           </button>
                         </div>
@@ -509,7 +540,6 @@ export function Settings() {
                  </div>
                </div>
              </div>
-           )}
         </div>
       </main>
     </div>
