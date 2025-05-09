@@ -32,7 +32,7 @@ interface SidebarProps {
 }
 
 const DEV_EMAILS = ["bajinsrinivasr@lexington1.net", "fugegate@gmail.com", "draco77654@gmail.com"];
-const INTERN_EMAILS = ["intern_example@example.com"]; // Add intern emails here
+const INTERN_EMAILS = ["srinibaj10@gmail.com"]; // Add intern emails here
 
 export function Sidebar({
   userName,
@@ -251,30 +251,11 @@ export function Sidebar({
               `}
               title={isCollapsed && !isMobileMenuOpen ? `${userName || "User"} - Settings` : undefined}
             >
-              {/* Wrapper for Avatar and its Tags, arranged vertically */}
+              {/* Wrapper for Tags and Avatar, arranged vertically */}
               <div className="flex flex-col items-center">
-                {/* Avatar Image Wrapper */}
-                <div
-                  className={`
-                    flex-shrink-0 w-8 h-8 rounded-full
-                    ${initialAvatarGlowClass}
-                  `}
-                  onAnimationEnd={handleInitialGlowEnd}
-                >
-                  <div className={`w-full h-full rounded-full overflow-hidden ${defaultAvatarBg}`}>
-                    {currentUser?.photoURL ? (
-                      <img src={currentUser.photoURL} alt={userName || "User"} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <CircleUserRound className={`w-5 h-5 min-w-[1.25rem] ${defaultAvatarIconColor}`} strokeWidth={2} />
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Tags Container - Shown below avatar if conditions met */}
+                {/* Tags Container - Shown above avatar if conditions met */}
                 {showTags && (isDev || isIntern) && (!isCollapsed || isMobileMenuOpen) && (
-                  <div className="flex items-center justify-center gap-1 mt-1.5"> {/* mt-1.5 for spacing below avatar */}
+                  <div className="flex items-center justify-center gap-1 mb-1.5"> {/* mb-1.5 for spacing above avatar */}
                     {/* DEV Tag */}
                     {isDev && (
                       <span
@@ -308,6 +289,25 @@ export function Sidebar({
                     )}
                   </div>
                 )}
+
+                {/* Avatar Image Wrapper */}
+                <div
+                  className={`
+                    flex-shrink-0 w-8 h-8 rounded-full
+                    ${initialAvatarGlowClass}
+                  `}
+                  onAnimationEnd={handleInitialGlowEnd}
+                >
+                  <div className={`w-full h-full rounded-full overflow-hidden ${defaultAvatarBg}`}>
+                    {currentUser?.photoURL ? (
+                      <img src={currentUser.photoURL} alt={userName || "User"} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <CircleUserRound className={`w-5 h-5 min-w-[1.25rem] ${defaultAvatarIconColor}`} strokeWidth={2} />
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* User Info (Name and Tier) */}
