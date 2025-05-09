@@ -50,15 +50,14 @@ export function Sidebar({
   const [isDev, setIsDev] = useState<boolean>(false);
   const [isIntern, setIsIntern] = useState<boolean>(false);
 
-  // States for new animation sequence
   const [showInitialAvatarGlow, setShowInitialAvatarGlow] = useState<boolean>(false);
   const [showTags, setShowTags] = useState<boolean>(false);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       setCurrentUser(user);
-      setShowInitialAvatarGlow(false); // Reset glow on auth change
-      setShowTags(false); // Reset tags on auth change
+      setShowInitialAvatarGlow(false);
+      setShowTags(false);
       if (user) {
         setUserTier('loading');
         try {
@@ -74,7 +73,7 @@ export function Sidebar({
         setIsIntern(userIsIntern);
 
         if (userIsDev || userIsIntern) {
-          setShowInitialAvatarGlow(true); // Start initial glow animation
+          setShowInitialAvatarGlow(true);
         }
 
       } else {
@@ -92,8 +91,10 @@ export function Sidebar({
   }, [location.pathname]);
 
   const handleInitialGlowEnd = () => {
-    setShowInitialAvatarGlow(false); // Turn off glow class (animation is `forwards` anyway for fade out)
-    setShowTags(true); // Make tags visible to start their animation
+    setShowInitialAvatarGlow(false);
+    if (isDev || isIntern) { // Only show tags if user is Dev or Intern
+        setShowTags(true);
+    }
   };
 
   const menuItems = [
@@ -151,7 +152,6 @@ export function Sidebar({
   }
   const mobileHeaderText = isIlluminateEnabled ? "text-gray-900" : "text-gray-100";
 
-  // Determine which initial glow animation to use
   let initialAvatarGlowClass = "";
   if (showInitialAvatarGlow) {
     if (isDev) {
@@ -160,6 +160,12 @@ export function Sidebar({
       initialAvatarGlowClass = "animate-avatar-initial-glow-intern";
     }
   }
+
+  const tagBorderColor = isIlluminateEnabled
+    ? "border-gray-100"
+    : isBlackoutEnabled
+    ? "border-gray-950"
+    : "border-[#0c111c]";
 
   return (
     <>
@@ -191,15 +197,9 @@ export function Sidebar({
         >
           <div className="mb-6 flex items-center pl-3">
             {isCollapsed && !isMobileMenuOpen ? (
-              <a href="/"> {/* Collapsed Logo */}
-                <svg className="w-8 h-8 text-indigo-500" /* ...SVG Path... */ fill="currentColor" />
-              </a>
+              <a href="/"> <svg className="w-8 h-8 text-indigo-500" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"> <path d="M16.19 2H7.81C4.17 2 2 4.17 2 7.81V16.19C2 19.83 4.17 22 7.81 22H16.19C19.83 22 22 19.83 22 16.19V7.81C22 4.17 19.83 2 16.19 2ZM9.97 14.9L7.72 17.15C7.57 17.3 7.38 17.37 7.19 17.37C7 17.37 6.8 17.3 6.66 17.15L5.91 16.4C5.61 16.11 5.61 15.63 5.91 15.34C6.2 15.05 6.67 15.05 6.97 15.34L7.19 15.56L8.91 13.84C9.2 13.55 9.67 13.55 9.97 13.84C10.26 14.13 10.26 14.61 9.97 14.9ZM9.97 7.9L7.72 10.15C7.57 10.3 7.38 10.37 7.19 10.37C7 10.37 6.8 10.3 6.66 10.15L5.91 9.4C5.61 9.11 5.61 8.63 5.91 8.34C6.2 8.05 6.67 8.05 6.97 8.34L7.19 8.56L8.91 6.84C9.2 6.55 9.67 6.55 9.97 6.84C10.26 7.13 10.26 7.61 9.97 7.9ZM17.56 16.62H12.31C11.9 16.62 11.56 16.28 11.56 15.87C11.56 15.46 11.9 15.12 12.31 15.12H17.56C17.98 15.12 18.31 15.46 18.31 15.87C18.31 16.28 17.98 16.62 17.56 16.62ZM17.56 9.62H12.31C11.9 9.62 11.56 9.28 11.56 8.87C11.56 8.46 11.9 8.12 12.31 8.12H17.56C17.98 8.12 18.31 8.46 18.31 8.87C18.31 9.28 17.98 9.62 17.56 9.62Z" fill="currentColor"/> </svg> </a>
             ) : (
-              <div className="flex items-center justify-between w-full">
-                <a href="/" className="flex items-center space-x-2 whitespace-nowrap overflow-hidden">
-                  <Logo className="w-8 h-8 flex-shrink-0" />
-                </a>
-              </div>
+              <div className="flex items-center justify-between w-full"> <a href="/" className="flex items-center space-x-2 whitespace-nowrap overflow-hidden"> <Logo className="w-8 h-8 flex-shrink-0" /> </a> </div>
             )}
           </div>
 
@@ -225,11 +225,7 @@ export function Sidebar({
                 className={`absolute -right-4 top-6 p-1.5 rounded-full border transition-colors z-50 ${toggleButtonBg} hidden md:block`}
                 aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               >
-                {isCollapsed ? (
-                  <PanelLeftOpen className="w-4 h-4 min-w-[1rem]" strokeWidth={2} />
-                ) : (
-                  <PanelLeftClose className="w-4 h-4 min-w-[1rem]" strokeWidth={2} />
-                )}
+                {isCollapsed ? ( <PanelLeftOpen className="w-4 h-4 min-w-[1rem]" strokeWidth={2} /> ) : ( <PanelLeftClose className="w-4 h-4 min-w-[1rem]" strokeWidth={2} /> )}
               </button>
             )}
           </div>
@@ -255,10 +251,14 @@ export function Sidebar({
               `}
               title={isCollapsed && !isMobileMenuOpen ? `${userName || "User"} - Settings` : undefined}
             >
-              {/* Avatar Container */}
+              {/* Avatar Container - THIS IS THE PARENT FOR ABSOLUTELY POSITIONED TAGS */}
               <div
-                className={`relative flex-shrink-0 w-8 h-8 rounded-full ${initialAvatarGlowClass}`}
-                onAnimationEnd={handleInitialGlowEnd} // Event listener for animation end
+                className={`
+                  relative flex-shrink-0 w-8 h-8 rounded-full
+                  ${initialAvatarGlowClass}
+                  ${isCollapsed && !isMobileMenuOpen ? 'mb-0' : ''}
+                `}
+                onAnimationEnd={handleInitialGlowEnd}
               >
                 <div className={`w-full h-full rounded-full overflow-hidden ${defaultAvatarBg}`}>
                   {currentUser?.photoURL ? (
@@ -269,9 +269,41 @@ export function Sidebar({
                     </div>
                   )}
                 </div>
+
+                {/* DEV Tag - Positioned on Avatar */}
+                {showTags && isDev && (!isCollapsed || isMobileMenuOpen) && (
+                  <span
+                    className={`
+                      absolute -top-1.5 -right-1.5 px-1.5 py-0.5 text-[9px] font-bold text-white
+                      bg-gradient-to-br from-indigo-500 to-purple-600
+                      rounded-full shadow-md
+                      border-2 ${tagBorderColor}
+                      select-none animate-tag-animated-dev
+                    `}
+                    title="Developer"
+                  >
+                    DEV
+                  </span>
+                )}
+
+                {/* INTERN Tag - Positioned on Avatar */}
+                {showTags && isIntern && (!isCollapsed || isMobileMenuOpen) && (
+                  <span
+                    className={`
+                      absolute -bottom-1.5 ${isDev ? '-left-1.5' : '-right-1.5'} px-1.5 py-0.5 text-[9px] font-bold text-white
+                      bg-gradient-to-br from-teal-500 to-green-600
+                      rounded-full shadow-md
+                      border-2 ${tagBorderColor}
+                      select-none animate-tag-animated-intern
+                    `}
+                    title="Intern"
+                  >
+                    INT
+                  </span>
+                )}
               </div>
 
-              {/* User Info and Tags (only if not collapsed or mobile menu is open) */}
+              {/* User Info (Name and Tier) */}
               {(!isCollapsed || isMobileMenuOpen) && (
                 <div className="flex flex-col items-start min-w-0">
                   <span className="text-left text-sm font-medium truncate max-w-[160px]">
@@ -288,28 +320,6 @@ export function Sidebar({
                       <span className="text-xs text-gray-500">Loading...</span>
                     )}
                   </div>
-
-                  {/* New DEV/INTERN Tags - Placed below name/tier */}
-                  {showTags && (isDev || isIntern) && (
-                    <div className="mt-1.5 flex gap-1.5 items-center">
-                      {isDev && (
-                        <span
-                          className="px-2 py-0.5 rounded-md text-[10px] font-bold text-white bg-indigo-500 select-none animate-tag-animated-dev"
-                          title="Developer"
-                        >
-                          DEV
-                        </span>
-                      )}
-                      {isIntern && (
-                        <span
-                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold text-white bg-teal-500 select-none animate-tag-animated-intern ${isDev ? 'ml-0' : ''}`} // Removed ml-0, gap-1.5 on parent handles spacing
-                          title="Intern"
-                        >
-                          INT
-                        </span>
-                      )}
-                    </div>
-                  )}
                 </div>
               )}
             </button>
