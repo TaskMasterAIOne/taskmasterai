@@ -9,7 +9,7 @@ import {
   increment,
 } from "firebase/firestore";
 
-// --- Hardcoded Email Lists (Fallback / Manual Override) ---
+// --- Hardcoded Email Lists (Fallback / Manual Override) --
 const PREMIUM_EMAILS = [
     "robinmyh@gmail.com",
     "oliverbeckett069420@gmail.com",
@@ -21,7 +21,7 @@ const PREMIUM_EMAILS = [
     "mitevandon94@gmail.com",
     "starboyy87@outlook.com",
     "draco77654@gmail.com"
-    "achallapureddy@gmail.com"
+    "achallapureddy@gmail.com" 
 ];
 export const PRO_EMAILS = ["srinibaj10@gmail.com"];
 
