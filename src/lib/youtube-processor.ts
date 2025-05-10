@@ -36,6 +36,52 @@ function getVideoId(url: string): string | null { /* ... same ... */
     const regex = /(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/; const match = url.match(regex); return match ? match[1] : null;
 }
 
+// Helper function to parse SRT content
+function parseSrt(srtContent: string): string {
+    const lines = srtContent.split(/\r?\n/);
+    const textLines: string[] = [];
+    for (const line of lines) {
+        // Skip empty lines, sequence numbers, and timecodes
+        if (!line.trim() || /^\d+$/.test(line.trim()) || line.includes('-->')) {
+            continue;
+        }
+        // Remove common SRT tags (like <i>, <b>, <font>) and trim
+        const cleanedLine = line.replace(/<[^>]*>/g, '').trim();
+        if (cleanedLine) { // Add only if there's text after cleaning
+            textLines.push(cleanedLine);
+        }
+    }
+    return textLines.join(' '); // Join lines with a space for better readability by LLM
+}
+
+// --- TypeScript interfaces for YouTube Captions API ---
+interface YouTubeCaptionTrackSnippet {
+    videoId: string;
+    lastUpdated: string;
+    trackKind: 'standard' | 'ASR' | 'forced'; // ASR is auto-generated
+    language: string;
+    name: string;
+    audioTrackType: string;
+    isCC: boolean;
+    isLarge: boolean;
+    isEasyReader: boolean;
+    isDraft: boolean;
+    isAutoSynced: boolean;
+    status: string;
+}
+
+interface YouTubeCaptionTrack {
+    id: string;
+    snippet: YouTubeCaptionTrackSnippet;
+}
+
+interface YouTubeCaptionListResponse {
+    kind: string;
+    etag: string;
+    items: YouTubeCaptionTrack[];
+}
+
+
 // --- Main Processing Function ---
 export async function processYouTube(
     url: string,
@@ -47,33 +93,106 @@ export async function processYouTube(
     const currentGeminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
     if (!apiKey) { safeProgress({ progress: 0, status: 'Error', error: 'Gemini API Key missing.' }); throw new Error('Gemini API Key missing.'); }
-    if (!YOUTUBE_API_KEY || YOUTUBE_API_KEY === 'YOUR_YOUTUBE_API_KEY') { safeProgress({ progress: 0, status: 'Error', error: 'YouTube API Key missing/invalid.' }); throw new Error('YouTube API Key missing/invalid.'); }
+    if (!YOUTUBE_API_KEY || YOUTUBE_API_KEY === 'YOUR_YOUTUBE_API_KEY' || YOUTUBE_API_KEY === 'AIzaSyD4iosX8Y1X4bOThSGhYyUfCmWKBEkc6x4') { // Added the placeholder check
+        safeProgress({ progress: 0, status: 'Error', error: 'YouTube API Key missing/invalid. Please replace the placeholder key.' });
+        throw new Error('YouTube API Key missing/invalid. Please replace the placeholder key.');
+    }
 
-    let transcript = ''; // Store transcript/description
+    let baseTranscriptContent = ''; // Store transcript or description
 
     try {
         safeProgress({ progress: 0, status: 'Starting YouTube processing...', error: null });
         const videoId = getVideoId(url);
-        if (!videoId) throw new Error('Invalid YouTube URL.');
+        if (!videoId) {
+            safeProgress({ progress: 0, status: 'Error', error: 'Invalid YouTube URL.' });
+            throw new Error('Invalid YouTube URL.');
+        }
         const youtubeVideoUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
-        safeProgress({ progress: 10, status: 'Fetching video metadata...', error: null });
+        safeProgress({ progress: 5, status: 'Fetching video metadata...', error: null });
         const videoDetailsUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${YOUTUBE_API_KEY}`;
         const videoResponse = await fetchWithRetry(videoDetailsUrl, {});
-        if (!videoResponse.ok) { const errorText = await videoResponse.text(); console.error("YT API Error:", errorText); throw new Error(`Failed to fetch video details (${videoResponse.status}). Check API Key/Video ID.`); }
+        if (!videoResponse.ok) { const errorText = await videoResponse.text(); console.error("YT API Error (Video Details):", errorText); throw new Error(`Failed to fetch video details (${videoResponse.status}). Check API Key/Video ID.`); }
         const videoData = await videoResponse.json();
         if (!videoData.items?.[0]?.snippet) { throw new Error('Video metadata not found (private/deleted?).'); }
         const videoInfo = videoData.items[0].snippet;
         const videoTitle = videoInfo.title || 'Untitled Video';
+        const videoDescription = videoInfo.description || '';
 
-        safeProgress({ progress: 25, status: 'Fetching transcript/description...', error: null });
-        // --- Transcript Placeholder ---
-        // Using description only. Replace with a real transcript solution if possible.
-        transcript = videoInfo.description || '';
-        if (!transcript.trim()) { transcript = "No transcript or description available."; console.warn(`No transcript/description for ${videoId}.`); }
+        safeProgress({ progress: 10, status: 'Fetching caption tracks list...', error: null });
+        let fetchedTranscriptText = '';
+        const captionsListUrl = `https://www.googleapis.com/youtube/v3/captions?part=snippet&videoId=${videoId}&key=${YOUTUBE_API_KEY}`;
+        try {
+            const captionsListResponse = await fetchWithRetry(captionsListUrl, {});
+            if (captionsListResponse.ok) {
+                const captionsData: YouTubeCaptionListResponse = await captionsListResponse.json();
+                if (captionsData.items && captionsData.items.length > 0) {
+                    let captionTrack: YouTubeCaptionTrack | undefined;
 
-        safeProgress({ progress: 40, status: 'Generating detailed note...', error: null });
+                    // Priority 1: English, not 'forced'
+                    captionTrack = captionsData.items.find(
+                        track => track.snippet.language.startsWith('en') && track.snippet.trackKind !== 'forced'
+                    );
+
+                    // Priority 2: Any language, ASR or standard, not 'forced'
+                    if (!captionTrack) {
+                        captionTrack = captionsData.items.find(
+                            track => (track.snippet.trackKind === 'ASR' || track.snippet.trackKind === 'standard') && track.snippet.trackKind !== 'forced'
+                        );
+                    }
+                    
+                    // Priority 3: First available track that is not 'forced'
+                    if (!captionTrack) {
+                        captionTrack = captionsData.items.find(track => track.snippet.trackKind !== 'forced');
+                    }
+
+
+                    if (captionTrack) {
+                        safeProgress({ progress: 20, status: `Fetching transcript (${captionTrack.snippet.language}, ${captionTrack.snippet.name || 'default'})...`, error: null });
+                        const captionId = captionTrack.id;
+                        // Request SRT format as it's text-based and easy to parse
+                        const downloadUrl = `https://www.googleapis.com/youtube/v3/captions/${captionId}?key=${YOUTUBE_API_KEY}&tfmt=srt`;
+                        const transcriptResponse = await fetchWithRetry(downloadUrl, {});
+                        if (transcriptResponse.ok) {
+                            const srtContent = await transcriptResponse.text();
+                            fetchedTranscriptText = parseSrt(srtContent);
+                            if (fetchedTranscriptText) {
+                                safeProgress({ progress: 30, status: 'Transcript successfully processed.', error: null });
+                            } else {
+                                 safeProgress({ progress: 30, status: 'Transcript parsed but empty. Using description.', error: 'Parsed transcript was empty.' });
+                            }
+                        } else {
+                            console.warn(`Failed to download transcript for track ${captionId}: ${transcriptResponse.status}`);
+                            safeProgress({ progress: 30, status: 'Transcript download failed. Using description.', error: `Transcript download failed (${transcriptResponse.status})` });
+                        }
+                    } else {
+                        console.warn(`No suitable (non-forced) caption track found for ${videoId}.`);
+                        safeProgress({ progress: 30, status: 'No suitable transcript found. Using description.', error: 'No suitable transcript track' });
+                    }
+                } else {
+                    console.warn(`No caption tracks listed for ${videoId}.`);
+                    safeProgress({ progress: 30, status: 'No caption tracks available. Using description.', error: 'No caption tracks listed' });
+                }
+            } else {
+                const errorText = await captionsListResponse.text();
+                console.warn(`Failed to fetch caption list for ${videoId}: ${captionsListResponse.status}. Error: ${errorText}`);
+                safeProgress({ progress: 30, status: 'Failed to fetch caption list. Using description.', error: `Caption list fetch failed (${captionsListResponse.status})` });
+            }
+        } catch (captionError) {
+            console.error('Error during caption fetching process:', captionError);
+            safeProgress({ progress: 30, status: 'Error fetching transcript. Using description.', error: captionError instanceof Error ? captionError.message : 'Unknown caption error' });
+        }
+
+        // Use fetched transcript if available and non-empty, otherwise fallback to description
+        baseTranscriptContent = fetchedTranscriptText.trim() ? fetchedTranscriptText : videoDescription;
+        if (!baseTranscriptContent.trim()) {
+            baseTranscriptContent = "No transcript or description available.";
+            console.warn(`No transcript or description ultimately available for ${videoId}.`);
+        }
+
+        safeProgress({ progress: 30, status: 'Generating detailed note...', error: null }); // Progress updated after transcript logic
           // --- Detailed Note Generation (YouTube Video) ---
+        // (PROMPT IS KEPT THE SAME AS PER INSTRUCTIONS)
         const detailedNotePrompt = `Analyze the following YouTube video information (title, description/transcript). Generate a detailed, well-structured note using Markdown.
 
 **Instructions:**
@@ -103,7 +222,7 @@ export async function processYouTube(
 **Video Title:** ${videoTitle}
 **Transcript/Description (provide the full transcript if possible, or a significant portion, to enable detailed note generation):**
 ---
-${transcript} // For more extensive notes, ensure this 'transcript' variable contains more content. If you previously used transcript.slice(0, 25000), consider removing or increasing the slice limit, being mindful of your LLM's context window capacity.
+${baseTranscriptContent} 
 ---
 
 **Output:**
@@ -111,36 +230,37 @@ Provide *only* the generated raw Markdown note content below. Do not include any
 `;
         let detailedNoteContent = 'AI detailed note generation failed.';
         try {
-            const noteOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: detailedNotePrompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 4096 } }) };
+            const noteOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: detailedNotePrompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 8192 } }) }; // Increased maxOutputTokens for potentially longer notes from full transcripts
             const noteResponse = await fetchWithRetry(currentGeminiEndpoint, noteOptions);
             const noteRawText = extractCandidateText(await noteResponse.text());
             if (noteRawText.startsWith("Error:")) { throw new Error(noteRawText); }
             detailedNoteContent = noteRawText.trim();
         } catch (noteError) {
             console.error('Detailed note generation error (YT):', noteError);
-            safeProgress({ progress: 60, status: 'Note generation failed. Generating points...', error: noteError instanceof Error ? noteError.message : 'Unknown note gen error' });
+            // Update progress only if it hasn't reached key points generation stage
+            safeProgress({ progress: 55, status: 'Note generation failed. Generating points...', error: noteError instanceof Error ? noteError.message : 'Unknown note gen error' });
         }
 
-        safeProgress({ progress: 60, status: 'Generating key points...', error: null });
+        safeProgress({ progress: 55, status: 'Generating key points...', error: null });
 
         // --- Key Points Generation ---
-        const keyPointsPrompt = `Extract exactly 10 distinct key points from the following YouTube video info/transcript. List only the points. In your output, NEVER SAY: "Here are 10 distinct and significant key points from the provided text:" \n\nTitle: ${videoTitle}\nText:\n---\n${transcript.slice(0, 15000)}\n---\n\nKey Points:\n1. ...`;
+        const keyPointsPrompt = `Extract exactly 10 distinct key points from the following YouTube video info/transcript. List only the points. In your output, NEVER SAY: "Here are 10 distinct and significant key points from the provided text:" \n\nTitle: ${videoTitle}\nText:\n---\n${baseTranscriptContent.slice(0, 25000)}\n---\n\nKey Points:\n1. ...`; // Increased slice to 25000 for better context
         let keyPoints: string[] = ['Key points generation failed.'];
          try {
-             const kpOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: keyPointsPrompt }] }], generationConfig: { temperature: 0.3, maxOutputTokens: 800 } }) };
+             const kpOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: keyPointsPrompt }] }], generationConfig: { temperature: 0.3, maxOutputTokens: 1024 } }) }; // Increased maxOutputTokens
              const kpResponse = await fetchWithRetry(currentGeminiEndpoint, kpOptions);
              const kpText = extractCandidateText(await kpResponse.text());
              if (kpText.startsWith("Error:")) { console.error("KP Error:", kpText); }
              else { const parsed = kpText.split('\n').map(l=>l.trim().replace(/^\d+\.\s*/,'')).filter(p=>p.length > 5).slice(0,10); if (parsed.length > 0) keyPoints = parsed; }
          } catch (kpError) { console.error('KP fetch error (YT):', kpError); }
 
-        safeProgress({ progress: 80, status: 'Generating study questions...', error: null });
+        safeProgress({ progress: 75, status: 'Generating study questions...', error: null });
 
         // --- Study Questions Generation ---
-        const questionsPrompt = `Based on YouTube video "${videoTitle}" (transcript/desc provided), generate exactly 10 MCQs (4 options A,B,C,D), correct letter, explanation. Format strictly:\n\nQuestion: [Q]\nA) [A]\nB) [B]\nC) [C]\nD) [D]\nCorrect: [Letter]\nExplanation: [E]\n\n---DIVIDER---\n\nGenerate 10.\n\nText:\n---\n${transcript.slice(0, 15000)}\n---`;
+        const questionsPrompt = `Based on YouTube video "${videoTitle}" (transcript/desc provided), generate exactly 10 MCQs (4 options A,B,C,D), correct letter, explanation. Format strictly:\n\nQuestion: [Q]\nA) [A]\nB) [B]\nC) [C]\nD) [D]\nCorrect: [Letter]\nExplanation: [E]\n\n---DIVIDER---\n\nGenerate 10.\n\nText:\n---\n${baseTranscriptContent.slice(0, 25000)}\n---`; // Increased slice to 25000 for better context
         let questions: ProcessedYouTube['questions'] = [];
         try {
-            const qOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: questionsPrompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 3000 } }) };
+            const qOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: questionsPrompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 4096 } }) }; // Increased maxOutputTokens
             const qResponse = await fetchWithRetry(currentGeminiEndpoint, qOptions);
             const qText = extractCandidateText(await qResponse.text());
              if (qText.startsWith("Error:")) { console.error("Questions Error:", qText); }
@@ -166,7 +286,9 @@ Provide *only* the generated raw Markdown note content below. Do not include any
     } catch (error) {
         console.error('Overall YouTube processing failed:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown YouTube processing error.';
-        safeProgress({ progress: 0, status: 'Error', error: errorMessage });
-        throw new Error(errorMessage);
+        safeProgress({ progress: 0, status: 'Error', error: errorMessage }); // Reset progress to 0 on total failure
+        // Ensure the function re-throws the error so the caller knows it failed.
+        if (error instanceof Error) throw error;
+        else throw new Error(errorMessage);
     }
 }
