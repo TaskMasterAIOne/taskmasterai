@@ -32,7 +32,7 @@ import {
 import { NewNoteModal } from './NewNoteModal';
 import { SplitView } from './SplitView';
 import { NoteChat, NoteChatHandle, ImageData } from './NoteChat';
-import { geminiApiKey, generateImageWithImagen } from '../lib/dashboard-firebase'; // Assuming generateImageWithImagen is here
+import { geminiApiKey } from '../lib/dashboard-firebase'; // Assuming generateImageWithImagen is here
 
 import {
     UserTier,
