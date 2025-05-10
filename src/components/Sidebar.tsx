@@ -50,7 +50,7 @@ export function Sidebar({
   const [isDev, setIsDev] = useState<boolean>(false);
   const [isIntern, setIsIntern] = useState<boolean>(false);
 
-  const [showInitialAvatarGlow, setShowInitialAvatarGlow] = useState<boolean>(false);
+  const [showInitialAvatarGlow, setShowInitialAvatarGlow] = useState<boolean>(false); // This state now primarily gates the onAnimationEnd for showing tags
   const [showTags, setShowTags] = useState<boolean>(false);
 
   useEffect(() => {
@@ -73,7 +73,7 @@ export function Sidebar({
         setIsIntern(userIsIntern);
 
         if (userIsDev || userIsIntern) {
-          setShowInitialAvatarGlow(true);
+          setShowInitialAvatarGlow(true); // Triggers the avatar's (now non-glowing) animation
         }
 
       } else {
@@ -91,9 +91,9 @@ export function Sidebar({
   }, [location.pathname]);
 
   const handleInitialGlowEnd = () => {
-    setShowInitialAvatarGlow(false);
+    setShowInitialAvatarGlow(false); // Stop applying the avatar animation class
     if (isDev || isIntern) { // Only show tags if user is Dev or Intern
-        setShowTags(true);
+        setShowTags(true); // Now show the tags with their fade-in animation
     }
   };
 
@@ -152,20 +152,14 @@ export function Sidebar({
   }
   const mobileHeaderText = isIlluminateEnabled ? "text-gray-900" : "text-gray-100";
 
-  let initialAvatarGlowClass = "";
+  let initialAvatarAnimationClass = ""; // Renamed for clarity as visual glow is removed
   if (showInitialAvatarGlow) {
     if (isDev) {
-      initialAvatarGlowClass = "animate-avatar-initial-glow-dev";
+      initialAvatarAnimationClass = "animate-avatar-initial-dev"; // Assumes CSS for this is (non-glowing) animation
     } else if (isIntern) {
-      initialAvatarGlowClass = "animate-avatar-initial-glow-intern";
+      initialAvatarAnimationClass = "animate-avatar-initial-intern"; // Assumes CSS for this is (non-glowing) animation
     }
   }
-
-  // const tagBorderColor = isIlluminateEnabled
-  //   ? "border-gray-100"
-  //   : isBlackoutEnabled
-  //   ? "border-gray-950"
-  //   : "border-[#0c111c]"; // No longer needed as border is removed from tags
 
   return (
     <>
@@ -256,7 +250,7 @@ export function Sidebar({
                 <div
                   className={`
                     flex-shrink-0 w-8 h-8 rounded-full
-                    ${initialAvatarGlowClass}
+                    ${initialAvatarAnimationClass}
                   `}
                   onAnimationEnd={handleInitialGlowEnd}
                 >
@@ -290,7 +284,7 @@ export function Sidebar({
                               px-1.5 py-0.5 text-[9px] font-bold text-white
                               bg-gradient-to-br from-indigo-500 to-purple-600
                               rounded-full shadow-md
-                              select-none
+                              select-none animate-tag-animated-dev
                             `}
                             title="Developer"
                           >
@@ -304,7 +298,7 @@ export function Sidebar({
                               px-1.5 py-0.5 text-[9px] font-bold text-white
                               bg-gradient-to-br from-teal-500 to-green-600
                               rounded-full shadow-md
-                              select-none
+                              select-none animate-tag-animated-intern
                             `}
                             title="Intern"
                           >
