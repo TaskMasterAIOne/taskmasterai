@@ -71,7 +71,6 @@ export async function processYouTube(
         // Using description only. Replace with a real transcript solution if possible.
         transcript = videoInfo.description || '';
         if (!transcript.trim()) { transcript = "No transcript or description available."; console.warn(`No transcript/description for ${videoId}.`); }
-        else { console.log(`Using description for ${videoId}. Length: ${transcript.length}`); }
 
         safeProgress({ progress: 40, status: 'Generating detailed note...', error: null });
 
@@ -136,7 +135,6 @@ Provide *only* the generated Markdown note content below.
                     const qM = T.match(/^Question:\s*([\s\S]*?)\s*A\)/i); const oM = T.match(/A\)\s*(.*?)\s*B\)\s*(.*?)\s*C\)\s*(.*?)\s*D\)\s*(.*?)\s*Correct:/is); const cM = T.match(/Correct:\s*([A-D])\b/i); const eM = T.match(/Explanation:\s*([\s\S]*?)(?:---DIVIDER---|$)/i);
                     if (qM&&oM&&cM&&eM) { const qT=qM[1].trim(); const oL=[oM[1],oM[2],oM[3],oM[4]].map(o=>o.replace(/^(.*?)\s*(?:B\)|C\)|D\)|Correct:).*$/is,'$1').trim()); const cL=cM[1].toUpperCase(); const eT=eM[1].trim(); if(qT&&oL.length===4&&oL.every(o=>o)&&['A','B','C','D'].includes(cL)&&eT) parsed.push({question:qT,options:oL,correctAnswer:['A','B','C','D'].indexOf(cL),explanation:eT}); else console.warn("Partial question parse (YT)"); } else console.warn("Question structure parse fail (YT)");
                 } if (parsed.length > 0) questions = parsed;
-                console.log(`Generated ${parsed.length} questions (YT)`);
              }
         } catch (qError) { console.error('Questions fetch error (YT):', qError); }
 
