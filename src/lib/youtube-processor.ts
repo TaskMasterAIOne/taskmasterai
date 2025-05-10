@@ -15,20 +15,32 @@ interface ProcessedYouTube {
 
 // --- IMPORTANT: REPLACE THIS WITH YOUR ACTUAL YOUTUBE API KEY ---
 // Make sure this key is enabled for the YouTube Data API v3 in your Google Cloud Console.
-const YOUTUBE_API_KEY = 'AIzaSyCoxefrJ80LuyxLAdv0t55BN8SJ9_-orcM'; // <-- REPLACE WITH YOUR NEW KEY IF THIS ISN'T IT, OR CONFIRM THIS IS CORRECT
-// For debugging, I've put the key you provided. If this is NOT your key, put the correct one here.
-// If this IS your key, and you still get the "placeholder" error, it's likely a build/cache issue.
+const YOUTUBE_API_KEY = 'AIzaSyCoxefrJ80LuyxLAdv0t55BN8SJ9_-orcM'; // CONFIRM THIS IS YOUR CORRECT KEY
 
 // Use imported Gemini key
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`;
 
-// Helper functions (sleep, fetchWithRetry, extractCandidateText - assumed same as before)
+// Helper functions
 function sleep(ms: number): Promise<void> { return new Promise(resolve => setTimeout(resolve, ms)); }
 async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delayMs = 3000): Promise<Response> {
     for (let attempt = 0; attempt < retries; attempt++) {
-        try { const response = await fetch(url, options); if (!response.ok && (response.status === 429 || response.status >= 500)) { console.warn(`Attempt ${attempt + 1} failed: ${response.status}. Retrying...`); await sleep(delayMs * (attempt + 1)); continue; } return response; }
-        catch (error) { console.error(`Attempt ${attempt + 1} fetch error:`, error); if (attempt === retries - 1) throw error; await sleep(delayMs * (attempt + 1)); }
-    } throw new Error(`Max retries reached: ${url}`);
+        try {
+            const response = await fetch(url, options);
+            // Don't retry on 401/403 for auth issues, or 404 not found. Let the caller handle these.
+            if (!response.ok && (response.status === 429 || response.status >= 500)) {
+                console.warn(`Attempt ${attempt + 1} failed for ${url}: ${response.status}. Retrying...`);
+                await sleep(delayMs * (attempt + 1));
+                continue;
+            }
+            return response;
+        }
+        catch (error) {
+            console.error(`Attempt ${attempt + 1} fetch error for ${url}:`, error);
+            if (attempt === retries - 1) throw error;
+            await sleep(delayMs * (attempt + 1));
+        }
+    }
+    throw new Error(`Max retries reached for ${url}`);
 }
 const extractCandidateText = (responseText: string): string => {
     try { const jsonResponse = JSON.parse(responseText); if (jsonResponse?.candidates?.[0]?.content?.parts?.[0]?.text) { return jsonResponse.candidates[0].content.parts[0].text; } if (jsonResponse?.error?.message) { console.error("Gemini API Error:", jsonResponse.error.message); return `Error: ${jsonResponse.error.message}`; } if (jsonResponse?.candidates?.[0]?.finishReason !== 'STOP') { console.warn(`Gemini finish reason: ${jsonResponse?.candidates?.[0]?.finishReason}`); return `Error: Generation stopped (${jsonResponse?.candidates?.[0]?.finishReason})`; } return "Error: No text found."; }
@@ -54,31 +66,9 @@ function parseSrt(srtContent: string): string {
     return textLines.join(' ');
 }
 
-interface YouTubeCaptionTrackSnippet {
-    videoId: string;
-    lastUpdated: string;
-    trackKind: 'standard' | 'ASR' | 'forced';
-    language: string;
-    name: string;
-    audioTrackType: string;
-    isCC: boolean;
-    isLarge: boolean;
-    isEasyReader: boolean;
-    isDraft: boolean;
-    isAutoSynced: boolean;
-    status: string;
-}
-
-interface YouTubeCaptionTrack {
-    id: string;
-    snippet: YouTubeCaptionTrackSnippet;
-}
-
-interface YouTubeCaptionListResponse {
-    kind: string;
-    etag: string;
-    items: YouTubeCaptionTrack[];
-}
+interface YouTubeCaptionTrackSnippet { videoId: string; lastUpdated: string; trackKind: 'standard' | 'ASR' | 'forced'; language: string; name: string; audioTrackType: string; isCC: boolean; isLarge: boolean; isEasyReader: boolean; isDraft: boolean; isAutoSynced: boolean; status: string; }
+interface YouTubeCaptionTrack { id: string; snippet: YouTubeCaptionTrackSnippet; }
+interface YouTubeCaptionListResponse { kind: string; etag: string; items: YouTubeCaptionTrack[]; }
 
 export async function processYouTube(
     url: string,
@@ -89,27 +79,17 @@ export async function processYouTube(
     const safeProgress = typeof onProgress === 'function' ? onProgress : () => {};
     const currentGeminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
-    // For debugging: Log the YouTube API key the function sees
-    console.log("processYouTube is using YOUTUBE_API_KEY:", YOUTUBE_API_KEY);
-
     if (!apiKey) { // Gemini API Key check
         safeProgress({ progress: 0, status: 'Error', error: 'Gemini API Key missing.' });
         throw new Error('Gemini API Key missing.');
     }
 
-    // YouTube API Key check - more specific
-    const placeholderKeys = [
-        'YOUR_YOUTUBE_API_KEY', // Generic placeholder
-        'AIzaSyD4iosX8Y1X4bOThSGhYyUfCmWKBEkc6x4', // Old placeholder from your code
-        'YOUR_ACTUAL_YOUTUBE_API_KEY_HERE' // Placeholder I might have used in instructions
-    ];
+    const placeholderKeys = ['YOUR_YOUTUBE_API_KEY', 'AIzaSyD4iosX8Y1X4bOThSGhYyUfCmWKBEkc6x4', 'YOUR_ACTUAL_YOUTUBE_API_KEY_HERE'];
     if (!YOUTUBE_API_KEY || YOUTUBE_API_KEY.trim() === '' || placeholderKeys.includes(YOUTUBE_API_KEY) ) {
         const errorMsg = `YouTube API Key missing/invalid. Detected key: "${YOUTUBE_API_KEY}". Please ensure a valid key is set in src/lib/youtube-processor.ts.`;
-        console.error(errorMsg);
-        safeProgress({ progress: 0, status: 'Error', error: 'YouTube API Key missing/invalid. Please replace the placeholder key.' }); // User-friendly error
-        throw new Error(errorMsg); // More detailed error for console
+        safeProgress({ progress: 0, status: 'Error', error: 'YouTube API Key missing/invalid. Please replace the placeholder key.' });
+        throw new Error(errorMsg);
     }
-
 
     let baseTranscriptContent = '';
 
@@ -125,7 +105,12 @@ export async function processYouTube(
         safeProgress({ progress: 5, status: 'Fetching video metadata...', error: null });
         const videoDetailsUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${YOUTUBE_API_KEY}`;
         const videoResponse = await fetchWithRetry(videoDetailsUrl, {});
-        if (!videoResponse.ok) { const errorText = await videoResponse.text(); console.error("YT API Error (Video Details):", errorText, "Status:", videoResponse.status); throw new Error(`Failed to fetch video details (${videoResponse.status}). Check API Key validity, quota, and Video ID. Details: ${errorText}`); }
+        if (!videoResponse.ok) {
+            const errorText = await videoResponse.text();
+            const errorMsg = `Failed to fetch video details (${videoResponse.status}). Check API Key validity, quota, and Video ID. Details: ${errorText.substring(0, 500)}`;
+            console.error("YT API Error (Video Details):", errorText);
+            throw new Error(errorMsg);
+        }
         const videoData = await videoResponse.json();
         if (!videoData.items?.[0]?.snippet) { throw new Error('Video metadata not found (private/deleted?).'); }
         const videoInfo = videoData.items[0].snippet;
@@ -146,10 +131,17 @@ export async function processYouTube(
                     if (!captionTrack) captionTrack = captionsData.items.find(t => t.snippet.trackKind !== 'forced');
 
                     if (captionTrack) {
-                        safeProgress({ progress: 20, status: `Fetching transcript (${captionTrack.snippet.language}, ${captionTrack.snippet.name || 'default'})...`, error: null });
+                        safeProgress({ progress: 20, status: `Attempting transcript download (${captionTrack.snippet.language}, ${captionTrack.snippet.name || 'default'})...`, error: null });
                         const captionId = captionTrack.id;
+                        // --- IMPORTANT NOTE ON TRANSCRIPT DOWNLOAD ---
+                        // The YouTube Data API v3 requires OAuth 2.0 authorization to download caption track content.
+                        // An API key alone is NOT sufficient for this specific `captions.download` endpoint.
+                        // Therefore, the following request will likely fail with a 401 Unauthorized error.
+                        // The code will then fall back to using the video's description.
+                        // To enable direct transcript downloads, a full OAuth 2.0 flow or a server-side proxy with OAuth would be needed.
                         const downloadUrl = `https://www.googleapis.com/youtube/v3/captions/${captionId}?key=${YOUTUBE_API_KEY}&tfmt=srt`;
                         const transcriptResponse = await fetchWithRetry(downloadUrl, {});
+
                         if (transcriptResponse.ok) {
                             const srtContent = await transcriptResponse.text();
                             fetchedTranscriptText = parseSrt(srtContent);
@@ -159,21 +151,25 @@ export async function processYouTube(
                                  safeProgress({ progress: 30, status: 'Transcript parsed but empty. Using description.', error: 'Parsed transcript was empty.' });
                             }
                         } else {
-                            const errorText = await transcriptResponse.text();
-                            console.warn(`Failed to download transcript for track ${captionId}: ${transcriptResponse.status}. Details: ${errorText}`);
-                            safeProgress({ progress: 30, status: 'Transcript download failed. Using description.', error: `Transcript download failed (${transcriptResponse.status})` });
+                            const errorText = await transcriptResponse.text(); // This contains the Google API error object
+                            let readableError = `Transcript download failed (${transcriptResponse.status}).`;
+                            if (transcriptResponse.status === 401) {
+                                readableError = 'Transcript download unauthorized (401). API key is not sufficient; OAuth 2.0 is required by YouTube for this. Using description.';
+                                console.warn("Transcript download failed (401 - OAuth 2.0 Required by YouTube API for captions.download). Details:", errorText.substring(0, 1000));
+                            } else {
+                                console.warn(`Failed to download transcript for track ${captionId}: ${transcriptResponse.status}. Details:`, errorText.substring(0,1000));
+                            }
+                            safeProgress({ progress: 30, status: 'Transcript download failed. Using description.', error: readableError });
                         }
                     } else {
-                        console.warn(`No suitable (non-forced) caption track found for ${videoId}.`);
-                        safeProgress({ progress: 30, status: 'No suitable transcript found. Using description.', error: 'No suitable transcript track' });
+                        safeProgress({ progress: 30, status: 'No suitable transcript found. Using description.', error: 'No suitable (non-forced) transcript track' });
                     }
                 } else {
-                    console.warn(`No caption tracks listed for ${videoId}.`);
                     safeProgress({ progress: 30, status: 'No caption tracks available. Using description.', error: 'No caption tracks listed' });
                 }
             } else {
                 const errorText = await captionsListResponse.text();
-                console.warn(`Failed to fetch caption list for ${videoId}: ${captionsListResponse.status}. Error: ${errorText}`);
+                console.warn(`Failed to fetch caption list for ${videoId}: ${captionsListResponse.status}. Error:`, errorText.substring(0,1000));
                 safeProgress({ progress: 30, status: 'Failed to fetch caption list. Using description.', error: `Caption list fetch failed (${captionsListResponse.status})` });
             }
         } catch (captionError) {
@@ -184,7 +180,6 @@ export async function processYouTube(
         baseTranscriptContent = fetchedTranscriptText.trim() ? fetchedTranscriptText : videoDescription;
         if (!baseTranscriptContent.trim()) {
             baseTranscriptContent = "No transcript or description available.";
-            console.warn(`No transcript or description ultimately available for ${videoId}.`);
         }
 
         safeProgress({ progress: 30, status: 'Generating detailed note...', error: null });
@@ -276,8 +271,6 @@ Provide *only* the generated raw Markdown note content below. Do not include any
     } catch (error) {
         console.error('Overall YouTube processing failed:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown YouTube processing error.';
-        // Log the detailed error message for better debugging
-        console.error('Detailed error in processYouTube:', error);
         safeProgress({ progress: 0, status: 'Error', error: errorMessage });
         if (error instanceof Error) throw error;
         else throw new Error(errorMessage);
