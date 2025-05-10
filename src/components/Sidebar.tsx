@@ -161,11 +161,11 @@ export function Sidebar({
     }
   }
 
-  const tagBorderColor = isIlluminateEnabled
-    ? "border-gray-100"
-    : isBlackoutEnabled
-    ? "border-gray-950"
-    : "border-[#0c111c]";
+  // const tagBorderColor = isIlluminateEnabled
+  //   ? "border-gray-100"
+  //   : isBlackoutEnabled
+  //   ? "border-gray-950"
+  //   : "border-[#0c111c]"; // No longer needed as border is removed from tags
 
   return (
     <>
@@ -290,8 +290,7 @@ export function Sidebar({
                               px-1.5 py-0.5 text-[9px] font-bold text-white
                               bg-gradient-to-br from-indigo-500 to-purple-600
                               rounded-full shadow-md
-                              border-2 ${tagBorderColor}
-                              select-none animate-tag-animated-dev
+                              select-none
                             `}
                             title="Developer"
                           >
@@ -305,8 +304,7 @@ export function Sidebar({
                               px-1.5 py-0.5 text-[9px] font-bold text-white
                               bg-gradient-to-br from-teal-500 to-green-600
                               rounded-full shadow-md
-                              border-2 ${tagBorderColor}
-                              select-none animate-tag-animated-intern
+                              select-none
                             `}
                             title="Intern"
                           >
