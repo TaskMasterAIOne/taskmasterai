@@ -144,6 +144,7 @@ export async function processTextToAINoteData( text: string, userId: string, api
   let detailedNoteContent = 'AI note generation failed.'; let keyPoints: string[] = ['Generation failed.']; let questions: NoteData['questions'] = undefined;
 
   try {
+    // --- Detailed Note Generation (Generic Text) ---
     const detailedNotePrompt = `Analyze the following text. Generate a detailed, well-structured note using Markdown.
 
 **Instructions:**
@@ -154,13 +155,15 @@ export async function processTextToAINoteData( text: string, userId: string, api
 *   **Length:** Produce a detailed and lengthy note, not just a summary. The goal is to be exhaustive based on the provided input text.
 
 **Objective:** Create comprehensive, detailed, and well-structured study notes in Markdown format based on the provided text. These notes are intended for understanding and learning the subject matter.
-**Core Task:** Do not just summarize. Synthesize the information, explain concepts clearly, elaborate on key points, and structure the content logically for learning and revision. Use the provided text as the primary source.
+
+**Core Task:** Do not just summarize. Synthesize the information, explain concepts clearly, elaborate on key points, and structure the content logically for learning and revision. Use the provided text as the primary source. **Crucially, present the information directly as study notes.** Avoid meta-commentary or phrases that refer to the source document itself, such as "The text says...", "This document explains...", "The provided material mentions...", "According to the author...", or "The passage states...". The notes should *be* the information, not a discussion *about* where the information came from.
 
 **Mandatory Instructions for Output:**
-1.  **Raw Markdown Only:** Generate **only** the raw Markdown note content.
-2.  **No Extra Text:** **NO** introductory or concluding phrases (e.g., "Here are your notes:", "This concludes the notes.").
-3.  **Immediate Start:** Start *immediately* with the first Markdown element (e.g., a heading like '# Title' or a bullet point like '* Item').
-4.  **No Code Block Wrapping:** **Crucially, do NOT wrap the entire output in a Markdown code block. This means your response should NOT start with \`\`\`markdown or \`\`\` and should NOT end with \`\`\`. The output itself should be the pure Markdown text, ready to be rendered.**
+1.  **Direct Information Style:** The notes must present information directly as if they are standalone study material. **Do NOT use phrases that refer back to the source text** (e.g., "The text discusses...", "In this section, it is mentioned...", "The author explains that..."). All content should be stated as factual information derived from the source, without attributing it back to the source within the note itself.
+2.  **Raw Markdown Only:** Generate **only** the raw Markdown note content.
+3.  **No Extra Text:** **NO** introductory or concluding phrases (e.g., "Here are your notes:", "This concludes the notes.").
+4.  **Immediate Start:** Start *immediately* with the first Markdown element (e.g., a heading like '# Title' or a bullet point like '* Item').
+5.  **No Code Block Wrapping:** **Crucially, do NOT wrap the entire output in a Markdown code block. This means your response should NOT start with \`\`\`markdown or \`\`\` and should NOT end with \`\`\`. The output itself should be the pure Markdown text, ready to be rendered.**
 
 **Text to Analyze:**
 ---
