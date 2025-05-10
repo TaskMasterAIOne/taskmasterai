@@ -73,25 +73,38 @@ export async function processYouTube(
         if (!transcript.trim()) { transcript = "No transcript or description available."; console.warn(`No transcript/description for ${videoId}.`); }
 
         safeProgress({ progress: 40, status: 'Generating detailed note...', error: null });
-
         // --- Detailed Note Generation ---
         const detailedNotePrompt = `Analyze the following YouTube video information (title, description/transcript). Generate a detailed, well-structured note using Markdown.
 
 **Instructions:**
 *   **Structure:** Use headings (#, ##), bullet points (* or -), numbered lists.
 *   **Formatting:** Use bold text (**bold**) for emphasis. Create Markdown tables if suitable.
-*   **Content:** Cover main topics and important details thoroughly. Aim for comprehensiveness.
-*   **Length:** Produce a detailed note, not just a summary.
+*   **Content:** Cover main topics and important details thoroughly. Aim for comprehensiveness and generate extensive, detailed notes.
+*   **Length:** Produce a detailed and lengthy note, not just a summary. The goal is to be exhaustive based on the provided input.
 *   **Math:** Use LaTeX ($inline$ or $$block$$).
 
+
+**Objective:** Create comprehensive, detailed, and well-structured study notes in Markdown format based on the provided text from the YouTube video. These notes are intended for a student learning the subject matter covered in the document.
+**Core Task:** Do not just summarize. Synthesize the information, explain concepts clearly, elaborate on key points, and structure the content logically for learning and revision. Use the provided text as the primary source of truth, but leverage your understanding of the topic to enhance clarity, add context where appropriate (without contradicting the text), and organize the material effectively for studying. Avoid simply stating "The text says...". Instead, present the information directly.
+**Mandatory Instructions:**
+1.  **Study Focus:** Ensure the notes are pedagogically valuable. Explain concepts, define key terms clearly, connect related ideas (even if presented separately in the text), and highlight important facts, principles, or processes.
+2.  **Comprehensiveness & Depth:** Cover ALL significant topics, sub-topics, arguments, data, and examples present in the text. Go into substantial detail. Aim for lengthy and exhaustive notes that capture the nuances of the source material.
+3.  **Structure & Formatting:** Utilize Markdown extensively and strategically: Headings (#, ##, ###), Lists (*, -, +, 1., 2.), Emphasis (**bold**, *italics*, \`inline code\`), Tables, Code Blocks (\`\`\`), Blockquotes (>), Describe visuals.
+4.  **Output Requirements:**
+    *   Generate **only** the raw Markdown note content.
+    *   **NO** introductory or concluding phrases like "Here are the notes:" or "This concludes the notes."
+    *   Start *immediately* with the first Markdown element (e.g., a heading like '# Title' or a bullet point like '* Item').
+    *   **Crucially, do NOT wrap the entire output in a Markdown code block. This means your response should NOT start with \`\`\`markdown or \`\`\` and should NOT end with \`\`\`. The output itself should be the pure Markdown text, ready to be rendered.**
+
+
 **Video Title:** ${videoTitle}
-**Transcript/Description:**
+**Transcript/Description (provide the full transcript if possible, or a significant portion, to enable detailed note generation):**
 ---
-${transcript.slice(0, 25000)}
+${transcript} // For more extensive notes, ensure this 'transcript' variable contains more content. If you previously used transcript.slice(0, 25000), consider removing or increasing the slice limit, being mindful of your LLM's context window capacity.
 ---
 
 **Output:**
-Provide *only* the generated Markdown note content below.
+Provide *only* the generated raw Markdown note content below. Do not include any explanatory text before or after the Markdown.
 `;
         let detailedNoteContent = 'AI detailed note generation failed.';
         try {
