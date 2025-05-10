@@ -50,7 +50,7 @@ export function Sidebar({
   const [isDev, setIsDev] = useState<boolean>(false);
   const [isIntern, setIsIntern] = useState<boolean>(false);
 
-  const [showInitialAvatarGlow, setShowInitialAvatarGlow] = useState<boolean>(false); // This state now primarily gates the onAnimationEnd for showing tags
+  const [showInitialAvatarGlow, setShowInitialAvatarGlow] = useState<boolean>(false);
   const [showTags, setShowTags] = useState<boolean>(false);
 
   useEffect(() => {
@@ -73,7 +73,7 @@ export function Sidebar({
         setIsIntern(userIsIntern);
 
         if (userIsDev || userIsIntern) {
-          setShowInitialAvatarGlow(true); // Triggers the avatar's (now non-glowing) animation
+          setShowInitialAvatarGlow(true);
         }
 
       } else {
@@ -91,9 +91,9 @@ export function Sidebar({
   }, [location.pathname]);
 
   const handleInitialGlowEnd = () => {
-    setShowInitialAvatarGlow(false); // Stop applying the avatar animation class
+    setShowInitialAvatarGlow(false);
     if (isDev || isIntern) { // Only show tags if user is Dev or Intern
-        setShowTags(true); // Now show the tags with their fade-in animation
+        setShowTags(true);
     }
   };
 
@@ -152,12 +152,12 @@ export function Sidebar({
   }
   const mobileHeaderText = isIlluminateEnabled ? "text-gray-900" : "text-gray-100";
 
-  let initialAvatarAnimationClass = ""; // Renamed for clarity as visual glow is removed
+  let initialAvatarGlowClass = "";
   if (showInitialAvatarGlow) {
     if (isDev) {
-      initialAvatarAnimationClass = "animate-avatar-initial-dev"; // Assumes CSS for this is (non-glowing) animation
+      initialAvatarGlowClass = "animate-avatar-initial-glow-dev";
     } else if (isIntern) {
-      initialAvatarAnimationClass = "animate-avatar-initial-intern"; // Assumes CSS for this is (non-glowing) animation
+      initialAvatarGlowClass = "animate-avatar-initial-glow-intern";
     }
   }
 
@@ -250,7 +250,7 @@ export function Sidebar({
                 <div
                   className={`
                     flex-shrink-0 w-8 h-8 rounded-full
-                    ${initialAvatarAnimationClass}
+                    ${initialAvatarGlowClass}
                   `}
                   onAnimationEnd={handleInitialGlowEnd}
                 >
@@ -276,7 +276,7 @@ export function Sidebar({
                     </span>
                     {/* Tags Container - Next to Name */}
                     {showTags && (isDev || isIntern) && (
-                      <div className="flex items-center gap-1 ml-1.5 flex-shrink-0">
+                      <div className="flex items-center gap-1 ml-1.5 flex-shrink-0 animate-fade-in-tags"> {/* Added animate-fade-in-tags */}
                         {/* DEV Tag */}
                         {isDev && (
                           <span
@@ -284,7 +284,7 @@ export function Sidebar({
                               px-1.5 py-0.5 text-[9px] font-bold text-white
                               bg-gradient-to-br from-indigo-500 to-purple-600
                               rounded-full shadow-md
-                              select-none animate-tag-animated-dev
+                              select-none
                             `}
                             title="Developer"
                           >
@@ -298,7 +298,7 @@ export function Sidebar({
                               px-1.5 py-0.5 text-[9px] font-bold text-white
                               bg-gradient-to-br from-teal-500 to-green-600
                               rounded-full shadow-md
-                              select-none animate-tag-animated-intern
+                              select-none
                             `}
                             title="Intern"
                           >
