@@ -144,8 +144,33 @@ export async function processTextToAINoteData( text: string, userId: string, api
   let detailedNoteContent = 'AI note generation failed.'; let keyPoints: string[] = ['Generation failed.']; let questions: NoteData['questions'] = undefined;
 
   try {
-    const detailedNotePrompt = `Analyze the following text. Generate a detailed, structured note using Markdown (headings # ## ###, lists * -, tables, bold **, LaTeX $ $ or $$ $$). Cover main topics thoroughly, aiming for comprehensiveness, not just a summary. Text:\n---\n${text.slice(0, 30000)}\n---\nOutput:\nProvide only the generated Markdown note content below.`;
-    const noteOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: detailedNotePrompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 4096 } }) };
+    const detailedNotePrompt = `Analyze the following text. Generate a detailed, well-structured note using Markdown.
+
+**Instructions:**
+*   **Structure:** Use Markdown elements extensively: headings (#, ##, ###), bullet points (* or -), numbered lists, and tables where appropriate.
+*   **Formatting:** Use bold text (**bold**) for emphasis. Use inline code (\`code\`) for terms or snippets.
+*   **Math:** Use LaTeX for mathematical expressions ($inline$ or $$block$$).
+*   **Content:** Cover main topics, sub-topics, arguments, and important details thoroughly. Aim for comprehensiveness and generate extensive, detailed notes.
+*   **Length:** Produce a detailed and lengthy note, not just a summary. The goal is to be exhaustive based on the provided input text.
+
+**Objective:** Create comprehensive, detailed, and well-structured study notes in Markdown format based on the provided text. These notes are intended for understanding and learning the subject matter.
+**Core Task:** Do not just summarize. Synthesize the information, explain concepts clearly, elaborate on key points, and structure the content logically for learning and revision. Use the provided text as the primary source.
+
+**Mandatory Instructions for Output:**
+1.  **Raw Markdown Only:** Generate **only** the raw Markdown note content.
+2.  **No Extra Text:** **NO** introductory or concluding phrases (e.g., "Here are your notes:", "This concludes the notes.").
+3.  **Immediate Start:** Start *immediately* with the first Markdown element (e.g., a heading like '# Title' or a bullet point like '* Item').
+4.  **No Code Block Wrapping:** **Crucially, do NOT wrap the entire output in a Markdown code block. This means your response should NOT start with \`\`\`markdown or \`\`\` and should NOT end with \`\`\`. The output itself should be the pure Markdown text, ready to be rendered.**
+
+**Text to Analyze:**
+---
+${text} // For more extensive notes, ensure this 'text' variable contains the full content. If you previously used text.slice(0, 30000), consider removing or increasing the slice limit, being mindful of your LLM's context window capacity.
+---
+
+**Output:**
+Provide *only* the generated raw Markdown note content below. Do not include any explanatory text before or after the Markdown.
+`;
+      const noteOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: detailedNotePrompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 4096 } }) };
     const noteResponse = await fetchWithRetry(currentGeminiEndpoint, noteOptions); const noteRawText = extractCandidateText(await noteResponse.text());
     if (noteRawText.startsWith("Error:")) { detailedNoteContent = `Error generating note: ${noteRawText}\n\nOriginal Text:\n${text.slice(0, 500)}...`; } else { detailedNoteContent = noteRawText.trim(); }
 
