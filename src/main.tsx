@@ -49,6 +49,7 @@ import { SpeedInsights } from "@vercel/speed-insights/react";
 // Global Helmet component to include favicon and related tags
 const DefaultHelmet = () => (
   <Helmet>
+    {/* Favicon and Apple Touch Icons */}
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <link rel="apple-touch-icon" sizes="57x57" href="/apple-icon-57x57.png" />
     <link rel="apple-touch-icon" sizes="60x60" href="/apple-icon-60x60.png" />
@@ -67,6 +68,19 @@ const DefaultHelmet = () => (
     <meta name="msapplication-TileColor" content="#ffffff" />
     <meta name="msapplication-TileImage" content="/ms-icon-144x144.png" />
     <meta name="theme-color" content="#ffffff" />
+
+    {/* --- Google tag (gtag.js) --- */}
+    <script async src="https://www.googletagmanager.com/gtag/js?id=AW-17070659093"></script>
+    <script>
+      {`
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'AW-17070659093');
+      `}
+    </script>
+    {/* --- End Google tag (gtag.js) --- */}
   </Helmet>
 );
 
@@ -192,7 +206,7 @@ const RootTitle = ({ children }: { children: React.ReactNode }) => (
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <HelmetProvider>
-      {/* Add the default Helmet to load favicon links and meta tags */}
+      {/* Add the default Helmet to load favicon links, meta tags, and global scripts */}
       <DefaultHelmet />
       <BrowserRouter>
         <AuthProvider>
