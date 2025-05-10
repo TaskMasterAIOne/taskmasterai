@@ -37,16 +37,17 @@ export default {
         'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'pulse-slower': 'pulse 6s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'spin-slow': 'spin 20s linear infinite',
-        // --- REMOVED old dev/intern pulse from here if they existed ---
-        // 'dev-pulse': 'dev-pulse 2s infinite ease-in-out',
-        // 'intern-glow': 'intern-glow 2.2s infinite ease-in-out',
-
-        // --- ADDED For new animations ---
+        
         'avatar-initial-glow-dev': 'avatar-initial-glow-dev 1s ease-out forwards',
         'avatar-initial-glow-intern': 'avatar-initial-glow-intern 1s ease-out forwards',
-        // Combined fade-in and then continuous glow for tags
+        
+        // Combined fade-in and then continuous glow for tags (your existing animations)
         'tag-animated-dev': 'tag-fade-in 0.5s ease-out forwards, subtle-tag-glow-dev 2s infinite 0.5s ease-in-out',
         'tag-animated-intern': 'tag-fade-in 0.5s ease-out forwards, subtle-tag-glow-intern 2.2s infinite 0.5s ease-in-out',
+
+        // ADDED: Simple fade-in animation utility for the tags
+        // This will be used by the Sidebar component via the `animate-fade-in-tags` class.
+        'fade-in-tags': 'tag-fade-in 0.5s ease-out forwards', 
       },
       keyframes: {
         gradient: {
@@ -59,13 +60,6 @@ export default {
             'background-position': 'right center',
           },
         },
-        // --- REMOVED old dev-pulse / intern-glow keyframes ---
-        /*
-        'dev-pulse': { ... },
-        'intern-glow': { ... },
-        */
-
-        // --- ADDED Keyframes for new animations ---
         'avatar-initial-glow-dev': {
           '0%': { boxShadow: '0 0 0px 0px rgba(99, 102, 241, 0)' }, // indigo-500
           '50%': { boxShadow: '0 0 20px 8px rgba(99, 102, 241, 0.5)' },
@@ -76,7 +70,7 @@ export default {
           '50%': { boxShadow: '0 0 20px 8px rgba(20, 184, 166, 0.5)' }, // Using teal.500 from your palette
           '100%': { boxShadow: '0 0 0px 0px rgba(20, 184, 166, 0)' }, // Fades out
         },
-        'tag-fade-in': { // Generic fade-in for tags
+        'tag-fade-in': { // Your existing generic fade-in for tags - used by 'fade-in-tags'
           '0%': { opacity: '0', transform: 'translateY(4px) scale(0.95)' },
           '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
         },
