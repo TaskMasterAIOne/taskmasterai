@@ -150,7 +150,6 @@ export async function updateUserChatUsage(userId: string, count: number, month: 
         await setDoc(userRef, {
             [usageFieldName]: count
         }, { merge: true }); // Use set with merge to create/update the specific field
-        console.log(`Chat usage updated for user ${userId} for month ${month}: ${count}`);
     } catch (error) {
         console.error('Error updating chat usage:', error);
         throw new Error(`Failed to update chat usage: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -166,7 +165,6 @@ export async function processTextToAINoteData( text: string, userId: string, api
   let detailedNoteContent = 'AI note generation failed.'; let keyPoints: string[] = ['Generation failed.']; let questions: NoteData['questions'] = undefined;
 
   try {
-    console.log("AI processing text...");
     // 1. Generate Detailed Note
     const detailedNotePrompt = `Analyze the following text. Generate a detailed, structured note using Markdown (headings # ## ###, lists * -, tables, bold **, LaTeX $ $ or $$ $$). Cover main topics thoroughly, aiming for comprehensiveness, not just a summary. Text:\n---\n${text.slice(0, 30000)}\n---\nOutput:\nProvide only the generated Markdown note content below.`;
     const noteOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: detailedNotePrompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 4096 } }) };
@@ -185,7 +183,6 @@ export async function processTextToAINoteData( text: string, userId: string, api
 
     // 4. Format result
     const processedNoteData: Omit<NoteData, 'id'|'createdAt'|'updatedAt'> = { title: text.split('\n')[0].slice(0, 60).trim() || 'AI Note', content: detailedNoteContent, keyPoints: keyPoints, questions: questions, type: 'personal', userId, isPublic: false, tags: ['ai-processed'], };
-    console.log("AI processing complete for text."); return processedNoteData;
   } catch (error) {
     console.error('Unexpected error during AI text processing:', error);
     return { title: text.split('\n')[0].slice(0, 60).trim() || 'AI Fail', content: `AI processing failed: ${error instanceof Error ? error.message : 'Unknown'}\n\nInput:\n${text.slice(0,500)}...`, keyPoints: ["Failed."], type: 'personal', userId, isPublic: false, tags: ['ai-error'] };
@@ -196,7 +193,6 @@ export async function processTextToAINoteData( text: string, userId: string, api
 export async function regenerateStudyQuestions( noteId: string, content: string, apiKey: string ): Promise<NoteData['questions']> {
    if (!noteId || !content.trim()) throw new Error("Note ID/content required."); if (!apiKey) throw new Error("Gemini API Key required.");
    const currentGeminiEndpoint = getGeminiEndpoint(apiKey);
-   console.log(`Regenerating 10 questions for note: ${noteId}`);
   try {
     // --- Refined Prompt ---
     const questionsPrompt = `Based on the following note content, generate exactly 10 multiple-choice study questions. Each question MUST have 4 options (labeled A, B, C, D), the correct answer letter, and a brief explanation.
@@ -233,7 +229,6 @@ ${content.slice(0, 15000)}
     let newQuestions: NoteData['questions'] = [];
     const blocks = qText.split(/---DIVIDER---/i);
 
-    console.log(`Received ${blocks.length -1} potential question blocks for regeneration.`); // Log how many blocks were found
 
     for (const block of blocks) {
         if (newQuestions.length >= 10) break; // Stop if we got 10 valid ones
@@ -274,14 +269,12 @@ ${content.slice(0, 15000)}
     }
     // --- End Updated Error Handling ---
 
-    console.log(`Successfully parsed ${newQuestions.length} regenerated questions for note ${noteId}.`);
     if (newQuestions.length < 10) {
         console.warn(`Warning: Regenerated fewer than 10 questions (${newQuestions.length}).`)
     }
 
     // Update Firestore only if questions were successfully parsed
     await updateNote(noteId, { questions: newQuestions });
-    console.log("Regenerated questions updated in Firestore.");
     return newQuestions; // Return the successfully parsed questions
 
   } catch (error) {
