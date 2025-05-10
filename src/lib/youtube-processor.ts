@@ -14,7 +14,7 @@ interface ProcessedYouTube {
 }
 
 // Replace with your SECURELY loaded YouTube Data API Key
-const YOUTUBE_API_KEY = 'AIzaSyD4iosX8Y1X4bOThSGhYyUfCmWKBEkc6x4'; // <-- IMPORTANT: Replace this
+const YOUTUBE_API_KEY = 'AIzaSyCoxefrJ80LuyxLAdv0t55BN8SJ9_-orcM'; // <-- IMPORTANT: Replace this
 
 // Use imported Gemini key
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`;
@@ -93,7 +93,7 @@ export async function processYouTube(
     const currentGeminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
     if (!apiKey) { safeProgress({ progress: 0, status: 'Error', error: 'Gemini API Key missing.' }); throw new Error('Gemini API Key missing.'); }
-    if (!YOUTUBE_API_KEY || YOUTUBE_API_KEY === 'YOUR_YOUTUBE_API_KEY' || YOUTUBE_API_KEY === 'AIzaSyD4iosX8Y1X4bOThSGhYyUfCmWKBEkc6x4') { // Added the placeholder check
+    if (!YOUTUBE_API_KEY || YOUTUBE_API_KEY === 'YOUR_YOUTUBE_API_KEY' || YOUTUBE_API_KEY === 'AIzaSyCoxefrJ80LuyxLAdv0t55BN8SJ9_-orcM') { // Added the placeholder check
         safeProgress({ progress: 0, status: 'Error', error: 'YouTube API Key missing/invalid. Please replace the placeholder key.' });
         throw new Error('YouTube API Key missing/invalid. Please replace the placeholder key.');
     }
