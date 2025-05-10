@@ -214,7 +214,6 @@ export async function processPDF(
         // Use the *entire* extracted text for note generation.
         // Be mindful that very large documents might exceed practical limits or incur higher costs.
         const noteInputText = extractedText;
-        console.log(`Generating notes using full extracted text (${noteInputText.length} chars).`);
 
 
         // ***** REVISED DETAILED STUDY NOTE PROMPT *****
@@ -295,7 +294,6 @@ ${noteInputText}
         // ***** REMOVED INPUT LIMIT FOR KEY POINTS TOO *****
         // Allows key points to be derived from the entire document context.
         const keyPointsInputText = extractedText;
-        console.log(`Generating key points using full extracted text (${keyPointsInputText.length} chars).`);
 
         const keyPointsPrompt = `From the following text (extracted from PDF "${file.name}"), identify and list up to 10 distinct and highly significant key points, main takeaways, or core arguments presented *in the text*. Focus on the most crucial concepts, findings, or conclusions stated.
 
@@ -359,7 +357,6 @@ Key Points (max 10):
         // ***** REMOVED INPUT LIMIT *****
         // Use the *entire* extracted text for question generation context.
         const questionsInputText = extractedText;
-        console.log(`Generating questions using full extracted text (${questionsInputText.length} chars).`);
 
 
         // ***** REVISED STUDY QUESTION PROMPT *****
@@ -416,7 +413,6 @@ ${questionsInputText}
 
             // Parsing Logic (should still work with the strict format requested)
             const questionBlocks = questionsRawText.split(/---DIVIDER---/i);
-            console.log(`Attempting to parse ${questionBlocks.length -1} potential question blocks.`);
 
             for (const block of questionBlocks) {
                 if (questions.length >= 10) break;
@@ -460,7 +456,6 @@ ${questionsInputText}
                 }
             } // End parsing loop
 
-            console.log(`Successfully parsed ${questions.length} valid study questions.`);
 
             if (questions.length === 0) {
                  throw new Error("No valid study questions could be parsed from the AI response. Check format.");
