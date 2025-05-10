@@ -8,7 +8,7 @@ import { auth, db } from "./firebase"
 // --- API Keys ---
 export const weatherApiKey = "e3f77d4d29e24862b4f190231241611"
 export const hfApiKey = "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"
-export const geminiApiKey = "AIzaSyBLQl1T_XpnPl070lH5AmwhN4Y8zsjPVf0"
+export const geminiApiKey = "AIzaSyB7ZGTlkvkzNFkaKb-IWebBp_CEDWcM490"
 
 import { type User, onAuthStateChanged, createUserWithEmailAndPassword, updateProfile } from "firebase/auth"
 
