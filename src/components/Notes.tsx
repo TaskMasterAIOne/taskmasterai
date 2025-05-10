@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -739,7 +738,6 @@ export function Notes() {
         if (!checkNoteLimit('pdfAi')) return;
         setUploadProgress({ progress: 0, status: 'Processing text...', error: null });
         try {
-            console.log("[Notes.tsx -> handleCreateAINote] Calling processTextToAINoteData with apiKey:", currentApiKey);
             setUploadProgress(prev => ({ ...prev, progress: 20 }));
             // processTextToAINoteData(text, userId, apiKey)
             const aiNoteData = await processTextToAINoteData(text, user.uid, currentApiKey);
@@ -780,7 +778,6 @@ export function Notes() {
         if (!checkNoteLimit('pdfAi')) return;
         setUploadProgress({ progress: 0, status: 'Uploading PDF...', error: null });
         try {
-            console.log("[Notes.tsx -> handlePDFUpload] Calling processPDF with apiKey:", currentApiKey);
             const processedData: ProcessedPDF = await processPDF( file, user.uid, currentApiKey, (progressState) => setUploadProgress(progressState) );
             
             if (!processedData.extractedText || processedData.extractedText.trim().length === 0) {
@@ -828,7 +825,6 @@ export function Notes() {
         if (!checkNoteLimit('youtube')) return;
         setUploadProgress({ progress: 0, status: 'Processing YouTube...', error: null });
         try {
-            console.log("[Notes.tsx -> handleYoutubeLink] Calling processYouTube with apiKey:", currentApiKey);
             // Assuming processYouTube takes (url, userId, apiKey, onProgress)
             const processedData = await processYouTube( url, user.uid, currentApiKey, (progressState) => setUploadProgress(progressState) );
             
@@ -914,7 +910,6 @@ export function Notes() {
         setIsRegeneratingQuestions(true);
         setUploadProgress({ progress: 0, status: 'Regenerating questions...', error: null });
         try {
-            console.log("[Notes.tsx -> handleRegenerateQuestions] Calling regenerateStudyQuestions with apiKey:", currentApiKey);
             // regenerateStudyQuestions (noteId, content, apiKey)
             await regenerateStudyQuestions(selectedNote.id, selectedNote.content, currentApiKey);
             // onSnapshot will update the selectedNote with new questions
