@@ -1,8 +1,7 @@
 import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react';
-// Changed Sparkles to ImageIcon here
-import { MessageCircle, Send, Timer as TimerIcon, Paperclip, Bot, X, AlertTriangle, Loader2, ImageIcon, ChevronDown, Maximize, Minimize, Edit, Check, RefreshCcw, Crown, Download } from 'lucide-react';
+import { MessageCircle, Send, Timer as TimerIcon, Paperclip, Bot, X, AlertTriangle, Loader2, ImageIcon, ChevronDown, Maximize, Minimize, Edit, Check, RefreshCcw, Crown, Download, Trash2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { useNavigate, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
@@ -12,7 +11,6 @@ import { User } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import {
     UserTier,
-    // REMOVED: getUserTier - NoteChat will use the prop
     getCurrentMonthUserChatUsage,
     incrementUserChatUsage,
     getChatLimitForTier,
@@ -46,6 +44,12 @@ interface ChatMessage {
 interface SelectedFile { name: string; type: string; size: number; base64Data: string; }
 interface Note { id: string; title: string; content: string; keyPoints?: string[]; questions?: { question: string }[]; }
 
+// For PDF context segments
+interface PdfContextSegment {
+    id: string;
+    text: string;
+}
+
 interface NoteChatProps {
     note: Note;
     onClose: () => void;
@@ -55,15 +59,18 @@ interface NoteChatProps {
     isBlackoutEnabled: boolean;
     isVisible: boolean;
     onUpdateNoteContent: (noteId: string, newContent: string) => Promise<void>;
+    onAddImageToNoteRequest: (imageData: ImageData) => void; // Add this prop
     displayMode?: 'overlay' | 'inline';
-    userTier: UserTier; // User tier passed as a prop
+    userTier: UserTier;
 }
 export interface NoteChatHandle {
     sendMessage: (message: string) => void;
+    addPdfContextSegment: (text: string) => void; // New method for PDF context
+    focusInput: () => void; // Added for focusing input
 }
 
-const GEMINI_TEXT_MODEL = 'gemini-2.0-flash';
-const GEMINI_IMAGE_GEN_MODEL = 'gemini-2.0-flash-exp-image-generation';
+const GEMINI_TEXT_MODEL = 'gemini-2.0-flash'; // Adjusted, assuming gemini-1.5-flash is preferred
+const GEMINI_IMAGE_GEN_MODEL = 'gemini-2.0-flash-exp-image-generation'; // Adjusted
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
 
 const readFileAsBase64 = (file: File): Promise<SelectedFile> => {
@@ -94,7 +101,6 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 3, de
             if (!response.ok) {
                 let errorText = `API Error (${response.status})`;
                  try { const errJson = await response.json(); errorText = errJson?.error?.message || errorText; } catch { }
-                 // Keep API-level size error handling
                  if (errorText.toLowerCase().includes("context length") || errorText.toLowerCase().includes("request payload size") || errorText.toLowerCase().includes("request entity too large")) { throw new Error("Error: The note content and/or attached files are too large for the AI to process."); }
                  if (errorText.toLowerCase().includes("unsupported user location")) { throw new Error("Error: Image generation is not available in your region."); }
                  if (errorText.toLowerCase().includes("response must contain text") && url.includes(GEMINI_IMAGE_GEN_MODEL)) { throw new Error("Error: Image generation failed. The model might require a different prompt or could not fulfill the request safely."); }
@@ -161,7 +167,6 @@ const parseGeminiResponse = (responseText: string, isImageGenCall: boolean): { t
 
         } else if (jsonResponse?.error?.message) {
              errorMessage = `API Error: ${jsonResponse.error.message}`;
-             // Keep API-level size error handling
              if (errorMessage.toLowerCase().includes("context length") || errorMessage.toLowerCase().includes("request payload size") || errorMessage.toLowerCase().includes("request entity too large")) { errorMessage = "Error: The note content and/or attached files are too large for the AI to process."; }
              else if (errorMessage.toLowerCase().includes("api key not valid")) { errorMessage = "Error: Invalid API Key."; }
              else if (errorMessage.toLowerCase().includes("quota exceeded")) { errorMessage = "Error: API Quota Exceeded."; }
@@ -183,7 +188,6 @@ const parseGeminiResponse = (responseText: string, isImageGenCall: boolean): { t
             if (responseText.toLowerCase().includes("api key not valid")) return { text: null, imageData: null, error: "Error: Invalid API Key.", finishReason: null, suggestions: [] };
             if (responseText.toLowerCase().includes("quota exceeded")) return { text: null, imageData: null, error: "Error: API Quota Exceeded.", finishReason: null, suggestions: [] };
             if (responseText.toLowerCase().includes("internal server error") || responseText.toLowerCase().includes("service unavailable")) return { text: null, imageData: null, error: "Error: AI service is temporarily unavailable. Please try again later.", finishReason: null, suggestions: [] };
-            // Keep API-level size error handling
             if (responseText.toLowerCase().includes("context length") || responseText.toLowerCase().includes("request payload size") || responseText.toLowerCase().includes("request entity too large")) return { text: null, imageData: null, error: "Error: The note content and/or attached files are too large for the AI to process.", finishReason: null, suggestions: [] };
             if (responseText.toLowerCase().includes("unsupported user location")) return { text: null, imageData: null, error: "Error: Image generation is not available in your region.", finishReason: null, suggestions: [] };
             return { text: null, imageData: null, error: `Error: Could not process AI response. Raw: ${responseText.substring(0, 100)}...`, finishReason: null, suggestions: [] };
@@ -193,13 +197,10 @@ const parseGeminiResponse = (responseText: string, isImageGenCall: boolean): { t
 };
 
 const parseTimerRequest = (message: string): number | null => { const cleanedMessage = message.trim().toLowerCase(); const keywords = ['set timer', 'start timer', 'timer for', 'remind me in']; const timeRegex = /(\d+)\s*(m|min|minute|h|hr|hour|s|sec|second)s?\b/i; let M: RegExpMatchArray | null = null; const hasKeywords = keywords.some(keyword => cleanedMessage.includes(keyword)); if (hasKeywords) { M = cleanedMessage.match(timeRegex); } if (!M) { M = cleanedMessage.match(/^\s*(\d+)\s*(m|min|minute|h|hr|hour|s|sec|second)s?\b/i); } if (!M) { M = cleanedMessage.match(/^\s*(\d+)\s*(m|min|minute|h|hr|hour|s|sec|second)s?\s*$/i); } if (!M) return null; const A = parseInt(M[1]); const U = M[2].toLowerCase(); if (isNaN(A) || A <= 0) return null; if (U.startsWith('h')) return A * 3600; if (U.startsWith('m')) return A * 60; if (U.startsWith('s')) return A; return null; };
-const isImageGenerationRequest = (message: string): boolean => { const lowerCaseMessage = message.toLowerCase().trim(); const keywords = [ "generate image of", "generate an image of", "create image of", "create an image of", "make image of", "make an image of", "draw image of", "draw an image of", "generate picture of", "generate a picture of", "create picture of", "create a picture of", "make picture of", "make a picture of", "draw picture of", "draw a picture of", "show me an image of", "show image of", "show picture of", "image of", "picture of" ]; return keywords.some(keyword => lowerCaseMessage.startsWith(keyword + " ") && lowerCaseMessage.length > (keyword.length + 1)); };
 const handleDownloadImage = (imageData: ImageData) => { if (!imageData) return; const link = document.createElement('a'); link.href = `data:${imageData.type};base64,${imageData.base64}`; const fileExtension = imageData.type.split('/')[1] || 'png'; const fileName = `generated-image-${Date.now()}.${fileExtension}`; link.download = fileName; document.body.appendChild(link); link.click(); document.body.removeChild(link); };
 
-const LoadingIndicator = ({ isIlluminateEnabled }: { isIlluminateEnabled: boolean }) => ( <div className={`flex items-center gap-2 p-1 ${isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}`}><Loader2 className="w-4 h-4 animate-spin" /><span className="text-xs">Thinking...</span></div> );
-
 export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
-    ({ note, onClose, geminiApiKey, userName, isIlluminateEnabled, isBlackoutEnabled, isVisible, onUpdateNoteContent, displayMode = 'overlay', userTier /* Use the userTier prop */ }: NoteChatProps, ref) => {
+    ({ note, onClose, geminiApiKey, userName, isIlluminateEnabled, isBlackoutEnabled, isVisible, onUpdateNoteContent, onAddImageToNoteRequest, displayMode = 'overlay', userTier }: NoteChatProps, ref) => {
         const [chatMessage, setChatMessage] = useState('');
         const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
         const [isChatLoading, setIsChatLoading] = useState(false);
@@ -213,59 +214,40 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
         const textareaRef = useRef<HTMLTextAreaElement>(null);
         const [loadingMsgId, setLoadingMsgId] = useState<string | null>(null);
         
-        // State for current authenticated user (for UID)
         const [user, setUser] = useState<User | null>(null);
-        // REMOVED: const [userTier, setUserTier] = useState<UserTier>('loading');
-
         const [chatCount, setChatCount] = useState(0);
         const [usageMonth, setUsageMonth] = useState('');
         const [isChatLimitReached, setIsChatLimitReached] = useState(false);
-        const [isLoadingUsage, setIsLoadingUsage] = useState(true); // Start as true
+        const [isLoadingUsage, setIsLoadingUsage] = useState(true);
         const [isImageGenModeActive, setIsImageGenModeActive] = useState(false);
+        const [pdfContextSegments, setPdfContextSegments] = useState<PdfContextSegment[]>([]); // New state for PDF context
 
-        // currentChatLimit now depends on the userTier prop
         const currentChatLimit = useMemo(() => getChatLimitForTier(userTier), [userTier]);
 
         const overlayBg = isIlluminateEnabled ? "bg-white" : isBlackoutEnabled ? "bg-black border border-gray-700/60" : "bg-gray-800"; const headerBg = isIlluminateEnabled ? "bg-gray-50/90 border-gray-200" : "bg-gray-900/80 border-gray-700"; const headingColor = isIlluminateEnabled ? "text-gray-800" : "text-white"; const inputBg = isIlluminateEnabled ? "bg-gray-100 border-gray-300 focus:border-blue-500 focus:ring-blue-500" : "bg-gray-700 border-gray-600 focus:border-blue-500 focus:ring-blue-500"; const inputTextColor = isIlluminateEnabled ? "text-gray-900" : "text-gray-200"; const placeholderColor = isIlluminateEnabled ? "placeholder-gray-400" : "placeholder-gray-500"; const buttonPrimaryClass = "bg-blue-600 hover:bg-blue-700 text-white"; const buttonSecondaryClass = isIlluminateEnabled ? "bg-gray-200 hover:bg-gray-300 text-gray-700" : "bg-gray-600 hover:bg-gray-500 text-gray-300"; const suggestionButtonClass = isIlluminateEnabled ? "bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200" : "bg-gray-700 hover:bg-gray-600 text-gray-300 border border-gray-600"; const buttonDisabledClass = "opacity-50 cursor-not-allowed"; const userBubbleClass = isIlluminateEnabled ? 'bg-blue-500 text-white' : 'bg-blue-600 text-white'; const assistantBubbleClass = isIlluminateEnabled ? 'bg-gray-100 text-gray-800 border border-gray-200/80' : 'bg-gray-700/80 text-gray-200 border border-gray-600/50'; const errorBubbleClass = isIlluminateEnabled ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-red-900/30 text-red-300 border border-red-700/50'; const editSuggestionBubbleClass = isIlluminateEnabled ? 'bg-yellow-50 border border-yellow-200 text-yellow-800' : 'bg-yellow-900/30 border border-yellow-700/50 text-yellow-300'; const confirmationBubbleClass = isIlluminateEnabled ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-green-900/30 border border-green-700/50 text-green-200'; const iconColor = isIlluminateEnabled ? "text-gray-500 hover:text-gray-700" : "text-gray-400 hover:text-gray-200"; const filePillBg = isIlluminateEnabled ? "bg-blue-100 border-blue-200" : "bg-blue-900/50 border-blue-700/50"; const filePillText = isIlluminateEnabled ? "text-blue-800" : "text-blue-300"; const downloadButtonClass = isIlluminateEnabled ? "bg-gray-200 hover:bg-gray-300 text-gray-600" : "bg-gray-600 hover:bg-gray-500 text-gray-300";
         const imageGenButtonClass = isIlluminateEnabled
             ? (isImageGenModeActive ? "bg-purple-100 hover:bg-purple-200 text-purple-700" : "bg-gray-200 hover:bg-gray-300 text-gray-700")
             : (isImageGenModeActive ? "bg-purple-800/60 hover:bg-purple-700/60 text-purple-300" : "bg-gray-600 hover:bg-gray-500 text-gray-300");
+        const contextSegmentBg = isIlluminateEnabled ? "bg-indigo-50 border-indigo-200 text-indigo-700" : "bg-indigo-900/40 border-indigo-700/60 text-indigo-300";
 
-        // Effect to load current user and their chat usage based on the userTier prop
+
         useEffect(() => {
             const currentAuthUser = auth.currentUser;
-            setUser(currentAuthUser); // Update local user state
+            setUser(currentAuthUser);
 
-            if (!isVisible) {
-                setIsLoadingUsage(false); // Reset loading state if not visible
-                return;
-            }
-        
-            // If userTier prop is still loading, or no authenticated user for usage fetching
-            if (userTier === 'loading' || !currentAuthUser) {
-                setIsLoadingUsage(true); // Indicate that we are waiting for tier/auth
-                setChatCount(0);
-                setUsageMonth('');
-                // A loading tier means limit is 0, so chat is "limit reached"
-                setIsChatLimitReached(userTier === 'loading'); 
-                return;
-            }
-        
-            // At this point, userTier prop is resolved (e.g., 'basic', 'pro', 'premium')
-            // and currentAuthUser (for UID) exists.
-            setIsLoadingUsage(true); // Begin loading actual usage data
-        
+            if (!isVisible) { setIsLoadingUsage(false); return; }
+            if (userTier === 'loading' || !currentAuthUser) { setIsLoadingUsage(true); setChatCount(0); setUsageMonth(''); setIsChatLimitReached(userTier === 'loading'); return; }
+            setIsLoadingUsage(true); 
             if (userTier !== 'premium') {
                 const currentMonthYear = new Date().toISOString().slice(0, 7);
                 getCurrentMonthUserChatUsage(currentAuthUser.uid, currentMonthYear)
                     .then(usageData => {
-                        const limit = getChatLimitForTier(userTier); // Get limit based on the resolved prop tier
+                        const limit = getChatLimitForTier(userTier);
                         if (usageData) {
                             setChatCount(usageData.count);
                             setUsageMonth(usageData.month);
                             setIsChatLimitReached(limit !== Infinity && usageData.count >= limit);
                         } else {
-                            // No usage data for the month means count is 0
                             setChatCount(0);
                             setUsageMonth(currentMonthYear);
                             setIsChatLimitReached(limit !== Infinity && 0 >= limit);
@@ -273,25 +255,23 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
                     })
                     .catch(err => {
                         console.error("Error fetching chat usage:", err);
-                        setChatCount(0); // Reset on error
+                        setChatCount(0); 
                         setUsageMonth(new Date().toISOString().slice(0, 7));
                         const limit = getChatLimitForTier(userTier);
-                        // On error, assume not reached unless limit is explicitly 0
                         setIsChatLimitReached(limit === 0 && limit !== Infinity); 
                     })
                     .finally(() => setIsLoadingUsage(false));
-            } else { // Premium user
-                setChatCount(0); // No tracking needed for premium
+            } else { 
+                setChatCount(0); 
                 setUsageMonth('');
-                setIsChatLimitReached(false); // Premium users never reach a limit
+                setIsChatLimitReached(false); 
                 setIsLoadingUsage(false);
             }
-        // Depend on isVisible, the userTier prop, and user's UID (from local user state)
         }, [isVisible, userTier, user?.uid]);
 
 
-        useEffect(() => { if (note && (note.id !== currentNoteId.current || (displayMode === 'overlay' && isVisible && !initialMessageSent.current))) { const initialPrompt = `Hi ${userName}! Ask about **"${note.title}"**, ask me to change it, generate an image (click the ${isIlluminateEnabled ? '🖼️' : '🖼️'} button!), or attach/paste a file.`; setChatHistory([{ id: `init-${Date.now()}`, role: 'assistant', content: initialPrompt }]); setChatMessage(''); setSelectedFiles([]); setSuggestedPrompts([]); setIsChatLoading(false); initialMessageSent.current = true; currentNoteId.current = note.id; setLoadingMsgId(null); setIsImageGenModeActive(false); } else if (displayMode === 'overlay' && !isVisible) { initialMessageSent.current = false; currentNoteId.current = null; setIsImageGenModeActive(false); } }, [note, isVisible, userName, displayMode, isIlluminateEnabled]); 
-        useEffect(() => { if (!isMinimized || displayMode === 'inline') { setTimeout(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, 150); } }, [chatHistory, isMinimized, displayMode, suggestedPrompts]);
+        useEffect(() => { if (note && (note.id !== currentNoteId.current || (displayMode === 'overlay' && isVisible && !initialMessageSent.current))) { const initialPrompt = `Hi ${userName}! Ask about **"${note.title}"**, ask me to change it, generate an image (click the ${isImageGenModeActive ? '✏️' : '🖼️'} button!), or attach/paste a file.`; setChatHistory([{ id: `init-${Date.now()}`, role: 'assistant', content: initialPrompt }]); setChatMessage(''); setSelectedFiles([]); setSuggestedPrompts([]); setIsChatLoading(false); initialMessageSent.current = true; currentNoteId.current = note.id; setLoadingMsgId(null); setIsImageGenModeActive(false); setPdfContextSegments([]); } else if (displayMode === 'overlay' && !isVisible) { initialMessageSent.current = false; currentNoteId.current = null; setIsImageGenModeActive(false); setPdfContextSegments([]); } }, [note, isVisible, userName, displayMode, isImageGenModeActive]); 
+        useEffect(() => { if (!isMinimized || displayMode === 'inline') { setTimeout(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, 150); } }, [chatHistory, isMinimized, displayMode, suggestedPrompts, pdfContextSegments]);
 
         const handleTimerComplete = (timerId: string) => setChatHistory(prev => [...prev, { id: `timer-comp-${timerId}`, role: 'assistant', content: "⏰ Time's up!" }]);
         const handleAcceptEdit = async (message: ChatMessage) => { if (!note || isChatLoading || !message.isEditSuggestion || !message.editAction) { setChatHistory(prev => [...prev, { id: `edit-app-err-${Date.now()}`, role: 'assistant', content: `❌ Error: Could not apply edit. Invalid proposal data.`, error: true }]); return; } setIsChatLoading(true); setLoadingMsgId(null); let finalContent: string | null = null; const contentBeforeEdit = note.content; try { let currentContent = contentBeforeEdit; if (message.editAction === 'propose_targeted_edit') { if (!message.editType) throw new Error("Missing edit type."); let applied = false; const { editType, targetContext, contentFragment = "" } = message; switch (editType) { case 'insert_at_start': currentContent = contentFragment + (currentContent ? "\n" + currentContent : ""); applied = true; break; case 'append_at_end': currentContent = (currentContent ? currentContent + "\n" : "") + contentFragment; applied = true; break; case 'insert_after_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { const p = i + targetContext.length; const x = currentContent.endsWith('\n') || currentContent.slice(p).startsWith('\n') || p === 0 ? "" : "\n"; currentContent = currentContent.slice(0, p) + x + contentFragment + currentContent.slice(p); applied = true; } else throw new Error("Target context for insertion not found."); } else throw new Error("Missing target context for insert."); break; case 'replace_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { currentContent = currentContent.slice(0, i) + contentFragment + currentContent.slice(i + targetContext.length); applied = true; } else throw new Error("Target context for replacement not found."); } else throw new Error("Missing target context for replace."); break; case 'delete_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { currentContent = currentContent.slice(0, i) + currentContent.slice(i + targetContext.length); currentContent = currentContent.replace(/\n\n+/g, '\n').trim(); applied = true; } else throw new Error("Target context for deletion not found."); } else throw new Error("Missing target context for delete."); break; default: throw new Error(`Unsupported edit type: ${editType}`); } if (applied) finalContent = currentContent; else throw new Error("Targeted edit failed."); } else if (message.editAction === 'propose_full_content_replacement') { if (typeof message.newFullContent === 'string') { finalContent = message.newFullContent; } else { throw new Error("Missing new full content for replacement."); } } else if (message.editAction === 'propose_sequential_edits') { if (!message.sequentialEdits || !Array.isArray(message.sequentialEdits) || message.sequentialEdits.length === 0) { throw new Error("Invalid sequential edit proposal: 'edits' array is missing or empty."); } let allApplied = true; for (let i = 0; i < message.sequentialEdits.length; i++) { const editStep = message.sequentialEdits[i]; const { editType, targetContext, contentFragment } = editStep; let appliedThisStep = false; const stepNumber = i + 1; switch (editType) { case 'insert_at_start': currentContent = contentFragment + (currentContent ? "\n" + currentContent : ""); appliedThisStep = true; break; case 'append_at_end': currentContent = (currentContent ? currentContent + "\n" : "") + contentFragment; appliedThisStep = true; break; case 'insert_after_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { const p = idx + targetContext.length; const x = currentContent.endsWith('\n') || currentContent.slice(p).startsWith('\n') || p === 0 ? "" : "\n"; currentContent = currentContent.slice(0, p) + x + contentFragment + currentContent.slice(p); appliedThisStep = true; } else { allApplied = false; throw new Error(`Step ${stepNumber}: Target context for insertion not found.`); } } else { allApplied = false; throw new Error(`Step ${stepNumber}: Missing target context for insert.`); } break; case 'replace_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { currentContent = currentContent.slice(0, idx) + contentFragment + currentContent.slice(idx + targetContext.length); appliedThisStep = true; } else { allApplied = false; throw new Error(`Step ${stepNumber}: Target context for replacement not found.`); } } else { allApplied = false; throw new Error(`Step ${stepNumber}: Missing target context for replace.`); } break; case 'delete_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { currentContent = currentContent.slice(0, idx) + currentContent.slice(idx + targetContext.length); currentContent = currentContent.replace(/\n\n+/g, '\n').trim(); appliedThisStep = true; } else { allApplied = false; throw new Error(`Step ${stepNumber}: Target context for deletion not found.`); } } else { allApplied = false; throw new Error(`Step ${stepNumber}: Missing target context for delete.`); } break; default: allApplied = false; throw new Error(`Step ${stepNumber}: Unsupported edit type: ${editType}`); } if (!appliedThisStep) { allApplied = false; throw new Error(`Sequential edit step ${stepNumber} failed unexpectedly.`); } } if (allApplied) { finalContent = currentContent; } } else { throw new Error(`Unknown edit action: ${message.editAction}`); } if (finalContent !== null) { await onUpdateNoteContent(note.id, finalContent); const confirmationMsgId = `edit-ok-${Date.now()}`; setChatHistory(prev => [ ...prev, { id: confirmationMsgId, role: 'assistant', content: "✅ Note updated!", isUpdateConfirmation: true, canRevert: true, previousContent: contentBeforeEdit, noteIdToRevert: note.id } ]); } } catch (error) { const eMsg = error instanceof Error ? error.message : 'Unknown error during update.'; console.error("Edit failed:", error); setChatHistory(prev => [...prev, { id: `edit-err-${Date.now()}`, role: 'assistant', content: `❌ Update failed: ${eMsg}`, error: true }]); } finally { setIsChatLoading(false); } };
@@ -311,21 +291,24 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
                 setChatHistory(prev => [...prev, { id: `img-mode-file-warn-${Date.now()}`, role: 'assistant', content: `ℹ️ Image generation mode enabled. Attached files will be ignored.`, error: false }]);
                 setSelectedFiles([]);
             }
+            if (nextState && pdfContextSegments.length > 0) {
+                setChatHistory(prev => [...prev, { id: `img-mode-ctx-warn-${Date.now()}`, role: 'assistant', content: `ℹ️ Image generation mode enabled. PDF context will be ignored.`, error: false }]);
+                setPdfContextSegments([]);
+            }
              textareaRef.current?.focus();
         };
 
         const submitMessageToAI = async (messageContent: string, filesToSend?: SelectedFile[], forceImageGenMode = false) => {
             const isUsingImageGenModel = forceImageGenMode || isImageGenModeActive;
             const currentFiles = filesToSend || selectedFiles;
+            const currentPdfContext = pdfContextSegments.map(s => s.text).join("\n\n---\n\n"); // Collate PDF context
 
-            // Use userTier prop for checks
-            if ((!messageContent && currentFiles.length === 0 && !isUsingImageGenModel) ||
+            if ((!messageContent && currentFiles.length === 0 && !isUsingImageGenModel && !currentPdfContext) ||
                 (!messageContent && isUsingImageGenModel) ||
                 isChatLoading || !geminiApiKey || !note || !user ) return;
 
 
-            // Use currentChatLimit (derived from userTier prop) and isChatLimitReached state
-            if (isChatLimitReached && userTier !== 'premium') { // Double check isChatLimitReached state
+            if (isChatLimitReached && userTier !== 'premium') {
                 setChatHistory(prev => [...prev, { id: `limit-${Date.now()}`, role: 'assistant', content: `You've reached your ${currentChatLimit === Infinity ? 'monthly' : currentChatLimit} chat message limit. Upgrade for more interactions!`, error: true }]);
                 setChatMessage('');
                 setIsImageGenModeActive(false);
@@ -334,12 +317,15 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
 
             const timerDuration = !isUsingImageGenModel ? parseTimerRequest(messageContent) : null;
 
-            if (isUsingImageGenModel && currentFiles.length > 0) {
-                setChatHistory(prev => [...prev, { id: `img-gen-mode-file-err-${Date.now()}`, role: 'assistant', content: `ℹ️ Image generation requires a text prompt only. Please remove attached files or disable image generation mode.`, error: false }]);
+            if (isUsingImageGenModel && (currentFiles.length > 0 || currentPdfContext)) {
+                setChatHistory(prev => [...prev, { id: `img-gen-mode-file-ctx-err-${Date.now()}`, role: 'assistant', content: `ℹ️ Image generation requires a text prompt only. Please remove attached files/PDF context or disable image generation mode.`, error: false }]);
                 return;
             }
 
             let userMsgContent = messageContent;
+            if (currentPdfContext && !isUsingImageGenModel) {
+                userMsgContent = `Using the following PDF context:\n"""\n${currentPdfContext}\n"""\n\nMy question/request: ${messageContent}`;
+            }
             let userMsgImageData: ImageData | undefined = undefined;
             if (!isUsingImageGenModel) {
                 const imageFiles = currentFiles.filter(f => f.type.startsWith('image/'));
@@ -351,9 +337,11 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
 
             setSuggestedPrompts([]);
             setChatHistory(prev => [...prev, userMsg]);
-            if (!filesToSend && !isUsingImageGenModel) {
+            if (!filesToSend && !isUsingImageGenModel) { // Clear selected files unless they were passed in explicitly
                 setSelectedFiles([]);
             }
+            setPdfContextSegments([]); // Clear PDF context after it's included in the user message
+
 
             if (timerDuration) {
                 const tId = `t-${Date.now()}`;
@@ -371,13 +359,11 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
 
             setIsChatLoading(true);
 
-            // Use userTier prop for incrementing usage
             if (userTier !== 'premium' && user?.uid) {
                 try {
                     await incrementUserChatUsage(user.uid);
                     const newLocalCount = chatCount + 1;
                     setChatCount(newLocalCount);
-                    // Re-evaluate limit reached based on new count and currentChatLimit (from prop)
                     setIsChatLimitReached(currentChatLimit !== Infinity && newLocalCount >= currentChatLimit);
                 } catch (err) {
                     console.error("Error incrementing usage:", err);
@@ -390,7 +376,7 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
             const loadingContent = isUsingImageGenModel ? "Generating image..." : "...";
             setChatHistory(prev => [...prev, { id: newLoadingMsgId, role: 'assistant', content: loadingContent, isGeneratingImage: isUsingImageGenModel }]);
 
-            const recentHistory = chatHistory.slice(-8);
+            const recentHistory = chatHistory.slice(-8); // Keep recent history, userMsg already added
 
             const systemInstruction = `You are TaskMaster, a highly meticulous, context-aware, and **conversational** AI agent integrated into Notes. You are chatting with "${userName}" about their note titled "${note.title}".
 
@@ -398,17 +384,17 @@ Your primary goal is to be helpful, accurate, and follow instructions based on t
 
 **Core Logic Flow:**
 
-1.  **Analyze User Intent:** First, determine if the user is ASKING a question (*about* the note/images OR a *general knowledge* question), EXPLICITLY requesting a *change* to the note text, OR EXPLICITLY requesting image generation. This distinction is CRITICAL.
+1.  **Analyze User Intent:** First, determine if the user is ASKING a question (*about* the note/images/PDF context OR a *general knowledge* question), EXPLICITLY requesting a *change* to the note text, OR EXPLICITLY requesting image generation. This distinction is CRITICAL.
 2.  **Execute Correct Function:** Based the intent, follow the corresponding function below (Answer Questions, Generate Image, Modify Note, or General Chat).
 3.  **Provide Suggestions (Conditional):** Conclude your response with relevant suggestions, **UNLESS** you just generated an image.
 
 **Functions (Strict Order of Priority):**
 
 1.  **Answer Questions (Highest Priority):**
-    *   **PRIORITY 1A: Questions *About* the Note/Images:** If the user asks a question *about* the note's content or attached images (e.g., "What does the diagram show?", "Summarize this section"), provide a direct, helpful answer based primarily on the "Current Note Content" **and any relevant attached images.**
-        *   **Natural Phrasing:** **CRITICAL:** Integrate information smoothly into your conversational response. **Avoid overly robotic phrasing** like "The note states..." or "According to the note...". Use more natural language (e.g., "Looking at the plan here, the first step is...", "Yes, the meeting notes mention that point.", "The image shows...", "Based on the details in the note...").
-        *   **Handling Missing Note Information:** If the note or images *don't* contain the answer to a note-related question, **avoid stiff phrases like "The note doesn't mention X."** Instead, state clearly but naturally that the info isn't present *in this specific note context* (e.g., "That specific detail isn't in this note," or "Hmm, I don't see that covered here.") and *then* leverage your general knowledge to provide a helpful and accurate supplementary answer where appropriate, clearly indicating its origin (e.g., "...but generally speaking...", "...however, typical approaches include..."). Avoid fabricating information.
-    *   **PRIORITY 1B: General Knowledge Questions:** If the user asks a general question *unrelated* to the current note or attached images (e.g., "Who was the first president?", "Explain photosynthesis", "Tell me about Hitler"), answer it helpfully and accurately using your broad world knowledge. Respond naturally without needing to reference the note.
+    *   **PRIORITY 1A: Questions *About* the Note/Images/PDF Context:** If the user asks a question *about* the note's content, attached images, or provided PDF context (e.g., "What does the diagram show?", "Summarize this section", "Based on the PDF context, what is X?"), provide a direct, helpful answer based primarily on the "Current Note Content", **any relevant attached images, and any provided "PDF Context for Current Query".**
+        *   **Natural Phrasing:** **CRITICAL:** Integrate information smoothly into your conversational response. **Avoid overly robotic phrasing** like "The note states..." or "According to the note...". Use more natural language (e.g., "Looking at the plan here, the first step is...", "Yes, the meeting notes mention that point.", "The image shows...", "Based on the details in the note...", "Regarding the text you highlighted from the PDF...").
+        *   **Handling Missing Note Information:** If the note, images, or PDF context *don't* contain the answer to a related question, **avoid stiff phrases like "The note doesn't mention X."** Instead, state clearly but naturally that the info isn't present *in this specific context* (e.g., "That specific detail isn't in this note," or "Hmm, I don't see that covered here.", "The highlighted PDF text doesn't seem to cover that directly.") and *then* leverage your general knowledge to provide a helpful and accurate supplementary answer where appropriate, clearly indicating its origin (e.g., "...but generally speaking...", "...however, typical approaches include..."). Avoid fabricating information.
+    *   **PRIORITY 1B: General Knowledge Questions:** If the user asks a general question *unrelated* to the current note, attached images, or PDF context (e.g., "Who was the first president?", "Explain photosynthesis", "Tell me about Hitler"), answer it helpfully and accurately using your broad world knowledge. Respond naturally without needing to reference the note.
     *   **CRITICAL (Both Cases):** **DO NOT** propose an edit (JSON response) if the user is merely asking for information, clarification, or summarization, whether about the note or a general topic.
 
 2.  **Generate Image (ONLY if EXPLICITLY Asked - NO JSON Output):**
@@ -442,19 +428,17 @@ Your primary goal is to be helpful, accurate, and follow instructions based on t
             {
               "action": "propose_sequential_edits",
               "explanation": "[Overall explanation summarizing ALL the sequential changes.]",
-              "edits": [ // An array of edit steps, executed STRICTLY in order
-                { // First edit step
+              "edits": [ 
+                { 
                   "edit_type": "[Type]",
                   "target_context": "[Context for *first* edit, based on ORIGINAL note content. null for start/end.]",
                   "content_fragment": "[Fragment for *first* edit.]"
                 },
-                { // Second edit step
+                { 
                   "edit_type": "[Type]",
-                  // CRITICAL: target_context for step N MUST exist in the note content *AFTER* steps 1 to N-1 have been virtually applied. Be precise.
                   "target_context": "[Context for *second* edit, based on content *after* first edit is applied. null for start/end.]",
                   "content_fragment": "[Fragment for *second* edit.]"
                 }
-                // ... add more steps exactly as needed for the user's request
               ]
             }
             \`\`\`
@@ -475,7 +459,7 @@ Your primary goal is to be helpful, accurate, and follow instructions based on t
 
 5.  **Generate Suggestions (Conditional - See Rule #3 Above):**
     *   **MANDATORY (Unless Generating Image):** **ALWAYS** conclude every response (EXCEPT for image generation responses) with exactly 3 relevant follow-up suggestions.
-    *   **Content:** Suggestions should be context-aware, based on the current note content, attached files, recent chat history, and the *last interaction*. They should anticipate what the *user* might want to do or ask next. If the last interaction was general chat/knowledge, suggestions can be more general or related to that topic, but ideally steer back towards the note if appropriate context exists.
+    *   **Content:** Suggestions should be context-aware, based on the current note content, attached files, PDF context, recent chat history, and the *last interaction*. They should anticipate what the *user* might want to do or ask next. If the last interaction was general chat/knowledge, suggestions can be more general or related to that topic, but ideally steer back towards the note if appropriate context exists.
     *   **Format:** Enclose them clearly at the **VERY END** of your response, each on a new line, within the tags:
 [SUGGESTIONS]
 Summarize the section on _______.
@@ -506,18 +490,23 @@ What else can you do?
 
 **Important Reminders & Constraints:**
 
-*   **Context is Key:** Pay close attention to the Current Note Content, Chat History, **and any attached Images/Files**. Responses MUST be relevant to the *current* state when discussing the note. General knowledge answers don't require note context.
+*   **Context is Key:** Pay close attention to the Current Note Content, Chat History, **any attached Images/Files, and any PDF Context for Current Query**. Responses MUST be relevant to the *current* state when discussing the note. General knowledge answers don't require note context.
 *   **Image Interpretation:** You **CAN** see and interpret images/PDFs attached by the user. Integrate information from them naturally when answering questions *about the note*. **Do not claim you are only text-based.**
 *   **General Knowledge:** Freely use your world knowledge to answer general questions accurately and helpfully.
 *   **Explicit Intent:** Do not infer edit or image generation requests. Wait for clear commands/keywords.
 *   **Image Embedding Limitation:** Reiterate that you cannot embed *generated* images into the note's text content *only if the user explicitly asks* you to add a generated image to the note after it has been generated.
 *   **Suggestion Exclusion:** Remember that **no suggestions** should follow an image generation attempt (successful or failed).
-*   **Follow Hierarchy:** Prioritize actions in this order: Answer Note/Image Questions > Answer General Questions > Generate Image > Modify Note > General Chat. Suggestions are appended unless excluded.
+*   **Follow Hierarchy:** Prioritize actions in this order: Answer Note/Image/PDF Context Questions > Answer General Questions > Generate Image > Modify Note > General Chat. Suggestions are appended unless excluded.
 *   **Accuracy of target_context:** This is critical for edits, especially sequential ones. It MUST uniquely identify the location in the note *at the time that specific edit step is executed*. Double-check this.
 *   **No JSON/Code Leaks (Except for Edits):** Keep conversational text clean. Structured data belongs ONLY in the designated JSON block for edits. Image generation does not use JSON.
 *   **Conversational Tone:** Aim for a natural, helpful, collaborative tone.
 *   **Be Helpful:** Assist with both note-specific tasks and general inquiries.
 *   **Suggestion Format Adherence:** Strictly follow the \`[SUGGESTIONS]\`...\`[/SUGGESTIONS]\` format with exactly 3 suggestions inside, each on a new line, when suggestions are required.
+
+**PDF Context for Current Query (if any):**
+"""
+${currentPdfContext || "N/A"}
+"""
 
 **Current Note Content (Full):**
 """
@@ -572,7 +561,7 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                     }
                 });
 
-                const currentUserParts: any[] = [{ text: messageContent }];
+                const currentUserParts: any[] = [{ text: messageContent }]; // User's typed message already includes PDF context if any
                 if (currentFiles.length > 0 && !isUsingImageGenModel) {
                     currentFiles.forEach(file => {
                         if (file.type.startsWith('image/') || file.type === 'application/pdf') {
@@ -709,7 +698,7 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
         const handleChatSubmit = async (e?: React.FormEvent) => {
             e?.preventDefault();
             const currentMessage = chatMessage.trim();
-            if ((!currentMessage && selectedFiles.length === 0 && !isImageGenModeActive) ||
+            if ((!currentMessage && selectedFiles.length === 0 && !isImageGenModeActive && pdfContextSegments.length === 0) ||
                 (!currentMessage && isImageGenModeActive)) {
                 if(isImageGenModeActive && !currentMessage) {
                      setChatHistory(prev => [...prev, { id: `img-prompt-err-${Date.now()}`, role: 'assistant', content: `ℹ️ Please describe the image you want to generate.`, error: false }]);
@@ -719,8 +708,9 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
             const filesToSubmit = [...selectedFiles];
             setChatMessage('');
             if (!isImageGenModeActive) {
-                setSelectedFiles([]);
+                setSelectedFiles([]); // Clear files only if not in image gen mode
             }
+            // PDF context is cleared within submitMessageToAI after being used
             await submitMessageToAI(currentMessage, filesToSubmit, isImageGenModeActive);
             if (textareaRef.current) {
                 textareaRef.current.style.height = 'auto';
@@ -735,12 +725,21 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
             submitMessageToAI(suggestion);
         };
 
-        useImperativeHandle(ref, () => ({ sendMessage: (message: string) => {
-            if (isImageGenModeActive) {
-                 setIsImageGenModeActive(false);
-            }
-             submitMessageToAI(message);
-        }, }));
+        const addPdfContextSegment = (text: string) => {
+            setPdfContextSegments(prev => [...prev, { id: `pdf-ctx-${Date.now()}-${Math.random().toString(16).slice(2)}`, text }]);
+        };
+        const removePdfContextSegment = (idToRemove: string) => {
+            setPdfContextSegments(prev => prev.filter(segment => segment.id !== idToRemove));
+        };
+
+        useImperativeHandle(ref, () => ({
+            sendMessage: (message: string) => {
+                if (isImageGenModeActive) setIsImageGenModeActive(false);
+                submitMessageToAI(message);
+            },
+            addPdfContextSegment,
+            focusInput: () => textareaRef.current?.focus(),
+        }));
 
         const rootClasses = displayMode === 'overlay' ? `fixed bottom-4 right-4 z-50 ${overlayBg} rounded-lg w-full max-w-sm flex flex-col shadow-xl transition-all duration-300 ease-in-out ${isMinimized ? 'h-12 overflow-hidden' : 'h-[75vh] max-h-[650px]'}` : `h-full w-full flex flex-col ${overlayBg}`; if (displayMode === 'overlay' && !isVisible) return null;
 
@@ -787,7 +786,7 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                                                     <span className="text-xs">{message.isGeneratingImage ? "Generating image..." : "Thinking..."}</span>
                                                 </div>
                                             ) : message.content ? (
-                                                <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]} className={proseClass} components={{ a: ({node, ...props}) => <a target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-600" {...props} />, code: ({node, inline, className, children, ...props}) => { const match = /language-(\w+)/.exec(className || ''); const isJson = className === 'language-json'; if (inline) { return <code className={`${isIlluminateEnabled ? 'bg-gray-200/70 text-gray-800' : 'bg-gray-600/70 text-gray-100'} px-1 py-0.5 rounded text-[10px]`} {...props}>{children}</code>; } return <pre className={`${isIlluminateEnabled ? '!bg-gray-200/70 !text-gray-800' : '!bg-gray-600/70 !text-gray-100'} p-1.5 rounded my-1 text-[11px] overflow-x-auto`} {...props}><code>{children}</code></pre>; }, }} >{message.content}</ReactMarkdown>
+                                                <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]} className={proseClass} components={{ a: ({node, ...props}) => <a target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-600" {...props} />, code: ({node, inline, className, children, ...props}) => { const match = /language-(\w+)/.exec(className || ''); if (inline) { return <code className={`${isIlluminateEnabled ? 'bg-gray-200/70 text-gray-800' : 'bg-gray-600/70 text-gray-100'} px-1 py-0.5 rounded text-[10px]`} {...props}>{children}</code>; } return <pre className={`${isIlluminateEnabled ? '!bg-gray-200/70 !text-gray-800' : '!bg-gray-600/70 !text-gray-100'} p-1.5 rounded my-1 text-[11px] overflow-x-auto`} {...props}><code>{children}</code></pre>; }, }} >{message.content}</ReactMarkdown>
                                             ) : null}
 
                                             {message.imageData && (
@@ -832,8 +831,25 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                         )}
 
                         <div className={`p-2 border-t ${headerBg} shrink-0 sticky bottom-0`}>
-                             {/* Use userTier prop for UI elements */}
                              {userTier !== 'premium' && userTier !== 'loading' && ( <div className="pb-1 text-xs text-center"> <span className={isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}> Messages this month: {isLoadingUsage ? '...' : chatCount} / {currentChatLimit === Infinity ? '∞' : currentChatLimit} </span> {isChatLimitReached && !isLoadingUsage && ( <span className="text-red-500 ml-1 font-medium">(Limit Reached)</span> )} {!isChatLimitReached && userTier === 'basic' && ( <Link to="/pricing" className={`ml-2 font-medium ${isIlluminateEnabled ? 'text-blue-600 hover:text-blue-700' : 'text-blue-400 hover:text-blue-300'} hover:underline`}> <Crown className="w-2.5 h-2.5 inline mr-0.5"/>Upgrade </Link> )} </div> )}
+                             
+                             {/* PDF Context Segments Display */}
+                             {pdfContextSegments.length > 0 && !isImageGenModeActive && (
+                                <div className="mb-1.5 px-1 max-h-20 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
+                                    <p className={`text-[10px] font-medium mb-0.5 ${isIlluminateEnabled ? 'text-gray-500' : 'text-gray-400'}`}>PDF Context ({pdfContextSegments.length}):</p>
+                                    <div className="flex flex-col gap-1">
+                                        {pdfContextSegments.map(segment => (
+                                            <div key={segment.id} className={`flex items-center justify-between gap-1 text-xs px-2 py-1 rounded border ${contextSegmentBg}`}>
+                                                <span className="truncate flex-1" title={segment.text}>{segment.text}</span>
+                                                <button type="button" onClick={() => removePdfContextSegment(segment.id)} className={`ml-1 p-0.5 rounded-full ${isIlluminateEnabled ? 'hover:bg-indigo-200 text-indigo-600' : 'hover:bg-indigo-700 text-indigo-300'} `} title="Remove context">
+                                                    <Trash2 className="w-2.5 h-2.5" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                             )}
+
                              {selectedFiles.length > 0 && !isImageGenModeActive && ( <div className="mb-1.5 flex flex-wrap gap-1.5 px-1"> {selectedFiles.map(file => ( <div key={file.name} className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${filePillBg} ${filePillText}`}> <span className="truncate max-w-[100px]">{file.name}</span> <span className="text-[10px] opacity-70">({formatBytes(file.size)})</span> <button type="button" onClick={() => handleRemoveFile(file.name)} className={`ml-0.5 p-0.5 rounded-full ${isIlluminateEnabled ? 'hover:bg-blue-200' : 'hover:bg-blue-700'} `} title="Remove"> <X className="w-2.5 h-2.5" /> </button> </div> ))} </div> )}
                              <form onSubmit={handleChatSubmit} className="flex gap-1.5 items-end">
                                  <textarea
@@ -874,12 +890,12 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                                          isChatLoading ||
                                          isLoadingUsage ||
                                          isChatLimitReached ||
-                                         (!chatMessage.trim() && selectedFiles.length === 0 && !isImageGenModeActive) || 
+                                         (!chatMessage.trim() && selectedFiles.length === 0 && !isImageGenModeActive && pdfContextSegments.length === 0) || 
                                          (!chatMessage.trim() && isImageGenModeActive) || 
-                                         (isImageGenModeActive && selectedFiles.length > 0) 
+                                         (isImageGenModeActive && (selectedFiles.length > 0 || pdfContextSegments.length > 0)) 
                                      }
                                      className={`${buttonPrimaryClass} p-2 rounded-full self-end mb-[1px] transition-all duration-150 ${
-                                         (isChatLoading || isLoadingUsage || isChatLimitReached || (!chatMessage.trim() && selectedFiles.length === 0 && !isImageGenModeActive) || (!chatMessage.trim() && isImageGenModeActive) || (isImageGenModeActive && selectedFiles.length > 0))
+                                         (isChatLoading || isLoadingUsage || isChatLimitReached || (!chatMessage.trim() && selectedFiles.length === 0 && !isImageGenModeActive && pdfContextSegments.length === 0) || (!chatMessage.trim() && isImageGenModeActive) || (isImageGenModeActive && (selectedFiles.length > 0 || pdfContextSegments.length > 0)))
                                              ? buttonDisabledClass
                                              : 'hover:scale-105 active:scale-100'
                                      }`}
