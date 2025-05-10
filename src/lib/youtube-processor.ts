@@ -73,7 +73,7 @@ export async function processYouTube(
         if (!transcript.trim()) { transcript = "No transcript or description available."; console.warn(`No transcript/description for ${videoId}.`); }
 
         safeProgress({ progress: 40, status: 'Generating detailed note...', error: null });
-        // --- Detailed Note Generation ---
+          // --- Detailed Note Generation (YouTube Video) ---
         const detailedNotePrompt = `Analyze the following YouTube video information (title, description/transcript). Generate a detailed, well-structured note using Markdown.
 
 **Instructions:**
@@ -85,12 +85,15 @@ export async function processYouTube(
 
 
 **Objective:** Create comprehensive, detailed, and well-structured study notes in Markdown format based on the provided text from the YouTube video. These notes are intended for a student learning the subject matter covered in the document.
-**Core Task:** Do not just summarize. Synthesize the information, explain concepts clearly, elaborate on key points, and structure the content logically for learning and revision. Use the provided text as the primary source of truth, but leverage your understanding of the topic to enhance clarity, add context where appropriate (without contradicting the text), and organize the material effectively for studying. Avoid simply stating "The text says...". Instead, present the information directly.
+
+**Core Task:** Do not just summarize. Synthesize the information, explain concepts clearly, elaborate on key points, and structure the content logically for learning and revision. Use the provided transcript/description as the primary source of truth. **Crucially, present the information directly as study notes.** Avoid meta-commentary or phrases that refer to the source document itself, such as "The transcript says...", "This video explains...", "The document mentions...", "According to the video...", or "The speaker states...". The notes should *be* the information, not a discussion *about* where the information came from.
+
 **Mandatory Instructions:**
 1.  **Study Focus:** Ensure the notes are pedagogically valuable. Explain concepts, define key terms clearly, connect related ideas (even if presented separately in the text), and highlight important facts, principles, or processes.
 2.  **Comprehensiveness & Depth:** Cover ALL significant topics, sub-topics, arguments, data, and examples present in the text. Go into substantial detail. Aim for lengthy and exhaustive notes that capture the nuances of the source material.
 3.  **Structure & Formatting:** Utilize Markdown extensively and strategically: Headings (#, ##, ###), Lists (*, -, +, 1., 2.), Emphasis (**bold**, *italics*, \`inline code\`), Tables, Code Blocks (\`\`\`), Blockquotes (>), Describe visuals.
-4.  **Output Requirements:**
+4.  **Direct Information Style:** The notes must present information directly as if they are standalone study material. **Do NOT use phrases that refer back to the source video or transcript** (e.g., "The video discusses...", "In the transcript, it is mentioned...", "The creator explains that..."). All content should be stated as factual information derived from the source, without attributing it back to the source within the note itself.
+5.  **Output Requirements:**
     *   Generate **only** the raw Markdown note content.
     *   **NO** introductory or concluding phrases like "Here are the notes:" or "This concludes the notes."
     *   Start *immediately* with the first Markdown element (e.g., a heading like '# Title' or a bullet point like '* Item').
