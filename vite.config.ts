@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { ViteSitemap } from 'vite-plugin-sitemap'; // Import the sitemap plugin
+import ViteSitemap from 'vite-plugin-sitemap';
 
 export default defineConfig(({ command }) => { // Access command to check if it's 'build'
   const isProduction = command === 'build';
