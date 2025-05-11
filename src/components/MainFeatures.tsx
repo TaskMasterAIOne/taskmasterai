@@ -12,6 +12,7 @@ import {
 import {
   LayoutDashboard,
   NotebookPen,
+  Settings,
   Users,
   Users2,
   Bot,
