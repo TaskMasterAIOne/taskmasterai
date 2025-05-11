@@ -1,12 +1,9 @@
 import { addDoc, collection, Timestamp, updateDoc, doc, deleteDoc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
 
-export const PREMIUM_EMAILS = ["robinmyh@gmail.com", "oliverbeckett069420@gmail.com", "bajinsrinivasr@lexington1.net"];
-export const PRO_EMAILS = ["srinibaj10@gmail.com"];
+
 export type UserTier = 'basic' | 'pro' | 'premium' | 'loading';
 
-export const BASIC_CHAT_LIMIT = 10;
-export const PRO_CHAT_LIMIT = 200;
 
 export interface NoteData {
     id?: string;
@@ -145,7 +142,7 @@ export async function processTextToAINoteData( text: string, userId: string, api
 
   try {
     // --- Detailed Note Generation (Generic Text) ---
-    const detailedNotePrompt = `Analyze the following text. Generate a detailed, well-structured note using Markdown.
+    const detailedNotePrompt = `Analyze the following text. Generate a detailed, well-structured note using Markdown. DO NOT INCLUDE ANY CODE IN YOUR OUTPUT. ALSO YOUR OUTPUT IS MARKDOWN, SO NO NEED TO ADD ANY TAGS!
 
 **Instructions:**
 *   **Structure:** Use Markdown elements extensively: headings (#, ##, ###), bullet points (* or -), numbered lists, and tables where appropriate.
