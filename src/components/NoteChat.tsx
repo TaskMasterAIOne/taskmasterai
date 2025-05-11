@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react';
-import { MessageCircle, Send, Timer as TimerIcon, Paperclip, Bot, X, AlertTriangle, Loader2, ImageIcon, ChevronDown, Maximize, Minimize, Edit, Check, RefreshCcw, Crown, Download, Trash2 } from 'lucide-react';
+import { MessageCircle, Send, Timer as TimerIcon, Paperclip, Bot, X, AlertTriangle, Loader2, ImageIcon, ChevronDown, Maximize, Minimize, Edit, Check, RefreshCcw, Crown, Download, Trash2, CornerDownRight } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Link } from "react-router-dom";
 import remarkMath from 'remark-math';
@@ -228,7 +228,7 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
         const imageGenButtonClass = isIlluminateEnabled
             ? (isImageGenModeActive ? "bg-purple-100 hover:bg-purple-200 text-purple-700" : "bg-gray-200 hover:bg-gray-300 text-gray-700")
             : (isImageGenModeActive ? "bg-purple-800/60 hover:bg-purple-700/60 text-purple-300" : "bg-gray-600 hover:bg-gray-500 text-gray-300");
-        const contextSegmentBg = isIlluminateEnabled ? "bg-indigo-50 border-indigo-200 text-indigo-700" : "bg-indigo-900/40 border-indigo-700/60 text-indigo-300";
+        // const contextSegmentBg = isIlluminateEnabled ? "bg-indigo-50 border-indigo-200 text-indigo-700" : "bg-indigo-900/40 border-indigo-700/60 text-indigo-300";
 
 
         useEffect(() => {
@@ -835,17 +835,32 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                              
                              {/* PDF Context Segments Display */}
                              {pdfContextSegments.length > 0 && !isImageGenModeActive && (
-                                <div className="mb-1.5 px-1 max-h-20 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
-                                    <p className={`text-[10px] font-medium mb-0.5 ${isIlluminateEnabled ? 'text-gray-500' : 'text-gray-400'}`}>PDF Context ({pdfContextSegments.length}):</p>
-                                    <div className="flex flex-col gap-1">
-                                        {pdfContextSegments.map(segment => (
-                                            <div key={segment.id} className={`flex items-center justify-between gap-1 text-xs px-2 py-1 rounded border ${contextSegmentBg}`}>
-                                                <span className="truncate flex-1" title={segment.text}>{segment.text}</span>
-                                                <button type="button" onClick={() => removePdfContextSegment(segment.id)} className={`ml-1 p-0.5 rounded-full ${isIlluminateEnabled ? 'hover:bg-indigo-200 text-indigo-600' : 'hover:bg-indigo-700 text-indigo-300'} `} title="Remove context">
-                                                    <Trash2 className="w-2.5 h-2.5" />
-                                                </button>
-                                            </div>
-                                        ))}
+                                <div className="mb-1.5 px-1 max-h-24 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent">
+                                    <div className="flex flex-col gap-1.5">
+                                        {pdfContextSegments.map(segment => {
+                                            const segmentBg = isIlluminateEnabled ? "bg-gray-200" : "bg-neutral-700";
+                                            const segmentTextColor = isIlluminateEnabled ? "text-neutral-800" : "text-neutral-100";
+                                            const segmentIconColor = isIlluminateEnabled ? "text-neutral-600" : "text-neutral-100";
+                                            const removeButtonHoverBg = isIlluminateEnabled ? "hover:bg-neutral-300" : "hover:bg-neutral-600";
+                                            const removeButtonIconColor = isIlluminateEnabled ? "text-neutral-500 hover:text-red-600" : "text-neutral-300 hover:text-red-400";
+
+                                            return (
+                                                <div key={segment.id} className={`flex items-center p-2 rounded-lg shadow-sm ${segmentBg}`}>
+                                                    <CornerDownRight className={`w-4 h-4 mr-2 shrink-0 ${segmentIconColor}`} />
+                                                    <span className={`flex-1 text-xs truncate ${segmentTextColor}`} title={segment.text}>
+                                                        {segment.text}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removePdfContextSegment(segment.id)}
+                                                        className={`ml-2 p-1 rounded-full ${removeButtonHoverBg} ${removeButtonIconColor} transition-colors`}
+                                                        title="Remove context segment"
+                                                    >
+                                                        <X className="w-3 h-3" />
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                              )}
