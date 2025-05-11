@@ -808,8 +808,50 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
 
                                 const alignmentClass = message.role === 'user' ? 'justify-end' : 'justify-start';
                                 
-                                const getProseClass = (msg: ChatMessage) => { let base = `prose prose-sm max-w-none prose-p:text-xs prose-p:my-1 prose-ul:text-xs prose-ol:text-xs prose-li:my-0 prose-code:text-[11px] prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:text-[11px] prose-pre:my-1 prose-pre:p-1.5 prose-pre:rounded`; if (isIlluminateEnabled) { if (msg.isEditSuggestion) base += ' prose-yellow text-yellow-900'; else if (msg.error) base += ' prose-red text-red-800'; else if (msg.isUpdateConfirmation) base += ' prose-green text-green-900'; else base += ' prose-gray text-gray-800'; } else { base += ' prose-invert'; if (msg.isEditSuggestion) base += ' text-yellow-200'; else if (msg.error) base += ' text-red-300'; else if (msg.isUpdateConfirmation) base += ' text-green-200'; else base += ' text-gray-200'; } return base; };
-                                const proseClass = getProseClass(message);
+const getProseClass = (msg: ChatMessage) => {
+    let base = `prose prose-sm max-w-none prose-p:text-xs prose-p:my-1 prose-ul:text-xs prose-ol:text-xs prose-li:my-0 prose-code:text-[11px] prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:text-[11px] prose-pre:my-1 prose-pre:p-1.5 prose-pre:rounded`;
+
+    if (isIlluminateEnabled) { // Light Mode
+        if (msg.isEditSuggestion) { // Assistant bubble (yellowish)
+            base += ' prose-yellow text-yellow-900';
+        } else if (msg.error) { // Assistant bubble (reddish)
+            base += ' prose-red text-red-800';
+        } else if (msg.isUpdateConfirmation) { // Assistant bubble (greenish)
+            base += ' prose-green text-green-900';
+        } else if (msg.role === 'user') { // User bubble (blue bg, white text)
+            // User messages in light mode have userBubbleClass 'bg-blue-500 text-white'.
+            // The bg-blue-500 is a dark background, so prose content should be light.
+            // 'prose-invert' is the Tailwind Typography class for light text on dark backgrounds.
+            base += ' prose-invert';
+            // Adjust link and code colors for better harmony with a blue background
+            // prose-invert typically makes links white/light gray. Making them a light blue shade.
+            base += ' prose-a:text-blue-300 hover:prose-a:text-blue-200 prose-code:text-gray-300';
+        } else { // Assistant, normal message (light gray bg, dark text)
+            // Assistant bubble: bg-gray-100 text-gray-800.
+            base += ' prose-gray text-gray-800'; // Prose text will be gray-800. This is correct.
+        }
+    } else { // Dark Mode
+        base += ' prose-invert'; // Base for all dark mode messages (light text on dark backgrounds)
+
+        // Apply specific text colors for special assistant messages if needed,
+        // to potentially override prose-invert's default grays if a more specific color is desired.
+        if (msg.isEditSuggestion) { // Bubble text is yellow-300
+            // Add prose-specific overrides if `text-yellow-200` is not enough
+             base += ' prose-p:!text-yellow-300 prose-li:!text-yellow-300 prose-strong:!text-yellow-200 prose-a:!text-yellow-400 hover:prose-a:!text-yellow-300 prose-code:!text-yellow-200';
+        } else if (msg.error) { // Bubble text is red-300
+             base += ' prose-p:!text-red-300 prose-li:!text-red-300 prose-strong:!text-red-200 prose-a:!text-red-400 hover:prose-a:!text-red-300 prose-code:!text-red-200';
+        } else if (msg.isUpdateConfirmation) { // Bubble text is green-200
+             base += ' prose-p:!text-green-200 prose-li:!text-green-200 prose-strong:!text-green-100 prose-a:!text-green-400 hover:prose-a:!text-green-300 prose-code:!text-green-200';
+        } else if (msg.role === 'assistant' || !msg.role) { // Assistant normal message, bubble text is gray-200
+            // prose-invert default light gray is usually fine, but explicitly match bubble text.
+             base += ' prose-p:!text-gray-200 prose-li:!text-gray-200 prose-strong:!text-gray-100 prose-a:!text-blue-400 hover:prose-a:!text-blue-300 prose-code:!text-gray-300';
+        } else if (msg.role === 'user') { // User message, bubble text is white
+            // prose-invert default light gray is good, but explicitly match bubble text for <p>, <li>, etc.
+            base += ' prose-p:!text-white prose-li:!text-white prose-strong:!text-white prose-a:!text-blue-300 hover:prose-a:!text-blue-200 prose-code:!text-gray-200';
+        }
+    }
+    return base;
+};                                const proseClass = getProseClass(message);
                                 const showDownloadButton = message.role === 'assistant' && message.wasImageGenerated && message.imageData && !message.error;
 
 
