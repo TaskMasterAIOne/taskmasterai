@@ -2,20 +2,20 @@
   "version": 2,
   "builds": [
     {
-      "src": "api/**/*.ts", // Or .js if your serverless functions are JavaScript
+      "src": "api/**/*.ts", 
       "use": "@vercel/node"
     },
     {
       "src": "package.json",
       "use": "@vercel/static-build",
       "config": {
-        "distDir": "dist", // Matches Vite's default output directory
-        "buildCommand": "npm run build" // Or your specific build command
+        "distDir": "dist", 
+        "buildCommand": "npm run build" 
       }
     }
   ],
   "headers": [
-    // Hashed assets (managed by Vite, served from /assets typically)
+    
     {
       "source": "/assets/(.*)",
       "headers": [
@@ -25,31 +25,31 @@
         }
       ]
     },
-    // Other static assets from the public folder that might not be hashed
-    // (e.g., images, fonts directly in /public or subfolders)
+  
+    
     {
       "source": "/(.*).(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|mp4|webm|json|xml|txt)$",
       "headers": [
         {
           "key": "Cache-Control",
           "value": "public, max-age=86400, stale-while-revalidate=604800"
-          // Cache for 1 day, allow serving stale for 7 days while revalidating
+          
         }
       ]
     },
-    // Specific caching for critical files like manifest, favicon, etc.
+    
     {
       "source": "/(favicon.ico|manifest.json|robots.txt|sitemap.xml|og-image.png|vite.svg|apple-icon.*.png|android-icon.*.png|ms-icon.*.png|pdf.worker.min.js)",
       "headers": [
         {
           "key": "Cache-Control",
           "value": "public, max-age=86400, stale-while-revalidate=604800"
-          // Cache for 1 day, allow serving stale for 7 days while revalidating
+          
         }
       ]
     },
-    // Ensure index.html itself is not aggressively cached by browsers/CDNs
-    // This rule applies specifically when index.html is directly requested or served via SPA fallback
+    
+    
     {
       "source": "/index.html",
        "headers": [
@@ -61,27 +61,21 @@
     }
   ],
   "routes": [
-    // API Routes - these should come first
+    
     {
       "src": "/api/(.*)",
       "dest": "/api/$1"
     },
-    // Serve static files from the 'dist' directory if they exist
-    // This rule needs to come before the SPA fallback.
+    
     {
       "handle": "filesystem"
     },
-    // SPA Fallback: All other routes serve index.html
-    // This must be the last route for general paths.
-    // Headers for index.html served via SPA fallback are now also handled by the "/index.html" rule in the global "headers" array
-    // if the fallback implicitly serves /index.html.
-    // For more explicit control on the fallback itself, you could add headers here,
-    // but the global one should cover it if the destination is literally /index.html.
+   
     {
       "src": "/(.*)",
       "dest": "/index.html"
     }
   ],
-  "trailingSlash": false, // Recommended for consistency
-  "cleanUrls": true // Optional: removes .html extensions if navigating directly to them
+  "trailingSlash": false, 
+  "cleanUrls": true 
 }
