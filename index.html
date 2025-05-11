@@ -2,48 +2,129 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Core SEO & Display Information -->
+    <title>TaskMaster AI - Your AI Productivity Partner</title>
     <meta
       name="description"
-      content="TaskMaster AI: AI-powered tools for task management, study, and productivity. Plan, organize, and achieve your goals. Stay focused and collaborate effectively."
+      content="TaskMaster AI supercharges your productivity with AI-powered tools for task management, smart studying, and efficient organization. Plan, collaborate, and achieve your goals effortlessly."
     />
-    <meta name="keywords" content="task management, AI, productivity, study tools, reminders, collaboration, organization, goals, planning" />
-    <meta property="og:title" content="TaskMaster AI - Your AI Productivity Partner" />
-    <meta property="og:description" content="TaskMaster AI: AI-powered tools for task management, study, and productivity. Plan, organize, and achieve your goals. Stay focused and collaborate effectively." />
-    <meta property="og:image" content="/og-image.png" />  
-    <meta property="og:url" content="https://www.taskmaster.one/" />
-    <meta property="og:type" content="website" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="TaskMaster AI - Your AI Productivity Partner" />
-    <meta name="twitter:description" content="TaskMaster AI: AI-powered tools for task management, study, and productivity. Plan, organize, and achieve your goals. Stay focused and collaborate effectively." />
-    <meta name="twitter:image" content="/og-image.png" /> 
+    <meta
+      name="keywords"
+      content="TaskMaster AI, AI task management, AI productivity tools, AI study assistant, smart reminders, project collaboration, goal setting, organization app, focus tools, AI planner, student productivity, professional task manager, automate tasks, AI notes, AI calendar, time management, academic success"
+    />
+    <link rel="canonical" href="https://www.taskmaster.one/" />
+
+    <!-- Favicons - Ensure favicon.ico exists in /public -->
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/android-icon-192x192.png" />
+
+
+    <!-- Apple Touch Icons & PWA -->
+    <link rel="apple-touch-icon" href="/apple-icon-180x180.png" /> <!-- Default, also largest -->
     <link rel="apple-touch-icon" sizes="57x57" href="/apple-icon-57x57.png" />
     <link rel="apple-touch-icon" sizes="60x60" href="/apple-icon-60x60.png" />
     <link rel="apple-touch-icon" sizes="72x72" href="/apple-icon-72x72.png" />
     <link rel="apple-touch-icon" sizes="76x76" href="/apple-icon-76x76.png" />
     <link rel="apple-touch-icon" sizes="114x114" href="/apple-icon-114x114.png" />
-    <link rel="apple-touch-icon" sizes="120x120.png" />
+    <link rel="apple-touch-icon" sizes="120x120" href="/apple-icon-120x120.png" />
     <link rel="apple-touch-icon" sizes="144x144" href="/apple-icon-144x144.png" />
-    <link rel="apple-touch-icon" sizes="152x152.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/apple-icon-152x152.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-icon-180x180.png" />
-    <link rel="icon" type="image/png" sizes="192x192" href="/android-icon-192x192.png" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <meta name="apple-mobile-web-app-title" content="TaskMaster AI" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+
+
+    <!-- Web App Manifest -->
     <link rel="manifest" href="/manifest.json" />
-    <meta name="msapplication-TileColor" content="#ffffff" />
+
+    <!-- Theme Color for browsers -->
+    <meta name="theme-color" content="#6366F1" /> <!-- Match your manifest.json theme_color -->
+
+    <!-- Microsoft Tiles -->
+    <meta name="msapplication-TileColor" content="#6366F1" /> <!-- Match your manifest.json theme_color -->
     <meta name="msapplication-TileImage" content="/ms-icon-144x144.png" />
-    <meta name="theme-color" content="#ffffff" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TaskMaster AI</title>
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://www.taskmaster.one/" />
+    <meta property="og:title" content="TaskMaster AI - Your AI Productivity Partner" />
+    <meta property="og:site_name" content="TaskMaster AI" />
+    <meta
+      property="og:description"
+      content="TaskMaster AI supercharges your productivity with AI-powered tools for task management, smart studying, and efficient organization. Plan, collaborate, and achieve your goals effortlessly."
+    />
+    <meta property="og:image" content="https://www.taskmaster.one/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://www.taskmaster.one/" />
+    <meta name="twitter:title" content="TaskMaster AI - Your AI Productivity Partner" />
+    <meta
+      name="twitter:description"
+      content="TaskMaster AI supercharges your productivity with AI-powered tools for task management, smart studying, and efficient organization. Plan, collaborate, and achieve your goals effortlessly."
+    />
+    <meta name="twitter:image" content="https://www.taskmaster.one/og-image.png" />
+    <!-- <meta name="twitter:site" content="@YourTwitterHandle"> -->
+    <!-- <meta name="twitter:creator" content="@YourTwitterHandle"> -->
+
+    <!-- Fonts -->
     <link
       href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
       rel="stylesheet"
     />
+
+    <!-- MathJax -->
     <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+
+    <!-- JSON-LD Structured Data for SEO -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "TaskMaster AI",
+      "applicationCategory": "ProductivityApplication",
+      "operatingSystem": "Web",
+      "browserRequirements": "Requires HTML5 capable browser.",
+      "url": "https://www.taskmaster.one/",
+      "logo": "https://www.taskmaster.one/android-icon-192x192.png",
+      "image": "https://www.taskmaster.one/og-image.png",
+      "screenshot": "https://www.taskmaster.one/og-image.png",
+      "description": "TaskMaster AI supercharges your productivity with AI-powered tools for task management, smart studying, and efficient organization. Plan, collaborate, and achieve your goals effortlessly.",
+      "keywords": "AI task management, AI productivity tools, AI study assistant, smart reminders, project collaboration, goal setting, organization app, focus tools, AI planner, student productivity, professional task manager",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+      // Optional: Add aggregateRating if you have user reviews
+      // "aggregateRating": {
+      //   "@type": "AggregateRating",
+      //   "ratingValue": "4.8",
+      //   "reviewCount": "250"
+      // },
+      // Optional: Author/Provider
+      // "author": {
+      //   "@type": "Organization",
+      //   "name": "Your Company Name"
+      // }
+    }
+    </script>
+
   </head>
   <body>
+    <noscript>You need to enable JavaScript to run this app. TaskMaster AI relies on JavaScript for its features.</noscript>
     <div id="root"></div>
+    <!-- Vite will inject the correct script and CSS links here during build -->
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
