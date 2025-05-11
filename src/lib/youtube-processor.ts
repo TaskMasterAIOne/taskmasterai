@@ -16,7 +16,7 @@ interface ProcessedYouTube {
 
 // --- IMPORTANT: REPLACE THIS WITH YOUR ACTUAL YOUTUBE API KEY ---
 // Make sure this key is enabled for the YouTube Data API v3 in your Google Cloud Console.
-const YOUTUBE_API_KEY = 'AIzaSyCoxefrJ80LuyxLAdv0t55BN8SJ9_-orcM'; // CONFIRM THIS IS YOUR CORRECT KEY
+const YOUTUBE_API_KEY = 'AIzaSyD4iosX8Y1X4bOThSGhYyUfCmWKBEkc6x4'; // CONFIRM THIS IS YOUR CORRECT KEY
 
 // Use imported Gemini key
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`;
@@ -85,7 +85,7 @@ export async function processYouTube(
         throw new Error('Gemini API Key missing.');
     }
 
-    const placeholderKeys = ['YOUR_YOUTUBE_API_KEY', 'AIzaSyD4iosX8Y1X4bOThSGhYyUfCmWKBEkc6x4', 'YOUR_ACTUAL_YOUTUBE_API_KEY_HERE','AIzaSyCoxefrJ80LuyxLAdv0t55BN8SJ9_-orcM']; // Added your key to placeholder list
+    const placeholderKeys = ['YOUR_YOUTUBE_API_KEY', 'AIzaSyD4iosX8Y1X4bOThSGhYyUfCmWKBEkc6x4', 'YOUR_ACTUAL_YOUTUBE_API_KEY_HERE','AIzaSyD4iosX8Y1X4bOThSGhYyUfCmWKBEkc6x4']; // Added your key to placeholder list
     if (!YOUTUBE_API_KEY || YOUTUBE_API_KEY.trim() === '' || placeholderKeys.includes(YOUTUBE_API_KEY) ) {
         const errorMsg = `YouTube API Key missing/invalid. Detected key: "${YOUTUBE_API_KEY}". Please ensure a valid key is set in src/lib/youtube-processor.ts.`;
         safeProgress({ progress: 0, status: 'Error', error: 'YouTube API Key missing/invalid. Please replace the placeholder key.' });
