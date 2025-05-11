@@ -30,7 +30,7 @@ import {
 import { NewNoteModal } from './NewNoteModal';
 import { SplitView } from './SplitView';
 import { NoteChat, NoteChatHandle, ImageData } from './NoteChat';
-import { geminiApiKey } from '../lib/dashboard-firebase'; // generateImageWithImagen assumed to be here
+import { geminiApiKey, generateImageWithImagen } from '../lib/dashboard-firebase'; // generateImageWithImagen assumed to be here
 
 import {
     UserTier,
@@ -144,6 +144,8 @@ export function Notes() {
     const [currentPage, setCurrentPage] = useState(1);
     const [pdfChatSplitRatio, setPdfChatSplitRatio] = useState(65);
     const [isResizingPdfChatSplit, setIsResizingPdfChatSplit] = useState(false);
+    const [firstPageNaturalWidth, setFirstPageNaturalWidth] = useState<number | null>(null);
+
 
     const [selectedPdfText, setSelectedPdfText] = useState<string | null>(null);
     const [highlightButtonPosition, setHighlightButtonPosition] = useState<{ top: number; left: number } | null>(null);
@@ -315,7 +317,7 @@ export function Notes() {
         if (!showPdfViewer) {
             setNumPages(null);
             setPdfError(null);
-            setPdfScale(1.0);
+            // setPdfScale(1.0); // Scale is now auto-managed, reset might not be desired here
             setPdfRotation(0);
             setCurrentPage(1);
             setShowHighlightButtons(false);
@@ -324,6 +326,17 @@ export function Notes() {
             window.getSelection()?.removeAllRanges();
         }
     }, [showPdfViewer]);
+
+    useEffect(() => {
+        // Reset firstPageNaturalWidth when the PDF source changes, or viewer is hidden/note changes
+        if (!showPdfViewer || !selectedNote || selectedNote.type !== 'pdf' || !selectedNote.sourceUrl) {
+            setFirstPageNaturalWidth(null);
+        } else {
+            // If PDF sourceUrl changes for an already visible PDF viewer, also reset
+            // This ensures that onLoadSuccess for Page 1 can capture the new width
+            setFirstPageNaturalWidth(null); 
+        }
+    }, [showPdfViewer, selectedNote?.id, selectedNote?.sourceUrl, selectedNote?.type]);
 
 
     useEffect(() => {
@@ -347,20 +360,37 @@ export function Notes() {
     }, [showHighlightButtons, highlightButtonPosition, showPdfViewer]);
 
     const handleResizeMouseMove = useCallback((e: MouseEvent) => {
-        if (!isResizingPdfChatSplit || !pdfViewerContainerRef.current) return;
-        const pdfSection = pdfViewerContainerRef.current.parentElement;
-        const mainContentArea = pdfSection?.parentElement;
-        if (mainContentArea && pdfSection) {
-            const bounds = mainContentArea.getBoundingClientRect();
-            const newPdfWidth = e.clientX - bounds.left;
-            const totalWidth = bounds.width;
-            const resizerWidth = 6;
-
-            let newRatio = (newPdfWidth / (totalWidth - resizerWidth)) * 100;
-            newRatio = Math.max(20, Math.min(80, newRatio));
-            setPdfChatSplitRatio(newRatio);
+        if (!isResizingPdfChatSplit || !firstPageNaturalWidth) return;
+    
+        const mainContentArea = pdfViewerContainerRef.current?.parentElement?.parentElement;
+        if (!mainContentArea) return;
+    
+        const bounds = mainContentArea.getBoundingClientRect();
+        const resizerWidth = 6; 
+    
+        let newPdfPixelWidth = e.clientX - bounds.left;
+        
+        const minPanelWidth = 150; 
+        const minChatWidth = isMobile ? 100 : 200; 
+        
+        newPdfPixelWidth = Math.max(minPanelWidth, newPdfPixelWidth);
+        newPdfPixelWidth = Math.min(bounds.width - resizerWidth - minChatWidth, newPdfPixelWidth);
+    
+        let newRatio = (newPdfPixelWidth / (bounds.width - resizerWidth)) * 100;
+        newRatio = Math.max(20, Math.min(80, newRatio)); 
+        
+        setPdfChatSplitRatio(newRatio);
+    
+        const pdfPanelWidth = (newRatio / 100) * (bounds.width - resizerWidth);
+        
+        const SCROLLBAR_WIDTH_ESTIMATE = 17; 
+        const targetPageDisplayWidth = pdfPanelWidth - SCROLLBAR_WIDTH_ESTIMATE;
+    
+        if (firstPageNaturalWidth > 0 && targetPageDisplayWidth > 0) {
+            const newScale = targetPageDisplayWidth / firstPageNaturalWidth;
+            setPdfScale(Math.max(0.15, Math.min(5.0, newScale))); // Increased max scale slightly
         }
-    }, [isResizingPdfChatSplit]);
+    }, [isResizingPdfChatSplit, firstPageNaturalWidth, isMobile]);
 
     const handleResizeMouseUp = useCallback(() => {
          if (isResizingPdfChatSplit) {
@@ -369,6 +399,8 @@ export function Notes() {
              document.removeEventListener('mouseup', handleResizeMouseUp);
              document.body.style.cursor = 'default';
              document.body.style.userSelect = 'auto';
+             // Final scale adjustment on mouse up can sometimes be beneficial if live is laggy
+             // but current setup does live adjustment. If issues, this is a place to refine.
          }
     }, [isResizingPdfChatSplit, handleResizeMouseMove]);
 
@@ -441,7 +473,7 @@ export function Notes() {
             if (selectedNote?.type === 'pdf' && selectedNote.sourceUrl) {
                 setShowPdfViewer(true);
                 setCurrentPage(1);
-                setPdfScale(1.0);
+                // pdfScale is now auto-managed, initial set happens in Page onLoadSuccess
                 setPdfRotation(0);
                 setShowHighlightButtons(false);
                 setSelectedPdfText(null);
@@ -936,15 +968,17 @@ export function Notes() {
         setNumPages(nextNumPages);
         setPdfError(null);
         setCurrentPage(1);
+        // firstPageNaturalWidth and initial scale will be set by Page 1's onLoadSuccess
     };
     const onDocumentLoadError = (error: Error) => {
         console.error('Failed to load PDF:', error);
         setPdfError(`Failed to load PDF: ${error.message}. Ensure URL is correct and file is accessible.`);
         setNumPages(null);
+        setFirstPageNaturalWidth(null);
     };
 
     const changePage = (offset: number) => setCurrentPage(prevPage => Math.min(Math.max(prevPage + offset, 1), numPages || 1));
-    const changeScale = (amount: number) => setPdfScale(prevScale => Math.max(0.5, Math.min(3.0, prevScale + amount)));
+    const changeScale = (amount: number) => setPdfScale(prevScale => Math.max(0.15, Math.min(5.0, prevScale + amount)));
     const changeRotation = (amount: number) => setPdfRotation(prevRotation => (prevRotation + amount + 360) % 360);
 
     const showSideBySideChat = selectedNote?.type === 'pdf' && showPdfViewer && !!selectedNote.sourceUrl && !!user && !!geminiApiKey && !isMobile;
@@ -1057,7 +1091,7 @@ export function Notes() {
             setIsGeneratingImage(false);
             setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
         }
-    }, [imageGenPrompt, selectedNote, isGeneratingImage, user, userTier, handleAddImageToNoteRequest]); // geminiApiKey is stable from import
+    }, [imageGenPrompt, selectedNote, isGeneratingImage, user, userTier, handleAddImageToNoteRequest, geminiApiKey]);
 
 
     const containerClass = isIlluminateEnabled ? "bg-gray-100 text-gray-900" : isBlackoutEnabled ? "bg-black text-gray-200" : "bg-gray-900 text-gray-200";
@@ -1123,7 +1157,7 @@ export function Notes() {
                                       <div className="flex items-center gap-1"><button onClick={() => togglePdfViewer(false)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Show Note Only"> <FileText className="w-4 h-4" /> </button></div>
                                       <div className="flex items-center gap-1 text-xs font-medium">
                                         <button onClick={() => changePage(-1)} disabled={currentPage <= 1} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor} ${currentPage <= 1 ? buttonDisabledClass : ''}`} title="Previous Page"> <ChevronLeft className="w-4 h-4" /> </button>
-                                         <span>Page {currentPage} of {numPages || '--'}</span>
+                                         <span className={`px-1 ${textColor}`}>Page {currentPage} {numPages ? `/ ${numPages}` : ''}</span>
                                          <button onClick={() => changePage(1)} disabled={currentPage >= (numPages || 1)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor} ${currentPage >= (numPages || 1) ? buttonDisabledClass : ''}`} title="Next Page"> <ChevronRight className="w-4 h-4" /> </button>
                                      </div>
                                      <div className="flex items-center gap-1"> <div className={`w-px h-4 ${isIlluminateEnabled ? 'bg-gray-300' : 'bg-gray-600'} mx-0.5`}></div> <button onClick={() => changeScale(-0.1)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Zoom Out"> <ZoomOut className="w-4 h-4" /> </button> <span className={`text-xs font-medium px-1 ${textColor}`}>{Math.round(pdfScale * 100)}%</span> <button onClick={() => changeScale(0.1)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Zoom In"> <ZoomIn className="w-4 h-4" /> </button> <div className={`w-px h-4 ${isIlluminateEnabled ? 'bg-gray-300' : 'bg-gray-600'} mx-0.5`}></div> <button onClick={() => changeRotation(-90)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Rotate Left"> <RotateCcw className="w-4 h-4 transform -scale-x-100" /> </button> <button onClick={() => changeRotation(90)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Rotate Right"> <RotateCcw className="w-4 h-4" /> </button> </div>
@@ -1131,7 +1165,34 @@ export function Notes() {
                                   <p className={`flex-shrink-0 text-center text-[10px] p-0.5 ${isIlluminateEnabled ? 'bg-blue-50 text-blue-700' : 'bg-gray-800 text-gray-400'} sticky top-[37px] z-[9]`}>Highlight any text in the PDF to open the Explain or Chat options.</p>
                                  <div ref={pdfViewerContainerRef} onMouseUp={handlePdfTextSelection} className={`flex-1 overflow-auto relative ${isIlluminateEnabled ? 'bg-gray-100' : 'bg-gray-800/30'}`} >
                                      {pdfError ? ( <div className="p-6 text-center text-red-500 flex flex-col items-center justify-center h-full"> <AlertTriangle className="w-10 h-10 mb-3" /> <p className="text-sm font-medium">Error Loading PDF</p> <p className="text-xs mt-1">{pdfError}</p> </div>
-                                     ) : selectedNote?.sourceUrl ? ( <Document file={selectedNote.sourceUrl} onLoadSuccess={onDocumentLoadSuccess} onLoadError={onDocumentLoadError} loading={<div className="flex justify-center items-center h-64 pt-10"><Loader2 className="w-6 h-6 animate-spin text-blue-500"/></div>} className="flex flex-col items-center pdf-document pt-4 pb-8" > {numPages === null && !pdfError ? ( <div className="flex justify-center items-center h-64 pt-10"><Loader2 className="w-6 h-6 animate-spin text-blue-500" /></div> ) : numPages && ( Array.from(new Array(numPages), (el, index) => ( <Page key={`page_${index + 1}`} pageNumber={index + 1} scale={pdfScale} rotate={pdfRotation} renderAnnotationLayer={true} renderTextLayer={true} className="mb-2 shadow-md" loading={<div className="h-64 flex items-center justify-center text-xs">Loading page {index + 1}...</div>} /> )) )} </Document>
+                                     ) : selectedNote?.sourceUrl ? ( <Document file={selectedNote.sourceUrl} onLoadSuccess={onDocumentLoadSuccess} onLoadError={onDocumentLoadError} loading={<div className="flex justify-center items-center h-64 pt-10"><Loader2 className="w-6 h-6 animate-spin text-blue-500"/></div>} className="flex flex-col items-center pdf-document pt-4 pb-8" > {numPages === null && !pdfError ? ( <div className="flex justify-center items-center h-64 pt-10"><Loader2 className="w-6 h-6 animate-spin text-blue-500" /></div> ) : numPages && ( Array.from(new Array(numPages), (el, index) => ( 
+                                        <Page 
+                                            key={`page_${index + 1}`} 
+                                            pageNumber={index + 1} 
+                                            scale={pdfScale} 
+                                            rotate={pdfRotation} 
+                                            onLoadSuccess={(page) => {
+                                                if (page.pageNumber === 1) {
+                                                    if (!firstPageNaturalWidth || firstPageNaturalWidth !== page.originalWidth) {
+                                                        setFirstPageNaturalWidth(page.originalWidth);
+                                                        const pdfPanel = pdfViewerContainerRef.current?.parentElement;
+                                                        if (pdfPanel && page.originalWidth > 0) {
+                                                            const SCROLLBAR_WIDTH_ESTIMATE = 17;
+                                                            const initialTargetWidth = pdfPanel.clientWidth - SCROLLBAR_WIDTH_ESTIMATE;
+                                                            if (initialTargetWidth > 0) {
+                                                                const initialScale = initialTargetWidth / page.originalWidth;
+                                                                setPdfScale(Math.max(0.15, Math.min(5.0, initialScale)));
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }}
+                                            renderAnnotationLayer={true} 
+                                            renderTextLayer={true} 
+                                            className="mb-2 shadow-md" 
+                                            loading={<div className="h-64 flex items-center justify-center text-xs">Loading page {index + 1}...</div>} 
+                                        /> 
+                                     )) )} </Document>
                                      ) : ( <div className="p-6 text-center text-gray-500">PDF source missing.</div> )}
                                      {showHighlightButtons && highlightButtonPosition && ( <div className="highlight-buttons-container absolute z-20 flex items-center gap-1 bg-gray-800 dark:bg-gray-200 p-1 rounded-md shadow-lg" style={{ top: `${highlightButtonPosition.top}px`, left: `${highlightButtonPosition.left}px`, transform: 'translateX(-50%)' }} onMouseDown={(e) => e.stopPropagation()} > <button onClick={handleExplainHighlight} className={`text-xs px-2 py-1 rounded transition-colors ${isIlluminateEnabled ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>Explain</button> <button onClick={handleChatAboutHighlight} className={`text-xs px-2 py-1 rounded transition-colors ${isIlluminateEnabled ? 'bg-green-500 text-white hover:bg-green-600' : 'bg-green-600 text-white hover:bg-green-700'}`}>Chat</button> </div> )}
                                  </div>
