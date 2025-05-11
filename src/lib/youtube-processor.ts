@@ -241,6 +241,57 @@ Provide *only* the generated raw Markdown note content below. Do not include any
              else { const parsed = kpText.split('\n').map(l=>l.trim().replace(/^\d+\.\s*/,'')).filter(p=>p.length > 5).slice(0,10); if (parsed.length > 0) keyPoints = parsed; }
          } catch (kpError) { console.error('KP fetch error (YT):', kpError); }
 
+                const flashcardsPrompt = `**Objective:** Generate **between 10 to 15 flashcards** for studying the YouTube video titled "${videoTitle}", based on its transcript/description.
+**Mandatory Instructions:**
+1.  **Study Relevance:** Flashcards MUST focus on key terms, definitions, concepts, or important facts from the video content.
+2.  **Text-Grounded:** Content for both front and back MUST be derived from the provided transcript/description.
+3.  **Conciseness:** Keep front and back text concise and to the point for effective memorization.
+4.  **Quantity:** Aim for 10-15 distinct flashcards.
+5.  **Strict Formatting:** Adhere **unfailingly** to the following format for each flashcard, separated by "---FLASHCARD_DIVIDER---":
+    Front: [Text for the front of the card - typically a question, term, or concept]
+    Back: [Text for the back of the card - typically the answer, definition, or explanation]
+    ---FLASHCARD_DIVIDER---
+**Video Transcript/Description:**\n---\n${baseTranscriptContent.slice(0, 30000)}\n---\n**Generated Flashcards:**\nFront:`; // Start with "Front:" to guide the model
+        let flashcards: ProcessedYouTube['flashcards'] = [];
+        try {
+            const fcOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: flashcardsPrompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 2048 } }) };
+            const fcResponse = await fetchWithRetry(currentGeminiEndpoint, fcOptions);
+            const fcRawText = extractCandidateText(await fcResponse.text());
+
+            if (fcRawText.startsWith("Error:")) {
+                throw new Error(`Flashcard Generation Failed: ${fcRawText}`);
+            }
+
+            const flashcardBlocks = fcRawText.split(/---FLASHCARD_DIVIDER---/i);
+            for (const block of flashcardBlocks) {
+                if (flashcards.length >= 15) break;
+                const trimmedBlock = block.trim();
+                if (trimmedBlock.length < 10) continue;
+
+                const frontMatch = trimmedBlock.match(/^(?:Front:\s*)?([\s\S]*?)\s*\nBack:\s*([\s\S]*)$/is);
+                if (frontMatch && frontMatch[1] && frontMatch[2]) {
+                    const frontText = frontMatch[1].trim();
+                    const backText = frontMatch[2].trim();
+                    if (frontText.length > 2 && backText.length > 2) {
+                        flashcards.push({ front: frontText, back: backText });
+                    }
+                }
+            }
+            if (flashcards.length > 0) {
+                 safeProgress({ progress: 80, status: `Generated ${flashcards.length} flashcards.`, error: null }); // up to 80%
+            } else if (!fcRawText.startsWith("Error:")) {
+                 safeProgress({ progress: 80, status: `Generated 0 flashcards. (Possible parsing issue or no relevant content)`, error: "No flashcards parsed from AI response." });
+                 flashcards = [{front: "No flashcards generated.", back: "The AI response did not contain usable flashcard data, or the content was not suitable for flashcards."}];
+            } else {
+                throw new Error("Flashcard generation resulted in no usable cards due to an earlier API error response.");
+            }
+        } catch (fcError) {
+            const errorMsg = fcError instanceof Error ? fcError.message : 'Unknown flashcards error';
+            console.error('Flashcards generation error (YT):', fcError);
+            safeProgress({ progress: 80, status: 'Flashcards generation failed.', error: errorMsg });
+            flashcards = [{ front: 'Flashcard generation failed.', back: `Reason: ${errorMsg}` }];
+        }
+
         safeProgress({ progress: 75, status: 'Generating study questions...', error: null });
         const questionsPrompt = `Based on YouTube video "${videoTitle}" (transcript/desc provided), generate exactly 10 MCQs (4 options A,B,C,D), correct letter, explanation. Format strictly:\n\nQuestion: [Q]\nA) [A]\nB) [B]\nC) [C]\nD) [D]\nCorrect: [Letter]\nExplanation: [E]\n\n---DIVIDER---\n\nGenerate 10.\n\nText:\n---\n${baseTranscriptContent.slice(0, 25000)}\n---`;
         let questions: ProcessedYouTube['questions'] = [];
