@@ -779,7 +779,7 @@ export function Notes() {
             const newNoteId = await saveNote({
                 ...aiNoteData, // This includes title, content, keyPoints, questions, userId, type
                 isPublic: false,
-                tags: ['ai-processed'],
+                tags: ['personal'],
                 // type: 'personal' // Type is already set in aiNoteData if `processTextToAINoteData` sets it
             });
             await incrementNoteUsage('pdfAi');
@@ -799,7 +799,7 @@ export function Notes() {
         }
     };
 
-    const handlePDFUpload = async (file: File) => {
+        const handlePDFUpload = async (file: File) => {
         const currentApiKey = geminiApiKey; // Use the imported const
 
         if (!user || !currentApiKey) {
@@ -810,6 +810,7 @@ export function Notes() {
         if (!checkNoteLimit('pdfAi')) return;
         setUploadProgress({ progress: 0, status: 'Uploading PDF...', error: null });
         try {
+            // ProcessedPDF type from pdf-processor now includes flashcards?
             const processedData: ProcessedPDF = await processPDF( file, user.uid, currentApiKey, (progressState) => setUploadProgress(progressState) );
             
             if (!processedData.extractedText || processedData.extractedText.trim().length === 0) {
@@ -822,6 +823,7 @@ export function Notes() {
                 content: processedData.content,
                 keyPoints: processedData.keyPoints,
                 questions: processedData.questions,
+                flashcards: processedData.flashcards, // <<< --- ADD THIS LINE ---
                 type: 'pdf',
                 sourceUrl: processedData.sourceUrl,
                 isPublic: false,
@@ -866,6 +868,7 @@ export function Notes() {
                 content: processedData.content,
                 keyPoints: processedData.keyPoints,
                 questions: processedData.questions,
+                flashcards: processedData.flashcards, // <<< --- ADD THIS LINE ---
                 type: 'youtube',
                 sourceUrl: processedData.sourceUrl || url,
                 isPublic: false,
