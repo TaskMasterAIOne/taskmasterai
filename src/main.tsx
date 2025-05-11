@@ -4,25 +4,17 @@ import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { HelmetProvider, Helmet } from 'react-helmet-async';
 
 // --- PDF.js Worker Configuration ---
-// Import pdfjs from react-pdf (it re-exports pdfjs-dist)
 import { pdfjs } from 'react-pdf';
-
-// Set the worker source globally BEFORE any component uses it
-// Ensure 'pdf.worker.min.js' is in your /public folder
-pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
+pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js'; // Ensure this file is in your /public folder
 // --- End PDF.js Worker Configuration ---
-
 
 import { motion } from 'framer-motion';
 import App from './App';
-// import { useBlackoutMode } from './hooks/useBlackoutMode'; // Not used directly in main.tsx
-// import { useIlluminateMode } from './hooks/useIlluminateMode'; // Not used directly in main.tsx
 import Login from './components/Login';
 import { SignUp } from './components/SignUp';
 import { AuthProvider } from './contexts/AuthContext';
 import Pricing from './components/Pricing';
 import Terms from './components/Terms';
-// import Friends from './components/Friends'; // Imported but potentially unused if FriendsOutage is always used
 import Settings from './components/Settings';
 import SplashScreen from './components/SplashScreen';
 import ForgotPassword from './components/Forgot-Password';
@@ -36,47 +28,27 @@ import Calendar from './components/Calendar';
 import Community from './components/Community';
 import SchoolPage from './components/SchoolPage';
 import './index.css';
-import NotesOutage from './outage-pages/NotesOutage';
+// import NotesOutage from './outage-pages/NotesOutage'; // Assuming Notes is the primary
 import FriendsOutage from './outage-pages/FriendsOutage';
-import Status from './status/Status'; // Import the new Status page
-import { PublicNoteView } from './components/PublicNoteView'; // Adjust path if needed
-import ComingSoon from './components/ComingSoon'; // Import the component
+import Status from './status/Status';
+import { PublicNoteView } from './components/PublicNoteView';
+import ComingSoon from './components/ComingSoon';
 
-// --- Vercel Analytics & Speed Insights ---
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 
-// Global Helmet component to include favicon and related tags
+// Global Helmet component - now primarily for scripts or dynamic global tags
+// Static favicons, apple-touch-icons, manifest, theme-color are in index.html
 const DefaultHelmet = () => (
   <Helmet>
-    {/* Favicon and Apple Touch Icons */}
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <link rel="apple-touch-icon" sizes="57x57" href="/apple-icon-57x57.png" />
-    <link rel="apple-touch-icon" sizes="60x60" href="/apple-icon-60x60.png" />
-    <link rel="apple-touch-icon" sizes="72x72" href="/apple-icon-72x72.png" />
-    <link rel="apple-touch-icon" sizes="76x76" href="/apple-icon-76x76.png" />
-    <link rel="apple-touch-icon" sizes="114x114" href="/apple-icon-114x114.png" />
-    <link rel="apple-touch-icon" sizes="120x120" href="/apple-icon-120x120.png" />
-    <link rel="apple-touch-icon" sizes="144x144" href="/apple-icon-144x144.png" />
-    <link rel="apple-touch-icon" sizes="152x152" href="/apple-icon-152x152.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-icon-180x180.png" />
-    <link rel="icon" type="image/png" sizes="192x192" href="/android-icon-192x192.png" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
-    <link rel="manifest" href="/manifest.json" />
-    <meta name="msapplication-TileColor" content="#ffffff" />
-    <meta name="msapplication-TileImage" content="/ms-icon-144x144.png" />
-    <meta name="theme-color" content="#ffffff" />
-
     {/* --- Google tag (gtag.js) --- */}
+    {/* This is fine here, or could also be moved to index.html <head> if preferred */}
     <script async src="https://www.googletagmanager.com/gtag/js?id=AW-17070659093"></script>
     <script>
       {`
         window.dataLayer = window.dataLayer || [];
         function gtag(){dataLayer.push(arguments);}
         gtag('js', new Date());
-
         gtag('config', 'AW-17070659093');
       `}
     </script>
@@ -84,8 +56,8 @@ const DefaultHelmet = () => (
   </Helmet>
 );
 
-// Updated NotFound component with Illuminate & Blackout support
 const NotFound = () => {
+  // ... (Your NotFound component code remains the same)
   const isIlluminateEnabled = JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'false');
   const isBlackoutEnabled = JSON.parse(localStorage.getItem('isBlackoutEnabled') || 'false');
 
@@ -93,7 +65,7 @@ const NotFound = () => {
     ? 'bg-white text-gray-900'
     : isBlackoutEnabled
     ? 'bg-gray-950 text-white'
-    : 'bg-gray-900 text-white';
+    : 'bg-gray-900 text-white'; // Default fallback
 
   const headingColor = isIlluminateEnabled ? 'text-gray-900' : 'text-white';
   const subheadingColor = isIlluminateEnabled ? 'text-gray-700' : 'text-gray-300';
@@ -112,19 +84,6 @@ const NotFound = () => {
         animate={{ x: [0, -80, 0], y: [0, -50, 0] }}
         transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
       />
-      <motion.div
-        className="absolute bg-indigo-500 rounded-full opacity-20"
-        style={{ width: 200, height: 200, bottom: '20%', left: '-100px' }}
-        animate={{ rotate: [0, 360] }}
-        transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
-      />
-      <motion.div
-        className="absolute bg-purple-500 rounded-full opacity-20"
-        style={{ width: 150, height: 150, top: '30%', right: '-70px' }}
-        animate={{ x: [0, -40, 0], y: [0, 40, 0] }}
-        transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-      />
-      
       <motion.div
         className="text-center mb-6 md:mb-10 relative z-10"
         initial={{ scale: 0, opacity: 0 }}
@@ -183,11 +142,14 @@ const NotFound = () => {
   );
 };
 
+
 // Page title wrapper component
 const PageTitle = ({ title, children }: { title: string; children: React.ReactNode }) => (
   <>
     <Helmet>
       <title>{title} | TaskMaster AI</title>
+      {/* You can add page-specific meta descriptions or canonical URLs here if needed */}
+      {/* e.g., <meta name="description" content={`Details about ${title} on TaskMaster AI...`} /> */}
     </Helmet>
     {children}
   </>
@@ -197,7 +159,7 @@ const PageTitle = ({ title, children }: { title: string; children: React.ReactNo
 const RootTitle = ({ children }: { children: React.ReactNode }) => (
   <>
     <Helmet>
-      <title>TaskMaster AI</title>
+      <title>TaskMaster AI</title> {/* This will be overridden by index.html's title on initial load, but good for SPA navigations */}
     </Helmet>
     {children}
   </>
@@ -206,12 +168,9 @@ const RootTitle = ({ children }: { children: React.ReactNode }) => (
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <HelmetProvider>
-      {/* Add the default Helmet to load favicon links, meta tags, and global scripts */}
-      <DefaultHelmet />
+      <DefaultHelmet /> {/* Contains global scripts like GTM */}
       <BrowserRouter>
         <AuthProvider>
-          {/* Vercel Analytics and Speed Insights should be placed here */}
-          {/* They will be rendered once and persist across route changes */}
           <Analytics />
           <SpeedInsights />
           <Routes>
@@ -219,7 +178,6 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/signup" element={<PageTitle title="Sign Up"><SignUp /></PageTitle>} />
             <Route path="/pricing" element={<PageTitle title="Pricing"><Pricing /></PageTitle>} />
             <Route path="/terms" element={<PageTitle title="Terms of Service"><Terms /></PageTitle>} />
-            {/* Assuming FriendsOutage is the intended component for /friends */}
             <Route path="/friends" element={<PageTitle title="Friends"><FriendsOutage /></PageTitle>} />
             <Route path="/settings" element={<PageTitle title="Settings"><Settings /></PageTitle>} />
             <Route path="/splashscreen" element={<PageTitle title="Welcome"><SplashScreen /></PageTitle>} />
@@ -228,19 +186,17 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/dashboard" element={<PageTitle title="Dashboard"><Dashboard /></PageTitle>} />
             <Route path="/contact" element={<PageTitle title="Contact Us"><Contact /></PageTitle>} />
             <Route path="/folders" element={<PageTitle title="Folders"><Folders /></PageTitle>} />
-            <Route path="/ai" element={<PageTitle title="AI Assistant"><AIChat /></PageTitle>} />
+            <Route path="/ai" element={<PageT AI Assistantit"><AIChat /></PageTitle>} />
             <Route path="/calendar" element={<PageTitle title="Calendar"><Calendar /></PageTitle>} />
-            {/* Assuming NotesOutage might be used for /notes if there's an outage condition, otherwise Notes */}
-            <Route path="/notes" element={<PageTitle title="Notes"><Notes /></PageTitle>} /> 
+            <Route path="/notes" element={<PageTitle title="Notes"><Notes /></PageTitle>} />
             <Route path="/school" element={<PageTitle title="School"><SchoolPage /></PageTitle>} />
             <Route path="/community" element={<PageTitle title="Community"><Community /></PageTitle>} />
             <Route path="/" element={<RootTitle><App /></RootTitle>} />
             <Route path="/status" element={<PageTitle title="Status"><Status /></PageTitle>} />
             <Route path="/focus-mode" element={<PageTitle title="Focus Mode"><ComingSoon /></PageTitle>} />
-            <Route path="/api/*" element={null} /> {/* This route likely serves no visual component */}
+            {/* <Route path="/api/*" element={null} /> This might be for Vercel serverless functions, not a React route */}
             <Route path="/public-note/:noteId" element={<PageTitle title="Public Note"><PublicNoteView /></PageTitle>} />
             
-            {/* Catch-all route for 404 */}
             <Route path="*" element={<PageTitle title="404 Not Found"><NotFound /></PageTitle>} />
           </Routes>
         </AuthProvider>
@@ -249,4 +205,4 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>
 );
 
-export {}; // This ensures the file is treated as a module, good practice
+export {};
