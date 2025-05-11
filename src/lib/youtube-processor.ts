@@ -1,8 +1,7 @@
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { storage } from './firebase';
 import { v4 as uuidv4 } from 'uuid';
-// geminiApiKey is imported from dashboard-firebase in Notes.tsx and passed as a parameter 'apiKey' here.
-// So, we don't need to import geminiApiKey directly here if it's passed in.
+import { geminiApiKey } from './dashboard-firebase'; // Use imported key
 
 interface ProcessingProgress { progress: number; status: string; error: string | null; }
 
@@ -11,7 +10,7 @@ interface ProcessedYouTube {
     content: string; // Detailed Markdown Note
     keyPoints: string[];
     questions: { question: string; options: string[]; correctAnswer: number; explanation: string; }[];
-    flashcards?: { front: string; back: string; }[]; // Added flashcards
+    flashcards?: { front: string; back: string; }[]; // <<< --- ADDED THIS ---
     sourceUrl: string; // YouTube video URL
 }
 
@@ -19,6 +18,8 @@ interface ProcessedYouTube {
 // Make sure this key is enabled for the YouTube Data API v3 in your Google Cloud Console.
 const YOUTUBE_API_KEY = 'AIzaSyCoxefrJ80LuyxLAdv0t55BN8SJ9_-orcM'; // CONFIRM THIS IS YOUR CORRECT KEY
 
+// Use imported Gemini key
+const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`;
 
 // Helper functions
 function sleep(ms: number): Promise<void> { return new Promise(resolve => setTimeout(resolve, ms)); }
@@ -26,6 +27,7 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 3, de
     for (let attempt = 0; attempt < retries; attempt++) {
         try {
             const response = await fetch(url, options);
+            // Don't retry on 401/403 for auth issues, or 404 not found. Let the caller handle these.
             if (!response.ok && (response.status === 429 || response.status >= 500)) {
                 console.warn(`Attempt ${attempt + 1} failed for ${url}: ${response.status}. Retrying...`);
                 await sleep(delayMs * (attempt + 1));
@@ -41,37 +43,9 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 3, de
     }
     throw new Error(`Max retries reached for ${url}`);
 }
-const extractCandidateText = (responseText: string): string => {
-    try {
-        const jsonResponse = JSON.parse(responseText);
-        if (jsonResponse?.error?.message) {
-            console.error("Gemini API Error:", jsonResponse.error.message);
-            return `Error: ${jsonResponse.error.message}`;
-        }
-        if (jsonResponse?.candidates?.[0]?.content?.parts?.[0]?.text) {
-            const text = jsonResponse.candidates[0].content.parts[0].text;
-            const finishReason = jsonResponse.candidates[0]?.finishReason;
-            if (finishReason && finishReason !== 'STOP') {
-                console.warn(`Gemini finish reason: ${finishReason}`);
-                if (finishReason === 'MAX_TOKENS') return text + "\n\n[Error: Output truncated due to maximum token limit]";
-                if (finishReason === 'SAFETY') return text + "\n\n[Error: Output stopped due to safety settings]";
-                return text + `\n\n[Warning: Generation finished due to ${finishReason}]`;
-            }
-            return text;
-        }
-        if (jsonResponse?.candidates?.[0]?.finishReason && jsonResponse.candidates[0].finishReason !== 'STOP') {
-             console.warn(`Gemini finish reason: ${jsonResponse?.candidates?.[0]?.finishReason}`);
-             if (jsonResponse.candidates[0].finishReason === 'MAX_TOKENS') return `[Error: Output truncated due to maximum token limit (no text returned)]`;
-             if (jsonResponse.candidates[0].finishReason === 'SAFETY') return `[Error: Output stopped due to safety settings (no text returned)]`;
-            return `Error: Generation stopped (${jsonResponse?.candidates?.[0]?.finishReason}, no text)`;
-        }
-        return "Error: No text found in the expected structure.";
-    }
-    catch (err) {
-        if (responseText.toLowerCase().includes("api key not valid")) return "Error: Invalid API Key.";
-        console.error('Error parsing Gemini response:', err, responseText.substring(0, 500));
-        return "Error: Cannot parse AI response.";
-    }
+const extractCandidateText = (responseText: string): string => { // Original extractCandidateText
+    try { const jsonResponse = JSON.parse(responseText); if (jsonResponse?.candidates?.[0]?.content?.parts?.[0]?.text) { return jsonResponse.candidates[0].content.parts[0].text; } if (jsonResponse?.error?.message) { console.error("Gemini API Error:", jsonResponse.error.message); return `Error: ${jsonResponse.error.message}`; } if (jsonResponse?.candidates?.[0]?.finishReason !== 'STOP') { console.warn(`Gemini finish reason: ${jsonResponse?.candidates?.[0]?.finishReason}`); return `Error: Generation stopped (${jsonResponse?.candidates?.[0]?.finishReason})`; } return "Error: No text found."; }
+    catch (err) { console.error('Error parsing Gemini response:', err); return "Error: Cannot parse AI response."; }
 };
 
 function getVideoId(url: string): string | null {
@@ -100,18 +74,18 @@ interface YouTubeCaptionListResponse { kind: string; etag: string; items: YouTub
 export async function processYouTube(
     url: string,
     userId: string,
-    geminiApiKey: string, // Renamed from apiKey to geminiApiKey for clarity
+    apiKey: string, // Gemini key (original name)
     onProgress: (progress: ProcessingProgress) => void
 ): Promise<ProcessedYouTube> {
     const safeProgress = typeof onProgress === 'function' ? onProgress : () => {};
-    const currentGeminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${geminiApiKey}`; // Use 1.5-flash
+    const currentGeminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`; // Original endpoint structure
 
-    if (!geminiApiKey) { // Gemini API Key check
+    if (!apiKey) { // Gemini API Key check
         safeProgress({ progress: 0, status: 'Error', error: 'Gemini API Key missing.' });
         throw new Error('Gemini API Key missing.');
     }
 
-    const placeholderKeys = ['YOUR_YOUTUBE_API_KEY', 'AIzaSyD4iosX8Y1X4bOThSGhYyUfCmWKBEkc6x4', 'YOUR_ACTUAL_YOUTUBE_API_KEY_HERE', 'AIzaSyCoxefrJ80LuyxLAdv0t55BN8SJ9_-orcM']; // Added current placeholder to list
+    const placeholderKeys = ['YOUR_YOUTUBE_API_KEY', 'AIzaSyD4iosX8Y1X4bOThSGhYyUfCmWKBEkc6x4', 'YOUR_ACTUAL_YOUTUBE_API_KEY_HERE','AIzaSyCoxefrJ80LuyxLAdv0t55BN8SJ9_-orcM']; // Added your key to placeholder list
     if (!YOUTUBE_API_KEY || YOUTUBE_API_KEY.trim() === '' || placeholderKeys.includes(YOUTUBE_API_KEY) ) {
         const errorMsg = `YouTube API Key missing/invalid. Detected key: "${YOUTUBE_API_KEY}". Please ensure a valid key is set in src/lib/youtube-processor.ts.`;
         safeProgress({ progress: 0, status: 'Error', error: 'YouTube API Key missing/invalid. Please replace the placeholder key.' });
@@ -129,7 +103,7 @@ export async function processYouTube(
         }
         const youtubeVideoUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
-        safeProgress({ progress: 5, status: 'Fetching video metadata...', error: null }); // up to 5%
+        safeProgress({ progress: 5, status: 'Fetching video metadata...', error: null }); // Original progress
         const videoDetailsUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${YOUTUBE_API_KEY}`;
         const videoResponse = await fetchWithRetry(videoDetailsUrl, {});
         if (!videoResponse.ok) {
@@ -144,7 +118,7 @@ export async function processYouTube(
         const videoTitle = videoInfo.title || 'Untitled Video';
         const videoDescription = videoInfo.description || '';
 
-        safeProgress({ progress: 10, status: 'Fetching caption tracks list...', error: null }); // up to 10%
+        safeProgress({ progress: 10, status: 'Fetching caption tracks list...', error: null }); // Original progress
         let fetchedTranscriptText = '';
         const captionsListUrl = `https://www.googleapis.com/youtube/v3/captions?part=snippet&videoId=${videoId}&key=${YOUTUBE_API_KEY}`;
         try {
@@ -155,10 +129,10 @@ export async function processYouTube(
                     let captionTrack: YouTubeCaptionTrack | undefined;
                     captionTrack = captionsData.items.find(t => t.snippet.language.startsWith('en') && t.snippet.trackKind !== 'forced');
                     if (!captionTrack) captionTrack = captionsData.items.find(t => (t.snippet.trackKind === 'ASR' || t.snippet.trackKind === 'standard') && t.snippet.trackKind !== 'forced');
-                    if (!captionTrack) captionTrack = captionsData.items.find(t => t.snippet.trackKind !== 'forced'); // last resort, any non-forced
+                    if (!captionTrack) captionTrack = captionsData.items.find(t => t.snippet.trackKind !== 'forced');
 
                     if (captionTrack) {
-                        safeProgress({ progress: 15, status: `Attempting transcript download (${captionTrack.snippet.language}, ${captionTrack.snippet.name || 'default'})...`, error: null }); // up to 15%
+                        safeProgress({ progress: 20, status: `Attempting transcript download (${captionTrack.snippet.language}, ${captionTrack.snippet.name || 'default'})...`, error: null }); // Original progress
                         const captionId = captionTrack.id;
                         const downloadUrl = `https://www.googleapis.com/youtube/v3/captions/${captionId}?key=${YOUTUBE_API_KEY}&tfmt=srt`;
                         const transcriptResponse = await fetchWithRetry(downloadUrl, {});
@@ -167,9 +141,9 @@ export async function processYouTube(
                             const srtContent = await transcriptResponse.text();
                             fetchedTranscriptText = parseSrt(srtContent);
                             if (fetchedTranscriptText) {
-                                safeProgress({ progress: 25, status: 'Transcript successfully processed.', error: null }); // up to 25%
+                                safeProgress({ progress: 30, status: 'Transcript successfully processed.', error: null }); // Original progress
                             } else {
-                                 safeProgress({ progress: 25, status: 'Transcript parsed but empty. Using description.', error: 'Parsed transcript was empty.' });
+                                 safeProgress({ progress: 30, status: 'Transcript parsed but empty. Using description.', error: 'Parsed transcript was empty.' });
                             }
                         } else {
                             const errorText = await transcriptResponse.text();
@@ -180,30 +154,30 @@ export async function processYouTube(
                             } else {
                                 console.warn(`Failed to download transcript for track ${captionId}: ${transcriptResponse.status}. Details:`, errorText.substring(0,1000));
                             }
-                            safeProgress({ progress: 25, status: 'Transcript download failed. Using description.', error: readableError });
+                            safeProgress({ progress: 30, status: 'Transcript download failed. Using description.', error: readableError });
                         }
                     } else {
-                        safeProgress({ progress: 25, status: 'No suitable transcript found. Using description.', error: 'No suitable (non-forced) transcript track' });
+                        safeProgress({ progress: 30, status: 'No suitable transcript found. Using description.', error: 'No suitable (non-forced) transcript track' });
                     }
                 } else {
-                    safeProgress({ progress: 25, status: 'No caption tracks available. Using description.', error: 'No caption tracks listed' });
+                    safeProgress({ progress: 30, status: 'No caption tracks available. Using description.', error: 'No caption tracks listed' });
                 }
             } else {
                 const errorText = await captionsListResponse.text();
                 console.warn(`Failed to fetch caption list for ${videoId}: ${captionsListResponse.status}. Error:`, errorText.substring(0,1000));
-                safeProgress({ progress: 25, status: 'Failed to fetch caption list. Using description.', error: `Caption list fetch failed (${captionsListResponse.status})` });
+                safeProgress({ progress: 30, status: 'Failed to fetch caption list. Using description.', error: `Caption list fetch failed (${captionsListResponse.status})` });
             }
         } catch (captionError) {
             console.error('Error during caption fetching process:', captionError);
-            safeProgress({ progress: 25, status: 'Error fetching transcript. Using description.', error: captionError instanceof Error ? captionError.message : 'Unknown caption error' });
+            safeProgress({ progress: 30, status: 'Error fetching transcript. Using description.', error: captionError instanceof Error ? captionError.message : 'Unknown caption error' });
         }
 
         baseTranscriptContent = fetchedTranscriptText.trim() ? fetchedTranscriptText : videoDescription;
         if (!baseTranscriptContent.trim()) {
-            baseTranscriptContent = "No transcript or description available for this video.";
+            baseTranscriptContent = "No transcript or description available.";
         }
 
-        safeProgress({ progress: 30, status: 'Generating detailed note...', error: null }); // up to 30%
+        safeProgress({ progress: 30, status: 'Generating detailed note...', error: null }); // Original progress
         const detailedNotePrompt = `Analyze the following YouTube video information (title, description/transcript). Generate a detailed, well-structured note using Markdown.
 
 **Instructions:**
@@ -233,7 +207,7 @@ export async function processYouTube(
 **Video Title:** ${videoTitle}
 **Transcript/Description (provide the full transcript if possible, or a significant portion, to enable detailed note generation):**
 ---
-${baseTranscriptContent.slice(0, 30000)} 
+${baseTranscriptContent}
 ---
 
 **Output:**
@@ -246,32 +220,29 @@ Provide *only* the generated raw Markdown note content below. Do not include any
             const noteRawText = extractCandidateText(await noteResponse.text());
             if (noteRawText.startsWith("Error:")) { throw new Error(noteRawText); }
             detailedNoteContent = noteRawText.trim();
-            safeProgress({ progress: 50, status: 'Detailed note generated.', error: null }); // up to 50%
+            // Note: Original code didn't have a progress update here, but it's good to keep one from previous step
+            // safeProgress({ progress: 55, status: 'Detailed note generated.', error: null });
         } catch (noteError) {
             console.error('Detailed note generation error (YT):', noteError);
-            const errorMsg = noteError instanceof Error ? noteError.message : 'Unknown note gen error';
-            detailedNoteContent = `Error: Detailed note generation failed. Reason: ${errorMsg}`;
-            safeProgress({ progress: 50, status: 'Note generation failed.', error: errorMsg });
+            safeProgress({ progress: 55, status: 'Note generation failed. Generating points...', error: noteError instanceof Error ? noteError.message : 'Unknown note gen error' }); // Original progress
         }
 
-        safeProgress({ progress: 50, status: 'Generating key points...', error: null });
-        const keyPointsPrompt = `Extract exactly 10 distinct key points from the following YouTube video info/transcript. List only the points. In your output, NEVER SAY: "Here are 10 distinct and significant key points from the provided text:" \n\nTitle: ${videoTitle}\nText:\n---\n${baseTranscriptContent.slice(0, 30000)}\n---\n\nKey Points:\n1. ...`;
+        safeProgress({ progress: 55, status: 'Generating key points...', error: null }); // Original progress
+        const keyPointsPrompt = `Extract exactly 10 distinct key points from the following YouTube video info/transcript. List only the points. In your output, NEVER SAY: "Here are 10 distinct and significant key points from the provided text:" \n\nTitle: ${videoTitle}\nText:\n---\n${baseTranscriptContent.slice(0, 25000)}\n---\n\nKey Points:\n1. ...`;
         let keyPoints: string[] = ['Key points generation failed.'];
          try {
              const kpOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: keyPointsPrompt }] }], generationConfig: { temperature: 0.3, maxOutputTokens: 1024 } }) };
              const kpResponse = await fetchWithRetry(currentGeminiEndpoint, kpOptions);
              const kpText = extractCandidateText(await kpResponse.text());
-             if (kpText.startsWith("Error:")) { console.error("KP Error:", kpText); keyPoints = [`Error: Key points failed (${kpText})`]; }
-             else { const parsed = kpText.split('\n').map(l=>l.trim().replace(/^\d+\.\s*/,'')).filter(p=>p.length > 5).slice(0,10); if (parsed.length > 0) keyPoints = parsed; else keyPoints = ['Error: Could not parse key points.']; }
-             safeProgress({ progress: 65, status: 'Key points generated.', error: keyPoints[0].startsWith("Error:") ? keyPoints[0] : null }); // up to 65%
-         } catch (kpError) {
-             console.error('KP fetch error (YT):', kpError);
-             const errorMsg = kpError instanceof Error ? kpError.message : 'Unknown key points error';
-             keyPoints = [`Error: Key points failed (${errorMsg})`];
-             safeProgress({ progress: 65, status: 'Key points generation failed.', error: errorMsg });
-         }
+             if (kpText.startsWith("Error:")) { console.error("KP Error:", kpText); }
+             else { const parsed = kpText.split('\n').map(l=>l.trim().replace(/^\d+\.\s*/,'')).filter(p=>p.length > 5).slice(0,10); if (parsed.length > 0) keyPoints = parsed; }
+             // Note: Original code didn't have a progress update for KP success.
+             // safeProgress({ progress: 65, status: 'Key points generated.', error: keyPoints[0].startsWith("Error:") ? keyPoints[0] : null });
+         } catch (kpError) { console.error('KP fetch error (YT):', kpError); }
 
-        safeProgress({ progress: 65, status: 'Generating flashcards...', error: null });
+
+        // --- FLASHCARD GENERATION START ---
+        safeProgress({ progress: 65, status: 'Generating flashcards...', error: null }); // Adjusted progress
         const flashcardsPrompt = `**Objective:** Generate **between 10 to 15 flashcards** for studying the YouTube video titled "${videoTitle}", based on its transcript/description.
 **Mandatory Instructions:**
 1.  **Study Relevance:** Flashcards MUST focus on key terms, definitions, concepts, or important facts from the video content.
@@ -282,7 +253,7 @@ Provide *only* the generated raw Markdown note content below. Do not include any
     Front: [Text for the front of the card - typically a question, term, or concept]
     Back: [Text for the back of the card - typically the answer, definition, or explanation]
     ---FLASHCARD_DIVIDER---
-**Video Transcript/Description:**\n---\n${baseTranscriptContent.slice(0, 30000)}\n---\n**Generated Flashcards:**\nFront:`; // Start with "Front:" to guide the model
+**Video Transcript/Description:**\n---\n${baseTranscriptContent.slice(0, 25000)}\n---\n**Generated Flashcards:**\nFront:`;
         let flashcards: ProcessedYouTube['flashcards'] = [];
         try {
             const fcOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: flashcardsPrompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 2048 } }) };
@@ -309,9 +280,9 @@ Provide *only* the generated raw Markdown note content below. Do not include any
                 }
             }
             if (flashcards.length > 0) {
-                 safeProgress({ progress: 80, status: `Generated ${flashcards.length} flashcards.`, error: null }); // up to 80%
+                 safeProgress({ progress: 75, status: `Generated ${flashcards.length} flashcards.`, error: null }); // Adjusted progress
             } else if (!fcRawText.startsWith("Error:")) {
-                 safeProgress({ progress: 80, status: `Generated 0 flashcards. (Possible parsing issue or no relevant content)`, error: "No flashcards parsed from AI response." });
+                 safeProgress({ progress: 75, status: `Generated 0 flashcards. (Possible parsing issue or no relevant content)`, error: "No flashcards parsed from AI response." });
                  flashcards = [{front: "No flashcards generated.", back: "The AI response did not contain usable flashcard data, or the content was not suitable for flashcards."}];
             } else {
                 throw new Error("Flashcard generation resulted in no usable cards due to an earlier API error response.");
@@ -319,19 +290,20 @@ Provide *only* the generated raw Markdown note content below. Do not include any
         } catch (fcError) {
             const errorMsg = fcError instanceof Error ? fcError.message : 'Unknown flashcards error';
             console.error('Flashcards generation error (YT):', fcError);
-            safeProgress({ progress: 80, status: 'Flashcards generation failed.', error: errorMsg });
+            safeProgress({ progress: 75, status: 'Flashcards generation failed.', error: errorMsg }); // Adjusted progress
             flashcards = [{ front: 'Flashcard generation failed.', back: `Reason: ${errorMsg}` }];
         }
+        // --- FLASHCARD GENERATION END ---
 
 
-        safeProgress({ progress: 80, status: 'Generating study questions...', error: null }); // up to 80%
-        const questionsPrompt = `Based on YouTube video "${videoTitle}" (transcript/desc provided), generate exactly 10 MCQs (4 options A,B,C,D), correct letter, explanation. Format strictly:\n\nQuestion: [Q]\nA) [A]\nB) [B]\nC) [C]\nD) [D]\nCorrect: [Letter]\nExplanation: [E]\n\n---DIVIDER---\n\nGenerate 10.\n\nText:\n---\n${baseTranscriptContent.slice(0, 30000)}\n---`;
+        safeProgress({ progress: 75, status: 'Generating study questions...', error: null }); // Original progress
+        const questionsPrompt = `Based on YouTube video "${videoTitle}" (transcript/desc provided), generate exactly 10 MCQs (4 options A,B,C,D), correct letter, explanation. Format strictly:\n\nQuestion: [Q]\nA) [A]\nB) [B]\nC) [C]\nD) [D]\nCorrect: [Letter]\nExplanation: [E]\n\n---DIVIDER---\n\nGenerate 10.\n\nText:\n---\n${baseTranscriptContent.slice(0, 25000)}\n---`;
         let questions: ProcessedYouTube['questions'] = [];
         try {
             const qOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: questionsPrompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 4096 } }) };
             const qResponse = await fetchWithRetry(currentGeminiEndpoint, qOptions);
             const qText = extractCandidateText(await qResponse.text());
-             if (qText.startsWith("Error:")) { console.error("Questions Error:", qText); throw new Error(qText); }
+             if (qText.startsWith("Error:")) { console.error("Questions Error:", qText); }
              else {
                 const blocks = qText.split(/---DIVIDER---/i); let parsed = [];
                 for (const block of blocks) {
@@ -339,41 +311,26 @@ Provide *only* the generated raw Markdown note content below. Do not include any
                     const qM = T.match(/^Question:\s*([\s\S]*?)\s*A\)/i); const oM = T.match(/A\)\s*(.*?)\s*B\)\s*(.*?)\s*C\)\s*(.*?)\s*D\)\s*(.*?)\s*Correct:/is); const cM = T.match(/Correct:\s*([A-D])\b/i); const eM = T.match(/Explanation:\s*([\s\S]*?)(?:---DIVIDER---|$)/i);
                     if (qM&&oM&&cM&&eM) { const qT=qM[1].trim(); const oL=[oM[1],oM[2],oM[3],oM[4]].map(o=>o.replace(/^(.*?)\s*(?:B\)|C\)|D\)|Correct:).*$/is,'$1').trim()); const cL=cM[1].toUpperCase(); const eT=eM[1].trim(); if(qT&&oL.length===4&&oL.every(o=>o)&&['A','B','C','D'].includes(cL)&&eT) parsed.push({question:qT,options:oL,correctAnswer:['A','B','C','D'].indexOf(cL),explanation:eT}); else console.warn("Partial question parse (YT)"); } else console.warn("Question structure parse fail (YT)");
                 } if (parsed.length > 0) questions = parsed;
-                  else { questions = [{ question: 'Could not parse study questions.', options:['Ok','N/A','N/A','N/A'], correctAnswer:0, explanation: 'AI response did not follow expected format or no questions were generated.' }];}
              }
-             safeProgress({ progress: 95, status: 'Study questions processed.', error: questions[0]?.question === 'Could not parse study questions.' ? questions[0].explanation : null }); // up to 95%
-        } catch (qError) {
-            console.error('Questions fetch error (YT):', qError);
-            const errorMsg = qError instanceof Error ? qError.message : 'Unknown questions error';
-            questions = [{ question: 'Study questions generation failed.', options:['Ok','Error','N/A','N/A'], correctAnswer:1, explanation: `Reason: ${errorMsg}` }];
-            safeProgress({ progress: 95, status: 'Study questions generation failed.', error: errorMsg });
-        }
+             // Note: Original code didn't have a progress update for questions success.
+             // safeProgress({ progress: 95, status: 'Study questions processed.', error: null });
+        } catch (qError) { console.error('Questions fetch error (YT):', qError); }
 
-        safeProgress({ progress: 100, status: 'Processing complete!', error: null });
+        safeProgress({ progress: 100, status: 'Processing complete!', error: null }); // Original progress
         return {
             title: videoTitle,
             content: detailedNoteContent,
             keyPoints,
-            flashcards, // Added
+            flashcards, // <<< --- ADDED THIS ---
             questions,
             sourceUrl: youtubeVideoUrl,
         };
 
-    } catch (error) {
+    } catch (error) { // Original overall catch block
         console.error('Overall YouTube processing failed:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown YouTube processing error.';
         safeProgress({ progress: 0, status: 'Error', error: errorMessage });
-        // Return a minimal structure so the calling function can handle it
-        return {
-            title: "Processing Error",
-            content: `Error processing YouTube video: ${errorMessage}`,
-            keyPoints: ['Processing failed.'],
-            flashcards: [],
-            questions: [],
-            sourceUrl: url, // return original URL
-        };
-        // Or rethrow if the caller is expected to always catch it
-        // if (error instanceof Error) throw error;
-        // else throw new Error(errorMessage);
+        if (error instanceof Error) throw error;
+        else throw new Error(errorMessage);
     }
 }
