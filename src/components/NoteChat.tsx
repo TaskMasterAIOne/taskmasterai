@@ -326,7 +326,7 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
             if (collectedPdfContextText && !isUsingImageGenModel) {
                 messagesToDisplayInChat.push({
                     id: `pdf-ctx-disp-${Date.now()}`,
-                    role: 'user', 
+                    role: 'user', // Changed to 'user' for right alignment
                     content: collectedPdfContextText,
                     isPdfContextDisplay: true,
                 });
@@ -342,7 +342,7 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
             messagesToDisplayInChat.push({
                 id: `user-${Date.now()}`,
                 role: 'user',
-                content: messageContent, // Clean user typed message for display
+                content: messageContent, 
                 imageData: userMsgImageData,
             });
             
@@ -352,9 +352,8 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
             if (!filesToSend && !isUsingImageGenModel) { 
                 setSelectedFiles([]);
             }
-            setPdfContextSegments([]); // Clear UI PDF context after processing for this message
+            setPdfContextSegments([]); 
 
-            // Prepare content for the AI
             let contentForAI = messageContent;
             if (collectedPdfContextText && !isUsingImageGenModel) {
                 contentForAI = `Using the following PDF context:\n"""\n${collectedPdfContextText}\n"""\n\nMy question/request: ${messageContent}`;
@@ -394,7 +393,7 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
             const loadingContent = isUsingImageGenModel ? "Generating image..." : "...";
             setChatHistory(prev => [...prev, { id: newLoadingMsgId, role: 'assistant', content: loadingContent, isGeneratingImage: isUsingImageGenModel }]);
 
-            const recentHistory = chatHistory.slice(-10); // Take a bit more history to ensure context
+            const recentHistory = chatHistory.slice(-10); 
 
             const systemInstruction = `You are TaskMaster, a highly meticulous, context-aware, and **conversational** AI agent integrated into Notes. You are chatting with "${userName}" about their note titled "${note.title}".
 
@@ -548,7 +547,7 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
 ---
 
 **${userName}: ${messageContent}** ${currentFiles.length > 0 && !isUsingImageGenModel ? `(Files Attached: ${currentFiles.map(f=>f.name).join(', ')})` : ''}
-**Assistant:**`; // The ${messageContent} here is the clean user-typed message for the example in the system prompt. The AI will receive 'contentForAI' as the actual current user turn.
+**Assistant:**`;
             
             try {
                 const targetModel = isUsingImageGenModel ? GEMINI_IMAGE_GEN_MODEL : GEMINI_TEXT_MODEL;
@@ -590,7 +589,6 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                     }
                 });
 
-                // Use contentForAI (which includes PDF context if present) for the actual API call's user turn
                 const currentUserParts: any[] = [{ text: contentForAI }]; 
                 if (currentFiles.length > 0 && !isUsingImageGenModel) {
                     currentFiles.forEach(file => {
@@ -736,8 +734,7 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                 return;
             }
             const filesToSubmit = [...selectedFiles];
-            setChatMessage(''); // Clear the input field *before* async call
-            // selectedFiles and pdfContextSegments are handled inside submitMessageToAI
+            setChatMessage(''); 
             await submitMessageToAI(currentMessage, filesToSubmit, isImageGenModeActive);
             if (textareaRef.current) {
                 textareaRef.current.style.height = 'auto';
@@ -749,7 +746,7 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
             if (isImageGenModeActive) {
                  setIsImageGenModeActive(false);
             }
-            submitMessageToAI(suggestion); // Will use current chatMessage (empty) and selectedFiles (empty) and current pdfContext (empty)
+            submitMessageToAI(suggestion);
         };
 
         const addPdfContextSegment = (text: string) => {
@@ -762,7 +759,6 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
         useImperativeHandle(ref, () => ({
             sendMessage: (message: string) => {
                 if (isImageGenModeActive) setIsImageGenModeActive(false);
-                // This will use the passed message, and current selectedFiles/pdfContextSegments from state
                 submitMessageToAI(message, selectedFiles, isImageGenModeActive);
             },
             addPdfContextSegment,
@@ -800,7 +796,7 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                         <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-400 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
                             {chatHistory.map((message, index) => {
                                 const isCurrentLoadingMsg = message.role === 'assistant' && isChatLoading && message.id === loadingMsgId;
-                                const isPdfContextDisplayMsg = message.role === 'assistant' && message.isPdfContextDisplay === true;
+                                const isPdfContextDisplayMsg = message.isPdfContextDisplay === true; // Role will determine alignment
 
                                 const currentBubbleClass = isPdfContextDisplayMsg
                                     ? '' 
@@ -810,9 +806,7 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                                     : message.isUpdateConfirmation ? confirmationBubbleClass
                                     : assistantBubbleClass;
 
-                                const alignmentClass = isPdfContextDisplayMsg ? 'justify-start'
-                                                     : message.role === 'user' ? 'justify-end'
-                                                     : 'justify-start';
+                                const alignmentClass = message.role === 'user' ? 'justify-end' : 'justify-start';
                                 
                                 const getProseClass = (msg: ChatMessage) => { let base = `prose prose-sm max-w-none prose-p:text-xs prose-p:my-1 prose-ul:text-xs prose-ol:text-xs prose-li:my-0 prose-code:text-[11px] prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:text-[11px] prose-pre:my-1 prose-pre:p-1.5 prose-pre:rounded`; if (isIlluminateEnabled) { if (msg.isEditSuggestion) base += ' prose-yellow text-yellow-900'; else if (msg.error) base += ' prose-red text-red-800'; else if (msg.isUpdateConfirmation) base += ' prose-green text-green-900'; else base += ' prose-gray text-gray-800'; } else { base += ' prose-invert'; if (msg.isEditSuggestion) base += ' text-yellow-200'; else if (msg.error) base += ' text-red-300'; else if (msg.isUpdateConfirmation) base += ' text-green-200'; else base += ' text-gray-200'; } return base; };
                                 const proseClass = getProseClass(message);
