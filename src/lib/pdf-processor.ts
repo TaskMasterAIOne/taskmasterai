@@ -19,6 +19,7 @@ export interface ProcessedPDF {
         correctAnswer: number;
         explanation: string;
     }[];
+    flashcards?: { front: string; back: string; }[]; // Added flashcards
     sourceUrl: string;
     extractedText?: string;
 }
@@ -32,11 +33,14 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 3, de
         try {
             const response = await fetch(url, options);
             if (!response.ok && (response.status === 429 || response.status >= 500)) {
+                // Consider logging the specific error response here if needed for debugging
+                // console.warn(`Attempt ${attempt + 1}: Request to ${url} failed with status ${response.status}. Retrying in ${delayMs * (attempt + 1)}ms...`);
                 await sleep(delayMs * (attempt + 1));
                 continue;
             }
             return response;
         } catch (error) {
+            // console.warn(`Attempt ${attempt + 1}: Request to ${url} failed with error: ${error}. Retrying in ${delayMs * (attempt + 1)}ms...`);
             if (attempt === retries - 1) throw error;
             await sleep(delayMs * (attempt + 1));
         }
@@ -67,6 +71,7 @@ const extractCandidateText = (responseText: string): string => {
         }
         return "Error: No text found in the expected structure.";
     } catch (err) {
+        // Check for common API key error message in the raw response text
         if (responseText.toLowerCase().includes("api key not valid")) return "Error: Invalid API Key.";
         return "Error: Could not parse the AI response.";
     }
@@ -85,7 +90,7 @@ export async function processPDF(
         throw new Error('Gemini API Key missing or invalid in processPDF.');
     }
 
-    const GEMINI_MODEL = 'gemini-2.0-flash';
+    const GEMINI_MODEL = 'gemini-1.5-flash-latest'; // As per provided code
     const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiApiKeyParam}`;
     let extractedTextFromPdf = '';
 
@@ -112,7 +117,7 @@ export async function processPDF(
                 extractedTextFromPdf += `[Text extraction failed on page ${pageNum}]\n\n`;
             }
              safeProgress({
-                progress: 15 + Math.round((pageNum / numPages) * 25),
+                progress: 15 + Math.round((pageNum / numPages) * 25), // Up to 40%
                 status: `Extracting text: Page ${pageNum}/${numPages}`,
                 error: null
             });
@@ -140,11 +145,11 @@ export async function processPDF(
                     const { data: { text } } = await worker.recognize(canvas);
                     ocrText += text + '\n\n';
                     safeProgress({
-                        progress: 40 + Math.round((pageNum / numPages) * 20),
+                        progress: 40 + Math.round((pageNum / numPages) * 20), // Up to 60%
                         status: `Performing OCR: Page ${pageNum}/${numPages}`,
                         error: null
                     });
-                     canvas.width = 0; canvas.height = 0;
+                     canvas.width = 0; canvas.height = 0; // Help GC
                 }
                 extractedTextFromPdf = ocrText.replace(/(\s*\n\s*){3,}/g, '\n\n').replace(/[ \t]{2,}/g, ' ').trim();
                 safeProgress({ progress: 60, status: 'OCR complete.', error: null });
@@ -169,24 +174,16 @@ export async function processPDF(
 
         safeProgress({ progress: 60, status: 'Generating comprehensive study notes...', error: null });
         const noteInputText = extractedTextFromPdf;
-
-        const detailedNotePrompt = `**Objective:** Create comprehensive, detailed, and well-structured study notes in Markdown format based on the provided text from "${file.name}". These notes are intended for a student learning the subject matter covered in the document.
-**Core Task:** Do not just summarize. Synthesize the information, explain concepts clearly, elaborate on key points, and structure the content logically for learning and revision. Use the provided text as the primary source of truth, but leverage your understanding of the topic to enhance clarity, add context where appropriate (without contradicting the text), and organize the material effectively for studying. Avoid simply stating "The text says...". Instead, present the information directly.
-**Mandatory Instructions:**
-1.  **Study Focus:** Ensure the notes are pedagogically valuable. Explain concepts, define key terms clearly, connect related ideas (even if presented separately in the text), and highlight important facts, principles, or processes.
-2.  **Comprehensiveness & Depth:** Cover ALL significant topics, sub-topics, arguments, data, and examples present in the text. Go into substantial detail. Aim for lengthy and exhaustive notes that capture the nuances of the source material.
-3.  **Structure & Formatting:** Utilize Markdown extensively and strategically: Headings (#, ##, ###), Lists (*, -, +, 1., 2.), Emphasis (**bold**, *italics*, \`\`\`inline code\`\`\`), Tables, Code Blocks (\`\`\`), Blockquotes (>), Describe visuals.
-4.  **Output Requirements:** Generate **only** the raw Markdown note content. **NO** introductory or concluding phrases. Start *immediately* with the first Markdown element.
-**Source Text Content:**\n---\n${noteInputText}\n---\n**Generated Comprehensive Study Notes (Markdown Format):**`;
+        const detailedNotePrompt = `**Objective:** Create comprehensive, detailed, and well-structured study notes in Markdown format based on the provided text from "${file.name}". These notes are intended for a student learning the subject matter covered in the document.\n**Core Task:** Do not just summarize. Synthesize the information, explain concepts clearly, elaborate on key points, and structure the content logically for learning and revision. Use the provided text as the primary source of truth, but leverage your understanding of the topic to enhance clarity, add context where appropriate (without contradicting the text), and organize the material effectively for studying. Avoid simply stating "The text says...". Instead, present the information directly.\n**Mandatory Instructions:**\n1.  **Study Focus:** Ensure the notes are pedagogically valuable. Explain concepts, define key terms clearly, connect related ideas (even if presented separately in the text), and highlight important facts, principles, or processes.\n2.  **Comprehensiveness & Depth:** Cover ALL significant topics, sub-topics, arguments, data, and examples present in the text. Go into substantial detail. Aim for lengthy and exhaustive notes that capture the nuances of the source material.\n3.  **Structure & Formatting:** Utilize Markdown extensively and strategically: Headings (#, ##, ###), Lists (*, -, +, 1., 2.), Emphasis (**bold**, *italics*, \`\`\`inline code\`\`\`), Tables, Code Blocks (\`\`\`), Blockquotes (>), Describe visuals.\n4.  **Output Requirements:** Generate **only** the raw Markdown note content. **NO** introductory or concluding phrases. Start *immediately* with the first Markdown element.\n**Source Text Content:**\n---\n${noteInputText}\n---\n**Generated Comprehensive Study Notes (Markdown Format):**`;
         let detailedNoteContent = 'Error: AI detailed study note generation failed.';
         try {
             const noteOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: detailedNotePrompt }] }], generationConfig: { temperature: 0.65, maxOutputTokens: 8192 } }) };
             const noteResponse = await fetchWithRetry(GEMINI_ENDPOINT, noteOptions);
             const noteRawText = extractCandidateText(await noteResponse.text());
             if (noteRawText.startsWith("Error:")) {
-                 detailedNoteContent = noteRawText;
+                 detailedNoteContent = noteRawText; // Keep error message
                  safeProgress({ progress: 75, status: 'Note generation failed.', error: noteRawText });
-            } else if (noteRawText.trim().length < 100) {
+            } else if (noteRawText.trim().length < 100) { // Arbitrary short content check
                  const shortNoteError = "AI generated unexpectedly short study notes.";
                  detailedNoteContent = noteRawText.trim() + `\n\n[Warning: ${shortNoteError}]`;
                  safeProgress({ progress: 75, status: 'Note generation resulted in short content.', error: shortNoteError });
@@ -210,8 +207,63 @@ export async function processPDF(
             const kpText = extractCandidateText(await kpResponse.text());
             if (kpText.startsWith("Error:")) { keyPoints = [`Error: Key points failed (${kpText})`]; }
             else { const parsed = kpText.split('\n').map(l => l.trim().match(/^(\*|-|\d+\.)\s*(.+)/)).filter(match => match && match[2] && match[2].trim().length > 5).map(match => match![2].trim()); keyPoints = parsed.length > 0 ? parsed.slice(0, 10) : ['Error: Could not parse key points.']; }
-            safeProgress({ progress: 85, status: `Key points generated (${keyPoints.length}).`, error: keyPoints[0].startsWith("Error:") ? keyPoints[0] : null });
-        } catch (kpError) { const errorMsg = kpError instanceof Error ? kpError.message : 'Unknown key points error'; keyPoints = [`Error: Key points failed (${errorMsg})`]; safeProgress({ progress: 85, status: 'Key points generation failed.', error: errorMsg }); }
+            safeProgress({ progress: 80, status: `Key points generated (${keyPoints.length}).`, error: keyPoints[0].startsWith("Error:") ? keyPoints[0] : null });
+        } catch (kpError) { const errorMsg = kpError instanceof Error ? kpError.message : 'Unknown key points error'; keyPoints = [`Error: Key points failed (${errorMsg})`]; safeProgress({ progress: 80, status: 'Key points generation failed.', error: errorMsg }); }
+
+        safeProgress({ progress: 80, status: 'Generating flashcards...', error: null });
+        const flashcardsInputText = extractedTextFromPdf;
+        const flashcardsPrompt = `**Objective:** Generate **between 10 to 15 flashcards** for studying the provided text from "${file.name}".
+**Mandatory Instructions:**
+1.  **Study Relevance:** Flashcards MUST focus on key terms, definitions, concepts, or important facts from the text.
+2.  **Text-Grounded:** Content for both front and back MUST be derived from the text.
+3.  **Conciseness:** Keep front and back text concise and to the point for effective memorization.
+4.  **Quantity:** Aim for 10-15 distinct flashcards.
+5.  **Strict Formatting:** Adhere **unfailingly** to the following format for each flashcard, separated by "---FLASHCARD_DIVIDER---":
+    Front: [Text for the front of the card - typically a question, term, or concept]
+    Back: [Text for the back of the card - typically the answer, definition, or explanation]
+    ---FLASHCARD_DIVIDER---
+**Source Text:**\n---\n${flashcardsInputText}\n---\n(Context Only Key Points: ${keyPoints.join('; ')})\n**Generated Flashcards:**\nFront:`; // Start with "Front:" to guide the model
+        let flashcards: ProcessedPDF['flashcards'] = [];
+        try {
+            const fcOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: flashcardsPrompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 2048 } }) };
+            const fcResponse = await fetchWithRetry(GEMINI_ENDPOINT, fcOptions);
+            const fcRawText = extractCandidateText(await fcResponse.text());
+
+            if (fcRawText.startsWith("Error:")) {
+                throw new Error(`Flashcard Generation Failed: ${fcRawText}`);
+            }
+
+            const flashcardBlocks = fcRawText.split(/---FLASHCARD_DIVIDER---/i);
+            for (const block of flashcardBlocks) {
+                if (flashcards.length >= 15) break;
+                const trimmedBlock = block.trim();
+                if (trimmedBlock.length < 10) continue; // Minimal length for a block
+
+                const frontMatch = trimmedBlock.match(/^(?:Front:\s*)?([\s\S]*?)\s*\nBack:\s*([\s\S]*)$/is);
+
+                if (frontMatch && frontMatch[1] && frontMatch[2]) {
+                    const frontText = frontMatch[1].trim();
+                    const backText = frontMatch[2].trim();
+                    if (frontText.length > 2 && backText.length > 2) { // Basic validity
+                        flashcards.push({ front: frontText, back: backText });
+                    }
+                }
+            }
+            
+            if (flashcards.length > 0) {
+                 safeProgress({ progress: 85, status: `Generated ${flashcards.length} flashcards.`, error: null });
+            } else if (!fcRawText.startsWith("Error:")) { // No API error, but no cards parsed
+                 safeProgress({ progress: 85, status: `Generated 0 flashcards. (Possible parsing issue or no relevant content)`, error: "No flashcards parsed from AI response, or AI returned no usable cards." });
+            } else { // fcRawText started with an error, handled by catch block below
+                throw new Error("Flashcard generation resulted in no usable cards due to an earlier error.");
+            }
+
+        } catch (fcError) {
+            const errorMsg = fcError instanceof Error ? fcError.message : 'Unknown flashcards error';
+            safeProgress({ progress: 85, status: 'Flashcards generation failed.', error: errorMsg });
+            flashcards = [{ front: 'Flashcard generation failed.', back: `Reason: ${errorMsg}` }]; // Provide a default error flashcard
+        }
+
 
         safeProgress({ progress: 85, status: 'Generating study questions...', error: null });
         const questionsInputText = extractedTextFromPdf;
@@ -252,7 +304,11 @@ export async function processPDF(
                     }
                 }
             }
-            if (questions.length === 0) { throw new Error("No valid study questions parsed."); }
+            if (questions.length === 0 && !qRawText.startsWith("Error:")) { // No API error, but nothing parsed
+                throw new Error("No valid study questions parsed from AI response.");
+            } else if (questions.length === 0 && qRawText.startsWith("Error:")) {
+                // Error already captured, will be part of the thrown error message
+            }
             safeProgress({ progress: 95, status: `Generated ${questions.length} study questions.`, error: questions.length < 10 ? `Generated only ${questions.length}/10 questions.` : null });
         } catch (qError) {
             const errorMsg = qError instanceof Error ? qError.message : 'Unknown questions error';
@@ -265,6 +321,7 @@ export async function processPDF(
             title: file.name.replace(/\.pdf$/i, ''),
             content: detailedNoteContent,
             keyPoints,
+            flashcards, // Added
             questions,
             sourceUrl: pdfUrl,
             extractedText: extractedTextFromPdf,
@@ -277,8 +334,9 @@ export async function processPDF(
             title: file.name.replace(/\.pdf$/i, ''),
             content: `Error: Processing failed. ${errorMessage}`,
             keyPoints: ['Processing failed.'],
+            flashcards: [], // Initialize as empty array on general failure
             questions: [],
-            sourceUrl: '',
+            sourceUrl: '', // Potentially pdfUrl could be set if upload succeeded before failure
             extractedText: extractedTextFromPdf || `Processing failed, no text extracted. Error: ${errorMessage}`,
         };
     }
