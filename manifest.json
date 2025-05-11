@@ -1,9 +1,31 @@
 {
   "name": "TaskMaster AI",
-  "short_name": "TaskMaster",
-  "description": "AI-powered task management and productivity tools.",
+  "short_name": "TaskMasterAI",
+  "description": "Elevate your productivity with TaskMaster AI. Smart AI-powered tools for task management, study, organization, and achieving goals.",
+  "icons": [
+    {
+      "src": "/android-icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/android-icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-icon-180x180.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
   "start_url": "/",
   "display": "standalone",
+  "scope": "/",
   "background_color": "#ffffff",
-  "theme_color": "#ffffff"
+  "theme_color": "#6366F1",
+  "orientation": "portrait-primary"
 }
