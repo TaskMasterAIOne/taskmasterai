@@ -7,7 +7,7 @@ import {
     Lock, Trash2, Copy, RefreshCw, SplitSquareVertical, Menu, List, Briefcase,
     Share2, ClipboardCopy, Eye, ZoomIn, ZoomOut, RotateCcw, Crown, Info,
     PanelRightClose, PanelLeftClose, GripVertical, PlusCircle, Trash,
-    Image as ImageIcon, Layers, ImagePlus, Download, // Added Download
+    Image as ImageIcon, Layers, ImagePlus,
 } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { auth, db } from '../lib/firebase';
@@ -19,8 +19,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { processPDF, ProcessedPDF } from '../lib/pdf-processor'; // Assuming ProcessedPDF type is exported
-import { processYouTube } // Assuming ProcessedYouTube type is exported
-    from '../lib/youtube-processor'; 
+import { processYouTube } from '../lib/youtube-processor'; // Assuming ProcessedYouTube type is exported
 import {
     saveNote, savePersonalNote, updateNote, processTextToAINoteData,
     deleteNote, toggleNotePublicStatus, regenerateStudyQuestions,
@@ -31,8 +30,7 @@ import {
 import { NewNoteModal } from './NewNoteModal';
 import { SplitView } from './SplitView';
 import { NoteChat, NoteChatHandle, ImageData } from './NoteChat';
-import { geminiApiKey, generateImageWithImagen } from '../lib/dashboard-firebase';
-
+import { geminiApiKey} from '../lib/dashboard-firebase'; // generateImageWithImagen assumed to be here
 
 import {
     UserTier,
@@ -147,7 +145,6 @@ export function Notes() {
     const [pdfChatSplitRatio, setPdfChatSplitRatio] = useState(65);
     const [isResizingPdfChatSplit, setIsResizingPdfChatSplit] = useState(false);
     const [firstPageNaturalWidth, setFirstPageNaturalWidth] = useState<number | null>(null);
-    const [pdfPageInput, setPdfPageInput] = useState<string>(String(currentPage));
 
 
     const [selectedPdfText, setSelectedPdfText] = useState<string | null>(null);
@@ -195,7 +192,7 @@ export function Notes() {
 
                 let resolvedTier: UserTier = 'basic';
                 try {
-                    resolvedTier = await determineUserTier(firebaseUser.uid, firebaseUser.email); 
+                    resolvedTier = await determineUserTier(firebaseUser.uid, firebaseUser.email); // Using renamed determineUserTier
                     setUserTier(resolvedTier);
                 } catch (error) {
                     console.error("Notes: Error fetching user tier:", error);
@@ -320,6 +317,7 @@ export function Notes() {
         if (!showPdfViewer) {
             setNumPages(null);
             setPdfError(null);
+            // setPdfScale(1.0); // Scale is now auto-managed, reset might not be desired here
             setPdfRotation(0);
             setCurrentPage(1);
             setShowHighlightButtons(false);
@@ -330,16 +328,16 @@ export function Notes() {
     }, [showPdfViewer]);
 
     useEffect(() => {
+        // Reset firstPageNaturalWidth when the PDF source changes, or viewer is hidden/note changes
         if (!showPdfViewer || !selectedNote || selectedNote.type !== 'pdf' || !selectedNote.sourceUrl) {
             setFirstPageNaturalWidth(null);
         } else {
+            // If PDF sourceUrl changes for an already visible PDF viewer, also reset
+            // This ensures that onLoadSuccess for Page 1 can capture the new width
             setFirstPageNaturalWidth(null); 
         }
     }, [showPdfViewer, selectedNote?.id, selectedNote?.sourceUrl, selectedNote?.type]);
 
-    useEffect(() => {
-        setPdfPageInput(String(currentPage));
-    }, [currentPage]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -349,7 +347,7 @@ export function Notes() {
                     setShowHighlightButtons(false);
                     setSelectedPdfText(null);
                     setHighlightButtonPosition(null);
-                    // Not clearing selection here to allow user to re-adjust
+                    window.getSelection()?.removeAllRanges();
                 }
             }
         };
@@ -390,7 +388,7 @@ export function Notes() {
     
         if (firstPageNaturalWidth > 0 && targetPageDisplayWidth > 0) {
             const newScale = targetPageDisplayWidth / firstPageNaturalWidth;
-            setPdfScale(Math.max(0.15, Math.min(5.0, newScale)));
+            setPdfScale(Math.max(0.15, Math.min(5.0, newScale))); // Increased max scale slightly
         }
     }, [isResizingPdfChatSplit, firstPageNaturalWidth, isMobile]);
 
@@ -401,6 +399,8 @@ export function Notes() {
              document.removeEventListener('mouseup', handleResizeMouseUp);
              document.body.style.cursor = 'default';
              document.body.style.userSelect = 'auto';
+             // Final scale adjustment on mouse up can sometimes be beneficial if live is laggy
+             // but current setup does live adjustment. If issues, this is a place to refine.
          }
     }, [isResizingPdfChatSplit, handleResizeMouseMove]);
 
@@ -472,8 +472,8 @@ export function Notes() {
         if (turnOn) {
             if (selectedNote?.type === 'pdf' && selectedNote.sourceUrl) {
                 setShowPdfViewer(true);
-                setCurrentPage(1); 
-                setPdfPageInput('1');
+                setCurrentPage(1);
+                // pdfScale is now auto-managed, initial set happens in Page onLoadSuccess
                 setPdfRotation(0);
                 setShowHighlightButtons(false);
                 setSelectedPdfText(null);
@@ -742,10 +742,11 @@ export function Notes() {
         if (!user) return;
         setUploadProgress({ progress: 0, status: 'Creating note...', error: null });
         try {
+            // savePersonalNote returns the new note ID
             const newNoteId = await savePersonalNote(user.uid, title, content, tags);
-            const newNoteDoc = await getNoteById(newNoteId); 
+            const newNoteDoc = await getNoteById(newNoteId); // Fetch the full note data
             if (newNoteDoc) {
-                handleSelectNote(newNoteDoc as Note); 
+                handleSelectNote(newNoteDoc as Note); // Cast FirebaseNoteData to Note for selection
             }
             setUploadProgress({ progress: 100, status: 'Note created!', error: null });
             setShowNewNoteModal(false);
@@ -758,7 +759,8 @@ export function Notes() {
     };
 
     const handleCreateAINote = async (text: string) => {
-        const currentApiKey = geminiApiKey; 
+        // Ensure geminiApiKey (the actual string) is used
+        const currentApiKey = geminiApiKey; // Use the imported const
 
         if (!user || !currentApiKey) {
             setUploadProgress({ progress: 0, status: '', error: 'AI features not available (check user/API key).' });
@@ -769,13 +771,16 @@ export function Notes() {
         setUploadProgress({ progress: 0, status: 'Processing text...', error: null });
         try {
             setUploadProgress(prev => ({ ...prev, progress: 20 }));
+            // processTextToAINoteData(text, userId, apiKey)
             const aiNoteData = await processTextToAINoteData(text, user.uid, currentApiKey);
             
             setUploadProgress(prev => ({ ...prev, progress: 80, status: 'Saving note...' }));
+            // aiNoteData should include userId from processTextToAINoteData
             const newNoteId = await saveNote({
-                ...aiNoteData, 
+                ...aiNoteData, // This includes title, content, keyPoints, questions, userId, type
                 isPublic: false,
                 tags: ['personal'],
+                // type: 'personal' // Type is already set in aiNoteData if `processTextToAINoteData` sets it
             });
             await incrementNoteUsage('pdfAi');
             
@@ -795,7 +800,7 @@ export function Notes() {
     };
 
         const handlePDFUpload = async (file: File) => {
-        const currentApiKey = geminiApiKey; 
+        const currentApiKey = geminiApiKey; // Use the imported const
 
         if (!user || !currentApiKey) {
             setUploadProgress({ progress: 0, status: '', error: 'AI features not available (check user/API key).' });
@@ -805,6 +810,7 @@ export function Notes() {
         if (!checkNoteLimit('pdfAi')) return;
         setUploadProgress({ progress: 0, status: 'Uploading PDF...', error: null });
         try {
+            // ProcessedPDF type from pdf-processor now includes flashcards?
             const processedData: ProcessedPDF = await processPDF( file, user.uid, currentApiKey, (progressState) => setUploadProgress(progressState) );
             
             if (!processedData.extractedText || processedData.extractedText.trim().length === 0) {
@@ -817,7 +823,7 @@ export function Notes() {
                 content: processedData.content,
                 keyPoints: processedData.keyPoints,
                 questions: processedData.questions,
-                flashcards: processedData.flashcards, 
+                flashcards: processedData.flashcards, // <<< --- ADD THIS LINE ---
                 type: 'pdf',
                 sourceUrl: processedData.sourceUrl,
                 isPublic: false,
@@ -843,7 +849,7 @@ export function Notes() {
     };
 
     const handleYoutubeLink = async (url: string) => {
-        const currentApiKey = geminiApiKey; 
+        const currentApiKey = geminiApiKey; // Use the imported const
 
         if (!user || !currentApiKey) {
             setUploadProgress({ progress: 0, status: '', error: 'AI features not available (check user/API key).' });
@@ -853,6 +859,7 @@ export function Notes() {
         if (!checkNoteLimit('youtube')) return;
         setUploadProgress({ progress: 0, status: 'Processing YouTube...', error: null });
         try {
+            // Assuming processYouTube takes (url, userId, apiKey, onProgress)
             const processedData = await processYouTube( url, user.uid, currentApiKey, (progressState) => setUploadProgress(progressState) );
             
             setUploadProgress(prev => ({ ...prev, progress: 95, status: 'Saving note...' }));
@@ -861,7 +868,7 @@ export function Notes() {
                 content: processedData.content,
                 keyPoints: processedData.keyPoints,
                 questions: processedData.questions,
-                flashcards: processedData.flashcards, 
+                flashcards: processedData.flashcards, // <<< --- ADD THIS LINE ---
                 type: 'youtube',
                 sourceUrl: processedData.sourceUrl || url,
                 isPublic: false,
@@ -925,7 +932,7 @@ export function Notes() {
     }, [selectedNote?.flashcards]);
 
     const handleRegenerateQuestions = async () => {
-        const currentApiKey = geminiApiKey; 
+        const currentApiKey = geminiApiKey; // Use the imported const
 
         if (!selectedNote || !currentApiKey || isRegeneratingQuestions || !user) return;
 
@@ -938,7 +945,9 @@ export function Notes() {
         setIsRegeneratingQuestions(true);
         setUploadProgress({ progress: 0, status: 'Regenerating questions...', error: null });
         try {
+            // regenerateStudyQuestions (noteId, content, apiKey)
             await regenerateStudyQuestions(selectedNote.id, selectedNote.content, currentApiKey);
+            // onSnapshot will update the selectedNote with new questions
             setQuestionAnswers({});
 
             if (userTier !== 'premium') {
@@ -962,7 +971,7 @@ export function Notes() {
         setNumPages(nextNumPages);
         setPdfError(null);
         setCurrentPage(1);
-        setPdfPageInput('1');
+        // firstPageNaturalWidth and initial scale will be set by Page 1's onLoadSuccess
     };
     const onDocumentLoadError = (error: Error) => {
         console.error('Failed to load PDF:', error);
@@ -971,40 +980,9 @@ export function Notes() {
         setFirstPageNaturalWidth(null);
     };
 
-    const changePage = (offset: number) => {
-      setCurrentPage(prevPage => {
-          const newPage = Math.min(Math.max(prevPage + offset, 1), numPages || 1);
-          setPdfPageInput(String(newPage));
-          return newPage;
-      });
-    };
-    
-    const handlePdfPageInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setPdfPageInput(e.target.value);
-    };
-
-    const handleGoToPage = () => {
-        const pageNumber = parseInt(pdfPageInput, 10);
-        if (numPages && !isNaN(pageNumber) && pageNumber >= 1 && pageNumber <= numPages) {
-            if (pageNumber !== currentPage) {
-                setCurrentPage(pageNumber);
-            }
-        } else {
-            setPdfPageInput(String(currentPage)); // Reset to current valid page if input is invalid
-        }
-    };
-
+    const changePage = (offset: number) => setCurrentPage(prevPage => Math.min(Math.max(prevPage + offset, 1), numPages || 1));
     const changeScale = (amount: number) => setPdfScale(prevScale => Math.max(0.15, Math.min(5.0, prevScale + amount)));
     const changeRotation = (amount: number) => setPdfRotation(prevRotation => (prevRotation + amount + 360) % 360);
-
-    const handleDownloadPdf = () => {
-        if (selectedNote?.sourceUrl && selectedNote.type === 'pdf') {
-            window.open(selectedNote.sourceUrl, '_blank');
-        } else {
-            setUploadProgress({ progress: 0, status: '', error: 'No PDF source available for download.' });
-            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
-        }
-    };
 
     const showSideBySideChat = selectedNote?.type === 'pdf' && showPdfViewer && !!selectedNote.sourceUrl && !!user && !!geminiApiKey && !isMobile;
 
@@ -1016,51 +994,24 @@ export function Notes() {
         const selection = window.getSelection();
         if (selection && !selection.isCollapsed && selection.rangeCount > 0) {
             const range = selection.getRangeAt(0);
-            
-            let commonAncestor = range.commonAncestorContainer;
-            // If commonAncestor is a Text node, get its parentElement
-            if (commonAncestor.nodeType === Node.TEXT_NODE) {
-                commonAncestor = commonAncestor.parentElement!;
-            }
-
-            // Ensure commonAncestor is an HTMLElement before calling closest
-            if (!(commonAncestor instanceof HTMLElement)) {
-                if (showHighlightButtons) { // If buttons were visible, hide them
-                    setShowHighlightButtons(false);
-                    setSelectedPdfText(null);
-                    setHighlightButtonPosition(null);
-                }
-                return; // Exit if not an element (e.g. document fragment or other node type)
-            }
-            
-            const textLayer = commonAncestor.closest('.react-pdf__Page__textContent');
-
+            const textLayer = (range.commonAncestorContainer as HTMLElement).closest('.react-pdf__Page__textContent');
             if (textLayer && pdfViewerContainerRef.current.contains(textLayer)) {
                 const currentSelectedText = selection.toString().trim();
-                if (currentSelectedText.length > 2) { // Minimum 3 characters to trigger
+                if (currentSelectedText.length > 2) {
                     setSelectedPdfText(currentSelectedText);
                     const containerRect = pdfViewerContainerRef.current.getBoundingClientRect();
                     const rangeRect = range.getBoundingClientRect();
                     const scrollTop = pdfViewerContainerRef.current.scrollTop;
                     const scrollLeft = pdfViewerContainerRef.current.scrollLeft;
-                    
-                    let top = rangeRect.top - containerRect.top + scrollTop - 40; 
-                    let left = rangeRect.left - containerRect.left + scrollLeft + (rangeRect.width / 2);
-
-                    top = Math.max(scrollTop + 5, top);
-                    left = Math.max(scrollLeft + 5, left);
-                    // Ensure popup doesn't go off-screen to the right (assuming ~120px width for buttons)
-                    left = Math.min(left, scrollLeft + containerRect.width - 120); 
-
-
-                    setHighlightButtonPosition({ top, left });
+                    const top = rangeRect.top - containerRect.top + scrollTop - 35;
+                    const left = rangeRect.left - containerRect.left + scrollLeft + (rangeRect.width / 2);
+                    setHighlightButtonPosition({ top: Math.max(scrollTop + 5, top), left: Math.max(scrollLeft + 5, left) });
                     setShowHighlightButtons(true);
-                    return; 
+                    return;
                 }
             }
         }
-        // If any condition fails, or selection is too short/invalid, or no valid text layer found
-        if (showHighlightButtons) { 
+        if (showHighlightButtons) {
             setShowHighlightButtons(false);
             setSelectedPdfText(null);
             setHighlightButtonPosition(null);
@@ -1100,7 +1051,6 @@ export function Notes() {
             }
             setShowHighlightButtons(false);
             setSelectedPdfText(null);
-             // Do not clear selection here, let user do it if they want or it will clear on next click.
         } else {
              console.warn("Chat about highlight failed: No selected text, note, or chat ref with addPdfContextSegment.");
         }
@@ -1108,7 +1058,7 @@ export function Notes() {
 
 
     const handleGenerateImageForNote = useCallback(async () => {
-        const currentApiKey = geminiApiKey; 
+        const currentApiKey = geminiApiKey; // Use the imported const
         if (!imageGenPrompt.trim() || !selectedNote || !currentApiKey || isGeneratingImage || !user) {
             setImageGenError("Prompt is required, a note must be selected, and AI features must be available.");
             setTimeout(() => setImageGenError(null), 4000);
@@ -1207,43 +1157,13 @@ export function Notes() {
                          <div className="flex flex-row h-full overflow-hidden">
                              <div className="flex flex-col overflow-hidden relative border-r border-gray-200 dark:border-gray-700" style={{ width: `${pdfChatSplitRatio}%` }}>
                                   <div className={`flex-shrink-0 p-1.5 border-b ${borderColor} ${isIlluminateEnabled ? 'bg-gray-50' : 'bg-gray-800/50'} flex items-center justify-between gap-1 sticky top-0 z-10`}>
-                                      <div className="flex items-center gap-1">
-                                        <button onClick={() => togglePdfViewer(false)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Show Note Only"> <FileText className="w-4 h-4" /> </button>
-                                      </div>
+                                      <div className="flex items-center gap-1"><button onClick={() => togglePdfViewer(false)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Show Note Only"> <FileText className="w-4 h-4" /> </button></div>
                                       <div className="flex items-center gap-1 text-xs font-medium">
-                                        <span className={`text-xs ${textColor}`}>Page</span>
-                                        <input
-                                            type="number"
-                                            value={pdfPageInput}
-                                            onChange={handlePdfPageInputChange}
-                                            onKeyPress={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleGoToPage(); (e.target as HTMLInputElement).blur(); } }}
-                                            onBlur={handleGoToPage}
-                                            className={`w-14 text-center ${inputBg} ${inputTextColor} ${placeholderColor} text-xs rounded p-1 border ${borderColor} focus:outline-none focus:ring-1 focus:ring-blue-500`}
-                                            min="1"
-                                            max={numPages || undefined}
-                                            disabled={!numPages}
-                                            aria-label="Current Page Number"
-                                        />
-                                        {numPages != null && <span className={`text-xs ${textColor}`}>of {numPages}</span>}
+                                        <button onClick={() => changePage(-1)} disabled={currentPage <= 1} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor} ${currentPage <= 1 ? buttonDisabledClass : ''}`} title="Previous Page"> <ChevronLeft className="w-4 h-4" /> </button>
+                                         <span className={`px-1 ${textColor}`}>Page {currentPage} {numPages ? `/ ${numPages}` : ''}</span>
+                                         <button onClick={() => changePage(1)} disabled={currentPage >= (numPages || 1)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor} ${currentPage >= (numPages || 1) ? buttonDisabledClass : ''}`} title="Next Page"> <ChevronRight className="w-4 h-4" /> </button>
                                      </div>
-                                     <div className="flex items-center gap-1"> 
-                                        <div className={`w-px h-4 ${isIlluminateEnabled ? 'bg-gray-300' : 'bg-gray-600'} mx-0.5`}></div> 
-                                        <button onClick={() => changeScale(-0.1)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Zoom Out"> <ZoomOut className="w-4 h-4" /> </button> 
-                                        <span className={`text-xs font-medium px-1 ${textColor}`}>{Math.round(pdfScale * 100)}%</span> 
-                                        <button onClick={() => changeScale(0.1)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Zoom In"> <ZoomIn className="w-4 h-4" /> </button> 
-                                        <div className={`w-px h-4 ${isIlluminateEnabled ? 'bg-gray-300' : 'bg-gray-600'} mx-0.5`}></div> 
-                                        <button onClick={() => changeRotation(-90)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Rotate Left"> <RotateCcw className="w-4 h-4 transform -scale-x-100" /> </button> 
-                                        <button onClick={() => changeRotation(90)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Rotate Right"> <RotateCcw className="w-4 h-4" /> </button> 
-                                        <div className={`w-px h-4 ${isIlluminateEnabled ? 'bg-gray-300' : 'bg-gray-600'} mx-0.5`}></div>
-                                        <button 
-                                            onClick={handleDownloadPdf} 
-                                            disabled={!selectedNote?.sourceUrl || selectedNote.type !== 'pdf'} 
-                                            className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor} ${(!selectedNote?.sourceUrl || selectedNote.type !== 'pdf') ? buttonDisabledClass : ''}`} 
-                                            title="Download PDF"
-                                        >
-                                            <Download className="w-4 h-4" />
-                                        </button>
-                                    </div>
+                                     <div className="flex items-center gap-1"> <div className={`w-px h-4 ${isIlluminateEnabled ? 'bg-gray-300' : 'bg-gray-600'} mx-0.5`}></div> <button onClick={() => changeScale(-0.1)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Zoom Out"> <ZoomOut className="w-4 h-4" /> </button> <span className={`text-xs font-medium px-1 ${textColor}`}>{Math.round(pdfScale * 100)}%</span> <button onClick={() => changeScale(0.1)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Zoom In"> <ZoomIn className="w-4 h-4" /> </button> <div className={`w-px h-4 ${isIlluminateEnabled ? 'bg-gray-300' : 'bg-gray-600'} mx-0.5`}></div> <button onClick={() => changeRotation(-90)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Rotate Left"> <RotateCcw className="w-4 h-4 transform -scale-x-100" /> </button> <button onClick={() => changeRotation(90)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Rotate Right"> <RotateCcw className="w-4 h-4" /> </button> </div>
                                   </div>
                                   <p className={`flex-shrink-0 text-center text-[10px] p-0.5 ${isIlluminateEnabled ? 'bg-blue-50 text-blue-700' : 'bg-gray-800 text-gray-400'} sticky top-[37px] z-[9]`}>Highlight any text in the PDF to open the Explain or Chat options.</p>
                                  <div ref={pdfViewerContainerRef} onMouseUp={handlePdfTextSelection} className={`flex-1 overflow-auto relative ${isIlluminateEnabled ? 'bg-gray-100' : 'bg-gray-800/30'}`} >
