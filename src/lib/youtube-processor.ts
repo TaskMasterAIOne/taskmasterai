@@ -10,13 +10,12 @@ interface ProcessedYouTube {
     content: string; // Detailed Markdown Note
     keyPoints: string[];
     questions: { question: string; options: string[]; correctAnswer: number; explanation: string; }[];
-    flashcards?: { front: string; back: string; }[]; // <<< --- ADDED THIS ---
     sourceUrl: string; // YouTube video URL
 }
 
 // --- IMPORTANT: REPLACE THIS WITH YOUR ACTUAL YOUTUBE API KEY ---
 // Make sure this key is enabled for the YouTube Data API v3 in your Google Cloud Console.
-const YOUTUBE_API_KEY = 'AIzaSyD4iosX8Y1X4bOThSGhYyUfCmWKBEkc6x4'; // CONFIRM THIS IS YOUR CORRECT KEY
+const YOUTUBE_API_KEY = 'AIzaSyCoxefrJ80LuyxLAdv0t55BN8SJ9_-orcM'; // CONFIRM THIS IS YOUR CORRECT KEY
 
 // Use imported Gemini key
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`;
@@ -43,7 +42,7 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 3, de
     }
     throw new Error(`Max retries reached for ${url}`);
 }
-const extractCandidateText = (responseText: string): string => { // Original extractCandidateText
+const extractCandidateText = (responseText: string): string => {
     try { const jsonResponse = JSON.parse(responseText); if (jsonResponse?.candidates?.[0]?.content?.parts?.[0]?.text) { return jsonResponse.candidates[0].content.parts[0].text; } if (jsonResponse?.error?.message) { console.error("Gemini API Error:", jsonResponse.error.message); return `Error: ${jsonResponse.error.message}`; } if (jsonResponse?.candidates?.[0]?.finishReason !== 'STOP') { console.warn(`Gemini finish reason: ${jsonResponse?.candidates?.[0]?.finishReason}`); return `Error: Generation stopped (${jsonResponse?.candidates?.[0]?.finishReason})`; } return "Error: No text found."; }
     catch (err) { console.error('Error parsing Gemini response:', err); return "Error: Cannot parse AI response."; }
 };
@@ -74,18 +73,18 @@ interface YouTubeCaptionListResponse { kind: string; etag: string; items: YouTub
 export async function processYouTube(
     url: string,
     userId: string,
-    apiKey: string, // Gemini key (original name)
+    apiKey: string, // Gemini key
     onProgress: (progress: ProcessingProgress) => void
 ): Promise<ProcessedYouTube> {
     const safeProgress = typeof onProgress === 'function' ? onProgress : () => {};
-    const currentGeminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`; // Original endpoint structure
+    const currentGeminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
     if (!apiKey) { // Gemini API Key check
         safeProgress({ progress: 0, status: 'Error', error: 'Gemini API Key missing.' });
         throw new Error('Gemini API Key missing.');
     }
 
-    const placeholderKeys = ['YOUR_YOUTUBE_API_KEY', 'AIzaSyD4iosX8Y1X4bOThSGhYyUfCmWKBEkc6x4', 'YOUR_ACTUAL_YOUTUBE_API_KEY_HERE','AIzaSyD4iosX8Y1X4bOThSGhYyUfCmWKBEkc6x4']; // Added your key to placeholder list
+    const placeholderKeys = ['YOUR_YOUTUBE_API_KEY', 'AIzaSyD4iosX8Y1X4bOThSGhYyUfCmWKBEkc6x4', 'YOUR_ACTUAL_YOUTUBE_API_KEY_HERE'];
     if (!YOUTUBE_API_KEY || YOUTUBE_API_KEY.trim() === '' || placeholderKeys.includes(YOUTUBE_API_KEY) ) {
         const errorMsg = `YouTube API Key missing/invalid. Detected key: "${YOUTUBE_API_KEY}". Please ensure a valid key is set in src/lib/youtube-processor.ts.`;
         safeProgress({ progress: 0, status: 'Error', error: 'YouTube API Key missing/invalid. Please replace the placeholder key.' });
@@ -103,7 +102,7 @@ export async function processYouTube(
         }
         const youtubeVideoUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
-        safeProgress({ progress: 5, status: 'Fetching video metadata...', error: null }); // Original progress
+        safeProgress({ progress: 5, status: 'Fetching video metadata...', error: null });
         const videoDetailsUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${YOUTUBE_API_KEY}`;
         const videoResponse = await fetchWithRetry(videoDetailsUrl, {});
         if (!videoResponse.ok) {
@@ -118,7 +117,7 @@ export async function processYouTube(
         const videoTitle = videoInfo.title || 'Untitled Video';
         const videoDescription = videoInfo.description || '';
 
-        safeProgress({ progress: 10, status: 'Fetching caption tracks list...', error: null }); // Original progress
+        safeProgress({ progress: 10, status: 'Fetching caption tracks list...', error: null });
         let fetchedTranscriptText = '';
         const captionsListUrl = `https://www.googleapis.com/youtube/v3/captions?part=snippet&videoId=${videoId}&key=${YOUTUBE_API_KEY}`;
         try {
@@ -132,8 +131,14 @@ export async function processYouTube(
                     if (!captionTrack) captionTrack = captionsData.items.find(t => t.snippet.trackKind !== 'forced');
 
                     if (captionTrack) {
-                        safeProgress({ progress: 20, status: `Attempting transcript download (${captionTrack.snippet.language}, ${captionTrack.snippet.name || 'default'})...`, error: null }); // Original progress
+                        safeProgress({ progress: 20, status: `Attempting transcript download (${captionTrack.snippet.language}, ${captionTrack.snippet.name || 'default'})...`, error: null });
                         const captionId = captionTrack.id;
+                        // --- IMPORTANT NOTE ON TRANSCRIPT DOWNLOAD ---
+                        // The YouTube Data API v3 requires OAuth 2.0 authorization to download caption track content.
+                        // An API key alone is NOT sufficient for this specific `captions.download` endpoint.
+                        // Therefore, the following request will likely fail with a 401 Unauthorized error.
+                        // The code will then fall back to using the video's description.
+                        // To enable direct transcript downloads, a full OAuth 2.0 flow or a server-side proxy with OAuth would be needed.
                         const downloadUrl = `https://www.googleapis.com/youtube/v3/captions/${captionId}?key=${YOUTUBE_API_KEY}&tfmt=srt`;
                         const transcriptResponse = await fetchWithRetry(downloadUrl, {});
 
@@ -141,12 +146,12 @@ export async function processYouTube(
                             const srtContent = await transcriptResponse.text();
                             fetchedTranscriptText = parseSrt(srtContent);
                             if (fetchedTranscriptText) {
-                                safeProgress({ progress: 30, status: 'Transcript successfully processed.', error: null }); // Original progress
+                                safeProgress({ progress: 30, status: 'Transcript successfully processed.', error: null });
                             } else {
                                  safeProgress({ progress: 30, status: 'Transcript parsed but empty. Using description.', error: 'Parsed transcript was empty.' });
                             }
                         } else {
-                            const errorText = await transcriptResponse.text();
+                            const errorText = await transcriptResponse.text(); // This contains the Google API error object
                             let readableError = `Transcript download failed (${transcriptResponse.status}).`;
                             if (transcriptResponse.status === 401) {
                                 readableError = 'Transcript download unauthorized (401). API key is not sufficient; OAuth 2.0 is required by YouTube for this. Using description.';
@@ -177,7 +182,7 @@ export async function processYouTube(
             baseTranscriptContent = "No transcript or description available.";
         }
 
-        safeProgress({ progress: 30, status: 'Generating detailed note...', error: null }); // Original progress
+        safeProgress({ progress: 30, status: 'Generating detailed note...', error: null });
         const detailedNotePrompt = `Analyze the following YouTube video information (title, description/transcript). Generate a detailed, well-structured note using Markdown.
 
 **Instructions:**
@@ -220,14 +225,12 @@ Provide *only* the generated raw Markdown note content below. Do not include any
             const noteRawText = extractCandidateText(await noteResponse.text());
             if (noteRawText.startsWith("Error:")) { throw new Error(noteRawText); }
             detailedNoteContent = noteRawText.trim();
-            // Note: Original code didn't have a progress update here, but it's good to keep one from previous step
-            // safeProgress({ progress: 55, status: 'Detailed note generated.', error: null });
         } catch (noteError) {
             console.error('Detailed note generation error (YT):', noteError);
-            safeProgress({ progress: 55, status: 'Note generation failed. Generating points...', error: noteError instanceof Error ? noteError.message : 'Unknown note gen error' }); // Original progress
+            safeProgress({ progress: 55, status: 'Note generation failed. Generating points...', error: noteError instanceof Error ? noteError.message : 'Unknown note gen error' });
         }
 
-        safeProgress({ progress: 55, status: 'Generating key points...', error: null }); // Original progress
+        safeProgress({ progress: 55, status: 'Generating key points...', error: null });
         const keyPointsPrompt = `Extract exactly 10 distinct key points from the following YouTube video info/transcript. List only the points. In your output, NEVER SAY: "Here are 10 distinct and significant key points from the provided text:" \n\nTitle: ${videoTitle}\nText:\n---\n${baseTranscriptContent.slice(0, 25000)}\n---\n\nKey Points:\n1. ...`;
         let keyPoints: string[] = ['Key points generation failed.'];
          try {
@@ -236,67 +239,9 @@ Provide *only* the generated raw Markdown note content below. Do not include any
              const kpText = extractCandidateText(await kpResponse.text());
              if (kpText.startsWith("Error:")) { console.error("KP Error:", kpText); }
              else { const parsed = kpText.split('\n').map(l=>l.trim().replace(/^\d+\.\s*/,'')).filter(p=>p.length > 5).slice(0,10); if (parsed.length > 0) keyPoints = parsed; }
-             // Note: Original code didn't have a progress update for KP success.
-             // safeProgress({ progress: 65, status: 'Key points generated.', error: keyPoints[0].startsWith("Error:") ? keyPoints[0] : null });
          } catch (kpError) { console.error('KP fetch error (YT):', kpError); }
 
-
-        // --- FLASHCARD GENERATION START ---
-        safeProgress({ progress: 65, status: 'Generating flashcards...', error: null }); // Adjusted progress
-        const flashcardsPrompt = `**Objective:** Generate **between 10 to 15 flashcards** for studying the YouTube video titled "${videoTitle}", based on its transcript/description.
-**Mandatory Instructions:**
-1.  **Study Relevance:** Flashcards MUST focus on key terms, definitions, concepts, or important facts from the video content.
-2.  **Text-Grounded:** Content for both front and back MUST be derived from the provided transcript/description.
-3.  **Conciseness:** Keep front and back text concise and to the point for effective memorization.
-4.  **Quantity:** Aim for 10-15 distinct flashcards.
-5.  **Strict Formatting:** Adhere **unfailingly** to the following format for each flashcard, separated by "---FLASHCARD_DIVIDER---":
-    Front: [Text for the front of the card - typically a question, term, or concept]
-    Back: [Text for the back of the card - typically the answer, definition, or explanation]
-    ---FLASHCARD_DIVIDER---
-**Video Transcript/Description:**\n---\n${baseTranscriptContent.slice(0, 25000)}\n---\n**Generated Flashcards:**\nFront:`;
-        let flashcards: ProcessedYouTube['flashcards'] = [];
-        try {
-            const fcOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: flashcardsPrompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 2048 } }) };
-            const fcResponse = await fetchWithRetry(currentGeminiEndpoint, fcOptions);
-            const fcRawText = extractCandidateText(await fcResponse.text());
-
-            if (fcRawText.startsWith("Error:")) {
-                throw new Error(`Flashcard Generation Failed: ${fcRawText}`);
-            }
-
-            const flashcardBlocks = fcRawText.split(/---FLASHCARD_DIVIDER---/i);
-            for (const block of flashcardBlocks) {
-                if (flashcards.length >= 15) break;
-                const trimmedBlock = block.trim();
-                if (trimmedBlock.length < 10) continue;
-
-                const frontMatch = trimmedBlock.match(/^(?:Front:\s*)?([\s\S]*?)\s*\nBack:\s*([\s\S]*)$/is);
-                if (frontMatch && frontMatch[1] && frontMatch[2]) {
-                    const frontText = frontMatch[1].trim();
-                    const backText = frontMatch[2].trim();
-                    if (frontText.length > 2 && backText.length > 2) {
-                        flashcards.push({ front: frontText, back: backText });
-                    }
-                }
-            }
-            if (flashcards.length > 0) {
-                 safeProgress({ progress: 75, status: `Generated ${flashcards.length} flashcards.`, error: null }); // Adjusted progress
-            } else if (!fcRawText.startsWith("Error:")) {
-                 safeProgress({ progress: 75, status: `Generated 0 flashcards. (Possible parsing issue or no relevant content)`, error: "No flashcards parsed from AI response." });
-                 flashcards = [{front: "No flashcards generated.", back: "The AI response did not contain usable flashcard data, or the content was not suitable for flashcards."}];
-            } else {
-                throw new Error("Flashcard generation resulted in no usable cards due to an earlier API error response.");
-            }
-        } catch (fcError) {
-            const errorMsg = fcError instanceof Error ? fcError.message : 'Unknown flashcards error';
-            console.error('Flashcards generation error (YT):', fcError);
-            safeProgress({ progress: 75, status: 'Flashcards generation failed.', error: errorMsg }); // Adjusted progress
-            flashcards = [{ front: 'Flashcard generation failed.', back: `Reason: ${errorMsg}` }];
-        }
-        // --- FLASHCARD GENERATION END ---
-
-
-        safeProgress({ progress: 75, status: 'Generating study questions...', error: null }); // Original progress
+        safeProgress({ progress: 75, status: 'Generating study questions...', error: null });
         const questionsPrompt = `Based on YouTube video "${videoTitle}" (transcript/desc provided), generate exactly 10 MCQs (4 options A,B,C,D), correct letter, explanation. Format strictly:\n\nQuestion: [Q]\nA) [A]\nB) [B]\nC) [C]\nD) [D]\nCorrect: [Letter]\nExplanation: [E]\n\n---DIVIDER---\n\nGenerate 10.\n\nText:\n---\n${baseTranscriptContent.slice(0, 25000)}\n---`;
         let questions: ProcessedYouTube['questions'] = [];
         try {
@@ -312,21 +257,18 @@ Provide *only* the generated raw Markdown note content below. Do not include any
                     if (qM&&oM&&cM&&eM) { const qT=qM[1].trim(); const oL=[oM[1],oM[2],oM[3],oM[4]].map(o=>o.replace(/^(.*?)\s*(?:B\)|C\)|D\)|Correct:).*$/is,'$1').trim()); const cL=cM[1].toUpperCase(); const eT=eM[1].trim(); if(qT&&oL.length===4&&oL.every(o=>o)&&['A','B','C','D'].includes(cL)&&eT) parsed.push({question:qT,options:oL,correctAnswer:['A','B','C','D'].indexOf(cL),explanation:eT}); else console.warn("Partial question parse (YT)"); } else console.warn("Question structure parse fail (YT)");
                 } if (parsed.length > 0) questions = parsed;
              }
-             // Note: Original code didn't have a progress update for questions success.
-             // safeProgress({ progress: 95, status: 'Study questions processed.', error: null });
         } catch (qError) { console.error('Questions fetch error (YT):', qError); }
 
-        safeProgress({ progress: 100, status: 'Processing complete!', error: null }); // Original progress
+        safeProgress({ progress: 100, status: 'Processing complete!', error: null });
         return {
             title: videoTitle,
             content: detailedNoteContent,
             keyPoints,
-            flashcards, // <<< --- ADDED THIS ---
             questions,
             sourceUrl: youtubeVideoUrl,
         };
 
-    } catch (error) { // Original overall catch block
+    } catch (error) {
         console.error('Overall YouTube processing failed:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown YouTube processing error.';
         safeProgress({ progress: 0, status: 'Error', error: errorMessage });
