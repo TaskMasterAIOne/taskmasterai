@@ -91,7 +91,7 @@ export function HeroSection() {
                 ))}
               </div>
               <motion.p className="text-sm text-gray-400" variants={textVariants}>
-                Joined by <span className="text-indigo-400 font-semibold">10,000+</span> professionals
+                Joined by <span className="text-indigo-400 font-semibold">10,000+</span> students
               </motion.p>
             </motion.div>
           )}
