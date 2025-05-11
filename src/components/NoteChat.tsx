@@ -326,7 +326,7 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
             if (collectedPdfContextText && !isUsingImageGenModel) {
                 messagesToDisplayInChat.push({
                     id: `pdf-ctx-disp-${Date.now()}`,
-                    role: 'assistant', 
+                    role: 'user', 
                     content: collectedPdfContextText,
                     isPdfContextDisplay: true,
                 });
