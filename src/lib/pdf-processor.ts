@@ -90,7 +90,7 @@ export async function processPDF(
         throw new Error('Gemini API Key missing or invalid in processPDF.');
     }
 
-    const GEMINI_MODEL = 'gemini-1.5-flash-latest'; // As per provided code
+    const GEMINI_MODEL = 'gemini-2.0-flash'; // As per provided code
     const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiApiKeyParam}`;
     let extractedTextFromPdf = '';
 
