@@ -142,7 +142,7 @@ export async function processTextToAINoteData( text: string, userId: string, api
 
   try {
     // --- Detailed Note Generation (Generic Text) ---
-    const detailedNotePrompt = `Analyze the following text. Generate a detailed, well-structured note using Markdown. DO NOT INCLUDE ANY CODE IN YOUR OUTPUT. ALSO YOUR OUTPUT IS MARKDOWN, SO NO NEED TO ADD ANY TAGS!
+    const detailedNotePrompt = `Analyze the following text. Generate detailed, well-structured notes using Markdown.
 
 **Instructions:**
 *   **Structure:** Use Markdown elements extensively: headings (#, ##, ###), bullet points (* or -), numbered lists, and tables where appropriate.
@@ -164,7 +164,7 @@ export async function processTextToAINoteData( text: string, userId: string, api
 
 **Text to Analyze:**
 ---
-${text} // For more extensive notes, ensure this 'text' variable contains the full content. If you previously used text.slice(0, 30000), consider removing or increasing the slice limit, being mindful of your LLM's context window capacity.
+${text} 
 ---
 
 **Output:**
