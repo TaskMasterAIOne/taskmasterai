@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
@@ -21,7 +22,12 @@ import {
   onChatConversationsSnapshot,
   updateChatConversationName,
   deleteChatConversation,
-  findItemByName
+  findItemByName,
+  uploadBase64ImageToStorage,
+  uploadFileToStorage,
+  type ChatMessage as FirebaseChatMessage,
+  type ImageMeta as FirebaseImageMeta,
+  type AttachedFileMeta as FirebaseAttachedFileMeta,
 } from '../lib/ai-chat-firebase';
 
 import {
@@ -52,7 +58,7 @@ interface FlashcardData { id: string; question: string; answer: string; topic: s
 interface QuestionData { id: string; question: string; options: string[]; correctAnswer: number; explanation: string; }
 interface FlashcardMessage { type: 'flashcard'; data: FlashcardData[]; }
 interface QuestionMessage { type: 'question'; data: QuestionData[]; }
-interface ImageData { base64: string; type: string; name: string; }
+interface LocalImageData { base64: string; type: string; name: string; }
 
 export interface ChatMessageData {
   id: string;
@@ -66,19 +72,20 @@ export interface ChatMessageData {
   actionDetails?: {
     status: 'success' | 'error';
   };
-  imageData?: ImageData;
+  localImageData?: LocalImageData;
+  imageUrl?: string;
+  imageMeta?: FirebaseImageMeta;
   isGeneratingImage?: boolean;
   wasImageGenerated?: boolean;
-  attachedFilesMeta?: Array<{ name: string; type: string; size: number }>;
+  attachedFilesMeta?: Array<{ name: string; type: string; size: number; url?: string; base64Data?: string; localPreviewUrl?: string; storagePath?:string }>;
   localPlaceholderId?: string;
 }
 
-interface SelectedFile { name: string; type: string; size: number; base64Data: string; }
+interface SelectedFile { name: string; type: string; size: number; base64Data: string; fileObject: File; localPreviewUrl: string; }
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
-const GEMINI_TEXT_MODEL = 'gemini-2.0-flash';
-const GEMINI_IMAGE_GEN_MODEL = 'gemini-2.0-flash-preview-image-generation';
-
+const GEMINI_TEXT_MODEL = 'gemini-2.0-flash'; // Changed from gemini-1.5-flash-latest as per original
+const GEMINI_IMAGE_GEN_MODEL = 'gemini-2.0-flash-preview-image-generation'; // Changed as per original
 
 const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 60000) => {
   const controller = new AbortController();
@@ -95,25 +102,21 @@ const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 600
   }
 };
 
-const parseGeminiApiResponse = (responseText: string, isImageGenCall: boolean): { text: string | null; imageData: ImageData | null; error: string | null; finishReason: string | null } => {
+const parseGeminiApiResponse = (responseText: string, isImageGenCall: boolean): { text: string | null; localImageData: LocalImageData | null; error: string | null; finishReason: string | null } => {
     let textContent: string | null = null;
-    let imageContent: ImageData | null = null;
+    let imageContent: LocalImageData | null = null;
     let errorMessage: string | null = null;
     let reason: string | null = null;
-
     try {
         const jsonResponse = JSON.parse(responseText);
-
         if (jsonResponse?.promptFeedback?.blockReason) {
             errorMessage = `Request blocked: ${jsonResponse.promptFeedback.blockReason}.`;
             if(jsonResponse.promptFeedback.safetyRatings) { errorMessage += ` Safety: ${JSON.stringify(jsonResponse.promptFeedback.safetyRatings)}`; }
-            return { text: null, imageData: null, error: errorMessage, finishReason: 'BLOCKED' };
+            return { text: null, localImageData: null, error: errorMessage, finishReason: 'BLOCKED' };
         }
-
         if (jsonResponse?.candidates?.[0]) {
             const candidate = jsonResponse.candidates[0];
             reason = candidate.finishReason || null;
-
             if (candidate.content?.parts && Array.isArray(candidate.content.parts)) {
                 for (const part of candidate.content.parts) {
                     if (part.text) {
@@ -123,7 +126,6 @@ const parseGeminiApiResponse = (responseText: string, isImageGenCall: boolean): 
                     }
                 }
             }
-
              if (!textContent && !imageContent) {
                  if (reason === 'SAFETY') { errorMessage = "Response blocked due to safety concerns."; if (candidate.safetyRatings) { errorMessage += ` Details: ${JSON.stringify(candidate.safetyRatings)}`; } }
                  else if (reason === 'MAX_TOKENS') { errorMessage = "The response was cut off as it reached the maximum length."; }
@@ -131,36 +133,38 @@ const parseGeminiApiResponse = (responseText: string, isImageGenCall: boolean): 
                  else if (reason) { errorMessage = `Response generation stopped: ${reason}.`; }
                  else if (!candidate.content) { errorMessage = "Received an empty response candidate."; }
              }
-
         } else if (jsonResponse?.error?.message) {
              errorMessage = `API Error: ${jsonResponse.error.message}`;
         } else { errorMessage = "Sorry, I received an empty or non-standard response format."; }
-        
         if (isImageGenCall && !imageContent && !errorMessage && reason !== 'SAFETY' && reason !== 'BLOCKED') {
              if (textContent) { if (!textContent.trim()) { textContent = "(No image generated and no text explanation provided)"; } }
              else { errorMessage = "Image generation request processed, but no image was returned."; }
         }
         if (!textContent && !imageContent && !errorMessage) { textContent = "(Received empty response content)"; }
-
-
-        return { text: textContent, imageData: imageContent, error: errorMessage, finishReason: reason };
-
+        return { text: textContent, localImageData: imageContent, error: errorMessage, finishReason: reason };
     } catch (err) {
         console.error("Error parsing Gemini API response:", responseText, err);
-        return { text: null, imageData: null, error: "Error: Could not process AI response (Invalid format).", finishReason: null };
+        return { text: null, localImageData: null, error: "Error: Could not process AI response (Invalid format).", finishReason: null };
     }
 };
 
-
-const readFileAsBase64 = (file: File): Promise<SelectedFile> => {
+const readFileAsSelectedFile = (file: File): Promise<SelectedFile> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
+        const localPreviewUrl = URL.createObjectURL(file);
         reader.onload = () => {
             const base64String = (reader.result as string).split(',')[1];
-            if (!base64String) { reject(new Error("Failed to read file content.")); return; }
-            resolve({ name: file.name, type: file.type, size: file.size, base64Data: base64String });
+            if (!base64String) {
+                URL.revokeObjectURL(localPreviewUrl);
+                reject(new Error("Failed to read file content."));
+                return;
+            }
+            resolve({ name: file.name, type: file.type, size: file.size, base64Data: base64String, fileObject: file, localPreviewUrl });
         };
-        reader.onerror = (error) => reject(error);
+        reader.onerror = (error) => {
+            URL.revokeObjectURL(localPreviewUrl);
+            reject(error);
+        };
         reader.readAsDataURL(file);
     });
 };
@@ -169,55 +173,68 @@ function formatBytes(bytes: number, decimals = 2): string {
   if (bytes === 0) return '0 Bytes'; const k = 1024; const dm = decimals < 0 ? 0 : decimals; const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']; const i = Math.floor(Math.log(bytes) / Math.log(k)); return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
-const handleDownloadImage = (imageData: ImageData) => { if (!imageData) return; const link = document.createElement('a'); link.href = `data:${imageData.type};base64,${imageData.base64}`; const fileExtension = imageData.type.split('/')[1] || 'png'; const fileName = `generated-image-${Date.now()}.${fileExtension}`; link.download = fileName; document.body.appendChild(link); link.click(); document.body.removeChild(link); };
-
+const handleDownloadImageFromUrl = (imageUrl: string, imageName?: string) => {
+  if (!imageUrl) return;
+  const link = document.createElement('a');
+  link.href = imageUrl;
+  const defaultExtension = imageUrl.includes('png') ? 'png' : imageUrl.includes('jpg') || imageUrl.includes('jpeg') ? 'jpg' : 'image';
+  const fileName = imageName || `downloaded-image-${Date.now()}.${defaultExtension}`;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
 
 function extractJsonBlocks(text: string): { blocks: any[], cleanedText: string, originalText: string } {
   const extractedBlocks: any[] = [];
   let remainingText = text;
   const regex = /```json\s*([\s\S]*?)\s*```/g;
   let match;
-
   while ((match = regex.exec(text)) !== null) {
     try {
       const parsedJson = JSON.parse(match[1]);
       extractedBlocks.push(parsedJson);
       remainingText = remainingText.replace(match[0], "").trim();
     } catch (e) {
-      // If JSON.parse fails, it's not a valid JSON block we want,
-      // but we still remove the ```json ... ``` part to clean the text.
+      // If JSON in ```json ``` block is invalid, we still remove the block to avoid displaying malformed JSON.
+      // The AI might output text before/after this block which is still useful.
+      // Or, we might decide to keep the original block if parsing fails, to show the user what the AI sent.
+      // For now, remove it, assuming it's an attempt at a JSON action that failed.
       remainingText = remainingText.replace(match[0], "").trim();
     }
   }
 
-  // Fallback for bare JSON objects if no ```json ``` blocks were found
+  // If no ```json ``` blocks were found, try to find JSON objects not wrapped in triple backticks
   if (extractedBlocks.length === 0) {
-    // More careful regex to avoid grabbing random {} in text
-    // Looks for { at start of a line (or start of string) potentially with whitespace, and } at end of line (or end of string)
+    // This regex tries to find objects starting with { and ending with }
+    // It's more risky as it might grab parts of normal text.
+    // We should only parse it if it's the *only* thing or clearly demarcated.
+    // A simple approach: look for JSON at the start or end of lines.
     const curlyRegex = /(?:^|\n)\s*(\{[\s\S]*?\})\s*(?:$|\n)/g;
-    let tempTextForCurlySearch = text;
-    let modifiedCurlyText = ""; // Accumulate non-JSON parts
-
+    let tempTextForCurlySearch = text; // Use original text for this search
+    let modifiedCurlyText = ""; // Build up the text that isn't parsed as JSON
     let lastIndex = 0;
+
     while ((match = curlyRegex.exec(tempTextForCurlySearch)) !== null) {
-        modifiedCurlyText += tempTextForCurlySearch.substring(lastIndex, match.index);
+        modifiedCurlyText += tempTextForCurlySearch.substring(lastIndex, match.index); // Add text before the potential JSON
         try {
             const parsedJson = JSON.parse(match[1]);
             extractedBlocks.push(parsedJson);
-            // Mark this part as "processed" for remainingText by replacing it with a unique placeholder or empty
+            // If successfully parsed, this part is removed from remainingText implicitly
         } catch(e) {
-            // Not a valid JSON, so add it back to modifiedCurlyText
+            // If parsing fails, it's not valid JSON, so add it back to the text to be displayed
             modifiedCurlyText += match[0];
         }
         lastIndex = curlyRegex.lastIndex;
     }
-    modifiedCurlyText += tempTextForCurlySearch.substring(lastIndex);
+    modifiedCurlyText += tempTextForCurlySearch.substring(lastIndex); // Add any trailing text
 
-    if (extractedBlocks.length > 0) { // Only if we found JSONs with curlyRegex
-        remainingText = modifiedCurlyText.replace(/(?:^|\n)\s*(\{[\s\S]*?\})\s*(?:$|\n)/g, (m, p1) => {
-            try { JSON.parse(p1); return ""; } // Remove if it was a successfully parsed JSON
-            catch (e) { return m; } // Keep if not
-        }).trim();
+    if (extractedBlocks.length > 0) {
+        // If we found JSON this way, `modifiedCurlyText` is our `cleanedText`
+        // We need to ensure that if a block was *intended* as JSON by the AI but was malformed,
+        // it doesn't get re-parsed and removed by the logic that constructed `modifiedCurlyText`.
+        // The current logic correctly adds back unparseable curly-braced blocks to `modifiedCurlyText`.
+        remainingText = modifiedCurlyText.trim();
     }
   }
   return { blocks: extractedBlocks, cleanedText: remainingText.trim(), originalText: text };
@@ -292,14 +309,12 @@ const themeConfig = {
 const SUPPORTED_FILE_TYPES = "image/jpeg,image/png,image/webp,image/gif,image/svg+xml,application/pdf,text/plain,.md,.txt,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.rtf";
 const MAX_FILE_SIZE_MB = 20;
 
-
 export function AIChat() {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>('Loading...');
   const truncatedName = userName.split(' ')[0] || userName;
-
   const [chatMessage, setChatMessage] = useState('');
   const [chatHistory, setChatHistory] = useState<ChatMessageData[]>([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
@@ -307,36 +322,28 @@ export function AIChat() {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
   const [isContextDialogOpen, setIsContextDialogOpen] = useState(false);
   const [userContext, setUserContext] = useState<UserContext | null>(null);
-
   const [activeStyle, setActiveStyle] = useState<string | null>(null);
   const [activePrompt, setActivePrompt] = useState<string | null>(null);
   const [_customStyles, setCustomStyles] = useState<Record<string, { description: string; prompt: string }>>({});
-
   const [tasks, setTasks] = useState<Array<{ id: string; data: any }>>([]);
   const [goals, setGoals] = useState<Array<{ id: string; data: any }>>([]);
   const [projects, setProjects] = useState<Array<{ id: string; data: any }>>([]);
   const [plans, setPlans] = useState<Array<{ id: string; data: any }>>([]);
-
   const [hasGeneratedChatName, setHasGeneratedChatName] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversationList, setConversationList] = useState<any[]>([]);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
-
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => JSON.parse(localStorage.getItem('isSidebarCollapsed') || 'false'));
   const [isBlackoutEnabled, setIsBlackoutEnabled] = useState(() => JSON.parse(localStorage.getItem('isBlackoutEnabled') || 'false'));
   const [isSidebarBlackoutEnabled, setIsSidebarBlackoutEnabled] = useState(() => JSON.parse(localStorage.getItem('isSidebarBlackoutEnabled') || 'false'));
   const [isIlluminateEnabled, setIsIlluminateEnabled] = useState(() => JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'false'));
   const [isSidebarIlluminateEnabled, setIsSidebarIlluminateEnabled] = useState(() => JSON.parse(localStorage.getItem('isSidebarIlluminateEnabled') || 'false'));
-  
   const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
   const [isImageGenModeActive, setIsImageGenModeActive] = useState(false);
   const [streamingAssistantContent, setStreamingAssistantContent] = useState('');
   const [assistantLoadingPlaceholderId, setAssistantLoadingPlaceholderId] = useState<string | null>(null);
-
-
   const [currentTheme, setCurrentTheme] = useState(themeConfig.default);
 
   useEffect(() => {
@@ -350,7 +357,6 @@ export function AIChat() {
   const [chatLimit, setChatLimit] = useState<number>(BASIC_CHAT_LIMIT);
   const [isChatDisabledByLimit, setIsChatDisabledByLimit] = useState(false);
   const currentChatLimitDisplay = useMemo(() => getChatLimitForTier(userTier), [userTier]);
-
 
   useEffect(() => { localStorage.setItem('isSidebarCollapsed', JSON.stringify(isSidebarCollapsed)); }, [isSidebarCollapsed]);
   useEffect(() => {
@@ -429,11 +435,34 @@ export function AIChat() {
           setAssistantLoadingPlaceholderId(null);
           return;
       }
-      const unsub = onChatMessagesSnapshot(conversationId, (messagesFromDb) => {
-          setChatHistory(messagesFromDb.map(m => ({
-              ...m,
-              id: m.id, // Firestore doc id is used as key
-          } as ChatMessageData)));
+      const unsub = onChatMessagesSnapshot(conversationId, (messagesFromDb: FirebaseChatMessage[]) => {
+          setChatHistory(messagesFromDb.map(m => {
+            const attachedFilesMetaForUi = m.attachedFilesMeta?.map(fbm => ({
+                name: fbm.name,
+                type: fbm.type,
+                size: fbm.size,
+                url: fbm.url,
+                storagePath: fbm.storagePath,
+                localPreviewUrl: fbm.url,
+            })) || undefined;
+
+            return {
+              id: m.id || `fb-msg-${Date.now()}-${Math.random()}`,
+              role: m.role,
+              content: m.content,
+              createdAt: m.createdAt,
+              timer: m.timer,
+              flashcard: m.flashcard,
+              question: m.question,
+              error: m.error,
+              actionDetails: m.actionDetails,
+              imageUrl: m.imageUrl,
+              imageMeta: m.imageMeta,
+              isGeneratingImage: m.isGeneratingImage,
+              wasImageGenerated: m.wasImageGenerated,
+              attachedFilesMeta: attachedFilesMetaForUi,
+            } as ChatMessageData;
+          }));
       });
       return () => unsub();
   }, [conversationId]);
@@ -444,6 +473,16 @@ export function AIChat() {
     }
   }, [chatHistory, streamingAssistantContent]);
 
+  useEffect(() => {
+    const currentSelectedFiles = selectedFiles;
+    return () => {
+        currentSelectedFiles.forEach(sf => {
+            if (sf.localPreviewUrl) {
+                URL.revokeObjectURL(sf.localPreviewUrl);
+            }
+        });
+    };
+  }, [selectedFiles]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => { if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) setOpenDropdownId(null); };
@@ -473,65 +512,59 @@ export function AIChat() {
 
   const handleTimerComplete = (timerId: string) => {
     if (!conversationId || !user) return;
-    const completionMsg: Omit<ChatMessageData, 'id' | 'createdAt'> = {
+    const completionMsg: Partial<FirebaseChatMessage> = {
       role: 'assistant',
       content: "⏰ Time's up! Your timer has finished.",
     };
-    saveChatMessage(conversationId, completionMsg);
+    if (conversationId) saveChatMessage(conversationId, completionMsg);
   };
-  
+
   const triggerFileSelect = () => fileInputRef.current?.click();
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
-
-    const newFiles: SelectedFile[] = [];
+    const newSelectedFiles: SelectedFile[] = [];
     const fileProcessingPromises: Promise<void>[] = [];
     const currentFileNames = new Set(selectedFiles.map(f => f.name));
-
     let tempErrorMessages: ChatMessageData[] = [];
-    const addErrorMessageToLocalHistory = (content: string) => {
-        const errorMsgId = `local-error-${Date.now()}`;
-        tempErrorMessages.push({ id: errorMsgId, role: 'assistant', content, error: true, createdAt: new Date() });
-    };
-
 
     for (let i = 0; i < files.length; i++) {
         const file = files[i];
         if (currentFileNames.has(file.name)) {
-            addErrorMessageToLocalHistory(`ℹ️ File "${file.name}" is already selected.`);
+            tempErrorMessages.push({ id: `local-err-${Date.now()}`, role: 'assistant', content: `ℹ️ File "${file.name}" is already selected.`, createdAt: new Date()});
             continue;
         }
         if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-             addErrorMessageToLocalHistory(`❌ File "${file.name}" is too large (max ${MAX_FILE_SIZE_MB}MB).`);
+             tempErrorMessages.push({ id: `local-err-${Date.now()}`, role: 'assistant', content: `❌ File "${file.name}" is too large (max ${MAX_FILE_SIZE_MB}MB).`, error: true, createdAt: new Date()});
              continue;
         }
-
         fileProcessingPromises.push(
-            readFileAsBase64(file)
-                .then(processedFile => newFiles.push(processedFile))
+            readFileAsSelectedFile(file)
+                .then(processedFile => newSelectedFiles.push(processedFile))
                 .catch(err => {
                     console.error("Error reading file:", file.name, err);
-                    addErrorMessageToLocalHistory(`❌ Error reading file "${file.name}".`);
+                    tempErrorMessages.push({ id: `local-err-${Date.now()}`, role: 'assistant', content: `❌ Error reading file "${file.name}".`, error: true, createdAt: new Date()});
                 })
         );
     }
-    
+
     await Promise.all(fileProcessingPromises);
     if (tempErrorMessages.length > 0) {
         setChatHistory(prev => [...prev, ...tempErrorMessages]);
     }
-    setSelectedFiles(prev => [...prev, ...newFiles]);
-
-    if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-    }
+    setSelectedFiles(prev => [...prev, ...newSelectedFiles]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
     textareaRef.current?.focus();
   };
-  
+
   const handleRemoveFile = (fileName: string) => {
-    setSelectedFiles(prev => prev.filter(f => f.name !== fileName));
+    setSelectedFiles(prev => prev.filter(f => {
+        if (f.name === fileName && f.localPreviewUrl) {
+            URL.revokeObjectURL(f.localPreviewUrl);
+        }
+        return f.name !== fileName;
+    }));
   };
 
   const handlePaste = useCallback(async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -541,35 +574,33 @@ export function AIChat() {
     const filePromises: Promise<SelectedFile>[] = [];
     const existingFileNames = new Set(selectedFiles.map(f => f.name));
     let tempErrorMessages: ChatMessageData[] = [];
-
     for (let i = 0; i < items.length; i++) {
         const item = items[i];
         if (item.kind === 'file' && item.type.startsWith('image/')) {
             const file = item.getAsFile();
             if (file) {
                 if (existingFileNames.has(file.name)) {
-                     tempErrorMessages.push({id: `local-paste-info-${Date.now()}`, role: 'assistant', content: `ℹ️ Pasted image "${file.name}" is already attached.`, createdAt: new Date()});
+                     tempErrorMessages.push({id: `local-paste-info-${Date.now()}`,role: 'assistant',content: `ℹ️ Pasted image "${file.name}" is already attached.`, createdAt: new Date()});
                      continue;
                 };
                 if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-                     tempErrorMessages.push({id: `local-paste-err-${Date.now()}`, role: 'assistant', content: `❌ Pasted image "${file.name}" is too large (max ${MAX_FILE_SIZE_MB}MB).`, error: true, createdAt: new Date()});
+                     tempErrorMessages.push({id: `local-paste-err-${Date.now()}`,role: 'assistant',content: `❌ Pasted image "${file.name}" is too large (max ${MAX_FILE_SIZE_MB}MB).`,error: true, createdAt: new Date()});
                      continue;
                 }
-                filePromises.push(readFileAsBase64(file));
-                existingFileNames.add(file.name); // Add to set to prevent duplicates from same paste event
+                filePromises.push(readFileAsSelectedFile(file));
+                existingFileNames.add(file.name); // Add to set immediately to prevent duplicates from same paste
                 imagePasted = true;
             }
         }
     }
-
     if (imagePasted) {
-        event.preventDefault(); // Prevent pasting image as text
+        event.preventDefault();
         try {
             const results = await Promise.all(filePromises);
             setSelectedFiles(prev => [...prev, ...results]);
         } catch (error) {
             console.error("Error processing pasted images:", error);
-            tempErrorMessages.push({id: `local-paste-read-err-${Date.now()}`, role: 'assistant', content: `❌ Error processing one or more pasted images.`, error: true, createdAt: new Date()});
+            tempErrorMessages.push({id: `local-paste-read-err-${Date.now()}`,role: 'assistant',content: `❌ Error processing one or more pasted images.`,error: true, createdAt: new Date()});
         }
     }
     if (tempErrorMessages.length > 0) {
@@ -582,8 +613,9 @@ export function AIChat() {
     setIsImageGenModeActive(nextState);
     let tempInfoMessages: ChatMessageData[] = [];
     if (nextState && selectedFiles.length > 0) {
-        setSelectedFiles([]); // Clear files when entering image gen mode
-        tempInfoMessages.push({id: `local-img-mode-info-${Date.now()}`, role: 'assistant', content: "🖼️ Image generation mode enabled. Attached files have been cleared as they are not used in this mode.", createdAt: new Date()});
+        selectedFiles.forEach(sf => URL.revokeObjectURL(sf.localPreviewUrl));
+        setSelectedFiles([]);
+        tempInfoMessages.push({id: `local-img-mode-info-${Date.now()}`, role: 'assistant', content: "🖼️ Image generation mode enabled. Attached files have been cleared.", createdAt: new Date()});
     } else if (!nextState) {
          tempInfoMessages.push({id: `local-txt-mode-info-${Date.now()}`, role: 'assistant', content: "💬 Switched to text & file mode.", createdAt: new Date()});
     }
@@ -593,14 +625,13 @@ export function AIChat() {
     textareaRef.current?.focus();
   };
 
-
   const formatItemsForChat = (): string => {
     if (!user) return "User data not available.";
     const lines: string[] = [];
     lines.push(`Current items for ${truncatedName}:\n`);
     const formatLine = (item: any, type: string, nameField: string) => {
       const name = item.data[nameField] || 'Untitled';
-      const due = item.data.dueDate?.toDate?.();
+      const due = item.data.dueDate?.toDate?.() || item.data.targetDate?.toDate?.() || item.data.deadline?.toDate?.();
       const priority = item.data.priority || 'medium';
       const completed = item.data.completed ? '[Completed]' : '[Pending]';
       return `${type}: ${name}${due ? ` (Due: ${due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})` : ''} [Priority: ${priority}] ${completed}`;
@@ -613,21 +644,18 @@ export function AIChat() {
     return lines.join('\n');
   };
 
-const createPrompt = (userMessage: string, files: SelectedFile[]): string => {
+const createPrompt = (userMessage: string, filesDataForPrompt: SelectedFile[]): string => {
     const conversationSoFar = chatHistory.slice(-6)
       .map((m) => `${m.role === 'user' ? truncatedName : 'Assistant'}: ${m.content}${m.attachedFilesMeta ? ` [Files: ${m.attachedFilesMeta.map(f=>f.name).join(', ')}]` : ''}`)
       .join('\n');
-
     const itemsText = formatItemsForChat();
     const now = new Date();
     const currentDateTime = {
       date: now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
       time: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
     };
-
     let styleInstruction = '';
     if (activeStyle && activePrompt) styleInstruction = `\n\nSYSTEM_STYLE_PROMPT: ${activePrompt}\n`;
-
     let contextSection = '';
     if (userContext) {
       contextSection = `
@@ -638,12 +666,10 @@ User Context (provided by ${truncatedName}):
 - Additional Context: ${userContext.otherContext || 'Not specified'}
 `;
     }
-
     let filePreamble = "";
-    if (files.length > 0 && !isImageGenModeActive) {
-        filePreamble = `\n\n[CONTEXT FROM ATTACHED FILES (${files.map(f => f.name).join(', ')})]\n${files.length > 1 ? "Multiple files are attached. " : ""}The user has attached ${files.map(f => `${f.name} (${f.type})`).join(', ')}. Please consider their content if relevant to the query. For non-image/pdf files, assume their text content is available if I've provided it. If the query is about an image, describe it or use its content for the response. If it's about a PDF, use the text content.`;
+    if (filesDataForPrompt.length > 0 && !isImageGenModeActive) {
+        filePreamble = `\n\n[CONTEXT FROM ATTACHED FILES (${filesDataForPrompt.map(f => f.name).join(', ')})]\n${filesDataForPrompt.length > 1 ? "Multiple files are attached. " : ""}The user has attached ${filesDataForPrompt.map(f => `${f.name} (${f.type})`).join(', ')}. Please consider their content if relevant to the query. For non-image/pdf files, assume their text content is available if I've provided it. If the query is about an image, describe it or use its content for the response. If it's about a PDF, use the text content.`;
     }
-    
     const imageGenInstruction = isImageGenModeActive ? `
 [IMAGE GENERATION TASK]
 The user wants to generate an image based on the following description: "${userMessage}".
@@ -651,7 +677,6 @@ Your primary goal is to generate this image. You must also provide a brief accom
 **CRITICAL**: Your response for image generation MUST include both the image data AND a text part. Do NOT output JSON for image generation. The image will be encoded by the system.
 If image generation fails, explain why politely in plain text.
 ` : "";
-
     return `
 [CONTEXT]
 User's Name: ${truncatedName}
@@ -660,98 +685,63 @@ Current Time: ${currentDateTime.time}
 ${styleInstruction}
 ${contextSection}
 ${filePreamble}
-
 User's Current Items (Only discuss if explicitly asked by ${truncatedName}):
 ${itemsText}
-
 [CONVERSATION HISTORY (Last few turns)]
 ${conversationSoFar}
-
 [NEW USER MESSAGE]
 ${truncatedName}: ${userMessage}
 ${imageGenInstruction}
-
 You are TaskMaster, a friendly and versatile AI productivity assistant. Engage in casual conversation, provide productivity advice, and discuss ${truncatedName}'s items only when explicitly asked by ${truncatedName}. Only reference the user's first name when chatting. If files are attached, consider their content when answering.
-
 Guidelines:
-
 1. General Conversation & File-based Q&A:
    - Respond in a friendly, natural tone. Do not include internal instructions or meta commentary.
    - If files are attached and the query relates to them, use their content. For images, describe or analyze. For PDFs/text files, use text content.
    - For unsupported file types (e.g., Word, Excel, PowerPoint), state that you can't process their rich content directly but can discuss any text pasted from them.
    - Only reference ${truncatedName}'s items if ${truncatedName} explicitly asks about them.
-
 2. Image Generation (If in Image Generation Mode):
    - Generate an image based on ${truncatedName}'s textual description.
    - Your response MUST include both the image data and a textual part (e.g., "Here's your image:").
    - **CRITICAL**: DO NOT output JSON for image generation.
    - If generation fails, explain why politely in plain text.
-
 3. Educational Content (JSON - Only if not in Image Gen Mode):
    - If ${truncatedName} explicitly requests educational content (flashcards or quiz questions), return exactly one JSON object.
    - The JSON must be wrapped in a single code block using triple backticks and the "json" language identifier.
    - Return only the JSON object with no additional text or extra lines before or after the JSON block itself.
    - Use one of the following formats:
-
      For flashcards:
      \`\`\`json
      {
        "type": "flashcard",
-       "data": [
-         {
-           "id": "unique-id-1",
-           "question": "Question 1",
-           "answer": "Answer 1",
-           "topic": "Subject area"
-         },
-         {
-           "id": "unique-id-2",
-           "question": "Question 2",
-           "answer": "Answer 2",
-           "topic": "Subject area"
-         }
-       ]
+       "data": [ { "id": "unique-id-1", "question": "Question 1", "answer": "Answer 1", "topic": "Subject area" } ]
      }
      \`\`\`
-
      For quiz questions:
      \`\`\`json
      {
        "type": "question",
-       "data": [
-         {
-           "id": "unique-id-1",
-           "question": "Question 1",
-           "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
-           "correctAnswer": 0,
-           "explanation": "Explanation 1"
-         },
-         {
-           "id": "unique-id-2",
-           "question": "Question 2",
-           "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
-           "correctAnswer": 1,
-           "explanation": "Explanation 2"
-         }
-       ]
+       "data": [ { "id": "unique-id-1", "question": "Question 1", "options": ["Option 1", "Option 2"], "correctAnswer": 0, "explanation": "Explanation 1" } ]
      }
      \`\`\`
-
-
 4. Data Modifications (JSON - Only if not in Image Gen Mode):
    - When ${truncatedName} commands to create, update, or delete an item, you *MUST* respond with a brief conversational confirmation (e.g., "Okay, I'll create that task!") *followed by* the JSON block.
    - Your conversational confirmation text will be shown to the user.
    - JSON structure: \`\`\`json\n{"action": "actionName", "payload": {...}}\n\`\`\`
-   - Valid actions: "createTask", "updateTask", "deleteTask", etc. for goals, plans, projects.
-   - Payloads as previously defined (e.g., for create: {"task": "Name", "dueDate": "YYYY-MM-DD"}, for update: {"task": "OldName", "newTask": "NewName"}, for delete: {"task": "Name"}).
+   - Valid actions: "createTask", "updateTask", "deleteTask", "createGoal", "updateGoal", "deleteGoal", "createPlan", "updatePlan", "deletePlan", "createProject", "updateProject", "deleteProject".
+   - Payloads for creation *MUST* include the name of the item. Examples:
+     - For "createTask": payload must include a \`task\` field (string) for the task name. E.g., \`{"action": "createTask", "payload": {"task": "Buy groceries", "priority": "high"}}\`
+     - For "createGoal": payload must include a \`goal\` field (string) for the goal name. E.g., \`{"action": "createGoal", "payload": {"goal": "Learn Python"}}\`
+     - For "createPlan": payload must include a \`plan\` field (string) for the plan name. E.g., \`{"action": "createPlan", "payload": {"plan": "Weekend trip"}}\`
+     - For "createProject": payload must include a \`project\` field (string) for the project name. E.g., \`{"action": "createProject", "payload": {"project": "Home renovation"}}\`
+     - Optional fields like \`priority\`, \`dueDate\`, \`description\`, etc., can also be included as appropriate.
+   - For "update..." actions, the payload can identify the item by its current name (e.g., \`task: "Old Task Name"\`) or \`id\` (if known), and then include fields to change (e.g., \`newTask: "New Task Name"\`, \`priority: "low"\`).
+   - For "delete..." actions, the payload can identify the item by its name (e.g., \`task: "Task to Delete"\`) or \`id\` (if known).
    - My system will display your conversational confirmation and process the JSON block. Ensure the JSON is the LAST part of your response.
-
 5. Response Structure Summary:
    - General chat/file Q&A: Natural language text only.
    - Image generation: Image data AND a textual part. NO JSON.
    - Educational content: ONLY the JSON code block as per Guideline 3.
    - Data modification: Your conversational confirmation text, THEN the JSON code block as per Guideline 4.
-
 Follow these instructions strictly.
 Assistant:`;
   };
@@ -778,10 +768,10 @@ Assistant:`;
       const newId = await createChatConversation(user.uid, "New Chat");
       if (!newId) { console.error("Failed to create/get conversation ID"); return; }
       currentConvId = newId;
-      setConversationId(currentConvId); // This will trigger useEffect for onChatMessagesSnapshot
+      setConversationId(currentConvId);
       setHasGeneratedChatName(false);
     }
-    
+
     if (isChatDisabledByLimit) {
         const limitMsgForState: ChatMessageData = {
             id: `error-limit-${Date.now()}`, role: 'assistant', content: `You've reached your ${chatLimit} message limit. Upgrade for more!`, error: true, createdAt: new Date()
@@ -793,86 +783,143 @@ Assistant:`;
     }
 
     const userMsgContent = chatMessage;
-    const filesForThisMessage = [...selectedFiles];
-    
-    let userMsgImageData: ImageData | undefined = undefined;
-    if (filesForThisMessage.length > 0 && filesForThisMessage[0].type.startsWith("image/") && !isImageGenModeActive) { // Only attach image if not in image gen mode for user message
-        userMsgImageData = { base64: filesForThisMessage[0].base64Data, type: filesForThisMessage[0].type, name: filesForThisMessage[0].name };
-    }
+    const filesForThisMessageSubmission = [...selectedFiles];
+
+    // Revoke local preview URLs for files being submitted, they are no longer needed in the selectedFiles state for this batch.
+    filesForThisMessageSubmission.forEach(sf => {
+        if (sf.localPreviewUrl) URL.revokeObjectURL(sf.localPreviewUrl);
+    });
+    setSelectedFiles([]); // Clear selected files from UI input area
 
     const localUserMessageId = `user-local-${Date.now()}`;
+    // For UI display, we might still want to show localPreviewUrls if they were generated, even if revoked later
+    // Or, for simplicity, if they are revoked, don't pass them.
+    // Let's assume the revoke is for memory management and UI can still show a placeholder or the name.
+    const attachedFilesMetaDataForUi: ChatMessageData['attachedFilesMeta'] = filesForThisMessageSubmission.map(sf => ({
+        name: sf.name, type: sf.type, size: sf.size,
+        // localPreviewUrl: sf.localPreviewUrl // Since we revoked, maybe not include it here or pass a flag
+    }));
+
+
     const userMessageForState: ChatMessageData = {
         id: localUserMessageId,
         role: 'user',
         content: userMsgContent,
-        imageData: userMsgImageData,
-        attachedFilesMeta: filesForThisMessage.map(f => ({ name: f.name, type: f.type, size: f.size })),
+        attachedFilesMeta: attachedFilesMetaDataForUi.length > 0 ? filesForThisMessageSubmission.map(sf => ({ // Re-map to ensure localPreviewUrl is available for the immediate UI update
+            name: sf.name, type: sf.type, size: sf.size, localPreviewUrl: sf.localPreviewUrl
+        })) : undefined,
         createdAt: new Date()
     };
     setChatHistory(prev => [...prev, userMessageForState]);
 
-    const userMessageToSave: Omit<ChatMessageData, 'id'> = {
-        role: 'user',
-        content: userMsgContent,
-        imageData: userMsgImageData, // Ensure this is saved
-        attachedFilesMeta: filesForThisMessage.map(f => ({ name: f.name, type: f.type, size: f.size })),
-        createdAt: new Date() 
-    };
-    // await saveChatMessage must correctly persist imageData if provided
-    if (currentConvId) await saveChatMessage(currentConvId, userMessageToSave); 
-    
-    setChatMessage('');
-    setSelectedFiles([]); // Clear selected files after submission
+    const uploadedFilesMetaDataToSave: FirebaseAttachedFileMeta[] = [];
+    let userMessageContentForSave = userMsgContent; // This can be modified if file content is inlined for AI
 
+    if (!isImageGenModeActive && filesForThisMessageSubmission.length > 0 && user && user.uid && currentConvId) {
+        setIsChatLoading(true);
+        // Update the UI message to show files are uploading
+        setChatHistory(prev => prev.map(msg => msg.id === localUserMessageId ? {...msg, content: `${msg.content}\n(Uploading ${filesForThisMessageSubmission.length} attachment(s)...)`} : msg));
+
+        for (const sf of filesForThisMessageSubmission) {
+            try {
+                const { downloadURL, storagePath, name, type, size } = await uploadFileToStorage(user.uid, currentConvId, sf.fileObject);
+                uploadedFilesMetaDataToSave.push({ url: downloadURL, storagePath, name, type, size });
+            } catch (uploadError) {
+                console.error("Error uploading user file:", sf.name, uploadError);
+                // Still add meta for files that failed to upload, but without URL/storagePath, so AI knows they were attempted
+                uploadedFilesMetaDataToSave.push({ name: sf.name, type: sf.type, size: sf.size }); // No URL or storagePath
+                // Optionally add an error message to chat history about the failed upload
+                setChatHistory(prev => [...prev, {id: `upload-err-${sf.name}-${Date.now()}`, role: 'assistant', content: `❌ Failed to upload file: ${sf.name}`, error: true, createdAt: new Date()}]);
+            }
+        }
+        // Update the user message in history with the final state of attached files (with URLs for successful uploads)
+        setChatHistory(prev => prev.map(msg => msg.id === localUserMessageId ? {
+            ...msg,
+            content: userMsgContent, // Restore original content
+            attachedFilesMeta: uploadedFilesMetaDataToSave.map(meta => ({
+                ...meta,
+                // Try to find original localPreviewUrl if needed for consistency, though it was revoked
+                localPreviewUrl: filesForThisMessageSubmission.find(sf => sf.name === meta.name)?.localPreviewUrl
+            }))
+        } : msg));
+        setIsChatLoading(false); // Potentially set to false after API call too
+    }
+
+    const userMessageToSave: Partial<FirebaseChatMessage> = {
+        role: 'user',
+        content: userMessageContentForSave,
+        attachedFilesMeta: uploadedFilesMetaDataToSave.length > 0 ? uploadedFilesMetaDataToSave : undefined,
+        createdAt: new Date()
+    };
+    if (currentConvId) await saveChatMessage(currentConvId, userMessageToSave);
+
+    setChatMessage(''); // Clear input field
+
+    // Handle chat usage increment
     if (userTier !== 'premium' && userTier !== 'loading') {
-      try { await incrementUserChatUsage(user.uid); setChatUsageCount(prev => prev + 1); }
-      catch (error) {
+      try {
+        await incrementUserChatUsage(user.uid);
+        setChatUsageCount(prev => prev + 1);
+      } catch (error) {
         console.error("Failed to increment chat usage:", error);
-        const usageErrorMsgToSave: Omit<ChatMessageData, 'id' | 'createdAt'> = {
-            role: 'assistant', content: "⚠️ Error saving usage count. Message sent.", error: true
+        const usageErrorMsgToSave: Partial<FirebaseChatMessage> = {
+            role: 'assistant',
+            content: "⚠️ Error saving usage count. Message sent.",
+            error: true // Or a specific type of warning
         };
        if (currentConvId) await saveChatMessage(currentConvId, usageErrorMsgToSave);
+       // Do not block chat for this error, message was already sent.
       }
     }
+
 
     const timerDuration = parseTimerRequest(userMsgContent);
     if (timerDuration && !isImageGenModeActive) {
       const timerId = `timer-${Date.now()}`;
       const timerMsgContent = `Okay, ${truncatedName}! Starting a timer for ${timerDuration < 60 ? timerDuration + ' seconds' : Math.round(timerDuration / 60) + ' minutes'}.`;
-      const timerMsgToSave: Omit<ChatMessageData, 'id' | 'createdAt'> = {
-        role: 'assistant', content: timerMsgContent, timer: { type: 'timer', duration: timerDuration, id: timerId }
+      const timerMsgToSave: Partial<FirebaseChatMessage> = {
+        role: 'assistant',
+        content: timerMsgContent,
+        timer: { type: 'timer', duration: timerDuration, id: timerId }
       };
       if (currentConvId) await saveChatMessage(currentConvId, timerMsgToSave);
-      return;
+      return; // Don't proceed to Gemini if it's just a timer request
     }
+
 
     setIsChatLoading(true);
     const newAssistantLoadingPlaceholderId = `assistant-ph-${Date.now()}`;
     setAssistantLoadingPlaceholderId(newAssistantLoadingPlaceholderId);
-
     const assistantResponsePlaceholder: ChatMessageData = {
-      id: newAssistantLoadingPlaceholderId, role: 'assistant', content: "...", createdAt: new Date(), isGeneratingImage: isImageGenModeActive,
+      id: newAssistantLoadingPlaceholderId,
+      role: 'assistant',
+      content: "...", // Placeholder content
+      createdAt: new Date(),
+      isGeneratingImage: isImageGenModeActive, // Indicate if image generation is expected
     };
     setChatHistory(prev => [...prev, assistantResponsePlaceholder]);
-    setStreamingAssistantContent(''); // Clear any previous streaming content
+    setStreamingAssistantContent(''); // Reset streaming content
 
-    const prompt = createPrompt(userMsgContent, filesForThisMessage);
+
+    const prompt = createPrompt(userMsgContent, filesForThisMessageSubmission); // Pass files with base64 for prompt
     const currentTargetModel = isImageGenModeActive ? GEMINI_IMAGE_GEN_MODEL : GEMINI_TEXT_MODEL;
     const fullApiUrl = `${GEMINI_API_BASE}${currentTargetModel}:generateContent?key=${geminiApiKey}`;
-    
+
     const apiParts: any[] = [{ text: prompt }];
-    if (!isImageGenModeActive && filesForThisMessage.length > 0) {
-        filesForThisMessage.forEach(file => {
-            // Only include supported types for multi-modal request
-            if (file.type.startsWith('image/') || file.type === 'application/pdf' || file.type === 'text/plain' || file.name.endsWith('.md') || file.type === "image/svg+xml") {
-                 apiParts.push({ inline_data: { mime_type: file.type, data: file.base64Data }});
+
+    if (!isImageGenModeActive && filesForThisMessageSubmission.length > 0) {
+        filesForThisMessageSubmission.forEach(selectedFile => {
+            // Only include supported types for inline data
+            if (selectedFile.type.startsWith('image/') || selectedFile.type === 'application/pdf' || selectedFile.type === 'text/plain' || selectedFile.name.endsWith('.md') || selectedFile.type === "image/svg+xml") {
+                 apiParts.push({ inline_data: { mime_type: selectedFile.type, data: selectedFile.base64Data }});
             }
+            // For other types, the AI is informed by the preamble in the prompt.
         });
     }
-    
+
     const apiRequestBody: any = {
         contents: [{ parts: apiParts }],
-        safetySettings: [
+        safetySettings: [ // Example safety settings, adjust as needed
             { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
             { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
             { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
@@ -880,16 +927,17 @@ Assistant:`;
         ]
     };
 
+    // Add generationConfig
     let generationConfig: any = {
-        temperature: 0.7,
-        maxOutputTokens: 8192,
+        temperature: 0.7, // Adjust as needed
+        maxOutputTokens: 8192, // Adjust for text model
     };
-
     if (isImageGenModeActive) {
-        generationConfig.maxOutputTokens = 2048; // Or as appropriate for image model
-        generationConfig.responseModalities = ["TEXT", "IMAGE"]; // FIX for image generation
+        generationConfig.maxOutputTokens = 2048; // Typically smaller for image-related text
+        generationConfig.responseModalities = ["TEXT", "IMAGE"]; // Explicitly request TEXT and IMAGE
     }
     apiRequestBody.generationConfig = generationConfig;
+
 
     const geminiOptions = {
         method: 'POST',
@@ -903,169 +951,225 @@ Assistant:`;
       const parsedApiResult = parseGeminiApiResponse(responseText, isImageGenModeActive);
 
       let assistantTextForDisplay = parsedApiResult.text || "";
-      const assistantImageData = parsedApiResult.imageData || undefined;
+      const geminiGeneratedImageData: LocalImageData | null = parsedApiResult.localImageData;
+      let finalImageUrl: string | undefined = undefined;
+      let finalImageMeta: FirebaseImageMeta | undefined = undefined;
+
+      if (isImageGenModeActive && geminiGeneratedImageData && user && user.uid && currentConvId) {
+        // Update placeholder to indicate image saving
+        setChatHistory(prev => prev.map(msg => msg.id === newAssistantLoadingPlaceholderId ? {...msg, content: "Generating & saving image..." } : msg));
+        try {
+          const { downloadURL, storagePath } = await uploadBase64ImageToStorage(
+            user.uid,
+            currentConvId,
+            geminiGeneratedImageData.base64,
+            geminiGeneratedImageData.type,
+            geminiGeneratedImageData.name
+          );
+          finalImageUrl = downloadURL;
+          finalImageMeta = {
+            name: geminiGeneratedImageData.name,
+            type: geminiGeneratedImageData.type,
+            storagePath
+          };
+        } catch (uploadError) {
+          console.error("Error uploading AI generated image:", uploadError);
+          assistantTextForDisplay = (assistantTextForDisplay ? assistantTextForDisplay + "\n" : "") + "Error: Failed to save generated image.";
+          // Potentially set an error flag on the message
+        }
+      }
+
+
       let educationalContent: any = null;
       let actionTaken = false;
       let combinedActionConfirmation = "";
       let finalActionDetails: ChatMessageData['actionDetails'] | undefined = undefined;
-      
+
+      // Extract JSON blocks and separate text.
+      // This function should ideally handle cases where AI might return text AND JSON.
       const { blocks: jsonActionBlocks, cleanedText, originalText } = extractJsonBlocks(parsedApiResult.text || "");
-      // If not image gen mode, cleanedText is the AI's primary text. For image gen, parsedApiResult.text is primary.
-      assistantTextForDisplay = isImageGenModeActive ? (parsedApiResult.text || "") : cleanedText;
+      assistantTextForDisplay = isImageGenModeActive ? (parsedApiResult.text || (finalImageUrl ? "Generated image:" : "")) : cleanedText;
 
 
       if (!isImageGenModeActive && jsonActionBlocks.length > 0) {
-          for (const parsed of jsonActionBlocks) {
+          for (const parsed of jsonActionBlocks) { // Iterate over all found JSON blocks
             if (parsed.action && parsed.payload && user.uid) {
-              actionTaken = true;
-              const payload = { ...parsed.payload };
-              let itemNaturalLanguageResponse = "";
+              actionTaken = true; // Mark that an action was attempted
+              const payload = { ...parsed.payload }; // Clone payload for modification
+              let itemNaturalLanguageResponse = ""; // Confirmation for this specific action
+
+              // Date parsing logic
               if (payload.dueDate && typeof payload.dueDate === 'string') {
                 const date = new Date(payload.dueDate);
-                if (!isNaN(date.getTime())) payload.dueDate = date; else delete payload.dueDate; // or handle error
+                if (!isNaN(date.getTime())) payload.dueDate = date; else delete payload.dueDate;
+              }
+              if (payload.targetDate && typeof payload.targetDate === 'string') { // For goals
+                const date = new Date(payload.targetDate);
+                if (!isNaN(date.getTime())) payload.targetDate = date; else delete payload.targetDate;
+              }
+              // Add similar for startDate, endDate for plans, deadline for projects if they come as strings
+
+              try { // Wrap Firebase calls in try-catch to handle individual action errors
+                if (parsed.action === 'createTask') { await createUserTask(user.uid, payload); itemNaturalLanguageResponse = `Task "${payload.task || 'Untitled'}" created.`; }
+                else if (parsed.action === 'createGoal') { await createUserGoal(user.uid, payload); itemNaturalLanguageResponse = `Goal "${payload.goal || 'Untitled'}" set.`; }
+                else if (parsed.action === 'createPlan') { await createUserPlan(user.uid, payload); itemNaturalLanguageResponse = `Plan "${payload.plan || 'Untitled'}" created.`; }
+                else if (parsed.action === 'createProject') { await createUserProject(user.uid, payload); itemNaturalLanguageResponse = `Project "${payload.project || 'Untitled'}" set up.`; }
+                else if (parsed.action === 'updateTask') { const id = payload.id || await findItemByName('tasks',user.uid,payload.task,'task'); if(id){await updateUserTask(id,payload);} itemNaturalLanguageResponse = `Task "${payload.newTask || payload.task}" updated.`; }
+                else if (parsed.action === 'updateGoal') { const id = payload.id || await findItemByName('goals',user.uid,payload.goal,'goal'); if(id){await updateUserGoal(id,payload);} itemNaturalLanguageResponse = `Goal "${payload.newGoal || payload.goal}" updated.`; }
+                else if (parsed.action === 'updatePlan') { const id = payload.id || await findItemByName('plans',user.uid,payload.plan,'plan'); if(id){await updateUserPlan(id,payload);} itemNaturalLanguageResponse = `Plan "${payload.newPlan || payload.plan}" updated.`; }
+                else if (parsed.action === 'updateProject') { const id = payload.id || await findItemByName('projects',user.uid,payload.project,'project'); if(id){await updateUserProject(id,payload);} itemNaturalLanguageResponse = `Project "${payload.newProject || payload.project}" updated.`; }
+                else if (parsed.action === 'deleteTask') { const id = payload.id || await findItemByName('tasks',user.uid,payload.task,'task'); if(id){await deleteUserTask(id);} itemNaturalLanguageResponse = `Task "${payload.task}" deleted.`; }
+                else if (parsed.action === 'deleteGoal') { const id = payload.id || await findItemByName('goals',user.uid,payload.goal,'goal'); if(id){await deleteUserGoal(id);} itemNaturalLanguageResponse = `Goal "${payload.goal}" deleted.`; }
+                else if (parsed.action === 'deletePlan') { const id = payload.id || await findItemByName('plans',user.uid,payload.plan,'plan'); if(id){await deleteUserPlan(id);} itemNaturalLanguageResponse = `Plan "${payload.plan}" deleted.`; }
+                else if (parsed.action === 'deleteProject') { const id = payload.id || await findItemByName('projects',user.uid,payload.project,'project'); if(id){await deleteUserProject(id);} itemNaturalLanguageResponse = `Project "${payload.project}" deleted.`; }
+                else { actionTaken = false; /* Not a recognized action */ }
+
+
+                if (itemNaturalLanguageResponse) combinedActionConfirmation += (combinedActionConfirmation ? " " : "") + itemNaturalLanguageResponse;
+                finalActionDetails = { status: 'success' }; // Assume success if no throw
+              } catch (actionError: any) {
+                  console.error(`Error processing action ${parsed.action}:`, actionError);
+                  combinedActionConfirmation += (combinedActionConfirmation ? " " : "") + `Error with ${parsed.action}: ${actionError.message || 'Failed'}.`;
+                  finalActionDetails = { status: 'error' }; // Mark as error
               }
 
-
-              if (parsed.action === 'createTask') { await createUserTask(user.uid, payload); itemNaturalLanguageResponse = `Task "${payload.task || 'Untitled'}" created.`; }
-              else if (parsed.action === 'createGoal') { await createUserGoal(user.uid, payload); itemNaturalLanguageResponse = `Goal "${payload.goal || 'Untitled'}" set.`; }
-              else if (parsed.action === 'createPlan') { await createUserPlan(user.uid, payload); itemNaturalLanguageResponse = `Plan "${payload.plan || 'Untitled'}" created.`; }
-              else if (parsed.action === 'createProject') { await createUserProject(user.uid, payload); itemNaturalLanguageResponse = `Project "${payload.project || 'Untitled'}" set up.`; }
-              else if (parsed.action === 'updateTask') { const id = payload.id || await findItemByName('tasks',user.uid,payload.task,'task'); if(id){await updateUserTask(id,payload);} itemNaturalLanguageResponse = `Task "${payload.newTask || payload.task}" updated.`; }
-              else if (parsed.action === 'updateGoal') { const id = payload.id || await findItemByName('goals',user.uid,payload.goal,'goal'); if(id){await updateUserGoal(id,payload);} itemNaturalLanguageResponse = `Goal "${payload.newGoal || payload.goal}" updated.`; }
-              else if (parsed.action === 'updatePlan') { const id = payload.id || await findItemByName('plans',user.uid,payload.plan,'plan'); if(id){await updateUserPlan(id,payload);} itemNaturalLanguageResponse = `Plan "${payload.newPlan || payload.plan}" updated.`; }
-              else if (parsed.action === 'updateProject') { const id = payload.id || await findItemByName('projects',user.uid,payload.project,'project'); if(id){await updateUserProject(id,payload);} itemNaturalLanguageResponse = `Project "${payload.newProject || payload.project}" updated.`; }
-              else if (parsed.action === 'deleteTask') { const id = payload.id || await findItemByName('tasks',user.uid,payload.task,'task'); if(id){await deleteUserTask(id);} itemNaturalLanguageResponse = `Task "${payload.task}" deleted.`; }
-              else if (parsed.action === 'deleteGoal') { const id = payload.id || await findItemByName('goals',user.uid,payload.goal,'goal'); if(id){await deleteUserGoal(id);} itemNaturalLanguageResponse = `Goal "${payload.goal}" deleted.`; }
-              else if (parsed.action === 'deletePlan') { const id = payload.id || await findItemByName('plans',user.uid,payload.plan,'plan'); if(id){await deleteUserPlan(id);} itemNaturalLanguageResponse = `Plan "${payload.plan}" deleted.`; }
-              else if (parsed.action === 'deleteProject') { const id = payload.id || await findItemByName('projects',user.uid,payload.project,'project'); if(id){await deleteUserProject(id);} itemNaturalLanguageResponse = `Project "${payload.project}" deleted.`; }
-              
-              if (itemNaturalLanguageResponse) combinedActionConfirmation += (combinedActionConfirmation ? " " : "") + itemNaturalLanguageResponse;
-            
             } else if (parsed.type && parsed.data && (parsed.type === 'flashcard' || parsed.type === 'question')) {
               educationalContent = parsed;
             }
           }
       }
 
+      // Consolidate assistant text based on outcomes
       if (actionTaken) {
           if (combinedActionConfirmation.trim()) {
-              assistantTextForDisplay = combinedActionConfirmation; // Prioritize programmatic confirmation for clarity
-          } else if (!cleanedText.trim() && !isImageGenModeActive) { // Use AI's text if no programmatic, and AI gave some text
-              assistantTextForDisplay = "Action processed successfully.";
+              // If there was a conversational confirmation from AI (cleanedText) AND specific action confirmations, combine them.
+              // Or, if AI provided text (cleanedText) meant as confirmation, and we also have our generated one.
+              // Let's prioritize our generated confirmation if `cleanedText` from AI was just the confirmation prompt itself.
+              assistantTextForDisplay = (cleanedText && cleanedText !== "Okay, I'll create that task!" && cleanedText !== "Okay, I'll update that." && cleanedText !== "Okay, I'll delete that." ? cleanedText + "\n" : "") + combinedActionConfirmation;
+          } else if (!cleanedText.trim() && !isImageGenModeActive) { // No AI text, no generated confirmation, but action was taken
+              assistantTextForDisplay = "Action processed."; // Generic success
           } else if (isImageGenModeActive && !assistantTextForDisplay.trim()) {
-              // Should not happen if API requires text with image.
+              // This case should be rare if actions are disabled in image gen mode per prompt
               assistantTextForDisplay = "Action processed alongside image generation attempt.";
           }
-          // If cleanedText (AI's original text for action) exists and combinedActionConfirmation is also there,
-          // we are currently overwriting with combinedActionConfirmation for action clarity.
-          finalActionDetails = { status: 'success' };
+          // `finalActionDetails` is already set
       } else if (educationalContent) {
-          // AI is instructed to return ONLY JSON. cleanedText should be empty.
-          // If it's not, parseGeminiApiResponse or extractJsonBlocks might need adjustment or AI is non-compliant.
-          if (!cleanedText.trim()) { // If AI truly sent only JSON, cleanedText is empty.
+          // If AI gave text along with educational JSON, use it. Otherwise, default.
+          if (!cleanedText.trim()) {
             assistantTextForDisplay = "Here's the educational content you requested:";
           } else {
-            assistantTextForDisplay = cleanedText; // Use AI's preamble if it provided one.
+            assistantTextForDisplay = cleanedText; // Use AI's text if provided
           }
       } else if (isImageGenModeActive) {
           if (parsedApiResult.error) {
-              assistantTextForDisplay = parsedApiResult.error;
-          } else if (!assistantImageData && !assistantTextForDisplay.trim()) {
+              assistantTextForDisplay = parsedApiResult.error; // API error for image gen
+          } else if (!finalImageUrl && !assistantTextForDisplay.trim()) {
               assistantTextForDisplay = "Image generation may have failed or no content was returned.";
-          } else if (assistantImageData && !assistantTextForDisplay.trim()){
-              assistantTextForDisplay = "Generated image:"; // Default text if AI gives image but no text part
+          } else if (finalImageUrl && !assistantTextForDisplay.trim()){
+              assistantTextForDisplay = "Generated image:"; // Default text if AI provided image but no text
           }
-          // If parsedApiResult.text has content, it's already in assistantTextForDisplay
-      } else if (!assistantTextForDisplay.trim() && originalText && !parsedApiResult.imageData) {
-          // Fallback for general text responses if cleanedText ended up empty
+      } else if (!assistantTextForDisplay.trim() && originalText && !finalImageUrl) {
+          // If cleanedText is empty (meaning original was all JSON or whitespace) but there was original text
+          // and no image was generated, use the original text (minus successfully parsed JSON).
+          // This handles cases where AI might return only malformed JSON.
           assistantTextForDisplay = originalText;
       }
-      
-      // Final fallback for empty content if no error was otherwise captured
-      if (!assistantTextForDisplay.trim() && !assistantImageData && !parsedApiResult.error && !educationalContent && !actionTaken) {
+
+      // Final fallback if no content at all
+      if (!assistantTextForDisplay.trim() && !finalImageUrl && !parsedApiResult.error && !educationalContent && !actionTaken) {
           assistantTextForDisplay = "(No specific content received)";
       }
-      // Prioritize error message from API if one occurred and no other content has been set.
+
+      // Ensure API errors are prioritized if no other meaningful content.
       if (parsedApiResult.error && (!assistantTextForDisplay.trim() || assistantTextForDisplay === "(No specific content received)")) {
           assistantTextForDisplay = parsedApiResult.error;
       }
 
 
-      const finalAssistantMsgData: ChatMessageData = {
-          id: newAssistantLoadingPlaceholderId, // Use placeholder ID for local update
-          role: 'assistant', 
-          content: assistantTextForDisplay.trim(),
+      const finalAssistantMsgDataForUi: ChatMessageData = {
+          id: newAssistantLoadingPlaceholderId, // Use the placeholder ID
+          role: 'assistant',
+          content: assistantTextForDisplay.trim() || (finalImageUrl ? "Generated image:" : "(No text content)"),
           createdAt: new Date(),
           flashcard: educationalContent?.type === 'flashcard' ? educationalContent : undefined,
           question: educationalContent?.type === 'question' ? educationalContent : undefined,
-          actionDetails: actionTaken ? finalActionDetails : undefined,
-          imageData: assistantImageData, // Ensure this is included
-          wasImageGenerated: isImageGenModeActive && !!assistantImageData && !parsedApiResult.error,
-          error: !!parsedApiResult.error, // Style as error if API reported one
-          isGeneratingImage: false,
+          actionDetails: actionTaken ? finalActionDetails : undefined, // Use the potentially modified finalActionDetails
+          imageUrl: finalImageUrl,
+          imageMeta: finalImageMeta,
+          wasImageGenerated: isImageGenModeActive && !!finalImageUrl && !parsedApiResult.error, // True if in mode, URL exists, and no API error
+          error: !!parsedApiResult.error || (actionTaken && finalActionDetails?.status === 'error'), // Also mark error if action failed
+          isGeneratingImage: false, // No longer generating
       };
+      setChatHistory(prev => prev.map(msg => msg.id === newAssistantLoadingPlaceholderId ? finalAssistantMsgDataForUi : msg ));
 
-      setChatHistory(prev => prev.map(msg => msg.id === newAssistantLoadingPlaceholderId ? finalAssistantMsgData : msg ));
-      
-      const finalAssistantMsgToSave: Omit<ChatMessageData, 'id' | 'createdAt'> = {
-          role: finalAssistantMsgData.role, content: finalAssistantMsgData.content,
-          createdAt: finalAssistantMsgData.createdAt, // Save with timestamp
-          flashcard: finalAssistantMsgData.flashcard,
-          question: finalAssistantMsgData.question,
-          actionDetails: finalAssistantMsgData.actionDetails,
-          imageData: finalAssistantMsgData.imageData, // Ensure this is saved
-          wasImageGenerated: finalAssistantMsgData.wasImageGenerated,
-          error: finalAssistantMsgData.error,
+      const finalAssistantMsgToSave: Partial<FirebaseChatMessage> = {
+          role: finalAssistantMsgDataForUi.role,
+          content: finalAssistantMsgDataForUi.content,
+          createdAt: finalAssistantMsgDataForUi.createdAt,
+          flashcard: finalAssistantMsgDataForUi.flashcard,
+          question: finalAssistantMsgDataForUi.question,
+          actionDetails: finalAssistantMsgDataForUi.actionDetails,
+          imageUrl: finalAssistantMsgDataForUi.imageUrl,
+          imageMeta: finalAssistantMsgDataForUi.imageMeta,
+          wasImageGenerated: finalAssistantMsgDataForUi.wasImageGenerated,
+          error: finalAssistantMsgDataForUi.error,
       };
-      // await saveChatMessage must correctly persist imageData if provided
       if (currentConvId) await saveChatMessage(currentConvId, finalAssistantMsgToSave);
 
-      // Auto-generate chat name logic
-      const conversationHistoryForName = [...chatHistory.filter(m => m.id !== newAssistantLoadingPlaceholderId), finalAssistantMsgData];
+      // Auto-generate chat name
+      const conversationHistoryForName = [...chatHistory.filter(m => m.id !== newAssistantLoadingPlaceholderId), finalAssistantMsgDataForUi];
       const totalUserMessagesInConv = conversationHistoryForName.filter(m => m.role === 'user').length;
       const currentConvInfo = conversationList.find(c => c.id === currentConvId);
 
       if (currentConvId && currentConvInfo?.chatName === "New Chat" && (!hasGeneratedChatName || totalUserMessagesInConv === 1)) {
-          // Create a temporary history slice for naming, including the latest user and assistant messages
-          const tempHistoryForNaming = chatHistory.filter(m => m.role === 'user' || (m.role === 'assistant' && m.id !== newAssistantLoadingPlaceholderId && m.id !== localUserMessageId));
-          tempHistoryForNaming.push({ ...userMessageForState, id: 'temp-user-for-name' }); // Add current user message
-          tempHistoryForNaming.push({ ...finalAssistantMsgData, id: 'temp-assistant-for-name' }); // Add current assistant response
+          // Create a temporary history that includes the latest user and assistant message for naming
+          const tempHistoryForNaming = chatHistory.filter(m => m.role === 'user' || (m.role === 'assistant' && m.id !== newAssistantLoadingPlaceholderId && m.id !== localUserMessageId)); // Exclude placeholders
+          tempHistoryForNaming.push({ ...userMessageForState, id: 'temp-user-for-name' } as ChatMessageData); // Add the processed user message
+          tempHistoryForNaming.push({ ...finalAssistantMsgDataForUi, id: 'temp-assistant-for-name' }); // Add the final assistant message
 
-          const conversationTextForNaming = tempHistoryForNaming
-            .slice(-6) // Take last few for context
-            .map((m) =>`${m.role === 'user' ? truncatedName : 'Assistant'}: ${m.content}`).join('\n');
-        
-          if (conversationTextForNaming.length > 10) { // Ensure there's some content to name
+          const conversationTextForNaming = tempHistoryForNaming.slice(-6) // Take last few turns
+              .map((m) =>`${m.role === 'user' ? truncatedName : 'Assistant'}: ${m.content}`)
+              .join('\n');
+          if (conversationTextForNaming.length > 10) { // Ensure there's enough content
             await generateChatName(currentConvId, conversationTextForNaming);
             setHasGeneratedChatName(true);
           }
       }
-      if (isImageGenModeActive && assistantImageData && !parsedApiResult.error) { // Switch off image gen mode only on successful image generation
+
+      // Switch back from image gen mode if successful, without the extra message
+      if (isImageGenModeActive && finalImageUrl && !parsedApiResult.error) {
         setIsImageGenModeActive(false);
-        setChatHistory(prev => [...prev, {id: `local-img-mode-off-${Date.now()}`, role: 'assistant', content: "🖼️ Image generated! Switched back to text & file mode.", createdAt: new Date()}]);
+        // The line below adding the chat message has been removed as per user request.
+        // setChatHistory(prev => [...prev, {id: `local-img-mode-off-${Date.now()}`, role: 'assistant', content: "🖼️ Image generated! Switched back to text & file mode.", createdAt: new Date()}]);
       }
 
     } catch (err: any) {
       console.error('Chat Submit Error:', err);
       const errorMsgContent = `Sorry, I encountered an error${err.message ? ': ' + err.message : '.'} Please try again.`;
       const errorMsgForState: ChatMessageData = {
-          id: newAssistantLoadingPlaceholderId, role: 'assistant', content: errorMsgContent, error: true, createdAt: new Date()
+          id: newAssistantLoadingPlaceholderId, // Update the placeholder
+          role: 'assistant',
+          content: errorMsgContent,
+          error: true,
+          createdAt: new Date()
       };
       setChatHistory(prev => prev.map(msg => msg.id === newAssistantLoadingPlaceholderId ? errorMsgForState : msg ));
-      
-      const errorMsgToSave: Omit<ChatMessageData, 'id' | 'createdAt'> = {
-          role: 'assistant', content: errorMsgContent, error: true, createdAt: new Date()
+      const errorMsgToSave: Partial<FirebaseChatMessage> = {
+          role: 'assistant',
+          content: errorMsgContent,
+          error: true,
+          createdAt: new Date()
       };
       if (currentConvId) await saveChatMessage(currentConvId, errorMsgToSave);
     } finally {
       setIsChatLoading(false);
-      setAssistantLoadingPlaceholderId(null);
-      setStreamingAssistantContent('');
+      setAssistantLoadingPlaceholderId(null); // Clear placeholder ID
+      setStreamingAssistantContent(''); // Clear streaming content
     }
   };
 
-  const handleNewConversation = async () => { if (!user || !user.uid) return; const newConvId = await createChatConversation(user.uid, 'New Chat'); if (newConvId) {setConversationId(newConvId); /* Other states reset by conversationId useEffect */} };
-  const handleSelectConversation = (convId: string) => { if(conversationId === convId && chatHistory.length > 0 && !isChatLoading) return; setConversationId(convId); const selConv = conversationList.find(c => c.id === convId); setHasGeneratedChatName(selConv ? selConv.chatName !== "New Chat" : false); /* Other states reset by conversationId useEffect */};
+  const handleNewConversation = async () => { if (!user || !user.uid) return; const newConvId = await createChatConversation(user.uid, 'New Chat'); if (newConvId) {setConversationId(newConvId);} };
+  const handleSelectConversation = (convId: string) => { if(conversationId === convId && chatHistory.length > 0 && !isChatLoading) return; setConversationId(convId); const selConv = conversationList.find(c => c.id === convId); setHasGeneratedChatName(selConv ? selConv.chatName !== "New Chat" : false);};
   const handleRenameConversation = async (conv: any) => { setOpenDropdownId(null); const newName = window.prompt('Enter new chat name:', conv.chatName); if (newName?.trim()) await updateChatConversationName(conv.id, newName.trim()); };
   const handleDeleteConversationClick = async (conv: any) => { setOpenDropdownId(null); if (!window.confirm(`Delete "${conv.chatName}"?`)) return; await deleteChatConversation(conv.id); if (conversationId === conv.id) { setConversationId(null); } };
   const handleShareConversation = async (conv: any) => { setOpenDropdownId(null); alert(`Sharing ID: ${conv.id} (Not fully implemented)`); };
@@ -1101,7 +1205,7 @@ Assistant:`;
 
   const leftOverlayClass = `absolute left-0 top-0 h-full w-16 z-10 pointer-events-none bg-gradient-to-r ${currentTheme.gradientFrom} to-transparent`;
   const rightOverlayClass = `absolute right-0 top-0 h-full w-16 z-10 pointer-events-none bg-gradient-to-l ${currentTheme.gradientFrom} to-transparent`;
-  const quickActionSetWidth = useMemo(() => 160 * quickActions.length, [quickActions.length]); // Adjust width per item if needed
+  const quickActionSetWidth = useMemo(() => 160 * quickActions.length, [quickActions.length]);
 
   const currentConversationName = useMemo(() => {
     if (!conversationId) return "AI Assistant";
@@ -1111,7 +1215,6 @@ Assistant:`;
 
   const effectiveImageGenButtonClass = isImageGenModeActive ? currentTheme.imageGenActiveButtonClass : currentTheme.imageGenButtonClass;
 
-
   return (
     <div className={`flex flex-col md:flex-row h-screen ${currentTheme.containerBg} ${currentTheme.textColor} font-sans`}>
       <Sidebar
@@ -1120,7 +1223,6 @@ Assistant:`;
         isIlluminateEnabled={isIlluminateEnabled && isSidebarIlluminateEnabled}
         currentThemeName={currentTheme.name}
       />
-
       <main className={`flex-1 overflow-hidden transition-all duration-300
           ${isSidebarCollapsed ? 'md:ml-20' : 'md:ml-64'}
           ${!conversationId ? 'h-[calc(100vh_-_12rem)] sm:h-[calc(100vh_-_10rem)] md:h-full' : 'h-full'}`}
@@ -1133,18 +1235,16 @@ Assistant:`;
             <p className={`mb-4 md:mb-6 text-sm ${currentTheme.mutedTextColor}`}>
               Select a quick action or start a new conversation.
             </p>
-
             <div className="relative w-full max-w-5xl overflow-hidden my-3 md:my-4">
               <div className={leftOverlayClass} />
               <div className={rightOverlayClass} />
               <div className="flex relative overflow-x-auto pb-3 hide-scrollbar">
                 <motion.div
                   className="flex space-x-2.5 md:space-x-3 px-2"
-                  // Ensure enough sets for smooth looping if quickActionSetWidth is based on single set
-                  animate={{ x: [0, -(quickActionSetWidth / (quickActions.length > 0 ? quickActions.length : 1) * quickActions.length)] }} 
+                  animate={{ x: [0, -(quickActionSetWidth / (quickActions.length > 0 ? quickActions.length : 1) * quickActions.length)] }}
                   transition={{ x: { repeat: Infinity, repeatType: "loop", duration: quickActions.length * 2.5, ease: "linear" } }}
                 >
-                  {[...Array(6)].map((_, setIndex) => ( // Render multiple sets for continuous scroll
+                  {[...Array(6)].map((_, setIndex) => (
                     quickActions.map((action, index) => (
                       <button
                         key={`set${setIndex}-${index}`}
@@ -1159,7 +1259,6 @@ Assistant:`;
                 </motion.div>
               </div>
             </div>
-
             <form onSubmit={handleChatSubmit} className="mt-4 md:mt-6 w-full max-w-3xl px-2">
               {userTier !== 'premium' && userTier !== 'loading' && (
                 <div className={`pb-1.5 text-xs text-center ${currentTheme.mutedTextColor}`}>
@@ -1176,6 +1275,9 @@ Assistant:`;
                  <div className="mb-2 flex flex-wrap justify-center gap-2 max-h-20 overflow-y-auto p-1 rounded-md border border-dashed border-gray-500/50">
                     {selectedFiles.map(file => (
                         <div key={file.name} className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${currentTheme.filePillBg} ${currentTheme.filePillText}`}>
+                            {file.type.startsWith("image/") && file.localPreviewUrl && (
+                                <img src={file.localPreviewUrl} alt={file.name} className="w-5 h-5 rounded mr-1 object-cover"/>
+                            )}
                             <span className="truncate max-w-[100px]">{file.name}</span>
                             <span className="text-[10px] opacity-70">({formatBytes(file.size)})</span>
                             <button type="button" onClick={() => handleRemoveFile(file.name)} className={`ml-0.5 p-0.5 rounded-full ${currentTheme.name === 'illuminate' ? 'hover:bg-blue-200' : 'hover:bg-blue-700'} `} title="Remove"> <X className="w-2.5 h-2.5" /> </button>
@@ -1230,18 +1332,15 @@ Assistant:`;
                     <span className="sm:hidden">Inaccurate responses possible.</span>
                 </div>
             </div>
-
-            <div className="flex-1 overflow-y-auto p-3 space-y-2.5" > {/* Removed ref here to avoid scrolling issues on message update */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-2.5" >
               {chatHistory.map((message) => {
                 const isUserMsg = message.role === 'user';
                 const isAssistantMsg = message.role === 'assistant';
-                const isCurrentAssistantTextLoading = isAssistantMsg && message.id === assistantLoadingPlaceholderId && isChatLoading && !message.isGeneratingImage && !message.imageData;
+                const isCurrentAssistantTextLoading = isAssistantMsg && message.id === assistantLoadingPlaceholderId && isChatLoading && !message.isGeneratingImage && !message.imageUrl;
                 const isCurrentAssistantImageGenerating = isAssistantMsg && message.id === assistantLoadingPlaceholderId && isChatLoading && message.isGeneratingImage;
-                
                 return (
-                <div key={message.id} className={`flex ${isUserMsg ? 'justify-end' : 'justify-start'}`}> {/* Ensure message.id is always unique */}
+                <div key={message.id} className={`flex ${isUserMsg ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[85%] rounded-lg px-3 py-1.5 text-sm shadow-sm break-words ${isUserMsg ? currentTheme.userBubble : message.error ? currentTheme.errorBubble : currentTheme.assistantBubble}`}>
-                    
                     {(message.content && message.content !== "..." && !isCurrentAssistantTextLoading && !isCurrentAssistantImageGenerating) && (
                         <ReactMarkdown
                             remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}
@@ -1255,7 +1354,6 @@ Assistant:`;
                             }}
                         >{message.content}</ReactMarkdown>
                     )}
-                    
                     {isCurrentAssistantTextLoading && (
                         streamingAssistantContent ? (
                             <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>
@@ -1272,41 +1370,46 @@ Assistant:`;
                     {isCurrentAssistantImageGenerating && (
                         <div className={`flex items-center gap-2 p-1 ${currentTheme.name === 'illuminate' ? 'text-gray-600' : 'text-gray-400'}`}>
                             <Loader2 className="w-4 h-4 animate-spin" />
-                            <span className="text-xs">Generating image...</span>
+                            <span className="text-xs">Generating & saving image...</span>
                         </div>
                     )}
-
-                    {isUserMsg && message.imageData && (
+                    {isUserMsg && message.attachedFilesMeta && message.attachedFilesMeta.some(f => f.type.startsWith("image/") && (f.localPreviewUrl || f.url)) && (
                          <div className={`relative group ${message.content ? 'mt-1.5 border-t pt-1.5' : 'mt-1'} ${currentTheme.name === 'illuminate' ? 'border-gray-300/50' : (currentTheme.name === 'blackout' ? 'border-gray-700/50' : 'border-blue-400/30')}`}>
-                             <img src={`data:${message.imageData.type};base64,${message.imageData.base64}`} alt={message.imageData.name || "User uploaded image"} className="max-w-full h-auto max-h-60 object-contain rounded-md border border-gray-400 dark:border-gray-600 cursor-pointer" onClick={() => window.open(`data:${message.imageData.type};base64,${message.imageData.base64}`, '_blank')} title="View full image"/>
+                            {message.attachedFilesMeta.filter(f => f.type.startsWith("image/") && (f.localPreviewUrl || f.url)).map(imgFile => (
+                                <img
+                                    key={imgFile.name}
+                                    src={imgFile.url || imgFile.localPreviewUrl}
+                                    alt={imgFile.name || "User uploaded image"}
+                                    className="max-w-full h-auto max-h-60 object-contain rounded-md border border-gray-400 dark:border-gray-600 cursor-pointer mb-1"
+                                    onClick={() => window.open(imgFile.url || imgFile.localPreviewUrl, '_blank')} title="View full image"/>
+                            ))}
                          </div>
                     )}
-
-                    {isUserMsg && message.attachedFilesMeta && message.attachedFilesMeta.filter(f => !f.type.startsWith('image/')).length > 0 && ( // Show only non-image files if image is already shown by imageData
-                        <div className={`p-2 rounded-lg text-xs ${currentTheme.userFileAttachmentBg} ${currentTheme.userFileAttachmentText} border ${(message.content || message.imageData) ? 'mt-2 border-t' : 'mt-1'} ${currentTheme.name === 'illuminate' ? 'border-slate-300' : (currentTheme.name === 'blackout' ? 'border-gray-700/60' : 'border-blue-500/20') }`}>
-                            <div className={`font-medium mb-1 ${currentTheme.userFileAttachmentText} flex items-center text-xs`}>
-                                <Paperclip className="w-3 h-3 mr-1 flex-shrink-0" /> Attached Files:
-                            </div>
+                    {isUserMsg && message.attachedFilesMeta && message.attachedFilesMeta.filter(f => !f.type.startsWith("image/")).length > 0 && (
+                        <div className={`p-2 rounded-lg text-xs ${currentTheme.userFileAttachmentBg} ${currentTheme.userFileAttachmentText} border ${message.content || (message.attachedFilesMeta && message.attachedFilesMeta.some(f => f.type.startsWith("image/")))? 'mt-2 border-t' : 'mt-1'} ${currentTheme.name === 'illuminate' ? 'border-slate-300' : (currentTheme.name === 'blackout' ? 'border-gray-700/60' : 'border-blue-500/20') }`}>
+                            <div className={`font-medium mb-1 ${currentTheme.userFileAttachmentText} flex items-center text-xs`}> <Paperclip className="w-3 h-3 mr-1 flex-shrink-0" /> Attached Files: </div>
                             <ul className="space-y-0.5 list-none pl-0">
-                                {message.attachedFilesMeta.filter(f => !f.type.startsWith('image/') || !message.imageData || message.imageData.name !== f.name).map(f => ( // Avoid duplicate listing if image is in imageData
+                                {message.attachedFilesMeta.filter(f => !f.type.startsWith("image/")).map(f => (
                                     <li key={f.name} className="flex items-center justify-between text-xs">
-                                        <span className="truncate max-w-[calc(100%_-_70px)]">{f.name}</span>
-                                        <span className="text-[10px] opacity-70 flex-shrink-0 ml-1">{formatBytes(f.size)}</span>
+                                        {f.url ? (
+                                            <a href={f.url} target="_blank" rel="noopener noreferrer" className="truncate max-w-[calc(100%_-_70px)] hover:underline">{f.name}</a>
+                                        ) : (
+                                            <span className="truncate max-w-[calc(100%_-_70px)]">{f.name}</span>
+                                        )}
+                                        <span className="text-[10px] opacity-70 flex-shrink-0 ml-1">{f.size ? formatBytes(f.size) : ''}</span>
                                     </li>
                                 ))}
                             </ul>
                         </div>
                     )}
-                    
-                    {message.imageData && isAssistantMsg && message.wasImageGenerated && (
+                    {isAssistantMsg && message.imageUrl && message.wasImageGenerated && (
                          <div className={`relative group mt-1.5 ${message.content && message.content !== "..." && message.content !== "Generated image:" ? 'border-t pt-1.5' : ''} ${currentTheme.name === 'illuminate' ? 'border-gray-300/50' : 'border-gray-600/50'}`}>
-                             <img src={`data:${message.imageData.type};base64,${message.imageData.base64}`} alt={message.imageData.name || "Generated image"} className="max-w-full h-auto max-h-60 object-contain rounded-md border border-gray-400 dark:border-gray-600 cursor-pointer" onClick={() => window.open(`data:${message.imageData.type};base64,${message.imageData.base64}`, '_blank')} title="View full image"/>
-                             <button onClick={() => handleDownloadImage(message.imageData!)} className={`absolute top-1 right-1 p-1 rounded opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-200 ${currentTheme.downloadButtonClass}`} title="Download Image">
+                             <img src={message.imageUrl} alt={message.imageMeta?.name || "Generated image"} className="max-w-full h-auto max-h-60 object-contain rounded-md border border-gray-400 dark:border-gray-600 cursor-pointer" onClick={() => window.open(message.imageUrl, '_blank')} title="View full image"/>
+                             <button onClick={() => handleDownloadImageFromUrl(message.imageUrl!, message.imageMeta?.name)} className={`absolute top-1 right-1 p-1 rounded opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-200 ${currentTheme.downloadButtonClass}`} title="Download Image">
                                  <Download className="w-3.5 h-3.5" />
                              </button>
                          </div>
                     )}
-
                     {message.timer && (
                       <div className="mt-1.5">
                           <div className={`flex items-center space-x-2 rounded-md px-2.5 py-1 text-sm ${currentTheme.name === 'illuminate' ? 'bg-blue-100/70 border border-blue-200/80' : 'bg-gray-800/60 border border-gray-600/50'}`}>
@@ -1317,9 +1420,8 @@ Assistant:`;
                     )}
                     {message.flashcard && <div className="mt-1.5"><FlashcardsQuestions type="flashcard" data={message.flashcard.data} onComplete={() => {}} /></div>}
                     {message.question && <div className="mt-1.5"><FlashcardsQuestions type="question" data={message.question.data} onComplete={() => {}} /></div>}
-
                     {message.actionDetails && message.actionDetails.status === 'success' && (
-                      <motion.div 
+                      <motion.div
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.3, delay: 0.1 }}
@@ -1336,9 +1438,8 @@ Assistant:`;
                   </div>
                 </div>
               )})}
-              <div ref={chatEndRef} /> {/* This ref is for scrolling to the end */}
+              <div ref={chatEndRef} />
             </div>
-
             <div className={`px-2 sm:px-3 pt-1 border-t ${currentTheme.headerBorder} ${currentTheme.name === 'illuminate' ? 'bg-gray-100/80' : 'bg-gray-800/90'} flex-shrink-0 sticky bottom-0 backdrop-blur-sm z-10`}>
               {userTier !== 'premium' && userTier !== 'loading' && (
                 <div className={`pb-1.5 text-xs text-center ${currentTheme.mutedTextColor}`}>
@@ -1355,6 +1456,9 @@ Assistant:`;
                  <div className="mb-2 flex flex-wrap gap-1.5 px-1 max-h-20 overflow-y-auto scrollbar-thin">
                     {selectedFiles.map(file => (
                         <div key={file.name} className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${currentTheme.filePillBg} ${currentTheme.filePillText}`}>
+                             {file.type.startsWith("image/") && file.localPreviewUrl && (
+                                <img src={file.localPreviewUrl} alt={file.name} className="w-5 h-5 rounded mr-1 object-cover"/>
+                            )}
                             <span className="truncate max-w-[100px]">{file.name}</span>
                             <span className="text-[10px] opacity-70">({formatBytes(file.size)})</span>
                             <button type="button" onClick={() => handleRemoveFile(file.name)} className={`ml-0.5 p-0.5 rounded-full ${currentTheme.name === 'illuminate' ? 'hover:bg-blue-200' : 'hover:bg-blue-700'} `} title="Remove"> <X className="w-2.5 h-2.5" /> </button>
@@ -1398,7 +1502,6 @@ Assistant:`;
           </div>
         )}
       </main>
-
       <aside className={`${!conversationId ? 'h-48 sm:h-40' : 'hidden'} md:block md:w-80 lg:w-96 border-t md:border-t-0 md:border-l ${currentTheme.asideBorder} ${currentTheme.asideBg} md:h-full md:overflow-y-auto`}>
         <div className="p-3 flex flex-col h-full">
           <div className="flex items-center justify-between mb-2.5">
@@ -1411,7 +1514,7 @@ Assistant:`;
             <PlusCircle className={iconClass} /> New Conversation
           </button>
           <div className="flex-1 overflow-y-auto space-y-1.5 pr-0.5">
-            {conversationList.sort((a,b) => (b.updatedAt?.toDate?.() || 0) - (a.updatedAt?.toDate?.() || 0)).map((conv) => ( // Sort by most recent
+            {conversationList.sort((a,b) => (b.updatedAt?.toDate?.() || 0) - (a.updatedAt?.toDate?.() || 0)).map((conv) => (
               <div key={conv.id}
                 className={`flex items-center justify-between cursor-pointer p-2 rounded-lg transition-all text-sm ${conversationId === conv.id ? currentTheme.conversationActive : currentTheme.conversationInactive}`}
                 onClick={() => handleSelectConversation(conv.id)}
