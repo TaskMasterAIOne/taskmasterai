@@ -1265,7 +1265,7 @@ Assistant:`;
                   Messages this month: {chatUsageCount} / {currentChatLimitDisplay === Infinity ? '∞' : currentChatLimitDisplay}
                   {isChatDisabledByLimit && <span className="text-red-500 ml-1 font-medium">(Limit Reached)</span>}
                   {!isChatDisabledByLimit && userTier === 'basic' && (
-                    <Link to="/settings/billing" className={`ml-2 font-medium ${currentTheme.accentColor} hover:underline`}>
+                    <Link to="/pricing" className={`ml-2 font-medium ${currentTheme.accentColor} hover:underline`}>
                       <Crown className={`${smallIconClass} inline mr-0.5`} />Upgrade
                     </Link>
                   )}
