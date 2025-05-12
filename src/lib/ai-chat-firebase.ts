@@ -5,7 +5,6 @@ import {
   collection,
   addDoc,
   doc,
-  setDoc,
   updateDoc,
   deleteDoc,
   serverTimestamp,
@@ -13,58 +12,64 @@ import {
   query,
   where,
   orderBy,
-  getDocs
+  getDocs,
+  Timestamp
 } from "firebase/firestore";
 import { createDeepInsightAction, updateDeepInsightActionStatus, voteOnDeepInsightAction } from './ai-context-firebase';
 import { createUserTask, createUserGoal, createUserPlan, createUserProject } from './ai-actions-firebase';
 
-// Interface for file attachments
-export interface ChatFileAttachment {
-  name: string;
-  url: string;
+// Interface for embedded image data (matches AIChat.tsx)
+export interface ImageData {
+  base64: string;
   type: string;
+  name: string;
 }
 
-// Updated ChatMessage interface
+// Interface for attached file metadata (matches AIChat.tsx)
+export interface AttachedFileMeta {
+  name: string;
+  type: string;
+  size: number;
+}
+
+// Updated ChatMessage interface to align with AIChat.tsx's ChatMessageData
 export interface ChatMessage {
+  id?: string;
   role: 'user' | 'assistant';
   content: string;
-  createdAt?: any;
-  files?: ChatFileAttachment[];
+  createdAt?: any; // Firestore ServerTimestamp, client-side Date, or Firestore Timestamp
   timer?: { type: 'timer'; duration: number; id: string; };
   flashcard?: { type: 'flashcard'; data: any[]; };
   question?: { type: 'question'; data: any[]; };
+  error?: boolean;
+  actionDetails?: {
+    status: 'success' | 'error';
+  };
+  imageData?: ImageData;
+  isGeneratingImage?: boolean;
+  wasImageGenerated?: boolean;
+  attachedFilesMeta?: AttachedFileMeta[];
 }
 
 
-/**
- * Find an item by name in a specific collection
- * @param collectionName The name of the collection to search in
- * @param userId The user's ID
- * @param itemName The name of the item to find
- * @param fieldName The field name to match against (e.g., 'task', 'goal')
- * @returns The document ID if found, null otherwise
- */
-export async function findItemByName(collectionName: string, userId: string, itemName: string, fieldName: string): Promise<string | null> { // Added return type promise
+export async function findItemByName(collectionName: string, userId: string, itemName: string, fieldName: string): Promise<string | null> {
   try {
-    const itemsRef = collection(db, collectionName)
-    const q = query(itemsRef, where(fieldName, "==", itemName), where("userId", "==", userId))
-    const querySnapshot = await getDocs(q) // Use getDocs here
+    const itemsRef = collection(db, collectionName);
+    const q = query(itemsRef, where(fieldName, "==", itemName), where("userId", "==", userId));
+    const querySnapshot = await getDocs(q);
 
     if (!querySnapshot.empty) {
-      // Return the ID of the first matching document
-      return querySnapshot.docs[0].id
+      return querySnapshot.docs[0].id;
     }
-    console.log(`No ${collectionName} found with name "${itemName}" for user ${userId}`);
-    return null
+    // console.log(`No ${collectionName} found with name "${itemName}" for user ${userId}`); // Less noisy
+    return null;
   } catch (error) {
-    console.error(`Error finding ${collectionName} by name "${itemName}":`, error)
-    return null // Return null on error
+    console.error(`Error finding ${collectionName} by name "${itemName}":`, error);
+    return null;
   }
 }
 
-// Create a new chat conversation for the user
-export async function createChatConversation(userId: string, chatName: string): Promise<string> {
+export async function createChatConversation(userId: string, chatName:string): Promise<string> {
   const conversationRef = await addDoc(collection(db, "chatConversations"), {
     userId,
     chatName,
@@ -74,42 +79,74 @@ export async function createChatConversation(userId: string, chatName: string): 
   return conversationRef.id;
 }
 
-// *** CORRECTED saveChatMessage function ***
-export async function saveChatMessage(conversationId: string, message: ChatMessage): Promise<string> {
-
-  // Start building the data object WITHOUT the 'files' field initially
-  const messageData: any = { // Use 'any' or create a specific write type if preferred
+export async function saveChatMessage(conversationId: string, message: Partial<ChatMessage>): Promise<string> {
+  const messageData: { [key: string]: any } = {
     role: message.role,
     content: message.content,
-    createdAt: serverTimestamp(),
-    // Include other optional fields directly if they exist
-    ...(message.timer && { timer: message.timer }),
-    ...(message.flashcard && { flashcard: message.flashcard }),
-    ...(message.question && { question: message.question }),
+    // If createdAt is already a Date or Timestamp, use it. Otherwise, use serverTimestamp.
+    // This handles client-set dates for optimistic updates.
+    createdAt: (message.createdAt && (message.createdAt instanceof Date || message.createdAt instanceof Timestamp))
+                 ? message.createdAt
+                 : serverTimestamp(),
   };
 
-  // Conditionally add the 'files' field ONLY if it's a non-empty array
-  if (message.files && Array.isArray(message.files) && message.files.length > 0) {
-    messageData.files = message.files;
-  }
-  // If message.files is undefined, null, or empty, the 'files' key
-  // will simply not be added to messageData, which is what Firestore expects.
+  if (message.timer) messageData.timer = message.timer;
+  if (message.flashcard) messageData.flashcard = message.flashcard;
+  if (message.question) messageData.question = message.question;
+  if (message.error === true) messageData.error = true; // Explicitly check for true
+  if (message.actionDetails) messageData.actionDetails = message.actionDetails;
+  if (typeof message.isGeneratingImage === 'boolean') messageData.isGeneratingImage = message.isGeneratingImage;
+  if (typeof message.wasImageGenerated === 'boolean') messageData.wasImageGenerated = message.wasImageGenerated;
 
-  // Add the document with the correctly structured data
+  // Handle imageData carefully to avoid "invalid nested entity"
+  if (message.imageData) {
+    if (
+      typeof message.imageData.base64 === 'string' &&
+      typeof message.imageData.type === 'string' &&
+      typeof message.imageData.name === 'string'
+    ) {
+      messageData.imageData = {
+        base64: message.imageData.base64,
+        type: message.imageData.type,
+        name: message.imageData.name,
+      };
+    } else {
+      console.warn(
+        "Message imageData was present but malformed (e.g., undefined properties within). imageData will NOT be saved. Problematic imageData:",
+        JSON.stringify(message.imageData) // Use JSON.stringify for better logging of the object
+      );
+      // Do not add messageData.imageData if it's malformed
+    }
+  }
+
+  // Handle attachedFilesMeta carefully
+  if (message.attachedFilesMeta && Array.isArray(message.attachedFilesMeta) && message.attachedFilesMeta.length > 0) {
+    const validFilesMeta = message.attachedFilesMeta
+      .map(meta => {
+        if (meta && typeof meta.name === 'string' && typeof meta.type === 'string' && typeof meta.size === 'number') {
+          return { name: meta.name, type: meta.type, size: meta.size };
+        }
+        console.warn("An item in attachedFilesMeta was malformed or incomplete. Filtering it out. Problematic meta:", JSON.stringify(meta));
+        return null;
+      })
+      .filter(meta => meta !== null) as AttachedFileMeta[]; // Assert type after filtering nulls
+
+    if (validFilesMeta.length > 0) {
+      messageData.attachedFilesMeta = validFilesMeta;
+    }
+  }
+  
   const messageRef = await addDoc(collection(db, "chatConversations", conversationId, "messages"), messageData);
 
-  // Update the conversation's last updated timestamp
   await updateDoc(doc(db, "chatConversations", conversationId), {
     updatedAt: serverTimestamp(),
   });
   return messageRef.id;
 }
 
-
-// Listen for real-time updates to a conversation's messages.
 export function onChatMessagesSnapshot(
   conversationId: string,
-  callback: (messages: ChatMessage[]) => void // Use updated ChatMessage type
+  callback: (messages: ChatMessage[]) => void
 ) {
   const messagesQuery = query(
     collection(db, "chatConversations", conversationId, "messages"),
@@ -118,13 +155,14 @@ export function onChatMessagesSnapshot(
   return onSnapshot(messagesQuery, (snapshot) => {
     const messages: ChatMessage[] = [];
     snapshot.forEach((docSnap) => {
-      messages.push(docSnap.data() as ChatMessage); // Cast to updated ChatMessage type
+      const data = docSnap.data();
+      const createdAt = data.createdAt instanceof Timestamp ? data.createdAt.toDate() : data.createdAt;
+      messages.push({ id: docSnap.id, ...data, createdAt } as ChatMessage);
     });
     callback(messages);
   });
 }
 
-// Listen for real-time updates to the list of chat conversations for a user.
 export function onChatConversationsSnapshot(
   userId: string,
   callback: (conversations: any[]) => void
@@ -143,7 +181,6 @@ export function onChatConversationsSnapshot(
   });
 }
 
-// Rename a chat conversation
 export async function updateChatConversationName(conversationId: string, newName: string): Promise<void> {
   await updateDoc(doc(db, "chatConversations", conversationId), {
     chatName: newName,
@@ -151,16 +188,11 @@ export async function updateChatConversationName(conversationId: string, newName
   });
 }
 
-// Delete a chat conversation (and optionally its messages - requires backend function for subcollection deletion)
 export async function deleteChatConversation(conversationId: string): Promise<void> {
-  // IMPORTANT: Deleting a document does NOT delete its subcollections in Firestore client-side SDK.
-  // You typically need a Cloud Function to recursively delete subcollection documents.
-  // For now, this just deletes the conversation document itself.
   await deleteDoc(doc(db, "chatConversations", conversationId));
-  console.warn(`Conversation document ${conversationId} deleted. Messages subcollection requires manual or Cloud Function deletion.`);
+  console.warn(`Conversation document ${conversationId} deleted. Messages subcollection requires manual or Cloud Function deletion if not handled elsewhere.`);
 }
 
-// Helper to extract JSON from AI response (remains the same)
 export const extractJsonFromResponse = (text: string): any[] => {
   const jsonBlocks: any[] = [];
   const regex = /```json\s*([\s\S]*?)\s*```/g;
@@ -172,29 +204,24 @@ export const extractJsonFromResponse = (text: string): any[] => {
       const parsed = JSON.parse(jsonContent);
       jsonBlocks.push(parsed);
     } catch (e) {
-      console.error('Failed to parse JSON block:', e);
+      console.error('Failed to parse JSON block from ```json ... ```:', e, match[1]);
     }
   }
 
-  // Fallback for simple { } blocks if no ```json``` blocks found
   if (jsonBlocks.length === 0) {
-      const curlyRegex = /(\{[^{}]+\})/g;
-      let curlyMatch = curlyRegex.exec(text);
-      while (curlyMatch) {
+      const curlyRegex = /(?:^|\n)\s*(\{[\s\S]*?\})\s*(?:$|\n)/g;
+      let curlyMatch;
+      while ((curlyMatch = curlyRegex.exec(text)) !== null) {
           try {
               jsonBlocks.push(JSON.parse(curlyMatch[1]));
           } catch(e) {
-              // Ignore parse errors for simple blocks
+              // console.error('Failed to parse JSON block from { ... }:', e, curlyMatch[1]); // Can be noisy
           }
-          curlyMatch = curlyRegex.exec(text);
       }
   }
-
   return jsonBlocks;
 };
 
-
-// Process AI actions (remains largely the same, but ensure it handles errors gracefully)
 export const processAiActions = async (userId: string, actions: any[]) => {
   if (!userId) {
     console.error("Cannot process AI actions without a user ID.");
@@ -204,15 +231,14 @@ export const processAiActions = async (userId: string, actions: any[]) => {
     if (!action || !action.action || !action.payload) {
       console.warn("Skipping invalid AI action:", action);
       continue;
-    };
+    }
 
-    // Add userId to payload if not present, helpful for some actions
     if (!action.payload.userId) {
         action.payload.userId = userId;
     }
 
     try {
-      console.log("Processing AI Action:", action.action, action.payload); // Logging
+      // console.log("Processing AI Action:", action.action, action.payload); // Less noisy
       switch (action.action) {
         case 'createTask':
           await createUserTask(userId, action.payload);
@@ -226,10 +252,6 @@ export const processAiActions = async (userId: string, actions: any[]) => {
         case 'createProject':
           await createUserProject(userId, action.payload);
           break;
-        // Add update/delete cases here if the AI should trigger them directly
-        // (Currently handled in AI-Chat.tsx based on JSON response)
-
-        // Keep DeepInsight handling if used
         case 'deepInsight':
           if (!action.payload.type || !action.payload.description) {
               console.warn("Skipping incomplete deepInsight action:", action.payload);
@@ -240,7 +262,7 @@ export const processAiActions = async (userId: string, actions: any[]) => {
             description: action.payload.description,
             reasoning: action.payload.reasoning || 'No reasoning provided.',
             impact: action.payload.impact || 'No impact provided.',
-            actionPayload: action.payload.actionPayload // This might be the task/goal data itself
+            actionPayload: action.payload.actionPayload
           });
           break;
         default:
@@ -252,22 +274,19 @@ export const processAiActions = async (userId: string, actions: any[]) => {
   }
 };
 
-// Handle DeepInsight voting (remains the same)
 export const handleDeepInsightVote = async (actionId: string, vote: 'up' | 'down') => {
   await voteOnDeepInsightAction(actionId, vote);
 };
 
-// Handle DeepInsight acceptance (remains the same)
 export const handleDeepInsightAccept = async (actionId: string, action: any) => {
   await updateDeepInsightActionStatus(actionId, 'accepted');
-  if (action.actionPayload && action.userId) { // Ensure userId is available
+  if (action.actionPayload && action.userId) {
     await processAiActions(action.userId, [action.actionPayload]);
   } else {
     console.warn("Cannot process accepted DeepInsight action payload - missing actionPayload or userId", action);
   }
 };
 
-// Handle DeepInsight decline (remains the same)
 export const handleDeepInsightDecline = async (actionId: string) => {
   await updateDeepInsightActionStatus(actionId, 'declined');
 };
