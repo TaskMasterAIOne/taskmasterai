@@ -61,7 +61,6 @@ export async function findItemByName(collectionName: string, userId: string, ite
     if (!querySnapshot.empty) {
       return querySnapshot.docs[0].id;
     }
-    // console.log(`No ${collectionName} found with name "${itemName}" for user ${userId}`); // Less noisy
     return null;
   } catch (error) {
     console.error(`Error finding ${collectionName} by name "${itemName}":`, error);
@@ -80,69 +79,109 @@ export async function createChatConversation(userId: string, chatName:string): P
 }
 
 export async function saveChatMessage(conversationId: string, message: Partial<ChatMessage>): Promise<string> {
-  const messageData: { [key: string]: any } = {
-    role: message.role,
-    content: message.content,
-    // If createdAt is already a Date or Timestamp, use it. Otherwise, use serverTimestamp.
-    // This handles client-set dates for optimistic updates.
-    createdAt: (message.createdAt && (message.createdAt instanceof Date || message.createdAt instanceof Timestamp))
-                 ? message.createdAt
-                 : serverTimestamp(),
-  };
+  const messageData: { [key: string]: any } = {};
 
-  if (message.timer) messageData.timer = message.timer;
-  if (message.flashcard) messageData.flashcard = message.flashcard;
-  if (message.question) messageData.question = message.question;
-  if (message.error === true) messageData.error = true; // Explicitly check for true
-  if (message.actionDetails) messageData.actionDetails = message.actionDetails;
+  // Required or defaulted fields
+  messageData.role = message.role || 'assistant'; // Provide a sensible default if role can be missing
+  messageData.content = typeof message.content === 'string' ? message.content : ''; // Ensure content is a string
+
+  // Handle createdAt carefully
+  if (message.createdAt) {
+    if (message.createdAt instanceof Date || message.createdAt instanceof Timestamp) {
+      messageData.createdAt = message.createdAt;
+    } else if (typeof message.createdAt === 'string' || typeof message.createdAt === 'number') {
+      const date = new Date(message.createdAt);
+      if (!isNaN(date.getTime())) {
+        messageData.createdAt = date; // Firestore will convert Date to Timestamp
+      } else {
+        console.warn("saveChatMessage: Malformed createdAt (string/number couldn't be parsed to Date), using serverTimestamp. Value:", message.createdAt);
+        messageData.createdAt = serverTimestamp();
+      }
+    } else {
+       console.warn("saveChatMessage: Unsupported createdAt type, using serverTimestamp. Value:", message.createdAt, "Type:", typeof message.createdAt);
+       messageData.createdAt = serverTimestamp();
+    }
+  } else {
+    messageData.createdAt = serverTimestamp();
+  }
+
+  // Optional simple fields
+  if (message.timer && typeof message.timer === 'object') messageData.timer = { ...message.timer };
+  if (message.flashcard && typeof message.flashcard === 'object') messageData.flashcard = { ...message.flashcard };
+  if (message.question && typeof message.question === 'object') messageData.question = { ...message.question };
+  if (message.error === true) messageData.error = true;
+  if (message.actionDetails && typeof message.actionDetails === 'object') messageData.actionDetails = { ...message.actionDetails };
   if (typeof message.isGeneratingImage === 'boolean') messageData.isGeneratingImage = message.isGeneratingImage;
   if (typeof message.wasImageGenerated === 'boolean') messageData.wasImageGenerated = message.wasImageGenerated;
 
-  // Handle imageData carefully to avoid "invalid nested entity"
-  if (message.imageData) {
+  // Rigorous check and sanitization for imageData
+  if (message.imageData && typeof message.imageData === 'object') {
+    const { base64, type, name } = message.imageData;
     if (
-      typeof message.imageData.base64 === 'string' &&
-      typeof message.imageData.type === 'string' &&
-      typeof message.imageData.name === 'string'
+      typeof base64 === 'string' && base64.length > 0 &&
+      typeof type === 'string' && type.length > 0 &&
+      typeof name === 'string' && name.length > 0
     ) {
-      messageData.imageData = {
-        base64: message.imageData.base64,
-        type: message.imageData.type,
-        name: message.imageData.name,
-      };
+      messageData.imageData = { base64, type, name }; // Create a new plain object
     } else {
       console.warn(
-        "Message imageData was present but malformed (e.g., undefined properties within). imageData will NOT be saved. Problematic imageData:",
-        JSON.stringify(message.imageData) // Use JSON.stringify for better logging of the object
+        "saveChatMessage: message.imageData was present but malformed (e.g., missing or empty properties). imageData will NOT be saved. Problematic imageData:",
+        JSON.stringify(message.imageData)
       );
-      // Do not add messageData.imageData if it's malformed
     }
   }
 
-  // Handle attachedFilesMeta carefully
-  if (message.attachedFilesMeta && Array.isArray(message.attachedFilesMeta) && message.attachedFilesMeta.length > 0) {
+  // Rigorous check and sanitization for attachedFilesMeta
+  if (message.attachedFilesMeta && Array.isArray(message.attachedFilesMeta)) {
     const validFilesMeta = message.attachedFilesMeta
-      .map(meta => {
-        if (meta && typeof meta.name === 'string' && typeof meta.type === 'string' && typeof meta.size === 'number') {
-          return { name: meta.name, type: meta.type, size: meta.size };
-        }
-        console.warn("An item in attachedFilesMeta was malformed or incomplete. Filtering it out. Problematic meta:", JSON.stringify(meta));
-        return null;
-      })
-      .filter(meta => meta !== null) as AttachedFileMeta[]; // Assert type after filtering nulls
+      .filter(meta =>
+        meta && typeof meta === 'object' && // Ensure meta itself is an object
+        typeof meta.name === 'string' && meta.name.length > 0 &&
+        typeof meta.type === 'string' && meta.type.length > 0 &&
+        typeof meta.size === 'number' && meta.size >= 0
+      )
+      .map(meta => ({ name: meta.name, type: meta.type, size: meta.size })); // Create new plain objects
 
     if (validFilesMeta.length > 0) {
       messageData.attachedFilesMeta = validFilesMeta;
+    } else if (message.attachedFilesMeta.length > 0) {
+      console.warn("saveChatMessage: All items in attachedFilesMeta were malformed or empty. attachedFilesMeta will NOT be saved. Original:", JSON.stringify(message.attachedFilesMeta));
     }
   }
-  
-  const messageRef = await addDoc(collection(db, "chatConversations", conversationId, "messages"), messageData);
 
-  await updateDoc(doc(db, "chatConversations", conversationId), {
-    updatedAt: serverTimestamp(),
-  });
-  return messageRef.id;
+  // Log the exact data being sent to Firestore for debugging BEFORE the call
+  // Using JSON.parse(JSON.stringify()) helps to see what a "plain" version of the object looks like,
+  // especially if serverTimestamp() or other special Firestore values are involved (though serverTimestamp is resolved by Firestore).
+  let loggableMessageData = { ...messageData };
+  if (loggableMessageData.createdAt && typeof loggableMessageData.createdAt === 'object' && !(loggableMessageData.createdAt instanceof Date) && !(loggableMessageData.createdAt instanceof Timestamp)) {
+      // If createdAt is serverTimestamp(), it's a sentinel value, stringify might not be ideal for direct console view.
+      // For logging, we can represent it as a string. Firestore handles the actual sentinel.
+      loggableMessageData.createdAt = "FieldValue.serverTimestamp()";
+  }
+
+
+  console.log("saveChatMessage: Attempting to save to Firestore with sanitized data:", JSON.parse(JSON.stringify(loggableMessageData)));
+
+
+  try {
+    const messageRef = await addDoc(collection(db, "chatConversations", conversationId, "messages"), messageData);
+
+    await updateDoc(doc(db, "chatConversations", conversationId), {
+      updatedAt: serverTimestamp(),
+    });
+    return messageRef.id;
+  } catch (error: any) {
+    console.error("saveChatMessage: Firestore save error:", error.message);
+    // Log the data that caused the error again, using the same stringification method
+    console.error("saveChatMessage: Data that caused Firestore error:", JSON.parse(JSON.stringify(loggableMessageData)));
+    // For more detailed Firebase error object:
+    if (error.code) console.error("saveChatMessage: Firebase error code:", error.code);
+    if (error.details) console.error("saveChatMessage: Firebase error details:", error.details);
+    
+    throw error; // Re-throw the error so AIChat.tsx can catch and display it
+  }
 }
+
 
 export function onChatMessagesSnapshot(
   conversationId: string,
@@ -156,10 +195,14 @@ export function onChatMessagesSnapshot(
     const messages: ChatMessage[] = [];
     snapshot.forEach((docSnap) => {
       const data = docSnap.data();
+      // Ensure createdAt is converted to Date if it's a Firestore Timestamp
       const createdAt = data.createdAt instanceof Timestamp ? data.createdAt.toDate() : data.createdAt;
       messages.push({ id: docSnap.id, ...data, createdAt } as ChatMessage);
     });
     callback(messages);
+  }, (error) => {
+    console.error("onChatMessagesSnapshot error: ", error);
+    // Optionally, you could propagate this error to the UI
   });
 }
 
@@ -178,22 +221,35 @@ export function onChatConversationsSnapshot(
       conversations.push({ id: docSnap.id, ...docSnap.data() });
     });
     callback(conversations);
+  }, (error) => {
+    console.error("onChatConversationsSnapshot error: ", error);
   });
 }
 
 export async function updateChatConversationName(conversationId: string, newName: string): Promise<void> {
-  await updateDoc(doc(db, "chatConversations", conversationId), {
-    chatName: newName,
-    updatedAt: serverTimestamp(),
-  });
+  try {
+    await updateDoc(doc(db, "chatConversations", conversationId), {
+      chatName: newName,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error("updateChatConversationName error: ", error);
+    throw error;
+  }
 }
 
 export async function deleteChatConversation(conversationId: string): Promise<void> {
-  await deleteDoc(doc(db, "chatConversations", conversationId));
-  console.warn(`Conversation document ${conversationId} deleted. Messages subcollection requires manual or Cloud Function deletion if not handled elsewhere.`);
+  try {
+    await deleteDoc(doc(db, "chatConversations", conversationId));
+    console.warn(`Conversation document ${conversationId} deleted. Messages subcollection requires manual or Cloud Function deletion if not handled elsewhere.`);
+  } catch (error) {
+    console.error("deleteChatConversation error: ", error);
+    throw error;
+  }
 }
 
 export const extractJsonFromResponse = (text: string): any[] => {
+  if (typeof text !== 'string') return []; // Guard against non-string input
   const jsonBlocks: any[] = [];
   const regex = /```json\s*([\s\S]*?)\s*```/g;
   let match;
@@ -204,7 +260,7 @@ export const extractJsonFromResponse = (text: string): any[] => {
       const parsed = JSON.parse(jsonContent);
       jsonBlocks.push(parsed);
     } catch (e) {
-      console.error('Failed to parse JSON block from ```json ... ```:', e, match[1]);
+      console.warn('extractJsonFromResponse: Failed to parse JSON block from ```json ... ```:', e, match[1]);
     }
   }
 
@@ -215,21 +271,22 @@ export const extractJsonFromResponse = (text: string): any[] => {
           try {
               jsonBlocks.push(JSON.parse(curlyMatch[1]));
           } catch(e) {
-              // console.error('Failed to parse JSON block from { ... }:', e, curlyMatch[1]); // Can be noisy
+              // console.warn('extractJsonFromResponse: Failed to parse JSON block from { ... }:', e, curlyMatch[1]); // Can be very noisy
           }
       }
   }
   return jsonBlocks;
 };
 
+
 export const processAiActions = async (userId: string, actions: any[]) => {
   if (!userId) {
-    console.error("Cannot process AI actions without a user ID.");
+    console.error("processAiActions: Cannot process AI actions without a user ID.");
     return;
   }
   for (const action of actions) {
-    if (!action || !action.action || !action.payload) {
-      console.warn("Skipping invalid AI action:", action);
+    if (!action || typeof action.action !== 'string' || typeof action.payload !== 'object' || action.payload === null) {
+      console.warn("processAiActions: Skipping invalid AI action (missing action/payload or invalid types):", action);
       continue;
     }
 
@@ -238,23 +295,14 @@ export const processAiActions = async (userId: string, actions: any[]) => {
     }
 
     try {
-      // console.log("Processing AI Action:", action.action, action.payload); // Less noisy
       switch (action.action) {
-        case 'createTask':
-          await createUserTask(userId, action.payload);
-          break;
-        case 'createGoal':
-          await createUserGoal(userId, action.payload);
-          break;
-        case 'createPlan':
-          await createUserPlan(userId, action.payload);
-          break;
-        case 'createProject':
-          await createUserProject(userId, action.payload);
-          break;
+        case 'createTask': await createUserTask(userId, action.payload); break;
+        case 'createGoal': await createUserGoal(userId, action.payload); break;
+        case 'createPlan': await createUserPlan(userId, action.payload); break;
+        case 'createProject': await createUserProject(userId, action.payload); break;
         case 'deepInsight':
-          if (!action.payload.type || !action.payload.description) {
-              console.warn("Skipping incomplete deepInsight action:", action.payload);
+          if (typeof action.payload.type !== 'string' || typeof action.payload.description !== 'string') {
+              console.warn("processAiActions: Skipping incomplete deepInsight action:", action.payload);
               continue;
           }
           await createDeepInsightAction(userId, {
@@ -266,27 +314,39 @@ export const processAiActions = async (userId: string, actions: any[]) => {
           });
           break;
         default:
-            console.warn(`Unknown AI action type: ${action.action}`);
+            console.warn(`processAiActions: Unknown AI action type: ${action.action}`);
       }
     } catch (error) {
-      console.error(`Error processing action ${action.action}:`, error, "Payload:", action.payload);
+      console.error(`processAiActions: Error processing action ${action.action}:`, error, "Payload:", action.payload);
     }
   }
 };
 
 export const handleDeepInsightVote = async (actionId: string, vote: 'up' | 'down') => {
-  await voteOnDeepInsightAction(actionId, vote);
+  try {
+    await voteOnDeepInsightAction(actionId, vote);
+  } catch (error) {
+    console.error("handleDeepInsightVote error: ", error);
+  }
 };
 
 export const handleDeepInsightAccept = async (actionId: string, action: any) => {
-  await updateDeepInsightActionStatus(actionId, 'accepted');
-  if (action.actionPayload && action.userId) {
-    await processAiActions(action.userId, [action.actionPayload]);
-  } else {
-    console.warn("Cannot process accepted DeepInsight action payload - missing actionPayload or userId", action);
+  try {
+    await updateDeepInsightActionStatus(actionId, 'accepted');
+    if (action && action.actionPayload && action.userId) {
+      await processAiActions(action.userId, [action.actionPayload]);
+    } else {
+      console.warn("handleDeepInsightAccept: Cannot process accepted DeepInsight action payload - missing action, actionPayload or userId", action);
+    }
+  } catch (error) {
+    console.error("handleDeepInsightAccept error: ", error);
   }
 };
 
 export const handleDeepInsightDecline = async (actionId: string) => {
-  await updateDeepInsightActionStatus(actionId, 'declined');
+  try {
+    await updateDeepInsightActionStatus(actionId, 'declined');
+  } catch (error) {
+    console.error("handleDeepInsightDecline error: ", error);
+  }
 };
