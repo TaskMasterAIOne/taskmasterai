@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
-import { Send, TimerIcon, Bot, Brain, AlertTriangle, MoreHorizontal, Plus, PlusCircle, MessageSquare, Edit2, Share, Trash2, CheckCircle, Goal, Calendar, Folder, BarChart2, Clock, Bell, TrendingUp, Lightbulb, Target, FileText, Notebook, Wand, ListChecks, SortAsc, Search, Timer, ClipboardList, Sun, Layers, AlignLeft, UserCheck, Hourglass, Settings, Columns, PieChart, Users, CalendarCheck, Eye } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { Send, TimerIcon as TimerIconLucide, Bot, Brain, AlertTriangle, MoreHorizontal, Plus, PlusCircle, MessageSquare, Edit2, Share, Trash2, CheckCircle, Goal, Calendar, Folder, BarChart2, Clock, Bell, TrendingUp, Lightbulb, Target, FileText, Notebook, Wand, ListChecks, SortAsc, Search, ClipboardList, Sun, Layers, AlignLeft, UserCheck, Hourglass, Settings, Columns, PieChart, Users, CalendarCheck, Eye, Crown, Paperclip, ImageIcon, X, Download, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
@@ -14,7 +14,6 @@ import { geminiApiKey } from '../lib/dashboard-firebase';
 import { onCollectionSnapshot } from '../lib/dashboard-firebase';
 import { getCurrentUser } from '../lib/settings-firebase';
 
-// Firebase chat functions
 import {
   createChatConversation,
   saveChatMessage,
@@ -25,29 +24,22 @@ import {
   findItemByName
 } from '../lib/ai-chat-firebase';
 
-// Context and DeepInsight functions
 import {
   saveUserContext,
-  getUserContext,
   onUserContextChange,
   type UserContext,
 } from '../lib/ai-context-firebase';
 
-// Firestore item CRUD helpers (now including update and delete functionality)
 import {
-  createUserTask,
-  createUserGoal,
-  createUserPlan,
-  createUserProject,
-  updateUserTask,
-  updateUserGoal,
-  updateUserPlan,
-  updateUserProject,
-  deleteUserTask,
-  deleteUserGoal,
-  deleteUserPlan,
-  deleteUserProject,
+  createUserTask, createUserGoal, createUserPlan, createUserProject,
+  updateUserTask, updateUserGoal, updateUserPlan, updateUserProject,
+  deleteUserTask, deleteUserGoal, deleteUserPlan, deleteUserProject,
 } from '../lib/ai-actions-firebase';
+
+import {
+    UserTier, BASIC_CHAT_LIMIT, getUserTier, getChatLimitForTier,
+    getCurrentMonthUserChatUsage, incrementUserChatUsage,
+} from '../lib/current-paying-user';
 
 import { Sidebar } from './Sidebar';
 import { Timer } from './Timer';
@@ -55,56 +47,40 @@ import { FlashcardsQuestions } from './FlashcardsQuestions';
 import { ChatControls } from './chat-controls';
 import { ContextDialog } from './context-dialog';
 
-
-// ----- Types -----
-interface TimerMessage {
-  type: 'timer';
-  duration: number;
-  id: string;
-}
-
-interface FlashcardData {
-  id: string;
-  question: string;
-  answer: string;
-  topic: string;
-}
-
-interface QuestionData {
-  id: string;
-  question: string;
-  options: string[];
-  correctAnswer: number;
-  explanation: string;
-}
-
-interface FlashcardMessage {
-  type: 'flashcard';
-  data: FlashcardData[];
-}
-
-interface QuestionMessage {
-  type: 'question';
-  data: QuestionData[];
-}
+interface TimerMessage { type: 'timer'; duration: number; id: string; }
+interface FlashcardData { id: string; question: string; answer: string; topic: string; }
+interface QuestionData { id: string; question: string; options: string[]; correctAnswer: number; explanation: string; }
+interface FlashcardMessage { type: 'flashcard'; data: FlashcardData[]; }
+interface QuestionMessage { type: 'question'; data: QuestionData[]; }
+interface ImageData { base64: string; type: string; name: string; }
 
 export interface ChatMessageData {
+  id: string;
   role: 'user' | 'assistant';
   content: string;
   createdAt?: any;
   timer?: TimerMessage;
   flashcard?: FlashcardMessage;
   question?: QuestionMessage;
+  error?: boolean;
+  actionDetails?: {
+    status: 'success' | 'error';
+  };
+  imageData?: ImageData;
+  isGeneratingImage?: boolean;
+  wasImageGenerated?: boolean;
+  attachedFilesMeta?: Array<{ name: string; type: string; size: number }>;
+  localPlaceholderId?: string;
 }
 
-// ----- Gemini Endpoint & Utilities -----
-const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`;
+interface SelectedFile { name: string; type: string; size: number; base64Data: string; }
 
-const fetchWithTimeout = async (
-  url: string,
-  options: RequestInit,
-  timeout = 30000
-) => {
+const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
+const GEMINI_TEXT_MODEL = 'gemini-2.0-flash';
+const GEMINI_IMAGE_GEN_MODEL = 'gemini-2.0-flash-preview-image-generation';
+
+
+const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 60000) => {
   const controller = new AbortController();
   const { signal } = controller;
   const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -114,293 +90,381 @@ const fetchWithTimeout = async (
     return response;
   } catch (error) {
     clearTimeout(timeoutId);
+    if ((error as Error).name === 'AbortError') console.error('Fetch request timed out:', url);
     throw error;
   }
 };
 
-const streamResponse = async (
-  url: string,
-  options: RequestInit,
-  onStreamUpdate: (textChunk: string) => void,
-  timeout = 30000
-) => {
-  const response = await fetchWithTimeout(url, options, timeout);
-  if (!response.body) {
-    const text = await response.text();
-    onStreamUpdate(text);
-    return text;
-  }
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder('utf-8');
-  let done = false;
-  let accumulatedText = '';
+const parseGeminiApiResponse = (responseText: string, isImageGenCall: boolean): { text: string | null; imageData: ImageData | null; error: string | null; finishReason: string | null } => {
+    let textContent: string | null = null;
+    let imageContent: ImageData | null = null;
+    let errorMessage: string | null = null;
+    let reason: string | null = null;
 
-  while (!done) {
-    const { value, done: doneReading } = await reader.read();
-    done = doneReading;
-    if (value) {
-      const chunk = decoder.decode(value, { stream: !done });
-      accumulatedText += chunk;
-      onStreamUpdate(accumulatedText);
+    try {
+        const jsonResponse = JSON.parse(responseText);
+
+        if (jsonResponse?.promptFeedback?.blockReason) {
+            errorMessage = `Request blocked: ${jsonResponse.promptFeedback.blockReason}.`;
+            if(jsonResponse.promptFeedback.safetyRatings) { errorMessage += ` Safety: ${JSON.stringify(jsonResponse.promptFeedback.safetyRatings)}`; }
+            return { text: null, imageData: null, error: errorMessage, finishReason: 'BLOCKED' };
+        }
+
+        if (jsonResponse?.candidates?.[0]) {
+            const candidate = jsonResponse.candidates[0];
+            reason = candidate.finishReason || null;
+
+            if (candidate.content?.parts && Array.isArray(candidate.content.parts)) {
+                for (const part of candidate.content.parts) {
+                    if (part.text) {
+                        textContent = (textContent ? textContent + "\n" : "") + part.text;
+                    } else if (isImageGenCall && part.inlineData?.mimeType?.startsWith('image/') && part.inlineData?.data) {
+                        imageContent = { base64: part.inlineData.data, type: part.inlineData.mimeType, name: "generated_image.png" };
+                    }
+                }
+            }
+
+             if (!textContent && !imageContent) {
+                 if (reason === 'SAFETY') { errorMessage = "Response blocked due to safety concerns."; if (candidate.safetyRatings) { errorMessage += ` Details: ${JSON.stringify(candidate.safetyRatings)}`; } }
+                 else if (reason === 'MAX_TOKENS') { errorMessage = "The response was cut off as it reached the maximum length."; }
+                 else if (reason === 'RECITATION') { errorMessage = "Response blocked due to potential recitation issues."; }
+                 else if (reason) { errorMessage = `Response generation stopped: ${reason}.`; }
+                 else if (!candidate.content) { errorMessage = "Received an empty response candidate."; }
+             }
+
+        } else if (jsonResponse?.error?.message) {
+             errorMessage = `API Error: ${jsonResponse.error.message}`;
+        } else { errorMessage = "Sorry, I received an empty or non-standard response format."; }
+        
+        if (isImageGenCall && !imageContent && !errorMessage && reason !== 'SAFETY' && reason !== 'BLOCKED') {
+             if (textContent) { if (!textContent.trim()) { textContent = "(No image generated and no text explanation provided)"; } }
+             else { errorMessage = "Image generation request processed, but no image was returned."; }
+        }
+        if (!textContent && !imageContent && !errorMessage) { textContent = "(Received empty response content)"; }
+
+
+        return { text: textContent, imageData: imageContent, error: errorMessage, finishReason: reason };
+
+    } catch (err) {
+        console.error("Error parsing Gemini API response:", responseText, err);
+        return { text: null, imageData: null, error: "Error: Could not process AI response (Invalid format).", finishReason: null };
     }
-  }
-  return accumulatedText;
 };
 
-/**
- * Extract the "candidate text" from the Gemini JSON response
- */
-const extractCandidateText = (text: string): string => {
-  let candidateText = text;
-  try {
-    const jsonResponse = JSON.parse(text);
-    if (
-      jsonResponse &&
-      jsonResponse.candidates &&
-      jsonResponse.candidates[0] &&
-      jsonResponse.candidates[0].content &&
-      jsonResponse.candidates[0].content.parts &&
-      jsonResponse.candidates[0].content.parts[0]
-    ) {
-      candidateText = jsonResponse.candidates[0].content.parts[0].text;
-    }
-  } catch (err) {
-    console.error('Error parsing Gemini response:', err);
-  }
-  return candidateText;
+
+const readFileAsBase64 = (file: File): Promise<SelectedFile> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const base64String = (reader.result as string).split(',')[1];
+            if (!base64String) { reject(new Error("Failed to read file content.")); return; }
+            resolve({ name: file.name, type: file.type, size: file.size, base64Data: base64String });
+        };
+        reader.onerror = (error) => reject(error);
+        reader.readAsDataURL(file);
+    });
 };
 
-/**
- * Extract JSON blocks from text. 
- * 1) First tries to find triple-backtick JSON code blocks 
- * 2) If none found, tries to find top-level { ... } blocks
- */
-function extractJsonBlocks(text: string): string[] {
-  const blocks: string[] = [];
-
-  // 1) Attempt to find triple-backtick code blocks
-  const tripleBacktickRegex = /```json\s*([\s\S]*?)```/g;
-  let match = tripleBacktickRegex.exec(text);
-  while (match) {
-    blocks.push(match[1]);
-    match = tripleBacktickRegex.exec(text);
-  }
-
-  if (blocks.length > 0) return blocks;
-
-  // 2) Fallback: look for { ... } blocks
-  const curlyRegex = /(\{[^{}]+\})/g;
-  let curlyMatch = curlyRegex.exec(text);
-  while (curlyMatch) {
-    blocks.push(curlyMatch[1]);
-    curlyMatch = curlyRegex.exec(text);
-  }
-
-  return blocks;
+function formatBytes(bytes: number, decimals = 2): string {
+  if (bytes === 0) return '0 Bytes'; const k = 1024; const dm = decimals < 0 ? 0 : decimals; const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']; const i = Math.floor(Math.log(bytes) / Math.log(k)); return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
+
+const handleDownloadImage = (imageData: ImageData) => { if (!imageData) return; const link = document.createElement('a'); link.href = `data:${imageData.type};base64,${imageData.base64}`; const fileExtension = imageData.type.split('/')[1] || 'png'; const fileName = `generated-image-${Date.now()}.${fileExtension}`; link.download = fileName; document.body.appendChild(link); link.click(); document.body.removeChild(link); };
+
+
+function extractJsonBlocks(text: string): { blocks: any[], cleanedText: string, originalText: string } {
+  const extractedBlocks: any[] = [];
+  let remainingText = text;
+  const regex = /```json\s*([\s\S]*?)\s*```/g;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    try {
+      const parsedJson = JSON.parse(match[1]);
+      extractedBlocks.push(parsedJson);
+      remainingText = remainingText.replace(match[0], "").trim();
+    } catch (e) {
+      // If JSON.parse fails, it's not a valid JSON block we want,
+      // but we still remove the ```json ... ``` part to clean the text.
+      remainingText = remainingText.replace(match[0], "").trim();
+    }
+  }
+
+  // Fallback for bare JSON objects if no ```json ``` blocks were found
+  if (extractedBlocks.length === 0) {
+    // More careful regex to avoid grabbing random {} in text
+    // Looks for { at start of a line (or start of string) potentially with whitespace, and } at end of line (or end of string)
+    const curlyRegex = /(?:^|\n)\s*(\{[\s\S]*?\})\s*(?:$|\n)/g;
+    let tempTextForCurlySearch = text;
+    let modifiedCurlyText = ""; // Accumulate non-JSON parts
+
+    let lastIndex = 0;
+    while ((match = curlyRegex.exec(tempTextForCurlySearch)) !== null) {
+        modifiedCurlyText += tempTextForCurlySearch.substring(lastIndex, match.index);
+        try {
+            const parsedJson = JSON.parse(match[1]);
+            extractedBlocks.push(parsedJson);
+            // Mark this part as "processed" for remainingText by replacing it with a unique placeholder or empty
+        } catch(e) {
+            // Not a valid JSON, so add it back to modifiedCurlyText
+            modifiedCurlyText += match[0];
+        }
+        lastIndex = curlyRegex.lastIndex;
+    }
+    modifiedCurlyText += tempTextForCurlySearch.substring(lastIndex);
+
+    if (extractedBlocks.length > 0) { // Only if we found JSONs with curlyRegex
+        remainingText = modifiedCurlyText.replace(/(?:^|\n)\s*(\{[\s\S]*?\})\s*(?:$|\n)/g, (m, p1) => {
+            try { JSON.parse(p1); return ""; } // Remove if it was a successfully parsed JSON
+            catch (e) { return m; } // Keep if not
+        }).trim();
+    }
+  }
+  return { blocks: extractedBlocks, cleanedText: remainingText.trim(), originalText: text };
+}
+
+const themeConfig = {
+  default: {
+    name: 'default', containerBg: 'bg-gray-900', headerBorder: 'border-gray-700', headerBg: 'bg-gray-900',
+    textColor: 'text-white', mutedTextColor: 'text-gray-400', accentColor: 'text-blue-400', warningColor: 'text-yellow-400',
+    userBubble: 'bg-blue-600 text-white', assistantBubble: 'bg-gray-700 text-gray-200', errorBubble: 'bg-red-900/30 text-red-300 border border-red-700/50',
+    inputBg: 'bg-gray-700 text-gray-200 placeholder-gray-500', asideBg: 'bg-gray-800', asideBorder: 'border-gray-700',
+    conversationInactive: 'bg-gray-700/80 text-gray-200 hover:bg-gray-700', conversationActive: 'bg-blue-600 text-white',
+    markdownCodeBg: 'bg-black/20', markdownPreBg: 'bg-black/40', buttonHoverBg: 'hover:bg-gray-600', dropdownBg: 'bg-gray-700',
+    gradientFrom: 'from-gray-900', limitReachedBg: 'bg-yellow-900/50 border border-yellow-700 text-yellow-300',
+    quickActionBg: 'bg-gradient-to-r from-indigo-500 to-purple-500', quickActionHoverBg: 'hover:opacity-90',
+    actionButtonBg: 'bg-blue-600 hover:bg-blue-700',
+    timerText: 'text-blue-300 font-medium',
+    viewButtonBg: 'bg-blue-600 hover:bg-blue-700',
+    viewButtonText: 'text-white',
+    filePillBg: "bg-blue-900/50 border-blue-700/50", filePillText: "text-blue-300",
+    userFileAttachmentBg: "bg-blue-700/20 border-blue-500/30", userFileAttachmentText: "text-blue-200",
+    imageGenButtonClass: "bg-gray-600 hover:bg-gray-500 text-gray-300",
+    imageGenActiveButtonClass: "bg-purple-800/60 hover:bg-purple-700/60 text-purple-300",
+    downloadButtonClass: "bg-gray-600 hover:bg-gray-500 text-gray-300",
+    buttonSecondaryClass: "bg-gray-600 hover:bg-gray-500 text-gray-300",
+    buttonDisabledClass: "opacity-50 cursor-not-allowed",
+  },
+  illuminate: {
+    name: 'illuminate', containerBg: 'bg-slate-50', headerBorder: 'border-gray-200/80', headerBg: 'bg-white',
+    textColor: 'text-gray-900', mutedTextColor: 'text-gray-600', accentColor: 'text-blue-600', warningColor: 'text-yellow-500',
+    userBubble: 'bg-blue-500 text-white', assistantBubble: 'bg-gray-100 text-gray-800 border border-gray-200/80', errorBubble: 'bg-red-100 text-red-700 border border-red-200',
+    inputBg: 'bg-gray-100 text-gray-900 placeholder-gray-500 hover:bg-gray-200/70', asideBg: 'bg-gray-50', asideBorder: 'border-gray-200',
+    conversationInactive: 'bg-gray-200/80 text-gray-700 hover:bg-gray-200', conversationActive: 'bg-blue-500 text-white',
+    markdownCodeBg: 'bg-gray-200', markdownPreBg: 'bg-gray-200', buttonHoverBg: 'hover:bg-gray-200', dropdownBg: 'bg-white',
+    gradientFrom: 'from-slate-50', limitReachedBg: 'bg-yellow-100 border border-yellow-300 text-yellow-700',
+    quickActionBg: 'bg-gradient-to-r from-indigo-500 to-purple-500', quickActionHoverBg: 'hover:opacity-90',
+    actionButtonBg: 'bg-blue-500 hover:bg-blue-600',
+    timerText: 'text-blue-700 font-medium',
+    viewButtonBg: 'bg-blue-500 hover:bg-blue-600',
+    viewButtonText: 'text-white',
+    filePillBg: "bg-blue-100 border-blue-200", filePillText: "text-blue-800",
+    userFileAttachmentBg: "bg-blue-50 border-blue-200", userFileAttachmentText: "text-blue-700",
+    imageGenButtonClass: "bg-gray-200 hover:bg-gray-300 text-gray-700",
+    imageGenActiveButtonClass: "bg-purple-100 hover:bg-purple-200 text-purple-700",
+    downloadButtonClass: "bg-gray-200 hover:bg-gray-300 text-gray-600",
+    buttonSecondaryClass: "bg-gray-200 hover:bg-gray-300 text-gray-700",
+    buttonDisabledClass: "opacity-50 cursor-not-allowed",
+  },
+  blackout: {
+    name: 'blackout', containerBg: 'bg-black', headerBorder: 'border-gray-800', headerBg: 'bg-black',
+    textColor: 'text-gray-200', mutedTextColor: 'text-gray-500', accentColor: 'text-blue-400', warningColor: 'text-yellow-400',
+    userBubble: 'bg-blue-600 text-white', assistantBubble: 'bg-gray-800/70 text-gray-200 border border-gray-700/50', errorBubble: 'bg-red-900/40 text-red-300 border border-red-700/60',
+    inputBg: 'bg-gray-800 text-gray-300 placeholder-gray-500 hover:bg-gray-700/80', asideBg: 'bg-black', asideBorder: 'border-gray-800',
+    conversationInactive: 'bg-gray-800/80 text-gray-300 hover:bg-gray-800', conversationActive: 'bg-blue-600 text-white',
+    markdownCodeBg: 'bg-gray-900/50', markdownPreBg: 'bg-gray-900/70', buttonHoverBg: 'hover:bg-gray-700', dropdownBg: 'bg-gray-800',
+    gradientFrom: 'from-black', limitReachedBg: 'bg-yellow-900/50 border border-yellow-700 text-yellow-300',
+    quickActionBg: 'bg-gradient-to-r from-indigo-500 to-purple-500', quickActionHoverBg: 'hover:opacity-90',
+    actionButtonBg: 'bg-blue-600 hover:bg-blue-700',
+    timerText: 'text-blue-300 font-medium',
+    viewButtonBg: 'bg-blue-600 hover:bg-blue-700',
+    viewButtonText: 'text-white',
+    filePillBg: "bg-blue-900/60 border-blue-700/60", filePillText: "text-blue-300",
+    userFileAttachmentBg: "bg-gray-700/30 border-gray-600/50", userFileAttachmentText: "text-gray-300",
+    imageGenButtonClass: "bg-gray-700 hover:bg-gray-600 text-gray-300",
+    imageGenActiveButtonClass: "bg-purple-800/70 hover:bg-purple-700/70 text-purple-300",
+    downloadButtonClass: "bg-gray-700 hover:bg-gray-600 text-gray-300",
+    buttonSecondaryClass: "bg-gray-700 hover:bg-gray-600 text-gray-300",
+    buttonDisabledClass: "opacity-50 cursor-not-allowed",
+  }
+};
+
+const SUPPORTED_FILE_TYPES = "image/jpeg,image/png,image/webp,image/gif,image/svg+xml,application/pdf,text/plain,.md,.txt,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.rtf";
+const MAX_FILE_SIZE_MB = 20;
+
 
 export function AIChat() {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>('Loading...');
   const truncatedName = userName.split(' ')[0] || userName;
 
   const [chatMessage, setChatMessage] = useState('');
   const [chatHistory, setChatHistory] = useState<ChatMessageData[]>([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
-  const [streamingAssistantContent, setStreamingAssistantContent] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Context state
   const [isContextDialogOpen, setIsContextDialogOpen] = useState(false);
   const [userContext, setUserContext] = useState<UserContext | null>(null);
 
-  // Chat style state
   const [activeStyle, setActiveStyle] = useState<string | null>(null);
   const [activePrompt, setActivePrompt] = useState<string | null>(null);
-  const [customStyles, setCustomStyles] = useState<Record<string, { description: string; prompt: string }>>({});
+  const [_customStyles, setCustomStyles] = useState<Record<string, { description: string; prompt: string }>>({});
 
-  // Collections
   const [tasks, setTasks] = useState<Array<{ id: string; data: any }>>([]);
   const [goals, setGoals] = useState<Array<{ id: string; data: any }>>([]);
   const [projects, setProjects] = useState<Array<{ id: string; data: any }>>([]);
   const [plans, setPlans] = useState<Array<{ id: string; data: any }>>([]);
 
-  // Conversation management
   const [hasGeneratedChatName, setHasGeneratedChatName] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversationList, setConversationList] = useState<any[]>([]);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
-  // ----- Theming & Sidebar States -----
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
-    const stored = localStorage.getItem('isSidebarCollapsed');
-    return stored ? JSON.parse(stored) : false;
-  });
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => JSON.parse(localStorage.getItem('isSidebarCollapsed') || 'false'));
+  const [isBlackoutEnabled, setIsBlackoutEnabled] = useState(() => JSON.parse(localStorage.getItem('isBlackoutEnabled') || 'false'));
+  const [isSidebarBlackoutEnabled, setIsSidebarBlackoutEnabled] = useState(() => JSON.parse(localStorage.getItem('isSidebarBlackoutEnabled') || 'false'));
+  const [isIlluminateEnabled, setIsIlluminateEnabled] = useState(() => JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'false'));
+  const [isSidebarIlluminateEnabled, setIsSidebarIlluminateEnabled] = useState(() => JSON.parse(localStorage.getItem('isSidebarIlluminateEnabled') || 'false'));
+  
+  const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
+  const [isImageGenModeActive, setIsImageGenModeActive] = useState(false);
+  const [streamingAssistantContent, setStreamingAssistantContent] = useState('');
+  const [assistantLoadingPlaceholderId, setAssistantLoadingPlaceholderId] = useState<string | null>(null);
 
-  const [isBlackoutEnabled, setIsBlackoutEnabled] = useState(() => {
-    const stored = localStorage.getItem('isBlackoutEnabled');
-    return stored ? JSON.parse(stored) : false;
-  });
 
-  const [isSidebarBlackoutEnabled, setIsSidebarBlackoutEnabled] = useState(() => {
-    const stored = localStorage.getItem('isSidebarBlackoutEnabled');
-    return stored ? JSON.parse(stored) : false;
-  });
+  const [currentTheme, setCurrentTheme] = useState(themeConfig.default);
 
-  const [isIlluminateEnabled, setIsIlluminateEnabled] = useState(() => {
-    const stored = localStorage.getItem('isIlluminateEnabled');
-    return stored ? JSON.parse(stored) : false;
-  });
-
-  const [isSidebarIlluminateEnabled, setIsSidebarIlluminateEnabled] = useState(() => {
-    const stored = localStorage.getItem('isSidebarIlluminateEnabled');
-    return stored ? JSON.parse(stored) : false;
-  });
-
-  // ----- Effects -----
   useEffect(() => {
-    localStorage.setItem('isSidebarCollapsed', JSON.stringify(isSidebarCollapsed));
-  }, [isSidebarCollapsed]);
+    if (isBlackoutEnabled) setCurrentTheme(themeConfig.blackout);
+    else if (isIlluminateEnabled) setCurrentTheme(themeConfig.illuminate);
+    else setCurrentTheme(themeConfig.default);
+  }, [isBlackoutEnabled, isIlluminateEnabled]);
 
+  const [userTier, setUserTier] = useState<UserTier>('loading');
+  const [chatUsageCount, setChatUsageCount] = useState<number>(0);
+  const [chatLimit, setChatLimit] = useState<number>(BASIC_CHAT_LIMIT);
+  const [isChatDisabledByLimit, setIsChatDisabledByLimit] = useState(false);
+  const currentChatLimitDisplay = useMemo(() => getChatLimitForTier(userTier), [userTier]);
+
+
+  useEffect(() => { localStorage.setItem('isSidebarCollapsed', JSON.stringify(isSidebarCollapsed)); }, [isSidebarCollapsed]);
   useEffect(() => {
     localStorage.setItem('isBlackoutEnabled', JSON.stringify(isBlackoutEnabled));
-    document.body.classList.toggle('blackout-mode', isBlackoutEnabled);
-  }, [isBlackoutEnabled]);
-
-  useEffect(() => {
-    localStorage.setItem(
-      'isSidebarBlackoutEnabled',
-      JSON.stringify(isSidebarBlackoutEnabled)
-    );
-  }, [isSidebarBlackoutEnabled]);
-
+    document.body.classList.toggle('blackout-mode', isBlackoutEnabled && !isIlluminateEnabled);
+  }, [isBlackoutEnabled, isIlluminateEnabled]);
+  useEffect(() => { localStorage.setItem('isSidebarBlackoutEnabled', JSON.stringify(isSidebarBlackoutEnabled));}, [isSidebarBlackoutEnabled]);
   useEffect(() => {
     localStorage.setItem('isIlluminateEnabled', JSON.stringify(isIlluminateEnabled));
-    if (isIlluminateEnabled) {
-      document.body.classList.add('illuminate-mode');
-    } else {
-      document.body.classList.remove('illuminate-mode');
-    }
-  }, [isIlluminateEnabled]);
+    document.body.classList.toggle('illuminate-mode', isIlluminateEnabled);
+    if (isIlluminateEnabled) document.body.classList.remove('blackout-mode');
+    else if (isBlackoutEnabled) document.body.classList.add('blackout-mode');
+  }, [isIlluminateEnabled, isBlackoutEnabled]);
+  useEffect(() => { localStorage.setItem('isSidebarIlluminateEnabled', JSON.stringify(isSidebarIlluminateEnabled));}, [isSidebarIlluminateEnabled]);
 
   useEffect(() => {
-    localStorage.setItem(
-      'isSidebarIlluminateEnabled',
-      JSON.stringify(isSidebarIlluminateEnabled)
-    );
-  }, [isSidebarIlluminateEnabled]);
-
-  // Auth effect
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser);
-      if (firebaseUser) {
-        setUserName(firebaseUser.displayName || 'User');
-      }
+    const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
+      setUser(fbUser);
+      if (fbUser) { setUserName(fbUser.displayName || 'User'); setUserEmail(fbUser.email); }
+      else { setUserName('User'); setUserEmail(null); navigate('/login'); }
     });
     return () => unsubscribe();
-  }, []);
-
-  // Initial auth check
-  useEffect(() => {
-    const firebaseUser = getCurrentUser();
-    if (firebaseUser) {
-      setUser(firebaseUser);
-      setUserName(firebaseUser.displayName || 'User');
-    } else {
-      navigate('/login');
-    }
   }, [navigate]);
 
-  // Collection listeners
   useEffect(() => {
-    if (!user) return;
-    const unsubTasks = onCollectionSnapshot('tasks', user.uid, (items) => setTasks(items));
-    const unsubGoals = onCollectionSnapshot('goals', user.uid, (items) => setGoals(items));
-    const unsubProjects = onCollectionSnapshot('projects', user.uid, (items) => setProjects(items));
-    const unsubPlans = onCollectionSnapshot('plans', user.uid, (items) => setPlans(items));
-    return () => {
-      unsubTasks();
-      unsubGoals();
-      unsubProjects();
-      unsubPlans();
-    };
-  }, [user]);
+    const fbUser = getCurrentUser();
+    if (fbUser) { setUser(fbUser); setUserName(fbUser.displayName || 'User'); setUserEmail(fbUser.email); }
+    else { navigate('/login'); }
+  }, [navigate]);
 
-
-  // Context listener
   useEffect(() => {
-    if (!user) return;
-    const unsubscribe = onUserContextChange(user.uid, (context) => {
-      setUserContext(context);
-    });
-    return () => unsubscribe();
-  }, [user]);
-
-  
-  // Conversation list listener
-  useEffect(() => {
-    if (!user) return;
-    const unsubscribe = onChatConversationsSnapshot(user.uid, (conversations) => {
-      setConversationList(conversations);
-    });
-    return () => unsubscribe();
-  }, [user]);
-
-  // Messages listener
-  useEffect(() => {
-    if (!conversationId) {
-      setChatHistory([]);
-      return;
+    if (user && user.uid && userEmail !== undefined) {
+      getUserTier(user.uid, userEmail).then(tier => { setUserTier(tier); setChatLimit(getChatLimitForTier(tier)); });
+    } else if (!user) {
+      setUserTier('basic'); setChatLimit(getChatLimitForTier('basic'));
     }
-    const unsubscribe = onChatMessagesSnapshot(conversationId, (messages) => {
-      setChatHistory(messages);
-    });
-    return () => unsubscribe();
+  }, [user, userEmail]);
+
+  useEffect(() => {
+    if (user && user.uid && userTier !== 'loading') {
+      const currentMonth = new Date().toISOString().slice(0, 7);
+      getCurrentMonthUserChatUsage(user.uid, currentMonth).then(usage => setChatUsageCount(usage?.count || 0));
+    }
+  }, [user, userTier]);
+
+  useEffect(() => {
+    setIsChatDisabledByLimit(userTier !== 'premium' && chatUsageCount >= chatLimit && chatLimit !== Infinity);
+  }, [chatUsageCount, chatLimit, userTier]);
+
+  useEffect(() => {
+    if (!user || !user.uid) return;
+    const unsubTasks = onCollectionSnapshot('tasks', user.uid, setTasks);
+    const unsubGoals = onCollectionSnapshot('goals', user.uid, setGoals);
+    const unsubProjects = onCollectionSnapshot('projects', user.uid, setProjects);
+    const unsubPlans = onCollectionSnapshot('plans', user.uid, setPlans);
+    return () => { unsubTasks(); unsubGoals(); unsubProjects(); unsubPlans(); };
+  }, [user]);
+
+  useEffect(() => { if (!user || !user.uid) return; const unsub = onUserContextChange(user.uid, setUserContext); return () => unsub(); }, [user]);
+
+  useEffect(() => {
+      if (!user || !user.uid) return;
+      const unsub = onChatConversationsSnapshot(user.uid, (conversations) => {
+          setConversationList(conversations.map(c => ({...c, key: c.id})));
+      });
+      return () => unsub();
+  }, [user]);
+
+  useEffect(() => {
+      if (!conversationId) {
+          setChatHistory([]);
+          setHasGeneratedChatName(false);
+          setStreamingAssistantContent('');
+          setSelectedFiles([]);
+          setIsImageGenModeActive(false);
+          setAssistantLoadingPlaceholderId(null);
+          return;
+      }
+      const unsub = onChatMessagesSnapshot(conversationId, (messagesFromDb) => {
+          setChatHistory(messagesFromDb.map(m => ({
+              ...m,
+              id: m.id, // Firestore doc id is used as key
+          } as ChatMessageData)));
+      });
+      return () => unsub();
   }, [conversationId]);
 
-  // Scroll to bottom on chat updates
   useEffect(() => {
     if (chatEndRef.current) {
-      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        requestAnimationFrame(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }));
     }
-  }, [chatHistory]);
+  }, [chatHistory, streamingAssistantContent]);
 
-  // ----- Context Handlers -----
-  const handleSaveContext = async (context: Partial<UserContext>) => {
-    if (!user) return;
-    await saveUserContext(user.uid, context);
-  };
 
-  // ----- Style Handlers -----
-  const handleStyleSelect = (style: string, prompt: string) => {
-    setActiveStyle(style);
-    setActivePrompt(prompt);
-  };
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => { if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) setOpenDropdownId(null); };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
+  const handleSaveContext = async (context: Partial<UserContext>) => { if (!user || !user.uid) return; await saveUserContext(user.uid, context); };
+  const handleStyleSelect = (style: string, prompt: string) => { setActiveStyle(style); setActivePrompt(prompt); };
   const handleCustomStyleCreate = (style: { name: string; description: string; prompt: string }) => {
-    setCustomStyles(prev => ({
-      ...prev,
-      [style.name]: {
-        description: style.description,
-        prompt: style.prompt
-      }
-    }));
-    setActiveStyle(style.name);
-    setActivePrompt(style.prompt);
+    setCustomStyles(prev => ({ ...prev, [style.name]: { description: style.description, prompt: style.prompt }}));
+    setActiveStyle(style.name); setActivePrompt(style.prompt);
   };
 
-  // ----- UI Toggles -----
-  const handleToggleSidebar = () => setIsSidebarCollapsed((prev) => !prev);
-  const handleToggleBlackout = () => setIsBlackoutEnabled((prev) => !prev);
-
-  // ----- Timer Logic -----
   const parseTimerRequest = (message: string): number | null => {
     const timeRegex = /(\d+)\s*(minutes?|mins?|hours?|hrs?|seconds?|secs?)/i;
     const match = message.match(timeRegex);
     if (!match) return null;
     const amount = parseInt(match[1], 10);
     const unit = match[2].toLowerCase();
+    if (isNaN(amount) || amount <= 0) return null;
     if (unit.startsWith('hour') || unit.startsWith('hr')) return amount * 3600;
     if (unit.startsWith('min')) return amount * 60;
     if (unit.startsWith('sec')) return amount;
@@ -409,119 +473,224 @@ export function AIChat() {
 
   const handleTimerComplete = (timerId: string) => {
     if (!conversationId || !user) return;
-    saveChatMessage(conversationId, {
+    const completionMsg: Omit<ChatMessageData, 'id' | 'createdAt'> = {
       role: 'assistant',
       content: "⏰ Time's up! Your timer has finished.",
-    });
+    };
+    saveChatMessage(conversationId, completionMsg);
+  };
+  
+  const triggerFileSelect = () => fileInputRef.current?.click();
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const newFiles: SelectedFile[] = [];
+    const fileProcessingPromises: Promise<void>[] = [];
+    const currentFileNames = new Set(selectedFiles.map(f => f.name));
+
+    let tempErrorMessages: ChatMessageData[] = [];
+    const addErrorMessageToLocalHistory = (content: string) => {
+        const errorMsgId = `local-error-${Date.now()}`;
+        tempErrorMessages.push({ id: errorMsgId, role: 'assistant', content, error: true, createdAt: new Date() });
+    };
+
+
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (currentFileNames.has(file.name)) {
+            addErrorMessageToLocalHistory(`ℹ️ File "${file.name}" is already selected.`);
+            continue;
+        }
+        if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+             addErrorMessageToLocalHistory(`❌ File "${file.name}" is too large (max ${MAX_FILE_SIZE_MB}MB).`);
+             continue;
+        }
+
+        fileProcessingPromises.push(
+            readFileAsBase64(file)
+                .then(processedFile => newFiles.push(processedFile))
+                .catch(err => {
+                    console.error("Error reading file:", file.name, err);
+                    addErrorMessageToLocalHistory(`❌ Error reading file "${file.name}".`);
+                })
+        );
+    }
+    
+    await Promise.all(fileProcessingPromises);
+    if (tempErrorMessages.length > 0) {
+        setChatHistory(prev => [...prev, ...tempErrorMessages]);
+    }
+    setSelectedFiles(prev => [...prev, ...newFiles]);
+
+    if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+    }
+    textareaRef.current?.focus();
+  };
+  
+  const handleRemoveFile = (fileName: string) => {
+    setSelectedFiles(prev => prev.filter(f => f.name !== fileName));
   };
 
-  // ----- Build Prompt for Gemini -----
-  const formatItemsForChat = () => {
+  const handlePaste = useCallback(async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = event.clipboardData?.items;
+    if (!items) return;
+    let imagePasted = false;
+    const filePromises: Promise<SelectedFile>[] = [];
+    const existingFileNames = new Set(selectedFiles.map(f => f.name));
+    let tempErrorMessages: ChatMessageData[] = [];
+
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+            const file = item.getAsFile();
+            if (file) {
+                if (existingFileNames.has(file.name)) {
+                     tempErrorMessages.push({id: `local-paste-info-${Date.now()}`, role: 'assistant', content: `ℹ️ Pasted image "${file.name}" is already attached.`, createdAt: new Date()});
+                     continue;
+                };
+                if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+                     tempErrorMessages.push({id: `local-paste-err-${Date.now()}`, role: 'assistant', content: `❌ Pasted image "${file.name}" is too large (max ${MAX_FILE_SIZE_MB}MB).`, error: true, createdAt: new Date()});
+                     continue;
+                }
+                filePromises.push(readFileAsBase64(file));
+                existingFileNames.add(file.name); // Add to set to prevent duplicates from same paste event
+                imagePasted = true;
+            }
+        }
+    }
+
+    if (imagePasted) {
+        event.preventDefault(); // Prevent pasting image as text
+        try {
+            const results = await Promise.all(filePromises);
+            setSelectedFiles(prev => [...prev, ...results]);
+        } catch (error) {
+            console.error("Error processing pasted images:", error);
+            tempErrorMessages.push({id: `local-paste-read-err-${Date.now()}`, role: 'assistant', content: `❌ Error processing one or more pasted images.`, error: true, createdAt: new Date()});
+        }
+    }
+    if (tempErrorMessages.length > 0) {
+        setChatHistory(prev => [...prev, ...tempErrorMessages]);
+    }
+  }, [selectedFiles]);
+
+  const handleToggleImageGenMode = () => {
+    const nextState = !isImageGenModeActive;
+    setIsImageGenModeActive(nextState);
+    let tempInfoMessages: ChatMessageData[] = [];
+    if (nextState && selectedFiles.length > 0) {
+        setSelectedFiles([]); // Clear files when entering image gen mode
+        tempInfoMessages.push({id: `local-img-mode-info-${Date.now()}`, role: 'assistant', content: "🖼️ Image generation mode enabled. Attached files have been cleared as they are not used in this mode.", createdAt: new Date()});
+    } else if (!nextState) {
+         tempInfoMessages.push({id: `local-txt-mode-info-${Date.now()}`, role: 'assistant', content: "💬 Switched to text & file mode.", createdAt: new Date()});
+    }
+    if (tempInfoMessages.length > 0) {
+        setChatHistory(prev => [...prev, ...tempInfoMessages]);
+    }
+    textareaRef.current?.focus();
+  };
+
+
+  const formatItemsForChat = (): string => {
+    if (!user) return "User data not available.";
     const lines: string[] = [];
-    lines.push(`${userName}'s items:\n`);
-    tasks.forEach((t) => {
-      const due = t.data.dueDate?.toDate?.();
-      lines.push(
-        `Task: ${t.data.task || 'Untitled'}${
-          due ? ` (Due: ${due.toLocaleDateString()})` : ''
-        }`
-      );
-    });
-    goals.forEach((g) => {
-      const due = g.data.dueDate?.toDate?.();
-      lines.push(
-        `Goal: ${g.data.goal || 'Untitled'}${
-          due ? ` (Due: ${due.toLocaleDateString()})` : ''
-        }`
-      );
-    });
-    projects.forEach((p) => {
-      const due = p.data.dueDate?.toDate?.();
-      lines.push(
-        `Project: ${p.data.project || 'Untitled'}${
-          due ? ` (Due: ${due.toLocaleDateString()})` : ''
-        }`
-      );
-    });
-    plans.forEach((pl) => {
-      const due = pl.data.dueDate?.toDate?.();
-      lines.push(
-        `Plan: ${pl.data.plan || 'Untitled'}${
-          due ? ` (Due: ${due.toLocaleDateString()})` : ''
-        }`
-      );
-    });
+    lines.push(`Current items for ${truncatedName}:\n`);
+    const formatLine = (item: any, type: string, nameField: string) => {
+      const name = item.data[nameField] || 'Untitled';
+      const due = item.data.dueDate?.toDate?.();
+      const priority = item.data.priority || 'medium';
+      const completed = item.data.completed ? '[Completed]' : '[Pending]';
+      return `${type}: ${name}${due ? ` (Due: ${due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})` : ''} [Priority: ${priority}] ${completed}`;
+    };
+    tasks.forEach(item => lines.push(formatLine(item, 'Task', 'task')));
+    goals.forEach(item => lines.push(formatLine(item, 'Goal', 'goal')));
+    projects.forEach(item => lines.push(formatLine(item, 'Project', 'project')));
+    plans.forEach(item => lines.push(formatLine(item, 'Plan', 'plan')));
+    if (lines.length === 1) return `No active items found for ${truncatedName}.`;
     return lines.join('\n');
   };
 
-  const createPrompt = (userMessage: string): string => {
-    const conversationSoFar = chatHistory
-      .map((m) => `${m.role === 'user' ? userName : 'Assistant'}: ${m.content}`)
+const createPrompt = (userMessage: string, files: SelectedFile[]): string => {
+    const conversationSoFar = chatHistory.slice(-6)
+      .map((m) => `${m.role === 'user' ? truncatedName : 'Assistant'}: ${m.content}${m.attachedFilesMeta ? ` [Files: ${m.attachedFilesMeta.map(f=>f.name).join(', ')}]` : ''}`)
       .join('\n');
 
     const itemsText = formatItemsForChat();
     const now = new Date();
     const currentDateTime = {
-      date: now.toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      }),
-      time: now.toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true,
-      }),
+      date: now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+      time: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
     };
 
     let styleInstruction = '';
-    if (activeStyle && activePrompt) {
-      styleInstruction = `\n\n${activePrompt}\n`;
-    }
+    if (activeStyle && activePrompt) styleInstruction = `\n\nSYSTEM_STYLE_PROMPT: ${activePrompt}\n`;
 
     let contextSection = '';
     if (userContext) {
       contextSection = `
-User Context:
-- Work: ${userContext.workDescription}
-- Short-term Focus: ${userContext.shortTermFocus}
-- Long-term Goals: ${userContext.longTermGoals}
-- Additional Context: ${userContext.otherContext}
+User Context (provided by ${truncatedName}):
+- Work: ${userContext.workDescription || 'Not specified'}
+- Short-term Focus: ${userContext.shortTermFocus || 'Not specified'}
+- Long-term Goals: ${userContext.longTermGoals || 'Not specified'}
+- Additional Context: ${userContext.otherContext || 'Not specified'}
 `;
     }
 
+    let filePreamble = "";
+    if (files.length > 0 && !isImageGenModeActive) {
+        filePreamble = `\n\n[CONTEXT FROM ATTACHED FILES (${files.map(f => f.name).join(', ')})]\n${files.length > 1 ? "Multiple files are attached. " : ""}The user has attached ${files.map(f => `${f.name} (${f.type})`).join(', ')}. Please consider their content if relevant to the query. For non-image/pdf files, assume their text content is available if I've provided it. If the query is about an image, describe it or use its content for the response. If it's about a PDF, use the text content.`;
+    }
+    
+    const imageGenInstruction = isImageGenModeActive ? `
+[IMAGE GENERATION TASK]
+The user wants to generate an image based on the following description: "${userMessage}".
+Your primary goal is to generate this image. You must also provide a brief accompanying text with the image (e.g., "Here's the image you requested:", or a short comment about the image).
+**CRITICAL**: Your response for image generation MUST include both the image data AND a text part. Do NOT output JSON for image generation. The image will be encoded by the system.
+If image generation fails, explain why politely in plain text.
+` : "";
+
     return `
 [CONTEXT]
-User's Name: ${userName}
+User's Name: ${truncatedName}
 Current Date: ${currentDateTime.date}
 Current Time: ${currentDateTime.time}
 ${styleInstruction}
 ${contextSection}
+${filePreamble}
 
+User's Current Items (Only discuss if explicitly asked by ${truncatedName}):
 ${itemsText}
 
-[CONVERSATION SO FAR]
+[CONVERSATION HISTORY (Last few turns)]
 ${conversationSoFar}
 
 [NEW USER MESSAGE]
-${userName}: ${userMessage}
+${truncatedName}: ${userMessage}
+${imageGenInstruction}
 
-You are TaskMaster, a friendly and versatile AI productivity assistant. Engage in casual conversation, provide productivity advice, and discuss ${userName}'s items only when explicitly asked by ${userName}.
+You are TaskMaster, a friendly and versatile AI productivity assistant. Engage in casual conversation, provide productivity advice, and discuss ${truncatedName}'s items only when explicitly asked by ${truncatedName}. Only reference the user's first name when chatting. If files are attached, consider their content when answering.
 
 Guidelines:
 
-1. General Conversation:
-   - Respond in a friendly, natural tone matching ${userName}'s style.
-   - Do not include any internal instructions, meta commentary, or explanations of your process.
-   - Do not include phrases such as "Here's my response to continue the conversation:" or similar wording that introduces your reply.
-   - Do not include or reference code blocks for languages like Python, Bash, or any other unless explicitly requested by ${userName}.
-   - Only reference ${userName}'s items if ${userName} explicitly asks about them.
+1. General Conversation & File-based Q&A:
+   - Respond in a friendly, natural tone. Do not include internal instructions or meta commentary.
+   - If files are attached and the query relates to them, use their content. For images, describe or analyze. For PDFs/text files, use text content.
+   - For unsupported file types (e.g., Word, Excel, PowerPoint), state that you can't process their rich content directly but can discuss any text pasted from them.
+   - Only reference ${truncatedName}'s items if ${truncatedName} explicitly asks about them.
 
-2. Educational Content (JSON):
-   - If ${userName} explicitly requests educational content (flashcards or quiz questions), return exactly one JSON object.
+2. Image Generation (If in Image Generation Mode):
+   - Generate an image based on ${truncatedName}'s textual description.
+   - Your response MUST include both the image data and a textual part (e.g., "Here's your image:").
+   - **CRITICAL**: DO NOT output JSON for image generation.
+   - If generation fails, explain why politely in plain text.
+
+3. Educational Content (JSON - Only if not in Image Gen Mode):
+   - If ${truncatedName} explicitly requests educational content (flashcards or quiz questions), return exactly one JSON object.
    - The JSON must be wrapped in a single code block using triple backticks and the "json" language identifier.
-   - Return only the JSON object with no additional text or extra lines.
+   - Return only the JSON object with no additional text or extra lines before or after the JSON block itself.
    - Use one of the following formats:
 
      For flashcards:
@@ -568,999 +737,718 @@ Guidelines:
      }
      \`\`\`
 
-3. Data Modifications (JSON):
-   - When ${userName} provides a command to create, update, or delete an item (e.g., "add a task to buy a dog by tomorrow", "update the task for meeting", "delete the goal about exercise", etc.), you must respond by first stating the action you will do and then create a JSON block that specifies the action and its payload.
-   - The JSON block must be wrapped in triple backticks with the "json" language identifier and returned as the only content for that modification.
-   - Use this structure, to update a task:
-   \`\`\`json
-{
-  "action": "updateTask",
-  "payload": {
-    "task": "Original Task Name",
-    "newTask": "Updated Task Name",
-    "dueDate": "2025-03-03"
-  }
-}
-   \`\`\`
-   - For deletion:
-   \`\`\`json
-   {
-     "action": "deleteTask",
-     "payload": {
-       "task": "Study Digital Marketing"
-     }
-   }
-   \`\`\`
-   - For creating:
-      \`\`\`json
-   {
-     "action": "createTask",
-     "payload": {
-       "task": "Study Digital Marketing",
-       "dueDate": "2025-03-03"
-     }
-   }
-   \`\`\`
-   - You may return multiple JSON blocks if multiple items are to be created, updated, or deleted.
-   - Do not include any additional text with the JSON block; it should be the sole output for that command.
 
-4. Response Structure:
-   - Provide a direct, natural response to ${userName} without extraneous meta-text.
-   - Do not mix JSON with regular text. If you return JSON (for educational content or data modifications), return it as the only content (i.e. no additional text or empty lines).
-   - Always address ${userName} in a friendly and helpful tone.
+4. Data Modifications (JSON - Only if not in Image Gen Mode):
+   - When ${truncatedName} commands to create, update, or delete an item, you *MUST* respond with a brief conversational confirmation (e.g., "Okay, I'll create that task!") *followed by* the JSON block.
+   - Your conversational confirmation text will be shown to the user.
+   - JSON structure: \`\`\`json\n{"action": "actionName", "payload": {...}}\n\`\`\`
+   - Valid actions: "createTask", "updateTask", "deleteTask", etc. for goals, plans, projects.
+   - Payloads as previously defined (e.g., for create: {"task": "Name", "dueDate": "YYYY-MM-DD"}, for update: {"task": "OldName", "newTask": "NewName"}, for delete: {"task": "Name"}).
+   - My system will display your conversational confirmation and process the JSON block. Ensure the JSON is the LAST part of your response.
+
+5. Response Structure Summary:
+   - General chat/file Q&A: Natural language text only.
+   - Image generation: Image data AND a textual part. NO JSON.
+   - Educational content: ONLY the JSON code block as per Guideline 3.
+   - Data modification: Your conversational confirmation text, THEN the JSON code block as per Guideline 4.
 
 Follow these instructions strictly.
-`;
+Assistant:`;
   };
 
-  // ----- Generate Chat Name -----
-  const generateChatName = async (
-    convId: string,
-    conversationSoFar: string
-  ) => {
+  const generateChatName = async (convId: string, conversationSoFar: string) => {
     try {
-      const namePrompt = `
-Please provide a short 3-5 word title summarizing the conversation so far:
-${conversationSoFar}
-Return ONLY the title, with no extra commentary.
-`;
-      const options = {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: namePrompt }] }],
-        }),
-      };
-      const rawText = await fetchWithTimeout(geminiEndpoint, options, 30000);
-      const text = await rawText.text();
-      const finalText = extractCandidateText(text) || 'Untitled Chat';
-      await updateChatConversationName(convId, finalText.trim());
-    } catch (err) {
-      console.error('Error generating chat name:', err);
-    }
+      const namePrompt = `Please provide a short 3-5 word title summarizing the conversation so far:\n${conversationSoFar}\nReturn ONLY the title, with no extra commentary.`;
+      const fullApiUrl = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${geminiApiKey}`;
+      const options = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: namePrompt }] }] })};
+      const response = await fetchWithTimeout(fullApiUrl, options, 20000);
+      const responseText = await response.text();
+      const parsed = parseGeminiApiResponse(responseText, false);
+      const finalText = parsed.text || 'Untitled Chat';
+      await updateChatConversationName(convId, finalText.trim().substring(0, 50));
+    } catch (err) { console.error('Error generating chat name:', err); }
   };
 
-  // ----- Chat Submission -----
-  const handleChatSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatMessage.trim() || !user) return;
+  const handleChatSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if ((!chatMessage.trim() && selectedFiles.length === 0 && !isImageGenModeActive) || (isImageGenModeActive && !chatMessage.trim()) || !user || !user.uid) return;
 
-    // If no conversation is selected, create one.
-    let convId = conversationId;
-    if (!convId) {
-      convId = await createChatConversation(user.uid, "New Chat");
-      setConversationId(convId);
+    let currentConvId = conversationId;
+    if (!currentConvId) {
+      const newId = await createChatConversation(user.uid, "New Chat");
+      if (!newId) { console.error("Failed to create/get conversation ID"); return; }
+      currentConvId = newId;
+      setConversationId(currentConvId); // This will trigger useEffect for onChatMessagesSnapshot
+      setHasGeneratedChatName(false);
+    }
+    
+    if (isChatDisabledByLimit) {
+        const limitMsgForState: ChatMessageData = {
+            id: `error-limit-${Date.now()}`, role: 'assistant', content: `You've reached your ${chatLimit} message limit. Upgrade for more!`, error: true, createdAt: new Date()
+        };
+        setChatHistory(prev => [...prev, limitMsgForState ]);
+        if(currentConvId) await saveChatMessage(currentConvId, {role: 'assistant', content: limitMsgForState.content, error: true, createdAt: new Date()});
+        setChatMessage('');
+        return;
     }
 
-    // Save user's message.
-    const userMsg: ChatMessageData = { role: 'user', content: chatMessage };
-    await saveChatMessage(convId!, userMsg);
-    const updatedHistory = [...chatHistory, userMsg];
+    const userMsgContent = chatMessage;
+    const filesForThisMessage = [...selectedFiles];
+    
+    let userMsgImageData: ImageData | undefined = undefined;
+    if (filesForThisMessage.length > 0 && filesForThisMessage[0].type.startsWith("image/") && !isImageGenModeActive) { // Only attach image if not in image gen mode for user message
+        userMsgImageData = { base64: filesForThisMessage[0].base64Data, type: filesForThisMessage[0].type, name: filesForThisMessage[0].name };
+    }
 
-    // Clear user input.
+    const localUserMessageId = `user-local-${Date.now()}`;
+    const userMessageForState: ChatMessageData = {
+        id: localUserMessageId,
+        role: 'user',
+        content: userMsgContent,
+        imageData: userMsgImageData,
+        attachedFilesMeta: filesForThisMessage.map(f => ({ name: f.name, type: f.type, size: f.size })),
+        createdAt: new Date()
+    };
+    setChatHistory(prev => [...prev, userMessageForState]);
+
+    const userMessageToSave: Omit<ChatMessageData, 'id'> = {
+        role: 'user',
+        content: userMsgContent,
+        imageData: userMsgImageData, // Ensure this is saved
+        attachedFilesMeta: filesForThisMessage.map(f => ({ name: f.name, type: f.type, size: f.size })),
+        createdAt: new Date() 
+    };
+    // await saveChatMessage must correctly persist imageData if provided
+    if (currentConvId) await saveChatMessage(currentConvId, userMessageToSave); 
+    
     setChatMessage('');
+    setSelectedFiles([]); // Clear selected files after submission
 
-    // Check if it's a timer request.
-    const timerDuration = parseTimerRequest(userMsg.content);
-    if (timerDuration) {
-      const timerId = Math.random().toString(36).substr(2, 9);
-      const timerMsg: ChatMessageData = {
-        role: 'assistant',
-        content: `Starting a timer for ${timerDuration} seconds.`,
-        timer: { type: 'timer', duration: timerDuration, id: timerId }
+    if (userTier !== 'premium' && userTier !== 'loading') {
+      try { await incrementUserChatUsage(user.uid); setChatUsageCount(prev => prev + 1); }
+      catch (error) {
+        console.error("Failed to increment chat usage:", error);
+        const usageErrorMsgToSave: Omit<ChatMessageData, 'id' | 'createdAt'> = {
+            role: 'assistant', content: "⚠️ Error saving usage count. Message sent.", error: true
+        };
+       if (currentConvId) await saveChatMessage(currentConvId, usageErrorMsgToSave);
+      }
+    }
+
+    const timerDuration = parseTimerRequest(userMsgContent);
+    if (timerDuration && !isImageGenModeActive) {
+      const timerId = `timer-${Date.now()}`;
+      const timerMsgContent = `Okay, ${truncatedName}! Starting a timer for ${timerDuration < 60 ? timerDuration + ' seconds' : Math.round(timerDuration / 60) + ' minutes'}.`;
+      const timerMsgToSave: Omit<ChatMessageData, 'id' | 'createdAt'> = {
+        role: 'assistant', content: timerMsgContent, timer: { type: 'timer', duration: timerDuration, id: timerId }
       };
-      await saveChatMessage(convId!, timerMsg);
+      if (currentConvId) await saveChatMessage(currentConvId, timerMsgToSave);
       return;
     }
 
     setIsChatLoading(true);
-    setStreamingAssistantContent(''); // Start fresh for streaming
+    const newAssistantLoadingPlaceholderId = `assistant-ph-${Date.now()}`;
+    setAssistantLoadingPlaceholderId(newAssistantLoadingPlaceholderId);
 
-    // Build prompt for Gemini.
-    const prompt = createPrompt(userMsg.content);
+    const assistantResponsePlaceholder: ChatMessageData = {
+      id: newAssistantLoadingPlaceholderId, role: 'assistant', content: "...", createdAt: new Date(), isGeneratingImage: isImageGenModeActive,
+    };
+    setChatHistory(prev => [...prev, assistantResponsePlaceholder]);
+    setStreamingAssistantContent(''); // Clear any previous streaming content
+
+    const prompt = createPrompt(userMsgContent, filesForThisMessage);
+    const currentTargetModel = isImageGenModeActive ? GEMINI_IMAGE_GEN_MODEL : GEMINI_TEXT_MODEL;
+    const fullApiUrl = `${GEMINI_API_BASE}${currentTargetModel}:generateContent?key=${geminiApiKey}`;
+    
+    const apiParts: any[] = [{ text: prompt }];
+    if (!isImageGenModeActive && filesForThisMessage.length > 0) {
+        filesForThisMessage.forEach(file => {
+            // Only include supported types for multi-modal request
+            if (file.type.startsWith('image/') || file.type === 'application/pdf' || file.type === 'text/plain' || file.name.endsWith('.md') || file.type === "image/svg+xml") {
+                 apiParts.push({ inline_data: { mime_type: file.type, data: file.base64Data }});
+            }
+        });
+    }
+    
+    const apiRequestBody: any = {
+        contents: [{ parts: apiParts }],
+        safetySettings: [
+            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }
+        ]
+    };
+
+    let generationConfig: any = {
+        temperature: 0.7,
+        maxOutputTokens: 8192,
+    };
+
+    if (isImageGenModeActive) {
+        generationConfig.maxOutputTokens = 2048; // Or as appropriate for image model
+        generationConfig.responseModalities = ["TEXT", "IMAGE"]; // FIX for image generation
+    }
+    apiRequestBody.generationConfig = generationConfig;
+
     const geminiOptions = {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }]
-      })
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(apiRequestBody)
     };
 
     try {
-      // Stream response from Gemini.
-      let finalResponse = '';
-      await streamResponse(geminiEndpoint, geminiOptions, (chunk) => {
-        setStreamingAssistantContent(chunk);
-        finalResponse = chunk;
-      }, 45000);
+      const response = await fetchWithTimeout(fullApiUrl, geminiOptions);
+      const responseText = await response.text();
+      const parsedApiResult = parseGeminiApiResponse(responseText, isImageGenModeActive);
 
-      // Extract final text.
-      let assistantReply = extractCandidateText(finalResponse).trim() || '';
-      setStreamingAssistantContent(''); // Clear streaming content
+      let assistantTextForDisplay = parsedApiResult.text || "";
+      const assistantImageData = parsedApiResult.imageData || undefined;
+      let educationalContent: any = null;
+      let actionTaken = false;
+      let combinedActionConfirmation = "";
+      let finalActionDetails: ChatMessageData['actionDetails'] | undefined = undefined;
+      
+      const { blocks: jsonActionBlocks, cleanedText, originalText } = extractJsonBlocks(parsedApiResult.text || "");
+      // If not image gen mode, cleanedText is the AI's primary text. For image gen, parsedApiResult.text is primary.
+      assistantTextForDisplay = isImageGenModeActive ? (parsedApiResult.text || "") : cleanedText;
 
-      // --- Process JSON Blocks ---
-      // Use extractJsonBlocks to find all JSON blocks in the reply.
-      const jsonBlocks = extractJsonBlocks(assistantReply);
-      let educationalContent: any = null; // To store flashcard or question JSON.
-      for (const block of jsonBlocks) {
-        try {
-          const parsed = JSON.parse(block);
-          // Process AI action blocks for creation, update, or deletion.
-          if (parsed.action && parsed.payload) {
-            // Add user ID to all payloads for finding items by name
-            parsed.payload.userId = user.uid;
+
+      if (!isImageGenModeActive && jsonActionBlocks.length > 0) {
+          for (const parsed of jsonActionBlocks) {
+            if (parsed.action && parsed.payload && user.uid) {
+              actionTaken = true;
+              const payload = { ...parsed.payload };
+              let itemNaturalLanguageResponse = "";
+              if (payload.dueDate && typeof payload.dueDate === 'string') {
+                const date = new Date(payload.dueDate);
+                if (!isNaN(date.getTime())) payload.dueDate = date; else delete payload.dueDate; // or handle error
+              }
+
+
+              if (parsed.action === 'createTask') { await createUserTask(user.uid, payload); itemNaturalLanguageResponse = `Task "${payload.task || 'Untitled'}" created.`; }
+              else if (parsed.action === 'createGoal') { await createUserGoal(user.uid, payload); itemNaturalLanguageResponse = `Goal "${payload.goal || 'Untitled'}" set.`; }
+              else if (parsed.action === 'createPlan') { await createUserPlan(user.uid, payload); itemNaturalLanguageResponse = `Plan "${payload.plan || 'Untitled'}" created.`; }
+              else if (parsed.action === 'createProject') { await createUserProject(user.uid, payload); itemNaturalLanguageResponse = `Project "${payload.project || 'Untitled'}" set up.`; }
+              else if (parsed.action === 'updateTask') { const id = payload.id || await findItemByName('tasks',user.uid,payload.task,'task'); if(id){await updateUserTask(id,payload);} itemNaturalLanguageResponse = `Task "${payload.newTask || payload.task}" updated.`; }
+              else if (parsed.action === 'updateGoal') { const id = payload.id || await findItemByName('goals',user.uid,payload.goal,'goal'); if(id){await updateUserGoal(id,payload);} itemNaturalLanguageResponse = `Goal "${payload.newGoal || payload.goal}" updated.`; }
+              else if (parsed.action === 'updatePlan') { const id = payload.id || await findItemByName('plans',user.uid,payload.plan,'plan'); if(id){await updateUserPlan(id,payload);} itemNaturalLanguageResponse = `Plan "${payload.newPlan || payload.plan}" updated.`; }
+              else if (parsed.action === 'updateProject') { const id = payload.id || await findItemByName('projects',user.uid,payload.project,'project'); if(id){await updateUserProject(id,payload);} itemNaturalLanguageResponse = `Project "${payload.newProject || payload.project}" updated.`; }
+              else if (parsed.action === 'deleteTask') { const id = payload.id || await findItemByName('tasks',user.uid,payload.task,'task'); if(id){await deleteUserTask(id);} itemNaturalLanguageResponse = `Task "${payload.task}" deleted.`; }
+              else if (parsed.action === 'deleteGoal') { const id = payload.id || await findItemByName('goals',user.uid,payload.goal,'goal'); if(id){await deleteUserGoal(id);} itemNaturalLanguageResponse = `Goal "${payload.goal}" deleted.`; }
+              else if (parsed.action === 'deletePlan') { const id = payload.id || await findItemByName('plans',user.uid,payload.plan,'plan'); if(id){await deleteUserPlan(id);} itemNaturalLanguageResponse = `Plan "${payload.plan}" deleted.`; }
+              else if (parsed.action === 'deleteProject') { const id = payload.id || await findItemByName('projects',user.uid,payload.project,'project'); if(id){await deleteUserProject(id);} itemNaturalLanguageResponse = `Project "${payload.project}" deleted.`; }
+              
+              if (itemNaturalLanguageResponse) combinedActionConfirmation += (combinedActionConfirmation ? " " : "") + itemNaturalLanguageResponse;
             
-            // Create actions
-            if (parsed.action === 'createTask') {
-              await createUserTask(user.uid, parsed.payload);
-            } else if (parsed.action === 'createGoal') {
-              await createUserGoal(user.uid, parsed.payload);
-            } else if (parsed.action === 'createPlan') {
-              await createUserPlan(user.uid, parsed.payload);
-            } else if (parsed.action === 'createProject') {
-              await createUserProject(user.uid, parsed.payload);
-            }
-            // Update actions
-            else if (parsed.action === 'updateTask') {
-              if (parsed.payload.id) {
-                // If ID is provided, update directly
-                await updateUserTask(parsed.payload.id, parsed.payload);
-              } else if (parsed.payload.task) {
-                // Otherwise find by name
-                const taskId = await findItemByName('tasks', user.uid, parsed.payload.task, 'task');
-                if (taskId) {
-                  // If found, update with the ID
-                  await updateUserTask(taskId, {
-                    ...parsed.payload,
-                    id: taskId
-                  });
-                } else {
-                  console.error('Task not found:', parsed.payload.task);
-                }
-              }
-            } else if (parsed.action === 'updateGoal') {
-              if (parsed.payload.id) {
-                await updateUserGoal(parsed.payload.id, parsed.payload);
-              } else if (parsed.payload.goal) {
-                const goalId = await findItemByName('goals', user.uid, parsed.payload.goal, 'goal');
-                if (goalId) {
-                  await updateUserGoal(goalId, {
-                    ...parsed.payload,
-                    id: goalId
-                  });
-                } else {
-                  console.error('Goal not found:', parsed.payload.goal);
-                }
-              }
-            } else if (parsed.action === 'updatePlan') {
-              if (parsed.payload.id) {
-                await updateUserPlan(parsed.payload.id, parsed.payload);
-              } else if (parsed.payload.plan) {
-                const planId = await findItemByName('plans', user.uid, parsed.payload.plan, 'plan');
-                if (planId) {
-                  await updateUserPlan(planId, {
-                    ...parsed.payload,
-                    id: planId
-                  });
-                } else {
-                  console.error('Plan not found:', parsed.payload.plan);
-                }
-              }
-            } else if (parsed.action === 'updateProject') {
-              if (parsed.payload.id) {
-                await updateUserProject(parsed.payload.id, parsed.payload);
-              } else if (parsed.payload.project) {
-                const projectId = await findItemByName('projects', user.uid, parsed.payload.project, 'project');
-                if (projectId) {
-                  await updateUserProject(projectId, {
-                    ...parsed.payload,
-                    id: projectId
-                  });
-                } else {
-                  console.error('Project not found:', parsed.payload.project);
-                }
-              }
-            }
-            // Delete actions
-            else if (parsed.action === 'deleteTask') {
-              if (parsed.payload.id) {
-                await deleteUserTask(parsed.payload.id);
-              } else if (parsed.payload.task) {
-                const taskId = await findItemByName('tasks', user.uid, parsed.payload.task, 'task');
-                if (taskId) {
-                  await deleteUserTask(taskId);
-                } else {
-                  console.error('Task not found for deletion:', parsed.payload.task);
-                }
-              }
-            } else if (parsed.action === 'deleteGoal') {
-              if (parsed.payload.id) {
-                await deleteUserGoal(parsed.payload.id);
-              } else if (parsed.payload.goal) {
-                const goalId = await findItemByName('goals', user.uid, parsed.payload.goal, 'goal');
-                if (goalId) {
-                  await deleteUserGoal(goalId);
-                } else {
-                  console.error('Goal not found for deletion:', parsed.payload.goal);
-                }
-              }
-            } else if (parsed.action === 'deletePlan') {
-              if (parsed.payload.id) {
-                await deleteUserPlan(parsed.payload.id);
-              } else if (parsed.payload.plan) {
-                const planId = await findItemByName('plans', user.uid, parsed.payload.plan, 'plan');
-                if (planId) {
-                  await deleteUserPlan(planId);
-                } else {
-                  console.error('Plan not found for deletion:', parsed.payload.plan);
-                }
-              }
-            } else if (parsed.action === 'deleteProject') {
-              if (parsed.payload.id) {
-                await deleteUserProject(parsed.payload.id);
-              } else if (parsed.payload.project) {
-                const projectId = await findItemByName('projects', user.uid, parsed.payload.project, 'project');
-                if (projectId) {
-                  await deleteUserProject(projectId);
-                } else {
-                  console.error('Project not found for deletion:', parsed.payload.project);
-                }
-              }
+            } else if (parsed.type && parsed.data && (parsed.type === 'flashcard' || parsed.type === 'question')) {
+              educationalContent = parsed;
             }
           }
-          // If this is educational content.
-          else if (parsed.type && parsed.data && (parsed.type === 'flashcard' || parsed.type === 'question')) {
-            educationalContent = parsed;
+      }
+
+      if (actionTaken) {
+          if (combinedActionConfirmation.trim()) {
+              assistantTextForDisplay = combinedActionConfirmation; // Prioritize programmatic confirmation for clarity
+          } else if (!cleanedText.trim() && !isImageGenModeActive) { // Use AI's text if no programmatic, and AI gave some text
+              assistantTextForDisplay = "Action processed successfully.";
+          } else if (isImageGenModeActive && !assistantTextForDisplay.trim()) {
+              // Should not happen if API requires text with image.
+              assistantTextForDisplay = "Action processed alongside image generation attempt.";
           }
-        } catch (err) {
-          console.error('Failed to parse or execute JSON block:', err);
-        }
-        // Remove this block from the reply so it doesn't show up.
-        assistantReply = assistantReply.replace(block, '').trim();
+          // If cleanedText (AI's original text for action) exists and combinedActionConfirmation is also there,
+          // we are currently overwriting with combinedActionConfirmation for action clarity.
+          finalActionDetails = { status: 'success' };
+      } else if (educationalContent) {
+          // AI is instructed to return ONLY JSON. cleanedText should be empty.
+          // If it's not, parseGeminiApiResponse or extractJsonBlocks might need adjustment or AI is non-compliant.
+          if (!cleanedText.trim()) { // If AI truly sent only JSON, cleanedText is empty.
+            assistantTextForDisplay = "Here's the educational content you requested:";
+          } else {
+            assistantTextForDisplay = cleanedText; // Use AI's preamble if it provided one.
+          }
+      } else if (isImageGenModeActive) {
+          if (parsedApiResult.error) {
+              assistantTextForDisplay = parsedApiResult.error;
+          } else if (!assistantImageData && !assistantTextForDisplay.trim()) {
+              assistantTextForDisplay = "Image generation may have failed or no content was returned.";
+          } else if (assistantImageData && !assistantTextForDisplay.trim()){
+              assistantTextForDisplay = "Generated image:"; // Default text if AI gives image but no text part
+          }
+          // If parsedApiResult.text has content, it's already in assistantTextForDisplay
+      } else if (!assistantTextForDisplay.trim() && originalText && !parsedApiResult.imageData) {
+          // Fallback for general text responses if cleanedText ended up empty
+          assistantTextForDisplay = originalText;
+      }
+      
+      // Final fallback for empty content if no error was otherwise captured
+      if (!assistantTextForDisplay.trim() && !assistantImageData && !parsedApiResult.error && !educationalContent && !actionTaken) {
+          assistantTextForDisplay = "(No specific content received)";
+      }
+      // Prioritize error message from API if one occurred and no other content has been set.
+      if (parsedApiResult.error && (!assistantTextForDisplay.trim() || assistantTextForDisplay === "(No specific content received)")) {
+          assistantTextForDisplay = parsedApiResult.error;
       }
 
-      // Additionally, remove any leftover empty JSON/code blocks.
-      assistantReply = assistantReply.replace(/```(?:json)?\s*```/g, '').trim();
 
-      // Save the assistant's final message with educational content if available.
-      if (educationalContent) {
-        const message = {
-          role: 'assistant',
-          content: assistantReply,
-          ...(educationalContent.type === 'flashcard'
-            ? { flashcard: educationalContent }
-            : { question: educationalContent })
-        };
-        await saveChatMessage(convId!, message);
-      } else {
-        await saveChatMessage(convId!, { role: 'assistant', content: assistantReply });
+      const finalAssistantMsgData: ChatMessageData = {
+          id: newAssistantLoadingPlaceholderId, // Use placeholder ID for local update
+          role: 'assistant', 
+          content: assistantTextForDisplay.trim(),
+          createdAt: new Date(),
+          flashcard: educationalContent?.type === 'flashcard' ? educationalContent : undefined,
+          question: educationalContent?.type === 'question' ? educationalContent : undefined,
+          actionDetails: actionTaken ? finalActionDetails : undefined,
+          imageData: assistantImageData, // Ensure this is included
+          wasImageGenerated: isImageGenModeActive && !!assistantImageData && !parsedApiResult.error,
+          error: !!parsedApiResult.error, // Style as error if API reported one
+          isGeneratingImage: false,
+      };
+
+      setChatHistory(prev => prev.map(msg => msg.id === newAssistantLoadingPlaceholderId ? finalAssistantMsgData : msg ));
+      
+      const finalAssistantMsgToSave: Omit<ChatMessageData, 'id' | 'createdAt'> = {
+          role: finalAssistantMsgData.role, content: finalAssistantMsgData.content,
+          createdAt: finalAssistantMsgData.createdAt, // Save with timestamp
+          flashcard: finalAssistantMsgData.flashcard,
+          question: finalAssistantMsgData.question,
+          actionDetails: finalAssistantMsgData.actionDetails,
+          imageData: finalAssistantMsgData.imageData, // Ensure this is saved
+          wasImageGenerated: finalAssistantMsgData.wasImageGenerated,
+          error: finalAssistantMsgData.error,
+      };
+      // await saveChatMessage must correctly persist imageData if provided
+      if (currentConvId) await saveChatMessage(currentConvId, finalAssistantMsgToSave);
+
+      // Auto-generate chat name logic
+      const conversationHistoryForName = [...chatHistory.filter(m => m.id !== newAssistantLoadingPlaceholderId), finalAssistantMsgData];
+      const totalUserMessagesInConv = conversationHistoryForName.filter(m => m.role === 'user').length;
+      const currentConvInfo = conversationList.find(c => c.id === currentConvId);
+
+      if (currentConvId && currentConvInfo?.chatName === "New Chat" && (!hasGeneratedChatName || totalUserMessagesInConv === 1)) {
+          // Create a temporary history slice for naming, including the latest user and assistant messages
+          const tempHistoryForNaming = chatHistory.filter(m => m.role === 'user' || (m.role === 'assistant' && m.id !== newAssistantLoadingPlaceholderId && m.id !== localUserMessageId));
+          tempHistoryForNaming.push({ ...userMessageForState, id: 'temp-user-for-name' }); // Add current user message
+          tempHistoryForNaming.push({ ...finalAssistantMsgData, id: 'temp-assistant-for-name' }); // Add current assistant response
+
+          const conversationTextForNaming = tempHistoryForNaming
+            .slice(-6) // Take last few for context
+            .map((m) =>`${m.role === 'user' ? truncatedName : 'Assistant'}: ${m.content}`).join('\n');
+        
+          if (conversationTextForNaming.length > 10) { // Ensure there's some content to name
+            await generateChatName(currentConvId, conversationTextForNaming);
+            setHasGeneratedChatName(true);
+          }
+      }
+      if (isImageGenModeActive && assistantImageData && !parsedApiResult.error) { // Switch off image gen mode only on successful image generation
+        setIsImageGenModeActive(false);
+        setChatHistory(prev => [...prev, {id: `local-img-mode-off-${Date.now()}`, role: 'assistant', content: "🖼️ Image generated! Switched back to text & file mode.", createdAt: new Date()}]);
       }
 
-      // Generate a dynamic chat name after 3 user messages.
-      const totalUserMessages = updatedHistory.filter((m) => m.role === 'user').length;
-      if (!hasGeneratedChatName && totalUserMessages === 3) {
-        const conversationText = updatedHistory
-          .map((m) =>
-            m.role === 'user'
-              ? `${userName}: ${m.content}`
-              : `Assistant: ${m.content}`
-          )
-          .join('\n');
-        await generateChatName(convId!, conversationText);
-        setHasGeneratedChatName(true);
-      }
-    } catch (err) {
-      console.error('Chat error:', err);
-      await saveChatMessage(convId!, {
-        role: 'assistant',
-        content: 'Sorry, I had an issue responding. Please try again in a moment.'
-      });
+    } catch (err: any) {
+      console.error('Chat Submit Error:', err);
+      const errorMsgContent = `Sorry, I encountered an error${err.message ? ': ' + err.message : '.'} Please try again.`;
+      const errorMsgForState: ChatMessageData = {
+          id: newAssistantLoadingPlaceholderId, role: 'assistant', content: errorMsgContent, error: true, createdAt: new Date()
+      };
+      setChatHistory(prev => prev.map(msg => msg.id === newAssistantLoadingPlaceholderId ? errorMsgForState : msg ));
+      
+      const errorMsgToSave: Omit<ChatMessageData, 'id' | 'createdAt'> = {
+          role: 'assistant', content: errorMsgContent, error: true, createdAt: new Date()
+      };
+      if (currentConvId) await saveChatMessage(currentConvId, errorMsgToSave);
     } finally {
       setIsChatLoading(false);
+      setAssistantLoadingPlaceholderId(null);
+      setStreamingAssistantContent('');
     }
   };
 
-  // ----- Conversation Management -----
-  const handleNewConversation = async () => {
-    if (!user) return;
-    const newConvId = await createChatConversation(user.uid, 'New Chat');
-    setConversationId(newConvId);
-    setChatHistory([]);
-  };
+  const handleNewConversation = async () => { if (!user || !user.uid) return; const newConvId = await createChatConversation(user.uid, 'New Chat'); if (newConvId) {setConversationId(newConvId); /* Other states reset by conversationId useEffect */} };
+  const handleSelectConversation = (convId: string) => { if(conversationId === convId && chatHistory.length > 0 && !isChatLoading) return; setConversationId(convId); const selConv = conversationList.find(c => c.id === convId); setHasGeneratedChatName(selConv ? selConv.chatName !== "New Chat" : false); /* Other states reset by conversationId useEffect */};
+  const handleRenameConversation = async (conv: any) => { setOpenDropdownId(null); const newName = window.prompt('Enter new chat name:', conv.chatName); if (newName?.trim()) await updateChatConversationName(conv.id, newName.trim()); };
+  const handleDeleteConversationClick = async (conv: any) => { setOpenDropdownId(null); if (!window.confirm(`Delete "${conv.chatName}"?`)) return; await deleteChatConversation(conv.id); if (conversationId === conv.id) { setConversationId(null); } };
+  const handleShareConversation = async (conv: any) => { setOpenDropdownId(null); alert(`Sharing ID: ${conv.id} (Not fully implemented)`); };
 
-  const handleSelectConversation = (convId: string) => {
-    setConversationId(convId);
-  };
+  const iconClass = "w-4 h-4";
+  const smallIconClass = "w-3.5 h-3.5";
 
-  const handleRenameConversation = async (conv: any) => {
-    const newName = window.prompt('Enter new chat name:', conv.chatName);
-    if (!newName || !newName.trim()) return;
-    await updateChatConversationName(conv.id, newName.trim());
-  };
+  const quickActions = useMemo(() => [
+    'Create a Task', 'Create a Goal', 'Create a Plan', 'Create a Project', 'Analyze my items', 'Schedule a plan for me', 'Set a Reminder', 'Start a Timer for 5 minutes', 'Track My Progress', 'Brainstorm Ideas', 'Review My Goals', 'Generate a Report', 'Organize My Notes', 'Suggest Improvements', 'Create a Checklist', 'Prioritize My Tasks', 'Find a Solution', 'Log My Activity', 'Plan My Day', 'Break Down a Project', 'Summarize Information', 'Set a Deadline', 'Optimize My Workflow', 'Compare My Options', 'Visualize My Data', 'Sync My Calendar', 'Reflect on Progress',
+  ], []);
 
-  const handleDeleteConversationClick = async (conv: any) => {
-    const confirmed = window.confirm(
-      `Are you sure you want to delete "${conv.chatName}"?`
-    );
-    if (!confirmed) return;
-    await deleteChatConversation(conv.id);
-    if (conversationId === conv.id) {
-      setConversationId(null);
-      setChatHistory([]);
-    }
-  };
+  const quickActionIcons: Record<string, JSX.Element> = useMemo(() => ({
+    'Create a Task': <CheckCircle className={`${iconClass} inline-block scale-90 md:scale-100`} />, 'Create a Goal': <Goal className={`${iconClass} inline-block scale-90 md:scale-100`} />,
+    'Create a Plan': <Calendar className={`${iconClass} inline-block scale-90 md:scale-100`} />, 'Create a Project': <Folder className={`${iconClass} inline-block scale-90 md:scale-100`} />,
+    'Analyze my items': <BarChart2 className={`${iconClass} inline-block scale-90 md:scale-100`} />, 'Schedule a plan for me': <Clock className={`${iconClass} inline-block scale-90 md:scale-100`} />,
+    'Set a Reminder': <Bell className={`${iconClass} inline-block scale-90 md:scale-100`} />, 'Start a Timer for 5 minutes': <TimerIconLucide className={`${iconClass} inline-block scale-90 md:scale-100`} />,
+    'Track My Progress': <TrendingUp className={`${iconClass} inline-block scale-90 md:scale-100`} />, 'Brainstorm Ideas': <Lightbulb className={`${iconClass} inline-block scale-90 md:scale-100`} />,
+    'Review My Goals': <Target className={`${iconClass} inline-block scale-90 md:scale-100`} />, 'Generate a Report': <FileText className={`${iconClass} inline-block scale-90 md:scale-100`} />,
+    'Organize My Notes': <Notebook className={`${iconClass} inline-block scale-90 md:scale-100`} />, 'Suggest Improvements': <Wand className={`${iconClass} inline-block scale-90 md:scale-100`} />,
+    'Create a Checklist': <ListChecks className={`${iconClass} inline-block scale-90 md:scale-100`} />, 'Prioritize My Tasks': <SortAsc className={`${iconClass} inline-block scale-90 md:scale-100`} />,
+    'Find a Solution': <Search className={`${iconClass} inline-block scale-90 md:scale-100`} />, 'Log My Activity': <ClipboardList className={`${iconClass} inline-block scale-90 md:scale-100`} />,
+    'Plan My Day': <Sun className={`${iconClass} inline-block scale-90 md:scale-100`} />, 'Break Down a Project': <Layers className={`${iconClass} inline-block scale-90 md:scale-100`} />,
+    'Summarize Information': <AlignLeft className={`${iconClass} inline-block scale-90 md:scale-100`} />, 'Assign a Task': <UserCheck className={`${iconClass} inline-block scale-90 md:scale-100`} />,
+    'Set a Deadline': <Hourglass className={`${iconClass} inline-block scale-90 md:scale-100`} />, 'Optimize My Workflow': <Settings className={`${iconClass} inline-block scale-90 md:scale-100`} />,
+    'Compare My Options': <Columns className={`${iconClass} inline-block scale-90 md:scale-100`} />, 'Visualize My Data': <PieChart className={`${iconClass} inline-block scale-90 md:scale-100`} />,
+    'Delegate Work': <Users className={`${iconClass} inline-block scale-90 md:scale-100`} />, 'Sync My Calendar': <CalendarCheck className={`${iconClass} inline-block scale-90 md:scale-100`} />,
+    'Reflect on Progress': <Eye className={`${iconClass} inline-block scale-90 md:scale-100`} />,
+  }), [iconClass]);
 
-  const handleShareConversation = async (conv: any) => {
-    alert(`Sharing conversation ID: ${conv.id}`);
-  };
+  const handleQuickActionClick = (action: string) => { setChatMessage(action); textareaRef.current?.focus(); };
+  const handleTextareaInput = (e: React.FormEvent<HTMLTextAreaElement>) => { const ta = e.currentTarget; ta.style.height = 'auto'; ta.style.height = `${Math.min(ta.scrollHeight, 120)}px`; setChatMessage(ta.value); };
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSubmit(); } };
 
-  const iconClass = "w-5 h-5"; // Use consistent size for all icons
-  
-  // ----- Quick Actions for "no conversation selected" -----
-  const quickActions = [
-    'Create a Task',
-    'Create a Goal',
-    'Create a Plan',
-    'Create a Project',
-    'Analyze my items',
-    'Schedule a plan for me',
-    'Set a Reminder',
-    'Track My Progress',
-    'Brainstorm Ideas',
-    'Review My Goals',
-    'Generate a Report',
-    'Organize My Notes',
-    'Suggest Improvements',
-    'Create a Checklist',
-    'Prioritize My Tasks',
-    'Find a Solution',
-    'Start a Timer',
-    'Log My Activity',
-    'Plan My Day',
-    'Break Down a Project',
-    'Summarize Information',
-    'Assign a Task',
-    'Set a Deadline',
-    'Optimize My Workflow',
-    'Compare My Options',
-    'Visualize My Data',
-    'Delegate Work',
-    'Sync My Calendar',
-    'Reflect on Progress',
-  ];
+  const leftOverlayClass = `absolute left-0 top-0 h-full w-16 z-10 pointer-events-none bg-gradient-to-r ${currentTheme.gradientFrom} to-transparent`;
+  const rightOverlayClass = `absolute right-0 top-0 h-full w-16 z-10 pointer-events-none bg-gradient-to-l ${currentTheme.gradientFrom} to-transparent`;
+  const quickActionSetWidth = useMemo(() => 160 * quickActions.length, [quickActions.length]); // Adjust width per item if needed
 
-  const quickActionIcons: Record<string, JSX.Element> = {
-    'Create a Task': <CheckCircle className={iconClass + " inline-block"} />,
-    'Create a Goal': <Goal className={iconClass + " inline-block"} />,
-    'Create a Plan': <Calendar className={iconClass + " inline-block"} />,
-    'Create a Project': <Folder className={iconClass + " inline-block"} />,
-    'Analyze my items': <BarChart2 className={iconClass + " inline-block"} />,
-    'Schedule a plan for me': <Clock className={iconClass + " inline-block"} />,
-    'Set a Reminder': <Bell className={iconClass + " inline-block"} />,
-    'Start a Timer': <TimerIcon className={iconClass + " inline-block"} />,
-    'Track My Progress': <TrendingUp className={iconClass + " inline-block"} />,
-    'Brainstorm Ideas': <Lightbulb className={iconClass + " inline-block"} />,
-    'Review My Goals': <Target className={iconClass + " inline-block"} />,
-    'Generate a Report': <FileText className={iconClass + " inline-block"} />,
-    'Organize My Notes': <Notebook className={iconClass + " inline-block"} />,
-    'Suggest Improvements': <Wand className={iconClass + " inline-block"} />,
-    'Create a Checklist': <ListChecks className={iconClass + " inline-block"} />,
-    'Prioritize My Tasks': <SortAsc className={iconClass + " inline-block"} />,
-    'Find a Solution': <Search className={iconClass + " inline-block"} />,
-    'Log My Activity': <ClipboardList className={iconClass + " inline-block"} />,
-    'Plan My Day': <Sun className={iconClass + " inline-block"} />,
-    'Break Down a Project': <Layers className={iconClass + " inline-block"} />,
-    'Summarize Information': <AlignLeft className={iconClass + " inline-block"} />,
-    'Assign a Task': <UserCheck className={iconClass + " inline-block"} />,
-    'Set a Deadline': <Hourglass className={iconClass + " inline-block"} />,
-    'Optimize My Workflow': <Settings className={iconClass + " inline-block"} />,
-    'Compare My Options': <Columns className={iconClass + " inline-block"} />,
-    'Visualize My Data': <PieChart className={iconClass + " inline-block"} />,
-    'Delegate Work': <Users className={iconClass + " inline-block"} />,
-    'Sync My Calendar': <CalendarCheck className={iconClass + " inline-block"} />,
-    'Reflect on Progress': <Eye className={iconClass + " inline-block"} />,
-  };
+  const currentConversationName = useMemo(() => {
+    if (!conversationId) return "AI Assistant";
+    const conv = conversationList.find(c => c.id === conversationId);
+    return conv?.chatName || "Chat";
+  }, [conversationId, conversationList]);
 
-  const handleQuickActionClick = (action: string) => {
-    setChatMessage(action);
-  };
+  const effectiveImageGenButtonClass = isImageGenModeActive ? currentTheme.imageGenActiveButtonClass : currentTheme.imageGenButtonClass;
 
-  // Compute gradient overlay classes based on theme modes
-  const leftOverlayClass = isIlluminateEnabled
-    ? "absolute left-0 top-0 h-full w-16 z-10 pointer-events-none bg-gradient-to-r from-gray-50 to-transparent"
-    : isBlackoutEnabled
-      ? "absolute left-0 top-0 h-full w-16 z-10 pointer-events-none bg-gradient-to-r from-gray-950 to-transparent"
-      : "absolute left-0 top-0 h-full w-16 z-10 pointer-events-none bg-gradient-to-r from-gray-900 to-transparent";
 
-  const rightOverlayClass = isIlluminateEnabled
-    ? "absolute right-0 top-0 h-full w-16 z-10 pointer-events-none bg-gradient-to-l from-gray-50 to-transparent"
-    : isBlackoutEnabled
-      ? "absolute right-0 top-0 h-full w-16 z-10 pointer-events-none bg-gradient-to-l from-gray-950 to-transparent"
-      : "absolute right-0 top-0 h-full w-16 z-10 pointer-events-none bg-gradient-to-l from-gray-900 to-transparent";
-
-  // Define theming classes that take both illuminate and blackout modes into account
-  const containerBg = isBlackoutEnabled 
-    ? 'bg-gray-950' 
-    : (isIlluminateEnabled ? 'bg-white' : 'bg-gray-900');
-
-  const headerBorder = isBlackoutEnabled 
-    ? 'border-gray-700' 
-    : (isIlluminateEnabled ? 'border-gray-300' : 'border-gray-800');
-
-  const headerBg = isBlackoutEnabled 
-    ? 'bg-gray-950' 
-    : (isIlluminateEnabled ? 'bg-white' : '');
-
-  const userBubble = isBlackoutEnabled 
-    ? 'bg-blue-500 text-white' 
-    : (isIlluminateEnabled ? 'bg-blue-200 text-gray-900' : 'bg-blue-600 text-white');
-
-  const assistantBubble = isBlackoutEnabled 
-    ? 'bg-gray-800 text-white' 
-    : (isIlluminateEnabled ? 'bg-gray-200 text-gray-900' : 'bg-gray-700 text-gray-200');
-
-  const inputBg = isBlackoutEnabled 
-    ? 'bg-gray-800 text-white' 
-    : (isIlluminateEnabled ? 'bg-gray-200 text-gray-900' : 'bg-gray-700 text-gray-200');
-
-  const asideBg = isBlackoutEnabled 
-    ? 'bg-gray-950' 
-    : (isIlluminateEnabled ? 'bg-gray-50' : 'bg-gray-800');
-
-  const asideBorder = isBlackoutEnabled 
-    ? 'border-gray-700' 
-    : (isIlluminateEnabled ? 'border-gray-300' : 'border-gray-800');
-
-  const conversationInactive = isBlackoutEnabled 
-    ? 'bg-gray-800 text-white hover:bg-gray-700' 
-    : (isIlluminateEnabled ? 'bg-gray-200 text-gray-900 hover:bg-gray-300' : 'bg-gray-700 text-gray-200 hover:bg-gray-600');
-
-  const conversationActive = isBlackoutEnabled 
-    ? 'bg-blue-500 text-white' 
-    : (isIlluminateEnabled ? 'bg-blue-200 text-gray-900' : 'bg-blue-600 text-white');
-
-// ----- Render -----
   return (
-    <div className={`flex flex-col md:flex-row h-screen ${containerBg}`}>
-      {/* Left Sidebar - Hidden on mobile, shown on md and up */}
-        <Sidebar
-          isCollapsed={isSidebarCollapsed}
-          onToggle={handleToggleSidebar}
-          userName={userName}
-          isBlackoutEnabled={isBlackoutEnabled && isSidebarBlackoutEnabled}
-          isIlluminateEnabled={isIlluminateEnabled && isSidebarIlluminateEnabled}
-        />
+    <div className={`flex flex-col md:flex-row h-screen ${currentTheme.containerBg} ${currentTheme.textColor} font-sans`}>
+      <Sidebar
+        isCollapsed={isSidebarCollapsed} onToggle={() => setIsSidebarCollapsed(p => !p)} userName={userName}
+        isBlackoutEnabled={isBlackoutEnabled && isSidebarBlackoutEnabled}
+        isIlluminateEnabled={isIlluminateEnabled && isSidebarIlluminateEnabled}
+        currentThemeName={currentTheme.name}
+      />
 
-{/* Main Chat Area */}
-  <main
-    className={`flex-1 overflow-hidden transition-all duration-300 
-      ${isSidebarCollapsed ? 'md:ml-20' : 'md:ml-64'}
-      ${!conversationId ? 'h-[60vh] md:h-full' : 'h-full'}`}
-  >
-    {/* If no conversation is selected, show a "welcome" area */}
-    {!conversationId ? (
-      <div className="h-full flex flex-col items-center justify-center text-center p-4 md:p-8">
-        <h1
-          className={`text-xl md:text-3xl font-semibold mb-2 md:mb-4 ${
-            isIlluminateEnabled ? 'text-gray-900' : (isBlackoutEnabled ? 'text-white' : 'text-white')
-          }`}
-        >
-          Hey {truncatedName}, how can I help you be productive today?
-        </h1>
-        <p
-          className={`mb-4 md:mb-8 text-sm md:text-base ${
-            isIlluminateEnabled ? 'text-gray-600' : (isBlackoutEnabled ? 'text-gray-400' : 'text-gray-400')
-          }`}
-        >
-          Select one of the quick actions below or start a new conversation.
-        </p>
-        
-        {/* Improved quick actions container with proper overflow handling */}
-        <div className="relative w-full max-w-3xl overflow-hidden my-2 md:my-4">
-          {/* Left gradient overlay */}
-          <div className={leftOverlayClass} />
-          {/* Right gradient overlay */}
-          <div className={rightOverlayClass} />
-          
-          <div className="flex relative overflow-x-auto pb-2 hide-scrollbar">
-            {/* Scrollable container with properly sized buttons */}
-            <motion.div
-              className="flex space-x-2 md:space-x-4 px-4"
-              animate={{
-                x: [0, -100 * quickActions.length],
-              }}
-              transition={{
-                x: {
-                  repeat: Infinity,
-                  repeatType: "loop",
-                  duration: 60,
-                  ease: "linear",
-                },
-              }}
-            >
-              {/* First set of buttons with proper sizing */}
-              {quickActions.map((action, index) => (
-                <motion.button
-                  key={`set1-${index}`}
-                  whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
-                  className="flex items-center space-x-1.5 md:space-x-2 bg-blue-600 px-3 py-2 md:px-4 md:py-2 rounded-lg text-white whitespace-nowrap text-xs md:text-sm flex-shrink-0"
-                  onClick={() => handleQuickActionClick(action)}
-                >
-                  <span className="scale-75 md:scale-100 flex-shrink-0">{quickActionIcons[action]}</span>
-                  <span className="whitespace-nowrap">{action}</span>
-                </motion.button>
-              ))}
-              
-              {/* Repeat for sets 2-6 with the same responsive classes */}
-              {/* Second set of buttons */}
-              {quickActions.map((action, index) => (
-                <motion.button
-                  key={`set2-${index}`}
-                  whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
-                  className="flex items-center space-x-1.5 md:space-x-2 bg-blue-600 px-3 py-2 md:px-4 md:py-2 rounded-lg text-white whitespace-nowrap text-xs md:text-sm flex-shrink-0"
-                  onClick={() => handleQuickActionClick(action)}
-                >
-                  <span className="scale-75 md:scale-100 flex-shrink-0">{quickActionIcons[action]}</span>
-                  <span className="whitespace-nowrap">{action}</span>
-                </motion.button>
-              ))}
+      <main className={`flex-1 overflow-hidden transition-all duration-300
+          ${isSidebarCollapsed ? 'md:ml-20' : 'md:ml-64'}
+          ${!conversationId ? 'h-[calc(100vh_-_12rem)] sm:h-[calc(100vh_-_10rem)] md:h-full' : 'h-full'}`}
+      >
+        {!conversationId ? (
+          <div className="h-full flex flex-col items-center justify-center text-center p-4 md:p-6">
+            <h1 className={`text-xl md:text-3xl font-semibold mb-2 md:mb-3 ${currentTheme.textColor}`}>
+              Hey {truncatedName}, how can I help you today?
+            </h1>
+            <p className={`mb-4 md:mb-6 text-sm ${currentTheme.mutedTextColor}`}>
+              Select a quick action or start a new conversation.
+            </p>
 
-              {/* Third set of buttons */}
-              {quickActions.map((action, index) => (
-                <motion.button
-                  key={`set3-${index}`}
-                  whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
-                  className="flex items-center space-x-1.5 md:space-x-2 bg-blue-600 px-3 py-2 md:px-4 md:py-2 rounded-lg text-white whitespace-nowrap text-xs md:text-sm flex-shrink-0"
-                  onClick={() => handleQuickActionClick(action)}
+            <div className="relative w-full max-w-5xl overflow-hidden my-3 md:my-4">
+              <div className={leftOverlayClass} />
+              <div className={rightOverlayClass} />
+              <div className="flex relative overflow-x-auto pb-3 hide-scrollbar">
+                <motion.div
+                  className="flex space-x-2.5 md:space-x-3 px-2"
+                  // Ensure enough sets for smooth looping if quickActionSetWidth is based on single set
+                  animate={{ x: [0, -(quickActionSetWidth / (quickActions.length > 0 ? quickActions.length : 1) * quickActions.length)] }} 
+                  transition={{ x: { repeat: Infinity, repeatType: "loop", duration: quickActions.length * 2.5, ease: "linear" } }}
                 >
-                  <span className="scale-75 md:scale-100 flex-shrink-0">{quickActionIcons[action]}</span>
-                  <span className="whitespace-nowrap">{action}</span>
-                </motion.button>
-              ))}
-
-              {/* Fourth set of buttons */}
-              {quickActions.map((action, index) => (
-                <motion.button
-                  key={`set4-${index}`}
-                  whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
-                  className="flex items-center space-x-1.5 md:space-x-2 bg-blue-600 px-3 py-2 md:px-4 md:py-2 rounded-lg text-white whitespace-nowrap text-xs md:text-sm flex-shrink-0"
-                  onClick={() => handleQuickActionClick(action)}
-                >
-                  <span className="scale-75 md:scale-100 flex-shrink-0">{quickActionIcons[action]}</span>
-                  <span className="whitespace-nowrap">{action}</span>
-                </motion.button>
-              ))}
-
-              {/* Fifth set of buttons */}
-              {quickActions.map((action, index) => (
-                <motion.button
-                  key={`set5-${index}`}
-                  whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
-                  className="flex items-center space-x-1.5 md:space-x-2 bg-blue-600 px-3 py-2 md:px-4 md:py-2 rounded-lg text-white whitespace-nowrap text-xs md:text-sm flex-shrink-0"
-                  onClick={() => handleQuickActionClick(action)}
-                >
-                  <span className="scale-75 md:scale-100 flex-shrink-0">{quickActionIcons[action]}</span>
-                  <span className="whitespace-nowrap">{action}</span>
-                </motion.button>
-              ))}
-
-              {/* Sixth set of buttons */}
-              {quickActions.map((action, index) => (
-                <motion.button
-                  key={`set6-${index}`}
-                  whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
-                  className="flex items-center space-x-1.5 md:space-x-2 bg-blue-600 px-3 py-2 md:px-4 md:py-2 rounded-lg text-white whitespace-nowrap text-xs md:text-sm flex-shrink-0"
-                  onClick={() => handleQuickActionClick(action)}
-                >
-                  <span className="scale-75 md:scale-100 flex-shrink-0">{quickActionIcons[action]}</span>
-                  <span className="whitespace-nowrap">{action}</span>
-                </motion.button>
-              ))}
-            </motion.div>
-          </div>
-        </div>
-        
-        {/* Chat input with improved mobile support */}
-        <form onSubmit={handleChatSubmit} className="mt-4 md:mt-8 w-full max-w-lg px-4">
-          <div className="flex gap-2 items-center">
-            <button
-              type="button"
-              onClick={() => setIsContextDialogOpen(true)}
-              className="p-2 rounded-full bg-blue-600 text-white hover:bg-blue-700 transition-colors flex-shrink-0"
-            >
-              <span className="scale-75 md:scale-100 flex items-center justify-center">
-                <Brain className={iconClass} />
-              </span>
-            </button>
-            {/* Chat controls - visible on both mobile and desktop */}
-            <div className="flex-shrink-0">
-              <ChatControls
-                onStyleSelect={handleStyleSelect}
-                onCustomStyleCreate={handleCustomStyleCreate}
-                isBlackoutEnabled={isBlackoutEnabled}
-                isIlluminateEnabled={isIlluminateEnabled}
-                activeStyle={activeStyle}
-              />
-            </div>
-            <input
-              type="text"
-              value={chatMessage}
-              onChange={(e) => setChatMessage(e.target.value)}
-              placeholder="Ask anything..."
-              className={`flex-1 rounded-lg px-3 py-2 text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                isBlackoutEnabled 
-                  ? 'bg-gray-800 text-white'
-                  : (isIlluminateEnabled ? 'bg-gray-200 text-gray-900' : 'bg-gray-700 text-gray-200')
-              }`}
-            />
-            <button
-              type="submit"
-              disabled={isChatLoading}
-              className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-            >
-              <span className="scale-75 md:scale-100 flex items-center justify-center">
-                <Send className={iconClass} />
-              </span>
-            </button>
-          </div>
-        </form>
-      </div>
-    ) : (
-      // Otherwise, show the chat interface
-      <div className="h-full flex flex-col">
-        {/* Header */}
-        <div className={`p-3 md:p-4 border-b ${headerBorder} ${headerBg}`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 md:gap-3">
-              <span className="scale-75 md:scale-100">
-                <Bot className={`${iconClass} text-blue-400`} />
-              </span>
-              <div>
-                <h1
-                  className={`text-lg md:text-xl font-semibold ${
-                    isIlluminateEnabled ? 'text-gray-900' : (isBlackoutEnabled ? 'text-white' : 'text-white')
-                  }`}
-                >
-                  AI Assistant
-                </h1>
-                <p
-                  className={`text-xs md:text-sm ${
-                    isIlluminateEnabled ? 'text-gray-600' : (isBlackoutEnabled ? 'text-gray-400' : 'text-gray-400')
-                  }`}
-                >
-                  Chat with TaskMaster
-                </p>
+                  {[...Array(6)].map((_, setIndex) => ( // Render multiple sets for continuous scroll
+                    quickActions.map((action, index) => (
+                      <button
+                        key={`set${setIndex}-${index}`}
+                        className={`flex items-center space-x-2 md:space-x-2.5 ${currentTheme.quickActionBg} px-3.5 py-2 md:px-4 md:py-2.5 rounded-xl text-white whitespace-nowrap text-xs md:text-sm flex-shrink-0 shadow-md transform transition-transform active:scale-95 ${currentTheme.quickActionHoverBg} hover:scale-102`}
+                        onClick={() => handleQuickActionClick(action)}
+                      >
+                        <span className="flex-shrink-0 mr-0.5">{quickActionIcons[action]}</span>
+                        <span>{action}</span>
+                      </button>
+                    ))
+                  ))}
+                </motion.div>
               </div>
             </div>
-            <div className="hidden md:flex items-center gap-4">
-              {/* Context and DeepInsight buttons - Only visible on md and up */}
-              <div className="flex items-center gap-2 text-xs">
-                <AlertTriangle className={iconClass} />
-                <span
-                  className={isIlluminateEnabled ? 'text-gray-600' : (isBlackoutEnabled ? 'text-gray-400' : 'text-gray-400')}
+
+            <form onSubmit={handleChatSubmit} className="mt-4 md:mt-6 w-full max-w-3xl px-2">
+              {userTier !== 'premium' && userTier !== 'loading' && (
+                <div className={`pb-1.5 text-xs text-center ${currentTheme.mutedTextColor}`}>
+                  Messages this month: {chatUsageCount} / {currentChatLimitDisplay === Infinity ? '∞' : currentChatLimitDisplay}
+                  {isChatDisabledByLimit && <span className="text-red-500 ml-1 font-medium">(Limit Reached)</span>}
+                  {!isChatDisabledByLimit && userTier === 'basic' && (
+                    <Link to="/settings/billing" className={`ml-2 font-medium ${currentTheme.accentColor} hover:underline`}>
+                      <Crown className={`${smallIconClass} inline mr-0.5`} />Upgrade
+                    </Link>
+                  )}
+                </div>
+              )}
+              {selectedFiles.length > 0 && !isImageGenModeActive && (
+                 <div className="mb-2 flex flex-wrap justify-center gap-2 max-h-20 overflow-y-auto p-1 rounded-md border border-dashed border-gray-500/50">
+                    {selectedFiles.map(file => (
+                        <div key={file.name} className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${currentTheme.filePillBg} ${currentTheme.filePillText}`}>
+                            <span className="truncate max-w-[100px]">{file.name}</span>
+                            <span className="text-[10px] opacity-70">({formatBytes(file.size)})</span>
+                            <button type="button" onClick={() => handleRemoveFile(file.name)} className={`ml-0.5 p-0.5 rounded-full ${currentTheme.name === 'illuminate' ? 'hover:bg-blue-200' : 'hover:bg-blue-700'} `} title="Remove"> <X className="w-2.5 h-2.5" /> </button>
+                        </div>
+                    ))}
+                 </div>
+              )}
+              <div className="flex gap-2 items-end">
+                <button type="button" onClick={() => setIsContextDialogOpen(true)} className={`${currentTheme.actionButtonBg} text-white p-2.5 rounded-full transition-colors flex-shrink-0 shadow-sm hover:shadow-md transform hover:scale-105 active:scale-100`} title="Set AI Context">
+                  <Brain className={iconClass} />
+                </button>
+                <div className="flex-shrink-0">
+                  <ChatControls onStyleSelect={handleStyleSelect} onCustomStyleCreate={handleCustomStyleCreate} isBlackoutEnabled={isBlackoutEnabled} isIlluminateEnabled={isIlluminateEnabled} activeStyle={activeStyle} currentThemeName={currentTheme.name} />
+                </div>
+                 <textarea
+                    ref={textareaRef}
+                    rows={1}
+                    value={chatMessage}
+                    onChange={handleTextareaInput}
+                    onKeyDown={handleKeyDown}
+                    onPaste={handlePaste}
+                    placeholder={isChatDisabledByLimit ? "Monthly limit reached..." : isImageGenModeActive ? "Describe the image to generate..." : "Ask anything, or attach files..."}
+                    className={`flex-1 ${currentTheme.inputBg} ${currentTheme.textColor} ${currentTheme.name === 'illuminate' ? 'placeholder-gray-500' : 'placeholder-gray-400'} rounded-lg px-3 py-2 text-sm focus:ring-1 focus:outline-none resize-none overflow-y-auto max-h-[120px] leading-snug border ${currentTheme.name === 'illuminate' ? 'border-gray-300 focus:border-blue-500 focus:ring-blue-500' : 'border-gray-600 focus:border-blue-500 focus:ring-blue-500'} shadow-sm disabled:opacity-70`}
+                    disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading'}
+                    style={{ height: 'auto' }}
+                  />
+                <input type="file" ref={fileInputRef} onChange={handleFileSelect} multiple accept={SUPPORTED_FILE_TYPES} className="hidden" disabled={isImageGenModeActive || isChatLoading || isChatDisabledByLimit} />
+                <button type="button" onClick={triggerFileSelect} disabled={isImageGenModeActive || isChatLoading || isChatDisabledByLimit} className={`${currentTheme.buttonSecondaryClass} p-2.5 rounded-full transition-colors ${isImageGenModeActive || isChatLoading || isChatDisabledByLimit ? currentTheme.buttonDisabledClass : 'hover:shadow-md transform hover:scale-105 active:scale-100'}`} title={isImageGenModeActive ? "File attachment disabled in image mode" : "Attach Files"}>
+                    <Paperclip className={iconClass} />
+                </button>
+                <button type="button" onClick={handleToggleImageGenMode} disabled={isChatLoading || isChatDisabledByLimit} className={`${effectiveImageGenButtonClass} p-2.5 rounded-full transition-colors ${isChatLoading || isChatDisabledByLimit ? currentTheme.buttonDisabledClass : 'hover:shadow-md transform hover:scale-105 active:scale-100'} ${isImageGenModeActive ? 'ring-2 ring-purple-400 dark:ring-purple-500 ring-offset-1 dark:ring-offset-black' : ''}`} title={isImageGenModeActive ? "Switch to Text/File Mode" : "Switch to Image Generation Mode"}>
+                    <ImageIcon className={iconClass} />
+                </button>
+                <button type="submit" disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading' || (!chatMessage.trim() && selectedFiles.length === 0 && !isImageGenModeActive) || (isImageGenModeActive && !chatMessage.trim())}
+                  className={`${currentTheme.actionButtonBg} text-white p-2.5 rounded-full transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0 shadow-sm hover:shadow-md transform hover:scale-105 active:scale-100`}
                 >
-                  TaskMaster can make mistakes. Verify details.
-                </span>
+                   {isChatLoading ? <Loader2 className={`${iconClass} animate-spin`} /> : <Send className={iconClass} />}
+                </button>
               </div>
+            </form>
+          </div>
+        ) : (
+          <div className="h-full flex flex-col">
+            <div className={`p-3 border-b ${currentTheme.headerBorder} ${currentTheme.headerBg} flex justify-between items-center sticky top-0 z-20 shadow-sm`}>
+                <div className="flex items-center gap-2">
+                  <Bot className={`w-5 h-5 ${currentTheme.accentColor} flex-shrink-0`} />
+                  <h1 className={`text-base sm:text-lg font-semibold ${currentTheme.textColor} truncate`}>{currentConversationName}</h1>
+                </div>
+                <div className={`flex items-center gap-1 text-xs ${currentTheme.mutedTextColor} ml-2`}>
+                    <AlertTriangle className={`w-3.5 h-3.5 ${currentTheme.warningColor} flex-shrink-0`} />
+                    <span className="hidden sm:inline">AI responses may be inaccurate.</span>
+                    <span className="sm:hidden">Inaccurate responses possible.</span>
+                </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-3 space-y-2.5" > {/* Removed ref here to avoid scrolling issues on message update */}
+              {chatHistory.map((message) => {
+                const isUserMsg = message.role === 'user';
+                const isAssistantMsg = message.role === 'assistant';
+                const isCurrentAssistantTextLoading = isAssistantMsg && message.id === assistantLoadingPlaceholderId && isChatLoading && !message.isGeneratingImage && !message.imageData;
+                const isCurrentAssistantImageGenerating = isAssistantMsg && message.id === assistantLoadingPlaceholderId && isChatLoading && message.isGeneratingImage;
+                
+                return (
+                <div key={message.id} className={`flex ${isUserMsg ? 'justify-end' : 'justify-start'}`}> {/* Ensure message.id is always unique */}
+                  <div className={`max-w-[85%] rounded-lg px-3 py-1.5 text-sm shadow-sm break-words ${isUserMsg ? currentTheme.userBubble : message.error ? currentTheme.errorBubble : currentTheme.assistantBubble}`}>
+                    
+                    {(message.content && message.content !== "..." && !isCurrentAssistantTextLoading && !isCurrentAssistantImageGenerating) && (
+                        <ReactMarkdown
+                            remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}
+                            components={{
+                                p: ({node, ...props}) => <p className="mb-1 last:mb-0" {...props} />,
+                                ul: ({node, ...props}) => <ul className="list-disc list-outside ml-4 mb-1 text-sm" {...props} />,
+                                ol: ({node, ...props}) => <ol className="list-decimal list-outside ml-4 mb-1 text-sm" {...props} />,
+                                li: ({node, ...props}) => <li className="mb-0.5" {...props} />,
+                                a: ({node, ...props}) => <a className={`${currentTheme.accentColor} hover:underline`} target="_blank" rel="noopener noreferrer" {...props} />,
+                                code: ({ node, inline, className, children, ...props }) => { const match = /language-(\w+)/.exec(className || ''); return !inline ? (<pre className={`!${currentTheme.markdownPreBg} p-2 rounded-md overflow-x-auto my-1 text-[11px] leading-snug ${className}`} {...props}><code className={`language-${match?.[1] || 'plaintext'}`}>{children}</code></pre>) : (<code className={`!${currentTheme.markdownCodeBg} px-1 rounded text-xs ${className}`} {...props}>{children}</code>); },
+                            }}
+                        >{message.content}</ReactMarkdown>
+                    )}
+                    
+                    {isCurrentAssistantTextLoading && (
+                        streamingAssistantContent ? (
+                            <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>
+                                {streamingAssistantContent + '▍'}
+                            </ReactMarkdown>
+                        ) : (
+                            <div className="flex space-x-1 p-1">
+                                <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce opacity-60"></div>
+                                <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce delay-100 opacity-60"></div>
+                                <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce delay-200 opacity-60"></div>
+                            </div>
+                        )
+                    )}
+                    {isCurrentAssistantImageGenerating && (
+                        <div className={`flex items-center gap-2 p-1 ${currentTheme.name === 'illuminate' ? 'text-gray-600' : 'text-gray-400'}`}>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span className="text-xs">Generating image...</span>
+                        </div>
+                    )}
+
+                    {isUserMsg && message.imageData && (
+                         <div className={`relative group ${message.content ? 'mt-1.5 border-t pt-1.5' : 'mt-1'} ${currentTheme.name === 'illuminate' ? 'border-gray-300/50' : (currentTheme.name === 'blackout' ? 'border-gray-700/50' : 'border-blue-400/30')}`}>
+                             <img src={`data:${message.imageData.type};base64,${message.imageData.base64}`} alt={message.imageData.name || "User uploaded image"} className="max-w-full h-auto max-h-60 object-contain rounded-md border border-gray-400 dark:border-gray-600 cursor-pointer" onClick={() => window.open(`data:${message.imageData.type};base64,${message.imageData.base64}`, '_blank')} title="View full image"/>
+                         </div>
+                    )}
+
+                    {isUserMsg && message.attachedFilesMeta && message.attachedFilesMeta.filter(f => !f.type.startsWith('image/')).length > 0 && ( // Show only non-image files if image is already shown by imageData
+                        <div className={`p-2 rounded-lg text-xs ${currentTheme.userFileAttachmentBg} ${currentTheme.userFileAttachmentText} border ${(message.content || message.imageData) ? 'mt-2 border-t' : 'mt-1'} ${currentTheme.name === 'illuminate' ? 'border-slate-300' : (currentTheme.name === 'blackout' ? 'border-gray-700/60' : 'border-blue-500/20') }`}>
+                            <div className={`font-medium mb-1 ${currentTheme.userFileAttachmentText} flex items-center text-xs`}>
+                                <Paperclip className="w-3 h-3 mr-1 flex-shrink-0" /> Attached Files:
+                            </div>
+                            <ul className="space-y-0.5 list-none pl-0">
+                                {message.attachedFilesMeta.filter(f => !f.type.startsWith('image/') || !message.imageData || message.imageData.name !== f.name).map(f => ( // Avoid duplicate listing if image is in imageData
+                                    <li key={f.name} className="flex items-center justify-between text-xs">
+                                        <span className="truncate max-w-[calc(100%_-_70px)]">{f.name}</span>
+                                        <span className="text-[10px] opacity-70 flex-shrink-0 ml-1">{formatBytes(f.size)}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                    
+                    {message.imageData && isAssistantMsg && message.wasImageGenerated && (
+                         <div className={`relative group mt-1.5 ${message.content && message.content !== "..." && message.content !== "Generated image:" ? 'border-t pt-1.5' : ''} ${currentTheme.name === 'illuminate' ? 'border-gray-300/50' : 'border-gray-600/50'}`}>
+                             <img src={`data:${message.imageData.type};base64,${message.imageData.base64}`} alt={message.imageData.name || "Generated image"} className="max-w-full h-auto max-h-60 object-contain rounded-md border border-gray-400 dark:border-gray-600 cursor-pointer" onClick={() => window.open(`data:${message.imageData.type};base64,${message.imageData.base64}`, '_blank')} title="View full image"/>
+                             <button onClick={() => handleDownloadImage(message.imageData!)} className={`absolute top-1 right-1 p-1 rounded opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-200 ${currentTheme.downloadButtonClass}`} title="Download Image">
+                                 <Download className="w-3.5 h-3.5" />
+                             </button>
+                         </div>
+                    )}
+
+                    {message.timer && (
+                      <div className="mt-1.5">
+                          <div className={`flex items-center space-x-2 rounded-md px-2.5 py-1 text-sm ${currentTheme.name === 'illuminate' ? 'bg-blue-100/70 border border-blue-200/80' : 'bg-gray-800/60 border border-gray-600/50'}`}>
+                              <TimerIconLucide className={`${iconClass} flex-shrink-0 ${currentTheme.accentColor}`} />
+                              <Timer key={message.timer.id} initialDuration={message.timer.duration} onComplete={() => handleTimerComplete(message.timer!.id)} className={currentTheme.timerText} />
+                          </div>
+                      </div>
+                    )}
+                    {message.flashcard && <div className="mt-1.5"><FlashcardsQuestions type="flashcard" data={message.flashcard.data} onComplete={() => {}} /></div>}
+                    {message.question && <div className="mt-1.5"><FlashcardsQuestions type="question" data={message.question.data} onComplete={() => {}} /></div>}
+
+                    {message.actionDetails && message.actionDetails.status === 'success' && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: 0.1 }}
+                        className="mt-2"
+                      >
+                        <Link
+                          to="/dashboard"
+                          className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium shadow-sm transition-colors ${currentTheme.viewButtonBg} ${currentTheme.viewButtonText}`}
+                        >
+                          <Eye className="w-3.5 h-3.5 mr-1.5" /> View in Dashboard
+                        </Link>
+                      </motion.div>
+                    )}
+                  </div>
+                </div>
+              )})}
+              <div ref={chatEndRef} /> {/* This ref is for scrolling to the end */}
+            </div>
+
+            <div className={`px-2 sm:px-3 pt-1 border-t ${currentTheme.headerBorder} ${currentTheme.name === 'illuminate' ? 'bg-gray-100/80' : 'bg-gray-800/90'} flex-shrink-0 sticky bottom-0 backdrop-blur-sm z-10`}>
+              {userTier !== 'premium' && userTier !== 'loading' && (
+                <div className={`pb-1.5 text-xs text-center ${currentTheme.mutedTextColor}`}>
+                  Messages this month: {chatUsageCount} / {currentChatLimitDisplay === Infinity ? '∞' : currentChatLimitDisplay}
+                  {isChatDisabledByLimit && <span className="text-red-500 ml-1 font-medium">(Limit Reached)</span>}
+                  {!isChatDisabledByLimit && userTier === 'basic' && (
+                    <Link to="/settings/billing" className={`ml-2 font-medium ${currentTheme.accentColor} hover:underline`}>
+                      <Crown className={`${smallIconClass} inline mr-0.5`} />Upgrade
+                    </Link>
+                  )}
+                </div>
+              )}
+               {selectedFiles.length > 0 && !isImageGenModeActive && (
+                 <div className="mb-2 flex flex-wrap gap-1.5 px-1 max-h-20 overflow-y-auto scrollbar-thin">
+                    {selectedFiles.map(file => (
+                        <div key={file.name} className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${currentTheme.filePillBg} ${currentTheme.filePillText}`}>
+                            <span className="truncate max-w-[100px]">{file.name}</span>
+                            <span className="text-[10px] opacity-70">({formatBytes(file.size)})</span>
+                            <button type="button" onClick={() => handleRemoveFile(file.name)} className={`ml-0.5 p-0.5 rounded-full ${currentTheme.name === 'illuminate' ? 'hover:bg-blue-200' : 'hover:bg-blue-700'} `} title="Remove"> <X className="w-2.5 h-2.5" /> </button>
+                        </div>
+                    ))}
+                 </div>
+               )}
+              <form onSubmit={handleChatSubmit} className="flex gap-1.5 items-end pb-2">
+                <button type="button" onClick={() => setIsContextDialogOpen(true)} className={`${currentTheme.actionButtonBg} text-white p-2.5 rounded-full transition-colors flex-shrink-0 shadow-sm hover:shadow-md transform hover:scale-105 active:scale-100`} title="Set AI Context">
+                  <Brain className={iconClass} />
+                </button>
+                <div className="flex-shrink-0">
+                  <ChatControls onStyleSelect={handleStyleSelect} onCustomStyleCreate={handleCustomStyleCreate} isBlackoutEnabled={isBlackoutEnabled} isIlluminateEnabled={isIlluminateEnabled} activeStyle={activeStyle} currentThemeName={currentTheme.name} />
+                </div>
+                <textarea
+                    ref={textareaRef}
+                    rows={1}
+                    value={chatMessage}
+                    onChange={handleTextareaInput}
+                    onKeyDown={handleKeyDown}
+                    onPaste={handlePaste}
+                    placeholder={isChatDisabledByLimit ? "Monthly limit reached..." : isImageGenModeActive ? "Describe the image to generate..." : "Ask TaskMaster AI, or attach files..."}
+                    className={`flex-1 ${currentTheme.inputBg} ${currentTheme.textColor} ${currentTheme.name === 'illuminate' ? 'placeholder-gray-500' : 'placeholder-gray-400'} rounded-lg px-3 py-2 text-sm focus:ring-1 focus:outline-none resize-none overflow-y-auto max-h-[120px] leading-snug border ${currentTheme.name === 'illuminate' ? 'border-gray-300 focus:border-blue-500 focus:ring-blue-500' : 'border-gray-600 focus:border-blue-500 focus:ring-blue-500'} shadow-sm disabled:opacity-70`}
+                    disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading'}
+                    style={{ height: 'auto' }}
+                  />
+                <input type="file" ref={fileInputRef} onChange={handleFileSelect} multiple accept={SUPPORTED_FILE_TYPES} className="hidden" disabled={isImageGenModeActive || isChatLoading || isChatDisabledByLimit} />
+                 <button type="button" onClick={triggerFileSelect} disabled={isImageGenModeActive || isChatLoading || isChatDisabledByLimit} className={`${currentTheme.buttonSecondaryClass} p-2.5 rounded-full transition-colors ${isImageGenModeActive || isChatLoading || isChatDisabledByLimit ? currentTheme.buttonDisabledClass : 'hover:shadow-md transform hover:scale-105 active:scale-100'}`} title={isImageGenModeActive ? "File attachment disabled in image mode" : "Attach Files"}>
+                    <Paperclip className={iconClass} />
+                </button>
+                <button type="button" onClick={handleToggleImageGenMode} disabled={isChatLoading || isChatDisabledByLimit} className={`${effectiveImageGenButtonClass} p-2.5 rounded-full transition-colors ${isChatLoading || isChatDisabledByLimit ? currentTheme.buttonDisabledClass : 'hover:shadow-md transform hover:scale-105 active:scale-100'} ${isImageGenModeActive ? 'ring-2 ring-purple-400 dark:ring-purple-500 ring-offset-1 dark:ring-offset-black' : ''}`} title={isImageGenModeActive ? "Switch to Text/File Mode" : "Switch to Image Generation Mode"}>
+                    <ImageIcon className={iconClass} />
+                </button>
+                <button type="submit" disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading' || (!chatMessage.trim() && selectedFiles.length === 0 && !isImageGenModeActive) || (isImageGenModeActive && !chatMessage.trim())}
+                  className={`${currentTheme.actionButtonBg} text-white p-2.5 rounded-full transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0 shadow-sm hover:shadow-md transform hover:scale-105 active:scale-100`}
+                >
+                   {isChatLoading ? <Loader2 className={`${iconClass} animate-spin`} /> : <Send className={iconClass} />}
+                </button>
+              </form>
             </div>
           </div>
-        </div>
+        )}
+      </main>
 
-        {/* Chat Messages */}
-        <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-3 md:space-y-4" ref={chatEndRef}>
-          {chatHistory.map((message, index) => (
-            <div
-              key={index}
-              className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-[85%] md:max-w-[80%] rounded-lg px-3 py-2 md:px-4 md:py-2 text-sm md:text-base ${
-                  message.role === 'user' ? userBubble : assistantBubble
-                }`}
+      <aside className={`${!conversationId ? 'h-48 sm:h-40' : 'hidden'} md:block md:w-80 lg:w-96 border-t md:border-t-0 md:border-l ${currentTheme.asideBorder} ${currentTheme.asideBg} md:h-full md:overflow-y-auto`}>
+        <div className="p-3 flex flex-col h-full">
+          <div className="flex items-center justify-between mb-2.5">
+            <h2 className={`text-base font-semibold ${currentTheme.textColor}`}>Conversations</h2>
+            <button onClick={handleNewConversation} className={`${currentTheme.actionButtonBg} text-white flex items-center justify-center p-1.5 rounded-full transition-colors shadow-sm hover:shadow-md transform hover:scale-105 active:scale-100`} title="New Conversation">
+              <Plus className={iconClass} />
+            </button>
+          </div>
+          <button onClick={handleNewConversation} className={`mb-2.5 w-full flex items-center justify-center gap-1.5 ${currentTheme.actionButtonBg} text-white p-2 rounded-lg hover:opacity-90 transition-opacity text-sm shadow-sm hover:shadow-md`}>
+            <PlusCircle className={iconClass} /> New Conversation
+          </button>
+          <div className="flex-1 overflow-y-auto space-y-1.5 pr-0.5">
+            {conversationList.sort((a,b) => (b.updatedAt?.toDate?.() || 0) - (a.updatedAt?.toDate?.() || 0)).map((conv) => ( // Sort by most recent
+              <div key={conv.id}
+                className={`flex items-center justify-between cursor-pointer p-2 rounded-lg transition-all text-sm ${conversationId === conv.id ? currentTheme.conversationActive : currentTheme.conversationInactive}`}
+                onClick={() => handleSelectConversation(conv.id)}
               >
-                <ReactMarkdown
-                  remarkPlugins={[remarkMath, remarkGfm]}
-                  rehypePlugins={[rehypeKatex]}
-                  components={{
-                    p: ({ children }) => <p className="mb-2">{children}</p>,
-                    ul: ({ children }) => <ul className="list-disc ml-4 mb-2">{children}</ul>,
-                    ol: ({ children }) => <ol className="list-decimal ml-4 mb-2">{children}</ol>,
-                    li: ({ children }) => <li className="mb-1">{children}</li>,
-                    code: ({ inline, children }) =>
-                      inline ? (
-                        <code
-                          className={
-                            isBlackoutEnabled
-                              ? 'bg-gray-800 px-1 rounded'
-                              : (isIlluminateEnabled
-                                ? 'bg-gray-300 px-1 rounded'
-                                : 'bg-gray-800 px-1 rounded')
-                          }
-                        >
-                          {children}
-                        </code>
-                      ) : (
-                        <pre
-                          className={
-                            isBlackoutEnabled
-                              ? 'bg-gray-800 p-2 rounded-lg overflow-x-auto'
-                              : (isIlluminateEnabled
-                                ? 'bg-gray-300 p-2 rounded-lg overflow-x-auto'
-                                : 'bg-gray-800 p-2 rounded-lg overflow-x-auto')
-                          }
-                        >
-                          <code>{children}</code>
-                        </pre>
-                      ),
-                  }}
-                >
-                  {message.content}
-                </ReactMarkdown>
-
-                {message.timer && (
-                  <div className="mt-2">
-                    <div className={`flex items-center space-x-2 rounded-lg px-3 py-2 md:px-4 md:py-2 ${
-                      isBlackoutEnabled
-                        ? 'bg-gray-800'
-                        : (isIlluminateEnabled ? 'bg-gray-100' : 'bg-gray-900')
-                    }`}>
-                      <span className="scale-75 md:scale-100">
-                        <TimerIcon className={`${iconClass} ${isBlackoutEnabled ? 'text-blue-400' : (isIlluminateEnabled ? 'text-blue-600' : 'text-blue-400')}`} />
-                      </span>
-                      <Timer
-                        key={message.timer.id}
-                        initialDuration={message.timer.duration}
-                        onComplete={() => handleTimerComplete(message.timer!.id)}
-                      />
+                <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                  <MessageSquare className={`${iconClass} flex-shrink-0`} />
+                  <span className="truncate">{conv.chatName}</span>
+                </div>
+                <div className="relative flex-shrink-0">
+                  <button onClick={(e) => { e.stopPropagation(); setOpenDropdownId(openDropdownId === conv.id ? null : conv.id); }}
+                    className={`p-1 rounded-full ${currentTheme.buttonHoverBg} transition-colors`}
+                  > <MoreHorizontal className={iconClass} /> </button>
+                  {openDropdownId === conv.id && (
+                    <div ref={dropdownRef}
+                      className={`absolute top-7 right-0 rounded-md shadow-xl z-50 text-xs ${currentTheme.dropdownBg} ${currentTheme.textColor} border ${currentTheme.asideBorder}`}
+                      style={{ minWidth: '130px' }} onClick={(e) => e.stopPropagation()}
+                    >
+                      {[
+                        { label: 'Rename', icon: Edit2, action: () => handleRenameConversation(conv), colorClass: currentTheme.textColor },
+                        { label: 'Share', icon: Share, action: () => handleShareConversation(conv), colorClass: currentTheme.textColor },
+                        { label: 'Delete', icon: Trash2, action: () => handleDeleteConversationClick(conv), colorClass: 'text-red-500 hover:text-red-400' },
+                      ].map(item => (
+                        <button key={item.label}
+                          className={`flex items-center w-full text-left px-2.5 py-1.5 ${currentTheme.buttonHoverBg} ${item.colorClass} first:rounded-t-md last:rounded-b-md`}
+                          onClick={item.action}
+                        > <item.icon className={`${smallIconClass} mr-1.5`} /> {item.label} </button>
+                      ))}
                     </div>
-                  </div>
-                )}
-
-                {message.flashcard && (
-                  <div className="mt-2">
-                    <FlashcardsQuestions
-                      type="flashcard"
-                      data={message.flashcard.data}
-                      onComplete={() => {}}
-                    />
-                  </div>
-                )}
-                {message.question && (
-                  <div className="mt-2">
-                    <FlashcardsQuestions
-                      type="question"
-                      data={message.question.data}
-                      onComplete={() => {}}
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-
-          {/* Streaming partial content */}
-          {streamingAssistantContent && (
-            <div className="flex justify-start">
-              <div className={`max-w-[85%] md:max-w-[80%] rounded-lg px-3 py-2 md:px-4 md:py-2 text-sm md:text-base ${assistantBubble}`}>
-                <ReactMarkdown>{streamingAssistantContent}</ReactMarkdown>
-              </div>
-            </div>
-          )}
-
-          {/* Loading dots */}
-          {isChatLoading && !streamingAssistantContent && (
-            <div className="flex justify-start">
-              <div className={`max-w-[85%] md:max-w-[80%] rounded-lg px-3 py-2 md:px-4 md:py-2 ${assistantBubble}`}>
-                <div className="flex space-x-2">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100"></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200"></div>
+                  )}
                 </div>
               </div>
-            </div>
-          )}
-
-          <div ref={chatEndRef} />
+            ))}
+          </div>
         </div>
-
-        {/* Chat Input */}
-        <form onSubmit={handleChatSubmit} className={`p-3 md:p-4 border-t ${headerBorder}`}>
-          <div className="flex gap-2 items-center">
-            <button
-              type="button"
-              onClick={() => setIsContextDialogOpen(true)}
-              className="p-2 rounded-full bg-blue-600 text-white hover:bg-blue-700 transition-colors flex-shrink-0"
-            >
-              <span className="scale-75 md:scale-100 flex items-center justify-center">
-                <Brain className={iconClass} />
-              </span>
-            </button>
-            {/* Chat controls - visible on both mobile and desktop */}
-            <div className="flex-shrink-0">
-              <ChatControls
-                onStyleSelect={handleStyleSelect}
-                onCustomStyleCreate={handleCustomStyleCreate}
-                isBlackoutEnabled={isBlackoutEnabled}
-                isIlluminateEnabled={isIlluminateEnabled}
-                activeStyle={activeStyle}
-              />
-            </div>
-            <input
-              type="text"
-              value={chatMessage}
-              onChange={(e) => setChatMessage(e.target.value)}
-              placeholder="Ask TaskMaster..."
-              className={`flex-1 rounded-lg px-3 py-2 text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-blue-500 ${inputBg}`}
-            />
-            <button
-              type="submit"
-              disabled={isChatLoading}
-              className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-            >
-              <span className="scale-75 md:scale-100 flex items-center justify-center">
-                <Send className={iconClass} />
-              </span>
-            </button>
-          </div>
-        </form>
-      </div>
-    )}
-  </main>
-
-  {/* Right Sidebar: Chat Conversations - Improved for mobile and desktop */}
-  <aside className={`${!conversationId ? 'h-[40vh] overflow-y-auto' : 'hidden'} md:block md:w-80 lg:w-96 border-t md:border-t-0 md:border-l ${asideBorder} ${asideBg} md:h-full md:overflow-y-auto`}>
-    <div className="p-3 md:p-4 flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-3 md:mb-4">
-        <h2 className={`text-base md:text-lg font-bold ${isIlluminateEnabled ? 'text-gray-900' : (isBlackoutEnabled ? 'text-white' : 'text-white')}`}>
-          Conversations
-        </h2>
-        <button
-          onClick={handleNewConversation}
-          className="flex items-center justify-center p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors"
-        >
-          <span className="scale-75 md:scale-100 flex items-center justify-center">
-            <Plus className={iconClass} />
-          </span>
-        </button>
-      </div>
-
-      {/* New Conversation Button */}
-      <button
-        onClick={handleNewConversation}
-        className="mb-3 md:mb-4 w-full flex items-center justify-center gap-2 bg-blue-600 text-white p-2 md:p-3 rounded-lg hover:bg-blue-700 transition-colors text-sm md:text-base"
-      >
-        <span className="scale-75 md:scale-100">
-          <PlusCircle className={iconClass} />
-        </span>
-        <span>New Conversation</span>
-      </button>
-
-      {/* Scrollable Conversation List */}
-      <div className="flex-1 overflow-y-auto space-y-2">
-        {conversationList.map((conv) => (
-          <div
-            key={conv.id}
-            className={`flex items-center justify-between cursor-pointer p-2 md:p-3 rounded-lg transition-all text-sm md:text-base ${
-              conversationId === conv.id ? conversationActive : conversationInactive
-            }`}
-          >
-            <div
-              className="flex items-center gap-2 flex-1 min-w-0"
-              onClick={() => handleSelectConversation(conv.id)}
-            >
-              <span className="scale-75 md:scale-100 flex-shrink-0">
-                <MessageSquare className={iconClass} />
-              </span>
-              <span className="truncate overflow-hidden text-ellipsis w-full">
-                {conv.chatName}
-              </span>
-            </div>
-            {/* More actions dropdown */}
-            <div className="relative flex-shrink-0">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const menu = document.getElementById(`conv-menu-${conv.id}`);
-                  if (menu) {
-                    menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
-                  }
-                }}
-                className={`p-1 rounded-full ${isIlluminateEnabled || isBlackoutEnabled ? 'hover:bg-gray-300' : 'hover:bg-gray-600'} transition-colors`}
-              >
-                <span className="scale-75 md:scale-100">
-                  <MoreHorizontal className={iconClass} />
-                </span>
-              </button>
-              <div
-                id={`conv-menu-${conv.id}`}
-                className="hidden absolute top-8 right-0 rounded-lg shadow-lg z-50 text-xs md:text-sm"
-                style={{
-                  minWidth: '140px',
-                  backgroundColor: isIlluminateEnabled || isBlackoutEnabled ? '#f3f4f6' : '#374151',
-                }}
-              >
-                <button
-                  className="flex items-center w-full text-left px-3 py-2 hover:bg-gray-600 rounded-t-lg"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const menu = document.getElementById(`conv-menu-${conv.id}`);
-                    if (menu) menu.style.display = 'none';
-                    handleRenameConversation(conv);
-                  }}
-                >
-                  <span className="scale-75 md:scale-100 mr-2">
-                    <Edit2 className={iconClass} />
-                  </span>
-                  Rename
-                </button>
-                <button
-                  className="flex items-center w-full text-left px-3 py-2 hover:bg-gray-600"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const menu = document.getElementById(`conv-menu-${conv.id}`);
-                    if (menu) menu.style.display = 'none';
-                    handleShareConversation(conv);
-                  }}
-                >
-                  <span className="scale-75 md:scale-100 mr-2">
-                    <Share className={iconClass} />
-                  </span>
-                  Share
-                </button>
-                <button
-                  className="flex items-center w-full text-left px-3 py-2 hover:bg-gray-600 text-red-400 rounded-b-lg"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const menu = document.getElementById(`conv-menu-${conv.id}`);
-                    if (menu) menu.style.display = 'none';
-                    handleDeleteConversationClick(conv);
-                  }}
-                >
-                  <span className="scale-75 md:scale-100 mr-2">
-                    <Trash2 className={iconClass} />
-                  </span>
-                  Delete
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
+      </aside>
+      <ContextDialog isOpen={isContextDialogOpen} onClose={() => setIsContextDialogOpen(false)} onSave={handleSaveContext} initialContext={userContext} currentThemeName={currentTheme.name} />
     </div>
-  </aside>
-
-  {/* Context Dialog */}
-  <ContextDialog
-    isOpen={isContextDialogOpen}
-    onClose={() => setIsContextDialogOpen(false)}
-    onSave={handleSaveContext}
-    initialContext={userContext}
-    isBlackoutEnabled={isBlackoutEnabled}
-    isIlluminateEnabled={isIlluminateEnabled}
-  />
-</div>
   );
 }
-
 export default AIChat;
