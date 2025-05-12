@@ -16,14 +16,22 @@ import {
     getChatLimitForTier,
 } from '../lib/current-paying-user';
 
+// Types from AIChat (or similar structure)
+interface LocalImageData { base64: string; type: string; name: string; }
+
 interface TimerMessage { type: 'timer'; duration: number; id: string; }
-interface ImageData { base64: string; type: string; name: string; }
+// Keep existing NoteChat specific types
 interface EditStep { editType: 'insert_after_context' | 'replace_context' | 'delete_context' | 'insert_at_start' | 'append_at_end'; targetContext: string | null; contentFragment: string; }
+
+// Updated ChatMessage to align image handling with AIChat
 interface ChatMessage {
     id?: string;
     role: 'user' | 'assistant';
     content: string;
-    imageData?: ImageData;
+    // imageData?: ImageData; // Replaced by localImageData/imageUrl/imageMeta pattern if storage was used
+    localImageData?: LocalImageData; // Holds base64 temporarily or if no storage
+    imageUrl?: string; // URL if stored (Not used here as NoteChat doesn't store)
+    imageMeta?: { name: string; type: string; storagePath?: string; }; // Meta if stored (Not used here)
     timer?: TimerMessage;
     error?: boolean;
     isEditSuggestion?: boolean;
@@ -38,18 +46,15 @@ interface ChatMessage {
     canRevert?: boolean;
     previousContent?: string;
     noteIdToRevert?: string;
-    isGeneratingImage?: boolean;
-    wasImageGenerated?: boolean;
+    isGeneratingImage?: boolean; // For loading state
+    wasImageGenerated?: boolean; // For successful generation state
     isPdfContextDisplay?: boolean; // Added for distinguishing PDF context display
 }
+
+// Keep existing NoteChat specific types
 interface SelectedFile { name: string; type: string; size: number; base64Data: string; }
 interface Note { id: string; title: string; content: string; keyPoints?: string[]; questions?: { question: string }[]; }
-
-// For PDF context segments
-interface PdfContextSegment {
-    id: string;
-    text: string;
-}
+interface PdfContextSegment { id: string; text: string; }
 
 interface NoteChatProps {
     note: Note;
@@ -60,18 +65,19 @@ interface NoteChatProps {
     isBlackoutEnabled: boolean;
     isVisible: boolean;
     onUpdateNoteContent: (noteId: string, newContent: string) => Promise<void>;
-    onAddImageToNoteRequest: (imageData: ImageData) => void; // Add this prop
+    onAddImageToNoteRequest: (imageData: LocalImageData) => void; // Changed type to LocalImageData
     displayMode?: 'overlay' | 'inline';
     userTier: UserTier;
 }
 export interface NoteChatHandle {
     sendMessage: (message: string) => void;
-    addPdfContextSegment: (text: string) => void; // New method for PDF context
-    focusInput: () => void; // Added for focusing input
+    addPdfContextSegment: (text: string) => void;
+    focusInput: () => void;
 }
 
 const GEMINI_TEXT_MODEL = 'gemini-2.0-flash';
-const GEMINI_IMAGE_GEN_MODEL = 'gemini-2.0-flash-exp-image-generation';
+// USE THE SAME IMAGE MODEL AS AIChat
+const GEMINI_IMAGE_GEN_MODEL = 'gemini-2.0-flash-preview-image-generation'; // Changed
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
 
 const readFileAsBase64 = (file: File): Promise<SelectedFile> => {
@@ -104,6 +110,7 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 3, de
                  try { const errJson = await response.json(); errorText = errJson?.error?.message || errorText; } catch { }
                  if (errorText.toLowerCase().includes("context length") || errorText.toLowerCase().includes("request payload size") || errorText.toLowerCase().includes("request entity too large")) { throw new Error("Error: The note content and/or attached files are too large for the AI to process."); }
                  if (errorText.toLowerCase().includes("unsupported user location")) { throw new Error("Error: Image generation is not available in your region."); }
+                 // Adjusted error check based on AIChat pattern
                  if (errorText.toLowerCase().includes("response must contain text") && url.includes(GEMINI_IMAGE_GEN_MODEL)) { throw new Error("Error: Image generation failed. The model might require a different prompt or could not fulfill the request safely."); }
                 throw new Error(errorText);
             }
@@ -116,9 +123,10 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 3, de
     throw new Error(`Max retries reached for: ${url}`);
 }
 
-const parseGeminiResponse = (responseText: string, isImageGenCall: boolean): { text: string | null; imageData: ImageData | null; error: string | null; finishReason: string | null; suggestions: string[] } => {
+// Modified parseGeminiResponse to mirror AIChat's structure and return type for images
+const parseGeminiResponse = (responseText: string, isImageGenCall: boolean): { text: string | null; localImageData: LocalImageData | null; error: string | null; finishReason: string | null; suggestions: string[] } => {
     let textContent: string | null = null;
-    let imageContent: ImageData | null = null;
+    let imageContent: LocalImageData | null = null; // Changed type
     let errorMessage: string | null = null;
     let reason: string | null = null;
     let responseSuggestions: string[] = [];
@@ -129,7 +137,7 @@ const parseGeminiResponse = (responseText: string, isImageGenCall: boolean): { t
         if (jsonResponse?.promptFeedback?.blockReason) {
             errorMessage = `Request blocked: ${jsonResponse.promptFeedback.blockReason}.`;
             if(jsonResponse.promptFeedback.safetyRatings) { errorMessage += ` Safety: ${JSON.stringify(jsonResponse.promptFeedback.safetyRatings)}`; }
-            return { text: null, imageData: null, error: errorMessage, finishReason: 'BLOCKED', suggestions: [] };
+            return { text: null, localImageData: null, error: errorMessage, finishReason: 'BLOCKED', suggestions: [] }; // Changed property name
         }
 
         if (jsonResponse?.candidates?.[0]) {
@@ -141,8 +149,9 @@ const parseGeminiResponse = (responseText: string, isImageGenCall: boolean): { t
                     if (part.text) {
                         textContent = (textContent ? textContent + "\n" : "") + part.text;
                     } else if (isImageGenCall && part.inlineData?.mimeType?.startsWith('image/') && part.inlineData?.data) {
+                        // Construct LocalImageData object like in AIChat
                         imageContent = { base64: part.inlineData.data, type: part.inlineData.mimeType, name: "generated_image.png" };
-                    } else if (part.inlineData) { }
+                    } else if (part.inlineData) { /* Ignore other inline data for now */ }
                 }
             }
 
@@ -155,6 +164,7 @@ const parseGeminiResponse = (responseText: string, isImageGenCall: boolean): { t
              }
 
              if (textContent && !isImageGenCall) {
+                // Keep suggestion parsing logic
                 const suggestionRegex = /\[SUGGESTIONS\]([\s\S]*?)\[\/SUGGESTIONS\]/i;
                 const suggestionMatch = textContent.match(suggestionRegex);
                 if (suggestionMatch && suggestionMatch[1]) {
@@ -168,6 +178,7 @@ const parseGeminiResponse = (responseText: string, isImageGenCall: boolean): { t
 
         } else if (jsonResponse?.error?.message) {
              errorMessage = `API Error: ${jsonResponse.error.message}`;
+             // Keep error message refinement
              if (errorMessage.toLowerCase().includes("context length") || errorMessage.toLowerCase().includes("request payload size") || errorMessage.toLowerCase().includes("request entity too large")) { errorMessage = "Error: The note content and/or attached files are too large for the AI to process."; }
              else if (errorMessage.toLowerCase().includes("api key not valid")) { errorMessage = "Error: Invalid API Key."; }
              else if (errorMessage.toLowerCase().includes("quota exceeded")) { errorMessage = "Error: API Quota Exceeded."; }
@@ -176,29 +187,44 @@ const parseGeminiResponse = (responseText: string, isImageGenCall: boolean): { t
              else if (errorMessage.toLowerCase().includes("response must contain text") && isImageGenCall) { errorMessage = "Error: Image generation failed. The model might require a different prompt or could not fulfill the request safely.";}
         } else { errorMessage = "Sorry, I received an empty or non-standard response format."; }
 
+        // Keep image generation specific checks
         if (isImageGenCall && !imageContent && !errorMessage && reason !== 'SAFETY' && reason !== 'BLOCKED') {
              if (textContent) { if (!textContent.trim()) { textContent = "(No image generated and no text explanation provided)"; } }
              else { errorMessage = "Image generation request processed, but no image was returned."; }
         }
         if (!textContent && !imageContent && !errorMessage) { textContent = "(Received empty response content)"; }
 
-        return { text: textContent, imageData: imageContent, error: errorMessage, finishReason: reason, suggestions: isImageGenCall ? [] : responseSuggestions };
+        return { text: textContent, localImageData: imageContent, error: errorMessage, finishReason: reason, suggestions: isImageGenCall ? [] : responseSuggestions }; // Return localImageData
 
     } catch (err) {
+         // Keep fallback error checks
          if (typeof responseText === 'string') {
-            if (responseText.toLowerCase().includes("api key not valid")) return { text: null, imageData: null, error: "Error: Invalid API Key.", finishReason: null, suggestions: [] };
-            if (responseText.toLowerCase().includes("quota exceeded")) return { text: null, imageData: null, error: "Error: API Quota Exceeded.", finishReason: null, suggestions: [] };
-            if (responseText.toLowerCase().includes("internal server error") || responseText.toLowerCase().includes("service unavailable")) return { text: null, imageData: null, error: "Error: AI service is temporarily unavailable. Please try again later.", finishReason: null, suggestions: [] };
-            if (responseText.toLowerCase().includes("context length") || responseText.toLowerCase().includes("request payload size") || responseText.toLowerCase().includes("request entity too large")) return { text: null, imageData: null, error: "Error: The note content and/or attached files are too large for the AI to process.", finishReason: null, suggestions: [] };
-            if (responseText.toLowerCase().includes("unsupported user location")) return { text: null, imageData: null, error: "Error: Image generation is not available in your region.", finishReason: null, suggestions: [] };
-            return { text: null, imageData: null, error: `Error: Could not process AI response. Raw: ${responseText.substring(0, 100)}...`, finishReason: null, suggestions: [] };
+            if (responseText.toLowerCase().includes("api key not valid")) return { text: null, localImageData: null, error: "Error: Invalid API Key.", finishReason: null, suggestions: [] };
+            if (responseText.toLowerCase().includes("quota exceeded")) return { text: null, localImageData: null, error: "Error: API Quota Exceeded.", finishReason: null, suggestions: [] };
+            if (responseText.toLowerCase().includes("internal server error") || responseText.toLowerCase().includes("service unavailable")) return { text: null, localImageData: null, error: "Error: AI service is temporarily unavailable. Please try again later.", finishReason: null, suggestions: [] };
+            if (responseText.toLowerCase().includes("context length") || responseText.toLowerCase().includes("request payload size") || responseText.toLowerCase().includes("request entity too large")) return { text: null, localImageData: null, error: "Error: The note content and/or attached files are too large for the AI to process.", finishReason: null, suggestions: [] };
+            if (responseText.toLowerCase().includes("unsupported user location")) return { text: null, localImageData: null, error: "Error: Image generation is not available in your region.", finishReason: null, suggestions: [] };
+            return { text: null, localImageData: null, error: `Error: Could not process AI response. Raw: ${responseText.substring(0, 100)}...`, finishReason: null, suggestions: [] };
         }
-        return { text: null, imageData: null, error: "Error: Could not process AI response (Invalid format).", finishReason: null, suggestions: [] };
+        return { text: null, localImageData: null, error: "Error: Could not process AI response (Invalid format).", finishReason: null, suggestions: [] };
     }
 };
 
 const parseTimerRequest = (message: string): number | null => { const cleanedMessage = message.trim().toLowerCase(); const keywords = ['set timer', 'start timer', 'timer for', 'remind me in']; const timeRegex = /(\d+)\s*(m|min|minute|h|hr|hour|s|sec|second)s?\b/i; let M: RegExpMatchArray | null = null; const hasKeywords = keywords.some(keyword => cleanedMessage.includes(keyword)); if (hasKeywords) { M = cleanedMessage.match(timeRegex); } if (!M) { M = cleanedMessage.match(/^\s*(\d+)\s*(m|min|minute|h|hr|hour|s|sec|second)s?\b/i); } if (!M) { M = cleanedMessage.match(/^\s*(\d+)\s*(m|min|minute|h|hr|hour|s|sec|second)s?\s*$/i); } if (!M) return null; const A = parseInt(M[1]); const U = M[2].toLowerCase(); if (isNaN(A) || A <= 0) return null; if (U.startsWith('h')) return A * 3600; if (U.startsWith('m')) return A * 60; if (U.startsWith('s')) return A; return null; };
-const handleDownloadImage = (imageData: ImageData) => { if (!imageData) return; const link = document.createElement('a'); link.href = `data:${imageData.type};base64,${imageData.base64}`; const fileExtension = imageData.type.split('/')[1] || 'png'; const fileName = `generated-image-${Date.now()}.${fileExtension}`; link.download = fileName; document.body.appendChild(link); link.click(); document.body.removeChild(link); };
+
+// Updated handleDownloadImage to accept LocalImageData
+const handleDownloadImage = (imageData: LocalImageData) => {
+    if (!imageData) return;
+    const link = document.createElement('a');
+    link.href = `data:${imageData.type};base64,${imageData.base64}`;
+    const fileExtension = imageData.type.split('/')[1] || 'png';
+    // Use the name from LocalImageData if available, otherwise generate one
+    const fileName = imageData.name || `generated-image-${Date.now()}.${fileExtension}`;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
 
 export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
     ({ note, onClose, geminiApiKey, userName, isIlluminateEnabled, isBlackoutEnabled, isVisible, onUpdateNoteContent, onAddImageToNoteRequest, displayMode = 'overlay', userTier }: NoteChatProps, ref) => {
@@ -214,14 +240,14 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
         const fileInputRef = useRef<HTMLInputElement>(null);
         const textareaRef = useRef<HTMLTextAreaElement>(null);
         const [loadingMsgId, setLoadingMsgId] = useState<string | null>(null);
-        
+
         const [user, setUser] = useState<User | null>(null);
         const [chatCount, setChatCount] = useState(0);
         const [usageMonth, setUsageMonth] = useState('');
         const [isChatLimitReached, setIsChatLimitReached] = useState(false);
         const [isLoadingUsage, setIsLoadingUsage] = useState(true);
         const [isImageGenModeActive, setIsImageGenModeActive] = useState(false);
-        const [pdfContextSegments, setPdfContextSegments] = useState<PdfContextSegment[]>([]); // New state for PDF context
+        const [pdfContextSegments, setPdfContextSegments] = useState<PdfContextSegment[]>([]);
 
         const currentChatLimit = useMemo(() => getChatLimitForTier(userTier), [userTier]);
 
@@ -237,7 +263,7 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
 
             if (!isVisible) { setIsLoadingUsage(false); return; }
             if (userTier === 'loading' || !currentAuthUser) { setIsLoadingUsage(true); setChatCount(0); setUsageMonth(''); setIsChatLimitReached(userTier === 'loading'); return; }
-            setIsLoadingUsage(true); 
+            setIsLoadingUsage(true);
             if (userTier !== 'premium') {
                 const currentMonthYear = new Date().toISOString().slice(0, 7);
                 getCurrentMonthUserChatUsage(currentAuthUser.uid, currentMonthYear)
@@ -255,22 +281,22 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
                     })
                     .catch(err => {
                         console.error("Error fetching chat usage:", err);
-                        setChatCount(0); 
+                        setChatCount(0);
                         setUsageMonth(new Date().toISOString().slice(0, 7));
                         const limit = getChatLimitForTier(userTier);
-                        setIsChatLimitReached(limit === 0 && limit !== Infinity); 
+                        setIsChatLimitReached(limit === 0 && limit !== Infinity);
                     })
                     .finally(() => setIsLoadingUsage(false));
-            } else { 
-                setChatCount(0); 
+            } else {
+                setChatCount(0);
                 setUsageMonth('');
-                setIsChatLimitReached(false); 
+                setIsChatLimitReached(false);
                 setIsLoadingUsage(false);
             }
         }, [isVisible, userTier, user?.uid]);
 
 
-        useEffect(() => { if (note && (note.id !== currentNoteId.current || (displayMode === 'overlay' && isVisible && !initialMessageSent.current))) { const initialPrompt = `Hi ${userName}! Ask about **"${note.title}"**, ask me to change it, generate an image (click the ${isImageGenModeActive ? '✏️' : '🖼️'} button!), or attach/paste a file.`; setChatHistory([{ id: `init-${Date.now()}`, role: 'assistant', content: initialPrompt }]); setChatMessage(''); setSelectedFiles([]); setSuggestedPrompts([]); setIsChatLoading(false); initialMessageSent.current = true; currentNoteId.current = note.id; setLoadingMsgId(null); setIsImageGenModeActive(false); setPdfContextSegments([]); } else if (displayMode === 'overlay' && !isVisible) { initialMessageSent.current = false; currentNoteId.current = null; setIsImageGenModeActive(false); setPdfContextSegments([]); } }, [note, isVisible, userName, displayMode, isImageGenModeActive]); 
+        useEffect(() => { if (note && (note.id !== currentNoteId.current || (displayMode === 'overlay' && isVisible && !initialMessageSent.current))) { const initialPrompt = `Hi ${userName}! Ask about **"${note.title}"**, ask me to change it, generate an image (click the ${isImageGenModeActive ? '✏️' : '🖼️'} button!), or attach/paste a file.`; setChatHistory([{ id: `init-${Date.now()}`, role: 'assistant', content: initialPrompt }]); setChatMessage(''); setSelectedFiles([]); setSuggestedPrompts([]); setIsChatLoading(false); initialMessageSent.current = true; currentNoteId.current = note.id; setLoadingMsgId(null); setIsImageGenModeActive(false); setPdfContextSegments([]); } else if (displayMode === 'overlay' && !isVisible) { initialMessageSent.current = false; currentNoteId.current = null; setIsImageGenModeActive(false); setPdfContextSegments([]); } }, [note, isVisible, userName, displayMode, isImageGenModeActive]); // isImageGenModeActive added
         useEffect(() => { if (!isMinimized || displayMode === 'inline') { setTimeout(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, 150); } }, [chatHistory, isMinimized, displayMode, suggestedPrompts, pdfContextSegments]);
 
         const handleTimerComplete = (timerId: string) => setChatHistory(prev => [...prev, { id: `timer-comp-${timerId}`, role: 'assistant', content: "⏰ Time's up!" }]);
@@ -289,19 +315,19 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
             setIsImageGenModeActive(nextState);
             if (nextState && selectedFiles.length > 0) {
                 setChatHistory(prev => [...prev, { id: `img-mode-file-warn-${Date.now()}`, role: 'assistant', content: `ℹ️ Image generation mode enabled. Attached files will be ignored.`, error: false }]);
-                setSelectedFiles([]);
+                setSelectedFiles([]); // Clear files when entering image mode
             }
-            if (nextState && pdfContextSegments.length > 0) {
+             if (nextState && pdfContextSegments.length > 0) {
                 setChatHistory(prev => [...prev, { id: `img-mode-ctx-warn-${Date.now()}`, role: 'assistant', content: `ℹ️ Image generation mode enabled. PDF context will be ignored.`, error: false }]);
-                setPdfContextSegments([]);
-            }
+                setPdfContextSegments([]); // Clear PDF context when entering image mode
+             }
              textareaRef.current?.focus();
         };
 
         const submitMessageToAI = async (messageContent: string, filesToSend?: SelectedFile[], forceImageGenMode = false) => {
             const isUsingImageGenModel = forceImageGenMode || isImageGenModeActive;
             const currentFiles = filesToSend || selectedFiles;
-            const collectedPdfContextText = pdfContextSegments.map(s => s.text).join("\n\n---\n\n"); 
+            const collectedPdfContextText = pdfContextSegments.map(s => s.text).join("\n\n---\n\n");
 
             if ((!messageContent && currentFiles.length === 0 && !isUsingImageGenModel && !collectedPdfContextText) ||
                 (!messageContent && isUsingImageGenModel) ||
@@ -310,50 +336,58 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
             if (isChatLimitReached && userTier !== 'premium') {
                 setChatHistory(prev => [...prev, { id: `limit-${Date.now()}`, role: 'assistant', content: `You've reached your ${currentChatLimit === Infinity ? 'monthly' : currentChatLimit} chat message limit. Upgrade for more interactions!`, error: true }]);
                 setChatMessage('');
-                setIsImageGenModeActive(false);
+                setIsImageGenModeActive(false); // Turn off image mode if limit reached
                 return;
             }
 
             const timerDuration = !isUsingImageGenModel ? parseTimerRequest(messageContent) : null;
 
+            // Ensure files/context are cleared if image gen mode is active during submit
             if (isUsingImageGenModel && (currentFiles.length > 0 || collectedPdfContextText)) {
                 setChatHistory(prev => [...prev, { id: `img-gen-mode-file-ctx-err-${Date.now()}`, role: 'assistant', content: `ℹ️ Image generation requires a text prompt only. Please remove attached files/PDF context or disable image generation mode.`, error: false }]);
+                // It's safer to just return here and let the user fix it.
+                // If we automatically clear them, it might be unexpected.
                 return;
             }
-            
+
             const messagesToDisplayInChat: ChatMessage[] = [];
 
+            // Add PDF context display message if relevant
             if (collectedPdfContextText && !isUsingImageGenModel) {
                 messagesToDisplayInChat.push({
                     id: `pdf-ctx-disp-${Date.now()}`,
-                    role: 'user', // Changed to 'user' for right alignment
+                    role: 'user', // Align right
                     content: collectedPdfContextText,
                     isPdfContextDisplay: true,
                 });
             }
 
-            let userMsgImageData: ImageData | undefined = undefined;
+            // Prepare user message for display
+            let userMsgLocalImageData: LocalImageData | undefined = undefined;
             if (!isUsingImageGenModel) {
                 const imageFiles = currentFiles.filter(f => f.type.startsWith('image/'));
                 if (imageFiles.length > 0) {
-                    userMsgImageData = { base64: imageFiles[0].base64Data, type: imageFiles[0].type, name: imageFiles[0].name };
+                    // Store user-uploaded image as localImageData for display
+                    userMsgLocalImageData = { base64: imageFiles[0].base64Data, type: imageFiles[0].type, name: imageFiles[0].name };
                 }
             }
             messagesToDisplayInChat.push({
                 id: `user-${Date.now()}`,
                 role: 'user',
-                content: messageContent, 
-                imageData: userMsgImageData,
+                content: messageContent,
+                localImageData: userMsgLocalImageData, // Attach user image data here
             });
-            
+
             setSuggestedPrompts([]);
             setChatHistory(prev => [...prev, ...messagesToDisplayInChat]);
-            
-            if (!filesToSend && !isUsingImageGenModel) { 
-                setSelectedFiles([]);
-            }
-            setPdfContextSegments([]); 
 
+            // Clear input fields *after* adding messages to history
+            if (!filesToSend && !isUsingImageGenModel) {
+                setSelectedFiles([]); // Clear selected files from input area
+            }
+            setPdfContextSegments([]); // Always clear PDF context after submission
+
+            // Prepare content for AI (potentially including PDF context)
             let contentForAI = messageContent;
             if (collectedPdfContextText && !isUsingImageGenModel) {
                 contentForAI = `Using the following PDF context:\n"""\n${collectedPdfContextText}\n"""\n\nMy question/request: ${messageContent}`;
@@ -368,14 +402,15 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
                     { id: `tstart-${tId}`, role: 'assistant', content: `Timer set: ${dTxt}.`, timer: { type: 'timer', duration: timerDuration, id: tId } }
                 ]);
                 if (messageContent.toLowerCase().startsWith('set timer') || messageContent.toLowerCase().startsWith('timer for')) {
-                    setChatMessage('');
+                    setChatMessage(''); // Clear input only if it was purely a timer command
                 }
-                 if (isImageGenModeActive) setIsImageGenModeActive(false);
-                return;
+                 if (isImageGenModeActive) setIsImageGenModeActive(false); // Turn off image mode if timer set
+                return; // Don't proceed to Gemini
             }
 
             setIsChatLoading(true);
 
+            // Handle chat usage increment
             if (userTier !== 'premium' && user?.uid) {
                 try {
                     await incrementUserChatUsage(user.uid);
@@ -388,16 +423,18 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
                 }
             }
 
+            // Add loading indicator
             const newLoadingMsgId = `load-${Date.now()}`;
             setLoadingMsgId(newLoadingMsgId);
             const loadingContent = isUsingImageGenModel ? "Generating image..." : "...";
             setChatHistory(prev => [...prev, { id: newLoadingMsgId, role: 'assistant', content: loadingContent, isGeneratingImage: isUsingImageGenModel }]);
 
-            const recentHistory = chatHistory.slice(-10); 
+            const recentHistory = chatHistory.slice(-10); // Limit history context
 
-            const systemInstruction = `You are TaskMaster, a highly meticulous, context-aware, and **conversational** AI agent integrated into Notes. You are chatting with "${userName}" about their note titled "${note.title}".
+            // === System Instruction (Incorporating AIChat's Image Gen Guidelines) ===
+             const systemInstruction = `You are TaskMaster, a highly meticulous, context-aware, and **conversational** AI agent integrated into Notes. You are chatting with "${userName}" about their note titled "${note.title}".
 
-Your primary goal is to be helpful, accurate, and follow instructions based on the user's request, the provided note content, attached images, **and your general knowledge when appropriate**. While your main focus is assisting with the note, you are also equipped to answer general knowledge questions and engage in broader conversation. THIS IS VERY IMPORTANT : IN YOUR RESPONSE, NEVER STATE: "Based on the PDF context and your note..." OR "while the note doesn't say...". Adhere to the following functions and rules with **absolute precision**, in this order of priority:
+Your primary goal is to be helpful, accurate, and follow instructions based on the user's request, the provided note content, attached images, PDF context, **and your general knowledge when appropriate**. While your main focus is assisting with the note, you are also equipped to answer general knowledge questions and engage in broader conversation. THIS IS VERY IMPORTANT : IN YOUR RESPONSE, NEVER STATE: "Based on the PDF context and your note..." OR "while the note doesn't say...". Adhere to the following functions and rules with **absolute precision**, in this order of priority:
 
 **Core Logic Flow:**
 
@@ -414,17 +451,17 @@ Your primary goal is to be helpful, accurate, and follow instructions based on t
     *   **PRIORITY 1B: General Knowledge Questions:** If the user asks a general question *unrelated* to the current note, attached images, or PDF context (e.g., "Who was the first president?", "Explain photosynthesis", "Tell me about Hitler"), answer it helpfully and accurately using your broad world knowledge. Respond naturally without needing to reference the note.
     *   **CRITICAL (Both Cases):** **DO NOT** propose an edit (JSON response) if the user is merely asking for information, clarification, or summarization, whether about the note or a general topic.
 
-2.  **Generate Image (ONLY if EXPLICITLY Asked - NO JSON Output):**
-    *   **TRIGGER:** Activate **ONLY** if the user *explicitly* asks you to "generate an image", "create a picture", "draw", "show me an image of", etc., followed by a description. Use the \`gemini-2.0-flash-exp-image-generation\` model for this.
-    *   **ACTION:** Use your image generation capability based on the user's description.
-    *   **OUTPUT:** Your response should contain the generated image data directly (via \`inlineData\`). You MAY include a brief preceding text (e.g., "Okay, here's an image of [subject]:" or "Here's the image you requested:"). **Keep this preceding text concise.**
-    *   **CRITICAL (LIMITATION): You CANNOT add the generated image *directly* into the note text.** If the user asks to "add the image to the note" or similar *after* you generate it, explain politely that you cannot embed it in the note, but they can download it. Example: "Here is the image you requested. I can't add images directly to the note text, but you can download it using the button." **Do not proactively state this limitation unless the user asks to add the generated image.**
-    *   **CRITICAL:** **DO NOT** output JSON for image generation requests. The image data should be returned via the appropriate API mechanism.
+2.  **Generate Image (ONLY if EXPLICITLY Asked - NO JSON Output - Use Preview Model):**
+    *   **TRIGGER:** Activate **ONLY** if the user *explicitly* asks you to "generate an image", "create a picture", "draw", "show me an image of", etc., followed by a description. Use the {GEMINI_IMAGE_GEN_MODEL} model for this.
+    *   **ACTION:** Generate the image based on the user's description.
+    *   **OUTPUT:** Your response **MUST** include **both** the generated image data (via \`inlineData\`) **AND** a brief accompanying text (e.g., "Okay, here's an image of [subject]:" or "Here's the image you requested:"). **Keep the text concise.**
+    *   **CRITICAL:** **DO NOT** output JSON for image generation requests. The image data and text part should be returned via the appropriate API mechanism.
+    *   **LIMITATION:** You **CANNOT** add the generated image *directly* into the note text. If the user asks to "add the image to the note" *after* you generate it, explain politely that you cannot embed it in the note, but they can download it. Example: "Here is the image you requested. I can't add images directly to the note text, but you can download it using the button." **Do not proactively state this limitation unless asked.**
     *   **FALLBACK:** If generation fails or is blocked (e.g., safety, unsupported request, unclear prompt), explain why clearly and politely IN TEXT (e.g., "I couldn't generate that image due to safety guidelines." or "Sorry, I encountered an error generating the image." or "Could you please provide a more specific description for the image?"). Do not attempt to generate an image if blocked.
     *   **CRITICAL (NO SUGGESTIONS):** **DO NOT** provide suggestions after successfully generating an image OR explaining a generation failure.
 
 3.  **Modify Note (ONLY if EXPLICITLY Asked & Not Image Gen - Requires JSON Output):**
-    *   **TRIGGER:** Propose an edit **ONLY** if the user *explicitly* uses action verbs indicating a desire to *change* the note content. Examples: "add", "remove", "delete", "change", "rewrite", "update", "replace", "insert", "correct", "fix", "append", "revise". Simple questions or statements like "This section is unclear" or "What about adding Y?" DO NOT automatically trigger an edit proposal (treat them as questions or discussion points first under Function 1). Use the standard text model (\`gemini-2.0-flash\`) for this.
+    *   **TRIGGER:** Propose an edit **ONLY** if the user *explicitly* uses action verbs indicating a desire to *change* the note content. Examples: "add", "remove", "delete", "change", "rewrite", "update", "replace", "insert", "correct", "fix", "append", "revise". Simple questions or statements like "This section is unclear" or "What about adding Y?" DO NOT automatically trigger an edit proposal (treat them as questions or discussion points first under Function 1). Use the standard text model ({GEMINI_TEXT_MODEL}) for this.
     *   **Choose ONE Method (A, B, or C) per response. Ensure JSON is valid.**
     *   **CRITICAL - NO CODE LEAKS:** **NEVER** include the raw JSON structure or code fragments (like markdown tables, lists, etc.) intended for the edit directly within your conversational text response (outside the JSON block). Your user-facing chat text *before* the JSON block must be natural, friendly conversation (e.g., "Okay, I can add that list for you." or "Sure thing, here's the proposed correction:") explaining *what* you're doing conversationally. The structured data *only* goes inside the designated JSON block.
 
@@ -445,17 +482,18 @@ Your primary goal is to be helpful, accurate, and follow instructions based on t
             {
               "action": "propose_sequential_edits",
               "explanation": "[Overall explanation summarizing ALL the sequential changes.]",
-              "edits": [ 
-                { 
+              "edits": [
+                {
                   "edit_type": "[Type]",
                   "target_context": "[Context for *first* edit, based on ORIGINAL note content. null for start/end.]",
                   "content_fragment": "[Fragment for *first* edit.]"
                 },
-                { 
+                {
                   "edit_type": "[Type]",
                   "target_context": "[Context for *second* edit, based on content *after* first edit is applied. null for start/end.]",
                   "content_fragment": "[Fragment for *second* edit.]"
                 }
+                // ... more steps if needed
               ]
             }
             \`\`\`
@@ -522,7 +560,7 @@ What else can you do?
 
 **PDF Context for Current Query (if any):**
 """
-${collectedPdfContextText || "N/A"} 
+${collectedPdfContextText || "N/A"}
 """
 
 **Current Note Content (Full):**
@@ -535,114 +573,147 @@ ${note.keyPoints?.map(p => `- ${p}`).join('\n') || 'N/A'}
 
 ---
 **Chat History (Recent):**
-${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.content !== '...' && !msg.isGeneratingImage && !msg.isPdfContextDisplay).map(msg => { 
-    let prefix = msg.role === 'user' ? userName : 'Assistant'; 
-    let displayContent = msg.content; 
-    if (msg.isEditSuggestion) displayContent = `[Proposed Edit: ${msg.editExplanation || 'details omitted'}]`; 
-    if (msg.imageData && !msg.wasImageGenerated) displayContent += ' [User Image Attached]'; 
-    if (msg.wasImageGenerated) displayContent += ' [Generated Image Provided]'; 
-    displayContent = displayContent.replace(/```json[\s\S]*?```/g, '[Edit JSON Proposed]'); 
-    return `${prefix}: ${displayContent.trim()}`; 
+${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.content !== '...' && !msg.isGeneratingImage && !msg.isPdfContextDisplay).map(msg => {
+    let prefix = msg.role === 'user' ? userName : 'Assistant';
+    let displayContent = msg.content;
+    if (msg.isEditSuggestion) displayContent = `[Proposed Edit: ${msg.editExplanation || 'details omitted'}]`;
+    // Updated to check localImageData for user uploads
+    if (msg.localImageData && msg.role === 'user') displayContent += ' [User Image Attached]';
+    if (msg.wasImageGenerated) displayContent += ' [Generated Image Provided]';
+    displayContent = displayContent.replace(/```json[\s\S]*?```/g, '[Edit JSON Proposed]');
+    return `${prefix}: ${displayContent.trim()}`;
 }).join('\n')}
 ---
 
 **${userName}: ${messageContent}** ${currentFiles.length > 0 && !isUsingImageGenModel ? `(Files Attached: ${currentFiles.map(f=>f.name).join(', ')})` : ''}
 **Assistant:**`;
-            
+            // === End System Instruction ===
+
             try {
                 const targetModel = isUsingImageGenModel ? GEMINI_IMAGE_GEN_MODEL : GEMINI_TEXT_MODEL;
                 const fullGeminiEndpoint = `${GEMINI_API_BASE}${targetModel}:generateContent?key=${geminiApiKey}`;
 
+                // Configure generationConfig based on mode (Mirroring AIChat)
                 let generationConfig: any = {
-                    temperature: isUsingImageGenModel ? 0.7 : 0.6,
-                    maxOutputTokens: isUsingImageGenModel ? 1024 : 8192,
+                    temperature: isUsingImageGenModel ? 0.7 : 0.6, // Match AIChat image temp
+                    maxOutputTokens: isUsingImageGenModel ? 2048 : 8192, // Match AIChat limits
                     topP: 0.95,
+                    // Add responseModalities for image generation
+                    ...(isUsingImageGenModel && { responseModalities: ["TEXT", "IMAGE"] })
                 };
-                if (isUsingImageGenModel) {
-                    generationConfig.responseModalities = ["TEXT", "IMAGE"];
-                } else {
+                if (!isUsingImageGenModel) {
                     generationConfig.responseMimeType = "text/plain";
                 }
 
+                // Construct API content payload (Mirroring AIChat structure)
                 const apiContent: any[] = [];
+                // Add initial system instruction + priming model response
                 apiContent.push({ role: "user", parts: [{ text: systemInstruction }]});
-                apiContent.push({ role: "model", parts: [{ text: "Okay, I understand. I'm ready to help with the note, answer questions, or generate images based on your instructions." }]}); 
+                apiContent.push({ role: "model", parts: [{ text: "Okay, I understand. I'm ready to help with the note, answer questions, or generate images based on your instructions." }]});
 
+                // Add chat history, handling user images
                 recentHistory.forEach(msg => {
                     if (msg.timer || msg.isUpdateConfirmation || msg.content === '...' || msg.isGeneratingImage || msg.isPdfContextDisplay) {
-                        return;
+                        return; // Skip non-content messages
                     }
                     if (msg.role === 'user') {
-                        const userParts: any[] = [{ text: msg.content.replace(/\[(?:Image )?Attached:.*?\]/g, '').trim() }];
-                        if (msg.imageData && !isUsingImageGenModel) {
-                           userParts.push({ inline_data: { mime_type: msg.imageData.type, data: msg.imageData.base64 } });
+                        const userParts: any[] = [{ text: msg.content?.replace(/\[(?:Image )?Attached:.*?\]/g, '').trim() || '' }];
+                        // Include user-uploaded image data (base64) if present and not in image gen mode
+                        if (msg.localImageData && !isUsingImageGenModel) {
+                           userParts.push({ inline_data: { mime_type: msg.localImageData.type, data: msg.localImageData.base64 } });
                         }
+                        // Only add if there's text or parts
                         if (userParts[0].text || userParts.length > 1) {
                             apiContent.push({ role: "user", parts: userParts });
                         }
                     } else if (msg.role === 'assistant') {
                         let assistantHistoryContent = msg.content?.replace(/```json[\s\S]*?```/g, msg.isEditSuggestion ? `(I proposed an edit: ${msg.editExplanation || 'Details omitted'})` : '(I provided a response)');
+                         // Append image generation indication if relevant
                         if (msg.wasImageGenerated) { assistantHistoryContent += " [I generated an image]"; }
+                        // Only add if there's content
                         if (assistantHistoryContent?.trim()) {
                             apiContent.push({ role: "model", parts: [{ text: assistantHistoryContent.trim() }] });
                         }
                     }
                 });
 
-                const currentUserParts: any[] = [{ text: contentForAI }]; 
+                // Add the current user message + any attached files (if not image mode)
+                const currentUserParts: any[] = [{ text: contentForAI }];
                 if (currentFiles.length > 0 && !isUsingImageGenModel) {
                     currentFiles.forEach(file => {
+                        // Include supported types (image/pdf) for inline data
                         if (file.type.startsWith('image/') || file.type === 'application/pdf') {
                             currentUserParts.push({ inline_data: { mime_type: file.type, data: file.base64Data } });
                         }
                     });
                 }
-                if (currentUserParts[0].text || currentUserParts.length > 1) {
+                 if (currentUserParts[0].text || currentUserParts.length > 1) {
                      apiContent.push({ role: "user", parts: currentUserParts });
-                }
+                 }
 
-                const filteredApiContent = apiContent.reduce((acc, current) => {
+                // Merge consecutive roles like in AIChat
+                 const filteredApiContent = apiContent.reduce((acc, current) => {
                     const last = acc[acc.length - 1];
                     if (last && last.role === current.role) {
-                        last.parts = [...last.parts, ...current.parts];
+                        // Ensure parts is always an array before spreading
+                        last.parts = [...(last.parts || []), ...(current.parts || [])];
                     } else {
-                        acc.push(current);
+                        // Ensure current.parts is an array
+                        acc.push({ ...current, parts: Array.isArray(current.parts) ? current.parts : [] });
                     }
                     return acc;
                 }, [] as { role: string, parts: any[] }[]);
 
-                let requestBody = JSON.stringify({ contents: filteredApiContent, generationConfig });
+                 const requestBody = JSON.stringify({
+                    contents: filteredApiContent,
+                    generationConfig,
+                    // Add safety settings like in AIChat
+                    safetySettings: [
+                        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }
+                    ]
+                 });
+
                 const geminiOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: requestBody };
 
                 const response = await fetchWithRetry(fullGeminiEndpoint, geminiOptions);
                 const responseText = await response.text();
 
+                // Use the updated parser which returns `localImageData`
                 const parsedResult = parseGeminiResponse(responseText, isUsingImageGenModel);
 
-                if (isUsingImageGenModel) {
+                 // Handle suggestions based on mode (no suggestions for image gen)
+                if (isUsingImageGenModel || parsedResult.error) {
                     setSuggestedPrompts([]);
                 } else {
                     setSuggestedPrompts(parsedResult.suggestions);
                 }
 
+                // Construct final message using `localImageData`
                 let assistantFinalMessage: ChatMessage = {
-                    id: newLoadingMsgId, 
+                    id: newLoadingMsgId, // Reuse loading message ID
                     role: 'assistant',
-                    content: parsedResult.text || (parsedResult.imageData ? "" : "(No text content received)"),
-                    imageData: parsedResult.imageData,
+                    content: parsedResult.text || (parsedResult.localImageData ? "" : "(No text content received)"), // Use localImageData existence
+                    localImageData: parsedResult.localImageData, // Store parsed image data here
                     error: !!parsedResult.error,
                     isEditSuggestion: false,
-                    wasImageGenerated: isUsingImageGenModel && !!parsedResult.imageData && !parsedResult.error,
+                    // Set wasImageGenerated based on successful image data retrieval
+                    wasImageGenerated: isUsingImageGenModel && !!parsedResult.localImageData && !parsedResult.error,
+                    isGeneratingImage: false, // Turn off generating flag
                 };
 
+                // Handle API errors
                 if (parsedResult.error) {
                     assistantFinalMessage.content = parsedResult.error;
-                    assistantFinalMessage.imageData = null;
+                    assistantFinalMessage.localImageData = null; // Clear image data on error
                     assistantFinalMessage.error = true;
                     assistantFinalMessage.wasImageGenerated = false;
-                    setSuggestedPrompts([]); 
+                    setSuggestedPrompts([]); // Clear suggestions on error
                 }
 
+                // Handle JSON parsing for edits (keep existing logic, but ensure it doesn't conflict with image data)
                 if (!isUsingImageGenModel && !assistantFinalMessage.error && parsedResult.text) {
                     const jsonMatch = parsedResult.text.match(/```json\s*([\s\S]*?)\s*```/);
                     if (jsonMatch && jsonMatch[1]) {
@@ -650,8 +721,9 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                         try {
                             const parsedJson = JSON.parse(potentialJsonString);
                             let parsedSuccessfully = false;
-                            assistantFinalMessage.error = false; 
+                            assistantFinalMessage.error = false; // Reset error flag if we try parsing JSON
 
+                            // --- Keep existing JSON parsing logic ---
                             if (parsedJson.action === "propose_targeted_edit" ) {
                                 if (typeof parsedJson.explanation === 'string' && typeof parsedJson.edit_type === 'string' && typeof parsedJson.content_fragment === 'string' && (typeof parsedJson.target_context === 'string' || parsedJson.target_context === null)) {
                                     Object.assign(assistantFinalMessage, { content: parsedJson.explanation, isEditSuggestion: true, editAction: "propose_targeted_edit", editExplanation: parsedJson.explanation, editType: parsedJson.edit_type as EditStep['editType'], targetContext: parsedJson.target_context, contentFragment: parsedJson.content_fragment });
@@ -668,20 +740,24 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                                     if (valid) {
                                         Object.assign(assistantFinalMessage, { content: parsedJson.explanation, isEditSuggestion: true, editAction: "propose_sequential_edits", editExplanation: parsedJson.explanation, sequentialEdits: edits });
                                         parsedSuccessfully = true;
-                                    } else { 
+                                    } else {
                                         assistantFinalMessage.content = `Warning: AI proposed sequential edits, but the format was invalid. \n\n---\n${parsedResult.text}`;
                                         assistantFinalMessage.error = true;
                                     }
                                 }
                             }
-                            
+                            // --- End of existing JSON parsing logic ---
+
                             if (parsedSuccessfully) {
+                                // If edit JSON parsed, extract explanation and clear other fields
                                 const remainingText = parsedResult.text.replace(jsonMatch[0], '').trim();
-                                assistantFinalMessage.content = remainingText || parsedJson.explanation || "(Edit proposed)"; 
+                                assistantFinalMessage.content = remainingText || parsedJson.explanation || "(Edit proposed)";
                                 if (!assistantFinalMessage.content.trim()) assistantFinalMessage.content = "(Edit proposed without explanation)";
-                                assistantFinalMessage.imageData = undefined; 
+                                assistantFinalMessage.localImageData = undefined; // Ensure no image data if it's an edit
                                 assistantFinalMessage.wasImageGenerated = false;
-                            } else if (!assistantFinalMessage.error) { 
+                                // Suggestions might still be present in remainingText, handle them if needed, or rely on parser's output
+                                setSuggestedPrompts(parsedResult.suggestions); // Rely on parser
+                            } else if (!assistantFinalMessage.error) { // If JSON was found but didn't match expected structure
                                 assistantFinalMessage.content = `Warning: AI proposed an edit, but the JSON structure was invalid or incomplete. \n\n---\n${parsedResult.text}`;
                                 assistantFinalMessage.error = true;
                             }
@@ -689,35 +765,44 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                             console.error("JSON Parse Error:", parseError);
                             assistantFinalMessage.content = `Error: Failed to process edit (JSON Parse Error: ${parseError.message}).\n\n---\n${parsedResult.text}`;
                             assistantFinalMessage.error = true;
-                            assistantFinalMessage.imageData = undefined;
+                            assistantFinalMessage.localImageData = undefined;
                             assistantFinalMessage.wasImageGenerated = false;
+                            setSuggestedPrompts([]); // Clear suggestions on JSON parse error
                         }
                     }
                 }
-                
-                if (!assistantFinalMessage.content?.trim() && !assistantFinalMessage.imageData && !assistantFinalMessage.error && !assistantFinalMessage.isEditSuggestion && !assistantFinalMessage.timer) {
+
+                // Final check for empty content if no error/image/edit
+                if (!assistantFinalMessage.content?.trim() && !assistantFinalMessage.localImageData && !assistantFinalMessage.error && !assistantFinalMessage.isEditSuggestion && !assistantFinalMessage.timer) {
                     assistantFinalMessage.content = "(Received empty response)";
-                    assistantFinalMessage.error = true; 
+                    // Optionally mark as error or just display the message
+                    // assistantFinalMessage.error = true;
                 }
 
+                // Update chat history with the final assistant message
                 setChatHistory(prev => prev.map(msg => msg.id === newLoadingMsgId ? assistantFinalMessage : msg ));
+
+                // Switch back from image gen mode if successful (Mirroring AIChat behavior, without the extra message)
+                 if (isUsingImageGenModel && assistantFinalMessage.localImageData && !assistantFinalMessage.error) {
+                    setIsImageGenModeActive(false);
+                 }
 
             } catch (err: any) {
                  console.error("API Call Failed:", err);
                  const errorMsg = err instanceof Error ? err.message : 'Unknown error processing request.';
-                 const errorFinalMessage = {
-                     id: newLoadingMsgId, 
+                 const errorFinalMessage: ChatMessage = { // Explicit type annotation
+                     id: newLoadingMsgId,
                      role: 'assistant',
                      content: `❌ ${errorMsg}. Please check console or try again.`,
                      error: true,
-                     isGeneratingImage: false, 
+                     isGeneratingImage: false,
                      wasImageGenerated: false
                  };
                  setChatHistory(prev => prev.map(msg => msg.id === newLoadingMsgId ? errorFinalMessage : msg ));
-                 setSuggestedPrompts([]); 
+                 setSuggestedPrompts([]); // Clear suggestions on failure
              } finally {
                  setIsChatLoading(false);
-                 setLoadingMsgId(null); 
+                 setLoadingMsgId(null); // Clear loading message ID
              }
         };
 
@@ -726,16 +811,24 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
         const handleChatSubmit = async (e?: React.FormEvent) => {
             e?.preventDefault();
             const currentMessage = chatMessage.trim();
+            // Adjusted condition to check for image mode requirements
             if ((!currentMessage && selectedFiles.length === 0 && !isImageGenModeActive && pdfContextSegments.length === 0) ||
-                (!currentMessage && isImageGenModeActive)) {
+                (!currentMessage && isImageGenModeActive)) { // Image mode needs a prompt
                 if(isImageGenModeActive && !currentMessage) {
                      setChatHistory(prev => [...prev, { id: `img-prompt-err-${Date.now()}`, role: 'assistant', content: `ℹ️ Please describe the image you want to generate.`, error: false }]);
                 }
-                return;
+                return; // Prevent submission if conditions aren't met
             }
-            const filesToSubmit = [...selectedFiles];
-            setChatMessage(''); 
+            // Check if image mode is active but files/context are present
+            if (isImageGenModeActive && (selectedFiles.length > 0 || pdfContextSegments.length > 0)) {
+                 setChatHistory(prev => [...prev, { id: `img-gen-mode-file-ctx-submit-err-${Date.now()}`, role: 'assistant', content: `ℹ️ Image generation requires a text prompt only. Please remove attached files/PDF context or disable image generation mode before sending.`, error: false }]);
+                 return; // Block submission
+            }
+
+            const filesToSubmit = [...selectedFiles]; // Capture files at submit time
+            setChatMessage(''); // Clear input field immediately
             await submitMessageToAI(currentMessage, filesToSubmit, isImageGenModeActive);
+            // Reset textarea height after submission
             if (textareaRef.current) {
                 textareaRef.current.style.height = 'auto';
             }
@@ -743,10 +836,13 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
         const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSubmit(); } };
         const handleTextareaInput = (e: React.FormEvent<HTMLTextAreaElement>) => { const ta = e.currentTarget; ta.style.height = 'auto'; ta.style.height = `${Math.min(ta.scrollHeight, 100)}px`; setChatMessage(ta.value); };
         const handleSuggestionClick = (suggestion: string) => {
-            if (isImageGenModeActive) {
+            if (isImageGenModeActive) { // Turn off image mode if clicking a text suggestion
                  setIsImageGenModeActive(false);
+                 setSelectedFiles([]); // Also clear files just in case
+                 setPdfContextSegments([]); // And context
             }
-            submitMessageToAI(suggestion);
+            setChatMessage(''); // Clear any existing input
+            submitMessageToAI(suggestion); // Use submitMessageToAI which handles state correctly
         };
 
         const addPdfContextSegment = (text: string) => {
@@ -758,8 +854,9 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
 
         useImperativeHandle(ref, () => ({
             sendMessage: (message: string) => {
-                if (isImageGenModeActive) setIsImageGenModeActive(false);
-                submitMessageToAI(message, selectedFiles, isImageGenModeActive);
+                if (isImageGenModeActive) setIsImageGenModeActive(false); // Ensure text mode
+                setChatMessage(''); // Clear input
+                submitMessageToAI(message, [], false); // Send message, no files, not forced image gen
             },
             addPdfContextSegment,
             focusInput: () => textareaRef.current?.focus(),
@@ -796,10 +893,10 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                         <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-400 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
                             {chatHistory.map((message, index) => {
                                 const isCurrentLoadingMsg = message.role === 'assistant' && isChatLoading && message.id === loadingMsgId;
-                                const isPdfContextDisplayMsg = message.isPdfContextDisplay === true; // Role will determine alignment
+                                const isPdfContextDisplayMsg = message.isPdfContextDisplay === true;
 
                                 const currentBubbleClass = isPdfContextDisplayMsg
-                                    ? '' 
+                                    ? ''
                                     : message.role === 'user' ? userBubbleClass
                                     : message.error ? errorBubbleClass
                                     : message.isEditSuggestion ? editSuggestionBubbleClass
@@ -807,59 +904,37 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                                     : assistantBubbleClass;
 
                                 const alignmentClass = message.role === 'user' ? 'justify-end' : 'justify-start';
-                                
-const getProseClass = (msg: ChatMessage) => {
-    let base = `prose prose-sm max-w-none prose-p:text-xs prose-p:my-1 prose-ul:text-xs prose-ol:text-xs prose-li:my-0 prose-code:text-[11px] prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:text-[11px] prose-pre:my-1 prose-pre:p-1.5 prose-pre:rounded`;
 
-    if (isIlluminateEnabled) { // Light Mode
-        if (msg.isEditSuggestion) { // Assistant bubble (yellowish)
-            base += ' prose-yellow text-yellow-900';
-        } else if (msg.error) { // Assistant bubble (reddish)
-            base += ' prose-red text-red-800';
-        } else if (msg.isUpdateConfirmation) { // Assistant bubble (greenish)
-            base += ' prose-green text-green-900';
-        } else if (msg.role === 'user') { // User bubble (blue bg, white text)
-            // User messages in light mode have userBubbleClass 'bg-blue-500 text-white'.
-            // The bg-blue-500 is a dark background, so prose content should be light.
-            // 'prose-invert' is the Tailwind Typography class for light text on dark backgrounds.
-            base += ' prose-invert';
-            // Adjust link and code colors for better harmony with a blue background
-            // prose-invert typically makes links white/light gray. Making them a light blue shade.
-            base += ' prose-a:text-blue-300 hover:prose-a:text-blue-200 prose-code:text-gray-300';
-        } else { // Assistant, normal message (light gray bg, dark text)
-            // Assistant bubble: bg-gray-100 text-gray-800.
-            base += ' prose-gray text-gray-800'; // Prose text will be gray-800. This is correct.
-        }
-    } else { // Dark Mode
-        base += ' prose-invert'; // Base for all dark mode messages (light text on dark backgrounds)
+                                const getProseClass = (msg: ChatMessage) => {
+                                    let base = `prose prose-sm max-w-none prose-p:text-xs prose-p:my-1 prose-ul:text-xs prose-ol:text-xs prose-li:my-0 prose-code:text-[11px] prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:text-[11px] prose-pre:my-1 prose-pre:p-1.5 prose-pre:rounded`;
 
-        // Apply specific text colors for special assistant messages if needed,
-        // to potentially override prose-invert's default grays if a more specific color is desired.
-        if (msg.isEditSuggestion) { // Bubble text is yellow-300
-            // Add prose-specific overrides if `text-yellow-200` is not enough
-             base += ' prose-p:!text-yellow-300 prose-li:!text-yellow-300 prose-strong:!text-yellow-200 prose-a:!text-yellow-400 hover:prose-a:!text-yellow-300 prose-code:!text-yellow-200';
-        } else if (msg.error) { // Bubble text is red-300
-             base += ' prose-p:!text-red-300 prose-li:!text-red-300 prose-strong:!text-red-200 prose-a:!text-red-400 hover:prose-a:!text-red-300 prose-code:!text-red-200';
-        } else if (msg.isUpdateConfirmation) { // Bubble text is green-200
-             base += ' prose-p:!text-green-200 prose-li:!text-green-200 prose-strong:!text-green-100 prose-a:!text-green-400 hover:prose-a:!text-green-300 prose-code:!text-green-200';
-        } else if (msg.role === 'assistant' || !msg.role) { // Assistant normal message, bubble text is gray-200
-            // prose-invert default light gray is usually fine, but explicitly match bubble text.
-             base += ' prose-p:!text-gray-200 prose-li:!text-gray-200 prose-strong:!text-gray-100 prose-a:!text-blue-400 hover:prose-a:!text-blue-300 prose-code:!text-gray-300';
-        } else if (msg.role === 'user') { // User message, bubble text is white
-            // prose-invert default light gray is good, but explicitly match bubble text for <p>, <li>, etc.
-            base += ' prose-p:!text-white prose-li:!text-white prose-strong:!text-white prose-a:!text-blue-300 hover:prose-a:!text-blue-200 prose-code:!text-gray-200';
-        }
-    }
-    return base;
-};                                const proseClass = getProseClass(message);
-                                const showDownloadButton = message.role === 'assistant' && message.wasImageGenerated && message.imageData && !message.error;
-
+                                    if (isIlluminateEnabled) {
+                                        if (msg.isEditSuggestion) { base += ' prose-yellow text-yellow-900'; }
+                                        else if (msg.error) { base += ' prose-red text-red-800'; }
+                                        else if (msg.isUpdateConfirmation) { base += ' prose-green text-green-900'; }
+                                        else if (msg.role === 'user') { base += ' prose-invert prose-a:text-blue-300 hover:prose-a:text-blue-200 prose-code:text-gray-300'; }
+                                        else { base += ' prose-gray text-gray-800'; }
+                                    } else {
+                                        base += ' prose-invert';
+                                        if (msg.isEditSuggestion) { base += ' prose-p:!text-yellow-300 prose-li:!text-yellow-300 prose-strong:!text-yellow-200 prose-a:!text-yellow-400 hover:prose-a:!text-yellow-300 prose-code:!text-yellow-200'; }
+                                        else if (msg.error) { base += ' prose-p:!text-red-300 prose-li:!text-red-300 prose-strong:!text-red-200 prose-a:!text-red-400 hover:prose-a:!text-red-300 prose-code:!text-red-200'; }
+                                        else if (msg.isUpdateConfirmation) { base += ' prose-p:!text-green-200 prose-li:!text-green-200 prose-strong:!text-green-100 prose-a:!text-green-400 hover:prose-a:!text-green-300 prose-code:!text-green-200'; }
+                                        else if (msg.role === 'assistant' || !msg.role) { base += ' prose-p:!text-gray-200 prose-li:!text-gray-200 prose-strong:!text-gray-100 prose-a:!text-blue-400 hover:prose-a:!text-blue-300 prose-code:!text-gray-300'; }
+                                        else if (msg.role === 'user') { base += ' prose-p:!text-white prose-li:!text-white prose-strong:!text-white prose-a:!text-blue-300 hover:prose-a:!text-blue-200 prose-code:!text-gray-200'; }
+                                    }
+                                    return base;
+                                };
+                                const proseClass = getProseClass(message);
+                                // Determine if download button should be shown (assistant message, image generated, has data, no error)
+                                const showDownloadButton = message.role === 'assistant' && message.wasImageGenerated && message.localImageData && !message.error;
+                                // Determine image source (use localImageData for both user uploads and AI generations in NoteChat)
+                                const imageDataSource = message.localImageData;
 
                                 return (
                                     <div key={message.id || index} className={`flex ${alignmentClass}`}>
-                                        <div className={`max-w-[85%] rounded-lg text-sm shadow-sm break-words 
-                                                        ${isPdfContextDisplayMsg 
-                                                            ? `${isIlluminateEnabled ? 'bg-slate-200 text-slate-800' : 'bg-neutral-700 text-white'} px-3 py-2 flex items-start my-0.5` 
+                                        <div className={`max-w-[85%] rounded-lg text-sm shadow-sm break-words
+                                                        ${isPdfContextDisplayMsg
+                                                            ? `${isIlluminateEnabled ? 'bg-slate-200 text-slate-800' : 'bg-neutral-700 text-white'} px-3 py-2 flex items-start my-0.5`
                                                             : `px-2.5 py-1.5 ${currentBubbleClass}`}`}>
                                             {isPdfContextDisplayMsg ? (
                                                 <>
@@ -877,18 +952,20 @@ const getProseClass = (msg: ChatMessage) => {
                                                 <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]} className={proseClass} components={{ a: ({node, ...props}) => <a target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-600" {...props} />, code: ({node, inline, className, children, ...props}) => { const match = /language-(\w+)/.exec(className || ''); if (inline) { return <code className={`${isIlluminateEnabled ? 'bg-gray-200/70 text-gray-800' : 'bg-gray-600/70 text-gray-100'} px-1 py-0.5 rounded text-[10px]`} {...props}>{children}</code>; } return <pre className={`${isIlluminateEnabled ? '!bg-gray-200/70 !text-gray-800' : '!bg-gray-600/70 !text-gray-100'} p-1.5 rounded my-1 text-[11px] overflow-x-auto`} {...props}><code>{children}</code></pre>; }, }} >{message.content}</ReactMarkdown>
                                             ) : null}
 
-                                            {!isPdfContextDisplayMsg && message.imageData && (
+                                            {/* Display image using localImageData (base64) */}
+                                            {!isPdfContextDisplayMsg && imageDataSource && (
                                                  <div className={`relative group mt-1.5 ${message.content ? 'border-t pt-1.5' : ''} ${isIlluminateEnabled ? 'border-gray-300/50' : 'border-gray-600/50'}`}>
                                                      <img
-                                                         src={`data:${message.imageData.type};base64,${message.imageData.base64}`}
-                                                         alt={message.imageData.name || "Chat Image"}
+                                                         src={`data:${imageDataSource.type};base64,${imageDataSource.base64}`}
+                                                         alt={imageDataSource.name || "Chat Image"}
                                                          className="max-w-full h-auto max-h-60 object-contain rounded-md border border-gray-300 dark:border-gray-600 cursor-pointer"
-                                                         onClick={(e) => { e.stopPropagation(); window.open(`data:${message.imageData.type};base64,${message.imageData.base64}`, '_blank')}}
-                                                         title={`Click to view full image: ${message.imageData.name || (message.wasImageGenerated ? 'Generated Image' : 'Uploaded Image')}`}
+                                                         onClick={(e) => { e.stopPropagation(); window.open(`data:${imageDataSource.type};base64,${imageDataSource.base64}`, '_blank')}}
+                                                         title={`Click to view full image: ${imageDataSource.name || (message.wasImageGenerated ? 'Generated Image' : 'Uploaded Image')}`}
                                                      />
+                                                      {/* Show download button for AI generated images */}
                                                       {showDownloadButton && (
                                                         <button
-                                                            onClick={(e) => { e.stopPropagation(); handleDownloadImage(message.imageData!); }}
+                                                            onClick={(e) => { e.stopPropagation(); handleDownloadImage(imageDataSource); }} // Use handleDownloadImage with LocalImageData
                                                             className={`absolute top-1 right-1 p-1 rounded opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-200 ${downloadButtonClass}`}
                                                             title="Download Image"
                                                         >
@@ -897,7 +974,9 @@ const getProseClass = (msg: ChatMessage) => {
                                                       )}
                                                  </div>
                                             )}
+                                            {/* Keep Timer display */}
                                             {!isPdfContextDisplayMsg && message.timer && ( <div className="mt-1.5"><div className={`flex items-center space-x-2 rounded-md px-2 py-1 text-xs border ${isIlluminateEnabled ? 'bg-blue-50 border-blue-200 text-blue-800' : 'bg-gray-800/60 border-gray-600 text-blue-300'}`}><TimerIcon className="w-3.5 h-3.5"/> <Timer key={message.timer.id} initialDuration={message.timer.duration} onComplete={() => handleTimerComplete(message.timer.id)} compact={true} isIlluminateEnabled={isIlluminateEnabled}/></div></div> )}
+                                            {/* Keep Edit/Revert buttons */}
                                             {!isPdfContextDisplayMsg && message.isEditSuggestion && message.editAction && !isChatLoading && !message.error && ( <div className="mt-2 border-t pt-1.5 flex justify-end border-yellow-300/50 dark:border-yellow-700/50"> <button onClick={() => handleAcceptEdit(message)} className={`${buttonSecondaryClass} px-2.5 py-1 rounded-md text-xs flex items-center gap-1 hover:brightness-110 ${isIlluminateEnabled ? 'hover:bg-yellow-100' : 'hover:bg-yellow-700/50'} `} disabled={isChatLoading} > <Check className="w-3.5 h-3.5" /> Apply Update{message.editAction === 'propose_sequential_edits' && message.sequentialEdits && message.sequentialEdits.length > 1 ? ` (${message.sequentialEdits.length} steps)` : ''} </button> </div> )}
                                             {!isPdfContextDisplayMsg && message.isUpdateConfirmation && message.canRevert && !message.error && ( <div className="mt-2 border-t pt-1.5 flex justify-end border-green-300/50 dark:border-green-700/50"> <button onClick={() => handleRevertEdit(message)} className={`${buttonSecondaryClass} px-2.5 py-1 rounded-md text-xs flex items-center gap-1 hover:brightness-110 ${isIlluminateEnabled ? 'hover:bg-gray-200' : 'hover:bg-gray-600'}`} disabled={isChatLoading} title="Revert this change" > <RefreshCcw className="w-3.5 h-3.5" /> Revert </button> </div> )}
                                         </div>
@@ -920,7 +999,7 @@ const getProseClass = (msg: ChatMessage) => {
 
                         <div className={`p-2 border-t ${headerBg} shrink-0 sticky bottom-0`}>
                              {userTier !== 'premium' && userTier !== 'loading' && ( <div className="pb-1 text-xs text-center"> <span className={isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}> Messages this month: {isLoadingUsage ? '...' : chatCount} / {currentChatLimit === Infinity ? '∞' : currentChatLimit} </span> {isChatLimitReached && !isLoadingUsage && ( <span className="text-red-500 ml-1 font-medium">(Limit Reached)</span> )} {!isChatLimitReached && userTier === 'basic' && ( <Link to="/pricing" className={`ml-2 font-medium ${isIlluminateEnabled ? 'text-blue-600 hover:text-blue-700' : 'text-blue-400 hover:text-blue-300'} hover:underline`}> <Crown className="w-2.5 h-2.5 inline mr-0.5"/>Upgrade </Link> )} </div> )}
-                             
+
                              {pdfContextSegments.length > 0 && !isImageGenModeActive && (
                                 <div className="mb-1.5 px-1 max-h-24 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent">
                                     <div className="flex flex-col gap-1.5">
@@ -971,7 +1050,7 @@ const getProseClass = (msg: ChatMessage) => {
                                  <button
                                      type="button"
                                      onClick={triggerFileSelect}
-                                     disabled={isChatLoading || isLoadingUsage || isImageGenModeActive}
+                                     disabled={isChatLoading || isLoadingUsage || isImageGenModeActive} // Disable attach in image mode
                                      className={`${buttonSecondaryClass} p-2 rounded-full self-end mb-[1px] transition-all duration-150 ${isChatLoading || isLoadingUsage || isImageGenModeActive ? buttonDisabledClass : 'hover:scale-105 active:scale-100'}`}
                                      title={isImageGenModeActive ? "Image Generation mode active (no attachments)" : "Attach Files (Image/PDF)"}
                                  >
@@ -988,20 +1067,26 @@ const getProseClass = (msg: ChatMessage) => {
                                  </button>
                                  <button
                                      type="submit"
-                                     disabled={
+                                     disabled={ // Refined disabled condition
                                          isChatLoading ||
                                          isLoadingUsage ||
                                          isChatLimitReached ||
-                                         (!chatMessage.trim() && selectedFiles.length === 0 && !isImageGenModeActive && pdfContextSegments.length === 0) || 
-                                         (!chatMessage.trim() && isImageGenModeActive) || 
-                                         (isImageGenModeActive && (selectedFiles.length > 0 || pdfContextSegments.length > 0)) 
+                                         // Disable if no text/files/context in text mode
+                                         (!isImageGenModeActive && !chatMessage.trim() && selectedFiles.length === 0 && pdfContextSegments.length === 0) ||
+                                         // Disable if no text prompt in image mode
+                                         (isImageGenModeActive && !chatMessage.trim()) ||
+                                         // Disable if files/context are present in image mode (already checked earlier, but good to be safe)
+                                         (isImageGenModeActive && (selectedFiles.length > 0 || pdfContextSegments.length > 0))
                                      }
                                      className={`${buttonPrimaryClass} p-2 rounded-full self-end mb-[1px] transition-all duration-150 ${
-                                         (isChatLoading || isLoadingUsage || isChatLimitReached || (!chatMessage.trim() && selectedFiles.length === 0 && !isImageGenModeActive && pdfContextSegments.length === 0) || (!chatMessage.trim() && isImageGenModeActive) || (isImageGenModeActive && (selectedFiles.length > 0 || pdfContextSegments.length > 0)))
-                                             ? buttonDisabledClass
-                                             : 'hover:scale-105 active:scale-100'
+                                        (isChatLoading || isLoadingUsage || isChatLimitReached ||
+                                         (!isImageGenModeActive && !chatMessage.trim() && selectedFiles.length === 0 && pdfContextSegments.length === 0) ||
+                                         (isImageGenModeActive && !chatMessage.trim()) ||
+                                         (isImageGenModeActive && (selectedFiles.length > 0 || pdfContextSegments.length > 0))
+                                        )
+                                        ? buttonDisabledClass : 'hover:scale-105 active:scale-100'
                                      }`}
-                                     title="Send message" 
+                                     title="Send message"
                                  >
                                      {isChatLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                                  </button>
