@@ -1,6 +1,6 @@
 // src/lib/ai-chat-firebase.ts
 
-import { db } from './firebase';
+import { db, storage } from './firebase'; // Import storage
 import {
   collection,
   addDoc,
@@ -15,29 +15,39 @@ import {
   getDocs,
   Timestamp
 } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL, uploadString } from "firebase/storage"; // Storage imports
 import { createDeepInsightAction, updateDeepInsightActionStatus, voteOnDeepInsightAction } from './ai-context-firebase';
 import { createUserTask, createUserGoal, createUserPlan, createUserProject } from './ai-actions-firebase';
 
-// Interface for embedded image data (matches AIChat.tsx)
+// This ImageData interface is now primarily for what Gemini API returns,
+// or how AIChat.tsx initially processes an image, before it's uploaded.
 export interface ImageData {
   base64: string;
   type: string;
   name: string;
 }
 
-// Interface for attached file metadata (matches AIChat.tsx)
+export interface ImageMeta { // For storing in Firestore after upload
+  name: string;
+  type: string;
+  originalBase64Length?: number; // Optional: for reference or diagnostics
+  storagePath?: string; // Optional: store the path in Firebase Storage
+}
+
 export interface AttachedFileMeta {
   name: string;
   type: string;
   size: number;
+  url?: string; // URL if uploaded to storage (especially for images)
+  storagePath?: string; // Optional
+  base64Data?: string; // Temporary, should not be saved to Firestore for large files
 }
 
-// Updated ChatMessage interface to align with AIChat.tsx's ChatMessageData
 export interface ChatMessage {
   id?: string;
   role: 'user' | 'assistant';
   content: string;
-  createdAt?: any; // Firestore ServerTimestamp, client-side Date, or Firestore Timestamp
+  createdAt?: any;
   timer?: { type: 'timer'; duration: number; id: string; };
   flashcard?: { type: 'flashcard'; data: any[]; };
   question?: { type: 'question'; data: any[]; };
@@ -45,22 +55,21 @@ export interface ChatMessage {
   actionDetails?: {
     status: 'success' | 'error';
   };
-  imageData?: ImageData;
-  isGeneratingImage?: boolean;
-  wasImageGenerated?: boolean;
-  attachedFilesMeta?: AttachedFileMeta[];
-}
+  // Fields for images stored in Firebase Storage
+  imageUrl?: string; // For the main image of an assistant message
+  imageMeta?: ImageMeta; // Metadata for the imageUrl
 
+  isGeneratingImage?: boolean; // UI state, might not need to be in Firestore
+  wasImageGenerated?: boolean; // Could be useful
+  attachedFilesMeta?: AttachedFileMeta[]; // For user attachments (can include imageUrls for images)
+}
 
 export async function findItemByName(collectionName: string, userId: string, itemName: string, fieldName: string): Promise<string | null> {
   try {
     const itemsRef = collection(db, collectionName);
     const q = query(itemsRef, where(fieldName, "==", itemName), where("userId", "==", userId));
     const querySnapshot = await getDocs(q);
-
-    if (!querySnapshot.empty) {
-      return querySnapshot.docs[0].id;
-    }
+    if (!querySnapshot.empty) return querySnapshot.docs[0].id;
     return null;
   } catch (error) {
     console.error(`Error finding ${collectionName} by name "${itemName}":`, error);
@@ -79,109 +88,83 @@ export async function createChatConversation(userId: string, chatName:string): P
 }
 
 export async function saveChatMessage(conversationId: string, message: Partial<ChatMessage>): Promise<string> {
-  const messageData: { [key: string]: any } = {};
+  const messageData: { [key: string]: any } = {
+    role: message.role || 'assistant',
+    content: typeof message.content === 'string' ? message.content : '',
+  };
 
-  // Required or defaulted fields
-  messageData.role = message.role || 'assistant'; // Provide a sensible default if role can be missing
-  messageData.content = typeof message.content === 'string' ? message.content : ''; // Ensure content is a string
-
-  // Handle createdAt carefully
   if (message.createdAt) {
     if (message.createdAt instanceof Date || message.createdAt instanceof Timestamp) {
       messageData.createdAt = message.createdAt;
     } else if (typeof message.createdAt === 'string' || typeof message.createdAt === 'number') {
       const date = new Date(message.createdAt);
-      if (!isNaN(date.getTime())) {
-        messageData.createdAt = date; // Firestore will convert Date to Timestamp
-      } else {
-        console.warn("saveChatMessage: Malformed createdAt (string/number couldn't be parsed to Date), using serverTimestamp. Value:", message.createdAt);
-        messageData.createdAt = serverTimestamp();
-      }
+      messageData.createdAt = !isNaN(date.getTime()) ? date : serverTimestamp();
     } else {
-       console.warn("saveChatMessage: Unsupported createdAt type, using serverTimestamp. Value:", message.createdAt, "Type:", typeof message.createdAt);
        messageData.createdAt = serverTimestamp();
     }
   } else {
     messageData.createdAt = serverTimestamp();
   }
 
-  // Optional simple fields
   if (message.timer && typeof message.timer === 'object') messageData.timer = { ...message.timer };
   if (message.flashcard && typeof message.flashcard === 'object') messageData.flashcard = { ...message.flashcard };
   if (message.question && typeof message.question === 'object') messageData.question = { ...message.question };
   if (message.error === true) messageData.error = true;
   if (message.actionDetails && typeof message.actionDetails === 'object') messageData.actionDetails = { ...message.actionDetails };
-  if (typeof message.isGeneratingImage === 'boolean') messageData.isGeneratingImage = message.isGeneratingImage;
+  if (typeof message.isGeneratingImage === 'boolean') messageData.isGeneratingImage = message.isGeneratingImage; // Client might want to save this state
   if (typeof message.wasImageGenerated === 'boolean') messageData.wasImageGenerated = message.wasImageGenerated;
 
-  // Rigorous check and sanitization for imageData
-  if (message.imageData && typeof message.imageData === 'object') {
-    const { base64, type, name } = message.imageData;
-    if (
-      typeof base64 === 'string' && base64.length > 0 &&
-      typeof type === 'string' && type.length > 0 &&
-      typeof name === 'string' && name.length > 0
-    ) {
-      messageData.imageData = { base64, type, name }; // Create a new plain object
-    } else {
-      console.warn(
-        "saveChatMessage: message.imageData was present but malformed (e.g., missing or empty properties). imageData will NOT be saved. Problematic imageData:",
-        JSON.stringify(message.imageData)
-      );
-    }
+  // Save imageUrl and imageMeta (NO BASE64)
+  if (message.imageUrl && typeof message.imageUrl === 'string') {
+    messageData.imageUrl = message.imageUrl;
+  }
+  if (message.imageMeta && typeof message.imageMeta === 'object') {
+    // Ensure imageMeta doesn't contain base64
+    const { base64, ...restOfMeta } = message.imageMeta as any; // Exclude base64 if it somehow slips in
+    messageData.imageMeta = restOfMeta;
   }
 
-  // Rigorous check and sanitization for attachedFilesMeta
+  // Save attachedFilesMeta - ensure no base64Data is saved here
   if (message.attachedFilesMeta && Array.isArray(message.attachedFilesMeta)) {
     const validFilesMeta = message.attachedFilesMeta
-      .filter(meta =>
-        meta && typeof meta === 'object' && // Ensure meta itself is an object
-        typeof meta.name === 'string' && meta.name.length > 0 &&
-        typeof meta.type === 'string' && meta.type.length > 0 &&
-        typeof meta.size === 'number' && meta.size >= 0
-      )
-      .map(meta => ({ name: meta.name, type: meta.type, size: meta.size })); // Create new plain objects
+      .map(meta => {
+        if (meta && typeof meta === 'object' &&
+            typeof meta.name === 'string' && meta.name.length > 0 &&
+            typeof meta.type === 'string' && meta.type.length > 0 &&
+            typeof meta.size === 'number' && meta.size >= 0) {
+          // Explicitly exclude base64Data from being saved
+          const { base64Data, ...restOfFileMeta } = meta;
+          return restOfFileMeta;
+        }
+        console.warn("saveChatMessage: An item in attachedFilesMeta was malformed or incomplete. Filtering it out. Meta:", JSON.stringify(meta));
+        return null;
+      })
+      .filter(meta => meta !== null) as Partial<AttachedFileMeta>[]; // Now it's an array of meta objects without base64Data
 
     if (validFilesMeta.length > 0) {
       messageData.attachedFilesMeta = validFilesMeta;
-    } else if (message.attachedFilesMeta.length > 0) {
-      console.warn("saveChatMessage: All items in attachedFilesMeta were malformed or empty. attachedFilesMeta will NOT be saved. Original:", JSON.stringify(message.attachedFilesMeta));
     }
   }
-
-  // Log the exact data being sent to Firestore for debugging BEFORE the call
-  // Using JSON.parse(JSON.stringify()) helps to see what a "plain" version of the object looks like,
-  // especially if serverTimestamp() or other special Firestore values are involved (though serverTimestamp is resolved by Firestore).
+  
   let loggableMessageData = { ...messageData };
   if (loggableMessageData.createdAt && typeof loggableMessageData.createdAt === 'object' && !(loggableMessageData.createdAt instanceof Date) && !(loggableMessageData.createdAt instanceof Timestamp)) {
-      // If createdAt is serverTimestamp(), it's a sentinel value, stringify might not be ideal for direct console view.
-      // For logging, we can represent it as a string. Firestore handles the actual sentinel.
       loggableMessageData.createdAt = "FieldValue.serverTimestamp()";
   }
-
-
-  console.log("saveChatMessage: Attempting to save to Firestore with sanitized data:", JSON.parse(JSON.stringify(loggableMessageData)));
-
+  console.log("saveChatMessage: Attempting to save to Firestore with data:", JSON.parse(JSON.stringify(loggableMessageData)));
 
   try {
     const messageRef = await addDoc(collection(db, "chatConversations", conversationId, "messages"), messageData);
-
-    await updateDoc(doc(db, "chatConversations", conversationId), {
-      updatedAt: serverTimestamp(),
-    });
+    await updateDoc(doc(db, "chatConversations", conversationId), { updatedAt: serverTimestamp() });
     return messageRef.id;
   } catch (error: any) {
     console.error("saveChatMessage: Firestore save error:", error.message);
-    // Log the data that caused the error again, using the same stringification method
-    console.error("saveChatMessage: Data that caused Firestore error:", JSON.parse(JSON.stringify(loggableMessageData)));
-    // For more detailed Firebase error object:
+    console.error("saveChatMessage: Data that caused Firestore error (full object):", messageData);
+    console.error("saveChatMessage: Data that caused Firestore error (stringified for overview):", JSON.parse(JSON.stringify(loggableMessageData)));
     if (error.code) console.error("saveChatMessage: Firebase error code:", error.code);
     if (error.details) console.error("saveChatMessage: Firebase error details:", error.details);
-    
-    throw error; // Re-throw the error so AIChat.tsx can catch and display it
+    throw error;
   }
 }
-
 
 export function onChatMessagesSnapshot(
   conversationId: string,
@@ -195,14 +178,12 @@ export function onChatMessagesSnapshot(
     const messages: ChatMessage[] = [];
     snapshot.forEach((docSnap) => {
       const data = docSnap.data();
-      // Ensure createdAt is converted to Date if it's a Firestore Timestamp
       const createdAt = data.createdAt instanceof Timestamp ? data.createdAt.toDate() : data.createdAt;
       messages.push({ id: docSnap.id, ...data, createdAt } as ChatMessage);
     });
     callback(messages);
   }, (error) => {
     console.error("onChatMessagesSnapshot error: ", error);
-    // Optionally, you could propagate this error to the UI
   });
 }
 
@@ -249,35 +230,28 @@ export async function deleteChatConversation(conversationId: string): Promise<vo
 }
 
 export const extractJsonFromResponse = (text: string): any[] => {
-  if (typeof text !== 'string') return []; // Guard against non-string input
+  if (typeof text !== 'string') return [];
   const jsonBlocks: any[] = [];
   const regex = /```json\s*([\s\S]*?)\s*```/g;
   let match;
-
   while ((match = regex.exec(text)) !== null) {
     try {
-      const jsonContent = match[1].trim();
-      const parsed = JSON.parse(jsonContent);
-      jsonBlocks.push(parsed);
+      jsonBlocks.push(JSON.parse(match[1].trim()));
     } catch (e) {
       console.warn('extractJsonFromResponse: Failed to parse JSON block from ```json ... ```:', e, match[1]);
     }
   }
-
   if (jsonBlocks.length === 0) {
       const curlyRegex = /(?:^|\n)\s*(\{[\s\S]*?\})\s*(?:$|\n)/g;
       let curlyMatch;
       while ((curlyMatch = curlyRegex.exec(text)) !== null) {
           try {
               jsonBlocks.push(JSON.parse(curlyMatch[1]));
-          } catch(e) {
-              // console.warn('extractJsonFromResponse: Failed to parse JSON block from { ... }:', e, curlyMatch[1]); // Can be very noisy
-          }
+          } catch(e) { /* Be less noisy for simple curly braces */ }
       }
   }
   return jsonBlocks;
 };
-
 
 export const processAiActions = async (userId: string, actions: any[]) => {
   if (!userId) {
@@ -286,14 +260,10 @@ export const processAiActions = async (userId: string, actions: any[]) => {
   }
   for (const action of actions) {
     if (!action || typeof action.action !== 'string' || typeof action.payload !== 'object' || action.payload === null) {
-      console.warn("processAiActions: Skipping invalid AI action (missing action/payload or invalid types):", action);
+      console.warn("processAiActions: Skipping invalid AI action:", action);
       continue;
     }
-
-    if (!action.payload.userId) {
-        action.payload.userId = userId;
-    }
-
+    if (!action.payload.userId) action.payload.userId = userId;
     try {
       switch (action.action) {
         case 'createTask': await createUserTask(userId, action.payload); break;
@@ -323,11 +293,8 @@ export const processAiActions = async (userId: string, actions: any[]) => {
 };
 
 export const handleDeepInsightVote = async (actionId: string, vote: 'up' | 'down') => {
-  try {
-    await voteOnDeepInsightAction(actionId, vote);
-  } catch (error) {
-    console.error("handleDeepInsightVote error: ", error);
-  }
+  try { await voteOnDeepInsightAction(actionId, vote); }
+  catch (error) { console.error("handleDeepInsightVote error: ", error); }
 };
 
 export const handleDeepInsightAccept = async (actionId: string, action: any) => {
@@ -338,15 +305,61 @@ export const handleDeepInsightAccept = async (actionId: string, action: any) => 
     } else {
       console.warn("handleDeepInsightAccept: Cannot process accepted DeepInsight action payload - missing action, actionPayload or userId", action);
     }
-  } catch (error) {
-    console.error("handleDeepInsightAccept error: ", error);
-  }
+  } catch (error) { console.error("handleDeepInsightAccept error: ", error); }
 };
 
 export const handleDeepInsightDecline = async (actionId: string) => {
+  try { await updateDeepInsightActionStatus(actionId, 'declined'); }
+  catch (error) { console.error("handleDeepInsightDecline error: ", error); }
+};
+
+// Helper function to upload base64 image to Firebase Storage
+export const uploadBase64ImageToStorage = async (
+  userId: string,
+  conversationId: string,
+  base64String: string,
+  imageType: string, // e.g., 'image/png'
+  imageName?: string
+): Promise<{ downloadURL: string; storagePath: string }> => {
+  if (!userId || !conversationId) {
+    throw new Error("User ID and Conversation ID are required for image upload.");
+  }
+  const uniqueName = imageName || `generated_${Date.now()}.${imageType.split('/')[1] || 'png'}`;
+  const storagePath = `chatImages/${userId}/${conversationId}/${uniqueName}`;
+  const imageRef = ref(storage, storagePath);
+
+  // 'data_url' format for uploadString: "data:image/png;base64,iVBORw0KGgoAAA..."
+  const fullBase64Url = `data:${imageType};base64,${base64String}`;
+
   try {
-    await updateDeepInsightActionStatus(actionId, 'declined');
+    const snapshot = await uploadString(imageRef, fullBase64Url, 'data_url');
+    const downloadURL = await getDownloadURL(snapshot.ref);
+    return { downloadURL, storagePath };
   } catch (error) {
-    console.error("handleDeepInsightDecline error: ", error);
+    console.error("Error uploading base64 image to Firebase Storage:", error);
+    throw error;
+  }
+};
+
+// Helper function to upload File object to Firebase Storage
+export const uploadFileToStorage = async (
+  userId: string,
+  conversationId: string,
+  file: File
+): Promise<{ downloadURL: string; storagePath: string; name: string; type: string; size: number }> => {
+  if (!userId || !conversationId) {
+    throw new Error("User ID and Conversation ID are required for file upload.");
+  }
+  const uniqueName = `${Date.now()}_${file.name}`;
+  const storagePath = `chatImages/${userId}/${conversationId}/${uniqueName}`; // Or a more general path like 'chatFiles/'
+  const fileRef = ref(storage, storagePath);
+
+  try {
+    const snapshot = await uploadBytes(fileRef, file);
+    const downloadURL = await getDownloadURL(snapshot.ref);
+    return { downloadURL, storagePath, name: file.name, type: file.type, size: file.size };
+  } catch (error) {
+    console.error("Error uploading file to Firebase Storage:", error);
+    throw error;
   }
 };
