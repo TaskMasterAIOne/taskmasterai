@@ -150,7 +150,6 @@ export async function saveChatMessage(conversationId: string, message: Partial<C
   if (loggableMessageData.createdAt && typeof loggableMessageData.createdAt === 'object' && !(loggableMessageData.createdAt instanceof Date) && !(loggableMessageData.createdAt instanceof Timestamp)) {
       loggableMessageData.createdAt = "FieldValue.serverTimestamp()";
   }
-  console.log("saveChatMessage: Attempting to save to Firestore with data:", JSON.parse(JSON.stringify(loggableMessageData)));
 
   try {
     const messageRef = await addDoc(collection(db, "chatConversations", conversationId, "messages"), messageData);
