@@ -747,7 +747,7 @@ Assistant:`;
 
   const generateChatName = async (convId: string, conversationSoFar: string) => {
     try {
-      const namePrompt = `Please provide a short 3-5 word title summarizing the conversation so far:\n${conversationSoFar}\nReturn ONLY the title, with no extra commentary.`;
+      const namePrompt = `Please provide a short 3-5 word title summarizing the conversation so far:\n${conversationSoFar}\nReturn ONLY the title, with no extra commentary. USE THE SAME LANGUAGE AS PRESENTED IN THE CONVERSATION!`;
       const fullApiUrl = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${geminiApiKey}`;
       const options = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: namePrompt }] }] })};
       const response = await fetchWithTimeout(fullApiUrl, options, 20000);
