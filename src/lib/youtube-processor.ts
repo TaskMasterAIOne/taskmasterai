@@ -60,7 +60,7 @@ const extractCandidateText = (responseText: string): string => {
             }
             return `Error: Generation stopped (${jsonResponse.candidates[0].finishReason})`;
         }
-         if (!jsonResponse?.candidates?.[0]?.content?.parts?.[0]?.text && jsonResponse.candidates[0].finishReason === 'STOP') {
+         if (!jsonResponse?.candidates?.[0]?.content?.parts?.[0]?.text && jsonResponse.candidates[0]?.finishReason === 'STOP') {
             return ""; // Model finished but produced no text, treat as empty string.
         }
         return "Error: No text found in Gemini response.";
@@ -450,7 +450,8 @@ Provide *only* the generated raw Markdown note content below. Do not include any
                     const T = block.trim();
                     if (!T) continue;
                     const qM = T.match(/^Question:\s*([\s\S]*?)\s*A\)/i);
-                    const oM = T.match(/A\)\s*(.*?)\s*B\)\s*(.*?)\s*C\)\s*(.*?)\s*D)\s*(.*?)\s*Correct:/is);
+                    // *** THIS IS THE CORRECTED LINE ***
+                    const oM = T.match(/A\)\s*(.*?)\s*B\)\s*(.*?)\s*C\)\s*(.*?)\s*D\)\s*(.*?)\s*Correct:/is);
                     const cM = T.match(/Correct:\s*([A-D])\b/i);
                     const eM = T.match(/Explanation:\s*([\s\S]*?)(?:---DIVIDER---|$)/i);
 
