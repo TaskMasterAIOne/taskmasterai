@@ -1,24 +1,35 @@
+// vite.config.js
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import ViteSitemap from 'vite-plugin-sitemap';
+import ViteSitemap from 'vite-plugin-sitemap'; // Or your specific import name for the sitemap plugin
 
-export default defineConfig(({ command }) => { // Access command to check if it's 'build'
+export default defineConfig(({ command }) => {
   const isProduction = command === 'build';
 
   return {
     plugins: [
       react(),
-      ViteSitemap({ // Sitemap configuration
+      ViteSitemap({
         hostname: 'https://www.taskmaster.one', // Your production URL
-        // Optional: Exclude specific routes
+
+        // Optional: Exclude specific routes if needed
         // exclude: ['/admin/**', '/private-page'],
-        // Optional: Add dynamic routes (if any, though your app seems SPA focused)
+
+        // Optional: Add dynamic routes (if any)
         // dynamicRoutes: ['/blog/post-1', '/blog/post-2'],
-        // Optional: Change output file name
-        // outDir: 'dist', // Default is 'dist'
-        // filename: 'sitemap.xml', // Default is 'sitemap.xml'
-        // Optional: Customize sitemap entries
-        // generateRobotsTxt: true, // Can also generate a basic robots.txt here
+
+        // Optional: Change output file name (defaults are usually fine)
+        // outDir: 'dist',
+        // filename: 'sitemap.xml',
+
+        // --- SOLUTION ---
+        // Explicitly disable robots.txt generation by this plugin.
+        // Vite will copy your public/robots.txt to the dist folder.
+        generateRobotsTxt: false,
+        // ----------------
+
+        // Ensure other robots.txt related options are not active if 'generateRobotsTxt: false' is set
+        // (Your current commented-out 'robots: [...]' is fine as it's not active)
         // robots: [{ userAgent: '*', allow: '/', disallow: '/api/' }],
       }),
     ],
