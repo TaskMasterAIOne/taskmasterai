@@ -32,7 +32,7 @@ interface SidebarProps {
 }
 
 const DEV_EMAILS = ["bajinsrinivasr@lexington1.net", "fugegate@gmail.com", "draco77654@gmail.com"];
-const INTERN_EMAILS = ["srinibaj10@gmail.com"]; // Add intern emails here
+const INTERN_EMAILS = ["srinibaj10@gmail.com", "a.adityaabhinav10@gmail.com"]; // Add intern emails here
 
 export function Sidebar({
   userName,
