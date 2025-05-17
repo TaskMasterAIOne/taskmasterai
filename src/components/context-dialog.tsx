@@ -9,8 +9,7 @@ interface ContextDialogProps {
   onClose: () => void;
   onSave: (context: Partial<UserContext>) => void;
   initialContext?: UserContext | null;
-  isBlackoutEnabled: boolean;
-  isIlluminateEnabled: boolean;
+  // Removed isBlackoutEnabled and isIlluminateEnabled from props
 }
 
 export function ContextDialog({
@@ -18,8 +17,6 @@ export function ContextDialog({
   onClose,
   onSave,
   initialContext,
-  isBlackoutEnabled,
-  isIlluminateEnabled
 }: ContextDialogProps) {
   const [context, setContext] = useState<Partial<UserContext>>({
     workDescription: '',
@@ -27,6 +24,44 @@ export function ContextDialog({
     longTermGoals: '',
     otherContext: ''
   });
+
+  // Internal state for theme, read from localStorage
+  const [isBlackoutEnabled, setIsBlackoutEnabled] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return JSON.parse(localStorage.getItem('isBlackoutEnabled') || 'false');
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  });
+
+  const [isIlluminateEnabled, setIsIlluminateEnabled] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'false');
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  });
+
+  // Effect to re-read from localStorage if the dialog is re-opened
+  // This helps if the theme changed while the dialog was closed.
+  useEffect(() => {
+    if (isOpen && typeof window !== 'undefined') {
+      try {
+        setIsBlackoutEnabled(JSON.parse(localStorage.getItem('isBlackoutEnabled') || 'false'));
+        setIsIlluminateEnabled(JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'false'));
+      } catch {
+        // In case of parsing error, default to false
+        setIsBlackoutEnabled(false);
+        setIsIlluminateEnabled(false);
+      }
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (initialContext) {
@@ -71,7 +106,7 @@ export function ContextDialog({
     isIlluminateEnabled
       ? 'bg-gray-50 border-gray-300 text-gray-800 placeholder:text-gray-400 hover:bg-gray-100'
       : isBlackoutEnabled
-      ? 'bg-gray-850 border-gray-700 text-gray-200 placeholder:text-gray-500 hover:bg-gray-800'
+      ? 'bg-gray-900 border-gray-700 text-gray-200 placeholder:text-gray-500 hover:bg-gray-800' // Adjusted blackout bg for textarea
       : 'bg-gray-700 border-gray-600 text-gray-200 placeholder:text-gray-500 hover:bg-gray-650'
   ].join(' ');
   
@@ -156,15 +191,17 @@ export function ContextDialog({
                 type="button"
                 variant="outline"
                 onClick={onClose}
-                className={`rounded-lg px-4 py-2 ${isIlluminateEnabled 
-                    ? 'border-gray-300 text-gray-700 hover:bg-gray-50' 
-                    : 'border-gray-600 text-gray-300 hover:bg-gray-700 hover:border-gray-500'}`}
+                className={`rounded-lg px-4 py-2 text-sm font-medium ${isIlluminateEnabled 
+                    ? 'border-gray-300 text-gray-700 hover:bg-gray-100' 
+                    : isBlackoutEnabled
+                    ? 'border-gray-600 text-gray-300 hover:bg-gray-700 hover:border-gray-500'
+                    : 'border-gray-500 text-gray-300 hover:bg-gray-700 hover:border-gray-400'}`}
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                className={`rounded-lg px-4 py-2 ${saveButtonStyle}`}
+                className={`rounded-lg px-4 py-2 text-sm font-medium ${saveButtonStyle}`}
               >
                 <Save className="w-4 h-4 mr-2" />
                 Save Context
