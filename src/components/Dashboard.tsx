@@ -931,39 +931,59 @@ Assistant:`;
             setSmartOverview(`No pending items to generate overview from.`); setOverviewActions([]); setOverviewLoading(false); setLastResponse(""); return;
         }
         const firstName = userName.split(" ")[0];
-        const prompt = `Analyze the following items for user "${firstName}".
+const prompt = `You are an AI assistant analyzing items for user "${firstName}". Your goal is to provide a "smart overview" that synthesizes the user's current situation and proposes actionable steps *you (the AI) can take* to help them.
+
 Respond with a single JSON object containing two top-level keys: "overview_text" (string) and "suggested_actions" (array of objects).
 
 "overview_text" must be:
 * 1-2 concise sentences, under 80 tokens.
-* An actionable insight or guiding suggestion.
-* Addressed directly to the user.
+* An actionable insight or guiding suggestion *from you (the AI)*, based on your analysis of the items.
+* Addressed directly to the user, helping them understand priorities or potential next steps.
 
 "suggested_actions" array:
-* Each object must have: "id" (string, e.g., "action_1"), "description" (string, user-facing), "action_type" (string: "create_task", "create_goal", "create_project", "create_plan", "update_item", "suggestion").
-* If "action_type" is "update_item": include "item_collection" ('tasks', 'goals', 'projects', 'plans') and "item_name_or_id" (name or ID of item).
-* If "action_type" is "create_..." or "update_item": include "payload" object (e.g., for "create_task": {"task": "Name", "dueDate": "YYYY-MM-DD"}, for "update_item": {"priority": "high"}).
-* For "suggestion" type, "item_collection", "item_name_or_id", "payload" are not needed.
-* Provide up to 3 actions. If none, "suggested_actions" is an empty array.
+*   This array lists concrete actions *you, the AI, are proposing to perform* on the user's behalf if they approve.
+*   Each object must have:
+    *   "id" (string, e.g., "action_1").
+    *   "description" (string, user-facing). **This description must clearly state the action *you (the AI) propose to take*. It should be phrased as a proposal from you to the user.** For example:
+        *   "Propose creating a task: 'Follow up with Client X' due YYYY-MM-DD."
+        *   "Propose setting priority of 'Project Alpha' to high."
+        *   "Suggest reviewing your 'Q3 Goals' as they seem ambitious." (for "suggestion" type)
+    *   "action_type" (string: "create_task", "create_goal", "create_project", "create_plan", "update_item", "suggestion").
+*   If "action_type" is "update_item":
+    *   Include "item_collection" (string: 'tasks', 'goals', 'projects', 'plans').
+    *   Include "item_name_or_id" (string: name or ID of the item to be updated).
+*   If "action_type" is "create_task", "create_goal", "create_project", "create_plan", or "update_item":
+    *   Include a "payload" object detailing the specifics of the creation or update.
+        *   For "create_task": e.g., {"task_name": "Name", "dueDate": "YYYY-MM-DD", "priority": "medium"}
+        *   For "create_goal": e.g., {"goal_name": "Achieve X", "targetDate": "YYYY-MM-DD"}
+        *   For "update_item": e.g., {"priority": "high", "status": "in_progress"}
+*   For "action_type" "suggestion", the "item_collection", "item_name_or_id", and "payload" fields are not typically needed, as it's a general suggestion rather than a direct modification proposal.
+*   Provide up to 3 actions. If none are appropriate, "suggested_actions" must be an empty array.
 
-Example output format:
+Example output format for your response:
 \`\`\`json
 {
-  "overview_text": "Focus on your high-priority 'Submit Report' due today.",
+  "overview_text": "${firstName}, I see 'Submit Report' is due today. Focusing on this high-priority item seems critical right now.",
   "suggested_actions": [
     {
       "id": "action_1",
-      "description": "Set 'Submit Report' priority to high.",
+      "description": "Propose setting 'Submit Report' priority to high, as it's due today.",
       "action_type": "update_item",
       "item_collection": "tasks",
       "item_name_or_id": "Submit Report",
       "payload": { "priority": "high" }
+    },
+    {
+      "id": "action_2",
+      "description": "Propose creating a follow-up task: 'Review feedback on report' for tomorrow.",
+      "action_type": "create_task",
+      "payload": { "task_name": "Review feedback on report", "dueDate": "YYYY-MM-DD" } // Assuming tomorrow's date
     }
   ]
 }
 \`\`\`
 
-Items:
+Items for analysis:
 ${formattedData}`;
         try {
             const overviewEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${geminiApiKey}`;
@@ -1180,7 +1200,7 @@ ${formattedData}`;
     const handleToggleImageGenMode = () => {
         const nextState = !isImageGenModeActive; setIsImageGenModeActive(nextState); let tempInfoMessages: ChatMessageData[] = [];
         if (nextState && selectedFiles.length > 0) { selectedFiles.forEach(sf => URL.revokeObjectURL(sf.localPreviewUrl)); setSelectedFiles([]); tempInfoMessages.push({id: `local-img-mode-info-${Date.now()}`, role: 'assistant', content: "🖼️ Image generation mode enabled. Attached files cleared.", createdAt: new Date()});
-        } else if (!nextState) { tempInfoMessages.push({id: `local-txt-mode-info-${Date.now()}`, role: 'assistant', content: "💬 Switched to text & file mode.", createdAt: new Date()}); }
+        } else if (!nextState) { tempInfoMessages.push({id: `local-txt-mode-info-${Date.now()}`, role: 'assistant', content: "💬 Switched to normal chat mode.", createdAt: new Date()}); }
         if (tempInfoMessages.length > 0 && conversationId) { saveChatMessage(conversationId, tempInfoMessages[0]); }
         textareaRef.current?.focus();
     };
