@@ -945,9 +945,9 @@ Respond with a single JSON object containing two top-level keys: "overview_text"
 *   Each object must have:
     *   "id" (string, e.g., "action_1").
     *   "description" (string, user-facing). **This description must clearly state the action *you (the AI) propose to take*. It should be phrased as a proposal from you to the user.** For example:
-        *   "Propose creating a task: 'Follow up with Client X' due YYYY-MM-DD."
-        *   "Propose setting priority of 'Project Alpha' to high."
-        *   "Suggest reviewing your 'Q3 Goals' as they seem ambitious." (for "suggestion" type)
+        *   "I Propose creating a task: 'Follow up with Client X' due YYYY-MM-DD."
+        *   "I Propose setting priority of 'Project Alpha' to high."
+        *   "I Suggest reviewing your 'Q3 Goals' as they seem ambitious." (for "suggestion" type)
     *   "action_type" (string: "create_task", "create_goal", "create_project", "create_plan", "update_item", "suggestion").
 *   If "action_type" is "update_item":
     *   Include "item_collection" (string: 'tasks', 'goals', 'projects', 'plans').
