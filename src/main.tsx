@@ -34,6 +34,9 @@ import Status from './status/Status';
 import { PublicNoteView } from './components/PublicNoteView';
 import ComingSoon from './components/ComingSoon';
 
+import { FocusMode } from './components/Focus-Mode'; // Add this
+
+
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import Friends from './components/Friends';
@@ -194,7 +197,7 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/community" element={<PageTitle title="Community"><Community /></PageTitle>} />
             <Route path="/" element={<RootTitle><App /></RootTitle>} />
             <Route path="/status" element={<PageTitle title="Status"><Status /></PageTitle>} />
-            <Route path="/focus-mode" element={<PageTitle title="Focus Mode"><ComingSoon /></PageTitle>} />
+            <Route path="/focus-mode" element={<PageTitle title="Focus Mode"><FocusMode /></PageTitle>} />
             {/* <Route path="/api/*" element={null} /> This might be for Vercel serverless functions, not a React route */}
             <Route path="/public-note/:noteId" element={<PageTitle title="Public Note"><PublicNoteView /></PageTitle>} />
             
