@@ -1244,7 +1244,7 @@ Assistant:`;
                 <button onClick={() => { setShowPreFocusModal(false); setPreFocusMood(null); setPreFocusEnergy(3);}} className={`w-1/2 py-2.5 rounded-lg font-medium transition-colors ${isIlluminateEnabled ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'}`}>Cancel</button>
                 <button onClick={startNewPomodoroSessionFromModal} className={`w-1/2 py-2.5 rounded-lg font-semibold transition-colors ${isIlluminateEnabled ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>Start Pomodoro</button>
             </div>
-            <p className="text-xs text-center mt-3 opacity-60">Your check-in helps tailor future suggestions (AI feature conceptual).</p>
+            <p className="text-xs text-center mt-3 opacity-60">Your check-in helps tailor future suggestions.</p>
           </div>
         </motion.div>
       )}
