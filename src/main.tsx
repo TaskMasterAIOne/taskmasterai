@@ -36,6 +36,7 @@ import ComingSoon from './components/ComingSoon';
 
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
+import Friends from './components/Friends';
 
 // Global Helmet component - now primarily for scripts or dynamic global tags
 // Static favicons, apple-touch-icons, manifest, theme-color are in index.html
