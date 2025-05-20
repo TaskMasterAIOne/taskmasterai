@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import {
   User as UserIcon, Settings as SettingsIcon, Mail, Key, LogOut,
   Trash2, Save, X, AlertCircle, Crown, Upload, Camera, Moon, Sun,
-  PanelLeftDashed, Loader2, Info, BrainCircuit, Star, CreditCard,
+  PanelLeftDashed, Loader2, Info, BrainCircuit, Star, CreditCard, Activity,
 } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import {
@@ -11,7 +11,12 @@ import {
   getCurrentUser, getUserData, deleteProfilePicture,
 } from '../lib/settings-firebase';
 import { saveUserContext, getUserContext, UserContext } from '../lib/ai-context-firebase';
-import { getUserTier, UserTier } from '../lib/current-paying-user';
+import {
+  getUserTier, UserTier,
+  getChatLimitForTier, getNoteLimitsForTier,
+  getCurrentMonthUserChatUsage, getUserNoteUsage,
+  ChatUsageData, NoteUsageData,
+} from '../lib/current-paying-user';
 import { createPortalSession } from '../lib/stripe-client';
 import { User } from 'firebase/auth';
 
@@ -21,7 +26,7 @@ export function Settings() {
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true); // Still useful for initial data population like name/email
+  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -45,6 +50,12 @@ export function Settings() {
   const [isManagingSubscription, setIsManagingSubscription] = useState(false);
   const [portalError, setPortalError] = useState<string | null>(null);
 
+  // --- NEW STATE FOR USAGE DETAILS ---
+  const [chatUsage, setChatUsage] = useState<ChatUsageData | null>(null);
+  const [noteUsage, setNoteUsage] = useState<NoteUsageData | null>(null);
+  const [isLoadingUsage, setIsLoadingUsage] = useState(true);
+  const [usageError, setUsageError] = useState<string | null>(null);
+
   useEffect(() => {
     document.body.classList.remove('illuminate-mode', 'blackout-mode');
     if (isIlluminateEnabled) {
@@ -62,37 +73,51 @@ export function Settings() {
     setIsLoading(true);
     setIsLoadingAiContext(true);
     setUserCurrentTier('loading');
+    setIsLoadingUsage(true); 
 
     const loadData = async () => {
       const currentUser = getCurrentUser();
       if (!currentUser) { navigate('/login'); return; }
-      setUser(currentUser); // Set user early
+      setUser(currentUser);
       const googleFlag = currentUser.providerData?.some((p: any) => p.providerId === 'google.com');
       setIsGoogleUser(!!googleFlag);
 
-      try {
-        // Initialize userData with what's available from auth, then update from Firestore
-        setUserData({
-            name: currentUser.displayName || '',
-            email: currentUser.email || '',
-            photoURL: currentUser.photoURL || '',
-        });
-        setFormData(prev => ({
-            ...prev,
-            name: currentUser.displayName || '',
-            email: currentUser.email || '',
-            currentPassword: '', newPassword: '', confirmPassword: '',
-        }));
+      setUserData({
+          name: currentUser.displayName || '',
+          email: currentUser.email || '',
+          photoURL: currentUser.photoURL || '',
+      });
+      setFormData(prev => ({
+          ...prev,
+          name: currentUser.displayName || '',
+          email: currentUser.email || '',
+          currentPassword: '', newPassword: '', confirmPassword: '',
+      }));
 
-        const [tier, firestoreData] = await Promise.all([
+      const currentMonthStr = new Date().toISOString().slice(0, 7);
+
+      try {
+        const [tier, firestoreData, fetchedChatUsage, fetchedNoteUsage] = await Promise.all([
           getUserTier(currentUser.uid, currentUser.email),
-          getUserData(currentUser.uid)
+          getUserData(currentUser.uid),
+          getCurrentMonthUserChatUsage(currentUser.uid, currentMonthStr),
+          getUserNoteUsage(currentUser.uid)
         ]);
-        setUserCurrentTier(tier);
+        
+        setUserCurrentTier(tier); // Set tier first
+        
+        // Only set usage if not premium, or if needed for some other logic later
+        // The card itself will be hidden for premium, so these values might not be displayed
+        setChatUsage(fetchedChatUsage);
+        if (fetchedNoteUsage && fetchedNoteUsage.month === currentMonthStr) {
+            setNoteUsage(fetchedNoteUsage);
+        } else {
+            setNoteUsage({ pdfAi: 0, youtube: 0, month: currentMonthStr });
+        }
         
         const loadedUserData = {
           name: firestoreData?.name || currentUser.displayName || '',
-          email: currentUser.email || '', // Email is primarily from auth user
+          email: currentUser.email || '', 
           photoURL: firestoreData?.photoURL || currentUser.photoURL || '',
         };
         setUserData(loadedUserData);
@@ -100,20 +125,25 @@ export function Settings() {
           ...prev, name: loadedUserData.name, email: loadedUserData.email,
           currentPassword: '', newPassword: '', confirmPassword: '',
         }));
+
         if (firestoreData?.stripeCustomerId) {
           setStripeCustomerId(firestoreData.stripeCustomerId);
         } else {
           setStripeCustomerId(null);
         }
+        setUsageError(null);
       } catch (error) {
-        console.error('Error loading user data/tier:', error);
-        setError('Failed to load user data.');
-        setUserCurrentTier('basic'); // Default to basic on error
+        console.error('Error loading user data/tier/usage:', error);
+        setError('Failed to load user data or usage details.');
+        setUserCurrentTier('basic'); 
+        setUsageError("Could not load usage details.");
       } finally {
-        setIsLoading(false); // This indicates primary user data is loaded or failed
+        setIsLoading(false); 
+        setIsLoadingUsage(false); 
       }
 
       try {
+          setIsLoadingAiContext(true);
           const context = await getUserContext(currentUser.uid);
           const loadedContext = {
               workDescription: context?.workDescription || '',
@@ -123,6 +153,7 @@ export function Settings() {
           };
           setAiContextData(loadedContext);
           setInitialAiContextData(loadedContext);
+          setAiContextError(null);
       } catch (err) {
           console.error("Error loading AI context:", err);
           setAiContextError("Failed to load AI context.");
@@ -162,13 +193,13 @@ export function Settings() {
     try {
       const updatedProfile = await updateUserProfile({ photoFile: file }, user.uid);
       const newPhotoURL = updatedProfile?.photoURL || getCurrentUser()?.photoURL || '';
-      const refreshedFirestoreData = await getUserData(user.uid); // Re-fetch to ensure consistency
+      const refreshedFirestoreData = await getUserData(user.uid);
       setUserData(prev => ({
           ...prev,
           photoURL: refreshedFirestoreData?.photoURL || newPhotoURL,
-          name: refreshedFirestoreData?.name || prev.name // Keep name if not changed by this op
+          name: refreshedFirestoreData?.name || prev.name
       }));
-      const refreshedUser = getCurrentUser(); if (refreshedUser) setUser(refreshedUser); // Refresh auth user state
+      const refreshedUser = getCurrentUser(); if (refreshedUser) setUser(refreshedUser);
     } catch (err) { console.error("Upload Error:", err); setError(err instanceof AuthError ? err.message : 'Failed to upload.'); }
     finally { setIsUploading(false); if (fileInputRef.current) fileInputRef.current.value = ""; }
   };
@@ -192,13 +223,13 @@ export function Settings() {
       const updateData: { name?: string; email?: string; currentPassword?: string; newPassword?: string } = {};
       let requiresPassword = false;
       const trimmedName = formData.name.trim();
-      if (trimmedName !== userData.name) { // Compare with current userData, not initial form data
+      if (trimmedName !== userData.name) {
           if (!trimmedName) throw new AuthError('Name cannot be empty.');
           updateData.name = trimmedName;
       }
       if (!isGoogleUser) {
           const trimmedEmail = formData.email.trim();
-          if (trimmedEmail !== userData.email) { // Compare with current userData
+          if (trimmedEmail !== userData.email) {
               if (!trimmedEmail) throw new AuthError('Email cannot be empty.');
               updateData.email = trimmedEmail; requiresPassword = true;
           }
@@ -211,10 +242,10 @@ export function Settings() {
           if (requiresPassword && formData.currentPassword) updateData.currentPassword = formData.currentPassword;
       }
 
-      if (Object.keys(updateData).length > 0 || (updateData.newPassword && !isGoogleUser)) { // Check if there's anything to save
+      if (Object.keys(updateData).length > 0 || (updateData.newPassword && !isGoogleUser)) {
           await updateUserProfile(updateData, user.uid);
-          const refreshedUser = getCurrentUser(); // Get fresh auth user
-          const refreshedFirestoreData = await getUserData(user.uid); // Get fresh firestore data
+          const refreshedUser = getCurrentUser();
+          const refreshedFirestoreData = await getUserData(user.uid);
 
           const newName = refreshedFirestoreData?.name || refreshedUser?.displayName || userData.name;
           const newEmail = refreshedUser?.email || userData.email;
@@ -222,7 +253,7 @@ export function Settings() {
 
           setUserData({ name: newName, email: newEmail, photoURL: newPhotoURL });
           setFormData(prev => ({ ...prev, name: newName, email: newEmail, currentPassword: '', newPassword: '', confirmPassword: '' }));
-          if(refreshedUser) setUser(refreshedUser); // Update user state
+          if(refreshedUser) setUser(refreshedUser);
           setIsEditing(false);
       } else {
           setIsEditing(false); setFormData(prev => ({ ...prev, currentPassword: '', newPassword: '', confirmPassword: '' }));
@@ -292,16 +323,56 @@ export function Settings() {
   const deleteModalText = isIlluminateEnabled ? 'text-gray-700' : 'text-gray-200';
   const deleteModalOverlay = 'bg-black/60 backdrop-blur-sm';
 
-  // If initial loading is happening and user is not yet set, we might show a minimal loading screen
-  // or allow rendering the structure with placeholders. The current approach is to render structure.
-  // The redirect in useEffect handles the "no user" case.
+  // --- HELPER FUNCTION FOR RESET DATE ---
+  const getNextMonthResetDate = () => {
+    const now = new Date();
+    const firstDayNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    return firstDayNextMonth.toLocaleDateString(undefined, { 
+      month: 'long',
+      day: 'numeric',
+    });
+  };
+
+  // --- HELPER COMPONENT FOR PROGRESS BAR ---
+  const ProgressBar = ({ current, total, isIlluminate }: { current: number; total: number; isIlluminate: boolean }) => {
+    if (userCurrentTier === 'loading' && total === 0 && current === 0) {
+      return <div className={`text-xs mt-1 ${subheadingClass}`}>Loading limits...</div>;
+    }
+    
+    const displayTotal = total === Infinity ? '∞' : total;
+    
+    if (total === Infinity) { // Should not happen if card is hidden for premium, but good fallback
+      return (
+        <div className="mt-1">
+          <div className={`h-2.5 w-full rounded-full overflow-hidden ${isIlluminate ? 'bg-green-100' : 'bg-green-800/50'}`}>
+            <div className={`h-full bg-green-500`} style={{ width: `100%` }} />
+          </div>
+          <p className={`text-xs mt-1 ${subheadingClass} text-right`}>{current} / {displayTotal}</p>
+        </div>
+      );
+    }
+
+    const percentage = total > 0 ? Math.min((current / total) * 100, 100) : 0;
+    let barColorClass = isIlluminate ? 'bg-blue-500' : 'bg-blue-500';
+    if (percentage > 85) barColorClass = isIlluminate ? 'bg-red-500' : 'bg-red-500';
+    else if (percentage > 60) barColorClass = isIlluminate ? 'bg-yellow-500' : 'bg-yellow-500';
+
+    return (
+      <div className="mt-1">
+        <div className={`h-2.5 w-full rounded-full overflow-hidden ${isIlluminate ? 'bg-gray-200' : 'bg-gray-700'}`}>
+          <div className={`h-full ${barColorClass} transition-all duration-500 ease-out`} style={{ width: `${percentage}%` }} />
+        </div>
+        <p className={`text-xs mt-1 ${subheadingClass} text-right`}>{current} / {displayTotal}</p>
+      </div>
+    );
+  };
   
   return (
     <div className={`flex flex-col min-h-screen ${containerClass}`}>
       <Sidebar
         isCollapsed={isSidebarCollapsed}
         onToggle={handleToggleSidebar}
-        userName={userData.name || 'User'} // Uses `userData` which initializes to empty string
+        userName={userData.name || 'User'}
         isBlackoutEnabled={isBlackoutEnabled && isSidebarBlackoutEnabled}
         isIlluminateEnabled={isIlluminateEnabled && isSidebarIlluminateEnabled}
       />
@@ -343,19 +414,16 @@ export function Settings() {
             </h1>
             <p className={`${subheadingClass} mt-1 text-sm`}>Manage your account settings and preferences</p>
           </div>
-          {error && !showDeleteConfirm && ( // General errors
+          {error && !showDeleteConfirm && ( 
             <div className={`mb-4 p-3 rounded-lg flex items-start gap-2 ${errorBoxBg}`}>
               <AlertCircle className={`w-4 h-4 shrink-0 mt-px ${errorTextColor}`} />
               <p className={`${errorTextColor} text-xs sm:text-sm`}>{error}</p>
             </div>
           )}
 
-          {/* Main content grid is now rendered immediately. 
-              Individual sections will show their content or loading states.
-              isLoading (for primary user data) disables "Edit Profile" button.
-          */}
              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
                <div className="flex flex-col gap-4 lg:gap-6">
+                 {/* Profile Picture Card */}
                  <div className={`${cardClass} rounded-xl p-4 sm:p-5`}>
                    <h2 className={`text-base sm:text-lg font-semibold mb-4 ${headingClass}`}>Profile Picture</h2>
                    <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-5">
@@ -384,17 +452,16 @@ export function Settings() {
                      </div>
                    </div>
                  </div>
+                 {/* Profile Details Card */}
                  <div className={`${cardClass} rounded-xl p-4 sm:p-5`}>
                     <div className="flex items-center justify-between mb-4">
                       <h2 className={`text-base sm:text-lg font-semibold ${headingClass}`}>Profile Details</h2>
-                      {/* Edit button is disabled while initial user data is loading */}
                       {!isEditing && (<button type="button" onClick={() => { setIsEditing(true); setError(null); }} disabled={isLoading || isSaving} className={`px-3 py-1 text-xs sm:text-sm font-medium rounded-md ${buttonSecondaryClass}`}>Edit</button>)}
                     </div>
                     <form onSubmit={handleSave}>
                        <div className="space-y-4">
                           <div>
                             <label htmlFor="name" className={`block text-xs font-medium mb-1 ${subheadingClass}`}>Name</label>
-                            {/* formData.name is initialized from userData, which itself is initialized from auth/firestore */}
                             <input id="name" type="text" name="name" value={formData.name} onChange={handleInputChange} disabled={!isEditing || isSaving || isLoading} className={`w-full ${inputBg} rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 disabled:opacity-60 disabled:cursor-not-allowed`} required/>
                           </div>
                           <div>
@@ -430,6 +497,7 @@ export function Settings() {
                       )}
                     </form>
                  </div>
+                 {/* Account Actions Card */}
                  <div className={`${cardClass} rounded-xl p-4 sm:p-5`}>
                     <h2 className={`text-base sm:text-lg font-semibold mb-4 ${headingClass}`}>Account Actions</h2>
                     <div className="space-y-3">
@@ -437,6 +505,7 @@ export function Settings() {
                         <button onClick={() => { setShowDeleteConfirm(true); setFormData(prev => ({ ...prev, currentPassword: '' })); setError(null); }} className={`w-full flex items-center justify-start gap-2.5 px-3 py-2.5 text-sm font-medium rounded-md ${buttonDangerClass}`}><Trash2 className="w-4 h-4" /> Delete Account...</button>
                     </div>
                  </div>
+                 {/* Universal AI Context Card */}
                  <div className={`${cardClass} rounded-xl p-4 sm:p-5`}>
                     <div className="flex items-center justify-between mb-3">
                         <h2 className={`text-base sm:text-lg font-semibold flex items-center gap-2 ${headingClass}`}><BrainCircuit className="w-5 h-5 text-purple-400" /> Universal AI Context</h2>
@@ -456,6 +525,7 @@ export function Settings() {
                </div>
 
                <div className="flex flex-col gap-4 lg:gap-6">
+                 {/* Appearance Card */}
                  <div className={`${cardClass} rounded-xl p-4 sm:p-5`}>
                     <h2 className={`text-base sm:text-lg font-semibold mb-4 ${headingClass}`}>Appearance</h2>
                     <div className="space-y-4">
@@ -467,7 +537,7 @@ export function Settings() {
                         </div>
                     </div>
                  </div>
-
+                 {/* Subscription Card */}
                  <div className={`${cardClass} rounded-xl p-4 sm:p-5`}>
                    <div className="flex items-center justify-between mb-4">
                      <h2 className={`text-base sm:text-lg font-semibold flex items-center gap-1.5 ${headingClass}`}>Subscription</h2>
@@ -538,6 +608,58 @@ export function Settings() {
                       )}
                    </div>
                  </div>
+                 {/* --- MONTHLY USAGE & LIMITS CARD (Conditionally Rendered) --- */}
+                 {userCurrentTier !== 'premium' && (
+                     <div className={`${cardClass} rounded-xl p-4 sm:p-5`}>
+                       <h2 className={`text-base sm:text-lg font-semibold mb-4 flex items-center gap-2 ${headingClass}`}>
+                         <Activity className="w-5 h-5 text-indigo-400" /> Monthly Usage
+                       </h2>
+                       {isLoadingUsage ? (
+                         <div className="flex justify-center items-center h-32">
+                           <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+                         </div>
+                       ) : usageError ? (
+                         <div className={`p-3 rounded-md flex items-start gap-2 text-xs ${errorBoxBg} ${errorTextColor}`}>
+                           <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-px" />
+                           <span>{usageError}</span>
+                         </div>
+                       ) : (
+                         <>
+                           <div className="space-y-4">
+                             <div>
+                               <label className={`block text-sm font-medium mb-0.5 ${headingClass}`}>AI Chat Interactions</label>
+                               <ProgressBar 
+                                 current={chatUsage?.count || 0} 
+                                 total={getChatLimitForTier(userCurrentTier)}
+                                 isIlluminate={isIlluminateEnabled} 
+                               />
+                             </div>
+
+                             <div>
+                               <label className={`block text-sm font-medium mb-0.5 ${headingClass}`}>PDF & Text Notes</label>
+                               <ProgressBar 
+                                 current={noteUsage?.pdfAi || 0}
+                                 total={getNoteLimitsForTier(userCurrentTier).pdfAi}
+                                 isIlluminate={isIlluminateEnabled}
+                               />
+                             </div>
+
+                             <div>
+                               <label className={`block text-sm font-medium mb-0.5 ${headingClass}`}>YouTube Notes</label>
+                               <ProgressBar
+                                 current={noteUsage?.youtube || 0}
+                                 total={getNoteLimitsForTier(userCurrentTier).youtube}
+                                 isIlluminate={isIlluminateEnabled}
+                               />
+                             </div>
+                           </div>
+                           <p className={`mt-5 pt-3 border-t text-center text-xs ${subheadingClass} ${isIlluminateEnabled ? 'border-gray-200' : 'border-gray-700/60'}`}>
+                             Usage limits reset on {getNextMonthResetDate()}.
+                           </p>
+                         </>
+                       )}
+                     </div>
+                 )}
                </div>
              </div>
         </div>
