@@ -73,10 +73,10 @@ import {
 } from '../lib/ai-context-firebase';
 
 
-const geminiEndpointSSE = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}&alt=sse`;
+const geminiEndpointSSE = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}&alt=sse`;
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
-const GEMINI_TEXT_MODEL = 'gemini-2.0-flash';
-const GEMINI_IMAGE_GEN_MODEL = 'gemini-2.0-flash-preview-image-generation';
+const GEMINI_TEXT_MODEL = 'gemini-2.5-flash';
+const GEMINI_IMAGE_GEN_MODEL = 'gemini-2.5-flash-preview-image-generation';
 
 interface TimerMessage { type: 'timer'; duration: number; id: string; }
 interface FlashcardData { id: string; question: string; answer: string; topic: string; }
