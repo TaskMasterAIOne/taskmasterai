@@ -1,3 +1,4 @@
+
 /* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -68,7 +69,7 @@ import { AMBIENT_SOUND_FILES, type AmbientSound as AmbientSoundFile } from '../l
 
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
-const GEMINI_TEXT_MODEL = 'gemini-1.5-flash-latest';
+const GEMINI_TEXT_MODEL = 'gemini-2.0-flash';
 
 interface ChatMessageDisplayData {
   id: string;
@@ -1297,7 +1298,7 @@ Assistant:`;
     return 'default';
   }, [isIlluminateEnabled, isBlackoutEnabled]);
 
-  const fsBgColor = fsTheme === 'illuminate' ? 'bg-slate-100' : fsTheme === 'blackout' ? 'bg-black' : 'bg-gray-950';
+  const fsBgColor = fsTheme === 'illuminate' ? 'bg-slate-100' : fsTheme === 'blackout' ? 'bg-black' : 'bg-gradient-to-br from-gray-900 to-gray-950';
   const fsTextColor = fsTheme === 'illuminate' ? 'text-gray-900' : 'text-gray-100';
   const fsSubtleTextColor = fsTheme === 'illuminate' ? 'text-gray-600' : 'text-gray-400';
   const fsCardBg = fsTheme === 'illuminate' ? 'bg-white/70' : fsTheme === 'blackout' ? 'bg-gray-900/70' : 'bg-gray-800/60';
@@ -1311,16 +1312,19 @@ Assistant:`;
 
   return (
     <div className={`${containerClass} min-h-screen w-full overflow-hidden relative font-sans`}>
-      <Sidebar userName={userName} isCollapsed={isSidebarCollapsed} onToggle={() => setIsSidebarCollapsed(p => !p)} isBlackoutEnabled={isBlackoutEnabled && isSidebarBlackoutEnabled} isIlluminateEnabled={isIlluminateEnabled && isSidebarIlluminateEnabled} />
+      {!isFullscreen && <Sidebar userName={userName} isCollapsed={isSidebarCollapsed} onToggle={() => setIsSidebarCollapsed(p => !p)} isBlackoutEnabled={isBlackoutEnabled && isSidebarBlackoutEnabled} isIlluminateEnabled={isIlluminateEnabled && isSidebarIlluminateEnabled} />}
       <audio ref={audioRef} />
-      <button onClick={() => setIsAiSidebarOpen(true)} className={`fixed bottom-4 md:bottom-6 lg:bottom-8 ${isSidebarCollapsed ? 'right-4 md:right-6' : 'right-4 md:right-6 lg:right-8'} z-40 p-3.5 rounded-full shadow-xl transition-all duration-300 transform hover:scale-110 active:scale-100 ${isIlluminateEnabled ? 'bg-white border border-gray-300 text-blue-600 hover:bg-gray-100' : 'bg-gradient-to-br from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700'} ${isAiSidebarOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`} title="Open Focus AI Chat">
+      <button onClick={() => setIsAiSidebarOpen(true)} className={`fixed bottom-4 md:bottom-6 lg:bottom-8 ${isSidebarCollapsed && !isFullscreen ? 'right-4 md:right-6' : 'right-4 md:right-6 lg:right-8'} z-40 p-3.5 rounded-full shadow-xl transition-all duration-300 transform hover:scale-110 active:scale-100 ${isIlluminateEnabled ? 'bg-white border border-gray-300 text-blue-600 hover:bg-gray-100' : 'bg-gradient-to-br from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700'} ${isAiSidebarOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`} title="Open Focus AI Chat">
         <BrainCircuit className="w-5 h-5" />
       </button>
 
       <motion.main
         layout
-        className={`transition-transform duration-300 ease-in-out min-h-screen ${isSidebarCollapsed ? 'ml-16 md:ml-20' : 'ml-0 md:ml-64'}
-                    ${isFullscreen ? `fixed inset-0 ml-0 !p-0 z-[45] flex flex-col items-stretch justify-start overflow-hidden ${fsBgColor} ${fsTextColor}` : `p-3 md:p-4 lg:p-5 xl:p-6 ${containerClass} overflow-x-hidden`}`}
+        className={`transition-transform duration-300 ease-in-out min-h-screen
+                    ${isFullscreen
+            ? `fixed inset-0 ml-0 !p-0 z-[45] flex flex-col items-stretch justify-start overflow-hidden ${fsBgColor} ${fsTextColor}`
+            : `${isSidebarCollapsed ? 'ml-16 md:ml-20' : 'ml-0 md:ml-64'} p-3 md:p-4 lg:p-5 xl:p-6 ${containerClass} overflow-x-hidden`
+          }`}
         variants={fullscreenContainerVariants}
         animate={isFullscreen ? "fullscreen" : "normal"}
       >
@@ -1335,13 +1339,13 @@ Assistant:`;
             >
               <div className="w-full max-w-6xl mx-auto flex justify-between items-center pt-2">
                 <div className="text-left">
-                  <h1 className="text-xl sm:text-2xl font-bold flex items-center">
-                    <TimerIcon className={`w-6 h-6 sm:w-7 sm:h-7 mr-2 ${fsTheme === 'illuminate' ? 'text-blue-600' : 'text-blue-400'}`} /> Focus Session
+                  <h1 className="text-2xl sm:text-3xl font-bold flex items-center">
+                    <TimerIcon className={`w-7 h-7 sm:w-8 sm:h-8 mr-2.5 ${fsTheme === 'illuminate' ? 'text-blue-600' : 'text-blue-400'}`} /> Focus Session
                   </h1>
-                  {activeSession?.sessionGoalText && <p className={`text-xs sm:text-sm italic mt-1 ${fsSubtleTextColor}`}>Goal: {activeSession.sessionGoalText}</p>}
+                  {activeSession?.sessionGoalText && <p className={`text-sm sm:text-base italic mt-1.5 ${fsSubtleTextColor}`}>Goal: {activeSession.sessionGoalText}</p>}
                 </div>
                 <button onClick={toggleFullscreen} className={`p-2.5 rounded-full transition-colors ${fsIconColor}`} title="Exit Fullscreen">
-                  <X className="w-5 h-5 sm:w-6 sm:h-6" />
+                  <X className="w-6 h-6 sm:w-7 sm:h-7" />
                 </button>
               </div>
 
@@ -1401,7 +1405,7 @@ Assistant:`;
 
               <motion.div
                 initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2, type: 'spring', stiffness: 100 }}
-                className={`w-full max-w-3xl mx-auto mb-4 p-3 sm:p-4 rounded-xl shadow-xl backdrop-blur-md ${fsCardBg} border ${fsInputBorder}`}
+                className={`w-full max-w-4xl mx-auto mb-4 p-3 sm:p-4 rounded-xl shadow-xl backdrop-blur-md ${fsCardBg} border ${fsInputBorder}`}
               >
                 <div className="flex items-center justify-between mb-3">
                   <h3 className={`text-base sm:text-lg font-semibold ${fsTheme === 'illuminate' ? 'text-gray-700' : 'text-gray-300'}`}>Ambient Sound</h3>
@@ -1420,7 +1424,7 @@ Assistant:`;
                     </div>
                   )}
                 </div>
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2 sm:gap-3">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                   {AMBIENT_SOUND_FILES.map(sound => {
                     const IconComponent = sound.icon;
                     const isSelected = selectedAmbientSoundInfo?.id === sound.id;
@@ -1438,7 +1442,7 @@ Assistant:`;
                                             `}
                       >
                         <IconComponent className={`w-5 h-5 sm:w-6 sm:h-6 mb-1 sm:mb-1.5 ${isSelected ? '' : (fsTheme === 'illuminate' ? 'text-gray-600' : 'text-gray-400')}`} />
-                        <span className={`text-[10px] sm:text-xs font-medium truncate w-full text-center ${isSelected ? '' : (fsTheme === 'illuminate' ? 'text-gray-600' : 'text-gray-400')}`}>{sound.name}</span>
+                        <span className={`text-[11px] sm:text-[13px] font-medium w-full text-center leading-snug break-words ${isSelected ? '' : (fsTheme === 'illuminate' ? 'text-gray-600' : 'text-gray-400')}`}>{sound.name}</span>
                       </button>
                     );
                   })}
