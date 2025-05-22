@@ -1,29 +1,27 @@
 import React, { useEffect, useState } from 'react';
-import { useAuth } from '../contexts/AuthContext'; // Adjust path if needed
-import { Loader2, Crown, Gem, Check, AlertCircle } from 'lucide-react'; // Added AlertCircle
-import { subscribeToAuthState } from '../lib/pricing-firebase'; // Adjust path if needed
-import { Logo } from './Logo'; // Adjust path if needed
-import { createCheckoutSession, getStripe } from '../lib/stripe-client'; // Added from NEW
-import { motion } from 'framer-motion';
-// --- IMPORT NEW TIER/USAGE FUNCTIONS AND TYPES ---
+import { useAuth } from '../contexts/AuthContext';
+import { Loader2, Crown, Gem, Check, AlertCircle, GraduationCap } from 'lucide-react';
+import { subscribeToAuthState } from '../lib/pricing-firebase';
+import { Logo } from './Logo';
+import { createCheckoutSession, getStripe } from '../lib/stripe-client';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-    UserTier, // Import the type
-    getUserTier, // <<< THIS IS THE ASYNC FUNCTION
-} from '../lib/current-paying-user'; // Correct path to the new file
+    UserTier,
+    getUserTier,
+} from '../lib/current-paying-user';
+import StudentEmailModal from './StudentEmailModal';
 
-// --- USE YOUR **LIVE** PRICE IDs --- (From NEW code)
 const STRIPE_PRICE_IDS = {
   PREMIUM: {
-    yearly: 'price_1Qe2OnIdgEonJvEbSDwoNCuH', // LIVE ID
-    monthly: 'price_1Qe2JWIdgEonJvEbGUYEkTu6' // LIVE ID
+    yearly: 'price_1Qe2OnIdgEonJvEbSDwoNCuH',
+    monthly: 'price_1Qe2JWIdgEonJvEbGUYEkTu6'
   },
   PRO: {
-    yearly: 'price_1Qe2QaIdgEonJvEbaq1M4CQs', // LIVE ID
-    monthly: 'price_1Qe2NXIdgEonJvEbxSUK8dMB' // LIVE ID
+    yearly: 'price_1Qe2QaIdgEonJvEbaq1M4CQs',
+    monthly: 'price_1Qe2NXIdgEonJvEbxSUK8dMB'
   }
 };
 
-// Helper type for plan names
 type PlanName = 'PREMIUM' | 'PRO' | 'BASIC';
 
 function Pricing() {
@@ -34,6 +32,10 @@ function Pricing() {
   const [isCheckingOut, setIsCheckingOut] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [userCurrentTier, setUserCurrentTier] = useState<UserTier>('loading');
+
+  const [showStudentOfferOnProCard, setShowStudentOfferOnProCard] = useState(false);
+  const [cardGridGlowActive, setCardGridGlowActive] = useState(false);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
 
   const toggleMenu = () => {
     setIsOpen(!isOpen);
@@ -54,11 +56,49 @@ function Pricing() {
           setUserCurrentTier('basic');
         }
       } else {
-        setUserCurrentTier('loading');
+        setUserCurrentTier('basic');
       }
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    let canPotentiallyShowOffer = false;
+    if (!user) {
+      canPotentiallyShowOffer = true;
+    } else {
+      if (userCurrentTier === 'basic') {
+        canPotentiallyShowOffer = true;
+      } else {
+        canPotentiallyShowOffer = false;
+      }
+    }
+
+    if (!canPotentiallyShowOffer) {
+      setShowStudentOfferOnProCard(false);
+      setCardGridGlowActive(false);
+      return;
+    }
+
+    const glowDelay = 250;
+    const glowDuration = 900;
+    const offerRevealDelay = glowDelay + glowDuration - 200;
+
+    const glowTimer = setTimeout(() => {
+      setCardGridGlowActive(true);
+    }, glowDelay);
+
+    const offerTimer = setTimeout(() => {
+      setShowStudentOfferOnProCard(true);
+      setCardGridGlowActive(false);
+    }, offerRevealDelay);
+
+    return () => {
+      clearTimeout(glowTimer);
+      clearTimeout(offerTimer);
+    };
+  }, [user, userCurrentTier]);
+
 
   const handleSubscribe = async (priceId: string, targetPlan: PlanName) => {
     if (!user) {
@@ -79,24 +119,19 @@ function Pricing() {
     setCheckoutError(null);
 
     try {
-      console.log(`Initiating LIVE checkout for priceId: ${priceId}`);
       const { sessionId } = await createCheckoutSession(priceId);
-      console.log(`Received LIVE sessionId: ${sessionId}`);
-
       const stripe = await getStripe();
       if (!stripe) { throw new Error('Stripe.js failed to load.'); }
-      console.log("Stripe.js loaded, redirecting to LIVE checkout...");
-
       const { error } = await stripe.redirectToCheckout({ sessionId });
-
       if (error) {
         console.error("Stripe redirection error:", error);
         setCheckoutError(error.message || 'Could not redirect to Stripe.');
+        setIsCheckingOut(null);
       }
     } catch (error: any) {
-      console.error("LIVE Subscription handling error:", error);
-      setCheckoutError(error.message || 'Failed to initiate LIVE subscription.');
-       setIsCheckingOut(null);
+      console.error("Subscription handling error:", error);
+      setCheckoutError(error.message || 'Failed to initiate subscription.');
+      setIsCheckingOut(null);
     }
   };
 
@@ -104,31 +139,30 @@ function Pricing() {
     const isLoadingThisButton = isCheckingOut === targetPriceId;
 
     if (isLoadingThisButton) {
-        return { text: "Processing...", disabled: true, isCurrent: false, isLoading: true };
+        return { text: "Processing...", disabled: true, isCurrent: false, isLoading: true, isDowngrade: false };
     }
-
-    if (userCurrentTier === 'loading') {
-        return { text: "Loading Plans...", disabled: true, isCurrent: false, isLoading: false };
+    if (user && userCurrentTier === 'loading') {
+        return { text: "Loading Plans...", disabled: true, isCurrent: false, isLoading: false, isDowngrade: false };
     }
 
     switch (planName) {
         case 'PREMIUM':
-            if (userCurrentTier === 'premium') return { text: "Current Plan", disabled: true, isCurrent: true, isLoading: false };
-            if (userCurrentTier === 'pro' || userCurrentTier === 'basic') return { text: "Upgrade to Premium", disabled: false, isCurrent: false, isLoading: false };
+            if (user && userCurrentTier === 'premium') return { text: "Current Plan", disabled: true, isCurrent: true, isLoading: false, isDowngrade: false };
+            if (!user || (user && userCurrentTier !== 'premium')) return { text: "Upgrade to Premium", disabled: false, isCurrent: false, isLoading: false, isDowngrade: false };
             break;
         case 'PRO':
-            if (userCurrentTier === 'pro') return { text: "Current Plan", disabled: true, isCurrent: true, isLoading: false };
-            if (userCurrentTier === 'premium') return { text: "Manage Subscription", disabled: false, isCurrent: false, isDowngrade: true, isLoading: false };
-            if (userCurrentTier === 'basic') return { text: "Upgrade to Pro", disabled: false, isCurrent: false, isLoading: false };
+            if (user && userCurrentTier === 'pro') return { text: "Current Plan", disabled: true, isCurrent: true, isLoading: false, isDowngrade: false };
+            if (user && userCurrentTier === 'premium') return { text: "Manage Subscription", disabled: false, isCurrent: false, isDowngrade: true, isLoading: false };
+             if (!user || (user && userCurrentTier === 'basic')) return { text: "Upgrade to Pro", disabled: false, isCurrent: false, isLoading: false, isDowngrade: false };
             break;
         default:
             break;
     }
-    return { text: "Subscribe Now", disabled: false, isCurrent: false, isLoading: false };
+    return { text: "Subscribe Now", disabled: false, isCurrent: false, isLoading: false, isDowngrade: false };
   };
 
 
-  if (loading && userCurrentTier === 'loading') {
+  if (loading && !user && userCurrentTier === 'loading') {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
@@ -179,7 +213,6 @@ function Pricing() {
 
   const premiumButtonInfo = getButtonInfo('PREMIUM', premiumStripePriceId);
   const proButtonInfo = getButtonInfo('PRO', proStripePriceId);
-
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-900 font-poppins">
@@ -242,6 +275,7 @@ function Pricing() {
         </div>
       </motion.header>
 
+
       <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-8 text-white w-full">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -293,175 +327,226 @@ function Pricing() {
         )}
 
         <motion.div
-          initial="hidden"
-          animate="visible"
-          variants={containerVariants}
-          className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch"
+            className="relative rounded-xl"
+            animate={cardGridGlowActive ? {
+                boxShadow: [
+                    "0 0 0px 0px rgba(129, 140, 248, 0)",
+                    "0 0 40px 8px rgba(129, 140, 248, 0.5)",
+                    "0 0 0px 0px rgba(129, 140, 248, 0)"
+                ],
+            } : {
+                boxShadow: "0 0 0px 0px rgba(129, 140, 248, 0)"
+            }}
+            transition={cardGridGlowActive ? { duration: 0.9, ease: "circOut" } : { duration: 0.3 }}
         >
-
-          <motion.div
-            variants={cardVariants}
-            className="bg-gray-800 rounded-xl flex flex-col overflow-hidden border border-gray-800 hover:shadow-lg hover:shadow-indigo-500/30 transition-shadow duration-300"
-          >
-             <div className={`${bannerHeightClass} invisible`}></div>
-             <div className="p-6 flex flex-col flex-grow">
-                <div className="flex-grow mb-6">
-                    <h2 className="text-2xl font-bold mb-4">Basic</h2>
-                    <p className="text-3xl font-extrabold text-indigo-400 mb-1">Free</p>
-                    <p className="text-sm text-gray-400 mb-4">Forever free</p>
-                    <ul className="mb-6 space-y-2 text-gray-300">
-                        {renderFeatureItem("2 PDF and Text Notes per month")}
-                        {renderFeatureItem("1 YouTube Notes per month")}
-                        {renderFeatureItem("10 AI Chat Interactions per month")}
-                        {renderFeatureItem("500 Tokens Included")}
-                        {renderFeatureItem("Add Up to 3 Friends")}
-                    </ul>
-                </div>
-                <div className="mt-auto">
-                    <motion.a
-                        variants={buttonVariants}
-                        whileHover="hover"
-                        whileTap="tap"
-                        href={user ? "/dashboard" : "/signup"}
-                        className={`block w-full text-center py-3 rounded-full font-semibold transition-transform ${userCurrentTier === 'basic' ? 'bg-gray-600 text-gray-400 cursor-default' : 'bg-indigo-500 text-white'}`}
-                    >
-                        {userCurrentTier === 'basic' ? 'Current Plan' : (user ? 'Access Dashboard' : 'Sign Up Free')}
-                    </motion.a>
-                </div>
-             </div>
-          </motion.div>
-
-          <motion.div
-            variants={cardVariants}
-            className="bg-gray-800 rounded-xl flex flex-col border-2 border-indigo-500 overflow-hidden hover:shadow-xl hover:shadow-indigo-400/40 transition-shadow duration-300 relative"
-          >
-            <div className={`${bannerHeightClass} flex items-center justify-center`}>
-             {isYearly && (
-                <div className="bg-yellow-500 text-black text-xs font-bold w-full h-full flex items-center justify-center px-4 text-center truncate">
-                 {recommendationText}
-                </div>
-             )}
-             {!isYearly && <div className="w-full h-full invisible"></div>}
-            </div>
-            <div className="p-6 flex flex-col flex-grow">
-                <div className="flex-grow mb-6">
-                    <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">
-                        <Crown className="w-6 h-6 text-yellow-400" />
-                        Premium
-                    </h2>
-                    <p className="text-3xl font-extrabold text-indigo-400 mb-1">{premiumPriceText}</p>
-                    <p className="text-sm text-gray-400 mb-4">{premiumBillingText}</p>
-                    <ul className="mb-6 space-y-2 text-gray-300">
-                        {renderFeatureItem("Unlimited PDF and Text Notes")}
-                        {renderFeatureItem("Unlimited YouTube Notes")}
-                        {renderFeatureItem("Unlimited AI Chat Interactions")}
-                        {renderFeatureItem("2,500 Tokens Included")}
-                        {renderFeatureItem("Add Unlimited Friends")}
-                        {renderFeatureItem("Unlimited Access to Smart Overview")}
-                    </ul>
-                </div>
-                <div className="mt-auto">
-                    {user ? (
-                        <motion.button
-                            variants={buttonVariants}
-                            whileHover={premiumButtonInfo.disabled ? "" : "hover"}
-                            whileTap={premiumButtonInfo.disabled ? "" : "tap"}
-                            onClick={() => {
-                                if(premiumButtonInfo.isDowngrade){ // Should not happen for premium
-                                    window.location.href = '/settings';
-                                } else if (!premiumButtonInfo.disabled) {
-                                    handleSubscribe(premiumStripePriceId, 'PREMIUM');
-                                }
-                            }}
-                            disabled={premiumButtonInfo.disabled || (!!isCheckingOut && !premiumButtonInfo.isLoading)}
-                            className={`w-full text-center py-3 rounded-full font-semibold transition-transform flex items-center justify-center gap-2 ${
-                                premiumButtonInfo.disabled && premiumButtonInfo.isCurrent ? 'bg-gray-600 text-gray-400 cursor-default' :
-                                'bg-white text-indigo-600 hover:bg-gray-100'
-                            } ${(!!isCheckingOut && !premiumButtonInfo.isLoading) ? 'opacity-60 cursor-not-allowed' : ''}`}
-                        >
-                            {premiumButtonInfo.isLoading ? (
-                                <> <Loader2 className="w-5 h-5 animate-spin" /> {premiumButtonInfo.text} </>
-                            ) : (
-                                premiumButtonInfo.text
-                            )}
-                        </motion.button>
-                    ) : (
+            <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={containerVariants}
+            className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch"
+            >
+            <motion.div
+                variants={cardVariants}
+                className="bg-gray-800 rounded-xl flex flex-col overflow-hidden border border-gray-800 hover:shadow-lg hover:shadow-indigo-500/30 transition-shadow duration-300"
+            >
+                <div className={`${bannerHeightClass} invisible`}></div>
+                <div className="p-6 flex flex-col flex-grow">
+                    <div className="flex-grow mb-6">
+                        <h2 className="text-2xl font-bold mb-4">Basic</h2>
+                        <p className="text-3xl font-extrabold text-indigo-400 mb-1">Free</p>
+                        <p className="text-sm text-gray-400 mb-4">Forever free</p>
+                        <ul className="mb-6 space-y-2 text-gray-300">
+                            {renderFeatureItem("2 PDF and Text Notes per month")}
+                            {renderFeatureItem("1 YouTube Notes per month")}
+                            {renderFeatureItem("10 AI Chat Interactions per month")}
+                            {renderFeatureItem("500 Tokens Included")}
+                            {renderFeatureItem("Add Up to 3 Friends")}
+                        </ul>
+                    </div>
+                    <div className="mt-auto">
                         <motion.a
                             variants={buttonVariants}
-                            whileHover="hover"
-                            whileTap="tap"
-                            href="/signup"
-                            className="block w-full text-center py-3 rounded-full font-semibold bg-white text-indigo-600 transition-transform"
-                        >
-                            Sign Up to Subscribe
-                        </motion.a>
-                    )}
-                </div>
-            </div>
-          </motion.div>
-
-          <motion.div
-            variants={cardVariants}
-            className="bg-gray-800 rounded-xl flex flex-col overflow-hidden border border-gray-800 hover:shadow-lg hover:shadow-purple-500/30 transition-shadow duration-300"
-          >
-             <div className={`${bannerHeightClass} invisible`}></div>
-             <div className="p-6 flex flex-col flex-grow">
-                <div className="flex-grow mb-6">
-                    <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-                        <Gem className="w-6 h-6 text-purple-400" />
-                        Pro
-                    </h2>
-                    <p className="text-3xl font-extrabold text-indigo-400 mb-1">{proPriceText}</p>
-                    <p className="text-sm text-gray-400 mb-4">{proBillingText}</p>
-                    <ul className="mb-6 space-y-2 text-gray-300">
-                        {renderFeatureItem("10 PDF and Text Notes per month")}
-                        {renderFeatureItem("5 YouTube Notes per month")}
-                        {renderFeatureItem("200 AI Chat Interactions per Month")}
-                        {renderFeatureItem("1,000 Tokens Included")}
-                        {renderFeatureItem("Add Up to 10 Friends")}
-                        {renderFeatureItem("Limited Access to Smart Overview")}
-                    </ul>
-                </div>
-                <div className="mt-auto">
-                     {user ? (
-                        <motion.button
-                            variants={buttonVariants}
-                            whileHover={proButtonInfo.disabled ? "" : "hover"}
-                            whileTap={proButtonInfo.disabled ? "" : "tap"}
-                            onClick={() => {
-                                if(proButtonInfo.isDowngrade){
-                                     window.location.href = '/settings'; // Or Stripe portal directly
-                                } else if (!proButtonInfo.disabled) {
-                                    handleSubscribe(proStripePriceId, 'PRO');
-                                }
-                            }}
-                            disabled={proButtonInfo.disabled || (!!isCheckingOut && !proButtonInfo.isLoading)}
-                            className={`w-full text-center py-3 rounded-full font-semibold transition-transform flex items-center justify-center gap-2 ${
-                                proButtonInfo.disabled && proButtonInfo.isCurrent ? 'bg-gray-600 text-gray-400 cursor-default' :
-                                proButtonInfo.isDowngrade ? 'bg-purple-600 text-white hover:bg-purple-700' :
+                            whileHover={ (user && userCurrentTier === 'basic') ? "" : "hover" }
+                            whileTap={ (user && userCurrentTier === 'basic') ? "" : "tap" }
+                            href={user ? "/dashboard" : "/signup"}
+                            className={`block w-full text-center py-3 rounded-full font-semibold transition-transform ${
+                                user && userCurrentTier === 'basic' ? 'bg-gray-600 text-gray-400 cursor-default' :
                                 'bg-indigo-500 text-white hover:bg-indigo-600'
-                            } ${(!!isCheckingOut && !proButtonInfo.isLoading) ? 'opacity-60 cursor-not-allowed' : ''}`}
+                            }`}
                         >
-                           {proButtonInfo.isLoading ? (
-                                <> <Loader2 className="w-5 h-5 animate-spin" /> {proButtonInfo.text} </>
-                            ) : (
-                                proButtonInfo.text
-                            )}
-                        </motion.button>
-                    ) : (
-                        <motion.a
-                            variants={buttonVariants}
-                            whileHover="hover"
-                            whileTap="tap"
-                            href="/signup"
-                            className="block w-full text-center py-3 rounded-full font-semibold bg-indigo-500 text-white transition-transform"
-                        >
-                            Sign Up to Subscribe
+                            {user && userCurrentTier === 'basic' ? 'Current Plan' : (user ? 'Access Dashboard' : 'Sign Up Free')}
                         </motion.a>
-                    )}
+                    </div>
                 </div>
-             </div>
-          </motion.div>
+            </motion.div>
+
+            <motion.div
+                variants={cardVariants}
+                className="bg-gray-800 rounded-xl flex flex-col border-2 border-indigo-500 overflow-hidden hover:shadow-xl hover:shadow-indigo-400/40 transition-shadow duration-300 relative"
+            >
+                <div className={`${bannerHeightClass} flex items-center justify-center w-full`}>
+                    <AnimatePresence mode="wait">
+                        {isYearly ? (
+                            <motion.div
+                                key="recommendationPremium"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="bg-yellow-500 text-black text-xs font-bold w-full h-full flex items-center justify-center px-4 text-center truncate"
+                            >
+                                {recommendationText}
+                            </motion.div>
+                        ) : (
+                            <div key="spacerPremium" className="w-full h-full invisible"></div>
+                        )}
+                    </AnimatePresence>
+                </div>
+                <div className="p-6 flex flex-col flex-grow">
+                    <div className="flex-grow mb-6">
+                        <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">
+                            <Crown className="w-6 h-6 text-yellow-400" />
+                            Premium
+                        </h2>
+                        <p className="text-3xl font-extrabold text-indigo-400 mb-1">{premiumPriceText}</p>
+                        <p className="text-sm text-gray-400 mb-4">{premiumBillingText}</p>
+                        <ul className="mb-6 space-y-2 text-gray-300">
+                            {renderFeatureItem("Unlimited PDF and Text Notes")}
+                            {renderFeatureItem("Unlimited YouTube Notes")}
+                            {renderFeatureItem("Unlimited AI Chat Interactions")}
+                            {renderFeatureItem("2,500 Tokens Included")}
+                            {renderFeatureItem("Add Unlimited Friends")}
+                            {renderFeatureItem("Unlimited Access to Smart Overview")}
+                        </ul>
+                    </div>
+                    <div className="mt-auto">
+                        {user ? (
+                            <motion.button
+                                variants={buttonVariants}
+                                whileHover={premiumButtonInfo.disabled ? "" : "hover"}
+                                whileTap={premiumButtonInfo.disabled ? "" : "tap"}
+                                onClick={() => {
+                                    if(premiumButtonInfo.isDowngrade){
+                                        window.location.href = '/settings';
+                                    } else if (!premiumButtonInfo.disabled) {
+                                        handleSubscribe(premiumStripePriceId, 'PREMIUM');
+                                    }
+                                }}
+                                disabled={premiumButtonInfo.disabled || (!!isCheckingOut && !premiumButtonInfo.isLoading)}
+                                className={`w-full text-center py-3 rounded-full font-semibold transition-transform flex items-center justify-center gap-2 ${
+                                    premiumButtonInfo.disabled && premiumButtonInfo.isCurrent ? 'bg-gray-600 text-gray-400 cursor-default' :
+                                    'bg-white text-indigo-600 hover:bg-gray-100'
+                                } ${(!!isCheckingOut && !premiumButtonInfo.isLoading) ? 'opacity-60 cursor-not-allowed' : ''}`}
+                            >
+                                {premiumButtonInfo.isLoading ? (
+                                    <> <Loader2 className="w-5 h-5 animate-spin" /> {premiumButtonInfo.text} </>
+                                ) : (
+                                    premiumButtonInfo.text
+                                )}
+                            </motion.button>
+                        ) : (
+                            <motion.a
+                                variants={buttonVariants}
+                                whileHover="hover"
+                                whileTap="tap"
+                                href="/signup"
+                                className="block w-full text-center py-3 rounded-full font-semibold bg-white text-indigo-600 transition-transform"
+                            >
+                                Sign Up to Subscribe
+                            </motion.a>
+                        )}
+                    </div>
+                </div>
+            </motion.div>
+
+            <motion.div
+                variants={cardVariants}
+                className="bg-gray-800 rounded-xl flex flex-col overflow-hidden border border-gray-800 hover:shadow-lg hover:shadow-purple-500/30 transition-shadow duration-300 relative"
+            >
+                 <div className={`${bannerHeightClass} flex items-center justify-center w-full`}>
+                    <AnimatePresence mode="wait">
+                        {showStudentOfferOnProCard ? (
+                            <motion.div
+                                key="studentOfferActualPro"
+                                initial={{ opacity: 0, y: -20, scale: 0.9 }}
+                                animate={{
+                                  opacity: 1, y: 0, scale: 1,
+                                  transition: { type: "spring", stiffness: 300, damping: 20, duration: 0.5 }
+                                }}
+                                exit={{ opacity: 0, y: 10, scale: 0.95, transition: { duration: 0.2 } }}
+                                className="w-full h-full bg-gradient-to-r from-purple-600 via-indigo-500 to-pink-500 text-white text-xs font-semibold flex flex-col items-center justify-center px-1.5 text-center leading-tight cursor-default"
+                            >
+                                <div className="flex items-center gap-1">
+                                    <GraduationCap className="w-3.5 h-3.5 shrink-0" />
+                                    <span>Student Offer!</span>
+                                </div>
+                                <span className="block">2 Months PRO FREE!
+                                  <button onClick={() => setIsEmailModalOpen(true)} className="underline hover:text-yellow-300 ml-1">Email</button> /
+                                  <a href="https://www.instagram.com/taskmasteroneai" target="_blank" rel="noopener noreferrer" className="underline hover:text-yellow-300 ml-1">DM</a>.
+                                </span>
+                            </motion.div>
+                        ) : (
+                            <div key="spacerActualPro" className="w-full h-full invisible"></div>
+                        )}
+                    </AnimatePresence>
+                </div>
+                <div className="p-6 flex flex-col flex-grow">
+                     <div className="flex-grow mb-6">
+                        <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                            <Gem className="w-6 h-6 text-purple-400" />
+                            Pro
+                        </h2>
+                        <p className="text-3xl font-extrabold text-indigo-400 mb-1">{proPriceText}</p>
+                        <p className="text-sm text-gray-400 mb-4">{proBillingText}</p>
+                        <ul className="mb-6 space-y-2 text-gray-300">
+                            {renderFeatureItem("10 PDF and Text Notes per month")}
+                            {renderFeatureItem("5 YouTube Notes per month")}
+                            {renderFeatureItem("200 AI Chat Interactions per Month")}
+                            {renderFeatureItem("1,000 Tokens Included")}
+                            {renderFeatureItem("Add Up to 10 Friends")}
+                            {renderFeatureItem("Limited Access to Smart Overview")}
+                        </ul>
+                    </div>
+                    <div className="mt-auto">
+                        {user ? (
+                            <motion.button
+                                variants={buttonVariants}
+                                whileHover={proButtonInfo.disabled ? "" : "hover"}
+                                whileTap={proButtonInfo.disabled ? "" : "tap"}
+                                onClick={() => {
+                                    if(proButtonInfo.isDowngrade){
+                                        window.location.href = '/settings';
+                                    } else if (!proButtonInfo.disabled) {
+                                        handleSubscribe(proStripePriceId, 'PRO');
+                                    }
+                                }}
+                                disabled={proButtonInfo.disabled || (!!isCheckingOut && !proButtonInfo.isLoading)}
+                                className={`w-full text-center py-3 rounded-full font-semibold transition-transform flex items-center justify-center gap-2 ${
+                                    proButtonInfo.disabled && proButtonInfo.isCurrent ? 'bg-gray-600 text-gray-400 cursor-default' :
+                                    proButtonInfo.isDowngrade ? 'bg-purple-600 text-white hover:bg-purple-700' :
+                                    'bg-indigo-500 text-white hover:bg-indigo-600'
+                                } ${(!!isCheckingOut && !proButtonInfo.isLoading) ? 'opacity-60 cursor-not-allowed' : ''}`}
+                            >
+                            {proButtonInfo.isLoading ? (
+                                    <> <Loader2 className="w-5 h-5 animate-spin" /> {proButtonInfo.text} </>
+                                ) : (
+                                    proButtonInfo.text
+                                )}
+                            </motion.button>
+                        ) : (
+                            <motion.a
+                                variants={buttonVariants}
+                                whileHover="hover"
+                                whileTap="tap"
+                                href="/signup"
+                                className="block w-full text-center py-3 rounded-full font-semibold bg-indigo-500 text-white transition-transform"
+                            >
+                                Sign Up to Subscribe
+                            </motion.a>
+                        )}
+                    </div>
+                </div>
+            </motion.div>
+            </motion.div>
         </motion.div>
       </main>
 
@@ -483,6 +568,11 @@ function Pricing() {
           </div>
         </div>
       </footer>
+
+      <StudentEmailModal
+        isOpen={isEmailModalOpen}
+        onClose={() => setIsEmailModalOpen(false)}
+      />
     </div>
   );
 }
