@@ -22,7 +22,8 @@ import {
     Send,            // Send icon
     Loader2,         // Loading icon
     History,         // Icon for Incident History
-    Clock           // Icon for Coming Soon
+    Clock,           // Icon for Coming Soon (used for status badge if needed)
+    Sparkles        // Icon for New Feature (alternative)
 } from 'lucide-react';
 
 // Assuming API Key is accessible
@@ -151,29 +152,35 @@ const serviceStatus = [
   { name: "Dashboard", icon: LayoutDashboard, uptime: "99.99%", majorIssue: null, description: "Core application interface and widgets." },
   { name: "Notes", icon: NotebookText, uptime: "99.98%", majorIssue: null, description: "Note-taking, editing, and organization features." },
   { name: "Calendar", icon: CalendarDays, uptime: "99.95%", majorIssue: null, description: "Event scheduling and calendar synchronization." },
-  { name: "Friends", icon: Users, uptime: "99.92%", majorIssue: "The Friends feature is currently experiencing a major outage. It was identified that the feature was causing instability and crashes in other parts of the application. Underlying code, logic, and AI integrations require investigation and fixes. We are working to resolve this.", description: "Social features, friend requests, and sharing." },
+  { name: "Friends", icon: Users, uptime: "99.92%", majorIssue: null, description: "Social features, friend requests, and sharing. Functionality has been fully restored after a previous outage." },
   { name: "Community", icon: Globe2, uptime: "99.88%", majorIssue: null, description: "File sharing, discovery, and community interactions." },
   { name: "Folders", icon: FolderKanban, uptime: "100.00%", majorIssue: null, description: "File and note organization using folders." },
   {
     name: "Focus Mode",
     icon: Eye,
-    uptime: null, // Not applicable yet
-    majorIssue: null, // Not an outage
-    statusText: "Coming Soon", // Explicit status text
-    statusColorClass: "text-blue-400 bg-blue-900/30 border-blue-700/50", // Specific styling class
-    description: "Upcoming distraction-free work environment feature." // Updated description
+    uptime: "100.00%",
+    majorIssue: null,
+    description: "Distraction-free work environment feature. Now available for all users!",
+    isNewFeature: true, // Flag for new feature
   },
   { name: "AI Assistant", icon: BrainCircuit, uptime: "99.87%", majorIssue: null, description: "In-app AI chat, summarization, and generation." },
   { name: "Settings", icon: Settings, uptime: "99.96%", majorIssue: null, description: "User account and application preferences." },
 ];
 
-// Incident History Data
+// Incident History Data - Newest first
 const incidentHistory = [
+    {
+        date: "Identified prior to April 18, 2025", // When the issue was known/reported in previous status
+        title: "Friends Feature Major Outage & Resolution",
+        description: "The Friends feature experienced a period of major instability due to complex state management and AI integration bugs, which led to crashes in other parts of the application. Our engineering team conducted a thorough investigation, addressed the root causes related to code, logic, and AI integrations, and deployed fixes. The feature is now fully operational and stable.",
+        resolvedDate: "May 21, 2025",
+        status: "Resolved"
+    },
     {
         date: "March 4, 2:59 PM EST",
         title: "Major Outage - Notes Feature",
         description: "We experienced a major outage affecting the Notes feature. Due to performance issues with underlying AI models, the system was unable to generate notes reliably during this time. Our team identified the root cause and implemented a fix to restore full functionality. We apologize for the inconvenience and appreciate your patience.",
-        resolvedDate: "April 13",
+        resolvedDate: "April 13, 2025", // Ensure year consistency if needed
         status: "Resolved"
     },
 ];
@@ -192,7 +199,7 @@ const Status = () => {
   const [isAiSidebarOpen, setIsAiSidebarOpen] = useState(false);
   const [chatMessage, setChatMessage] = useState('');
   const [chatHistory, setChatHistory] = useState<any[]>([
-     { id: 'ai-status-greet', role: 'assistant', content: "Hi! I'm the Status Page Assistant. Ask me about the current status of our services (including upcoming ones!) or past incidents." }
+     { id: 'ai-status-greet', role: 'assistant', content: "Hi! I'm the Status Page Assistant. Ask me about the current status of our services (including newly launched ones!) or past incidents." }
   ]);
   const [isChatLoading, setIsChatLoading] = useState(false);
 
@@ -205,7 +212,7 @@ const Status = () => {
   const overallStatusColor = hasMajorOutage ? "text-red-400" : "text-green-400";
 
   // Last updated time
-  const lastUpdated = "April 18, 2025; 4:30 PM EST";
+  const lastUpdated = "May 22, 2025; 10:20 AM EST";
 
    // --- AI Chat Submit Handler ---
    const handleChatSubmit = useCallback(async (e: React.FormEvent) => {
@@ -224,22 +231,28 @@ const Status = () => {
     // Prepare context for the AI - Current Status + Incident History
     const statusContext = serviceStatus.map(s => {
         let statusString = '';
-        if (s.statusText === "Coming Soon") {
+        // Explicitly cast 's' to include potential 'statusText' and 'isNewFeature'
+        const serviceWithType = s as typeof s & { statusText?: string; isNewFeature?: boolean };
+
+        if (serviceWithType.statusText === "Coming Soon") { // Should not hit for Focus Mode anymore
             statusString = "Coming Soon";
-        } else if (s.majorIssue) {
-            statusString = `Major Outage (Issue: ${s.majorIssue})`;
+        } else if (serviceWithType.majorIssue) {
+            statusString = `Major Outage (Issue: ${serviceWithType.majorIssue})`;
         } else {
-            statusString = `Operational (Uptime: ${s.uptime || 'N/A'})`; // Handle null uptime
+            statusString = `Operational (Uptime: ${serviceWithType.uptime || 'N/A'})`;
+            if (serviceWithType.isNewFeature) {
+                statusString += " - Newly Launched!";
+            }
         }
-        return `- ${s.name}: Status ${statusString}`;
+        return `- ${serviceWithType.name}: Status ${statusString}`;
     }).join('\n');
 
     const historyContext = incidentHistory.map(inc =>
-        `- Date: ${inc.date}, Title: ${inc.title}, Status: ${inc.status}${inc.resolvedDate ? `, Resolved: ${inc.resolvedDate}` : ''}. Summary: ${inc.description.substring(0, 100)}...`
+        `- Date: ${inc.date}, Title: ${inc.title}, Status: ${inc.status}${inc.resolvedDate ? `, Resolved: ${inc.resolvedDate}` : ''}. Summary: ${inc.description.substring(0, 150)}...` // Increased summary length
     ).join('\n');
 
     const prompt = `
-You are the TaskMaster Status Page AI Assistant. Your knowledge includes the current service status (including upcoming features) and past incident history provided below. You cannot access user data, dashboards, notes, community files, or any other part of the TaskMaster application.
+You are the TaskMaster Status Page AI Assistant. Your knowledge includes the current service status (including newly launched and upcoming features) and past incident history provided below. You cannot access user data, dashboards, notes, community files, or any other part of the TaskMaster application.
 
 **Current Service Status (as of ${lastUpdated}):**
 ${statusContext}
@@ -248,11 +261,11 @@ ${statusContext}
 ${historyContext}
 
 **Your Task:**
-1.  Answer user questions about the **current status** of the services listed (e.g., "Is the Dashboard down?", "What's the uptime for Community?", "What's wrong with the Friends feature?", "When is Focus Mode coming?"). Handle "Coming Soon" status appropriately.
-2.  Answer user questions about **past incidents** listed in the history (e.g., "What happened on March 4th?", "Tell me about the Notes outage.").
+1.  Answer user questions about the **current status** of the services listed (e.g., "Is the Dashboard down?", "What's the uptime for Community?", "Is Friends working now?", "Is Focus Mode available?"). Handle "Coming Soon" (if any) and "Newly Launched!" status appropriately.
+2.  Answer user questions about **past incidents** listed in the history (e.g., "What happened to the Friends feature?", "Tell me about the Notes outage.").
 3.  If asked about a service not listed or an incident not in the history, state that you don't have information on it.
 4.  If asked for help with specific account issues, login problems, or anything beyond the provided status and history, politely state that you cannot help with that and suggest contacting support or checking the main application.
-5.  Keep responses concise and based *strictly* on the provided status and history information. Do not speculate on release dates unless explicitly stated (which it isn't here for 'Coming Soon').
+5.  Keep responses concise and based *strictly* on the provided status and history information. Do not speculate on release dates unless explicitly stated.
 
 **Conversation History (Last few turns):**
 ${chatHistory.slice(-4).map(m => `${m.role}: ${m.content}`).join('\n')}
@@ -403,21 +416,19 @@ Assistant:`;
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-6"
         >
           {serviceStatus.map((service, index) => {
-            // Type assertion for properties that might not exist on all objects
-            const typedService = service as typeof service & { statusText?: string; statusColorClass?: string };
+            const typedService = service as typeof service & { statusText?: string; statusColorClass?: string; isNewFeature?: boolean };
             const IconComponent = typedService.icon;
             const isOutage = Boolean(typedService.majorIssue);
-            const isComingSoon = typedService.statusText === "Coming Soon";
+            const isComingSoon = typedService.statusText === "Coming Soon"; // This will be false for Focus Mode now
 
-            // Determine status text and color based on priority: Coming Soon > Major Outage > Operational
             let displayStatusText: string;
             let displayStatusColorClass: string;
-            let displayUptime = typedService.uptime; // Uptime to display (might be null)
+            let displayUptime = typedService.uptime;
 
             if (isComingSoon) {
-                displayStatusText = typedService.statusText!; // Use the defined text
-                displayStatusColorClass = typedService.statusColorClass!; // Use the defined class
-                displayUptime = null; // Ensure uptime isn't shown
+                displayStatusText = typedService.statusText!;
+                displayStatusColorClass = typedService.statusColorClass!;
+                displayUptime = null;
             } else if (isOutage) {
                 displayStatusText = "Major Outage";
                 displayStatusColorClass = "text-red-400 bg-red-900/30 border-red-700/50";
@@ -426,6 +437,13 @@ Assistant:`;
                 displayStatusColorClass = "text-green-400 bg-green-900/30 border-green-700/50";
             }
 
+            const iconColorClass = isComingSoon
+                ? 'text-blue-400'
+                : typedService.isNewFeature
+                ? 'text-teal-400' // Color for new feature icon
+                : 'text-indigo-400';
+
+
             return (
               <motion.div
                 key={typedService.name}
@@ -433,9 +451,14 @@ Assistant:`;
                 className={`bg-gray-800/60 rounded-xl p-5 shadow-md border border-gray-700/60 hover:border-gray-600/80 hover:bg-gray-800/80 transition-all duration-200 flex flex-col ${isComingSoon ? 'opacity-80' : ''}`}
               >
                 <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <IconComponent className={`w-6 h-6 ${isComingSoon ? 'text-blue-400' : 'text-indigo-400'}`} />
+                  <div className="flex items-center gap-2"> {/* Reduced gap for badge */}
+                    <IconComponent className={`w-6 h-6 ${iconColorClass}`} />
                     <h3 className="text-lg font-semibold text-gray-100">{typedService.name}</h3>
+                    {typedService.isNewFeature && !isComingSoon && (
+                        <span className="ml-1 px-2 py-0.5 text-xs font-bold bg-teal-500 text-teal-950 rounded-full shadow-sm flex items-center gap-1">
+                           <Sparkles className="w-3 h-3 inline-block opacity-80" /> New
+                        </span>
+                    )}
                   </div>
                   <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full border ${displayStatusColorClass} flex items-center gap-1`}>
                     {isComingSoon && <Clock className="w-3 h-3 inline-block" />}
