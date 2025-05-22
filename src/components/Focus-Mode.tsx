@@ -1,4 +1,3 @@
-
 /* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -183,16 +182,17 @@ export function FocusMode() {
   const [userStreakData, setUserStreakData] = useState<UserStreakData | null>({ current: 0, longest: 0, lastFocusTimestamp: null });
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => JSON.parse(localStorage.getItem('isSidebarCollapsed') || 'false'));
-  const [isBlackoutEnabled, setIsBlackoutEnabled] = useState(false);
-  const [isSidebarBlackoutEnabled, setIsSidebarBlackoutEnabled] = useState(false);
-  const [isIlluminateEnabled, setIsIlluminateEnabled] = useState(false);
-  const [isSidebarIlluminateEnabled, setIsSidebarIlluminateEnabled] = useState(false);
+  const [isBlackoutEnabled, setIsBlackoutEnabled] = useState(() => JSON.parse(localStorage.getItem('isBlackoutEnabled') || 'false'));
+  const [isSidebarBlackoutEnabled, setIsSidebarBlackoutEnabled] = useState(() => JSON.parse(localStorage.getItem('isSidebarBlackoutEnabled') || 'false'));
+  const [isIlluminateEnabled, setIsIlluminateEnabled] = useState(() => JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'false'));
+  const [isSidebarIlluminateEnabled, setIsSidebarIlluminateEnabled] = useState(() => JSON.parse(localStorage.getItem('isSidebarIlluminateEnabled') || 'false'));
+
 
   const [isAiSidebarOpen, setIsAiSidebarOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const [activeSession, setActiveSession] = useState<FocusSessionData | null>(null);
-  const activeSessionRef = useRef<FocusSessionData | null>(null); // Ref to hold current activeSession for callbacks
+  const activeSessionRef = useRef<FocusSessionData | null>(null);
   useEffect(() => { activeSessionRef.current = activeSession; }, [activeSession]);
 
   const [timeLeft, setTimeLeft] = useState(DEFAULT_WORK_SECONDS);
@@ -269,8 +269,8 @@ export function FocusMode() {
     if (!notificationSoundRef.current) {
       notificationSoundRef.current = new Audio(NOTIFICATION_SOUND_URL);
     }
-    notificationSoundRef.current.loop = false; // Ensure single play
-    notificationSoundRef.current.currentTime = 0; // Reset before playing
+    notificationSoundRef.current.loop = false;
+    notificationSoundRef.current.currentTime = 0;
     notificationSoundRef.current.play().catch(e => console.warn("Notification audio play failed:", e));
   }, []);
 
@@ -295,11 +295,10 @@ export function FocusMode() {
           setPomodoroShortBreakSetting(userPomodoroSettings.shortBreakSeconds);
           setPomodoroLongBreakSetting(userPomodoroSettings.longBreakSeconds);
           setPomodoroCyclesGoalSetting(userPomodoroSettings.cyclesGoal);
-          if (!activeSessionRef.current) { // Use ref here to avoid stale closure
+          if (!activeSessionRef.current) {
             setTimeLeft(userPomodoroSettings.workSeconds);
           }
         } else {
-          // Set defaults if no settings found
           setPomodoroWorkSetting(DEFAULT_WORK_SECONDS);
           setPomodoroShortBreakSetting(DEFAULT_SHORT_BREAK_SECONDS);
           setPomodoroLongBreakSetting(DEFAULT_LONG_BREAK_SECONDS);
@@ -329,13 +328,11 @@ export function FocusMode() {
           const currentActive = sessions.find(s => ['running', 'paused', 'break_running', 'break_paused'].includes(s.status)) || null;
           setActiveSession(currentActive);
           setFocusHistory(sessions.filter(s => ['completed', 'cancelled'].includes(s.status)).sort((a,b) => (b.endTime?.seconds || b.createdAt.seconds) - (a.endTime?.seconds || a.createdAt.seconds)));
-          
-          // Handle ambient sound setup based on loaded active session
+
           if (currentActive?.ambientSound) {
             const soundFile = AMBIENT_SOUND_FILES.find(f => f.name === currentActive.ambientSound!.name) || AMBIENT_SOUND_FILES[0];
             setSelectedAmbientSoundInfo(soundFile);
             setAmbientVolume(currentActive.ambientSound.volume ?? 0.5);
-            // Set initial isSoundPlaying state if session is active
             if (currentActive.status === 'running' || currentActive.status === 'break_running') {
                 if (soundFile && soundFile.id !== 'none') {
                     setIsSoundPlaying(true);
@@ -343,9 +340,9 @@ export function FocusMode() {
                     setIsSoundPlaying(false);
                 }
             } else {
-                setIsSoundPlaying(false); // Paused or other non-running states
+                setIsSoundPlaying(false);
             }
-          } else if (!currentActive) { 
+          } else if (!currentActive) {
             setSelectedAmbientSoundInfo(AMBIENT_SOUND_FILES.find(s => s.id === 'none') || null);
             setIsSoundPlaying(false);
           }
@@ -384,16 +381,15 @@ export function FocusMode() {
       setSelectedLinkedItemId(activeSession.linkedItemId || null);
       setSessionGoalText(activeSession.sessionGoalText || "");
 
-      // Ambient sound configuration based on activeSession (but not auto-play/pause logic here)
       if (activeSession.ambientSound) {
         const soundInfo = AMBIENT_SOUND_FILES.find(f => f.name === activeSession.ambientSound!.name);
-        if (soundInfo && selectedAmbientSoundInfo?.id !== soundInfo.id) { 
+        if (soundInfo && selectedAmbientSoundInfo?.id !== soundInfo.id) {
             setSelectedAmbientSoundInfo(soundInfo);
         }
         if (typeof activeSession.ambientSound.volume === 'number' && ambientVolume !== activeSession.ambientSound.volume) {
             setAmbientVolume(activeSession.ambientSound.volume);
         }
-      } else if (!activeSession.ambientSound && selectedAmbientSoundInfo?.id !== 'none') { 
+      } else if (!activeSession.ambientSound && selectedAmbientSoundInfo?.id !== 'none') {
           setSelectedAmbientSoundInfo(AMBIENT_SOUND_FILES.find(s => s.id === 'none') || null);
       }
 
@@ -408,61 +404,60 @@ export function FocusMode() {
         targetDurationForCurrentPhase = activeSession.isLongBreakNext
           ? (activeSession.pomodoroLongBreakSeconds ?? pomodoroLongBreakSetting)
           : (activeSession.pomodoroShortBreakSeconds ?? pomodoroShortBreakSetting);
-      } else { 
-          setTimeLeft(pomodoroWorkSetting); 
+      } else {
+          setTimeLeft(pomodoroWorkSetting);
           if (['completed', 'cancelled'].includes(activeSession.status)) {
             stopNotificationSound();
           }
-          return; 
+          return;
       }
-      
+
       let timeRemainingInSegment = targetDurationForCurrentPhase - progressInCurrentSegment;
 
       if (activeSession.status === 'running' || activeSession.status === 'break_running') {
         const timeElapsedSinceStartTime = activeSession.startTime ? (Timestamp.now().seconds - activeSession.startTime.seconds) : 0;
         const currentDisplayTimeLeft = Math.max(0, timeRemainingInSegment - timeElapsedSinceStartTime);
         setTimeLeft(currentDisplayTimeLeft);
-        
-        if (currentDisplayTimeLeft > 0) { 
+
+        if (currentDisplayTimeLeft > 0) {
             startUiTimer();
-        } else { 
+        } else {
             handleTimerEnd();
         }
       } else if (activeSession.status === 'paused' || activeSession.status === 'break_paused') {
         setTimeLeft(Math.max(0, timeRemainingInSegment));
       }
-    } else { // No active session
-      setTimeLeft(pomodoroWorkSetting); 
+    } else {
+      setTimeLeft(pomodoroWorkSetting);
       if (selectedAmbientSoundInfo?.id !== 'none') {
         setSelectedAmbientSoundInfo(AMBIENT_SOUND_FILES.find(s => s.id === 'none') || null);
       }
-      // isSoundPlaying is handled by its specific handlers / initial load
-      stopNotificationSound(); 
+      stopNotificationSound();
     }
 
     if (activeSession && (activeSession.status === 'break_running' || activeSession.status === 'break_paused')) {
-      if (!currentMindfulSuggestion || activeSession.pauseTime) { 
+      if (!currentMindfulSuggestion || activeSession.pauseTime) {
         setCurrentMindfulSuggestion(MINDFUL_BREAK_SUGGESTIONS[Math.floor(Math.random() * MINDFUL_BREAK_SUGGESTIONS.length)]);
       }
     } else {
       setCurrentMindfulSuggestion("");
     }
 
-    return () => { 
+    return () => {
         if (timerIntervalRef.current) {
             clearInterval(timerIntervalRef.current);
             timerIntervalRef.current = null;
         }
     };
-  }, [activeSession, pomodoroWorkSetting, pomodoroShortBreakSetting, pomodoroLongBreakSetting]); // Removed stopNotificationSound, selectedAmbientSoundInfo, isSoundPlaying from deps
+  }, [activeSession, pomodoroWorkSetting, pomodoroShortBreakSetting, pomodoroLongBreakSetting]);
 
 
   const startUiTimer = () => {
-    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current); 
+    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
     timerIntervalRef.current = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
-          if (timerIntervalRef.current) clearInterval(timerIntervalRef.current!); 
+          if (timerIntervalRef.current) clearInterval(timerIntervalRef.current!);
           timerIntervalRef.current = null;
           handleTimerEnd();
           return 0;
@@ -473,11 +468,11 @@ export function FocusMode() {
   };
 
   const handleTimerEnd = async () => {
-    if (!activeSessionRef.current || !user || !activeSessionRef.current.id) { // Use ref for activeSession
+    if (!activeSessionRef.current || !user || !activeSessionRef.current.id) {
         console.warn("handleTimerEnd called with no active session or user or session ID");
         return;
     }
-    const currentSessionStateForCalc = { ...activeSessionRef.current }; // Use current value from ref
+    const currentSessionStateForCalc = { ...activeSessionRef.current };
 
     if (currentSessionStateForCalc.status !== 'running' && currentSessionStateForCalc.status !== 'break_running') {
         console.warn(`handleTimerEnd called for session not in 'running' or 'break_running' state: ${currentSessionStateForCalc.status}`);
@@ -488,8 +483,8 @@ export function FocusMode() {
     const now = Timestamp.now();
     let phaseDurationJustCompleted = 0;
 
-    if (currentSessionStateForCalc.status === 'running') { 
-      playNotificationSound(); // Play sound once when work segment ends
+    if (currentSessionStateForCalc.status === 'running') {
+      playNotificationSound();
       phaseDurationJustCompleted = currentSessionStateForCalc.type === 'pomodoro'
         ? (currentSessionStateForCalc.pomodoroWorkSeconds ?? pomodoroWorkSetting)
         : (currentSessionStateForCalc.plannedDurationSeconds ?? DEFAULT_WORK_SECONDS);
@@ -500,70 +495,65 @@ export function FocusMode() {
         updates.startTime = now;
         const workSegmentNumberJustFinished = (currentSessionStateForCalc.currentCycle || 0) + 1;
         updates.isLongBreakNext = workSegmentNumberJustFinished % (currentSessionStateForCalc.pomodoroCyclesGoal || pomodoroCyclesGoalSetting) === 0;
-        // Ambient sound continues if it was playing
-      } else { // Custom timer completes
+      } else {
         updates.status = 'completed';
         updates.endTime = now;
-        updates.startTime = null; 
-        setIsSoundPlaying(false); 
-        // Notification sound already played
-        
+        updates.startTime = null;
+        setIsSoundPlaying(false);
+
         const completedSessionDataForFeedback: FocusSessionData = {
           ...currentSessionStateForCalc,
           ...updates,
-          status: 'completed', 
+          status: 'completed',
           endTime: now,
         };
         setCompletedSessionForFeedback(completedSessionDataForFeedback);
         setShowPostSessionModal(true);
       }
-    } else if (currentSessionStateForCalc.status === 'break_running') { 
-      // No sound when break ends and transitions to work
-      // Sound will play if the whole Pomodoro session completes
-      stopNotificationSound(); 
+    } else if (currentSessionStateForCalc.status === 'break_running') {
+      stopNotificationSound();
       phaseDurationJustCompleted = currentSessionStateForCalc.isLongBreakNext
         ? (currentSessionStateForCalc.pomodoroLongBreakSeconds ?? pomodoroLongBreakSetting)
         : (currentSessionStateForCalc.pomodoroShortBreakSeconds ?? pomodoroShortBreakSetting);
       updates.accumulatedBreakSeconds = (currentSessionStateForCalc.accumulatedBreakSeconds || 0) + phaseDurationJustCompleted;
-      
+
       const newCompletedCycleCount = (currentSessionStateForCalc.currentCycle || 0) + 1;
       updates.currentCycle = newCompletedCycleCount;
 
       if (currentSessionStateForCalc.type === 'pomodoro' && newCompletedCycleCount >= (currentSessionStateForCalc.pomodoroCyclesGoal || pomodoroCyclesGoalSetting)) {
-        playNotificationSound(); // Play sound once when Pomodoro session fully completes
+        playNotificationSound();
         updates.status = 'completed';
         updates.endTime = now;
-        updates.startTime = null; 
+        updates.startTime = null;
         updates.isLongBreakNext = false;
-        setIsSoundPlaying(false); 
-        
+        setIsSoundPlaying(false);
+
         const completedSessionDataForFeedback: FocusSessionData = {
           ...currentSessionStateForCalc,
           ...updates,
-          status: 'completed', 
+          status: 'completed',
           endTime: now,
-          currentCycle: newCompletedCycleCount, 
+          currentCycle: newCompletedCycleCount,
         };
         setCompletedSessionForFeedback(completedSessionDataForFeedback);
         setShowPostSessionModal(true);
-      } else if (currentSessionStateForCalc.type === 'pomodoro') { 
-        updates.status = 'running'; 
+      } else if (currentSessionStateForCalc.type === 'pomodoro') {
+        updates.status = 'running';
         updates.startTime = now;
         updates.isLongBreakNext = false;
-        // Ambient sound continues/starts if selected and was playing or should play for work
         if (selectedAmbientSoundInfo?.id !== 'none' && selectedAmbientSoundInfo?.src) {
             setIsSoundPlaying(true);
         }
       } else {
         console.error("Reached unexpected state in handleTimerEnd for non-pomodoro break.");
-        updates.status = 'cancelled'; 
+        updates.status = 'cancelled';
         updates.endTime = now;
         updates.startTime = null;
         setIsSoundPlaying(false);
       }
     }
-    
-    if (activeSessionRef.current && activeSessionRef.current.id) { 
+
+    if (activeSessionRef.current && activeSessionRef.current.id) {
         await updateFocusSession(activeSessionRef.current.id, updates);
     } else {
         console.error("Session ID became null before update in handleTimerEnd");
@@ -585,25 +575,24 @@ export function FocusMode() {
       let updates: Partial<FocusSessionData> = {};
       const timeElapsedInCurrentRunningSegment = activeSession.startTime ? Math.max(0, now.seconds - activeSession.startTime.seconds) : 0;
 
-      if (['running', 'break_running'].includes(activeSession.status)) { 
+      if (['running', 'break_running'].includes(activeSession.status)) {
         updates.status = activeSession.status === 'running' ? 'paused' : 'break_paused';
         updates.currentSegmentProgressSeconds = (activeSession.currentSegmentProgressSeconds || 0) + timeElapsedInCurrentRunningSegment;
         updates.pauseTime = now;
         updates.startTime = null;
-        setIsSoundPlaying(false); // Pause ambient sound
-        stopNotificationSound(); 
-        if (timerIntervalRef.current) { 
+        setIsSoundPlaying(false);
+        stopNotificationSound();
+        if (timerIntervalRef.current) {
             clearInterval(timerIntervalRef.current);
             timerIntervalRef.current = null;
         }
-      } else if (['paused', 'break_paused'].includes(activeSession.status)) { 
+      } else if (['paused', 'break_paused'].includes(activeSession.status)) {
         updates.status = activeSession.status === 'paused' ? 'running' : 'break_running';
         updates.startTime = now;
         updates.pauseTime = null;
-        if (updates.status === 'running') { // Resuming to work phase
-            stopNotificationSound(); // Ensure any break-end notification is stopped
+        if (updates.status === 'running') {
+            stopNotificationSound();
         }
-        // Resume ambient sound if selected
         if (selectedAmbientSoundInfo?.src && selectedAmbientSoundInfo.id !== 'none') {
              setIsSoundPlaying(true);
         }
@@ -626,9 +615,9 @@ export function FocusMode() {
       pomodoroWorkSeconds: pomodoroWorkSetting,
       pomodoroShortBreakSeconds: pomodoroShortBreakSetting,
       pomodoroLongBreakSeconds: pomodoroLongBreakSetting,
-      pomodoroCyclesGoal: pomodoroCyclesGoalSetting, 
+      pomodoroCyclesGoal: pomodoroCyclesGoalSetting,
       startTime: Timestamp.now(),
-      currentCycle: 0, 
+      currentCycle: 0,
       linkedItemId: linkedItem?.id || null,
       linkedItemName: linkedItem?.name || null,
       linkedItemCollection: linkedItem?.collection || null,
@@ -655,7 +644,7 @@ export function FocusMode() {
     if (!user) return;
     stopNotificationSound();
     if (activeSession && !['completed', 'cancelled'].includes(activeSession.status) && activeSession.id) {
-      await handleReset(); 
+      await handleReset();
     }
     const linkedItem = selectedLinkedItemId ? userProductivityItems.find(i => i.id === selectedLinkedItemId) : null;
     const ambientSoundToSave = selectedAmbientSoundInfo && selectedAmbientSoundInfo.id !== 'none'
@@ -670,8 +659,8 @@ export function FocusMode() {
       linkedItemId: linkedItem?.id || null,
       linkedItemName: linkedItem?.name || null,
       linkedItemCollection: linkedItem?.collection || null,
-      notes: sessionNotes || null, 
-      sessionGoalText: sessionGoalText || null, 
+      notes: sessionNotes || null,
+      sessionGoalText: sessionGoalText || null,
       preFocusCheckIn: activeSession?.preFocusCheckIn || { mood: preFocusMood, energyLevel: preFocusEnergy, customInput: null },
       ambientSound: ambientSoundToSave,
     };
@@ -688,7 +677,7 @@ export function FocusMode() {
 
   const handleReset = async () => {
     if (!activeSession || !user || !activeSession.id) return;
-    stopNotificationSound(); 
+    stopNotificationSound();
     if (timerIntervalRef.current) {
         clearInterval(timerIntervalRef.current);
         timerIntervalRef.current = null;
@@ -709,9 +698,9 @@ export function FocusMode() {
 
     const sessionToCalculateXp: FocusSessionData = {
       ...activeSession,
-      status: 'cancelled', 
+      status: 'cancelled',
       accumulatedFocusSeconds: finalAccumulatedFocus,
-      sessionGoalAchieved: false, 
+      sessionGoalAchieved: false,
     };
     const xpFromCancelled = calculateXpForSession(sessionToCalculateXp);
 
@@ -722,7 +711,7 @@ export function FocusMode() {
       pauseTime: null,
       accumulatedFocusSeconds: finalAccumulatedFocus,
       accumulatedBreakSeconds: finalAccumulatedBreak,
-      currentCycle: activeSession.type === 'pomodoro' ? activeSession.currentCycle : null, 
+      currentCycle: activeSession.type === 'pomodoro' ? activeSession.currentCycle : null,
       isLongBreakNext: false,
       currentSegmentProgressSeconds: 0,
       xpEarned: xpFromCancelled,
@@ -731,12 +720,12 @@ export function FocusMode() {
     if (xpFromCancelled > 0) {
       await updateUserTotalXp(user.uid, xpFromCancelled);
     }
-    
-    setIsSoundPlaying(false); 
+
+    setIsSoundPlaying(false);
     setSessionGoalText("");
     setSessionNotes("");
     setSelectedLinkedItemId(null);
-    setTimeLeft(pomodoroWorkSetting); 
+    setTimeLeft(pomodoroWorkSetting);
   };
 
   const handleSkipBreak = async () => {
@@ -753,28 +742,28 @@ export function FocusMode() {
     if (activeSession.status === 'break_running' && activeSession.startTime) {
       totalSkippedBreakProgress += Math.max(0, now.seconds - activeSession.startTime.seconds);
     }
-    
+
     const newCompletedCycleCount = (activeSession.currentCycle || 0) + 1;
     const cyclesGoal = activeSession.pomodoroCyclesGoal || pomodoroCyclesGoalSetting;
-    
+
     let updates: Partial<FocusSessionData> = {
         accumulatedBreakSeconds: (activeSession.accumulatedBreakSeconds || 0) + totalSkippedBreakProgress,
-        currentSegmentProgressSeconds: 0, // Reset progress for the new segment
-        pauseTime: null, 
-        currentCycle: newCompletedCycleCount, 
+        currentSegmentProgressSeconds: 0,
+        pauseTime: null,
+        currentCycle: newCompletedCycleCount,
     };
 
-    if (newCompletedCycleCount >= cyclesGoal) { 
-      playNotificationSound(); // Play sound for session completion
+    if (newCompletedCycleCount >= cyclesGoal) {
+      playNotificationSound();
       updates.status = 'completed';
       updates.endTime = now;
-      updates.startTime = null; // Ensure timer doesn't restart
+      updates.startTime = null;
       updates.isLongBreakNext = false;
-      setIsSoundPlaying(false); 
-      
+      setIsSoundPlaying(false);
+
       const completedSessionDataForFeedback: FocusSessionData = {
         ...activeSession,
-        ...updates, // Apply updates before setting for feedback
+        ...updates,
         status: 'completed',
         endTime: now,
         currentCycle: newCompletedCycleCount,
@@ -782,11 +771,10 @@ export function FocusMode() {
       setCompletedSessionForFeedback(completedSessionDataForFeedback);
       setShowPostSessionModal(true);
 
-    } else { // More cycles to go
-      updates.status = 'running'; // Transition to next work segment
+    } else {
+      updates.status = 'running';
       updates.startTime = now;
-      updates.isLongBreakNext = false; 
-      // Ambient sound management
+      updates.isLongBreakNext = false;
       if (selectedAmbientSoundInfo?.src && selectedAmbientSoundInfo.id !== 'none') {
         setIsSoundPlaying(true);
       } else {
@@ -797,8 +785,11 @@ export function FocusMode() {
   };
 
   useEffect(() => { localStorage.setItem('isSidebarCollapsed', JSON.stringify(isSidebarCollapsed)); }, [isSidebarCollapsed]);
-  useEffect(() => { document.body.classList.toggle('blackout-mode', isBlackoutEnabled && !isIlluminateEnabled); }, [isBlackoutEnabled, isIlluminateEnabled]);
-  useEffect(() => { document.body.classList.toggle('illuminate-mode', isIlluminateEnabled); if (isIlluminateEnabled) document.body.classList.remove('blackout-mode'); else if (isBlackoutEnabled) document.body.classList.add('blackout-mode'); }, [isIlluminateEnabled, isBlackoutEnabled]);
+  useEffect(() => { localStorage.setItem('isBlackoutEnabled', JSON.stringify(isBlackoutEnabled)); document.body.classList.toggle('blackout-mode', isBlackoutEnabled && !isIlluminateEnabled);}, [isBlackoutEnabled, isIlluminateEnabled]);
+  useEffect(() => { localStorage.setItem('isSidebarBlackoutEnabled', JSON.stringify(isSidebarBlackoutEnabled));}, [isSidebarBlackoutEnabled]);
+  useEffect(() => { localStorage.setItem('isIlluminateEnabled', JSON.stringify(isIlluminateEnabled)); document.body.classList.toggle('illuminate-mode', isIlluminateEnabled); if (isIlluminateEnabled) document.body.classList.remove('blackout-mode'); else if (isBlackoutEnabled) document.body.classList.add('blackout-mode');}, [isIlluminateEnabled, isBlackoutEnabled]);
+  useEffect(() => { localStorage.setItem('isSidebarIlluminateEnabled', JSON.stringify(isSidebarIlluminateEnabled));}, [isSidebarIlluminateEnabled]);
+
 
   const totalFocusedTimeToday = useMemo(() => {
     const todayStart = new Date();
@@ -883,7 +874,7 @@ export function FocusMode() {
 
   const handleSubmitPostSessionFeedback = async () => {
     if (completedSessionForFeedback && completedSessionForFeedback.id && user) {
-      stopNotificationSound(); // Ensure notification sound is off
+      stopNotificationSound();
       await savePostSessionFeedback(
         completedSessionForFeedback.id,
         {
@@ -891,7 +882,7 @@ export function FocusMode() {
           reflection: postSessionReflection || null,
         },
         postSessionGoalAchieved,
-        user.uid 
+        user.uid
       );
     }
     setShowPostSessionModal(false);
@@ -912,9 +903,9 @@ export function FocusMode() {
         }
         audioRef.current.loop = true;
         audioRef.current.volume = ambientVolume;
-        
-        if(audioRef.current.paused || audioRef.current.ended || audioRef.current.HAVE_NOTHING || (audioRef.current.src !== soundToPlay.src && audioRef.current.currentSrc !== soundToPlay.src) ) { 
-            if (audioRef.current.src !== soundToPlay.src) audioRef.current.src = soundToPlay.src; // Ensure src is set
+
+        if(audioRef.current.paused || audioRef.current.ended || audioRef.current.HAVE_NOTHING || (audioRef.current.src !== soundToPlay.src && audioRef.current.currentSrc !== soundToPlay.src) ) {
+            if (audioRef.current.src !== soundToPlay.src) audioRef.current.src = soundToPlay.src;
             audioRef.current.play().catch(e => console.warn("Ambient audio play failed:", e, soundToPlay.src));
         }
       } else {
@@ -929,43 +920,37 @@ export function FocusMode() {
     setSelectedAmbientSoundInfo(soundFile);
 
     const soundToSetForFirebase = soundFile && soundFile.id !== 'none'
-      ? { name: soundFile.name, src: soundFile.src, volume: ambientVolume } 
+      ? { name: soundFile.name, src: soundFile.src, volume: ambientVolume }
       : null;
 
     if (activeSession && activeSession.id && !['completed', 'cancelled'].includes(activeSession.status)) {
       await updateSessionAmbientSound(activeSession.id, soundToSetForFirebase);
     }
-    
-    // Sound playing logic:
+
     if (soundToSetForFirebase && soundToSetForFirebase.src) {
-        // If a session is actively running, or if sound was already manually toggled on by user, keep it playing.
         if (activeSession && (activeSession.status === 'running' || activeSession.status === 'break_running')) {
             setIsSoundPlaying(true);
-        } else if (isSoundPlaying) { // If sound was manually on (e.g. during pause), and user changes sound, keep it on.
+        } else if (isSoundPlaying) {
             setIsSoundPlaying(true);
         } else {
-             setIsSoundPlaying(false); // Don't auto-start if timer isn't running and sound wasn't manually on.
+             setIsSoundPlaying(false);
         }
     } else {
-        setIsSoundPlaying(false); // Switched to "None" or invalid sound
+        setIsSoundPlaying(false);
     }
   };
 
   const toggleSoundPlay = () => {
     if (!selectedAmbientSoundInfo || selectedAmbientSoundInfo.id === 'none' || !selectedAmbientSoundInfo.src) {
-      setIsSoundPlaying(false); // Ensure it's off if no valid sound
+      setIsSoundPlaying(false);
       return;
     }
-    // This allows user to toggle sound on/off regardless of timer state.
-    // Other handlers (pause, reset, complete) will explicitly set isSoundPlaying to false.
-    // Starting/resuming timer will explicitly set isSoundPlaying to true if sound selected.
     setIsSoundPlaying(prev => !prev);
   };
 
   const handleVolumeChange = (newVolume: number) => {
-    const clampedVolume = Math.max(0, Math.min(1, newVolume)); 
+    const clampedVolume = Math.max(0, Math.min(1, newVolume));
     setAmbientVolume(clampedVolume);
-    // audioRef.current.volume is handled by the useEffect for audioRef
 
     if (selectedAmbientSoundInfo && selectedAmbientSoundInfo.id !== 'none' && activeSession && activeSession.id && !['completed', 'cancelled'].includes(activeSession.status)) {
       const updatedSoundDataForFirebase = { name: selectedAmbientSoundInfo.name, src: selectedAmbientSoundInfo.src, volume: clampedVolume };
@@ -1132,9 +1117,9 @@ Assistant:`;
             try {
               let successMessage = "Action processed.";
               if (block.action === "start_focus_session") {
-                stopNotificationSound(); 
+                stopNotificationSound();
                 if (user && activeSession && !['completed', 'cancelled', 'idle'].includes(activeSession.status) && activeSession.id) {
-                  await handleReset(); 
+                  await handleReset();
                 }
                 const { type, durationMinutes, timerName, linkedItemName, linkedItemId, sessionGoal } = block.payload;
                 let itemToLink = linkedItemId
@@ -1149,11 +1134,11 @@ Assistant:`;
                   const newSessionDataAI: CreatePomodoroSessionInput = {
                     type: 'pomodoro',
                     timerName: timerName || (itemToLink ? `Focus: ${itemToLink.name}` : 'Pomodoro (AI)'),
-                    pomodoroWorkSeconds: pomodoroWorkSetting, 
+                    pomodoroWorkSeconds: pomodoroWorkSetting,
                     pomodoroShortBreakSeconds: pomodoroShortBreakSetting,
-                    pomodoroLongBreakSeconds: pomodoroLongBreakSetting, 
+                    pomodoroLongBreakSeconds: pomodoroLongBreakSetting,
                     pomodoroCyclesGoal: pomodoroCyclesGoalSetting,
-                    currentCycle: 0, 
+                    currentCycle: 0,
                     startTime: Timestamp.now(),
                     linkedItemId: itemToLink?.id || null, linkedItemName: itemToLink?.name || null, linkedItemCollection: itemToLink?.collection || null,
                     notes: null, sessionGoalText: sessionGoal || null,
@@ -1202,15 +1187,15 @@ Assistant:`;
               } else if (block.action === "change_ambient_sound") {
                 const soundFile = AMBIENT_SOUND_FILES.find(s => s.name.toLowerCase() === String(block.payload.soundName)?.toLowerCase());
                 if (soundFile) {
-                  await handleAmbientSoundChange(soundFile.id); // This will handle setIsSoundPlaying
+                  await handleAmbientSoundChange(soundFile.id);
                   successMessage = `Ambient sound changed to ${soundFile.name}.`;
                 } else { throw new Error(`Sound "${block.payload.soundName}" not found.`); }
               }
               else if (["pause_focus_session", "resume_focus_session", "end_focus_session", "skip_break", "reset_session"].includes(block.action) && activeSession && activeSession.id && !['completed', 'cancelled', 'idle'].includes(activeSession.status)) {
                 if (block.action === "pause_focus_session" && (activeSession.status === 'running' || activeSession.status === 'break_running')) { await handleStartPauseResume(); }
                 else if (block.action === "resume_focus_session" && (activeSession.status === 'paused' || activeSession.status === 'break_paused')) { await handleStartPauseResume(); }
-                else if (block.action === "end_focus_session" || block.action === "reset_session") { await handleReset(); } // handleReset sets isSoundPlaying(false)
-                else if (block.action === "skip_break") { await handleSkipBreak(); } // handleSkipBreak handles sound
+                else if (block.action === "end_focus_session" || block.action === "reset_session") { await handleReset(); }
+                else if (block.action === "skip_break") { await handleSkipBreak(); }
                 else { throw new Error(`Cannot perform '${block.action}' in current session state: ${activeSession.status}. Session might be inactive.`); }
                 successMessage = `Session action '${block.action}' processed.`;
               } else if (activeSession && (activeSession.status === 'completed' || activeSession.status === 'cancelled' || activeSession.status === 'idle') && ["pause_focus_session", "resume_focus_session", "end_focus_session", "skip_break", "reset_session"].includes(block.action)) {
@@ -1281,7 +1266,7 @@ Assistant:`;
   }, [stopNotificationSound]);
 
   const containerClass = isIlluminateEnabled ? "bg-slate-50 text-gray-900" : isBlackoutEnabled ? "bg-black text-gray-200" : "bg-gray-900 text-gray-200";
-  const cardClass = isIlluminateEnabled ? "bg-white text-gray-900 border border-gray-200/80 shadow-lg" : isBlackoutEnabled ? "bg-gray-900 text-gray-300 border border-gray-700/50 shadow-xl shadow-black/30" : "bg-gray-800 text-gray-300 border border-gray-700/60 shadow-xl shadow-black/30";
+  const cardClass = isIlluminateEnabled ? "bg-white text-gray-900 border border-gray-200/80 shadow-sm" : isBlackoutEnabled ? "bg-gray-900 text-gray-300 border border-gray-700/50 shadow-md shadow-black/20" : "bg-gray-800 text-gray-300 border border-gray-700/60 shadow-lg shadow-black/20";
   const headingClass = isIlluminateEnabled ? "text-gray-800" : "text-gray-100";
   const subheadingClass = isIlluminateEnabled ? "text-gray-600" : "text-gray-400";
   const inputBg = isIlluminateEnabled ? "bg-gray-100 hover:bg-gray-200/70 border-gray-300 focus:border-blue-500 focus:ring-blue-500 text-gray-800 placeholder-gray-400" : isBlackoutEnabled ? "bg-gray-800 hover:bg-gray-700/80 border-gray-700 focus:border-blue-500 focus:ring-blue-500 text-gray-300 placeholder-gray-500" : "bg-gray-700 hover:bg-gray-600/70 border-gray-600 focus:border-blue-500 focus:ring-blue-500 text-gray-300 placeholder-gray-500";
@@ -1289,6 +1274,7 @@ Assistant:`;
   const illuminateTextBlue = isIlluminateEnabled ? "text-blue-600" : "text-blue-400";
   const illuminateTextYellow = isIlluminateEnabled ? "text-yellow-600" : "text-yellow-400";
   const illuminateTextRed = isIlluminateEnabled ? "text-red-600" : "text-red-400";
+
 
   const fullscreenContainerVariants = {
     normal: { borderRadius: "0.75rem" },
@@ -1319,7 +1305,7 @@ Assistant:`;
   const fsIconColor = fsTheme === 'illuminate' ? 'text-gray-600 hover:text-gray-800' : 'text-gray-400 hover:text-gray-200';
 
   const displayCycleNumber = useMemo(() => {
-    if (!activeSession || activeSession.type !== 'pomodoro') return 1; 
+    if (!activeSession || activeSession.type !== 'pomodoro') return 1;
     return (activeSession.currentCycle || 0) + 1;
   }, [activeSession]);
 
@@ -1327,13 +1313,13 @@ Assistant:`;
     <div className={`${containerClass} min-h-screen w-full overflow-hidden relative font-sans`}>
       <Sidebar userName={userName} isCollapsed={isSidebarCollapsed} onToggle={() => setIsSidebarCollapsed(p => !p)} isBlackoutEnabled={isBlackoutEnabled && isSidebarBlackoutEnabled} isIlluminateEnabled={isIlluminateEnabled && isSidebarIlluminateEnabled} />
       <audio ref={audioRef} />
-      <button onClick={() => setIsAiSidebarOpen(true)} className={`fixed bottom-4 md:bottom-6 lg:bottom-8 ${isSidebarCollapsed ? 'right-4 md:right-6' : 'right-4 md:right-6 lg:right-8'} z-40 p-3.5 rounded-full shadow-xl transition-all duration-300 transform hover:scale-110 active:scale-100 ${isIlluminateEnabled ? 'bg-white border-2 border-blue-500 text-blue-600 hover:bg-blue-50' : 'bg-gradient-to-br from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700'} ${isAiSidebarOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`} title="Open Focus AI Chat">
+      <button onClick={() => setIsAiSidebarOpen(true)} className={`fixed bottom-4 md:bottom-6 lg:bottom-8 ${isSidebarCollapsed ? 'right-4 md:right-6' : 'right-4 md:right-6 lg:right-8'} z-40 p-3.5 rounded-full shadow-xl transition-all duration-300 transform hover:scale-110 active:scale-100 ${isIlluminateEnabled ? 'bg-white border border-gray-300 text-blue-600 hover:bg-gray-100' : 'bg-gradient-to-br from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700'} ${isAiSidebarOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`} title="Open Focus AI Chat">
         <BrainCircuit className="w-5 h-5" />
       </button>
 
       <motion.main
         layout
-        className={`transition-transform duration-300 ease-in-out min-h-screen ${isSidebarCollapsed ? 'ml-16 md:ml-20' : 'ml-0 md:ml-64'} 
+        className={`transition-transform duration-300 ease-in-out min-h-screen ${isSidebarCollapsed ? 'ml-16 md:ml-20' : 'ml-0 md:ml-64'}
                     ${isFullscreen ? `fixed inset-0 ml-0 !p-0 z-[45] flex flex-col items-stretch justify-start overflow-hidden ${fsBgColor} ${fsTextColor}` : `p-3 md:p-4 lg:p-5 xl:p-6 ${containerClass} overflow-x-hidden`}`}
         variants={fullscreenContainerVariants}
         animate={isFullscreen ? "fullscreen" : "normal"}
@@ -1354,7 +1340,7 @@ Assistant:`;
                   </h1>
                   {activeSession?.sessionGoalText && <p className={`text-xs sm:text-sm italic mt-1 ${fsSubtleTextColor}`}>Goal: {activeSession.sessionGoalText}</p>}
                 </div>
-                <button onClick={toggleFullscreen} className={`p-2.5 rounded-full transition-colors ${fsTheme === 'illuminate' ? 'hover:bg-black/5' : 'hover:bg-white/10'}`} title="Exit Fullscreen">
+                <button onClick={toggleFullscreen} className={`p-2.5 rounded-full transition-colors ${fsIconColor}`} title="Exit Fullscreen">
                   <X className="w-5 h-5 sm:w-6 sm:h-6" />
                 </button>
               </div>
@@ -1365,7 +1351,7 @@ Assistant:`;
                   initial={{ opacity: 0.8, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3 }}
-                  className={`text-7xl sm:text-8xl md:text-9xl lg:text-[10rem] xl:text-[12rem] font-mono font-bold mb-4 tabular-nums transition-colors duration-300 
+                  className={`text-7xl sm:text-8xl md:text-9xl lg:text-[10rem] xl:text-[12rem] font-mono font-bold mb-4 tabular-nums transition-colors duration-300
                                 ${(activeSession?.status === 'break_running' || activeSession?.status === 'break_paused')
                       ? (fsTheme === 'illuminate' ? 'text-green-600' : 'text-green-400')
                       : (fsTheme === 'illuminate' ? 'text-blue-600' : 'text-blue-400')}`}
@@ -1421,7 +1407,7 @@ Assistant:`;
                   <h3 className={`text-base sm:text-lg font-semibold ${fsTheme === 'illuminate' ? 'text-gray-700' : 'text-gray-300'}`}>Ambient Sound</h3>
                   {selectedAmbientSoundInfo && selectedAmbientSoundInfo.id !== 'none' && selectedAmbientSoundInfo.src && (
                     <div className="flex items-center gap-2 sm:gap-3">
-                      <button onClick={toggleSoundPlay} className={`p-2 rounded-full transition-colors ${fsIconColor} ${fsTheme === 'illuminate' ? 'hover:bg-black/5' : 'hover:bg-white/10'}`}>
+                      <button onClick={toggleSoundPlay} className={`p-2 rounded-full transition-colors ${fsIconColor}`}>
                         {isSoundPlaying ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
                       </button>
                       <input
@@ -1443,7 +1429,7 @@ Assistant:`;
                         key={sound.id}
                         onClick={() => handleAmbientSoundChange(sound.id)}
                         title={sound.name}
-                        className={`p-2.5 sm:p-3 rounded-lg flex flex-col items-center justify-center aspect-square transition-all duration-200 ease-out transform focus:outline-none focus:ring-2 
+                        className={`p-2.5 sm:p-3 rounded-lg flex flex-col items-center justify-center aspect-square transition-all duration-200 ease-out transform focus:outline-none focus:ring-2
                                             ${isSelected
                             ? (fsTheme === 'illuminate' ? 'bg-blue-500 text-white shadow-md scale-105 ring-blue-300' : 'bg-blue-600 text-white shadow-md scale-105 ring-blue-500')
                             : (fsTheme === 'illuminate' ? `bg-slate-200 hover:bg-slate-300 text-gray-700 ring-slate-400` : `bg-gray-700/70 hover:bg-gray-600/90 text-gray-300 hover:text-white ring-gray-500`)
@@ -1477,8 +1463,8 @@ Assistant:`;
                     <TimerIcon className={`w-7 h-7 mr-2.5 ${illuminateTextBlue}`} /> Focus Mode
                   </h1>
                   <div className="flex items-center gap-2">
-                    <button onClick={() => setShowSettingsModal(true)} className={`p-2 rounded-full ${iconColor} ${isIlluminateEnabled ? 'hover:bg-gray-200/70' : 'hover:bg-gray-700/70'}`} title="Timer Settings"><Settings2 className="w-5 h-5" /></button>
-                    <button onClick={toggleFullscreen} className={`p-2 rounded-full ${iconColor} ${isIlluminateEnabled ? 'hover:bg-gray-200/70' : 'hover:bg-gray-700/70'}`} title="Enter Fullscreen">
+                    <button onClick={() => setShowSettingsModal(true)} className={`p-2 rounded-full ${iconColor}`} title="Timer Settings"><Settings2 className="w-5 h-5" /></button>
+                    <button onClick={toggleFullscreen} className={`p-2 rounded-full ${iconColor}`} title="Enter Fullscreen">
                       <Maximize2 className="w-5 h-5" />
                     </button>
                   </div>
@@ -1570,7 +1556,7 @@ Assistant:`;
                       <select value={selectedAmbientSoundInfo?.id || 'none'} onChange={(e) => handleAmbientSoundChange(e.target.value)} className={`${inputBg} flex-grow p-2.5 rounded-lg text-sm shadow-sm`}>
                         {AMBIENT_SOUND_FILES.map(sound => <option key={sound.id} value={sound.id}>{sound.name}</option>)}
                       </select>
-                      <button onClick={toggleSoundPlay} disabled={!selectedAmbientSoundInfo || selectedAmbientSoundInfo.id === "none" || !selectedAmbientSoundInfo.src} className={`p-2.5 rounded-full ${iconColor} disabled:opacity-50 disabled:cursor-not-allowed  ${isIlluminateEnabled ? 'hover:bg-gray-100' : 'hover:bg-gray-700'}`}>
+                      <button onClick={toggleSoundPlay} disabled={!selectedAmbientSoundInfo || selectedAmbientSoundInfo.id === "none" || !selectedAmbientSoundInfo.src} className={`p-2.5 rounded-full ${iconColor} disabled:opacity-50 disabled:cursor-not-allowed`}>
                         {isSoundPlaying ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
                       </button>
                     </div>
@@ -1632,7 +1618,7 @@ Assistant:`;
                     <h2 className={`text-lg font-semibold mb-3 flex items-center ${headingClass}`}><History className={`w-5 h-5 mr-2 ${illuminateTextBlue}`} />Focus Log</h2>
                     {focusHistory.length === 0 && <p className={`${subheadingClass} text-sm italic`}>No completed or cancelled sessions yet.</p>}
                     <ul className="space-y-1.5 max-h-60 overflow-y-auto pr-1 text-xs">
-                      {focusHistory.map(session => ( 
+                      {focusHistory.map(session => (
                         <li key={session.id} className={`p-2 rounded-md shadow-sm ${session.status === 'cancelled' ? (isIlluminateEnabled ? 'bg-red-50/70 border border-red-200/60' : 'bg-red-900/30 border border-red-700/40') : (isIlluminateEnabled ? 'bg-gray-50 border border-gray-200/60' : 'bg-gray-700/40 border border-gray-600/40')}`}>
                           <div className="flex justify-between items-center">
                             <span className={`font-medium truncate ${isIlluminateEnabled ? 'text-gray-700' : 'text-gray-200'}`} title={session.timerName || (session.type === 'pomodoro' ? 'Pomodoro Session' : 'Custom Session')}>
@@ -1746,7 +1732,7 @@ Assistant:`;
             <div className={`${cardClass} rounded-xl p-6 w-full max-w-md shadow-2xl`}>
               <div className="flex justify-between items-center mb-5">
                 <h3 className={`text-xl font-semibold ${headingClass}`}>Pomodoro Settings</h3>
-                <button onClick={() => setShowSettingsModal(false)} className={`${iconColor} p-1 rounded-full ${isIlluminateEnabled ? 'hover:bg-gray-200' : 'hover:bg-gray-700'}`}><X className="w-5 h-5" /></button>
+                <button onClick={() => setShowSettingsModal(false)} className={`${iconColor} p-1 rounded-full`}><X className="w-5 h-5" /></button>
               </div>
               <div className="space-y-4 text-sm">
                 {[
@@ -1773,7 +1759,7 @@ Assistant:`;
             <div className={`${cardClass} rounded-xl p-6 w-full max-w-md shadow-2xl`}>
               <div className="flex justify-between items-center mb-5">
                 <h3 className={`text-xl font-semibold ${headingClass}`}>{editingCustomTimer ? "Edit" : "Add"} Custom Timer</h3>
-                <button onClick={() => setShowCustomTimerModal(false)} className={`${iconColor} p-1 rounded-full ${isIlluminateEnabled ? 'hover:bg-gray-200' : 'hover:bg-gray-700'}`}><X className="w-5 h-5" /></button>
+                <button onClick={() => setShowCustomTimerModal(false)} className={`${iconColor} p-1 rounded-full`}><X className="w-5 h-5" /></button>
               </div>
               <div className="space-y-4 text-sm">
                 <div>
@@ -1794,7 +1780,7 @@ Assistant:`;
       <div aria-hidden={!isAiSidebarOpen} className={`fixed top-0 right-0 h-full w-full max-w-sm md:max-w-md lg:max-w-[440px] z-[55] transform transition-transform duration-300 ease-in-out ${isAiSidebarOpen ? 'translate-x-0' : 'translate-x-full'} ${cardClass} flex flex-col shadow-2xl border-l ${isIlluminateEnabled ? 'border-gray-200/80' : 'border-gray-700/70'}`}>
         <div className={`p-3 sm:p-4 border-b ${isIlluminateEnabled ? 'border-gray-200 bg-gray-100/80' : 'border-gray-700/70 bg-gray-800/90'} flex justify-between items-center flex-shrink-0 sticky top-0 backdrop-blur-sm z-10`}>
           <h3 className={`text-base sm:text-lg font-semibold flex items-center gap-2 ${illuminateTextBlue}`}><BrainCircuit className="w-5 h-5" />Focus AI</h3>
-          <button onClick={() => setIsAiSidebarOpen(false)} className={`${isIlluminateEnabled ? 'text-gray-500 hover:text-gray-800 hover:bg-gray-200' : 'text-gray-400 hover:text-gray-100 hover:bg-gray-700'} p-1.5 rounded-full`}><X className="w-5 h-5" /></button>
+          <button onClick={() => setIsAiSidebarOpen(false)} className={`${iconColor} p-1.5 rounded-full`}><X className="w-5 h-5" /></button>
         </div>
         <div className={`flex border-b ${isIlluminateEnabled ? 'border-gray-200' : 'border-gray-700/70'}`}>
           {['Chat', 'History'].map(tabName => (<button key={tabName} onClick={() => setAiChatSidebarTab(tabName.toLowerCase() as any)} className={`flex-1 py-2.5 px-3 text-xs sm:text-sm font-medium transition-colors ${aiChatSidebarTab === tabName.toLowerCase() ? `${isIlluminateEnabled ? 'bg-blue-100 text-blue-700 border-b-2 border-blue-600' : 'bg-gray-700 text-blue-300 border-b-2 border-blue-400'}` : `${isIlluminateEnabled ? 'hover:bg-gray-100 text-gray-600' : 'hover:bg-gray-700/60 text-gray-400'}`}`}>{tabName}</button>))}
@@ -1814,7 +1800,7 @@ Assistant:`;
             <div className={`px-3 pt-2.5 border-t ${isIlluminateEnabled ? 'border-gray-200 bg-gray-100/80' : 'border-gray-700/70 bg-gray-800/90'} flex-shrink-0`}>
               {userTier !== 'premium' && userTier !== 'loading' && (<div className="pb-1.5 text-xs text-center"> <span className={isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}>Messages: {chatUsageCount} / {currentChatLimitDisplay}</span> {isChatDisabledByLimit && <span className="text-red-500 ml-1 font-medium">(Limit Reached)</span>} {!isChatDisabledByLimit && userTier === 'basic' && <Link to="/pricing" className={`ml-2 font-medium ${illuminateTextBlue} hover:underline`}><Crown className="w-2.5 h-2.5 inline mr-0.5" />Upgrade</Link>}</div>)}
               <form onSubmit={handleChatSubmit} className="flex gap-2 items-center pb-3">
-                <button type="button" onClick={() => setIsContextDialogOpen(true)} disabled={!conversationId} className={`p-2.5 rounded-full transition-colors ${!conversationId ? 'opacity-50 cursor-not-allowed' : ''} ${isIlluminateEnabled ? 'hover:bg-gray-200 text-gray-500' : 'hover:bg-gray-700 text-gray-400'}`} title="Set AI Context"> <BrainCircuit className="w-4 h-4" /> </button>
+                <button type="button" onClick={() => setIsContextDialogOpen(true)} disabled={!conversationId} className={`p-2.5 rounded-full transition-colors ${!conversationId ? 'opacity-50 cursor-not-allowed' : ''} ${iconColor}`} title="Set AI Context"> <BrainCircuit className="w-4 h-4" /> </button>
                 <textarea rows={1} value={chatMessage} onChange={e => setChatMessage(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSubmit(); } }} placeholder={!conversationId ? "Select or start a chat..." : (isChatDisabledByLimit ? "Monthly limit reached..." : "Ask Focus AI...")} className={`flex-1 ${inputBg} rounded-xl px-4 py-2.5 text-sm focus:ring-1 focus:ring-blue-500 disabled:opacity-60 resize-none leading-tight max-h-28`} disabled={isChatLoading || isChatDisabledByLimit || !conversationId} />
                 <button type="submit" disabled={isChatLoading || !chatMessage.trim() || isChatDisabledByLimit || !conversationId} className={`bg-blue-600 text-white p-2.5 rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}>
                   {isChatLoading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Send className="w-4 h-4" />}
