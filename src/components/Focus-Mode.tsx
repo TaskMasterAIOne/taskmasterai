@@ -839,7 +839,7 @@ export function FocusMode() {
     setShowCustomTimerModal(false);
   };
   const handleDeleteCustomTimer = async (timerId: string) => {
-    if (window.confirm("Are you sure you want to delete this custom timer?")) {
+    if (window.confirm("Are you sure you want to delete this timer?")) {
       await deleteCustomTimer(timerId);
     }
   };
@@ -1593,10 +1593,10 @@ Assistant:`;
 
                   <div className={`${cardClass} rounded-xl p-5`}>
                     <div className="flex justify-between items-center mb-3">
-                      <h2 className={`text-lg font-semibold flex items-center ${headingClass}`}><TimerIcon className={`w-5 h-5 mr-2 ${illuminateTextBlue}`} />Custom Timers</h2>
-                      <button onClick={() => handleOpenCustomTimerModal()} className={`p-1.5 rounded-full ${iconColor} ${isIlluminateEnabled ? 'hover:bg-gray-100' : 'hover:bg-gray-700/60'}`} title="Add Custom Timer"><PlusCircle className="w-5 h-5" /></button>
+                      <h2 className={`text-lg font-semibold flex items-center ${headingClass}`}><TimerIcon className={`w-5 h-5 mr-2 ${illuminateTextBlue}`} />Timers</h2>
+                      <button onClick={() => handleOpenCustomTimerModal()} className={`p-1.5 rounded-full ${iconColor} ${isIlluminateEnabled ? 'hover:bg-gray-100' : 'hover:bg-gray-700/60'}`} title="Add Timer"><PlusCircle className="w-5 h-5" /></button>
                     </div>
-                    {customTimers.length === 0 && <p className={`${subheadingClass} text-sm italic`}>No custom timers yet.</p>}
+                    {customTimers.length === 0 && <p className={`${subheadingClass} text-sm italic`}>No timers yet.</p>}
                     <ul className="space-y-2 max-h-48 overflow-y-auto pr-1">
                       {customTimers.map(timer => (
                         <li key={timer.id} className={`p-2.5 rounded-lg flex items-center justify-between text-sm transition-colors shadow-sm ${isIlluminateEnabled ? 'bg-gray-50 hover:bg-gray-100 border border-gray-200' : 'bg-gray-700/50 hover:bg-gray-700 border border-gray-600/50'}`}>
@@ -1758,7 +1758,7 @@ Assistant:`;
           <motion.div initial="hidden" animate="visible" exit="exit" variants={modalVariants} className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
             <div className={`${cardClass} rounded-xl p-6 w-full max-w-md shadow-2xl`}>
               <div className="flex justify-between items-center mb-5">
-                <h3 className={`text-xl font-semibold ${headingClass}`}>{editingCustomTimer ? "Edit" : "Add"} Custom Timer</h3>
+                <h3 className={`text-xl font-semibold ${headingClass}`}>{editingCustomTimer ? "Edit" : "Add"} Timer</h3>
                 <button onClick={() => setShowCustomTimerModal(false)} className={`${iconColor} p-1 rounded-full`}><X className="w-5 h-5" /></button>
               </div>
               <div className="space-y-4 text-sm">
