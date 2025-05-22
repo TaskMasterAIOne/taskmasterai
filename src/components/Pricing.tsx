@@ -34,7 +34,6 @@ function Pricing() {
   const [userCurrentTier, setUserCurrentTier] = useState<UserTier>('loading');
 
   const [showStudentOfferOnProCard, setShowStudentOfferOnProCard] = useState(false);
-  const [cardGridGlowActive, setCardGridGlowActive] = useState(false);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
 
   const toggleMenu = () => {
@@ -76,25 +75,16 @@ function Pricing() {
 
     if (!canPotentiallyShowOffer) {
       setShowStudentOfferOnProCard(false);
-      setCardGridGlowActive(false);
       return;
     }
 
-    const glowDelay = 250;
-    const glowDuration = 900;
-    const offerRevealDelay = glowDelay + glowDuration - 200;
-
-    const glowTimer = setTimeout(() => {
-      setCardGridGlowActive(true);
-    }, glowDelay);
+    const offerRevealDelay = 750; // Show offer after 0.75 seconds
 
     const offerTimer = setTimeout(() => {
       setShowStudentOfferOnProCard(true);
-      setCardGridGlowActive(false);
     }, offerRevealDelay);
 
     return () => {
-      clearTimeout(glowTimer);
       clearTimeout(offerTimer);
     };
   }, [user, userCurrentTier]);
@@ -327,24 +317,11 @@ function Pricing() {
         )}
 
         <motion.div
-            className="relative rounded-xl"
-            animate={cardGridGlowActive ? {
-                boxShadow: [
-                    "0 0 0px 0px rgba(129, 140, 248, 0)",
-                    "0 0 40px 8px rgba(129, 140, 248, 0.5)",
-                    "0 0 0px 0px rgba(129, 140, 248, 0)"
-                ],
-            } : {
-                boxShadow: "0 0 0px 0px rgba(129, 140, 248, 0)"
-            }}
-            transition={cardGridGlowActive ? { duration: 0.9, ease: "circOut" } : { duration: 0.3 }}
-        >
-            <motion.div
             initial="hidden"
             animate="visible"
             variants={containerVariants}
             className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch"
-            >
+        >
             <motion.div
                 variants={cardVariants}
                 className="bg-gray-800 rounded-xl flex flex-col overflow-hidden border border-gray-800 hover:shadow-lg hover:shadow-indigo-500/30 transition-shadow duration-300"
@@ -545,7 +522,6 @@ function Pricing() {
                         )}
                     </div>
                 </div>
-            </motion.div>
             </motion.div>
         </motion.div>
       </main>
