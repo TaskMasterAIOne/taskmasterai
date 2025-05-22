@@ -14,8 +14,10 @@ import {
   serverTimestamp,
   Timestamp,
   getDocs,
-  increment, // For XP
+  increment,
   type DocumentData,
+  getDoc,
+  setDoc,
 } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
 
@@ -26,44 +28,37 @@ const DEFAULT_SHORT_BREAK_SECONDS = 5 * 60;
 const DEFAULT_LONG_BREAK_SECONDS = 15 * 60;
 const DEFAULT_CYCLES_GOAL = 4;
 
-// XP Calculation Constants (example values)
-const XP_PER_MINUTE_FOCUSED = 1; // 1 XP per minute of focused work
-const XP_BONUS_SESSION_COMPLETION = 50; // Bonus for completing a session (not just cancelled)
-const XP_BONUS_GOAL_ACHIEVED = 25; // Bonus for achieving session goal
+const XP_PER_MINUTE_FOCUSED = 1;
+const XP_BONUS_SESSION_COMPLETION = 50;
+const XP_BONUS_GOAL_ACHIEVED = 25;
 
 export interface FocusSessionData {
   id?: string;
   userId: string;
   status: 'idle' | 'running' | 'paused' | 'break_running' | 'break_paused' | 'completed' | 'cancelled';
   type: 'pomodoro' | 'custom_timer' | 'stopwatch';
-
   timerName?: string | null;
-  
   pomodoroWorkSeconds?: number | null;
   pomodoroShortBreakSeconds?: number | null;
   pomodoroLongBreakSeconds?: number | null;
   pomodoroCyclesGoal?: number | null;
   currentCycle?: number | null;
   isLongBreakNext: boolean;
-
   plannedDurationSeconds?: number | null;
-
   startTime?: Timestamp | null;
   endTime?: Timestamp | null;
   pauseTime?: Timestamp | null;
   accumulatedFocusSeconds: number;
   accumulatedBreakSeconds: number;
-
+  currentSegmentProgressSeconds: number;
   linkedItemId?: string | null;
   linkedItemCollection?: 'tasks' | 'goals' | 'projects' | 'plans' | null;
   linkedItemName?: string | null;
-
   notes?: string | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
-
   sessionGoalText?: string | null;
-  sessionGoalAchieved?: boolean | null; // New: Track if goal was met
+  sessionGoalAchieved?: boolean | null;
   preFocusCheckIn?: {
     mood?: 'good' | 'okay' | 'bad' | null;
     energyLevel?: number | null;
@@ -80,8 +75,59 @@ export interface FocusSessionData {
   } | null;
   aiSuggestedWorkDuration?: number | null;
   aiSuggestedBreakDuration?: number | null;
-  xpEarned?: number | null; // New: XP for this session
+  xpEarned?: number | null;
 }
+
+export interface UserStreakData {
+    current: number;
+    longest: number;
+    lastFocusTimestamp: Timestamp | null;
+}
+
+// --- Pomodoro Settings for User ---
+export interface UserPomodoroSettings {
+  workSeconds: number;
+  shortBreakSeconds: number;
+  longBreakSeconds: number;
+  cyclesGoal: number;
+  updatedAt?: Timestamp; // Optional for reading, will be set on save
+}
+
+export const getUserPomodoroSettings = async (userId: string): Promise<UserPomodoroSettings | null> => {
+  if (!userId) {
+    console.warn("getUserPomodoroSettings: No userId provided.");
+    return null;
+  }
+  const settingsDocRef = doc(db, 'users', userId, 'settings', 'pomodoro');
+  try {
+    const docSnap = await getDoc(settingsDocRef);
+    if (docSnap.exists()) {
+      return docSnap.data() as UserPomodoroSettings;
+    }
+    return null;
+  } catch (error) {
+    console.error("Error fetching user Pomodoro settings:", error);
+    return null;
+  }
+};
+
+export const saveUserPomodoroSettings = async (userId: string, settings: Omit<UserPomodoroSettings, 'updatedAt'>): Promise<void> => {
+  if (!userId) {
+    console.warn("saveUserPomodoroSettings: No userId provided.");
+    return;
+  }
+  const settingsDocRef = doc(db, 'users', userId, 'settings', 'pomodoro');
+  try {
+    await setDoc(settingsDocRef, {
+      ...settings,
+      updatedAt: serverTimestamp(),
+    }, { merge: true }); // merge:true ensures we don't overwrite other potential settings under /users/{uid}/settings
+  } catch (error) {
+    console.error("Error saving user Pomodoro settings:", error);
+  }
+};
+// --- End Pomodoro Settings ---
+
 
 interface CreatePomodoroSessionBase {
   timerName?: string;
@@ -93,13 +139,14 @@ interface CreatePomodoroSessionBase {
   linkedItemName?: string | null;
   linkedItemCollection?: 'tasks' | 'goals' | 'projects' | 'plans' | null;
   notes?: string | null;
-  startTime?: Timestamp | null; 
+  startTime?: Timestamp | null;
   sessionGoalText?: string | null;
   preFocusCheckIn?: FocusSessionData['preFocusCheckIn'];
   ambientSound?: FocusSessionData['ambientSound'];
 }
 export interface CreatePomodoroSessionInput extends CreatePomodoroSessionBase {
   type: 'pomodoro';
+  currentCycle?: number;
 }
 
 interface CreateCustomTimerSessionBase {
@@ -124,7 +171,7 @@ export type CreateFocusSessionInput = CreatePomodoroSessionInput | CreateCustomT
 export const createFocusSession = async (userId: string, sessionInput: CreateFocusSessionInput): Promise<string> => {
   if (!userId) throw new Error('User ID is required to create a focus session.');
 
-  const commonData: Omit<FocusSessionData, 'type' | 'pomodoroWorkSeconds' | 'pomodoroShortBreakSeconds' | 'pomodoroLongBreakSeconds' | 'pomodoroCyclesGoal' | 'currentCycle' | 'plannedDurationSeconds' | 'id' | 'sessionGoalAchieved' | 'xpEarned'> = {
+  const commonData: Omit<FocusSessionData, 'type' | 'pomodoroWorkSeconds' | 'pomodoroShortBreakSeconds' | 'pomodoroLongBreakSeconds' | 'pomodoroCyclesGoal' | 'currentCycle' | 'plannedDurationSeconds' | 'id' | 'sessionGoalAchieved' | 'xpEarned' | 'currentSegmentProgressSeconds'> = {
     userId,
     status: sessionInput.startTime ? 'running' : 'idle',
     accumulatedFocusSeconds: 0,
@@ -151,13 +198,16 @@ export const createFocusSession = async (userId: string, sessionInput: CreateFoc
   let specificData: Pick<FocusSessionData, 'type' | 'pomodoroWorkSeconds' | 'pomodoroShortBreakSeconds' | 'pomodoroLongBreakSeconds' | 'pomodoroCyclesGoal' | 'currentCycle' | 'plannedDurationSeconds'>;
 
   if (sessionInput.type === 'pomodoro') {
+    // Fetch user settings for Pomodoro defaults if not provided in sessionInput
+    const userSettings = await getUserPomodoroSettings(userId);
+
     specificData = {
       type: 'pomodoro',
-      pomodoroWorkSeconds: sessionInput.pomodoroWorkSeconds || DEFAULT_WORK_SECONDS,
-      pomodoroShortBreakSeconds: sessionInput.pomodoroShortBreakSeconds || DEFAULT_SHORT_BREAK_SECONDS,
-      pomodoroLongBreakSeconds: sessionInput.pomodoroLongBreakSeconds || DEFAULT_LONG_BREAK_SECONDS,
-      pomodoroCyclesGoal: sessionInput.pomodoroCyclesGoal || DEFAULT_CYCLES_GOAL,
-      currentCycle: 1,
+      pomodoroWorkSeconds: sessionInput.pomodoroWorkSeconds ?? userSettings?.workSeconds ?? DEFAULT_WORK_SECONDS,
+      pomodoroShortBreakSeconds: sessionInput.pomodoroShortBreakSeconds ?? userSettings?.shortBreakSeconds ?? DEFAULT_SHORT_BREAK_SECONDS,
+      pomodoroLongBreakSeconds: sessionInput.pomodoroLongBreakSeconds ?? userSettings?.longBreakSeconds ?? DEFAULT_LONG_BREAK_SECONDS,
+      pomodoroCyclesGoal: sessionInput.pomodoroCyclesGoal ?? userSettings?.cyclesGoal ?? DEFAULT_CYCLES_GOAL,
+      currentCycle: sessionInput.currentCycle !== undefined ? sessionInput.currentCycle : 0,
       plannedDurationSeconds: null,
     };
   } else if (sessionInput.type === 'custom_timer') {
@@ -174,12 +224,13 @@ export const createFocusSession = async (userId: string, sessionInput: CreateFoc
     const exhaustiveCheck: never = sessionInput;
     throw new Error(`Unsupported session type: ${exhaustiveCheck}`);
   }
-  
-  const fullSessionData = { 
-    ...commonData, 
+
+  const fullSessionData: FocusSessionData = {
+    ...commonData,
     ...specificData,
-    sessionGoalAchieved: null, // Initialize
-    xpEarned: 0, // Initialize XP
+    currentSegmentProgressSeconds: 0,
+    sessionGoalAchieved: null,
+    xpEarned: 0,
   };
 
   const docRef = await addDoc(collection(db, 'focusSessions'), fullSessionData);
@@ -188,7 +239,7 @@ export const createFocusSession = async (userId: string, sessionInput: CreateFoc
 
 export const updateFocusSession = async (sessionId: string, updates: Partial<FocusSessionData>): Promise<void> => {
   if (!sessionId) throw new Error('Session ID is required to update a focus session.');
-  
+
   const sanitizedUpdates: { [key: string]: any } = {};
   for (const key in updates) {
     if (Object.prototype.hasOwnProperty.call(updates, key)) {
@@ -196,7 +247,7 @@ export const updateFocusSession = async (sessionId: string, updates: Partial<Foc
       if (updates[typedKey] !== undefined) {
         sanitizedUpdates[typedKey] = updates[typedKey];
       } else {
-        sanitizedUpdates[typedKey] = null; 
+        sanitizedUpdates[typedKey] = null;
       }
     }
   }
@@ -208,7 +259,6 @@ export const updateFocusSession = async (sessionId: string, updates: Partial<Foc
   });
 };
 
-// ... (deleteFocusSession, onUserFocusSessionsSnapshot, getAllUserProductivityItems, addNoteToFocusSession remain largely the same) ...
 export const deleteFocusSession = async (sessionId: string): Promise<void> => {
   if (!sessionId) throw new Error('Session ID is required to delete a focus session.');
   await deleteDoc(doc(db, 'focusSessions', sessionId));
@@ -221,7 +271,7 @@ export const onUserFocusSessionsSnapshot = (
 ): (() => void) => {
   if (!userId) return () => {};
 
-  let qConstraints = [
+  let qConstraints: any[] = [
     where('userId', '==', userId),
     orderBy('createdAt', 'desc')
   ];
@@ -235,7 +285,7 @@ export const onUserFocusSessionsSnapshot = (
   if (options.count) {
     qConstraints.push(limit(options.count));
   }
-  
+
   const q = query(collection(db, 'focusSessions'), ...qConstraints);
 
   return onSnapshot(q, (snapshot) => {
@@ -261,19 +311,34 @@ export const getAllUserProductivityItems = async (userId: string): Promise<Array
   ];
 
   for (const collInfo of collectionsToFetch) {
-    const q = query(collection(db, collInfo.name), where('userId', '==', userId));
-    const snapshot = await getDocs(q);
-    snapshot.forEach(docSnap => {
-      const data = docSnap.data();
-      if (!data.completed) { 
+    try {
+        const q = query(collection(db, collInfo.name), where('userId', '==', userId), where('completed', '==', false));
+        const snapshot = await getDocs(q);
+        snapshot.forEach(docSnap => {
+        const data = docSnap.data();
         items.push({
-          id: docSnap.id,
-          name: data[collInfo.field] || `Untitled ${collInfo.field}`,
-          type: collInfo.field.charAt(0).toUpperCase() + collInfo.field.slice(1),
-          collection: collInfo.name
+            id: docSnap.id,
+            name: data[collInfo.field] || data.name || `Untitled ${collInfo.field}`,
+            type: collInfo.field.charAt(0).toUpperCase() + collInfo.field.slice(1),
+            collection: collInfo.name
         });
-      }
-    });
+        });
+    } catch (e) {
+        console.warn(`Could not fetch ${collInfo.name} or 'completed' field missing:`, e);
+         const qFallback = query(collection(db, collInfo.name), where('userId', '==', userId));
+         const snapshotFallback = await getDocs(qFallback);
+         snapshotFallback.forEach(docSnap => {
+             const data = docSnap.data();
+             if(data.completed === undefined || data.completed === false) {
+                 items.push({
+                     id: docSnap.id,
+                     name: data[collInfo.field] || data.name || `Untitled ${collInfo.field}`,
+                     type: collInfo.field.charAt(0).toUpperCase() + collInfo.field.slice(1),
+                     collection: collInfo.name
+                 });
+             }
+         });
+    }
   }
   return items.sort((a,b) => a.name.localeCompare(b.name));
 };
@@ -287,10 +352,9 @@ export const addNoteToFocusSession = async (sessionId: string, note: string | nu
   });
 };
 
-// Function to calculate XP (simple version)
 export const calculateXpForSession = (session: FocusSessionData): number => {
     let xp = 0;
-    if (session.status === 'completed' || (session.status === 'cancelled' && (session.accumulatedFocusSeconds || 0) > 0) ) {
+    if (session.status === 'completed' || (session.status === 'cancelled' && (session.accumulatedFocusSeconds || 0) > 60) ) {
         const minutesFocused = Math.floor((session.accumulatedFocusSeconds || 0) / 60);
         xp += minutesFocused * XP_PER_MINUTE_FOCUSED;
         if (session.status === 'completed') {
@@ -300,63 +364,128 @@ export const calculateXpForSession = (session: FocusSessionData): number => {
             xp += XP_BONUS_GOAL_ACHIEVED;
         }
     }
-    return Math.max(0, xp); // Ensure XP is not negative
+    return Math.max(0, xp);
 };
 
-// Function to update user's total XP (conceptual - user document structure assumed)
 export const updateUserTotalXp = async (userId: string, xpToAdd: number) => {
-    if (!userId || xpToAdd === 0) return;
-    const userProfileRef = doc(db, 'users', userId); // Assumes 'users' collection for profiles
+    if (!userId || xpToAdd <= 0) return;
+    const userProfileRef = doc(db, 'users', userId);
     try {
         await updateDoc(userProfileRef, {
             totalXp: increment(xpToAdd),
             lastXpEarnedAt: serverTimestamp(),
         });
     } catch (error) {
-        // If user profile doc doesn't exist, create it with totalXp (or handle error)
-        // This is a common pattern if user profiles are created on demand.
-        console.warn("Failed to update totalXp, user profile might not exist or other error:", error);
-        // Optionally, try to set the document if it doesn't exist.
-        // await setDoc(userProfileRef, { totalXp: xpToAdd, createdAt: serverTimestamp() }, { merge: true });
+        console.warn("Failed to update totalXp, attempting to set document:", error);
+        try {
+             await setDoc(userProfileRef, { totalXp: xpToAdd, lastXpEarnedAt: serverTimestamp(), createdAt: serverTimestamp() }, { merge: true });
+        } catch (setErr) {
+            console.error("Failed to set user profile for XP:", setErr);
+        }
     }
 };
 
+const datesAreOnSameDay = (first: Date, second: Date) =>
+    first.getFullYear() === second.getFullYear() &&
+    first.getMonth() === second.getMonth() &&
+    first.getDate() === second.getDate();
+
+const datesAreOnConsecutiveDays = (first: Date, second: Date) => {
+    const oneDay = 24 * 60 * 60 * 1000;
+    const firstDateNormalized = new Date(first.getFullYear(), first.getMonth(), first.getDate());
+    const secondDateNormalized = new Date(second.getFullYear(), second.getMonth(), second.getDate());
+    return Math.round(Math.abs((firstDateNormalized.getTime() - secondDateNormalized.getTime()) / oneDay)) === 1;
+};
+
+export const updateUserStreakOnSessionCompletion = async (userId: string, sessionCompletedAt: Timestamp) => {
+    if (!userId) return;
+    const userProfileRef = doc(db, 'users', userId);
+    const today = sessionCompletedAt.toDate();
+
+    try {
+        const docSnap = await getDoc(userProfileRef);
+        let currentStreakData: UserStreakData = { current: 0, longest: 0, lastFocusTimestamp: null };
+
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data.streaks) {
+                currentStreakData = data.streaks as UserStreakData;
+            }
+        }
+
+        let newCurrentStreak = currentStreakData.current;
+        let newLongestStreak = currentStreakData.longest;
+
+        if (currentStreakData.lastFocusTimestamp) {
+            const lastFocusDay = currentStreakData.lastFocusTimestamp.toDate();
+            if (!datesAreOnSameDay(lastFocusDay, today)) {
+                if (datesAreOnConsecutiveDays(lastFocusDay, today)) {
+                    newCurrentStreak += 1;
+                } else {
+                    newCurrentStreak = 1;
+                }
+            }
+        } else {
+            newCurrentStreak = 1;
+        }
+
+        if (newCurrentStreak > newLongestStreak) {
+            newLongestStreak = newCurrentStreak;
+        }
+
+        const updatedStreakData: UserStreakData = {
+            current: newCurrentStreak,
+            longest: newLongestStreak,
+            lastFocusTimestamp: sessionCompletedAt,
+        };
+
+        await setDoc(userProfileRef, { streaks: updatedStreakData }, { merge: true });
+
+    } catch (error) {
+        console.error("Error updating user streak:", error);
+    }
+};
+
+
 export const savePostSessionFeedback = async (
-    sessionId: string, 
-    feedback: FocusSessionData['postSessionFeedback'], 
+    sessionId: string,
+    feedback: FocusSessionData['postSessionFeedback'],
     sessionGoalAchieved: boolean | null,
-    userId: string // Needed to update total XP
+    userId: string
 ) => {
     if (!sessionId) throw new Error("Session ID is required.");
-    
-    // First, get the session to calculate XP based on its final state
+
     const sessionRef = doc(db, "focusSessions", sessionId);
-    const sessionSnap = await getDocs(query(collection(db, "focusSessions"), where("__name__", "==", sessionId), limit(1)));
+    const sessionSnap = await getDoc(sessionRef);
 
     let sessionData: FocusSessionData | null = null;
-    if (!sessionSnap.empty) {
-        sessionData = { id: sessionSnap.docs[0].id, ...sessionSnap.docs[0].data() } as FocusSessionData;
+    if (sessionSnap.exists()) {
+        sessionData = { id: sessionSnap.id, ...sessionSnap.data() } as FocusSessionData;
     }
 
     if (!sessionData) {
-        console.error("Could not retrieve session data to calculate XP.");
-        // Proceed to update feedback without XP if session data is missing
+        console.error("Could not retrieve session data to calculate XP and update streak.");
         await updateFocusSession(sessionId, { postSessionFeedback: feedback, sessionGoalAchieved });
         return;
     }
-    
-    // Update session with feedback and goal achievement status
-    const updatedSessionForXpCalc = { ...sessionData, postSessionFeedback: feedback, sessionGoalAchieved };
+
+    const updatedSessionForXpCalc = { ...sessionData, postSessionFeedback: feedback, sessionGoalAchieved, status: 'completed' as 'completed'};
     const xpEarned = calculateXpForSession(updatedSessionForXpCalc);
 
-    await updateFocusSession(sessionId, { 
-        postSessionFeedback: feedback, 
+    await updateFocusSession(sessionId, {
+        postSessionFeedback: feedback,
         sessionGoalAchieved: sessionGoalAchieved,
-        xpEarned: xpEarned 
+        xpEarned: xpEarned,
+        status: 'completed',
+        endTime: Timestamp.now(),
     });
 
     if (xpEarned > 0 && userId) {
         await updateUserTotalXp(userId, xpEarned);
+    }
+
+    if (sessionData.status === 'completed' || updatedSessionForXpCalc.status === 'completed') {
+        await updateUserStreakOnSessionCompletion(userId, Timestamp.now());
     }
 };
 
@@ -366,7 +495,6 @@ export const updateSessionAmbientSound = async (sessionId: string, sound: FocusS
     await updateFocusSession(sessionId, { ambientSound: sound });
 };
 
-// Placeholder for fetching total XP - in a real app, this would be part of user profile listener
 export const onUserTotalXpSnapshot = (userId: string, callback: (xp: number) => void): (() => void) => {
     if (!userId) return () => {};
     const userProfileRef = doc(db, 'users', userId);
@@ -379,5 +507,20 @@ export const onUserTotalXpSnapshot = (userId: string, callback: (xp: number) => 
     }, (error) => {
         console.error("Error listening to total XP:", error);
         callback(0);
+    });
+};
+
+export const onUserStreakDataSnapshot = (userId: string, callback: (streakData: UserStreakData | null) => void): (() => void) => {
+    if (!userId) return () => {};
+    const userProfileRef = doc(db, 'users', userId);
+    return onSnapshot(userProfileRef, (docSnap) => {
+        if (docSnap.exists() && docSnap.data().streaks) {
+            callback(docSnap.data().streaks as UserStreakData);
+        } else {
+            callback({ current: 0, longest: 0, lastFocusTimestamp: null });
+        }
+    }, (error) => {
+        console.error("Error listening to user streak data:", error);
+        callback(null);
     });
 };
