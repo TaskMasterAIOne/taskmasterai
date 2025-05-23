@@ -20,15 +20,23 @@ function SplashScreen() {
   const [currentFeatureIndex, setCurrentFeatureIndex] = useState(0);
   const [isImageLoaded, setIsImageLoaded] = useState(false);
 
-  // --- Features Array (Unchanged) ---
+  // --- MODIFIED Features Array (Reordered and Focus Mode updated) ---
   const features = [
-     {
+    {
       icon: LayoutDashboard,
       title: 'Dashboard',
       description: 'Your command center for peak productivity. Seamlessly manage tasks, set goals, and track projects with intelligent due dates that automatically sync to your calendar. The dashboard includes customizable timers, including our signature Pomodoro timer with adjustable work/break intervals. Monitor your productivity trends, set daily/weekly targets, and celebrate your achievements with our built-in progress tracking.',
       isNew: true,
       link: '/dashboard',
       image: 'https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/Screenshot%202025-02-17%20at%202.41.40%E2%80%AFPM.png?alt=media&token=cb886770-2359-46e2-8469-e2447d13dba4'
+    },
+    {
+      icon: Folder,
+      title: 'Folders',
+      description: 'Organize your study materials effortlessly. Create folders for different subjects or topics, containing flashcards, quizzes, and notes. Leverage the AI Study Assistant within each folder to generate study aids, explain concepts, or test your knowledge based on the folder\'s content. Keep everything structured and accessible.',
+      isNew: true,
+      link: '/folders',
+      image: 'https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/Screenshot%202025-04-18%20at%202.21.15%E2%80%AFAM.png?alt=media&token=52cf46bd-3487-4e24-a624-80e154a180e3'
     },
     {
       icon: NotebookPen,
@@ -39,12 +47,12 @@ function SplashScreen() {
       image: 'https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/Screenshot%202025-04-18%20at%201.50.17%E2%80%AFAM.png?alt=media&token=dfd818df-3fe7-4e02-b2e3-3dcccf8ac943'
     },
     {
-      icon: Folder,
-      title: 'Folders',
-      description: 'Organize your study materials effortlessly. Create folders for different subjects or topics, containing flashcards, quizzes, and notes. Leverage the AI Study Assistant within each folder to generate study aids, explain concepts, or test your knowledge based on the folder\'s content. Keep everything structured and accessible.',
-      isNew: true,
-      link: '/folders',
-      image: 'https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/Screenshot%202025-04-18%20at%202.21.15%E2%80%AFAM.png?alt=media&token=52cf46bd-3487-4e24-a624-80e154a180e3'
+      icon: Calendar,
+      title: 'Calendar',
+      description: 'More than just a schedule - it\'s your visual productivity timeline. Seamlessly integrates tasks, goals, and projects from your dashboard with smart due date tracking. Create and edit events with natural language input, set recurring tasks with flexible patterns, and get AI-powered suggestions for optimal scheduling. Includes multiple view options (day, week, month), time zone support, and smart conflict detection.',
+      isNew: false,
+      link: '/calendar',
+      image: 'https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/Screenshot%202025-04-18%20at%202.08.50%E2%80%AFAM.png?alt=media&token=39169263-d9b3-4bdb-bd83-6cea0b66bd36'
     },
     {
       icon: Users,
@@ -63,28 +71,20 @@ function SplashScreen() {
       image: 'https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/Screenshot%202025-04-18%20at%202.07.06%E2%80%AFAM.png?alt=media&token=977fd86f-a14b-4a7a-920a-9b78964a5a0c'
     },
     {
+      icon: Focus,
+      title: 'Focus Mode',
+      description: 'Take command of your focus with our comprehensive distraction management system. Block distracting websites and apps with customizable schedules, create focus profiles for different activities, and use our smart notification management to filter only essential alerts. Enhance your concentration with our curated collection of ambient sounds, including nature sounds, white noise, and focus-optimized music. Track your focus sessions and receive insights to improve your productivity patterns.',
+      isNew: false, // Kept as false, as it's now available, not necessarily "brand new"
+      link: '/focus',
+      image: 'https://via.placeholder.com/1200x800.png?text=Focus+Mode+Preview' // Placeholder image for Focus Mode
+    },
+    {
       icon: Bot,
       title: 'AI Assistant',
       description: 'Your AI-powered productivity partner. Get instant answers to complex questions and optimize tasks. It learns from your workflow to provide personalized tips, break down big projects, and summarize content. With access to your notes, it helps you stay organized with tasks and goals. It’s always there from all quick queries to in-depth projects.',
       isNew: true,
       link: '/ai',
       image: 'https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/Screenshot%202025-03-02%20at%207.50.48%E2%80%AFPM.png?alt=media&token=6f761a6b-1000-4f4a-a2a5-172f5af6df44'
-    },
-    {
-      icon: Calendar,
-      title: 'Calendar',
-      description: 'More than just a schedule - it\'s your visual productivity timeline. Seamlessly integrates tasks, goals, and projects from your dashboard with smart due date tracking. Create and edit events with natural language input, set recurring tasks with flexible patterns, and get AI-powered suggestions for optimal scheduling. Includes multiple view options (day, week, month), time zone support, and smart conflict detection.',
-      isNew: false,
-      link: '/calendar',
-      image: 'https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/Screenshot%202025-04-18%20at%202.08.50%E2%80%AFAM.png?alt=media&token=39169263-d9b3-4bdb-bd83-6cea0b66bd36'
-    },
-    {
-      icon: Focus,
-      title: 'Focus Mode',
-      description: 'Take command of your focus with our comprehensive distraction management system. Block distracting websites and apps with customizable schedules, create focus profiles for different activities, and use our smart notification management to filter only essential alerts. Enhance your concentration with our curated collection of ambient sounds, including nature sounds, white noise, and focus-optimized music. Track your focus sessions and receive insights to improve your productivity patterns.',
-      isNew: false,
-      link: '/focus',
-      // No image
     }
   ];
 
@@ -103,7 +103,7 @@ function SplashScreen() {
     } else {
       setIsImageLoaded(true);
     }
-  }, [currentFeatureIndex]);
+  }, [currentFeatureIndex, features]); // Added 'features' to dependency array as good practice if it could ever change, though unlikely here
 
   const handleNext = () => {
     setCurrentFeatureIndex((prev) => Math.min(prev + 1, features.length - 1));
@@ -147,14 +147,14 @@ function SplashScreen() {
           </p>
         </div>
 
-        {/* Feature Display Card (Unchanged) */}
+        {/* Feature Display Card (Unchanged structure, content updates dynamically) */}
         <div className="relative bg-gray-800/80 backdrop-blur-xl rounded-2xl p-6 md:p-8 lg:p-10 animate-slide-up shadow-2xl border border-gray-700/50 w-full">
           <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/5 via-purple-500/5 to-gray-900/5 blur-3xl -z-10 animate-pulse-slow rounded-2xl pointer-events-none"></div>
 
           {/* Flex container (Unchanged) */}
           <div className={`flex flex-col ${currentFeature.image ? 'md:flex-row' : ''} gap-6 md:gap-8 lg:gap-12`}>
 
-            {/* Content Column (Includes "Coming Soon" logic - Unchanged) */}
+            {/* Content Column */}
             <div className={`${currentFeature.image ? 'md:w-1/2' : 'w-full'} flex flex-col`}>
               <div className="flex items-center gap-4 mb-6">
                   <div className="p-2.5 bg-indigo-500/10 rounded-lg animate-pulse-subtle flex-shrink-0">
@@ -166,11 +166,8 @@ function SplashScreen() {
                       <h2 className="text-xl sm:text-2xl md:text-3xl font-semibold text-white inline">
                           {currentFeature.title}
                       </h2>
-                      {currentFeature.title === 'Focus Mode' ? (
-                        <span className="px-3.5 py-1.5 text-sm font-medium text-gray-400 bg-gray-700/50 rounded-full cursor-default whitespace-nowrap">
-                          Coming Soon
-                        </span>
-                      ) : (
+                      {/* --- MODIFIED: Removed "Coming Soon" logic for Focus Mode --- */}
+                      {/* Now, all features (which have a link) will show "Try Now" */}
                         <button
                             onClick={() => navigate(currentFeature.link)}
                             className="group px-3.5 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-full hover:bg-indigo-700 transition-all duration-300 flex items-center gap-1 shadow hover:shadow-md whitespace-nowrap"
@@ -178,7 +175,7 @@ function SplashScreen() {
                             Try Now
                             <ChevronRight className="w-4 h-4 transform group-hover:translate-x-0.5 transition-transform" />
                         </button>
-                      )}
+                      {/* --- END MODIFICATION --- */}
                   </div>
               </div>
               <p className="text-gray-300 text-sm md:text-base leading-relaxed">
@@ -186,34 +183,27 @@ function SplashScreen() {
               </p>
             </div>
 
-            {/* --- MODIFIED IMAGE COLUMN CONTAINER --- */}
+            {/* --- MODIFIED IMAGE COLUMN CONTAINER (from original, no structural change needed for this request) --- */}
             {currentFeature.image && (
               <div
-                key={currentFeature.image}
-                // REMOVED overflow-hidden from here
+                key={currentFeature.image} // Key helps React re-render if image src changes
                 className="md:w-1/2 mt-4 md:mt-0 group relative rounded-xl"
               >
-                 {/* Background gradient placeholder (Unchanged) */}
                  <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-purple-500/10 to-gray-800/10"></div>
-                 {/* Loading Skeleton (Unchanged) */}
                  {!isImageLoaded && (
-                    <div className="absolute inset-0 bg-gray-700/50 animate-pulse"></div>
+                    <div className="absolute inset-0 bg-gray-700/50 animate-pulse rounded-xl"></div>
                  )}
-                 {/* --- MODIFIED IMAGE --- */}
                  <img
                   src={currentFeature.image}
                   alt={`${currentFeature.title} Preview`}
                   className={`
-                    w-full h-auto                 /* Basic responsive sizing */
-                    rounded-xl shadow-lg           /* Styling */
-                    transform transition-all duration-500 ease-out /* Enable transform, match old duration */
-                    ${ isImageLoaded ? 'opacity-100 scale-100 blur-0' : 'opacity-0 scale-105 blur-sm' } /* Loading state */
-                    /* --- Hover Effect (from old code) --- */
+                    w-full h-auto                 
+                    rounded-xl shadow-lg           
+                    transform transition-all duration-500 ease-out 
+                    ${ isImageLoaded ? 'opacity-100 scale-100 blur-0' : 'opacity-0 scale-105 blur-sm' } 
                     group-hover:scale-[1.02]
-                    /* REMOVED: relative, md:h-full, md:object-cover */
                   `}
                  />
-                 {/* --- END MODIFIED IMAGE --- */}
               </div>
             )}
             {/* --- END MODIFIED IMAGE COLUMN CONTAINER --- */}
@@ -222,7 +212,6 @@ function SplashScreen() {
           {/* Navigation and Progress (Unchanged) */}
           <div className="mt-8 md:mt-10">
              <div className="flex justify-between items-center gap-4">
-              {/* Previous Button */}
               <button
                 onClick={handlePrev}
                 disabled={currentFeatureIndex === 0}
@@ -237,7 +226,6 @@ function SplashScreen() {
                 <span className="hidden sm:inline">Previous</span>
               </button>
 
-              {/* Progress Indicator */}
               <div className="flex justify-center items-center gap-1.5 md:gap-2 flex-wrap">
                   {features.map((feat, index) => (
                     <button
@@ -253,7 +241,6 @@ function SplashScreen() {
                   ))}
               </div>
 
-              {/* Next / Go to Dashboard Button */}
               {currentFeatureIndex === features.length - 1 ? (
                 <button
                   onClick={() => navigate('/dashboard')}
@@ -283,17 +270,13 @@ function SplashScreen() {
         </div>
       </div>
 
-
       {/* Styles (Unchanged) */}
       <style jsx>{`
-        /* Keyframes */
         @keyframes slide-up { from { opacity: 0; transform: translateY(25px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
         @keyframes gradient { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
         @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
-
-        /* Animation Classes */
         .animate-slide-up { animation: slide-up 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards; }
         .animate-fade-in { animation: fade-in 0.7s ease-out forwards; }
         .animate-fade-in-delay { animation: fade-in 0.7s ease-out 0.3s forwards; opacity: 0; }
