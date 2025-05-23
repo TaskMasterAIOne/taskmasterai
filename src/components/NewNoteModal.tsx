@@ -47,8 +47,8 @@ interface NewNoteModalProps {
   onYoutubeLink: (url: string) => Promise<void>;
   isIlluminateEnabled: boolean;
   isBlackoutEnabled: boolean;
-  userTier: UserTier; // <-- ADDED PROP
-  noteUsage: { pdfAi: number; youtube: number; }; // <-- ADDED PROP
+  userTier: UserTier;
+  noteUsage: { pdfAi: number; youtube: number; };
 }
 
 // --- Component ---
@@ -60,8 +60,8 @@ export function NewNoteModal({
   onYoutubeLink,
   isIlluminateEnabled,
   isBlackoutEnabled,
-  userTier, // <-- DESTRUCTURED PROP
-  noteUsage // <-- DESTRUCTURED PROP
+  userTier,
+  noteUsage
 }: NewNoteModalProps) {
   // --- State ---
   const [mode, setMode] = useState<'select' | 'personal' | 'ai' | 'pdf' | 'youtube'>('select');
@@ -79,6 +79,7 @@ export function NewNoteModal({
   const [currentStatusMessage, setCurrentStatusMessage] = useState("");
   const [showLongOperationWarning, setShowLongOperationWarning] = useState(false);
   const [currentOperationMode, setCurrentOperationMode] = useState<'select' | 'personal' | 'ai' | 'pdf' | 'youtube' | null>(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false); // <-- ADDED for drag-and-drop
 
   // Refs to store timer IDs for cleanup
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -115,13 +116,15 @@ export function NewNoteModal({
       setProgress(0);
       setCurrentStatusMessage("");
       setShowLongOperationWarning(false);
+      setIsDraggingOver(false); // <-- ADDED: Reset drag state
       clearAllTimers();
     }
   }, [isLoading]);
 
-  // Clear error when changing mode
+  // Clear error and drag state when changing mode
   useEffect(() => {
     setError(null);
+    setIsDraggingOver(false); // <-- ADDED: Reset drag state
   }, [mode]);
 
 
@@ -144,6 +147,13 @@ export function NewNoteModal({
   const loadingTextColor = isIlluminateEnabled ? "text-gray-600" : "text-gray-400";
   const progressBg = isIlluminateEnabled ? 'bg-gray-200' : 'bg-gray-600';
   const progressBarColor = 'bg-blue-500';
+  // Drag-and-drop zone specific styles
+  const dropZoneBaseBorder = isIlluminateEnabled ? 'border-gray-300' : 'border-gray-600';
+  const dropZoneHoverBorder = isIlluminateEnabled ? 'border-blue-400' : 'border-blue-500';
+  const dropZoneDragOverBorder = isIlluminateEnabled ? 'border-blue-500' : 'border-blue-400';
+  const dropZoneBaseBg = ''; // No specific base bg, handled by hover/drag states
+  const dropZoneHoverBg = isIlluminateEnabled ? 'hover:bg-gray-50' : 'hover:bg-gray-700/50';
+  const dropZoneDragOverBg = isIlluminateEnabled ? 'bg-blue-50' : 'bg-gray-700';
 
 
   // --- Helper Function to Check Limits (Uses Props) ---
@@ -154,14 +164,13 @@ export function NewNoteModal({
     }
     if (userTier === 'premium') return true;
 
-    const limits = NOTE_LIMITS[userTier]; // Use imported NOTE_LIMITS
+    const limits = NOTE_LIMITS[userTier];
     const currentCount = noteUsage[noteType];
     const limit = limits[noteType];
 
     if (currentCount >= limit) {
         const typeName = noteType === 'pdfAi' ? 'PDF/AI Text Note' : 'YouTube Note';
         setError(`Your monthly ${typeName} limit (${limit}) for the ${userTier} plan has been reached. Please upgrade for more notes.`);
-        // setTimeout(() => setError(null), 5000); // Optional: auto-clear error
         return false;
     }
     return true;
@@ -217,6 +226,7 @@ export function NewNoteModal({
     setError(null);
     setProgress(0);
     setShowLongOperationWarning(false);
+    setIsDraggingOver(false); // Reset drag state on action execution
     clearAllTimers();
 
     const statusMessages = getStatusMessages(actionType);
@@ -247,8 +257,7 @@ export function NewNoteModal({
       setProgress(100);
       setCurrentStatusMessage(statusMessages[statusMessages.length - 1] || "Completed!");
       setIsLoading(false);
-      // Parent now handles onClose via the promise resolution in Notes.tsx
-      // onClose(); // No longer call onClose directly here if parent handles it based on promise
+      // Parent now handles onClose via the promise resolution
 
     } catch (e: any) {
       clearAllTimers();
@@ -263,31 +272,34 @@ export function NewNoteModal({
   // Specific action triggers
   const handleCreatePersonalNoteSubmit = () => {
     if (!title.trim() || !content.trim() || isLoading) return;
-    // Personal notes usually don't have hard limits, but can add if needed
     executeAction(() => onCreatePersonalNote(title.trim(), content.trim(), tags), 'personal');
   };
 
   const handleCreateAINoteSubmit = () => {
     if (!aiText.trim() || isLoading) return;
-    if (!checkNoteLimit('pdfAi')) return; // Check limit before executing
+    if (!checkNoteLimit('pdfAi')) return;
     executeAction(() => onCreateAINote(aiText.trim()), 'ai');
   };
+
+  const processPDFFile = (file: File) => { // Helper to avoid code duplication
+    if (!file) return;
+    if (!file.type.includes('pdf')) {
+      setError("Invalid file type. Please select a PDF.");
+      if (fileInputRef.current) fileInputRef.current.value = ""; // Clear for click input
+      return;
+    }
+    if (!checkNoteLimit('pdfAi')) {
+        if (fileInputRef.current) fileInputRef.current.value = ""; // Clear for click input
+        return;
+    }
+    executeAction(() => onUploadPDF(file), 'pdf');
+     if (fileInputRef.current) fileInputRef.current.value = ""; // Clear for click input
+  }
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (isLoading) return;
     const file = event.target.files?.[0];
-    if (!file) return;
-    if (!file.type.includes('pdf')) {
-      setError("Invalid file type. Please select a PDF.");
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      return;
-    }
-    if (!checkNoteLimit('pdfAi')) { // Check limit before executing
-        if (fileInputRef.current) fileInputRef.current.value = ""; // Clear file input if limit reached
-        return;
-    }
-    executeAction(() => onUploadPDF(file), 'pdf');
-     if (fileInputRef.current) fileInputRef.current.value = "";
+    processPDFFile(file as File);
   };
 
   const handleYoutubeLinkSubmit = () => {
@@ -297,10 +309,51 @@ export function NewNoteModal({
       setError("Please enter a valid YouTube URL.");
       return;
     }
-    if (!checkNoteLimit('youtube')) return; // Check limit before executing
+    if (!checkNoteLimit('youtube')) return;
     executeAction(() => onYoutubeLink(youtubeUrl.trim()), 'youtube');
   };
 
+  // --- Drag and Drop Handlers for PDF ---
+  const handleDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!isLoading) {
+      setIsDraggingOver(true);
+    }
+  };
+
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault(); // Crucial for onDrop to fire
+    event.stopPropagation();
+    if (!isLoading) {
+      setIsDraggingOver(true); // Keep it true while dragging over
+    }
+  };
+
+  const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    // Check if the mouse is leaving the element or one of its children
+    // A simple check is if relatedTarget (where the mouse is going) is outside the dropzone
+    const dropZone = event.currentTarget;
+    if (!dropZone.contains(event.relatedTarget as Node)) {
+        setIsDraggingOver(false);
+    }
+  };
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDraggingOver(false);
+
+    if (isLoading) return;
+
+    const files = event.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0]; // Process the first file
+      processPDFFile(file);
+    }
+  };
 
   // --- Rendering Logic ---
 
@@ -358,10 +411,10 @@ export function NewNoteModal({
               { mode: 'ai', Icon: Sparkles, title: 'AI Note', desc: 'Generate from text', color: 'text-purple-500 dark:text-purple-400' },
               { mode: 'pdf', Icon: Upload, title: 'PDF to Note', desc: 'Upload a PDF', color: 'text-red-500 dark:text-red-400' },
               { mode: 'youtube', Icon: Youtube, title: 'YouTube to Note', desc: 'Use a video link', color: 'text-pink-500 dark:text-pink-400' },
-            ].map(({ mode, Icon, title, desc, color }) => (
+            ].map(({ mode: btnMode, Icon, title, desc, color }) => (
               <button
-                key={mode}
-                onClick={() => handleSetMode(mode as any)}
+                key={btnMode}
+                onClick={() => handleSetMode(btnMode as any)}
                 className={`flex flex-col items-center gap-2 p-4 rounded-lg ${selectionButtonBg} hover:shadow-md transition-all duration-150`}
               >
                 <Icon className={`w-8 h-8 ${color}`} />
@@ -423,10 +476,25 @@ export function NewNoteModal({
           <div className="animate-fadeIn">
             <div
               onClick={() => !isLoading && fileInputRef.current?.click()}
-              className={`border-2 border-dashed ${isIlluminateEnabled ? 'border-gray-300' : 'border-gray-600'} rounded-lg p-6 text-center transition-colors ${isLoading ? 'opacity-50 cursor-not-allowed bg-opacity-50' : `cursor-pointer ${isIlluminateEnabled ? 'hover:border-blue-400 hover:bg-gray-50' : 'hover:border-blue-500 hover:bg-gray-700/50'}`}`}
+              onDragEnter={handleDragEnter}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={`border-2 border-dashed rounded-lg p-6 text-center transition-all duration-150 ease-in-out
+                ${isLoading
+                  ? 'opacity-50 cursor-not-allowed bg-opacity-50 ' + dropZoneBaseBorder
+                  : `cursor-pointer 
+                     ${isDraggingOver
+                       ? `${dropZoneDragOverBorder} ${dropZoneDragOverBg}`
+                       : `${dropZoneBaseBorder} ${dropZoneHoverBg}`
+                     }`
+                }
+              `}
             >
-              <Upload className={`w-10 h-10 ${iconColor} mx-auto mb-3`} />
-              <p className={`text-sm font-medium ${textColor} mb-1`}>Click or drag PDF file here</p>
+              <Upload className={`w-10 h-10 ${iconColor} mx-auto mb-3 ${isDraggingOver && !isLoading ? (isIlluminateEnabled ? 'text-blue-500' : 'text-blue-400') : ''}`} />
+              <p className={`text-sm font-medium ${textColor} mb-1`}>
+                {isDraggingOver && !isLoading ? 'Drop PDF here' : 'Click or drag PDF file here'}
+              </p>
               <p className={`text-xs ${isIlluminateEnabled ? 'text-gray-500' : 'text-gray-400'}`}>No file size limit</p>
             </div>
             <input ref={fileInputRef} type="file" accept=".pdf" onChange={handleFileSelect} disabled={isLoading} className="hidden" />
@@ -472,6 +540,7 @@ export function NewNoteModal({
            </>
          );
        case 'pdf':
+          // No primary action button for PDF as action is triggered by file select/drop
           return <button onClick={goBackAction} className={`${buttonSecondaryClass} px-3 py-1.5 rounded-md text-sm`}>Back</button>;
        case 'youtube':
          return (
@@ -532,7 +601,7 @@ export function NewNoteModal({
              </div>
           )}
 
-           {isLoading && <div className="h-[16px] w-full"></div> }
+           {isLoading && <div className="h-[16px] w-full"></div> } {/* Placeholder to prevent layout jump when error disappears */}
         </div>
       </div>
     </div>
