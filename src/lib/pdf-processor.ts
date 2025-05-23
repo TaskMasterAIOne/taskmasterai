@@ -174,7 +174,32 @@ export async function processPDF(
 
         safeProgress({ progress: 60, status: 'Generating comprehensive study notes...', error: null });
         const noteInputText = extractedTextFromPdf;
-        const detailedNotePrompt = `**Objective:** Create comprehensive, detailed, and well-structured study notes in Markdown format based on the provided text from "${file.name}". These notes are intended for a student learning the subject matter covered in the document.\n**Core Task:** Do not just summarize. Synthesize the information, explain concepts clearly, elaborate on key points, and structure the content logically for learning and revision. Use the provided text as the primary source of truth, but leverage your understanding of the topic to enhance clarity, add context where appropriate (without contradicting the text), and organize the material effectively for studying. Avoid simply stating "The text says...". Instead, present the information directly.\n**Mandatory Instructions:**\n1.  **Study Focus:** Ensure the notes are pedagogically valuable. Explain concepts, define key terms clearly, connect related ideas (even if presented separately in the text), and highlight important facts, principles, or processes.\n2.  **Comprehensiveness & Depth:** Cover ALL significant topics, sub-topics, arguments, data, and examples present in the text. Go into substantial detail. Aim for lengthy and exhaustive notes that capture the nuances of the source material.\n3.  **Structure & Formatting:** Utilize Markdown extensively and strategically: Headings (#, ##, ###), Lists (*, -, +, 1., 2.), Emphasis (**bold**, *italics*, \`\`\`inline code\`\`\`), Tables, Code Blocks (\`\`\`), Blockquotes (>), Describe visuals.\n4.  **Output Requirements:** Generate **only** the raw Markdown note content. **NO** introductory or concluding phrases. Start *immediately* with the first Markdown element.\n**Source Text Content:**\n---\n${noteInputText}\n---\n**Generated Comprehensive Study Notes (Markdown Format):**`;
+const detailedNotePrompt = `**Objective:** Create comprehensive, detailed, and well-structured study notes based on the provided text from "${file.name}". These notes should match the exact formatting style shown in the reference screenshots - using emojis as section headers, bullet points for definitions, and clean visual organization.
+
+**Core Task:** Transform the source material into visually appealing study notes that follow the reference format exactly. Use emojis to categorize sections, create clear bullet-point definitions, and maintain the professional academic presentation style shown in the examples.
+
+**Mandatory Formatting Requirements:**
+1. **Section Headers:** Use relevant emojis followed by section titles (e.g., "💡 Basic Terms for Economics", "📈 Inflation and Interest Rates")
+2. **Bullet Points:** Use standard bullet points (•) for all definitions and explanations
+3. **Key Terms:** Bold important terms followed by clear, concise definitions
+4. **Mathematical Formulas:** Present formulas in italics when appropriate
+5. **Visual Organization:** Group related concepts together under appropriate emoji headers
+6. **Clean Layout:** Maintain consistent spacing and indentation as shown in screenshots
+
+**Content Requirements:**
+1. **Study Focus:** Ensure notes are pedagogically valuable with clear concept explanations and key term definitions
+2. **Comprehensiveness:** Cover ALL significant topics, formulas, definitions, and examples from the source text
+3. **Clarity:** Present information directly without phrases like "The text says..."
+4. **Academic Tone:** Maintain professional, educational language throughout
+
+**Output Format:** Generate the formatted study notes content exactly as shown in the reference screenshots. Start immediately with the first emoji section header.
+
+**Source Text Content:**
+---
+${noteInputText}
+---
+
+**Generated Study Notes (Reference Format):**`;
         let detailedNoteContent = 'Error: AI detailed study note generation failed.';
         try {
             const noteOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: detailedNotePrompt }] }], generationConfig: { temperature: 0.65, maxOutputTokens: 8192 } }) };
