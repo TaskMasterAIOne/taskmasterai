@@ -174,32 +174,105 @@ export async function processPDF(
 
         safeProgress({ progress: 60, status: 'Generating comprehensive study notes...', error: null });
         const noteInputText = extractedTextFromPdf;
-const detailedNotePrompt = `**Objective:** Create comprehensive, detailed, and well-structured study notes based on the provided text from "${file.name}". These notes should match the exact formatting style shown in the reference screenshots - using emojis as section headers, bullet points for definitions, and clean visual organization.
+const detailedNotePrompt = `**PRIMARY OBJECTIVE:** Create comprehensive, detailed, and pedagogically-focused study notes in Markdown format based on the provided text from "${file.name}". These notes are designed for active learning and mastery of the subject matter. The student will use these notes to LEARN and UNDERSTAND the content, concepts, theories, processes, and applications covered in the source material.
 
-**Core Task:** Transform the source material into visually appealing study notes that follow the reference format exactly. Use emojis to categorize sections, create clear bullet-point definitions, and maintain the professional academic presentation style shown in the examples.
+**CORE EDUCATIONAL MISSION:** You are creating study materials that teach the student the actual CONTENT and SUBSTANCE of the subject matter. Focus on explaining concepts, theories, methodologies, facts, processes, applications, and knowledge that the student needs to learn and retain. If the source is a textbook chapter on calculus, teach calculus concepts. If it's a research paper on machine learning, teach the ML techniques and findings. If it's a business case study, teach the business principles and decision-making frameworks demonstrated.
 
-**Mandatory Formatting Requirements:**
-1. **Section Headers:** Use relevant emojis followed by section titles (e.g., "💡 Basic Terms for Economics", "📈 Inflation and Interest Rates")
-2. **Bullet Points:** Use standard bullet points (•) for all definitions and explanations
-3. **Key Terms:** Bold important terms followed by clear, concise definitions
-4. **Mathematical Formulas:** Present formulas in italics when appropriate
-5. **Visual Organization:** Group related concepts together under appropriate emoji headers
-6. **Clean Layout:** Maintain consistent spacing and indentation as shown in screenshots
+**CRITICAL CONTENT FOCUS GUIDELINES:**
+1. **Teach the Subject Matter:** Extract and explain the core knowledge, concepts, theories, methods, and applications that the student needs to learn
+2. **Educational Depth:** Go beyond surface-level summaries. Explain HOW things work, WHY they matter, WHEN to apply them, and WHAT the implications are
+3. **Practical Understanding:** Include examples, applications, problem-solving approaches, and real-world connections where present in the source
+4. **Conceptual Connections:** Link related ideas, show cause-and-effect relationships, and build logical progressions of understanding
+5. **Avoid Meta-Commentary:** Don't focus on what the course/book/paper "covers" or "discusses" - focus on the actual substantive content and knowledge being presented
 
-**Content Requirements:**
-1. **Study Focus:** Ensure notes are pedagogically valuable with clear concept explanations and key term definitions
-2. **Comprehensiveness:** Cover ALL significant topics, formulas, definitions, and examples from the source text
-3. **Clarity:** Present information directly without phrases like "The text says..."
-4. **Academic Tone:** Maintain professional, educational language throughout
+**COMPREHENSIVE FORMATTING ARSENAL - USE ALL THESE TOOLS:**
 
-**Output Format:** Generate the formatted study notes content exactly as shown in the reference screenshots. Start immediately with the first emoji section header.
+**1. VISUAL ORGANIZATION (Inspired by Reference Screenshots):**
+- Use relevant emojis as section headers (💡, 📈, 🧮, ⚖️, 🔬, 📊, 🎯, etc.)
+- Create visually distinct sections with emoji + descriptive titles
+- Maintain clean, professional academic presentation
 
-**Source Text Content:**
+**2. MARKDOWN STRUCTURE & HIERARCHY:**
+- **Headers:** Use multiple levels (# ## ### ####) to create clear information hierarchy
+- **Emphasis:** Strategic use of **bold** for key terms, *italics* for emphasis, and `inline code` for technical terms
+- **Lists:** Utilize bullet points (•), numbered lists (1. 2. 3.), and nested lists for organization
+- **Spacing:** Proper line breaks and spacing for visual clarity and readability
+
+**3. ADVANCED MARKDOWN ELEMENTS:**
+
+**Tables for Data Organization:**
+```markdown
+| Concept | Definition | Application | Example |
+|---------|------------|-------------|---------|
+| Term 1  | Definition | When to use | Concrete example |
+```
+
+**Code Blocks for Formulas, Processes, and Technical Content:**
+```
+Mathematical formulas
+Step-by-step processes
+Technical procedures
+Algorithm descriptions
+```
+
+**Blockquotes for Important Concepts:**
+```markdown
+> Key principles, important quotes, crucial definitions, or highlighted insights
+> that deserve special attention
+```
+
+**4. CONTENT DEPTH REQUIREMENTS:**
+- **Definitions:** Provide clear, comprehensive definitions of ALL key terms and concepts
+- **Explanations:** Elaborate on complex ideas with detailed explanations that promote understanding
+- **Examples:** Include all examples, case studies, and applications mentioned in the source
+- **Formulas & Calculations:** Present mathematical content with proper formatting and explanation
+- **Processes & Procedures:** Break down step-by-step processes and methodologies
+- **Relationships:** Explain how concepts relate to each other and build upon one another
+
+**5. PEDAGOGICAL STRUCTURE:**
+- **Learning Objectives:** What should the student understand after reviewing each section?
+- **Concept Building:** Present information in logical order that builds understanding progressively
+- **Reinforcement:** Use multiple presentation methods (definitions, examples, applications) to reinforce key concepts
+- **Synthesis:** Connect ideas across different sections and show broader patterns and relationships
+
+**6. COMPREHENSIVE COVERAGE MANDATE:**
+- Cover EVERY significant topic, subtopic, concept, theory, method, and application in the source
+- Include ALL data, statistics, research findings, and factual information present
+- Capture nuanced arguments, multiple perspectives, and complex relationships
+- Preserve technical accuracy while enhancing clarity and understanding
+- Don't skip "difficult" or "advanced" sections - break them down for student comprehension
+
+**7. QUALITY AND LENGTH EXPECTATIONS:**
+- **Substantial Length:** Create extensive, detailed notes that match the depth and scope of the source material
+- **Academic Rigor:** Maintain high academic standards while ensuring accessibility for learning
+- **Complete Coverage:** Ensure no important information is omitted or oversimplified
+- **Learning-Focused:** Every element should serve the goal of student understanding and knowledge acquisition
+
+**8. PRESENTATION STANDARDS:**
+- **Visual Appeal:** Use the full range of Markdown formatting to create engaging, easy-to-study materials
+- **Logical Flow:** Organize information in a way that facilitates learning and retention
+- **Reference Quality:** Create notes that serve as a comprehensive reference for the subject matter
+- **Study-Optimized:** Structure content for effective review, memorization, and application
+
+**9. CONTENT TRANSFORMATION PRINCIPLES:**
+- **From Source to Knowledge:** Transform the source material into learnable, teachable content
+- **Student Perspective:** Write from the perspective of teaching a student who needs to master this material
+- **Active Learning:** Structure content to promote active engagement with the material
+- **Mastery-Oriented:** Focus on the depth of understanding needed for true mastery of the subject
+
+**EXECUTION INSTRUCTIONS:**
+1. **Immediate Start:** Begin directly with the first emoji section header - no introductory text
+2. **Full Markdown Utilization:** Employ the complete range of Markdown formatting tools throughout
+3. **Educational Priority:** Every formatting choice should serve the goal of effective learning
+4. **Comprehensive Scope:** Leave no significant concept, theory, method, or application uncovered
+5. **Quality Standard:** Create notes worthy of advanced academic study and professional reference
+
+**SOURCE TEXT FOR TRANSFORMATION:**
 ---
 ${noteInputText}
 ---
 
-**Generated Study Notes (Reference Format):**`;
+**COMPREHENSIVE STUDY NOTES (Full Markdown Format):**`;
         let detailedNoteContent = 'Error: AI detailed study note generation failed.';
         try {
             const noteOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: detailedNotePrompt }] }], generationConfig: { temperature: 0.65, maxOutputTokens: 8192 } }) };
