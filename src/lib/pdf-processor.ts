@@ -194,32 +194,34 @@ const detailedNotePrompt = `**PRIMARY OBJECTIVE:** Create comprehensive, detaile
 
 **2. MARKDOWN STRUCTURE & HIERARCHY:**
 - **Headers:** Use multiple levels (# ## ### ####) to create clear information hierarchy
-- **Emphasis:** Strategic use of **bold** for key terms, *italics* for emphasis, and `inline code` for technical terms
+- **Emphasis:** Strategic use of **bold** for key terms, *italics* for emphasis, and inline code for technical terms
 - **Lists:** Utilize bullet points (•), numbered lists (1. 2. 3.), and nested lists for organization
 - **Spacing:** Proper line breaks and spacing for visual clarity and readability
 
 **3. ADVANCED MARKDOWN ELEMENTS:**
 
 **Tables for Data Organization:**
-```markdown
+markdown
 | Concept | Definition | Application | Example |
 |---------|------------|-------------|---------|
 | Term 1  | Definition | When to use | Concrete example |
-```
+
 
 **Code Blocks for Formulas, Processes, and Technical Content:**
-```
 Mathematical formulas
 Step-by-step processes
 Technical procedures
 Algorithm descriptions
-```
+
 
 **Blockquotes for Important Concepts:**
-```markdown
+
+
 > Key principles, important quotes, crucial definitions, or highlighted insights
 > that deserve special attention
-```
+
+IMPORTANT: DONT START THE NOTES WITH CODE -- ONLY OUTPUT THE FULL MARKDOWN. 
+
 
 **4. CONTENT DEPTH REQUIREMENTS:**
 - **Definitions:** Provide clear, comprehensive definitions of ALL key terms and concepts
