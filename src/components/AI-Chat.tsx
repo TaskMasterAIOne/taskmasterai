@@ -1231,7 +1231,7 @@ Assistant:`;
             <div className="relative w-full max-w-5xl overflow-hidden my-3 md:my-4">
               <div className={leftOverlayClass} />
               <div className={rightOverlayClass} />
-              <div className="flex relative overflow-x-auto pb-3 hide-scrollbar">
+              <div className="flex relative overflow-x-auto pb-3">
                 <motion.div
                   className="flex space-x-2.5 md:space-x-3 px-2"
                   animate={{ x: [0, -(quickActionSetWidth / (quickActions.length > 0 ? quickActions.length : 1) * quickActions.length)] }}
