@@ -20,7 +20,6 @@ function SplashScreen() {
   const [currentFeatureIndex, setCurrentFeatureIndex] = useState(0);
   const [isImageLoaded, setIsImageLoaded] = useState(false);
 
-  // --- MODIFIED Features Array (Reordered and Focus Mode updated) ---
   const features = [
     {
       icon: LayoutDashboard,
@@ -74,9 +73,9 @@ function SplashScreen() {
       icon: Focus,
       title: 'Focus Mode',
       description: 'Take command of your focus with our comprehensive distraction management system. Block distracting websites and apps with customizable schedules, create focus profiles for different activities, and use our smart notification management to filter only essential alerts. Enhance your concentration with our curated collection of ambient sounds, including nature sounds, white noise, and focus-optimized music. Track your focus sessions and receive insights to improve your productivity patterns.',
-      isNew: false, // Kept as false, as it's now available, not necessarily "brand new"
+      isNew: false,
       link: '/focus',
-      image: 'https://via.placeholder.com/1200x800.png?text=Focus+Mode+Preview' // Placeholder image for Focus Mode
+      image: 'https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/Screenshot%202025-05-22%20at%208.32.16%E2%80%AFPM.png?alt=media&token=187665f4-6382-43d1-b200-11f017030cd0' // Updated image
     },
     {
       icon: Bot,
@@ -88,22 +87,24 @@ function SplashScreen() {
     }
   ];
 
-  // --- Image Preloading Effect (Unchanged) ---
+  const currentFeature = features[currentFeatureIndex];
+
   useEffect(() => {
-    const currentImage = features[currentFeatureIndex].image;
-    if (currentImage) {
+    const imageUrl = currentFeature?.image;
+    if (imageUrl) {
       setIsImageLoaded(false);
       const img = new Image();
-      img.src = currentImage;
+      img.src = imageUrl;
       img.onload = () => setIsImageLoaded(true);
       img.onerror = () => {
-        console.error(`Failed to load image: ${currentImage}`);
+        console.error(`Failed to load image: ${imageUrl}`);
         setIsImageLoaded(true);
       }
     } else {
       setIsImageLoaded(true);
     }
-  }, [currentFeatureIndex, features]); // Added 'features' to dependency array as good practice if it could ever change, though unlikely here
+  }, [currentFeature?.image]);
+
 
   const handleNext = () => {
     setCurrentFeatureIndex((prev) => Math.min(prev + 1, features.length - 1));
@@ -113,21 +114,16 @@ function SplashScreen() {
     setCurrentFeatureIndex((prev) => Math.max(prev - 1, 0));
   };
 
-  const currentFeature = features[currentFeatureIndex];
-
   return (
     <div className="min-h-screen bg-gray-900 font-poppins p-4 md:p-6 overflow-hidden flex flex-col justify-center items-center relative">
 
-      {/* Legal Links (Unchanged) */}
       <div className="fixed top-4 right-4 md:top-6 md:right-6 flex justify-end gap-3 z-50">
         <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 text-xs text-gray-400 bg-gray-800/80 rounded-full hover:bg-indigo-500/20 hover:text-indigo-400 transition-all duration-300 flex items-center gap-1.5 backdrop-blur-sm"> Privacy Policy <ExternalLink className="h-3 w-3" /> </a>
         <a href="/terms" target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 text-xs text-gray-400 bg-gray-800/80 rounded-full hover:bg-indigo-500/20 hover:text-indigo-400 transition-all duration-300 flex items-center gap-1.5 backdrop-blur-sm"> Terms & Conditions <ExternalLink className="h-3 w-3" /> </a>
       </div>
 
-      {/* Centered Content Area (Unchanged) */}
       <div className="w-full max-w-6xl px-4 flex flex-col items-center pt-16 sm:pt-12 md:pt-0">
 
-        {/* Logo and Title Section (Unchanged) */}
         <div className="text-center relative z-10 mb-8 md:mb-10 w-full">
           <div className="relative inline-block animate-float mb-4">
             <div className="absolute inset-0 bg-indigo-500 blur-2xl opacity-20 rounded-full transform scale-150"></div>
@@ -145,16 +141,23 @@ function SplashScreen() {
           <p className="text-base md:text-lg text-gray-300 animate-fade-in-delay max-w-2xl mx-auto">
             Here's what I can do to <span className="font-semibold text-indigo-300">supercharge</span> your productivity
           </p>
+          {/* --- ADDED SKIP BUTTON --- */}
+          <div className="mt-6 animate-fade-in-delay" style={{ animationDelay: '0.4s' }}>
+            <button
+              onClick={() => navigate('/dashboard')}
+              aria-label="Skip to Dashboard"
+              className="px-6 py-2.5 text-sm font-semibold text-white bg-indigo-600 rounded-full hover:bg-indigo-700 transition-all duration-300 shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 focus:ring-offset-gray-900"
+            >
+              Skip to Dashboard
+            </button>
+          </div>
         </div>
 
-        {/* Feature Display Card (Unchanged structure, content updates dynamically) */}
         <div className="relative bg-gray-800/80 backdrop-blur-xl rounded-2xl p-6 md:p-8 lg:p-10 animate-slide-up shadow-2xl border border-gray-700/50 w-full">
           <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/5 via-purple-500/5 to-gray-900/5 blur-3xl -z-10 animate-pulse-slow rounded-2xl pointer-events-none"></div>
 
-          {/* Flex container (Unchanged) */}
           <div className={`flex flex-col ${currentFeature.image ? 'md:flex-row' : ''} gap-6 md:gap-8 lg:gap-12`}>
 
-            {/* Content Column */}
             <div className={`${currentFeature.image ? 'md:w-1/2' : 'w-full'} flex flex-col`}>
               <div className="flex items-center gap-4 mb-6">
                   <div className="p-2.5 bg-indigo-500/10 rounded-lg animate-pulse-subtle flex-shrink-0">
@@ -166,8 +169,6 @@ function SplashScreen() {
                       <h2 className="text-xl sm:text-2xl md:text-3xl font-semibold text-white inline">
                           {currentFeature.title}
                       </h2>
-                      {/* --- MODIFIED: Removed "Coming Soon" logic for Focus Mode --- */}
-                      {/* Now, all features (which have a link) will show "Try Now" */}
                         <button
                             onClick={() => navigate(currentFeature.link)}
                             className="group px-3.5 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-full hover:bg-indigo-700 transition-all duration-300 flex items-center gap-1 shadow hover:shadow-md whitespace-nowrap"
@@ -175,7 +176,6 @@ function SplashScreen() {
                             Try Now
                             <ChevronRight className="w-4 h-4 transform group-hover:translate-x-0.5 transition-transform" />
                         </button>
-                      {/* --- END MODIFICATION --- */}
                   </div>
               </div>
               <p className="text-gray-300 text-sm md:text-base leading-relaxed">
@@ -183,13 +183,13 @@ function SplashScreen() {
               </p>
             </div>
 
-            {/* --- MODIFIED IMAGE COLUMN CONTAINER (from original, no structural change needed for this request) --- */}
+            {/* --- REVERTED IMAGE COLUMN CONTAINER AND IMAGE STYLING --- */}
             {currentFeature.image && (
               <div
-                key={currentFeature.image} // Key helps React re-render if image src changes
-                className="md:w-1/2 mt-4 md:mt-0 group relative rounded-xl"
+                key={currentFeature.image}
+                className="md:w-1/2 mt-4 md:mt-0 group relative rounded-xl overflow-hidden" // Added overflow-hidden
               >
-                 <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-purple-500/10 to-gray-800/10"></div>
+                 <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-purple-500/10 to-gray-800/10 rounded-xl"></div>
                  {!isImageLoaded && (
                     <div className="absolute inset-0 bg-gray-700/50 animate-pulse rounded-xl"></div>
                  )}
@@ -197,19 +197,18 @@ function SplashScreen() {
                   src={currentFeature.image}
                   alt={`${currentFeature.title} Preview`}
                   className={`
-                    w-full h-auto                 
-                    rounded-xl shadow-lg           
-                    transform transition-all duration-500 ease-out 
-                    ${ isImageLoaded ? 'opacity-100 scale-100 blur-0' : 'opacity-0 scale-105 blur-sm' } 
-                    group-hover:scale-[1.02]
+                    relative w-full md:h-full md:object-cover  /* Restored original responsive/fill behavior */
+                    rounded-xl shadow-lg                      /* Styling */
+                    transform transition-all duration-500 ease-out /* Enable transform */
+                    ${ isImageLoaded ? 'opacity-100 scale-100 blur-0' : 'opacity-0 scale-105 blur-sm' } /* Loading state */
+                    group-hover:scale-[1.02]                  /* Hover effect */
                   `}
                  />
               </div>
             )}
-            {/* --- END MODIFIED IMAGE COLUMN CONTAINER --- */}
+            {/* --- END REVERTED IMAGE COLUMN --- */}
           </div>
 
-          {/* Navigation and Progress (Unchanged) */}
           <div className="mt-8 md:mt-10">
              <div className="flex justify-between items-center gap-4">
               <button
@@ -270,7 +269,6 @@ function SplashScreen() {
         </div>
       </div>
 
-      {/* Styles (Unchanged) */}
       <style jsx>{`
         @keyframes slide-up { from { opacity: 0; transform: translateY(25px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
