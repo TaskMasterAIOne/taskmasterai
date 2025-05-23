@@ -40,12 +40,11 @@ interface ChatMessage {
     noteIdToRevert?: string;
     isGeneratingImage?: boolean;
     wasImageGenerated?: boolean;
-    isPdfContextDisplay?: boolean; // Added for distinguishing PDF context display
+    isPdfContextDisplay?: boolean;
 }
 interface SelectedFile { name: string; type: string; size: number; base64Data: string; }
 interface Note { id: string; title: string; content: string; keyPoints?: string[]; questions?: { question: string }[]; }
 
-// For PDF context segments
 interface PdfContextSegment {
     id: string;
     text: string;
@@ -60,14 +59,15 @@ interface NoteChatProps {
     isBlackoutEnabled: boolean;
     isVisible: boolean;
     onUpdateNoteContent: (noteId: string, newContent: string) => Promise<void>;
-    onAddImageToNoteRequest: (imageData: ImageData) => void; // Add this prop
+    onAddImageToNoteRequest: (imageData: ImageData) => void;
     displayMode?: 'overlay' | 'inline';
     userTier: UserTier;
 }
 export interface NoteChatHandle {
     sendMessage: (message: string) => void;
-    addPdfContextSegment: (text: string) => void; // New method for PDF context
-    focusInput: () => void; // Added for focusing input
+    addPdfContextSegment: (text: string) => void;
+    addPdfScreenshot: (fileData: SelectedFile) => void; // New method for PDF screenshot
+    focusInput: () => void;
 }
 
 const GEMINI_TEXT_MODEL = 'gemini-2.0-flash';
@@ -214,14 +214,14 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
         const fileInputRef = useRef<HTMLInputElement>(null);
         const textareaRef = useRef<HTMLTextAreaElement>(null);
         const [loadingMsgId, setLoadingMsgId] = useState<string | null>(null);
-        
+
         const [user, setUser] = useState<User | null>(null);
         const [chatCount, setChatCount] = useState(0);
         const [usageMonth, setUsageMonth] = useState('');
         const [isChatLimitReached, setIsChatLimitReached] = useState(false);
         const [isLoadingUsage, setIsLoadingUsage] = useState(true);
         const [isImageGenModeActive, setIsImageGenModeActive] = useState(false);
-        const [pdfContextSegments, setPdfContextSegments] = useState<PdfContextSegment[]>([]); // New state for PDF context
+        const [pdfContextSegments, setPdfContextSegments] = useState<PdfContextSegment[]>([]);
 
         const currentChatLimit = useMemo(() => getChatLimitForTier(userTier), [userTier]);
 
@@ -237,7 +237,7 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
 
             if (!isVisible) { setIsLoadingUsage(false); return; }
             if (userTier === 'loading' || !currentAuthUser) { setIsLoadingUsage(true); setChatCount(0); setUsageMonth(''); setIsChatLimitReached(userTier === 'loading'); return; }
-            setIsLoadingUsage(true); 
+            setIsLoadingUsage(true);
             if (userTier !== 'premium') {
                 const currentMonthYear = new Date().toISOString().slice(0, 7);
                 getCurrentMonthUserChatUsage(currentAuthUser.uid, currentMonthYear)
@@ -254,34 +254,33 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
                         }
                     })
                     .catch(err => {
-                        console.error("Error fetching chat usage:", err);
-                        setChatCount(0); 
+                        setChatCount(0);
                         setUsageMonth(new Date().toISOString().slice(0, 7));
                         const limit = getChatLimitForTier(userTier);
-                        setIsChatLimitReached(limit === 0 && limit !== Infinity); 
+                        setIsChatLimitReached(limit === 0 && limit !== Infinity);
                     })
                     .finally(() => setIsLoadingUsage(false));
-            } else { 
-                setChatCount(0); 
+            } else {
+                setChatCount(0);
                 setUsageMonth('');
-                setIsChatLimitReached(false); 
+                setIsChatLimitReached(false);
                 setIsLoadingUsage(false);
             }
         }, [isVisible, userTier, user?.uid]);
 
 
-        useEffect(() => { if (note && (note.id !== currentNoteId.current || (displayMode === 'overlay' && isVisible && !initialMessageSent.current))) { const initialPrompt = `Hi ${userName}! Ask about **"${note.title}"**, ask me to change it, generate an image (click the ${isImageGenModeActive ? '✏️' : '🖼️'} button!), or attach/paste a file.`; setChatHistory([{ id: `init-${Date.now()}`, role: 'assistant', content: initialPrompt }]); setChatMessage(''); setSelectedFiles([]); setSuggestedPrompts([]); setIsChatLoading(false); initialMessageSent.current = true; currentNoteId.current = note.id; setLoadingMsgId(null); setIsImageGenModeActive(false); setPdfContextSegments([]); } else if (displayMode === 'overlay' && !isVisible) { initialMessageSent.current = false; currentNoteId.current = null; setIsImageGenModeActive(false); setPdfContextSegments([]); } }, [note, isVisible, userName, displayMode, isImageGenModeActive]); 
+        useEffect(() => { if (note && (note.id !== currentNoteId.current || (displayMode === 'overlay' && isVisible && !initialMessageSent.current))) { const initialPrompt = `Hi ${userName}! Ask about **"${note.title}"**, ask me to change it, generate an image (click the ${isImageGenModeActive ? '✏️' : '🖼️'} button!), or attach/paste a file.`; setChatHistory([{ id: `init-${Date.now()}`, role: 'assistant', content: initialPrompt }]); setChatMessage(''); setSelectedFiles([]); setSuggestedPrompts([]); setIsChatLoading(false); initialMessageSent.current = true; currentNoteId.current = note.id; setLoadingMsgId(null); setIsImageGenModeActive(false); setPdfContextSegments([]); } else if (displayMode === 'overlay' && !isVisible) { initialMessageSent.current = false; currentNoteId.current = null; setIsImageGenModeActive(false); setPdfContextSegments([]); } }, [note, isVisible, userName, displayMode, isImageGenModeActive]);
         useEffect(() => { if (!isMinimized || displayMode === 'inline') { setTimeout(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, 150); } }, [chatHistory, isMinimized, displayMode, suggestedPrompts, pdfContextSegments]);
 
         const handleTimerComplete = (timerId: string) => setChatHistory(prev => [...prev, { id: `timer-comp-${timerId}`, role: 'assistant', content: "⏰ Time's up!" }]);
-        const handleAcceptEdit = async (message: ChatMessage) => { if (!note || isChatLoading || !message.isEditSuggestion || !message.editAction) { setChatHistory(prev => [...prev, { id: `edit-app-err-${Date.now()}`, role: 'assistant', content: `❌ Error: Could not apply edit. Invalid proposal data.`, error: true }]); return; } setIsChatLoading(true); setLoadingMsgId(null); let finalContent: string | null = null; const contentBeforeEdit = note.content; try { let currentContent = contentBeforeEdit; if (message.editAction === 'propose_targeted_edit') { if (!message.editType) throw new Error("Missing edit type."); let applied = false; const { editType, targetContext, contentFragment = "" } = message; switch (editType) { case 'insert_at_start': currentContent = contentFragment + (currentContent ? "\n" + currentContent : ""); applied = true; break; case 'append_at_end': currentContent = (currentContent ? currentContent + "\n" : "") + contentFragment; applied = true; break; case 'insert_after_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { const p = i + targetContext.length; const x = currentContent.endsWith('\n') || currentContent.slice(p).startsWith('\n') || p === 0 ? "" : "\n"; currentContent = currentContent.slice(0, p) + x + contentFragment + currentContent.slice(p); applied = true; } else throw new Error("Target context for insertion not found."); } else throw new Error("Missing target context for insert."); break; case 'replace_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { currentContent = currentContent.slice(0, i) + contentFragment + currentContent.slice(i + targetContext.length); applied = true; } else throw new Error("Target context for replacement not found."); } else throw new Error("Missing target context for replace."); break; case 'delete_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { currentContent = currentContent.slice(0, i) + currentContent.slice(i + targetContext.length); currentContent = currentContent.replace(/\n\n+/g, '\n').trim(); applied = true; } else throw new Error("Target context for deletion not found."); } else throw new Error("Missing target context for delete."); break; default: throw new Error(`Unsupported edit type: ${editType}`); } if (applied) finalContent = currentContent; else throw new Error("Targeted edit failed."); } else if (message.editAction === 'propose_full_content_replacement') { if (typeof message.newFullContent === 'string') { finalContent = message.newFullContent; } else { throw new Error("Missing new full content for replacement."); } } else if (message.editAction === 'propose_sequential_edits') { if (!message.sequentialEdits || !Array.isArray(message.sequentialEdits) || message.sequentialEdits.length === 0) { throw new Error("Invalid sequential edit proposal: 'edits' array is missing or empty."); } let allApplied = true; for (let i = 0; i < message.sequentialEdits.length; i++) { const editStep = message.sequentialEdits[i]; const { editType, targetContext, contentFragment } = editStep; let appliedThisStep = false; const stepNumber = i + 1; switch (editType) { case 'insert_at_start': currentContent = contentFragment + (currentContent ? "\n" + currentContent : ""); appliedThisStep = true; break; case 'append_at_end': currentContent = (currentContent ? currentContent + "\n" : "") + contentFragment; appliedThisStep = true; break; case 'insert_after_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { const p = idx + targetContext.length; const x = currentContent.endsWith('\n') || currentContent.slice(p).startsWith('\n') || p === 0 ? "" : "\n"; currentContent = currentContent.slice(0, p) + x + contentFragment + currentContent.slice(p); appliedThisStep = true; } else { allApplied = false; throw new Error(`Step ${stepNumber}: Target context for insertion not found.`); } } else { allApplied = false; throw new Error(`Step ${stepNumber}: Missing target context for insert.`); } break; case 'replace_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { currentContent = currentContent.slice(0, idx) + contentFragment + currentContent.slice(idx + targetContext.length); appliedThisStep = true; } else { allApplied = false; throw new Error(`Step ${stepNumber}: Target context for replacement not found.`); } } else { allApplied = false; throw new Error(`Step ${stepNumber}: Missing target context for replace.`); } break; case 'delete_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { currentContent = currentContent.slice(0, idx) + currentContent.slice(idx + targetContext.length); currentContent = currentContent.replace(/\n\n+/g, '\n').trim(); appliedThisStep = true; } else { allApplied = false; throw new Error(`Step ${stepNumber}: Target context for deletion not found.`); } } else { allApplied = false; throw new Error(`Step ${stepNumber}: Missing target context for delete.`); } break; default: allApplied = false; throw new Error(`Step ${stepNumber}: Unsupported edit type: ${editType}`); } if (!appliedThisStep) { allApplied = false; throw new Error(`Sequential edit step ${stepNumber} failed unexpectedly.`); } } if (allApplied) { finalContent = currentContent; } } else { throw new Error(`Unknown edit action: ${message.editAction}`); } if (finalContent !== null) { await onUpdateNoteContent(note.id, finalContent); const confirmationMsgId = `edit-ok-${Date.now()}`; setChatHistory(prev => [ ...prev, { id: confirmationMsgId, role: 'assistant', content: "✅ Note updated!", isUpdateConfirmation: true, canRevert: true, previousContent: contentBeforeEdit, noteIdToRevert: note.id } ]); } } catch (error) { const eMsg = error instanceof Error ? error.message : 'Unknown error during update.'; console.error("Edit failed:", error); setChatHistory(prev => [...prev, { id: `edit-err-${Date.now()}`, role: 'assistant', content: `❌ Update failed: ${eMsg}`, error: true }]); } finally { setIsChatLoading(false); } };
-        const handleRevertEdit = async (message: ChatMessage) => { if (!message.canRevert || typeof message.previousContent !== 'string' || !message.noteIdToRevert || isChatLoading || !message.id) { setChatHistory(prev => [...prev, { id: `revert-err-state-${Date.now()}`, role: 'assistant', content: `❌ Cannot revert. Invalid state.`, error: true }]); return; } setIsChatLoading(true); setLoadingMsgId(null); const originalMessageId = message.id; try { await onUpdateNoteContent(message.noteIdToRevert, message.previousContent); setChatHistory(prev => [ ...prev.map(msg => msg.id === originalMessageId ? { ...msg, canRevert: false } : msg ), { id: `revert-ok-${Date.now()}`, role: 'assistant', content: "🔄 Change reverted." } ]); } catch (error) { const eMsg = error instanceof Error ? error.message : 'Unknown error during revert.'; console.error("Revert failed:", error); setChatHistory(prev => [...prev, { id: `revert-err-${Date.now()}`, role: 'assistant', content: `❌ Revert failed: ${eMsg}`, error: true }]); } finally { setIsChatLoading(false); } };
+        const handleAcceptEdit = async (message: ChatMessage) => { if (!note || isChatLoading || !message.isEditSuggestion || !message.editAction) { setChatHistory(prev => [...prev, { id: `edit-app-err-${Date.now()}`, role: 'assistant', content: `❌ Error: Could not apply edit. Invalid proposal data.`, error: true }]); return; } setIsChatLoading(true); setLoadingMsgId(null); let finalContent: string | null = null; const contentBeforeEdit = note.content; try { let currentContent = contentBeforeEdit; if (message.editAction === 'propose_targeted_edit') { if (!message.editType) throw new Error("Missing edit type."); let applied = false; const { editType, targetContext, contentFragment = "" } = message; switch (editType) { case 'insert_at_start': currentContent = contentFragment + (currentContent ? "\n" + currentContent : ""); applied = true; break; case 'append_at_end': currentContent = (currentContent ? currentContent + "\n" : "") + contentFragment; applied = true; break; case 'insert_after_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { const p = i + targetContext.length; const x = currentContent.endsWith('\n') || currentContent.slice(p).startsWith('\n') || p === 0 ? "" : "\n"; currentContent = currentContent.slice(0, p) + x + contentFragment + currentContent.slice(p); applied = true; } else throw new Error("Target context for insertion not found."); } else throw new Error("Missing target context for insert."); break; case 'replace_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { currentContent = currentContent.slice(0, i) + contentFragment + currentContent.slice(i + targetContext.length); applied = true; } else throw new Error("Target context for replacement not found."); } else throw new Error("Missing target context for replace."); break; case 'delete_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { currentContent = currentContent.slice(0, i) + currentContent.slice(i + targetContext.length); currentContent = currentContent.replace(/\n\n+/g, '\n').trim(); applied = true; } else throw new Error("Target context for deletion not found."); } else throw new Error("Missing target context for delete."); break; default: throw new Error(`Unsupported edit type: ${editType}`); } if (applied) finalContent = currentContent; else throw new Error("Targeted edit failed."); } else if (message.editAction === 'propose_full_content_replacement') { if (typeof message.newFullContent === 'string') { finalContent = message.newFullContent; } else { throw new Error("Missing new full content for replacement."); } } else if (message.editAction === 'propose_sequential_edits') { if (!message.sequentialEdits || !Array.isArray(message.sequentialEdits) || message.sequentialEdits.length === 0) { throw new Error("Invalid sequential edit proposal: 'edits' array is missing or empty."); } let allApplied = true; for (let i = 0; i < message.sequentialEdits.length; i++) { const editStep = message.sequentialEdits[i]; const { editType, targetContext, contentFragment } = editStep; let appliedThisStep = false; const stepNumber = i + 1; switch (editType) { case 'insert_at_start': currentContent = contentFragment + (currentContent ? "\n" + currentContent : ""); appliedThisStep = true; break; case 'append_at_end': currentContent = (currentContent ? currentContent + "\n" : "") + contentFragment; appliedThisStep = true; break; case 'insert_after_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { const p = idx + targetContext.length; const x = currentContent.endsWith('\n') || currentContent.slice(p).startsWith('\n') || p === 0 ? "" : "\n"; currentContent = currentContent.slice(0, p) + x + contentFragment + currentContent.slice(p); appliedThisStep = true; } else { allApplied = false; throw new Error(`Step ${stepNumber}: Target context for insertion not found.`); } } else { allApplied = false; throw new Error(`Step ${stepNumber}: Missing target context for insert.`); } break; case 'replace_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { currentContent = currentContent.slice(0, idx) + contentFragment + currentContent.slice(idx + targetContext.length); appliedThisStep = true; } else { allApplied = false; throw new Error(`Step ${stepNumber}: Target context for replacement not found.`); } } else { allApplied = false; throw new Error(`Step ${stepNumber}: Missing target context for replace.`); } break; case 'delete_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { currentContent = currentContent.slice(0, idx) + currentContent.slice(idx + targetContext.length); currentContent = currentContent.replace(/\n\n+/g, '\n').trim(); appliedThisStep = true; } else { allApplied = false; throw new Error(`Step ${stepNumber}: Target context for deletion not found.`); } } else { allApplied = false; throw new Error(`Step ${stepNumber}: Missing target context for delete.`); } break; default: allApplied = false; throw new Error(`Step ${stepNumber}: Unsupported edit type: ${editType}`); } if (!appliedThisStep) { allApplied = false; throw new Error(`Sequential edit step ${stepNumber} failed unexpectedly.`); } } if (allApplied) { finalContent = currentContent; } } else { throw new Error(`Unknown edit action: ${message.editAction}`); } if (finalContent !== null) { await onUpdateNoteContent(note.id, finalContent); const confirmationMsgId = `edit-ok-${Date.now()}`; setChatHistory(prev => [ ...prev, { id: confirmationMsgId, role: 'assistant', content: "✅ Note updated!", isUpdateConfirmation: true, canRevert: true, previousContent: contentBeforeEdit, noteIdToRevert: note.id } ]); } } catch (error) { const eMsg = error instanceof Error ? error.message : 'Unknown error during update.'; setChatHistory(prev => [...prev, { id: `edit-err-${Date.now()}`, role: 'assistant', content: `❌ Update failed: ${eMsg}`, error: true }]); } finally { setIsChatLoading(false); } };
+        const handleRevertEdit = async (message: ChatMessage) => { if (!message.canRevert || typeof message.previousContent !== 'string' || !message.noteIdToRevert || isChatLoading || !message.id) { setChatHistory(prev => [...prev, { id: `revert-err-state-${Date.now()}`, role: 'assistant', content: `❌ Cannot revert. Invalid state.`, error: true }]); return; } setIsChatLoading(true); setLoadingMsgId(null); const originalMessageId = message.id; try { await onUpdateNoteContent(message.noteIdToRevert, message.previousContent); setChatHistory(prev => [ ...prev.map(msg => msg.id === originalMessageId ? { ...msg, canRevert: false } : msg ), { id: `revert-ok-${Date.now()}`, role: 'assistant', content: "🔄 Change reverted." } ]); } catch (error) { const eMsg = error instanceof Error ? error.message : 'Unknown error during revert.'; setChatHistory(prev => [...prev, { id: `revert-err-${Date.now()}`, role: 'assistant', content: `❌ Revert failed: ${eMsg}`, error: true }]); } finally { setIsChatLoading(false); } };
         const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => { const files = event.target.files; if (!files) return; setIsChatLoading(true); const newFiles: SelectedFile[] = []; const filePromises: Promise<SelectedFile>[] = []; const existingFileNames = new Set(selectedFiles.map(f => f.name)); for (let i = 0; i < files.length; i++) { const file = files[i]; if (existingFileNames.has(file.name)) { setChatHistory(prev => [...prev, { id: `file-err-dup-${Date.now()}-${file.name}`, role: 'assistant', content: `ℹ️ Skipped duplicate file: "${file.name}".`, error: false }]); continue; }
-             if (!file.type.startsWith('image/') && file.type !== 'application/pdf') { setChatHistory(prev => [...prev, { id: `file-err-type-${Date.now()}`, role: 'assistant', content: `❌ File type for "${file.name}" is not supported (only images and PDFs).`, error: true }]); continue; } filePromises.push(readFileAsBase64(file)); existingFileNames.add(file.name); } try { const results = await Promise.all(filePromises); setSelectedFiles(prev => [...prev, ...results]); } catch (error) { console.error("File read error:", error); setChatHistory(prev => [...prev, { id: `file-err-read-${Date.now()}`, role: 'assistant', content: `❌ Error processing selected file(s). Please try again.`, error: true }]); } finally { setIsChatLoading(false); if (fileInputRef.current) { fileInputRef.current.value = ''; } } };
+             if (!file.type.startsWith('image/') && file.type !== 'application/pdf') { setChatHistory(prev => [...prev, { id: `file-err-type-${Date.now()}`, role: 'assistant', content: `❌ File type for "${file.name}" is not supported (only images and PDFs).`, error: true }]); continue; } filePromises.push(readFileAsBase64(file)); existingFileNames.add(file.name); } try { const results = await Promise.all(filePromises); setSelectedFiles(prev => [...prev, ...results]); } catch (error) { setChatHistory(prev => [...prev, { id: `file-err-read-${Date.now()}`, role: 'assistant', content: `❌ Error processing selected file(s). Please try again.`, error: true }]); } finally { setIsChatLoading(false); if (fileInputRef.current) { fileInputRef.current.value = ''; } } };
         const handleRemoveFile = (fileName: string) => setSelectedFiles(prev => prev.filter(f => f.name !== fileName));
         const triggerFileSelect = () => fileInputRef.current?.click();
         const handlePaste = useCallback(async (event: React.ClipboardEvent<HTMLTextAreaElement>) => { const items = event.clipboardData?.items; if (!items) return; let imagePasted = false; const filePromises: Promise<SelectedFile>[] = []; const existingFileNames = new Set(selectedFiles.map(f => f.name)); for (let i = 0; i < items.length; i++) { const item = items[i]; if (item.kind === 'file' && item.type.startsWith('image/')) { const file = item.getAsFile(); if (file) { if (existingFileNames.has(file.name)) { setChatHistory(prev => [...prev, { id: `paste-err-dup-${Date.now()}-${file.name}`, role: 'assistant', content: `ℹ️ Skipped duplicate pasted file: "${file.name}".`, error: false }]); continue; }
-             filePromises.push(readFileAsBase64(file)); existingFileNames.add(file.name); imagePasted = true; } } } if (imagePasted) { event.preventDefault(); setIsChatLoading(true); try { const results = await Promise.all(filePromises); setSelectedFiles(prev => [...prev, ...results]); } catch (error) { console.error("Paste read error:", error); setChatHistory(prev => [...prev, { id: `paste-err-read-${Date.now()}`, role: 'assistant', content: `❌ Error processing pasted image. Please try again.`, error: true }]); } finally { setIsChatLoading(false); } } }, [selectedFiles]);
+             filePromises.push(readFileAsBase64(file)); existingFileNames.add(file.name); imagePasted = true; } } } if (imagePasted) { event.preventDefault(); setIsChatLoading(true); try { const results = await Promise.all(filePromises); setSelectedFiles(prev => [...prev, ...results]); } catch (error) { setChatHistory(prev => [...prev, { id: `paste-err-read-${Date.now()}`, role: 'assistant', content: `❌ Error processing pasted image. Please try again.`, error: true }]); } finally { setIsChatLoading(false); } } }, [selectedFiles]);
 
         const handleToggleImageGenMode = () => {
             if (isChatLoading || isLoadingUsage) return;
@@ -298,10 +297,23 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
              textareaRef.current?.focus();
         };
 
+        const addPdfScreenshot = (fileData: SelectedFile) => {
+            if (isImageGenModeActive) {
+                setIsImageGenModeActive(false);
+                setChatHistory(prev => [...prev, { id: `img-mode-off-screenshot-${Date.now()}`, role: 'assistant', content: `ℹ️ Image generation mode disabled to attach PDF snippet.`, error: false }]);
+            }
+             const existingFileNames = new Set(selectedFiles.map(f => f.name));
+             if (existingFileNames.has(fileData.name)) {
+                 setChatHistory(prev => [...prev, { id: `pdf-snippet-err-dup-${Date.now()}`, role: 'assistant', content: `ℹ️ Skipped duplicate PDF snippet: "${fileData.name}".`, error: false }]);
+                 return;
+             }
+            setSelectedFiles(prev => [...prev, fileData]);
+        };
+
         const submitMessageToAI = async (messageContent: string, filesToSend?: SelectedFile[], forceImageGenMode = false) => {
             const isUsingImageGenModel = forceImageGenMode || isImageGenModeActive;
             const currentFiles = filesToSend || selectedFiles;
-            const collectedPdfContextText = pdfContextSegments.map(s => s.text).join("\n\n---\n\n"); 
+            const collectedPdfContextText = pdfContextSegments.map(s => s.text).join("\n\n---\n\n");
 
             if ((!messageContent && currentFiles.length === 0 && !isUsingImageGenModel && !collectedPdfContextText) ||
                 (!messageContent && isUsingImageGenModel) ||
@@ -320,13 +332,13 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
                 setChatHistory(prev => [...prev, { id: `img-gen-mode-file-ctx-err-${Date.now()}`, role: 'assistant', content: `ℹ️ Image generation requires a text prompt only. Please remove attached files/PDF context or disable image generation mode.`, error: false }]);
                 return;
             }
-            
+
             const messagesToDisplayInChat: ChatMessage[] = [];
 
             if (collectedPdfContextText && !isUsingImageGenModel) {
                 messagesToDisplayInChat.push({
                     id: `pdf-ctx-disp-${Date.now()}`,
-                    role: 'user', // Changed to 'user' for right alignment
+                    role: 'user',
                     content: collectedPdfContextText,
                     isPdfContextDisplay: true,
                 });
@@ -342,17 +354,17 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
             messagesToDisplayInChat.push({
                 id: `user-${Date.now()}`,
                 role: 'user',
-                content: messageContent, 
+                content: messageContent,
                 imageData: userMsgImageData,
             });
-            
+
             setSuggestedPrompts([]);
             setChatHistory(prev => [...prev, ...messagesToDisplayInChat]);
-            
-            if (!filesToSend && !isUsingImageGenModel) { 
+
+            if (!filesToSend && !isUsingImageGenModel) {
                 setSelectedFiles([]);
             }
-            setPdfContextSegments([]); 
+            setPdfContextSegments([]);
 
             let contentForAI = messageContent;
             if (collectedPdfContextText && !isUsingImageGenModel) {
@@ -383,7 +395,6 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
                     setChatCount(newLocalCount);
                     setIsChatLimitReached(currentChatLimit !== Infinity && newLocalCount >= currentChatLimit);
                 } catch (err) {
-                    console.error("Error incrementing usage:", err);
                     setChatHistory(prevHist => [...prevHist, { id:`usage-err-${Date.now()}`, role: 'assistant', content: "⚠️ Error saving chat usage count. Your message was sent, but the count might be inaccurate.", error: true }]);
                 }
             }
@@ -393,7 +404,7 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
             const loadingContent = isUsingImageGenModel ? "Generating image..." : "...";
             setChatHistory(prev => [...prev, { id: newLoadingMsgId, role: 'assistant', content: loadingContent, isGeneratingImage: isUsingImageGenModel }]);
 
-            const recentHistory = chatHistory.slice(-10); 
+            const recentHistory = chatHistory.slice(-10);
 
             const systemInstruction = `You are TaskMaster, a highly meticulous, context-aware, and **conversational** AI agent integrated into Notes. You are chatting with "${userName}" about their note titled "${note.title}".
 
@@ -445,13 +456,13 @@ Your primary goal is to be helpful, accurate, and follow instructions based on t
             {
               "action": "propose_sequential_edits",
               "explanation": "[Overall explanation summarizing ALL the sequential changes.]",
-              "edits": [ 
-                { 
+              "edits": [
+                {
                   "edit_type": "[Type]",
                   "target_context": "[Context for *first* edit, based on ORIGINAL note content. null for start/end.]",
                   "content_fragment": "[Fragment for *first* edit.]"
                 },
-                { 
+                {
                   "edit_type": "[Type]",
                   "target_context": "[Context for *second* edit, based on content *after* first edit is applied. null for start/end.]",
                   "content_fragment": "[Fragment for *second* edit.]"
@@ -522,7 +533,7 @@ What else can you do?
 
 **PDF Context for Current Query (if any):**
 """
-${collectedPdfContextText || "N/A"} 
+${collectedPdfContextText || "N/A"}
 """
 
 **Current Note Content (Full):**
@@ -535,20 +546,20 @@ ${note.keyPoints?.map(p => `- ${p}`).join('\n') || 'N/A'}
 
 ---
 **Chat History (Recent):**
-${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.content !== '...' && !msg.isGeneratingImage && !msg.isPdfContextDisplay).map(msg => { 
-    let prefix = msg.role === 'user' ? userName : 'Assistant'; 
-    let displayContent = msg.content; 
-    if (msg.isEditSuggestion) displayContent = `[Proposed Edit: ${msg.editExplanation || 'details omitted'}]`; 
-    if (msg.imageData && !msg.wasImageGenerated) displayContent += ' [User Image Attached]'; 
-    if (msg.wasImageGenerated) displayContent += ' [Generated Image Provided]'; 
-    displayContent = displayContent.replace(/```json[\s\S]*?```/g, '[Edit JSON Proposed]'); 
-    return `${prefix}: ${displayContent.trim()}`; 
+${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.content !== '...' && !msg.isGeneratingImage && !msg.isPdfContextDisplay).map(msg => {
+    let prefix = msg.role === 'user' ? userName : 'Assistant';
+    let displayContent = msg.content;
+    if (msg.isEditSuggestion) displayContent = `[Proposed Edit: ${msg.editExplanation || 'details omitted'}]`;
+    if (msg.imageData && !msg.wasImageGenerated) displayContent += ' [User Image Attached]';
+    if (msg.wasImageGenerated) displayContent += ' [Generated Image Provided]';
+    displayContent = displayContent.replace(/```json[\s\S]*?```/g, '[Edit JSON Proposed]');
+    return `${prefix}: ${displayContent.trim()}`;
 }).join('\n')}
 ---
 
 **${userName}: ${messageContent}** ${currentFiles.length > 0 && !isUsingImageGenModel ? `(Files Attached: ${currentFiles.map(f=>f.name).join(', ')})` : ''}
 **Assistant:**`;
-            
+
             try {
                 const targetModel = isUsingImageGenModel ? GEMINI_IMAGE_GEN_MODEL : GEMINI_TEXT_MODEL;
                 const fullGeminiEndpoint = `${GEMINI_API_BASE}${targetModel}:generateContent?key=${geminiApiKey}`;
@@ -566,7 +577,7 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
 
                 const apiContent: any[] = [];
                 apiContent.push({ role: "user", parts: [{ text: systemInstruction }]});
-                apiContent.push({ role: "model", parts: [{ text: "Okay, I understand. I'm ready to help with the note, answer questions, or generate images based on your instructions." }]}); 
+                apiContent.push({ role: "model", parts: [{ text: "Okay, I understand. I'm ready to help with the note, answer questions, or generate images based on your instructions." }]});
 
                 recentHistory.forEach(msg => {
                     if (msg.timer || msg.isUpdateConfirmation || msg.content === '...' || msg.isGeneratingImage || msg.isPdfContextDisplay) {
@@ -589,7 +600,7 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                     }
                 });
 
-                const currentUserParts: any[] = [{ text: contentForAI }]; 
+                const currentUserParts: any[] = [{ text: contentForAI }];
                 if (currentFiles.length > 0 && !isUsingImageGenModel) {
                     currentFiles.forEach(file => {
                         if (file.type.startsWith('image/') || file.type === 'application/pdf') {
@@ -626,7 +637,7 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                 }
 
                 let assistantFinalMessage: ChatMessage = {
-                    id: newLoadingMsgId, 
+                    id: newLoadingMsgId,
                     role: 'assistant',
                     content: parsedResult.text || (parsedResult.imageData ? "" : "(No text content received)"),
                     imageData: parsedResult.imageData,
@@ -640,7 +651,7 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                     assistantFinalMessage.imageData = null;
                     assistantFinalMessage.error = true;
                     assistantFinalMessage.wasImageGenerated = false;
-                    setSuggestedPrompts([]); 
+                    setSuggestedPrompts([]);
                 }
 
                 if (!isUsingImageGenModel && !assistantFinalMessage.error && parsedResult.text) {
@@ -650,7 +661,7 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                         try {
                             const parsedJson = JSON.parse(potentialJsonString);
                             let parsedSuccessfully = false;
-                            assistantFinalMessage.error = false; 
+                            assistantFinalMessage.error = false;
 
                             if (parsedJson.action === "propose_targeted_edit" ) {
                                 if (typeof parsedJson.explanation === 'string' && typeof parsedJson.edit_type === 'string' && typeof parsedJson.content_fragment === 'string' && (typeof parsedJson.target_context === 'string' || parsedJson.target_context === null)) {
@@ -668,25 +679,24 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                                     if (valid) {
                                         Object.assign(assistantFinalMessage, { content: parsedJson.explanation, isEditSuggestion: true, editAction: "propose_sequential_edits", editExplanation: parsedJson.explanation, sequentialEdits: edits });
                                         parsedSuccessfully = true;
-                                    } else { 
+                                    } else {
                                         assistantFinalMessage.content = `Warning: AI proposed sequential edits, but the format was invalid. \n\n---\n${parsedResult.text}`;
                                         assistantFinalMessage.error = true;
                                     }
                                 }
                             }
-                            
+
                             if (parsedSuccessfully) {
                                 const remainingText = parsedResult.text.replace(jsonMatch[0], '').trim();
-                                assistantFinalMessage.content = remainingText || parsedJson.explanation || "(Edit proposed)"; 
+                                assistantFinalMessage.content = remainingText || parsedJson.explanation || "(Edit proposed)";
                                 if (!assistantFinalMessage.content.trim()) assistantFinalMessage.content = "(Edit proposed without explanation)";
-                                assistantFinalMessage.imageData = undefined; 
+                                assistantFinalMessage.imageData = undefined;
                                 assistantFinalMessage.wasImageGenerated = false;
-                            } else if (!assistantFinalMessage.error) { 
+                            } else if (!assistantFinalMessage.error) {
                                 assistantFinalMessage.content = `Warning: AI proposed an edit, but the JSON structure was invalid or incomplete. \n\n---\n${parsedResult.text}`;
                                 assistantFinalMessage.error = true;
                             }
                         } catch (parseError: any) {
-                            console.error("JSON Parse Error:", parseError);
                             assistantFinalMessage.content = `Error: Failed to process edit (JSON Parse Error: ${parseError.message}).\n\n---\n${parsedResult.text}`;
                             assistantFinalMessage.error = true;
                             assistantFinalMessage.imageData = undefined;
@@ -694,30 +704,29 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                         }
                     }
                 }
-                
+
                 if (!assistantFinalMessage.content?.trim() && !assistantFinalMessage.imageData && !assistantFinalMessage.error && !assistantFinalMessage.isEditSuggestion && !assistantFinalMessage.timer) {
                     assistantFinalMessage.content = "(Received empty response)";
-                    assistantFinalMessage.error = true; 
+                    assistantFinalMessage.error = true;
                 }
 
                 setChatHistory(prev => prev.map(msg => msg.id === newLoadingMsgId ? assistantFinalMessage : msg ));
 
             } catch (err: any) {
-                 console.error("API Call Failed:", err);
                  const errorMsg = err instanceof Error ? err.message : 'Unknown error processing request.';
                  const errorFinalMessage = {
-                     id: newLoadingMsgId, 
+                     id: newLoadingMsgId,
                      role: 'assistant',
                      content: `❌ ${errorMsg}. Please check console or try again.`,
                      error: true,
-                     isGeneratingImage: false, 
+                     isGeneratingImage: false,
                      wasImageGenerated: false
                  };
                  setChatHistory(prev => prev.map(msg => msg.id === newLoadingMsgId ? errorFinalMessage : msg ));
-                 setSuggestedPrompts([]); 
+                 setSuggestedPrompts([]);
              } finally {
                  setIsChatLoading(false);
-                 setLoadingMsgId(null); 
+                 setLoadingMsgId(null);
              }
         };
 
@@ -734,7 +743,7 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                 return;
             }
             const filesToSubmit = [...selectedFiles];
-            setChatMessage(''); 
+            setChatMessage('');
             await submitMessageToAI(currentMessage, filesToSubmit, isImageGenModeActive);
             if (textareaRef.current) {
                 textareaRef.current.style.height = 'auto';
@@ -762,6 +771,7 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                 submitMessageToAI(message, selectedFiles, isImageGenModeActive);
             },
             addPdfContextSegment,
+            addPdfScreenshot,
             focusInput: () => textareaRef.current?.focus(),
         }));
 
@@ -796,10 +806,10 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                         <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-400 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
                             {chatHistory.map((message, index) => {
                                 const isCurrentLoadingMsg = message.role === 'assistant' && isChatLoading && message.id === loadingMsgId;
-                                const isPdfContextDisplayMsg = message.isPdfContextDisplay === true; // Role will determine alignment
+                                const isPdfContextDisplayMsg = message.isPdfContextDisplay === true;
 
                                 const currentBubbleClass = isPdfContextDisplayMsg
-                                    ? '' 
+                                    ? ''
                                     : message.role === 'user' ? userBubbleClass
                                     : message.error ? errorBubbleClass
                                     : message.isEditSuggestion ? editSuggestionBubbleClass
@@ -807,46 +817,39 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                                     : assistantBubbleClass;
 
                                 const alignmentClass = message.role === 'user' ? 'justify-end' : 'justify-start';
-                                
+
 const getProseClass = (msg: ChatMessage) => {
     let base = `prose prose-sm max-w-none prose-p:text-xs prose-p:my-1 prose-ul:text-xs prose-ol:text-xs prose-li:my-0 prose-code:text-[11px] prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:text-[11px] prose-pre:my-1 prose-pre:p-1.5 prose-pre:rounded`;
 
-    if (isIlluminateEnabled) { // Light Mode
-        if (msg.isEditSuggestion) { // Assistant bubble (yellowish)
+    if (isIlluminateEnabled) {
+        if (msg.isEditSuggestion) {
             base += ' prose-yellow text-yellow-900';
-        } else if (msg.error) { // Assistant bubble (reddish)
+        } else if (msg.error) {
             base += ' prose-red text-red-800';
-        } else if (msg.isUpdateConfirmation) { // Assistant bubble (greenish)
+        } else if (msg.isUpdateConfirmation) {
             base += ' prose-green text-green-900';
-        } else if (msg.role === 'user') { // User bubble (blue bg, white text)
-            // User messages in light mode have userBubbleClass 'bg-blue-500 text-white'.
-            // The bg-blue-500 is a dark background, so prose content should be light.
-            // 'prose-invert' is the Tailwind Typography class for light text on dark backgrounds.
-            base += ' prose-invert';
-            // Adjust link and code colors for better harmony with a blue background
-            // prose-invert typically makes links white/light gray. Making them a light blue shade.
-            base += ' prose-a:text-blue-300 hover:prose-a:text-blue-200 prose-code:text-gray-300';
-        } else { // Assistant, normal message (light gray bg, dark text)
-            // Assistant bubble: bg-gray-100 text-gray-800.
-            base += ' prose-gray text-gray-800'; // Prose text will be gray-800. This is correct.
-        }
-    } else { // Dark Mode
-        base += ' prose-invert'; // Base for all dark mode messages (light text on dark backgrounds)
+        } else if (msg.role === 'user') {
 
-        // Apply specific text colors for special assistant messages if needed,
-        // to potentially override prose-invert's default grays if a more specific color is desired.
-        if (msg.isEditSuggestion) { // Bubble text is yellow-300
-            // Add prose-specific overrides if `text-yellow-200` is not enough
+            base += ' prose-invert';
+
+            base += ' prose-a:text-blue-300 hover:prose-a:text-blue-200 prose-code:text-gray-300';
+        } else {
+
+            base += ' prose-gray text-gray-800';
+        }
+    } else {
+        base += ' prose-invert';
+
+
+        if (msg.isEditSuggestion) {
              base += ' prose-p:!text-yellow-300 prose-li:!text-yellow-300 prose-strong:!text-yellow-200 prose-a:!text-yellow-400 hover:prose-a:!text-yellow-300 prose-code:!text-yellow-200';
-        } else if (msg.error) { // Bubble text is red-300
+        } else if (msg.error) {
              base += ' prose-p:!text-red-300 prose-li:!text-red-300 prose-strong:!text-red-200 prose-a:!text-red-400 hover:prose-a:!text-red-300 prose-code:!text-red-200';
-        } else if (msg.isUpdateConfirmation) { // Bubble text is green-200
+        } else if (msg.isUpdateConfirmation) {
              base += ' prose-p:!text-green-200 prose-li:!text-green-200 prose-strong:!text-green-100 prose-a:!text-green-400 hover:prose-a:!text-green-300 prose-code:!text-green-200';
-        } else if (msg.role === 'assistant' || !msg.role) { // Assistant normal message, bubble text is gray-200
-            // prose-invert default light gray is usually fine, but explicitly match bubble text.
+        } else if (msg.role === 'assistant' || !msg.role) {
              base += ' prose-p:!text-gray-200 prose-li:!text-gray-200 prose-strong:!text-gray-100 prose-a:!text-blue-400 hover:prose-a:!text-blue-300 prose-code:!text-gray-300';
-        } else if (msg.role === 'user') { // User message, bubble text is white
-            // prose-invert default light gray is good, but explicitly match bubble text for <p>, <li>, etc.
+        } else if (msg.role === 'user') {
             base += ' prose-p:!text-white prose-li:!text-white prose-strong:!text-white prose-a:!text-blue-300 hover:prose-a:!text-blue-200 prose-code:!text-gray-200';
         }
     }
@@ -857,9 +860,9 @@ const getProseClass = (msg: ChatMessage) => {
 
                                 return (
                                     <div key={message.id || index} className={`flex ${alignmentClass}`}>
-                                        <div className={`max-w-[85%] rounded-lg text-sm shadow-sm break-words 
-                                                        ${isPdfContextDisplayMsg 
-                                                            ? `${isIlluminateEnabled ? 'bg-slate-200 text-slate-800' : 'bg-neutral-700 text-white'} px-3 py-2 flex items-start my-0.5` 
+                                        <div className={`max-w-[85%] rounded-lg text-sm shadow-sm break-words
+                                                        ${isPdfContextDisplayMsg
+                                                            ? `${isIlluminateEnabled ? 'bg-slate-200 text-slate-800' : 'bg-neutral-700 text-white'} px-3 py-2 flex items-start my-0.5`
                                                             : `px-2.5 py-1.5 ${currentBubbleClass}`}`}>
                                             {isPdfContextDisplayMsg ? (
                                                 <>
@@ -920,7 +923,7 @@ const getProseClass = (msg: ChatMessage) => {
 
                         <div className={`p-2 border-t ${headerBg} shrink-0 sticky bottom-0`}>
                              {userTier !== 'premium' && userTier !== 'loading' && ( <div className="pb-1 text-xs text-center"> <span className={isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}> Messages this month: {isLoadingUsage ? '...' : chatCount} / {currentChatLimit === Infinity ? '∞' : currentChatLimit} </span> {isChatLimitReached && !isLoadingUsage && ( <span className="text-red-500 ml-1 font-medium">(Limit Reached)</span> )} {!isChatLimitReached && userTier === 'basic' && ( <Link to="/pricing" className={`ml-2 font-medium ${isIlluminateEnabled ? 'text-blue-600 hover:text-blue-700' : 'text-blue-400 hover:text-blue-300'} hover:underline`}> <Crown className="w-2.5 h-2.5 inline mr-0.5"/>Upgrade </Link> )} </div> )}
-                             
+
                              {pdfContextSegments.length > 0 && !isImageGenModeActive && (
                                 <div className="mb-1.5 px-1 max-h-24 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent">
                                     <div className="flex flex-col gap-1.5">
@@ -992,16 +995,16 @@ const getProseClass = (msg: ChatMessage) => {
                                          isChatLoading ||
                                          isLoadingUsage ||
                                          isChatLimitReached ||
-                                         (!chatMessage.trim() && selectedFiles.length === 0 && !isImageGenModeActive && pdfContextSegments.length === 0) || 
-                                         (!chatMessage.trim() && isImageGenModeActive) || 
-                                         (isImageGenModeActive && (selectedFiles.length > 0 || pdfContextSegments.length > 0)) 
+                                         (!chatMessage.trim() && selectedFiles.length === 0 && !isImageGenModeActive && pdfContextSegments.length === 0) ||
+                                         (!chatMessage.trim() && isImageGenModeActive) ||
+                                         (isImageGenModeActive && (selectedFiles.length > 0 || pdfContextSegments.length > 0))
                                      }
                                      className={`${buttonPrimaryClass} p-2 rounded-full self-end mb-[1px] transition-all duration-150 ${
                                          (isChatLoading || isLoadingUsage || isChatLimitReached || (!chatMessage.trim() && selectedFiles.length === 0 && !isImageGenModeActive && pdfContextSegments.length === 0) || (!chatMessage.trim() && isImageGenModeActive) || (isImageGenModeActive && (selectedFiles.length > 0 || pdfContextSegments.length > 0)))
                                              ? buttonDisabledClass
                                              : 'hover:scale-105 active:scale-100'
                                      }`}
-                                     title="Send message" 
+                                     title="Send message"
                                  >
                                      {isChatLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                                  </button>
