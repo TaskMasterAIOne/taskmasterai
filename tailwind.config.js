@@ -1,5 +1,7 @@
 // tailwind.config.js
 /** @type {import('tailwindcss').Config} */
+import plugin from 'tailwindcss/plugin'; // Import the plugin function
+
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
@@ -37,17 +39,14 @@ export default {
         'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'pulse-slower': 'pulse 6s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'spin-slow': 'spin 20s linear infinite',
-        
+
         'avatar-initial-glow-dev': 'avatar-initial-glow-dev 1s ease-out forwards',
         'avatar-initial-glow-intern': 'avatar-initial-glow-intern 1s ease-out forwards',
-        
-        // Combined fade-in and then continuous glow for tags (your existing animations)
+
         'tag-animated-dev': 'tag-fade-in 0.5s ease-out forwards, subtle-tag-glow-dev 2s infinite 0.5s ease-in-out',
         'tag-animated-intern': 'tag-fade-in 0.5s ease-out forwards, subtle-tag-glow-intern 2.2s infinite 0.5s ease-in-out',
 
-        // ADDED: Simple fade-in animation utility for the tags
-        // This will be used by the Sidebar component via the `animate-fade-in-tags` class.
-        'fade-in-tags': 'tag-fade-in 0.5s ease-out forwards', 
+        'fade-in-tags': 'tag-fade-in 0.5s ease-out forwards',
       },
       keyframes: {
         gradient: {
@@ -61,25 +60,25 @@ export default {
           },
         },
         'avatar-initial-glow-dev': {
-          '0%': { boxShadow: '0 0 0px 0px rgba(99, 102, 241, 0)' }, // indigo-500
+          '0%': { boxShadow: '0 0 0px 0px rgba(99, 102, 241, 0)' },
           '50%': { boxShadow: '0 0 20px 8px rgba(99, 102, 241, 0.5)' },
-          '100%': { boxShadow: '0 0 0px 0px rgba(99, 102, 241, 0)' }, // Fades out
+          '100%': { boxShadow: '0 0 0px 0px rgba(99, 102, 241, 0)' },
         },
         'avatar-initial-glow-intern': {
-          '0%': { boxShadow: '0 0 0px 0px rgba(20, 184, 166, 0)' }, // teal-500
-          '50%': { boxShadow: '0 0 20px 8px rgba(20, 184, 166, 0.5)' }, // Using teal.500 from your palette
-          '100%': { boxShadow: '0 0 0px 0px rgba(20, 184, 166, 0)' }, // Fades out
+          '0%': { boxShadow: '0 0 0px 0px rgba(20, 184, 166, 0)' },
+          '50%': { boxShadow: '0 0 20px 8px rgba(20, 184, 166, 0.5)' },
+          '100%': { boxShadow: '0 0 0px 0px rgba(20, 184, 166, 0)' },
         },
-        'tag-fade-in': { // Your existing generic fade-in for tags - used by 'fade-in-tags'
+        'tag-fade-in': {
           '0%': { opacity: '0', transform: 'translateY(4px) scale(0.95)' },
           '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
         },
-        'subtle-tag-glow-dev': { // No scaling, just shadow pulse for DEV
-          '0%, 100%': { boxShadow: '0 0 7px 2px rgba(99, 102, 241, 0.4)' }, // indigo-500
+        'subtle-tag-glow-dev': {
+          '0%, 100%': { boxShadow: '0 0 7px 2px rgba(99, 102, 241, 0.4)' },
           '50%': { boxShadow: '0 0 12px 3px rgba(99, 102, 241, 0.6)' },
         },
-        'subtle-tag-glow-intern': { // No scaling, just shadow pulse for INTERN
-          '0%, 100%': { boxShadow: '0 0 7px 2px rgba(20, 184, 166, 0.4)' }, // teal-500
+        'subtle-tag-glow-intern': {
+          '0%, 100%': { boxShadow: '0 0 7px 2px rgba(20, 184, 166, 0.4)' },
           '50%': { boxShadow: '0 0 12px 3px rgba(20, 184, 166, 0.6)' },
         },
       },
@@ -89,5 +88,37 @@ export default {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    // Custom plugin to hide scrollbars on standard overflow utilities
+    plugin(function({ addBase, theme }) {
+      const overflowClasses = [
+        '.overflow-auto',
+        '.overflow-scroll',
+        '.overflow-x-auto',
+        '.overflow-x-scroll',
+        '.overflow-y-auto',
+        '.overflow-y-scroll',
+        'textarea.overflow-auto', // Specific for textareas
+        'textarea.overflow-scroll',
+        'textarea.overflow-y-auto',
+        'textarea.overflow-y-scroll',
+      ];
+
+      const scrollbarHideStyles = {};
+
+      overflowClasses.forEach(cls => {
+        // For Webkit-based browsers
+        scrollbarHideStyles[`${cls}::-webkit-scrollbar`] = { 'display': 'none' };
+        // For Firefox and IE/Edge
+        scrollbarHideStyles[cls] = {
+            ...(scrollbarHideStyles[cls] || {}), // Keep existing styles if any
+            '-ms-overflow-style': 'none',  /* IE and Edge */
+            'scrollbar-width': 'none'  /* Firefox */
+        };
+      });
+
+      addBase(scrollbarHideStyles);
+    }),
+    // You can add other plugins here, e.g., require('tailwind-scrollbar-hide') if you still want the explicit .scrollbar-hide utility for some cases
+  ],
 };
