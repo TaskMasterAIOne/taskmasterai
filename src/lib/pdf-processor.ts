@@ -174,32 +174,7 @@ export async function processPDF(
 
         safeProgress({ progress: 60, status: 'Generating comprehensive study notes...', error: null });
         const noteInputText = extractedTextFromPdf;
-const detailedNotePrompt = `**Objective:** Create comprehensive, detailed, and well-structured study notes in Markdown format based on the provided text from "\${file.name}". These notes are intended for a student learning the subject matter covered in the document.
-
-**Core Task:** Do not just summarize. Synthesize the information, explain concepts clearly, elaborate on key points, and structure the content logically for learning and revision. Use the provided text as the primary source of truth, but leverage your understanding of the topic to enhance clarity, add context where appropriate (without contradicting the text), and organize the material effectively for studying. Avoid simply stating "The text says...". Instead, present the information directly.
-
-**Mandatory Instructions:**
-1. **Study Focus:** Ensure the notes are pedagogically valuable. Explain concepts, define key terms clearly, connect related ideas (even if presented separately in the text), and highlight important facts, principles, or processes.
-2. **Comprehensiveness & Depth:** Cover ALL significant topics, sub-topics, arguments, data, and examples present in the text. Go into substantial detail. Aim for lengthy and exhaustive notes that capture the nuances of the source material.
-3. **Structure & Formatting:** Create visually engaging notes with the following specific formatting:
-   - Use appropriate emojis before main section headings (e.g., 💡 for concepts, 📊 for data/formulas, 📅 for time-related topics)
-   - Format key terms in bold and colored text (e.g., **Economics:** or **Resources:**) 
-   - Highlight important concepts within definitions using colored text
-   - Use proper mathematical notation for formulas and equations
-   - Create clean tables with clear headers when presenting comparative information
-   - Use bullet points consistently for list items with proper spacing
-   - Ensure a dark background with light text styling is implied in the markdown
-4. **Output Requirements:** Generate ONLY the raw Markdown note content inside a code block. NO introductory or concluding phrases. Start immediately with the first Markdown element inside the code block.
-
-**Source Text Content:**
----
-\${noteInputText}
----
-
-**Generated Comprehensive Study Notes (Markdown Format):**
-\`\`\`markdown
-<!-- Your comprehensive study notes in the specified format will appear here -->
-\`\`\``;
+        const detailedNotePrompt = `**Objective:** Create comprehensive, detailed, and well-structured study notes in Markdown format based on the provided text from "${file.name}". These notes are intended for a student learning the subject matter covered in the document.\n**Core Task:** Do not just summarize. Synthesize the information, explain concepts clearly, elaborate on key points, and structure the content logically for learning and revision. Use the provided text as the primary source of truth, but leverage your understanding of the topic to enhance clarity, add context where appropriate (without contradicting the text), and organize the material effectively for studying. Avoid simply stating "The text says...". Instead, present the information directly.\n**Mandatory Instructions:**\n1.  **Study Focus:** Ensure the notes are pedagogically valuable. Explain concepts, define key terms clearly, connect related ideas (even if presented separately in the text), and highlight important facts, principles, or processes.\n2.  **Comprehensiveness & Depth:** Cover ALL significant topics, sub-topics, arguments, data, and examples present in the text. Go into substantial detail. Aim for lengthy and exhaustive notes that capture the nuances of the source material.\n3.  **Structure & Formatting:** Utilize Markdown extensively and strategically: Headings (#, ##, ###), Lists (*, -, +, 1., 2.), Emphasis (**bold**, *italics*, \`\`\`inline code\`\`\`), Tables, Code Blocks (\`\`\`), Blockquotes (>), Describe visuals.\n4.  **Output Requirements:** Generate **only** the raw Markdown note content. **NO** introductory or concluding phrases. Start *immediately* with the first Markdown element.\n**Source Text Content:**\n---\n${noteInputText}\n---\n**Generated Comprehensive Study Notes (Markdown Format):**`;
         let detailedNoteContent = 'Error: AI detailed study note generation failed.';
         try {
             const noteOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: detailedNotePrompt }] }], generationConfig: { temperature: 0.65, maxOutputTokens: 8192 } }) };
