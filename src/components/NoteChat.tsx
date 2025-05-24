@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react';
 import { MessageCircle, Send, Timer as TimerIcon, Paperclip, Bot, X, AlertTriangle, Loader2, ImageIcon, ChevronDown, Maximize, Minimize, Edit, Check, RefreshCcw, Crown, Download, Trash2, CornerDownRight } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -66,7 +67,7 @@ interface NoteChatProps {
 export interface NoteChatHandle {
     sendMessage: (message: string) => void;
     addPdfContextSegment: (text: string) => void;
-    addPdfScreenshot: (fileData: SelectedFile) => void; // New method for PDF screenshot
+    addPdfScreenshot: (fileData: SelectedFile) => void;
     focusInput: () => void;
 }
 
@@ -310,10 +311,17 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
             setSelectedFiles(prev => [...prev, fileData]);
         };
 
-        const submitMessageToAI = async (messageContent: string, filesToSend?: SelectedFile[], forceImageGenMode = false) => {
+        const submitMessageToAI = async (
+            messageContent: string,
+            filesToSend?: SelectedFile[],
+            forceImageGenMode = false,
+            pdfContextSegmentsForThisMessage?: PdfContextSegment[]
+        ) => {
             const isUsingImageGenModel = forceImageGenMode || isImageGenModeActive;
-            const currentFiles = filesToSend || selectedFiles;
-            const collectedPdfContextText = pdfContextSegments.map(s => s.text).join("\n\n---\n\n");
+            const currentFiles = filesToSend || [];
+            const collectedPdfContextText = pdfContextSegmentsForThisMessage
+                ?.map(s => s.text)
+                .join("\n\n---\n\n") || "";
 
             if ((!messageContent && currentFiles.length === 0 && !isUsingImageGenModel && !collectedPdfContextText) ||
                 (!messageContent && isUsingImageGenModel) ||
@@ -321,8 +329,8 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
 
             if (isChatLimitReached && userTier !== 'premium') {
                 setChatHistory(prev => [...prev, { id: `limit-${Date.now()}`, role: 'assistant', content: `You've reached your ${currentChatLimit === Infinity ? 'monthly' : currentChatLimit} chat message limit. Upgrade for more interactions!`, error: true }]);
-                setChatMessage('');
-                setIsImageGenModeActive(false);
+                // Do not clear chatMessage here, let the user see what they typed
+                // if (isImageGenModeActive) setIsImageGenModeActive(false); // Don't change mode on limit
                 return;
             }
 
@@ -360,11 +368,7 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
 
             setSuggestedPrompts([]);
             setChatHistory(prev => [...prev, ...messagesToDisplayInChat]);
-
-            if (!filesToSend && !isUsingImageGenModel) {
-                setSelectedFiles([]);
-            }
-            setPdfContextSegments([]);
+            // State for selectedFiles and pdfContextSegments is cleared by handleChatSubmit
 
             let contentForAI = messageContent;
             if (collectedPdfContextText && !isUsingImageGenModel) {
@@ -380,7 +384,7 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
                     { id: `tstart-${tId}`, role: 'assistant', content: `Timer set: ${dTxt}.`, timer: { type: 'timer', duration: timerDuration, id: tId } }
                 ]);
                 if (messageContent.toLowerCase().startsWith('set timer') || messageContent.toLowerCase().startsWith('timer for')) {
-                    setChatMessage('');
+                    // setChatMessage(''); // Cleared by caller (handleChatSubmit)
                 }
                  if (isImageGenModeActive) setIsImageGenModeActive(false);
                 return;
@@ -742,9 +746,15 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
                 }
                 return;
             }
+
             const filesToSubmit = [...selectedFiles];
+            const currentPdfContextSegmentsForSubmit = [...pdfContextSegments];
+
             setChatMessage('');
-            await submitMessageToAI(currentMessage, filesToSubmit, isImageGenModeActive);
+            setSelectedFiles([]);
+            setPdfContextSegments([]);
+
+            await submitMessageToAI(currentMessage, filesToSubmit, isImageGenModeActive, currentPdfContextSegmentsForSubmit);
             if (textareaRef.current) {
                 textareaRef.current.style.height = 'auto';
             }
@@ -755,7 +765,12 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
             if (isImageGenModeActive) {
                  setIsImageGenModeActive(false);
             }
-            submitMessageToAI(suggestion);
+            // For suggestions, we don't need to pass files or PDF context as they are new interactions
+            // The state for selectedFiles and pdfContextSegments should be empty here due to prior logic
+            setChatMessage(''); // Clear any current input
+            setSelectedFiles([]);
+            setPdfContextSegments([]);
+            submitMessageToAI(suggestion, [], false, []);
         };
 
         const addPdfContextSegment = (text: string) => {
@@ -768,7 +783,12 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
         useImperativeHandle(ref, () => ({
             sendMessage: (message: string) => {
                 if (isImageGenModeActive) setIsImageGenModeActive(false);
-                submitMessageToAI(message, selectedFiles, isImageGenModeActive);
+                // When sending programmatically, use current selectedFiles and context
+                const filesForExternalSend = [...selectedFiles];
+                const contextForExternalSend = [...pdfContextSegments];
+                setSelectedFiles([]);
+                setPdfContextSegments([]);
+                submitMessageToAI(message, filesForExternalSend, false, contextForExternalSend);
             },
             addPdfContextSegment,
             addPdfScreenshot,
