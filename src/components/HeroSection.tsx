@@ -62,14 +62,16 @@ export function HeroSection() {
               </motion.a>
             )}
             
-            <motion.a 
-              href={user ? "/dashboard" : "/demo"} 
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="inline-flex items-center px-8 py-3 bg-gray-800/50 text-white rounded-full text-lg font-semibold border border-gray-700/50 backdrop-blur-sm transition-all hover:bg-gray-700/50"
-            >
-              {user ? 'Go to Dashboard' : 'Watch demo'}
-            </motion.a>
+            {user && ( // MODIFIED PART: This button now only shows if user is logged in
+              <motion.a 
+                href="/dashboard" // Link to dashboard
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="inline-flex items-center px-8 py-3 bg-gray-800/50 text-white rounded-full text-lg font-semibold border border-gray-700/50 backdrop-blur-sm transition-all hover:bg-gray-700/50"
+              >
+                Go to Dashboard {/* Text is always "Go to Dashboard" */}
+              </motion.a>
+            )}
           </motion.div>
           
           {!user && (
@@ -91,7 +93,7 @@ export function HeroSection() {
                 ))}
               </div>
               <motion.p className="text-sm text-gray-400" variants={textVariants}>
-                Joined by <span className="text-indigo-400 font-semibold">10,000+</span> students
+                Joined by <span className="text-indigo-400 font-semibold">10,000+</span> learners
               </motion.p>
             </motion.div>
           )}
