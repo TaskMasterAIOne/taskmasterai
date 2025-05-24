@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
@@ -61,11 +60,11 @@ interface NoteUsage { pdfAi: number; youtube: number; }
 interface SelectedFileForChat { name: string; type: string; size: number; base64Data: string; }
 
 
-const SimpleModal = ({ isOpen, onClose, title, children, isIlluminateEnabled }: { isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; isIlluminateEnabled: boolean; }) => {
+const SimpleModal = ({ isOpen, onClose, title, children, isIlluminateEnabled, isBlackoutEnabled }: { isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; isIlluminateEnabled: boolean; isBlackoutEnabled: boolean; }) => {
     if (!isOpen) return null;
-    const modalBg = isIlluminateEnabled ? "bg-white" : "bg-gray-800";
+    const modalBg = isIlluminateEnabled ? "bg-white" : (isBlackoutEnabled ? "bg-black" : "bg-gray-800");
     const textColor = isIlluminateEnabled ? "text-gray-900" : "text-gray-100";
-    const modalBorderColor = isIlluminateEnabled ? 'border-gray-200' : 'border-gray-700';
+    const modalBorderColor = isIlluminateEnabled ? 'border-gray-200' : (isBlackoutEnabled ? 'border-gray-800' : 'border-gray-700');
     const iconColor = isIlluminateEnabled ? "text-gray-500 hover:text-gray-700" : "text-gray-400 hover:text-gray-200";
 
     return (
@@ -85,19 +84,20 @@ const SimpleModal = ({ isOpen, onClose, title, children, isIlluminateEnabled }: 
     );
 };
 
-const UpgradeModal = ({ isOpen, onClose, isIlluminateEnabled }: { isOpen: boolean; onClose: () => void; isIlluminateEnabled: boolean; }) => {
+const UpgradeModal = ({ isOpen, onClose, isIlluminateEnabled, isBlackoutEnabled }: { isOpen: boolean; onClose: () => void; isIlluminateEnabled: boolean; isBlackoutEnabled: boolean; }) => {
     if (!isOpen) return null;
-    const modalBg = isIlluminateEnabled ? "bg-white" : "bg-gray-800";
     const textColor = isIlluminateEnabled ? "text-gray-900" : "text-gray-100";
     const headingColor = isIlluminateEnabled ? "text-purple-600" : "text-purple-400";
     const buttonPrimaryClass = "bg-purple-600 hover:bg-purple-700 text-white";
+    const paragraphColor = isIlluminateEnabled ? 'text-gray-600' : (isBlackoutEnabled ? 'text-gray-400' : 'text-gray-400');
+
 
     return (
-        <SimpleModal isOpen={isOpen} onClose={onClose} title="Unlock Premium Feature" isIlluminateEnabled={isIlluminateEnabled}>
+        <SimpleModal isOpen={isOpen} onClose={onClose} title="Unlock Premium Feature" isIlluminateEnabled={isIlluminateEnabled} isBlackoutEnabled={isBlackoutEnabled}>
             <div className="text-center">
                 <Crown className={`w-16 h-16 mx-auto mb-4 ${headingColor}`} />
                 <h3 className={`text-xl font-semibold mb-2 ${textColor}`}>Podcast Feature Locked</h3>
-                <p className={`${isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'} text-sm mb-6`}>
+                <p className={`${paragraphColor} text-sm mb-6`}>
                     Want to listen to your notes as a podcast? This feature is exclusive to our Premium users.
                     Upgrade your plan to unlock this and many other powerful tools to boost your learning!
                 </p>
@@ -814,7 +814,7 @@ export function Notes() {
         }
     };
 
-        const handlePDFUpload = async (file: File) => {
+    const handlePDFUpload = async (file: File) => {
         const currentApiKey = geminiApiKey;
 
         if (!user || !currentApiKey) {
@@ -832,6 +832,15 @@ export function Notes() {
             }
 
             setUploadProgress(prev => ({ ...prev, progress: 95, status: 'Saving PDF note...' }));
+            
+            const fileExtension = file.name.split('.').pop()?.toLowerCase();
+            const tagsArray = ['pdf'];
+            if (fileExtension && fileExtension !== 'pdf') {
+                tagsArray.push(fileExtension);
+            } else if (!fileExtension) {
+                tagsArray.push('file');
+            }
+
             const noteToSave: Omit<FirebaseNoteData, 'id' | 'createdAt' | 'updatedAt'> = {
                 title: processedData.title || file.name.replace(/\.[^/.]+$/, ""),
                 content: processedData.content,
@@ -841,7 +850,7 @@ export function Notes() {
                 type: 'pdf',
                 sourceUrl: processedData.sourceUrl,
                 isPublic: false,
-                tags: ['pdf', file.name.split('.').pop() || 'file'],
+                tags: tagsArray,
                 userId: user.uid,
             };
             const newNoteId = await saveNote(noteToSave);
@@ -1131,6 +1140,8 @@ export function Notes() {
 
         if (!pageElement) {
             targetPdfPageElementRef.current = null;
+            setScreenshotStartPoint(null);
+            setSelectionRect(null);
             return;
         }
         targetPdfPageElementRef.current = pageElement;
@@ -1184,7 +1195,7 @@ export function Notes() {
                 y: cropY,
                 width: selectionRect.width,
                 height: selectionRect.height,
-                scale: window.devicePixelRatio * (1/pdfScale),
+                scale: window.devicePixelRatio,
                 useCORS: true,
                 logging: false,
                 removeContainer: true,
@@ -1213,7 +1224,8 @@ export function Notes() {
                 }
             }
         } catch (error) {
-            setUploadProgress({ progress: 0, status: '', error: 'Failed to capture PDF snippet.' });
+            console.error("Screenshot capture failed:", error);
+            setUploadProgress({ progress: 0, status: '', error: 'Failed to capture PDF snippet. See console for details.' });
             setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
         } finally {
             setIsScreenshotModeActive(false);
@@ -1224,40 +1236,79 @@ export function Notes() {
     };
 
 
-    const containerClass = isIlluminateEnabled ? "bg-gray-100 text-gray-900" : isBlackoutEnabled ? "bg-black text-gray-200" : "bg-gray-900 text-gray-200";
-    const notesListBg = isIlluminateEnabled ? "bg-white border-gray-200" : isBlackoutEnabled ? "bg-black border-gray-800" : "bg-gray-800 border-gray-700";
-    const mainContentBgOuter = isIlluminateEnabled ? "bg-gray-100" : isBlackoutEnabled ? "bg-black" : "bg-gray-900";
-    const noteViewContainerClass = isIlluminateEnabled ? "bg-white border border-gray-200/70 shadow-lg" : isBlackoutEnabled ? "bg-gray-900 border border-gray-700/50 shadow-2xl" : "bg-gray-800 border border-gray-700/50 shadow-xl";
-
+    const containerClass = isIlluminateEnabled ? "bg-gray-100 text-gray-900" : (isBlackoutEnabled ? "bg-black text-gray-200" : "bg-gray-900 text-gray-200");
+    const notesListBg = isIlluminateEnabled ? "bg-white border-gray-200" : (isBlackoutEnabled ? "bg-black border-gray-800" : "bg-gray-800 border-gray-700");
+    const mainContentBgOuter = isIlluminateEnabled ? "bg-gray-100" : (isBlackoutEnabled ? "bg-black" : "bg-gray-900");
+    const noteViewContainerClass = isIlluminateEnabled ? "bg-white border border-gray-200/70 shadow-lg" : (isBlackoutEnabled ? "bg-black border border-gray-800 shadow-2xl" : "bg-gray-800 border border-gray-700/50 shadow-xl");
 
     const headingClass = isIlluminateEnabled ? "text-gray-800" : "text-gray-100";
     const subheadingClass = isIlluminateEnabled ? "text-gray-600" : "text-gray-400";
     const textColor = isIlluminateEnabled ? "text-gray-700" : "text-gray-300";
-    const inputBg = isIlluminateEnabled ? "bg-gray-100 hover:bg-gray-200/60 border-gray-300 focus:border-blue-500 focus:ring-blue-500" : "bg-gray-700 hover:bg-gray-600/70 border-gray-600 focus:border-blue-500 focus:ring-blue-500";
-    const inputTextColor = isIlluminateEnabled ? "text-gray-900" : "text-gray-200";
-    const placeholderColor = isIlluminateEnabled ? "placeholder-gray-400" : "placeholder-gray-500";
+    const inputBg = isIlluminateEnabled ? "bg-gray-100 hover:bg-gray-200/60 border-gray-300 focus:border-blue-500 focus:ring-blue-500" : (isBlackoutEnabled ? "bg-gray-800 hover:bg-gray-700 border-gray-700 focus:border-blue-500 focus:ring-blue-500" : "bg-gray-700 hover:bg-gray-600/70 border-gray-600 focus:border-blue-500 focus:ring-blue-500");
+    const inputTextColor = isIlluminateEnabled ? "text-gray-900" : "text-gray-100";
+    const placeholderColor = isIlluminateEnabled ? "placeholder-gray-400" : (isBlackoutEnabled ? "placeholder-gray-500" : "placeholder-gray-500");
     const buttonPrimaryClass = "bg-blue-600 hover:bg-blue-700 text-white";
-    const buttonSecondaryClass = isIlluminateEnabled ? "bg-gray-200 hover:bg-gray-300 text-gray-700" : "bg-gray-700 hover:bg-gray-600 text-gray-300";
+    const buttonSecondaryClass = isIlluminateEnabled ? "bg-gray-200 hover:bg-gray-300 text-gray-700" : (isBlackoutEnabled ? "bg-gray-800 hover:bg-gray-700 text-gray-300" : "bg-gray-700 hover:bg-gray-600 text-gray-300");
     const buttonDisabledClass = "opacity-50 cursor-not-allowed";
     const iconColor = isIlluminateEnabled ? "text-gray-500" : "text-gray-400";
     const iconHoverColor = isIlluminateEnabled ? "hover:text-gray-700" : "hover:text-gray-100";
     const iconActionColor = isIlluminateEnabled ? "text-blue-600" : "text-blue-400";
-    const iconActionHoverBg = isIlluminateEnabled ? "hover:bg-blue-100/50" : "hover:bg-blue-900/30";
+    const iconActionHoverBg = isIlluminateEnabled ? "hover:bg-blue-100/50" : (isBlackoutEnabled ? "hover:bg-blue-800/30" : "hover:bg-blue-900/30");
     const iconDeleteHoverColor = isIlluminateEnabled ? "hover:text-red-600" : "hover:text-red-400";
-    const iconDeleteHoverBg = isIlluminateEnabled ? "hover:bg-red-100/50" : "hover:bg-red-900/30";
-    const borderColor = isIlluminateEnabled ? "border-gray-200" : "border-gray-700";
-    const divideColor = isIlluminateEnabled ? "divide-gray-200" : "divide-gray-700";
-    const listItemHoverBg = isIlluminateEnabled ? "hover:bg-gray-100" : "hover:bg-gray-700/50";
-    const listItemSelectedBg = isIlluminateEnabled ? "bg-blue-50 border-l-2 border-blue-500" : "bg-gray-700 border-l-2 border-blue-500";
+    const iconDeleteHoverBg = isIlluminateEnabled ? "hover:bg-red-100/50" : (isBlackoutEnabled ? "hover:bg-red-800/30" : "hover:bg-red-900/30");
+    const borderColor = isIlluminateEnabled ? "border-gray-200" : (isBlackoutEnabled ? "border-gray-800" : "border-gray-700");
+    const divideColor = isIlluminateEnabled ? "divide-gray-200" : (isBlackoutEnabled ? "divide-gray-800" : "divide-gray-700");
+    const listItemHoverBg = isIlluminateEnabled ? "hover:bg-gray-100" : (isBlackoutEnabled ? "hover:bg-gray-800/60" : "hover:bg-gray-700/50");
+    const listItemSelectedBg = isIlluminateEnabled ? "bg-blue-50 border-l-2 border-blue-500" : (isBlackoutEnabled ? "bg-gray-800 border-l-2 border-blue-500" : "bg-gray-700 border-l-2 border-blue-500");
     const listItemBaseClass = "border-l-2 border-transparent";
-    const tagBaseBg = isIlluminateEnabled ? "bg-opacity-80" : "bg-opacity-20";
-    const tagTextBase = isIlluminateEnabled ? "text-opacity-90" : "text-opacity-80";
-    const tagColors = { personal: isIlluminateEnabled ? "bg-green-100 text-green-700" : "bg-green-500/20 text-green-300", pdf: isIlluminateEnabled ? "bg-red-100 text-red-700" : "bg-red-500/20 text-red-300", youtube: isIlluminateEnabled ? "bg-purple-100 text-purple-700" : "bg-purple-500/20 text-purple-300", audio: isIlluminateEnabled ? "bg-yellow-100 text-yellow-700" : "bg-yellow-500/20 text-yellow-300", public: isIlluminateEnabled ? "bg-cyan-100 text-cyan-700" : "bg-cyan-500/20 text-cyan-300", custom: isIlluminateEnabled ? "bg-blue-100 text-blue-700" : "bg-blue-500/20 text-blue-300", };
+    
+    const tagBaseBg = isIlluminateEnabled ? "bg-opacity-80" : (isBlackoutEnabled ? "bg-opacity-40" : "bg-opacity-20");
+    const tagTextBase = isIlluminateEnabled ? "text-opacity-90" : (isBlackoutEnabled ? "text-opacity-90" : "text-opacity-80");
+    const tagColors = {
+        personal: isIlluminateEnabled ? "bg-green-100 text-green-700" : (isBlackoutEnabled ? "bg-green-800/40 text-green-300" : "bg-green-500/20 text-green-300"),
+        pdf: isIlluminateEnabled ? "bg-red-100 text-red-700" : (isBlackoutEnabled ? "bg-red-800/40 text-red-300" : "bg-red-500/20 text-red-300"),
+        youtube: isIlluminateEnabled ? "bg-purple-100 text-purple-700" : (isBlackoutEnabled ? "bg-purple-800/40 text-purple-300" : "bg-purple-500/20 text-purple-300"),
+        audio: isIlluminateEnabled ? "bg-yellow-100 text-yellow-700" : (isBlackoutEnabled ? "bg-yellow-800/40 text-yellow-300" : "bg-yellow-500/20 text-yellow-300"),
+        public: isIlluminateEnabled ? "bg-cyan-100 text-cyan-700" : (isBlackoutEnabled ? "bg-cyan-800/40 text-cyan-300" : "bg-cyan-500/20 text-cyan-300"),
+        custom: isIlluminateEnabled ? "bg-blue-100 text-blue-700" : (isBlackoutEnabled ? "bg-blue-800/40 text-blue-300" : "bg-blue-500/20 text-blue-300"),
+    };
 
-    const proseClass = `prose prose-sm sm:prose-base max-w-none ${isIlluminateEnabled ? 'prose-gray' : 'prose-invert'} ${isIlluminateEnabled ? 'text-gray-800' : 'text-gray-300'} prose-a:text-blue-500 hover:prose-a:text-blue-600 prose-headings:font-semibold prose-p:leading-relaxed prose-p:mb-3 prose-ul:list-disc prose-ul:my-2 prose-ul:ml-5 prose-ol:list-decimal prose-ol:my-2 prose-ol:ml-5 prose-li:my-1 prose-li:ml-2 prose-blockquote:border-l-4 ${isIlluminateEnabled ? 'prose-blockquote:border-gray-300' : 'prose-blockquote:border-gray-600'} prose-blockquote:pl-4 prose-blockquote:pr-2 prose-blockquote:py-1 prose-blockquote:italic prose-blockquote:text-sm prose-blockquote:my-3 prose-code:before:content-none prose-code:after:content-none prose-code:bg-gray-200/50 dark:prose-code:bg-gray-700/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-pre:bg-gray-100 dark:prose-pre:bg-gray-800 prose-pre:rounded-md prose-pre:p-3 prose-img:rounded-lg prose-img:shadow-sm prose-img:max-w-full prose-table:my-4 prose-table:w-full prose-table:text-sm prose-thead:border-b ${isIlluminateEnabled ? 'prose-thead:border-gray-300' : 'prose-thead:border-gray-600'} prose-th:px-3 prose-th:py-1.5 prose-th:font-medium prose-th:text-left ${isIlluminateEnabled ? 'prose-th:bg-gray-100' : 'prose-th:bg-gray-700/40'} prose-tbody:divide-y ${isIlluminateEnabled ? 'prose-tbody:divide-gray-200' : 'prose-tbody:divide-gray-700'} prose-td:px-3 prose-td:py-1.5`;
+    const proseClass = `prose prose-sm sm:prose-base max-w-none ${
+        isIlluminateEnabled 
+            ? 'prose-gray text-gray-800' 
+            : `prose-invert ${isBlackoutEnabled ? 'text-gray-200' : 'text-gray-300'}`
+    } prose-a:text-blue-500 hover:prose-a:text-blue-600 prose-headings:font-semibold prose-p:leading-relaxed prose-p:mb-3 prose-ul:list-disc prose-ul:my-2 prose-ul:ml-5 prose-ol:list-decimal prose-ol:my-2 prose-ol:ml-5 prose-li:my-1 prose-li:ml-2 prose-blockquote:border-l-4 ${
+        isIlluminateEnabled 
+            ? 'prose-blockquote:border-gray-300' 
+            : (isBlackoutEnabled ? 'prose-blockquote:border-gray-700' : 'prose-blockquote:border-gray-600')
+    } prose-blockquote:pl-4 prose-blockquote:pr-2 prose-blockquote:py-1 prose-blockquote:italic prose-blockquote:text-sm prose-blockquote:my-3 prose-code:before:content-none prose-code:after:content-none ${
+        isIlluminateEnabled 
+            ? 'prose-code:bg-gray-200/50' 
+            : (isBlackoutEnabled ? 'prose-code:bg-gray-700/50' : 'prose-code:bg-gray-700/50')
+    } prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-sm ${
+        isIlluminateEnabled 
+            ? 'prose-pre:bg-gray-100' 
+            : (isBlackoutEnabled ? 'prose-pre:bg-black' : 'prose-pre:bg-gray-800') 
+    } prose-pre:rounded-md prose-pre:p-3 prose-img:rounded-lg prose-img:shadow-sm prose-img:max-w-full prose-table:my-4 prose-table:w-full prose-table:text-sm prose-thead:border-b ${
+        isIlluminateEnabled 
+            ? 'prose-thead:border-gray-300 prose-th:bg-gray-100' 
+            : (isBlackoutEnabled ? 'prose-thead:border-gray-700 prose-th:bg-gray-800/60' : 'prose-thead:border-gray-600 prose-th:bg-gray-700/40')
+    } prose-th:px-3 prose-th:py-1.5 prose-th:font-medium prose-th:text-left prose-tbody:divide-y ${
+        isIlluminateEnabled 
+            ? 'prose-tbody:divide-gray-200' 
+            : (isBlackoutEnabled ? 'prose-tbody:divide-gray-700' : 'prose-tbody:divide-gray-700')
+    } prose-td:px-3 prose-td:py-1.5`;
 
 
     const currentLimits = userTier === 'loading' ? null : NOTE_LIMITS[userTier];
+
+    const formatNoteTypeDisplay = (type: string): string => {
+        if (type === 'pdf') return 'PDF';
+        if (type === 'youtube') return 'YouTube';
+        if (type === 'personal') return 'Personal';
+        if (type === 'audio') return 'Audio';
+        return type.charAt(0).toUpperCase() + type.slice(1);
+    };
 
 
     return (
@@ -1269,7 +1320,7 @@ export function Notes() {
                 <div ref={mainContentAreaRef} className={`flex-1 ${mainContentBgOuter} relative ${showSideBySideChat || isScreenshotModeActive ? 'overflow-hidden' : 'overflow-y-auto'}`}>
 
                      {isMobile && !showNotesListOnMobile && !showSideBySideChat && (
-                         <div className={`sticky top-0 z-30 p-2 border-b ${borderColor} ${isIlluminateEnabled ? 'bg-white/80 backdrop-blur-sm' : 'bg-gray-900/80 backdrop-blur-sm'} flex items-center justify-between`}>
+                         <div className={`sticky top-0 z-30 p-2 border-b ${borderColor} ${isIlluminateEnabled ? 'bg-white/80 backdrop-blur-sm' : (isBlackoutEnabled ? 'bg-black/80' : 'bg-gray-900/80')} backdrop-blur-sm flex items-center justify-between`}>
                              <button onClick={() => setShowNotesListOnMobile(true)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Show Notes"> <List className="w-4 h-4" /> </button>
                              <span className={`text-sm font-medium truncate px-2 ${headingClass}`}> {isEditing ? 'Editing Note' : selectedNote?.title || 'Note'} </span>
                              <div className="w-8 h-8 flex items-center justify-center">
@@ -1292,10 +1343,26 @@ export function Notes() {
                                 onMouseMove={isScreenshotModeActive ? handleScreenshotMouseMove : undefined}
                                 onMouseUp={isScreenshotModeActive ? handleScreenshotMouseUp : undefined}
                              >
-                                  <div className={`flex-shrink-0 p-1.5 border-b ${borderColor} ${isIlluminateEnabled ? 'bg-gray-50' : 'bg-gray-800/50'} flex items-center justify-between gap-1 sticky top-0 z-20`}>
+                                  <div className={`flex-shrink-0 p-1.5 border-b ${borderColor} ${isIlluminateEnabled ? 'bg-gray-50' : (isBlackoutEnabled ? 'bg-black' : 'bg-gray-800/50')} flex items-center justify-between gap-1 sticky top-0 z-20`}>
                                       <div className="flex items-center gap-1">
-                                        <button onClick={() => togglePdfViewer(false)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Show Note Only"> <FileText className="w-4 h-4" /> </button>
-                                        <button onClick={() => setIsScreenshotModeActive(!isScreenshotModeActive)} className={`p-1.5 rounded-md ${isScreenshotModeActive ? (isIlluminateEnabled ? 'bg-blue-200 text-blue-700' : 'bg-blue-700 text-blue-200') : buttonSecondaryClass} ${iconHoverColor}`} title={isScreenshotModeActive ? "Cancel Screenshot" : "Screenshot Area"}> <Camera className="w-4 h-4" /> </button>
+                                        <button 
+                                            onClick={() => togglePdfViewer(false)} 
+                                            className={`p-1.5 rounded-md flex items-center gap-1 text-xs ${buttonSecondaryClass} ${iconHoverColor}`} 
+                                            title="Show Note Only"
+                                        > 
+                                            <FileText className="w-4 h-4" /> 
+                                            <span className="hidden sm:inline">Note</span>
+                                        </button>
+                                        <button 
+                                            onClick={() => setIsScreenshotModeActive(!isScreenshotModeActive)} 
+                                            className={`p-1.5 rounded-md flex items-center gap-1 text-xs ${isScreenshotModeActive 
+                                                ? (isIlluminateEnabled ? 'bg-blue-500 text-white hover:bg-blue-600' : (isBlackoutEnabled ? 'bg-blue-600 text-blue-100 hover:bg-blue-700' : 'bg-blue-700 text-blue-200 hover:bg-blue-800')) 
+                                                : (isIlluminateEnabled ? 'bg-green-500 text-white hover:bg-green-600' : (isBlackoutEnabled ? 'bg-green-600 text-green-100 hover:bg-green-700' : 'bg-green-700/30 text-green-300 hover:bg-green-600/40'))} shadow-sm hover:shadow-md transition-all`} 
+                                            title={isScreenshotModeActive ? "Cancel Screenshot Mode" : "Capture PDF Area"}
+                                        > 
+                                            <Camera className="w-4 h-4" /> 
+                                            <span className="hidden sm:inline">{isScreenshotModeActive ? 'Cancel' : 'Snip'}</span>
+                                        </button>
                                       </div>
                                       <div className="flex items-center gap-1 text-xs font-medium">
                                         <span className={`text-xs ${textColor}`}>Page</span>
@@ -1303,21 +1370,21 @@ export function Notes() {
                                         {numPages != null && <span className={`text-xs ${textColor}`}>of {numPages}</span>}
                                      </div>
                                      <div className="flex items-center gap-1">
-                                        <div className={`w-px h-4 ${isIlluminateEnabled ? 'bg-gray-300' : 'bg-gray-600'} mx-0.5`}></div>
+                                        <div className={`w-px h-4 ${isIlluminateEnabled ? 'bg-gray-300' : (isBlackoutEnabled ? 'bg-gray-700' : 'bg-gray-600')} mx-0.5`}></div>
                                         <button onClick={() => changeScale(-0.1)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Zoom Out"> <ZoomOut className="w-4 h-4" /> </button>
                                         <span className={`text-xs font-medium px-1 ${textColor}`}>{Math.round(pdfScale * 100)}%</span>
                                         <button onClick={() => changeScale(0.1)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Zoom In"> <ZoomIn className="w-4 h-4" /> </button>
-                                        <div className={`w-px h-4 ${isIlluminateEnabled ? 'bg-gray-300' : 'bg-gray-600'} mx-0.5`}></div>
+                                        <div className={`w-px h-4 ${isIlluminateEnabled ? 'bg-gray-300' : (isBlackoutEnabled ? 'bg-gray-700' : 'bg-gray-600')} mx-0.5`}></div>
                                         <button onClick={() => changeRotation(-90)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Rotate Left"> <RotateCcw className="w-4 h-4 transform -scale-x-100" /> </button>
                                         <button onClick={() => changeRotation(90)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Rotate Right"> <RotateCcw className="w-4 h-4" /> </button>
-                                        <div className={`w-px h-4 ${isIlluminateEnabled ? 'bg-gray-300' : 'bg-gray-600'} mx-0.5`}></div>
+                                        <div className={`w-px h-4 ${isIlluminateEnabled ? 'bg-gray-300' : (isBlackoutEnabled ? 'bg-gray-700' : 'bg-gray-600')} mx-0.5`}></div>
                                         <button onClick={handleDownloadPdf} disabled={!selectedNote?.sourceUrl || selectedNote.type !== 'pdf'} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor} ${(!selectedNote?.sourceUrl || selectedNote.type !== 'pdf') ? buttonDisabledClass : ''}`} title="Download PDF" > <Download className="w-4 h-4" /> </button>
                                     </div>
                                   </div>
-                                  <p className={`flex-shrink-0 text-center text-[10px] p-0.5 ${isIlluminateEnabled ? 'bg-blue-50 text-blue-700' : 'bg-gray-800 text-gray-400'} sticky top-[37px] z-[19]`}>
-                                    {isScreenshotModeActive ? "Click and drag on a page to select an area to send to chat." : "Highlight text for Explain/Chat options, or use Camera to screenshot."}
+                                  <p className={`flex-shrink-0 text-center text-[10px] p-0.5 ${isIlluminateEnabled ? 'bg-blue-50 text-blue-700' : (isBlackoutEnabled ? 'bg-blue-900/60 text-blue-300' : 'bg-gray-800 text-gray-400')} sticky top-[37px] z-[19]`}>
+                                    {isScreenshotModeActive ? "Click and drag on a page to select an area for chat." : "Highlight text for Explain/Chat options. Use Camera to Snip PDF area."}
                                   </p>
-                                 <div ref={pdfViewerContainerRef} onMouseUp={isScreenshotModeActive ? undefined : handlePdfTextSelection} className={`flex-1 overflow-auto relative ${isIlluminateEnabled ? 'bg-gray-100' : 'bg-gray-800/30'} ${isScreenshotModeActive ? 'cursor-crosshair' : ''}`} >
+                                 <div ref={pdfViewerContainerRef} onMouseUp={isScreenshotModeActive ? undefined : handlePdfTextSelection} className={`flex-1 overflow-auto relative ${isIlluminateEnabled ? 'bg-gray-100' : (isBlackoutEnabled ? 'bg-black' : 'bg-gray-800/30')} ${isScreenshotModeActive ? 'cursor-crosshair' : ''}`} >
                                      {pdfError ? ( <div className="p-6 text-center text-red-500 flex flex-col items-center justify-center h-full"> <AlertTriangle className="w-10 h-10 mb-3" /> <p className="text-sm font-medium">Error Loading PDF</p> <p className="text-xs mt-1">{pdfError}</p> </div>
                                      ) : selectedNote?.sourceUrl ? (
                                         <Document file={selectedNote.sourceUrl} onLoadSuccess={onDocumentLoadSuccess} onLoadError={onDocumentLoadError} loading={<div className="flex justify-center items-center h-64 pt-10"><Loader2 className="w-6 h-6 animate-spin text-blue-500"/></div>} className="flex flex-col items-center pdf-document pt-4 pb-8" >
@@ -1342,10 +1409,10 @@ export function Notes() {
                                      {isScreenshotModeActive && selectionRect && (
                                         <div style={{ position: 'absolute', border: '2px dashed #007bff', backgroundColor: 'rgba(0,123,255,0.1)', left: selectionRect.x + (pdfViewerContainerRef.current?.scrollLeft || 0), top: selectionRect.y + (pdfViewerContainerRef.current?.scrollTop || 0), width: selectionRect.width, height: selectionRect.height, zIndex: 100, pointerEvents: 'none' }} />
                                      )}
-                                     {showHighlightButtons && highlightButtonPosition && ( <div className="highlight-buttons-container absolute z-20 flex items-center gap-1 bg-gray-800 dark:bg-gray-200 p-1 rounded-md shadow-lg" style={{ top: `${highlightButtonPosition.top}px`, left: `${highlightButtonPosition.left}px`, transform: 'translateX(-50%)' }} onMouseDown={(e) => e.stopPropagation()} > <button onClick={handleExplainHighlight} className={`text-xs px-2 py-1 rounded transition-colors ${isIlluminateEnabled ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>Explain</button> <button onClick={handleChatAboutHighlight} className={`text-xs px-2 py-1 rounded transition-colors ${isIlluminateEnabled ? 'bg-green-500 text-white hover:bg-green-600' : 'bg-green-600 text-white hover:bg-green-700'}`}>Chat</button> </div> )}
+                                     {showHighlightButtons && highlightButtonPosition && ( <div className={`highlight-buttons-container absolute z-20 flex items-center gap-1 ${isIlluminateEnabled ? 'bg-white text-gray-700 border border-gray-300' : (isBlackoutEnabled ? 'bg-gray-950 text-gray-200 border border-gray-700' : 'bg-gray-800 text-white border border-gray-700')} p-1 rounded-md shadow-lg`} style={{ top: `${highlightButtonPosition.top}px`, left: `${highlightButtonPosition.left}px`, transform: 'translateX(-50%)' }} onMouseDown={(e) => e.stopPropagation()} > <button onClick={handleExplainHighlight} className={`text-xs px-2 py-1 rounded transition-colors ${isIlluminateEnabled ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>Explain</button> <button onClick={handleChatAboutHighlight} className={`text-xs px-2 py-1 rounded transition-colors ${isIlluminateEnabled ? 'bg-green-500 text-white hover:bg-green-600' : 'bg-green-600 text-white hover:bg-green-700'}`}>Chat</button> </div> )}
                                  </div>
                              </div>
-                             <div className={`w-1.5 cursor-col-resize flex items-center justify-center flex-shrink-0 ${isIlluminateEnabled ? 'bg-gray-300 hover:bg-gray-400' : 'bg-gray-600 hover:bg-gray-500'} ${isResizingPdfChatSplit ? (isIlluminateEnabled ? '!bg-blue-500' : '!bg-blue-500') : ''}`} onMouseDown={handleResizeMouseDown} title="Drag to resize panels"><GripVertical className={`w-4 h-4 pointer-events-none ${isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}`} /></div>
+                             <div className={`w-1.5 cursor-col-resize flex items-center justify-center flex-shrink-0 ${isIlluminateEnabled ? 'bg-gray-300 hover:bg-gray-400' : (isBlackoutEnabled ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-600 hover:bg-gray-500')} ${isResizingPdfChatSplit ? (isIlluminateEnabled ? '!bg-blue-500' : '!bg-blue-500') : ''}`} onMouseDown={handleResizeMouseDown} title="Drag to resize panels"><GripVertical className={`w-4 h-4 pointer-events-none ${isIlluminateEnabled ? 'text-gray-600' : (isBlackoutEnabled ? 'text-gray-500' : 'text-gray-400')}`} /></div>
                              <div className="h-full flex flex-col overflow-hidden" style={{ width: `${100 - pdfChatSplitRatio}%` }}>
                                  {selectedNote && geminiApiKey && user && ( <NoteChat ref={noteChatRef} key={`chat-inline-${selectedNote.id}`} note={selectedNote} onClose={() => togglePdfViewer(false)} geminiApiKey={geminiApiKey} userName={userName} isIlluminateEnabled={isIlluminateEnabled} isBlackoutEnabled={isBlackoutEnabled} isVisible={true} onUpdateNoteContent={handleUpdateNoteContentFromChat} onAddImageToNoteRequest={handleAddImageToNoteRequest} displayMode="inline" userTier={userTier} /> )}
                              </div>
@@ -1358,11 +1425,11 @@ export function Notes() {
                                     <div className={`${noteViewContainerClass} rounded-lg p-4 md:p-6 flex flex-col h-full overflow-hidden`}>
                                          <div className="space-y-3 flex-shrink-0"> <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className={`w-full ${inputBg} ${inputTextColor} text-xl font-semibold rounded-md px-3 py-2 focus:outline-none focus:ring-1 ${placeholderColor}`} placeholder="Note title..." /> <div className="flex flex-wrap items-center gap-2"> {editTags.map((tag) => ( <span key={tag} className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${tagColors.custom} ${tagBaseBg} ${tagTextBase}`}> {tag} <button onClick={() => handleRemoveTag(tag)} className={`${iconHoverColor} rounded-full hover:bg-black/10 dark:hover:bg-white/10 p-0.5`} title={`Remove tag "${tag}"`}> <X className="w-2.5 h-2.5" /> </button> </span> ))} {editTags.length < 5 && ( <div className="flex items-center gap-1"> <input type="text" value={newTag} onChange={(e) => setNewTag(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleAddTag()} placeholder="Add tag..." className={`${inputBg} ${inputTextColor} ${placeholderColor} rounded-full px-2.5 py-0.5 text-xs focus:outline-none focus:ring-1 w-24`} /> <button onClick={handleAddTag} className={`${buttonSecondaryClass} px-2 py-0.5 rounded-full text-xs`}>Add</button> </div> )} </div> </div>
                                          <div className="flex-1 mt-3 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 pr-2">
-                                             <div className="mb-4" data-color-mode={isIlluminateEnabled ? 'light' : 'dark'}><MDEditor value={editContent} onChange={setEditContent} minHeight={200} preview="live" textareaProps={{ placeholder: "Start writing..." }} className={`[&_.w-md-editor-preview]:!bg-transparent [&_.w-md-editor-input]:!bg-transparent [&_.w-md-editor-toolbar]:!bg-gray-100/50 dark:[&_.w-md-editor-toolbar]:!bg-gray-800/50 border dark:border-gray-700 rounded-md [&_.w-md-editor-live]:border-l dark:[&_.w-md-editor-live]:border-gray-700`} /></div>
-                                             <div className="mt-4 pt-3 border-t dark:border-gray-700"> <h3 className={`text-sm font-semibold mb-2 flex items-center gap-1.5 ${headingClass}`}><Sparkles className={`w-4 h-4 ${isIlluminateEnabled ? 'text-yellow-500' : 'text-yellow-400'}`} />Edit Key Points</h3> <div className="space-y-1.5"> {editKeyPoints.map((point, index) => ( <div key={index} className="flex items-center gap-2"> <textarea rows={1} value={point} onChange={(e) => handleKeyPointChange(index, e.target.value)} placeholder={`Key point ${index + 1}`} className={`flex-grow ${inputBg} ${inputTextColor} ${placeholderColor} text-xs rounded px-2 py-1 focus:outline-none focus:ring-1 resize-y min-h-[28px]`} /> <button onClick={() => handleRemoveKeyPoint(index)} className={`${iconDeleteHoverColor} p-1 rounded`} title="Remove Point"><Trash className="w-3.5 h-3.5" /></button> </div> ))} </div> <button onClick={handleAddKeyPoint} className={`${buttonSecondaryClass} mt-2 px-2.5 py-1 rounded text-xs flex items-center gap-1`}> <PlusCircle className="w-3.5 h-3.5"/> Add Point </button> </div>
-                                             <div className="mt-4 pt-3 border-t dark:border-gray-700"> <h3 className={`text-sm font-semibold mb-2 flex items-center gap-1.5 ${headingClass}`}><Layers className={`w-4 h-4 ${isIlluminateEnabled ? 'text-purple-600' : 'text-purple-400'}`} />Edit Flashcards</h3> <div className="space-y-2"> {editFlashcards.map((card, index) => ( <div key={index} className={`flex items-start gap-2 border rounded p-2 ${isIlluminateEnabled ? 'border-gray-200 bg-gray-50/50' : 'border-gray-600/50 bg-gray-700/30'}`}> <div className="flex-grow space-y-1"> <textarea rows={1} value={card.front} onChange={(e) => handleFlashcardChange(index, 'front', e.target.value)} placeholder="Front of flashcard" className={`w-full ${inputBg} ${inputTextColor} ${placeholderColor} text-xs rounded px-2 py-1 focus:outline-none focus:ring-1 resize-y min-h-[28px]`} /> <textarea rows={1} value={card.back} onChange={(e) => handleFlashcardChange(index, 'back', e.target.value)} placeholder="Back of flashcard" className={`w-full ${inputBg} ${inputTextColor} ${placeholderColor} text-xs rounded px-2 py-1 focus:outline-none focus:ring-1 resize-y min-h-[28px]`} /> </div> <button onClick={() => handleRemoveFlashcard(index)} className={`${iconDeleteHoverColor} p-1 rounded mt-1`} title="Remove Card"><Trash className="w-3.5 h-3.5" /></button> </div> ))} </div> <button onClick={handleAddFlashcard} className={`${buttonSecondaryClass} mt-2 px-2.5 py-1 rounded text-xs flex items-center gap-1`}> <PlusCircle className="w-3.5 h-3.5"/> Add Card </button> </div>
+                                             <div className="mb-4" data-color-mode={isIlluminateEnabled ? 'light' : 'dark'}><MDEditor value={editContent} onChange={setEditContent} minHeight={200} preview="live" textareaProps={{ placeholder: "Start writing..." }} className={`[&_.w-md-editor-preview]:!bg-transparent [&_.w-md-editor-input]:!bg-transparent [&_.w-md-editor-toolbar]:!${isIlluminateEnabled ? 'bg-gray-100/50' : (isBlackoutEnabled ? 'bg-gray-900/50' : 'bg-gray-800/50')} border ${isIlluminateEnabled ? 'border-gray-300' : (isBlackoutEnabled ? 'border-gray-700' : 'border-gray-700')} rounded-md [&_.w-md-editor-live]:border-l ${isIlluminateEnabled ? '[&_.w-md-editor-live]:border-gray-300' : (isBlackoutEnabled ? '[&_.w-md-editor-live]:border-gray-700' : '[&_.w-md-editor-live]:border-gray-700')}`} /></div>
+                                             <div className={`mt-4 pt-3 border-t ${borderColor}`}> <h3 className={`text-sm font-semibold mb-2 flex items-center gap-1.5 ${headingClass}`}><Sparkles className={`w-4 h-4 ${isIlluminateEnabled ? 'text-yellow-500' : 'text-yellow-400'}`} />Edit Key Points</h3> <div className="space-y-1.5"> {editKeyPoints.map((point, index) => ( <div key={index} className="flex items-center gap-2"> <textarea rows={1} value={point} onChange={(e) => handleKeyPointChange(index, e.target.value)} placeholder={`Key point ${index + 1}`} className={`flex-grow ${inputBg} ${inputTextColor} ${placeholderColor} text-xs rounded px-2 py-1 focus:outline-none focus:ring-1 resize-y min-h-[28px]`} /> <button onClick={() => handleRemoveKeyPoint(index)} className={`${iconDeleteHoverColor} p-1 rounded`} title="Remove Point"><Trash className="w-3.5 h-3.5" /></button> </div> ))} </div> <button onClick={handleAddKeyPoint} className={`${buttonSecondaryClass} mt-2 px-2.5 py-1 rounded text-xs flex items-center gap-1`}> <PlusCircle className="w-3.5 h-3.5"/> Add Point </button> </div>
+                                             <div className={`mt-4 pt-3 border-t ${borderColor}`}> <h3 className={`text-sm font-semibold mb-2 flex items-center gap-1.5 ${headingClass}`}><Layers className={`w-4 h-4 ${isIlluminateEnabled ? 'text-purple-600' : 'text-purple-400'}`} />Edit Flashcards</h3> <div className="space-y-2"> {editFlashcards.map((card, index) => ( <div key={index} className={`flex items-start gap-2 border rounded p-2 ${isIlluminateEnabled ? 'border-gray-200 bg-gray-50/50' : (isBlackoutEnabled ? 'border-gray-700/50 bg-gray-800/30' : 'border-gray-600/50 bg-gray-700/30')}`}> <div className="flex-grow space-y-1"> <textarea rows={1} value={card.front} onChange={(e) => handleFlashcardChange(index, 'front', e.target.value)} placeholder="Front of flashcard" className={`w-full ${inputBg} ${inputTextColor} ${placeholderColor} text-xs rounded px-2 py-1 focus:outline-none focus:ring-1 resize-y min-h-[28px]`} /> <textarea rows={1} value={card.back} onChange={(e) => handleFlashcardChange(index, 'back', e.target.value)} placeholder="Back of flashcard" className={`w-full ${inputBg} ${inputTextColor} ${placeholderColor} text-xs rounded px-2 py-1 focus:outline-none focus:ring-1 resize-y min-h-[28px]`} /> </div> <button onClick={() => handleRemoveFlashcard(index)} className={`${iconDeleteHoverColor} p-1 rounded mt-1`} title="Remove Card"><Trash className="w-3.5 h-3.5" /></button> </div> ))} </div> <button onClick={handleAddFlashcard} className={`${buttonSecondaryClass} mt-2 px-2.5 py-1 rounded text-xs flex items-center gap-1`}> <PlusCircle className="w-3.5 h-3.5"/> Add Card </button> </div>
                                          </div>
-                                         <div className="flex justify-end items-center gap-2 pt-3 mt-3 border-t border-gray-300 dark:border-gray-700 flex-shrink-0">
+                                         <div className={`flex justify-end items-center gap-2 pt-3 mt-3 border-t ${borderColor} flex-shrink-0`}>
                                             <button onClick={handleCancelEdit} className={`${buttonSecondaryClass} px-4 py-1.5 rounded-md text-sm`}>Cancel</button>
                                             <button onClick={handleSaveEdit} disabled={isSaving || !editTitle.trim()} className={`${buttonPrimaryClass} px-4 py-1.5 rounded-md text-sm flex items-center gap-1.5 ${isSaving || !editTitle.trim() ? buttonDisabledClass : ''}`}> {isSaving ? (<> <Loader2 className="w-4 h-4 animate-spin" /> Saving... </>) : (<> <Save className="w-4 h-4" /> Save </>)} </button>
                                          </div>
@@ -1371,32 +1438,41 @@ export function Notes() {
                                     <div className={`${noteViewContainerClass} rounded-lg flex flex-col overflow-hidden h-full p-4 md:p-5 lg:p-6 animate-fadeIn`}>
                                         <div className={`flex flex-col sm:flex-row sm:items-start sm:justify-between mb-4 gap-3 flex-shrink-0`}>
                                             <h1 className={`text-xl md:text-2xl font-semibold ${headingClass} break-words mr-auto pr-4`}>{selectedNote.title || "Untitled"}</h1>
-                                            <div className={`flex items-center gap-1 flex-shrink-0 border rounded-full p-0.5 ${borderColor} ${isIlluminateEnabled ? 'bg-gray-50' : 'bg-gray-800/50'}`}>
+                                            <div className={`flex items-center gap-1 flex-shrink-0 border rounded-full p-0.5 ${borderColor} ${isIlluminateEnabled ? 'bg-gray-50' : (isBlackoutEnabled ? 'bg-gray-900/30' : 'bg-gray-800/50')}`}>
                                                 <button onClick={handleEditNote} className={`p-1.5 rounded-full ${iconHoverColor} ${iconActionHoverBg}`} title="Edit"><Edit2 className="w-4 h-4" /></button>
                                                 {geminiApiKey && <button onClick={() => handleChatWithNote(selectedNote)} className={`p-1.5 rounded-full ${iconHoverColor} ${iconActionHoverBg}`} title="Chat with AI"><MessageCircle className="w-4 h-4" /></button>}
-                                                {selectedNote.type === 'pdf' && selectedNote.sourceUrl && !isMobile && ( <button onClick={() => togglePdfViewer(true)} className={`p-1.5 rounded-full ${iconHoverColor} ${iconActionHoverBg}`} title={"View PDF & Chat"}> <Eye className="w-4 h-4" /> </button> )}
-                                                <button onClick={() => handleTogglePublic(selectedNote.id, selectedNote.isPublic)} className={`p-1.5 rounded-full ${iconHoverColor} ${selectedNote.isPublic ? 'hover:bg-cyan-100/50 dark:hover:bg-cyan-900/30' : iconActionHoverBg}`} title={selectedNote.isPublic ? 'Make private' : 'Make public'}>{selectedNote.isPublic ? <Globe className={`w-4 h-4 ${isIlluminateEnabled ? 'text-cyan-600' : 'text-cyan-400'}`} /> : <Lock className="w-4 h-4" />}</button>
-                                                {selectedNote.isPublic && ( <button onClick={() => handleGetShareLink(selectedNote.id)} className={`p-1.5 rounded-full relative ${iconHoverColor} hover:bg-green-100/50 dark:hover:bg-green-900/30`} title="Copy share link">{linkCopied ? <ClipboardCopy className={`w-4 h-4 text-green-500`} /> : <Share2 className="w-4 h-4" />}</button> )}
-                                                <div className={`w-px h-4 ${isIlluminateEnabled ? 'bg-gray-300' : 'bg-gray-600'} mx-0.5`}></div>
+                                                {selectedNote.type === 'pdf' && selectedNote.sourceUrl && !isMobile && ( 
+                                                    <button 
+                                                        onClick={() => togglePdfViewer(true)} 
+                                                        className={`p-1.5 rounded-full flex items-center gap-1 text-xs ${isIlluminateEnabled ? 'text-sky-600 bg-sky-100 hover:bg-sky-200' : (isBlackoutEnabled ? 'text-sky-300 bg-sky-900/40 hover:bg-sky-800/60' : 'text-sky-300 bg-sky-700/30 hover:bg-sky-700/50')} focus:ring-1 ${isIlluminateEnabled ? 'focus:ring-sky-300' : 'focus:ring-sky-600'}`} 
+                                                        title="View PDF Side-by-Side"
+                                                    > 
+                                                        <Eye className="w-4 h-4" /> 
+                                                        <span className="hidden sm:inline">View PDF</span>
+                                                    </button> 
+                                                )}
+                                                <button onClick={() => handleTogglePublic(selectedNote.id, selectedNote.isPublic)} className={`p-1.5 rounded-full ${iconHoverColor} ${selectedNote.isPublic ? (isIlluminateEnabled ? 'hover:bg-cyan-100/50' : (isBlackoutEnabled ? 'hover:bg-cyan-800/30' : 'hover:bg-cyan-900/30')) : iconActionHoverBg}`} title={selectedNote.isPublic ? 'Make private' : 'Make public'}>{selectedNote.isPublic ? <Globe className={`w-4 h-4 ${isIlluminateEnabled ? 'text-cyan-600' : 'text-cyan-400'}`} /> : <Lock className="w-4 h-4" />}</button>
+                                                {selectedNote.isPublic && ( <button onClick={() => handleGetShareLink(selectedNote.id)} className={`p-1.5 rounded-full relative ${iconHoverColor} ${isIlluminateEnabled ? 'hover:bg-green-100/50' : (isBlackoutEnabled ? 'hover:bg-green-800/30' : 'hover:bg-green-900/30')}`} title="Copy share link">{linkCopied ? <ClipboardCopy className={`w-4 h-4 text-green-500`} /> : <Share2 className="w-4 h-4" />}</button> )}
+                                                <div className={`w-px h-4 ${isIlluminateEnabled ? 'bg-gray-300' : (isBlackoutEnabled ? 'bg-gray-700' : 'bg-gray-600')} mx-0.5`}></div>
                                                 <button onClick={() => handleDeleteNote(selectedNote.id)} className={`p-1.5 rounded-full ${iconDeleteHoverColor} ${iconDeleteHoverBg}`} title="Delete"><Trash2 className="w-4 h-4" /></button>
                                             </div>
                                         </div>
 
                                         <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-5 flex-shrink-0`}>
                                             {(selectedNote.questions && selectedNote.questions.length > 0) && (
-                                                <button onClick={() => document.getElementById('study-questions-section')?.scrollIntoView({ behavior: 'smooth' })} className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 ${isIlluminateEnabled ? 'bg-purple-50 hover:bg-purple-100 shadow-sm border border-purple-200' : 'bg-purple-800/30 hover:bg-purple-700/40 shadow-md border border-purple-700/50'}`} >
-                                                    <div className={`p-2 rounded-full ${isIlluminateEnabled ? 'bg-purple-100 text-purple-600' : 'bg-purple-500/20 text-purple-400'}`}> <BookOpen className="w-5 h-5" /> </div>
+                                                <button onClick={() => document.getElementById('study-questions-section')?.scrollIntoView({ behavior: 'smooth' })} className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 ${isIlluminateEnabled ? 'bg-purple-50 hover:bg-purple-100 shadow-sm border border-purple-200' : (isBlackoutEnabled ? 'bg-purple-900/40 hover:bg-purple-800/50 border border-purple-700/50' : 'bg-purple-800/30 hover:bg-purple-700/40 shadow-md border border-purple-700/50')}`} >
+                                                    <div className={`p-2 rounded-full ${isIlluminateEnabled ? 'bg-purple-100 text-purple-600' : (isBlackoutEnabled ? 'bg-purple-700/30 text-purple-300' : 'bg-purple-500/20 text-purple-400')}`}> <BookOpen className="w-5 h-5" /> </div>
                                                     <div> <span className={`block font-semibold text-sm ${headingClass}`}>Quiz</span> <span className={`block text-xs ${subheadingClass}`}>Test your knowledge</span> </div>
                                                 </button>
                                             )}
                                             {(selectedNote.flashcards && selectedNote.flashcards.length > 0) && (
-                                                <button onClick={handleStudyFlashcards} className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 ${isIlluminateEnabled ? 'bg-indigo-50 hover:bg-indigo-100 shadow-sm border border-indigo-200' : 'bg-indigo-800/30 hover:bg-indigo-700/40 shadow-md border border-indigo-700/50'}`} >
-                                                    <div className={`p-2 rounded-full ${isIlluminateEnabled ? 'bg-indigo-100 text-indigo-600' : 'bg-indigo-500/20 text-indigo-400'}`}> <Layers className="w-5 h-5" /> </div>
+                                                <button onClick={handleStudyFlashcards} className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 ${isIlluminateEnabled ? 'bg-indigo-50 hover:bg-indigo-100 shadow-sm border border-indigo-200' : (isBlackoutEnabled ? 'bg-indigo-900/40 hover:bg-indigo-800/50 border border-indigo-700/50' : 'bg-indigo-800/30 hover:bg-indigo-700/40 shadow-md border border-indigo-700/50')}`} >
+                                                    <div className={`p-2 rounded-full ${isIlluminateEnabled ? 'bg-indigo-100 text-indigo-600' : (isBlackoutEnabled ? 'bg-indigo-700/30 text-indigo-300' : 'bg-indigo-500/20 text-indigo-400')}`}> <Layers className="w-5 h-5" /> </div>
                                                     <div> <span className={`block font-semibold text-sm ${headingClass}`}>Flashcards</span> <span className={`block text-xs ${subheadingClass}`}>Study the content</span> </div>
                                                 </button>
                                             )}
-                                            <button onClick={handlePodcastClick} className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 ${isIlluminateEnabled ? 'bg-teal-50 hover:bg-teal-100 shadow-sm border border-teal-200' : 'bg-teal-800/30 hover:bg-teal-700/40 shadow-md border border-teal-700/50'} ${userTier !== 'premium' ? 'opacity-70' : ''}`} >
-                                                <div className={`p-2 rounded-full ${isIlluminateEnabled ? 'bg-teal-100 text-teal-600' : 'bg-teal-500/20 text-teal-400'}`}> <Mic className="w-5 h-5" /> </div>
+                                            <button onClick={handlePodcastClick} className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 ${isIlluminateEnabled ? 'bg-teal-50 hover:bg-teal-100 shadow-sm border border-teal-200' : (isBlackoutEnabled ? 'bg-teal-900/40 hover:bg-teal-800/50 border border-teal-700/50' : 'bg-teal-800/30 hover:bg-teal-700/40 shadow-md border border-teal-700/50')} ${userTier !== 'premium' ? 'opacity-70' : ''}`} >
+                                                <div className={`p-2 rounded-full ${isIlluminateEnabled ? 'bg-teal-100 text-teal-600' : (isBlackoutEnabled ? 'bg-teal-700/30 text-teal-300' : 'bg-teal-500/20 text-teal-400')}`}> <Mic className="w-5 h-5" /> </div>
                                                 <div> <span className={`block font-semibold text-sm ${headingClass}`}>Podcast</span> <span className={`block text-xs ${subheadingClass}`}>Listen to your notes</span> </div>
                                                 {userTier !== 'premium' && <Lock className={`w-4 h-4 ml-auto ${isIlluminateEnabled ? 'text-gray-400' : 'text-gray-500'}`} />}
                                             </button>
@@ -1404,7 +1480,7 @@ export function Notes() {
 
                                         {((selectedNote.tags?.length ?? 0) > 0) && ( <div className={`flex flex-wrap gap-1.5 mb-4 flex-shrink-0`}> {selectedNote.tags!.map((tag) => (<span key={tag} className={`px-2 py-0.5 rounded-full text-xs ${tagColors.custom} ${tagBaseBg} ${tagTextBase}`}>#{tag}</span>))} </div> )}
 
-                                        <div className={`flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 -mr-2 md:-mr-3 lg:-mr-4 pr-2 md:pr-3 lg:pr-4 ${isIlluminateEnabled ? "bg-white" : "bg-gray-800"}`}>
+                                        <div className={`flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 -mr-2 md:-mr-3 lg:-mr-4 pr-2 md:pr-3 lg:pr-4 ${isIlluminateEnabled ? "bg-white" : (isBlackoutEnabled ? "bg-black" : "bg-gray-800")}`}>
                                             <div className={`${proseClass} py-1`}>
                                                 <ReactMarkdown
                                                     remarkPlugins={[remarkGfm, remarkMath]}
@@ -1413,7 +1489,7 @@ export function Notes() {
                                                         img: ({node, ...props}) => <img className="max-w-full h-auto rounded-md my-4 shadow-sm" {...props} alt={props.alt || 'Note image'}/>,
                                                         a: ({node, ...props}) => <a target="_blank" rel="noopener noreferrer" {...props} />,
                                                         table: ({node, ...props}) => <div className="overflow-x-auto my-4"><table className={`w-full text-left border-collapse border ${borderColor}`} {...props} /></div>,
-                                                        thead: ({node, ...props}) => <thead className={isIlluminateEnabled ? 'bg-gray-100' : 'bg-gray-700/40'} {...props} />,
+                                                        thead: ({node, ...props}) => <thead className={isIlluminateEnabled ? 'bg-gray-100' : (isBlackoutEnabled ? 'bg-gray-800/40' : 'bg-gray-700/40')} {...props} />,
                                                         th: ({node, ...props}) => <th className={`border ${borderColor} px-3 py-2 font-medium text-sm`} {...props} />,
                                                         td: ({node, ...props}) => <td className={`border ${borderColor} px-3 py-2 text-sm`} {...props} />,
                                                         h1: ({node, ...props}) => <h1 className="text-xl font-semibold mb-2 mt-4 border-b pb-1" {...props} />,
@@ -1423,15 +1499,15 @@ export function Notes() {
                                                         ul: ({node, ...props}) => <ul className="list-disc list-outside ml-4 space-y-1 text-sm mb-2" {...props} />,
                                                         ol: ({node, ...props}) => <ol className="list-decimal list-outside ml-4 space-y-1 text-sm mb-2" {...props} />,
                                                         li: ({node, ...props}) => <li className="mb-0.5" {...props} />,
-                                                        blockquote: ({node, ...props}) => <blockquote className={`border-l-4 ${borderColor} pl-3 italic text-sm my-2 ${subheadingClass}`} {...props} />,
+                                                        blockquote: ({node, ...props}) => <blockquote className={`border-l-4 ${isIlluminateEnabled ? borderColor : (isBlackoutEnabled ? 'border-gray-700' : 'border-gray-600')} pl-3 italic text-sm my-2 ${subheadingClass}`} {...props} />,
                                                         code: ({node, inline, className, children, ...props}) => {
                                                             const match = /language-(\w+)/.exec(className || '');
                                                             return !inline ? (
-                                                                <pre className={`text-[11px] leading-snug ${isIlluminateEnabled ? '!bg-gray-100 !text-gray-800 border border-gray-200' : '!bg-gray-900/80 !text-gray-300 border border-gray-700'} p-2 rounded-md overflow-x-auto my-2`} {...props}>
+                                                                <pre className={`text-[11px] leading-snug ${isIlluminateEnabled ? '!bg-gray-100 !text-gray-800 border border-gray-200' : (isBlackoutEnabled ? '!bg-black !text-gray-300 border border-gray-800' : '!bg-gray-900/80 !text-gray-300 border border-gray-700')} p-2 rounded-md overflow-x-auto my-2`} {...props}>
                                                                     <code className={`language-${match?.[1] || 'plaintext'}`}>{children}</code>
                                                                 </pre>
                                                             ) : (
-                                                                <code className={`text-xs ${isIlluminateEnabled ? 'bg-gray-200/70 text-gray-800' : 'bg-gray-700/70 text-gray-200'} px-1 rounded`} {...props}>{children}</code>
+                                                                <code className={`text-xs ${isIlluminateEnabled ? 'bg-gray-200/70 text-gray-800' : (isBlackoutEnabled ? 'bg-gray-700/60 text-gray-200' : 'bg-gray-700/70 text-gray-200')} px-1 rounded`} {...props}>{children}</code>
                                                             );
                                                         },
                                                     }}
@@ -1448,7 +1524,7 @@ export function Notes() {
                                             {selectedNote.questions && selectedNote.questions.length > 0 && (
                                             <div id="study-questions-section" className={`mt-6 border-t pt-4 ${borderColor}`}>
                                                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-2"> <h3 className={`text-base font-semibold flex items-center gap-1.5 ${headingClass}`}><BookOpen className={`w-4 h-4 ${isIlluminateEnabled ? 'text-purple-600' : 'text-purple-400'}`} />Study Questions</h3> {geminiApiKey && <button onClick={handleRegenerateQuestions} disabled={isRegeneratingQuestions || !geminiApiKey} className={`${buttonSecondaryClass} px-3 py-1 rounded-md text-xs flex items-center gap-1 ${isRegeneratingQuestions || !geminiApiKey ? buttonDisabledClass : ''}`} title={!geminiApiKey ? "API Key required" : "Regenerate"}> {isRegeneratingQuestions ? (<> <Loader2 className="w-3 h-3 animate-spin" /> Regenerating... </>) : (<> <RefreshCw className="w-3 h-3" /> Regenerate </>)} </button>} </div>
-                                                <div className="space-y-4"> {selectedNote.questions.map((q, index) => { const key = `${selectedNote?.id}-${index}`; const answer = questionAnswers[key]; const answered = answer != null; const isCorrect = answered && answer === q.correctAnswer; return ( <div key={key} className={`p-3 rounded-lg ${answered ? (isCorrect ? (isIlluminateEnabled ? 'bg-green-50 border-green-200' : 'bg-green-900/30 border-green-700/50') : (isIlluminateEnabled ? 'bg-red-50 border-red-200' : 'bg-red-900/30 border-red-700/50')) : (isIlluminateEnabled ? 'bg-gray-50/50 border-gray-200' : 'bg-gray-800/40 border-gray-700/50')}`}> <p className={`${textColor} text-sm mb-2`}><span className="font-medium">{index + 1}.</span> {q.question}</p> <div className="space-y-1.5"> {q.options.map((opt, idx) => { const sel = answer === idx; const cor = idx === q.correctAnswer; let cls = `w-full text-left px-3 py-1.5 rounded-md transition-colors text-xs`; if (answered) { if (sel) cls += cor ? ` ${isIlluminateEnabled ? 'bg-green-100 border-green-300 text-green-800 font-medium' : 'bg-green-500/20 border-green-500 text-green-300 font-medium'}` : ` ${isIlluminateEnabled ? 'bg-red-100 border-red-300 text-red-800 font-medium' : 'bg-red-500/20 border-red-500 text-red-300 font-medium'}`; else if (cor) cls += ` ${isIlluminateEnabled ? 'bg-green-50/50 border-green-200 text-green-700' : 'bg-green-500/10 border-green-600/50 text-green-400'} border`; else cls += ` ${isIlluminateEnabled ? 'bg-gray-100 text-gray-500' : 'bg-gray-700 text-gray-400 opacity-70'}`; } else { cls += ` ${buttonSecondaryClass} hover:brightness-110`; } return ( <button key={idx} onClick={() => !answered && handleAnswerSelect(key, idx)} disabled={answered} className={cls}> <div className="flex items-center justify-between"> <span>{opt}</span> {answered && sel && (cor ? <Check className={`w-3.5 h-3.5 ${isIlluminateEnabled ? 'text-green-600' : 'text-green-400'}`} /> : <X className={`w-3.5 h-3.5 ${isIlluminateEnabled ? 'text-red-600' : 'text-red-400'}`} />)} </div> </button> ); })} </div> {answered && q.explanation && (<div className={`mt-2 p-2 rounded-md text-xs ${isCorrect ? (isIlluminateEnabled ? 'bg-green-200/70 text-green-700' : 'bg-green-900/50 text-green-300') : (isIlluminateEnabled ? 'bg-red-200/70 text-red-700' : 'bg-red-900/50 text-red-300')}`}><span className="font-medium">Explanation: </span>{q.explanation}</div>)} </div> ); })} </div>
+                                                <div className="space-y-4"> {selectedNote.questions.map((q, index) => { const key = `${selectedNote?.id}-${index}`; const answer = questionAnswers[key]; const answered = answer != null; const isCorrect = answered && answer === q.correctAnswer; return ( <div key={key} className={`p-3 rounded-lg ${answered ? (isCorrect ? (isIlluminateEnabled ? 'bg-green-50' : (isBlackoutEnabled ? 'bg-green-900/30' : 'bg-green-900/30')) : (isIlluminateEnabled ? 'bg-red-50' : (isBlackoutEnabled ? 'bg-red-900/30' : 'bg-red-900/30'))) : (isIlluminateEnabled ? 'bg-gray-50/50' : (isBlackoutEnabled ? 'bg-gray-800/40' : 'bg-gray-800/40'))} border ${borderColor} ${answered ? (isCorrect ? (isIlluminateEnabled ? 'border-green-200' : (isBlackoutEnabled ? 'border-green-700/50' : 'border-green-700/50')) : (isIlluminateEnabled ? 'border-red-200' : (isBlackoutEnabled ? 'border-red-700/50' : 'border-red-700/50'))) : (isIlluminateEnabled ? 'border-gray-200' : (isBlackoutEnabled ? 'border-gray-800' : 'border-gray-700/50'))}`}> <p className={`${textColor} text-sm mb-2`}><span className="font-medium">{index + 1}.</span> {q.question}</p> <div className="space-y-1.5"> {q.options.map((opt, idx) => { const sel = answer === idx; const cor = idx === q.correctAnswer; let cls = `w-full text-left px-3 py-1.5 rounded-md transition-colors text-xs`; if (answered) { if (sel) cls += cor ? ` ${isIlluminateEnabled ? 'bg-green-100 text-green-800 font-medium' : (isBlackoutEnabled ? 'bg-green-700/40 text-green-200 font-medium' : 'bg-green-500/20 text-green-300 font-medium')}` : ` ${isIlluminateEnabled ? 'bg-red-100 text-red-800 font-medium' : (isBlackoutEnabled ? 'bg-red-700/40 text-red-200 font-medium' : 'bg-red-500/20 text-red-300 font-medium')}`; else if (cor) cls += ` ${isIlluminateEnabled ? 'bg-green-50/50 text-green-700' : (isBlackoutEnabled ? 'bg-green-800/20 text-green-300' : 'bg-green-500/10 text-green-400')}`; else cls += ` ${isIlluminateEnabled ? 'bg-gray-100 text-gray-500' : (isBlackoutEnabled ? 'bg-gray-800 text-gray-400 opacity-70' : 'bg-gray-700 text-gray-400 opacity-70')}`; } else { cls += ` ${buttonSecondaryClass} hover:brightness-110`; } return ( <button key={idx} onClick={() => !answered && handleAnswerSelect(key, idx)} disabled={answered} className={cls}> <div className="flex items-center justify-between"> <span>{opt}</span> {answered && sel && (cor ? <Check className={`w-3.5 h-3.5 ${isIlluminateEnabled ? 'text-green-600' : 'text-green-400'}`} /> : <X className={`w-3.5 h-3.5 ${isIlluminateEnabled ? 'text-red-600' : 'text-red-400'}`} />)} </div> </button> ); })} </div> {answered && q.explanation && (<div className={`mt-2 p-2 rounded-md text-xs ${isCorrect ? (isIlluminateEnabled ? 'bg-green-200/70 text-green-700' : (isBlackoutEnabled ? 'bg-green-900/50 text-green-300' : 'bg-green-900/50 text-green-300')) : (isIlluminateEnabled ? 'bg-red-200/70 text-red-700' : (isBlackoutEnabled ? 'bg-red-900/50 text-red-300' : 'bg-red-900/50 text-red-300'))}`}><span className="font-medium">Explanation: </span>{q.explanation}</div>)} </div> ); })} </div>
                                             </div>
                                             )}
                                         </div>
@@ -1464,9 +1540,9 @@ export function Notes() {
                      {(!isMobile && !isNotesListHidden) && (
                          <>
                          <div className={`p-3 border-b ${borderColor} flex items-center justify-between flex-shrink-0`}> <h2 className={`text-lg font-semibold ${headingClass} flex items-center gap-2`}> <FileText className={`w-5 h-5 ${iconActionColor}`} /> Notes </h2> <div className="flex items-center gap-1"> <button onClick={handleToggleNotesList} className={`${buttonSecondaryClass} p-1.5 rounded-full ${iconHoverColor}`} title="Hide List"> <PanelLeftClose className="w-4 h-4 transform scale-x-[-1]" /> </button> {notes.length >= 2 && !showPdfViewer && ( <button onClick={showSplitView ? closeSplitView : startSplitView} className={`${buttonSecondaryClass} p-1.5 rounded-full ${iconHoverColor}`} title={showSplitView ? "Close Comparison" : "Compare Notes"}> <SplitSquareVertical className={`w-4 h-4 ${showSplitView ? iconActionColor: ''}`} /> </button> )} <button onClick={() => setShowNewNoteModal(true)} className={`${buttonPrimaryClass} p-2 rounded-full hover:shadow-md transition-all duration-150`} title="New Note"> <Plus className="w-4 h-4" /> </button> </div> </div>
-                         <div className={`p-3 border-b ${borderColor} flex-shrink-0`}> <div className="relative mb-2"> <Search className={`absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 ${iconColor}`} /> <input type="text" placeholder="Search notes..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className={`w-full ${inputBg} ${inputTextColor} pl-8 pr-3 py-1.5 rounded-full text-sm focus:outline-none focus:ring-1 ${placeholderColor}`} /> </div> <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar"> {(['all', 'personal', 'pdf', 'youtube', 'audio'] as const).map(type => ( <button key={type} onClick={() => setFilterType(type)} className={`px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap ${filterType === type ? `${buttonPrimaryClass} shadow-sm` : `${buttonSecondaryClass}`}`}> {type === 'all' ? 'All' : type.charAt(0).toUpperCase() + type.slice(1)} </button> ))} </div> </div>
-                         {userTier !== 'premium' && userTier !== 'loading' && currentLimits && ( <div className={`px-3 py-2 text-[10px] border-b ${borderColor} ${isIlluminateEnabled ? 'text-gray-600 bg-gray-50' : 'text-gray-400 bg-gray-800/50'}`}> <div className="flex justify-between items-center gap-2"> <span>PDF/AI Notes: {noteUsage.pdfAi} / {currentLimits.pdfAi === Infinity ? '∞' : currentLimits.pdfAi}</span> <span>YouTube Notes: {noteUsage.youtube} / {currentLimits.youtube === Infinity ? '∞' : currentLimits.youtube}</span> </div> </div> )}
-                         <div className="flex-1 overflow-y-auto"> {loading && notes.length === 0 ? ( <div className="flex justify-center items-center h-full p-6"> <Loader2 className={`w-6 h-6 animate-spin ${iconColor}`} /> </div> ) : !loading && notes.length === 0 ? ( <div className="flex flex-col items-center justify-center h-full text-center p-6"> <FileQuestion className={`w-12 h-12 ${iconColor} mb-3`} /> <p className={`${subheadingClass} mb-4 text-sm`}>No notes yet.</p> <button onClick={() => setShowNewNoteModal(true)} className={`${buttonPrimaryClass} px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5`}> <Plus className="w-4 h-4" /> Create Note </button> </div> ) : ( <div className={`divide-y ${divideColor}`}> {notes.filter((note) => { if (filterType !== 'all' && note.type !== filterType) return false; if (searchQuery) { const search = searchQuery.toLowerCase(); return (note.title.toLowerCase().includes(search) || (note.content || '').toLowerCase().includes(search) || note.tags?.some((tag) => tag.toLowerCase().includes(search))); } return true; }).map((note) => { const isSel = (!showSplitView && selectedNote?.id === note.id); const isSplitL = showSplitView && splitViewNotes.left?.id === note.id; const isSplitR = showSplitView && splitViewNotes.right?.id === note.id; const isSelectedAny = isSel || isSplitL || isSplitR; let typeIcon; switch (note.type) { case 'personal': typeIcon = <Briefcase className="w-3 h-3"/>; break; case 'pdf': typeIcon = <FileText className="w-3 h-3"/>; break; case 'youtube': typeIcon = <Youtube className="w-3 h-3"/>; break; case 'audio': typeIcon = <Mic className="w-3 h-3"/>; break; default: typeIcon = null; } return ( <div key={note.id} className={`p-3 cursor-pointer transition-colors duration-150 ${listItemHoverBg} ${listItemBaseClass} ${isSelectedAny ? listItemSelectedBg : ''}`} onClick={() => handleSelectNote(note)}> <div className="flex justify-between items-start gap-2"> <h3 className={`text-sm font-medium mb-0.5 line-clamp-1 ${headingClass}`}>{note.title || "Untitled"}</h3> {isSplitL && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-blue-500/20 text-blue-300`}>L</span>} {isSplitR && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-purple-500/20 text-purple-300`}>R</span>} </div> <p className={`${subheadingClass} text-xs line-clamp-2 mb-1.5`}>{(note.content || '').substring(0, 100)}</p> <div className="flex flex-wrap items-center gap-1 text-[10px]"> <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${tagColors[note.type] || tagColors.custom} ${tagBaseBg} ${tagTextBase}`}> {typeIcon} {note.type.charAt(0).toUpperCase() + note.type.slice(1)} </span> {note.isPublic && <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${tagColors.public} ${tagBaseBg} ${tagTextBase}`}><Globe className="w-3 h-3"/> Public</span>} {note.tags?.slice(0, 2).map((tag) => <span key={tag} className={`px-1.5 py-0.5 rounded ${tagColors.custom} ${tagBaseBg} ${tagTextBase} truncate max-w-[60px]`} title={tag}>#{tag}</span>)} {note.tags && note.tags.length > 2 && <span className={`px-1.5 py-0.5 rounded ${tagColors.custom} ${tagBaseBg} ${tagTextBase}`}>+{note.tags.length - 2}</span>} <span className={`ml-auto text-gray-500 dark:text-gray-500`}>{note.updatedAt?.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span> </div> </div> ); })} </div> )} </div>
+                         <div className={`p-3 border-b ${borderColor} flex-shrink-0`}> <div className="relative mb-2"> <Search className={`absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 ${iconColor}`} /> <input type="text" placeholder="Search notes..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className={`w-full ${inputBg} ${inputTextColor} pl-8 pr-3 py-1.5 rounded-full text-sm focus:outline-none focus:ring-1 ${placeholderColor}`} /> </div> <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar"> {(['all', 'personal', 'pdf', 'youtube', 'audio'] as const).map(type => ( <button key={type} onClick={() => setFilterType(type)} className={`px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap ${filterType === type ? `${buttonPrimaryClass} shadow-sm` : `${buttonSecondaryClass}`}`}> {formatNoteTypeDisplay(type)} </button> ))} </div> </div>
+                         {userTier !== 'premium' && userTier !== 'loading' && currentLimits && ( <div className={`px-3 py-2 text-[10px] border-b ${borderColor} ${isIlluminateEnabled ? 'text-gray-600 bg-gray-50' : (isBlackoutEnabled ? 'text-gray-400 bg-black' : 'text-gray-400 bg-gray-800/50')}`}> <div className="flex justify-between items-center gap-2"> <span>PDF/AI Notes: {noteUsage.pdfAi} / {currentLimits.pdfAi === Infinity ? '∞' : currentLimits.pdfAi}</span> <span>YouTube Notes: {noteUsage.youtube} / {currentLimits.youtube === Infinity ? '∞' : currentLimits.youtube}</span> </div> </div> )}
+                         <div className="flex-1 overflow-y-auto"> {loading && notes.length === 0 ? ( <div className="flex justify-center items-center h-full p-6"> <Loader2 className={`w-6 h-6 animate-spin ${iconColor}`} /> </div> ) : !loading && notes.length === 0 ? ( <div className="flex flex-col items-center justify-center h-full text-center p-6"> <FileQuestion className={`w-12 h-12 ${iconColor} mb-3`} /> <p className={`${subheadingClass} mb-4 text-sm`}>No notes yet.</p> <button onClick={() => setShowNewNoteModal(true)} className={`${buttonPrimaryClass} px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5`}> <Plus className="w-4 h-4" /> Create Note </button> </div> ) : ( <div className={`divide-y ${divideColor}`}> {notes.filter((note) => { if (filterType !== 'all' && note.type !== filterType) return false; if (searchQuery) { const search = searchQuery.toLowerCase(); return (note.title.toLowerCase().includes(search) || (note.content || '').toLowerCase().includes(search) || note.tags?.some((tag) => tag.toLowerCase().includes(search))); } return true; }).map((note) => { const isSel = (!showSplitView && selectedNote?.id === note.id); const isSplitL = showSplitView && splitViewNotes.left?.id === note.id; const isSplitR = showSplitView && splitViewNotes.right?.id === note.id; const isSelectedAny = isSel || isSplitL || isSplitR; let typeIcon; switch (note.type) { case 'personal': typeIcon = <Briefcase className="w-3 h-3"/>; break; case 'pdf': typeIcon = <FileText className="w-3 h-3"/>; break; case 'youtube': typeIcon = <Youtube className="w-3 h-3"/>; break; case 'audio': typeIcon = <Mic className="w-3 h-3"/>; break; default: typeIcon = null; } return ( <div key={note.id} className={`p-3 cursor-pointer transition-colors duration-150 ${listItemHoverBg} ${listItemBaseClass} ${isSelectedAny ? listItemSelectedBg : ''}`} onClick={() => handleSelectNote(note)}> <div className="flex justify-between items-start gap-2"> <h3 className={`text-sm font-medium mb-0.5 line-clamp-1 ${headingClass}`}>{note.title || "Untitled"}</h3> {isSplitL && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-blue-500/20 text-blue-300`}>L</span>} {isSplitR && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-purple-500/20 text-purple-300`}>R</span>} </div> <p className={`${subheadingClass} text-xs line-clamp-2 mb-1.5`}>{(note.content || '').substring(0, 100)}</p> <div className="flex flex-wrap items-center gap-1 text-[10px]"> <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${tagColors[note.type] || tagColors.custom} ${tagBaseBg} ${tagTextBase}`}> {typeIcon} {formatNoteTypeDisplay(note.type)} </span> {note.isPublic && <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${tagColors.public} ${tagBaseBg} ${tagTextBase}`}><Globe className="w-3 h-3"/> Public</span>} {note.tags?.slice(0, 2).map((tag) => <span key={tag} className={`px-1.5 py-0.5 rounded ${tagColors.custom} ${tagBaseBg} ${tagTextBase} truncate max-w-[60px]`} title={tag}>#{tag}</span>)} {note.tags && note.tags.length > 2 && <span className={`px-1.5 py-0.5 rounded ${tagColors.custom} ${tagBaseBg} ${tagTextBase}`}>+{note.tags.length - 2}</span>} <span className={`ml-auto text-gray-500 dark:text-gray-500`}>{note.updatedAt?.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span> </div> </div> ); })} </div> )} </div>
                          </>
                     )}
                  </div>
@@ -1489,13 +1565,13 @@ export function Notes() {
                             </div>
                             <div className={`p-3 border-b ${borderColor} flex-shrink-0`}>
                                 <div className="relative mb-2"> <Search className={`absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 ${iconColor}`} /> <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className={`w-full ${inputBg} ${inputTextColor} pl-8 pr-3 py-1.5 rounded-full text-sm focus:outline-none focus:ring-1 ${placeholderColor}`} /> </div>
-                                <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar"> {(['all', 'personal', 'pdf', 'youtube', 'audio'] as const).map(type => ( <button key={type} onClick={() => setFilterType(type)} className={`px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap ${filterType === type ? `${buttonPrimaryClass} shadow-sm` : `${buttonSecondaryClass}`}`}> {type === 'all' ? 'All' : type.charAt(0).toUpperCase() + type.slice(1)} </button> ))} </div>
+                                <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar"> {(['all', 'personal', 'pdf', 'youtube', 'audio'] as const).map(type => ( <button key={type} onClick={() => setFilterType(type)} className={`px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap ${filterType === type ? `${buttonPrimaryClass} shadow-sm` : `${buttonSecondaryClass}`}`}> {formatNoteTypeDisplay(type)} </button> ))} </div>
                             </div>
-                            {userTier !== 'premium' && userTier !== 'loading' && currentLimits && ( <div className={`px-3 py-2 text-[10px] border-b ${borderColor} ${isIlluminateEnabled ? 'text-gray-600 bg-gray-50' : 'text-gray-400 bg-gray-800/50'}`}> <div className="flex justify-between items-center gap-2"> <span>PDF/AI: {noteUsage.pdfAi}/{currentLimits.pdfAi === Infinity ? '∞' : currentLimits.pdfAi}</span> <span>YT: {noteUsage.youtube}/{currentLimits.youtube === Infinity ? '∞' : currentLimits.youtube}</span> </div> </div> )}
+                            {userTier !== 'premium' && userTier !== 'loading' && currentLimits && ( <div className={`px-3 py-2 text-[10px] border-b ${borderColor} ${isIlluminateEnabled ? 'text-gray-600 bg-gray-50' : (isBlackoutEnabled ? 'text-gray-400 bg-black' : 'text-gray-400 bg-gray-800/50')}`}> <div className="flex justify-between items-center gap-2"> <span>PDF/AI: {noteUsage.pdfAi}/{currentLimits.pdfAi === Infinity ? '∞' : currentLimits.pdfAi}</span> <span>YT: {noteUsage.youtube}/{currentLimits.youtube === Infinity ? '∞' : currentLimits.youtube}</span> </div> </div> )}
                             <div className="flex-1 overflow-y-auto">
                                 {loading && notes.length === 0 ? ( <div className="flex justify-center items-center h-full p-6"> <Loader2 className={`w-6 h-6 animate-spin ${iconColor}`} /> </div>
                                 ) : !loading && notes.length === 0 ? ( <div className="flex flex-col items-center justify-center h-full text-center p-6"> <FileQuestion className={`w-12 h-12 ${iconColor} mb-3`} /> <p className={`${subheadingClass} mb-4 text-sm`}>No notes yet.</p> <button onClick={() => setShowNewNoteModal(true)} className={`${buttonPrimaryClass} px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5`}> <Plus className="w-4 h-4" /> Create </button> </div>
-                                ) : ( <div className={`divide-y ${divideColor}`}> {notes.filter((note) => { if (filterType !== 'all' && note.type !== filterType) return false; if (searchQuery) { const search = searchQuery.toLowerCase(); return (note.title.toLowerCase().includes(search) || (note.content || '').toLowerCase().includes(search) || note.tags?.some((tag) => tag.toLowerCase().includes(search))); } return true; }).map((note) => { const isSel = (!showSplitView && selectedNote?.id === note.id); const isSplitL = showSplitView && splitViewNotes.left?.id === note.id; const isSplitR = showSplitView && splitViewNotes.right?.id === note.id; const isSelectedAny = isSel || isSplitL || isSplitR; let typeIcon; switch (note.type) { case 'personal': typeIcon = <Briefcase className="w-3 h-3"/>; break; case 'pdf': typeIcon = <FileText className="w-3 h-3"/>; break; case 'youtube': typeIcon = <Youtube className="w-3 h-3"/>; break; case 'audio': typeIcon = <Mic className="w-3 h-3"/>; break; default: typeIcon = null; } return ( <div key={note.id} className={`p-3 cursor-pointer transition-colors duration-150 ${listItemHoverBg} ${listItemBaseClass} ${isSelectedAny ? listItemSelectedBg.replace('border-l-2', 'border-l-2') : ''}`} onClick={() => handleSelectNote(note)}> <div className="flex justify-between items-start gap-2"> <h3 className={`text-sm font-medium mb-0.5 line-clamp-1 ${headingClass}`}>{note.title || "Untitled"}</h3> {isSplitL && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-blue-500/20 text-blue-300`}>L</span>} {isSplitR && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-purple-500/20 text-purple-300`}>R</span>} </div> <p className={`${subheadingClass} text-xs line-clamp-2 mb-1.5`}>{(note.content || '').substring(0, 100)}</p> <div className="flex flex-wrap items-center gap-1 text-[10px]"> <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${tagColors[note.type] || tagColors.custom} ${tagBaseBg} ${tagTextBase}`}> {typeIcon} {note.type.charAt(0).toUpperCase() + note.type.slice(1)} </span> {note.isPublic && <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${tagColors.public} ${tagBaseBg} ${tagTextBase}`}><Globe className="w-3 h-3"/> Public</span>} {note.tags?.slice(0, 2).map((tag) => <span key={tag} className={`px-1.5 py-0.5 rounded ${tagColors.custom} ${tagBaseBg} ${tagTextBase} truncate max-w-[60px]`} title={tag}>#{tag}</span>)} {note.tags && note.tags.length > 2 && <span className={`px-1.5 py-0.5 rounded ${tagColors.custom} ${tagBaseBg} ${tagTextBase}`}>+{note.tags.length - 2}</span>} <span className={`ml-auto text-gray-500 dark:text-gray-500`}>{note.updatedAt?.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span> </div> </div> ); })} </div> )}
+                                ) : ( <div className={`divide-y ${divideColor}`}> {notes.filter((note) => { if (filterType !== 'all' && note.type !== filterType) return false; if (searchQuery) { const search = searchQuery.toLowerCase(); return (note.title.toLowerCase().includes(search) || (note.content || '').toLowerCase().includes(search) || note.tags?.some((tag) => tag.toLowerCase().includes(search))); } return true; }).map((note) => { const isSel = (!showSplitView && selectedNote?.id === note.id); const isSplitL = showSplitView && splitViewNotes.left?.id === note.id; const isSplitR = showSplitView && splitViewNotes.right?.id === note.id; const isSelectedAny = isSel || isSplitL || isSplitR; let typeIcon; switch (note.type) { case 'personal': typeIcon = <Briefcase className="w-3 h-3"/>; break; case 'pdf': typeIcon = <FileText className="w-3 h-3"/>; break; case 'youtube': typeIcon = <Youtube className="w-3 h-3"/>; break; case 'audio': typeIcon = <Mic className="w-3 h-3"/>; break; default: typeIcon = null; } return ( <div key={note.id} className={`p-3 cursor-pointer transition-colors duration-150 ${listItemHoverBg} ${listItemBaseClass} ${isSelectedAny ? listItemSelectedBg.replace('border-l-2', 'border-l-2') : ''}`} onClick={() => handleSelectNote(note)}> <div className="flex justify-between items-start gap-2"> <h3 className={`text-sm font-medium mb-0.5 line-clamp-1 ${headingClass}`}>{note.title || "Untitled"}</h3> {isSplitL && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-blue-500/20 text-blue-300`}>L</span>} {isSplitR && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-purple-500/20 text-purple-300`}>R</span>} </div> <p className={`${subheadingClass} text-xs line-clamp-2 mb-1.5`}>{(note.content || '').substring(0, 100)}</p> <div className="flex flex-wrap items-center gap-1 text-[10px]"> <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${tagColors[note.type] || tagColors.custom} ${tagBaseBg} ${tagTextBase}`}> {typeIcon} {formatNoteTypeDisplay(note.type)} </span> {note.isPublic && <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${tagColors.public} ${tagBaseBg} ${tagTextBase}`}><Globe className="w-3 h-3"/> Public</span>} {note.tags?.slice(0, 2).map((tag) => <span key={tag} className={`px-1.5 py-0.5 rounded ${tagColors.custom} ${tagBaseBg} ${tagTextBase} truncate max-w-[60px]`} title={tag}>#{tag}</span>)} {note.tags && note.tags.length > 2 && <span className={`px-1.5 py-0.5 rounded ${tagColors.custom} ${tagBaseBg} ${tagTextBase}`}>+{note.tags.length - 2}</span>} <span className={`ml-auto text-gray-500 dark:text-gray-500`}>{note.updatedAt?.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span> </div> </div> ); })} </div> )}
                             </div>
                         </div>
                     </div>
@@ -1525,13 +1601,13 @@ export function Notes() {
                     isBlackoutEnabled={isBlackoutEnabled}
                 />
             )}
-            <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} isIlluminateEnabled={isIlluminateEnabled} />
+            <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} isIlluminateEnabled={isIlluminateEnabled} isBlackoutEnabled={isBlackoutEnabled} />
 
             {chatNoteForOverlay && user && geminiApiKey && (
                  <NoteChat key={`chat-overlay-${chatNoteForOverlay.id}`} ref={noteChatRef} note={chatNoteForOverlay} onClose={handleCloseChatOverlay} geminiApiKey={geminiApiKey} userName={userName} isIlluminateEnabled={isIlluminateEnabled} isBlackoutEnabled={isBlackoutEnabled} isVisible={isChatOverlayVisible} onUpdateNoteContent={handleUpdateNoteContentFromChat} onAddImageToNoteRequest={handleAddImageToNoteRequest} displayMode="overlay" userTier={userTier}/>
             )}
              {isMobile && !showNotesListOnMobile && ( <button onClick={() => setShowNotesListOnMobile(true)} className={`fixed bottom-4 right-4 z-30 p-3 rounded-full shadow-lg ${buttonPrimaryClass} transform hover:scale-110 active:scale-100 ${isChatOverlayVisible ? 'bottom-16' : 'bottom-4'}`} title="Show Notes" > <List className="w-5 h-5" /> </button> )}
-            {uploadProgress.status && ( <div className={`fixed bottom-4 left-4 z-[80] p-3 rounded-lg shadow-lg text-xs font-medium transition-opacity duration-300 ${isIlluminateEnabled ? 'bg-white border border-gray-200 text-gray-800' : 'bg-gray-800 border border-gray-700 text-gray-200'} ${uploadProgress.error ? (isIlluminateEnabled ? '!bg-red-100 !border-red-300 !text-red-700' : '!bg-red-900/50 !border-red-700 !text-red-300') : (uploadProgress.progress === 100 && !uploadProgress.error ? (isIlluminateEnabled ? '!bg-green-100 !border-green-300 !text-green-700' : '!bg-green-900/50 !border-green-700 !text-green-300') : '')}`}> <div className="flex items-center gap-2"> {uploadProgress.error ? <AlertTriangle className="w-4 h-4 text-red-500" /> : (uploadProgress.progress === 100 && !uploadProgress.error) ? <Check className="w-4 h-4 text-green-500" /> : <Loader2 className="w-4 h-4 animate-spin text-blue-500" />} <span>{uploadProgress.error || uploadProgress.status}</span> {uploadProgress.progress > 0 && uploadProgress.progress < 100 && !uploadProgress.error && (<span className="text-gray-500">({uploadProgress.progress}%)</span>)} </div> {!uploadProgress.error && uploadProgress.progress < 100 && ( <div className={`w-full h-1 mt-1 rounded-full overflow-hidden ${isIlluminateEnabled ? 'bg-gray-200' : 'bg-gray-600'}`}> <div className="h-full bg-blue-500 rounded-full transition-all duration-300" style={{ width: `${uploadProgress.progress}%` }}></div> </div> )} </div> )}
+            {uploadProgress.status && ( <div className={`fixed bottom-4 left-4 z-[80] p-3 rounded-lg shadow-lg text-xs font-medium transition-opacity duration-300 ${isIlluminateEnabled ? 'bg-white border border-gray-200 text-gray-800' : (isBlackoutEnabled ? 'bg-black border border-gray-700 text-gray-100' : 'bg-gray-800 border border-gray-700 text-gray-200')} ${uploadProgress.error ? (isIlluminateEnabled ? '!bg-red-100 !border-red-300 !text-red-700' : (isBlackoutEnabled ? '!bg-red-900/70 !border-red-700 !text-red-200' : '!bg-red-900/50 !border-red-700 !text-red-300')) : (uploadProgress.progress === 100 && !uploadProgress.error ? (isIlluminateEnabled ? '!bg-green-100 !border-green-300 !text-green-700' : (isBlackoutEnabled ? '!bg-green-900/70 !border-green-700 !text-green-200' : '!bg-green-900/50 !border-green-700 !text-green-300')) : '')}`}> <div className="flex items-center gap-2"> {uploadProgress.error ? <AlertTriangle className="w-4 h-4 text-red-500" /> : (uploadProgress.progress === 100 && !uploadProgress.error) ? <Check className="w-4 h-4 text-green-500" /> : <Loader2 className="w-4 h-4 animate-spin text-blue-500" />} <span>{uploadProgress.error || uploadProgress.status}</span> {uploadProgress.progress > 0 && uploadProgress.progress < 100 && !uploadProgress.error && (<span className="text-gray-500">({uploadProgress.progress}%)</span>)} </div> {!uploadProgress.error && uploadProgress.progress < 100 && ( <div className={`w-full h-1 mt-1 rounded-full overflow-hidden ${isIlluminateEnabled ? 'bg-gray-200' : (isBlackoutEnabled ? 'bg-gray-700' : 'bg-gray-600')}`}> <div className="h-full bg-blue-500 rounded-full transition-all duration-300" style={{ width: `${uploadProgress.progress}%` }}></div> </div> )} </div> )}
 
         </div>
     );
