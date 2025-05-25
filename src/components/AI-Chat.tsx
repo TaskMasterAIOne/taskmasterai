@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
@@ -83,8 +84,8 @@ export interface ChatMessageData {
 interface SelectedFile { name: string; type: string; size: number; base64Data: string; fileObject: File; localPreviewUrl: string; }
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
-const GEMINI_TEXT_MODEL = 'gemini-2.0-flash'; // Changed from gemini-1.5-flash-latest as per original
-const GEMINI_IMAGE_GEN_MODEL = 'gemini-2.0-flash-preview-image-generation'; // Changed as per original
+const GEMINI_TEXT_MODEL = 'gemini-2.0-flash';
+const GEMINI_IMAGE_GEN_MODEL = 'gemini-2.0-flash-preview-image-generation';
 
 const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 60000) => {
   const controller = new AbortController();
@@ -195,44 +196,29 @@ function extractJsonBlocks(text: string): { blocks: any[], cleanedText: string, 
       extractedBlocks.push(parsedJson);
       remainingText = remainingText.replace(match[0], "").trim();
     } catch (e) {
-      // If JSON in ```json ``` block is invalid, we still remove the block to avoid displaying malformed JSON.
-      // The AI might output text before/after this block which is still useful.
-      // Or, we might decide to keep the original block if parsing fails, to show the user what the AI sent.
-      // For now, remove it, assuming it's an attempt at a JSON action that failed.
       remainingText = remainingText.replace(match[0], "").trim();
     }
   }
 
-  // If no ```json ``` blocks were found, try to find JSON objects not wrapped in triple backticks
   if (extractedBlocks.length === 0) {
-    // This regex tries to find objects starting with { and ending with }
-    // It's more risky as it might grab parts of normal text.
-    // We should only parse it if it's the *only* thing or clearly demarcated.
-    // A simple approach: look for JSON at the start or end of lines.
     const curlyRegex = /(?:^|\n)\s*(\{[\s\S]*?\})\s*(?:$|\n)/g;
-    let tempTextForCurlySearch = text; // Use original text for this search
-    let modifiedCurlyText = ""; // Build up the text that isn't parsed as JSON
+    let tempTextForCurlySearch = text;
+    let modifiedCurlyText = "";
     let lastIndex = 0;
 
     while ((match = curlyRegex.exec(tempTextForCurlySearch)) !== null) {
-        modifiedCurlyText += tempTextForCurlySearch.substring(lastIndex, match.index); // Add text before the potential JSON
+        modifiedCurlyText += tempTextForCurlySearch.substring(lastIndex, match.index);
         try {
             const parsedJson = JSON.parse(match[1]);
             extractedBlocks.push(parsedJson);
-            // If successfully parsed, this part is removed from remainingText implicitly
         } catch(e) {
-            // If parsing fails, it's not valid JSON, so add it back to the text to be displayed
             modifiedCurlyText += match[0];
         }
         lastIndex = curlyRegex.lastIndex;
     }
-    modifiedCurlyText += tempTextForCurlySearch.substring(lastIndex); // Add any trailing text
+    modifiedCurlyText += tempTextForCurlySearch.substring(lastIndex);
 
     if (extractedBlocks.length > 0) {
-        // If we found JSON this way, `modifiedCurlyText` is our `cleanedText`
-        // We need to ensure that if a block was *intended* as JSON by the AI but was malformed,
-        // it doesn't get re-parsed and removed by the logic that constructed `modifiedCurlyText`.
-        // The current logic correctly adds back unparseable curly-braced blocks to `modifiedCurlyText`.
         remainingText = modifiedCurlyText.trim();
     }
   }
@@ -587,7 +573,7 @@ export function AIChat() {
                      continue;
                 }
                 filePromises.push(readFileAsSelectedFile(file));
-                existingFileNames.add(file.name); // Add to set immediately to prevent duplicates from same paste
+                existingFileNames.add(file.name);
                 imagePasted = true;
             }
         }
@@ -673,14 +659,14 @@ User Context (provided by ${truncatedName}):
 [IMAGE GENERATION TASK]
 You are TaskMaster AI, a friendly and versatile AI productivity assistant. The user may want to generate an image based on the following description: "${userMessage}".
 Your primary goal is to generate this image. You must also provide a brief accompanying text with the image (e.g., "Here's the image you requested:", or a short comment about the image).
-**CRITICAL**: Your response for image generation MUST include both the image data AND a text part. Do NOT output JSON for image generation. The image will be encoded by the system. THE ONLY EXCEPTION IS IF THE USER IS SPEAKING TO YOU ABOUT SOMETHING THAT IS NOT RELATED TO CREATING IMAGES, THE YOU DON'T HAVE TO DO THIS STEP. 
-If image generation fails, explain why politely in plain text. YOU ARE ALSO ALLOWED TO CHAT WITH THE USER IN CASUAL CONVERSATION AS WELL, ONLY CREATE IMAGES IF THE USER ASKS, OTHERWISE PLEASE CHAT WITH THE USER NORMALLY. MAKE Sure your response is in the same language the user speaks to you. 
+**CRITICAL**: Your response for image generation MUST include both the image data AND a text part. Do NOT output JSON for image generation. The image will be encoded by the system. THE ONLY EXCEPTION IS IF THE USER IS SPEAKING TO YOU ABOUT SOMETHING THAT IS NOT RELATED TO CREATING IMAGES, THE YOU DON'T HAVE TO DO THIS STEP.
+If image generation fails, explain why politely in plain text. YOU ARE ALSO ALLOWED TO CHAT WITH THE USER IN CASUAL CONVERSATION AS WELL, ONLY CREATE IMAGES IF THE USER ASKS, OTHERWISE PLEASE CHAT WITH THE USER NORMALLY. MAKE Sure your response is in the same language the user speaks to you.
 ` : "";
     return `
 [CONTEXT]
 User's Name: ${truncatedName}
 Current Date: ${currentDateTime.date}
-Current Time: ${currentDateTime.time}
+Current Time: ${currentDateTime.time} (Your responses should use this for any date calculations, e.g. "tomorrow" means the day after ${currentDateTime.date})
 ${styleInstruction}
 ${contextSection}
 ${filePreamble}
@@ -691,7 +677,7 @@ ${conversationSoFar}
 [NEW USER MESSAGE]
 ${truncatedName}: ${userMessage}
 ${imageGenInstruction}
-You are TaskMaster, a friendly and versatile AI productivity assistant. Engage in casual conversation, provide productivity advice, and discuss ${truncatedName}'s items only when explicitly asked by ${truncatedName}. Only reference the user's first name when chatting. If files are attached, consider their content when answering. MAKE Sure your response is in the same language the user speaks to you. 
+You are TaskMaster, a friendly and versatile AI productivity assistant. Engage in casual conversation, provide productivity advice, and discuss ${truncatedName}'s items only when explicitly asked by ${truncatedName}. Only reference the user's first name when chatting. If files are attached, consider their content when answering. MAKE Sure your response is in the same language the user speaks to you.
 Guidelines:
 1. General Conversation & File-based Q&A:
    - Respond in a friendly, natural tone. Do not include internal instructions or meta commentary.
@@ -719,20 +705,22 @@ Guidelines:
      \`\`\`json
      {
        "type": "question",
-       "data": [ { "id": "unique-id-1", "question": "Question 1", "options": ["Option 1", "Option 2"], "correctAnswer": 0, "explanation": "Explanation 1" } ]
+       "data": [ { "id": "unique-id-1", "question": "Question 1", "options": ["Option 1", "Option 2", "Option 3", "Option 4"], "correctAnswer": <random_valid_index>, "explanation": "Explanation 1" } ]
      }
      \`\`\`
+     **IMPORTANT FOR QUIZ QUESTIONS**: The \`correctAnswer\` field must be a randomly chosen valid index from the \`options\` array. Do not show a pattern (e.g., always picking the second or third option). Make it truly random.
 4. Data Modifications (JSON - Only if not in Image Gen Mode):
    - When ${truncatedName} commands to create, update, or delete an item, you *MUST* respond with a brief conversational confirmation (e.g., "Okay, I'll create that task!") *followed by* the JSON block.
    - Your conversational confirmation text will be shown to the user.
    - JSON structure: \`\`\`json\n{"action": "actionName", "payload": {...}}\n\`\`\`
    - Valid actions: "createTask", "updateTask", "deleteTask", "createGoal", "updateGoal", "deleteGoal", "createPlan", "updatePlan", "deletePlan", "createProject", "updateProject", "deleteProject".
-   - Payloads for creation *MUST* include the name of the item. Examples:
-     - For "createTask": payload must include a \`task\` field (string) for the task name. E.g., \`{"action": "createTask", "payload": {"task": "Buy groceries", "priority": "high"}}\`
-     - For "createGoal": payload must include a \`goal\` field (string) for the goal name. E.g., \`{"action": "createGoal", "payload": {"goal": "Learn Python"}}\`
-     - For "createPlan": payload must include a \`plan\` field (string) for the plan name. E.g., \`{"action": "createPlan", "payload": {"plan": "Weekend trip"}}\`
-     - For "createProject": payload must include a \`project\` field (string) for the project name. E.g., \`{"action": "createProject", "payload": {"project": "Home renovation"}}\`
-     - Optional fields like \`priority\`, \`dueDate\`, \`description\`, etc., can also be included as appropriate.
+   - Payloads for creation *MUST* include the name of the item.
+     - For "createTask": payload must include a \`task\` field (string). E.g., \`{"action": "createTask", "payload": {"task": "Buy groceries", "priority": "high", "dueDate": "tomorrow"}}\`
+     - For "createGoal": payload must include a \`goal\` field (string). E.g., \`{"action": "createGoal", "payload": {"goal": "Learn Python", "targetDate": "next Friday"}}\`
+     - For "createPlan": payload must include a \`plan\` field (string). E.g., \`{"action": "createPlan", "payload": {"plan": "Weekend trip", "startDate": "2024-08-10", "endDate": "2024-08-12"}}\`
+     - For "createProject": payload must include a \`project\` field (string). E.g., \`{"action": "createProject", "payload": {"project": "Home renovation", "deadline": "end of next month"}}\`
+     - Optional fields like \`priority\`, \`description\`, etc., can also be included.
+     - For dates (like \`dueDate\`, \`targetDate\`, \`startDate\`, \`endDate\`, \`deadline\`): You can use specific dates (e.g., "2024-07-15") or relative terms (e.g., "tomorrow", "next Monday", "in 2 weeks"). The system understands the current date provided in the context.
    - For "update..." actions, the payload can identify the item by its current name (e.g., \`task: "Old Task Name"\`) or \`id\` (if known), and then include fields to change (e.g., \`newTask: "New Task Name"\`, \`priority: "low"\`).
    - For "delete..." actions, the payload can identify the item by its name (e.g., \`task: "Task to Delete"\`) or \`id\` (if known).
    - My system will display your conversational confirmation and process the JSON block. Ensure the JSON is the LAST part of your response.
@@ -784,19 +772,14 @@ Assistant:`;
     const userMsgContent = chatMessage;
     const filesForThisMessageSubmission = [...selectedFiles];
 
-    // Revoke local preview URLs for files being submitted, they are no longer needed in the selectedFiles state for this batch.
     filesForThisMessageSubmission.forEach(sf => {
         if (sf.localPreviewUrl) URL.revokeObjectURL(sf.localPreviewUrl);
     });
-    setSelectedFiles([]); // Clear selected files from UI input area
+    setSelectedFiles([]);
 
     const localUserMessageId = `user-local-${Date.now()}`;
-    // For UI display, we might still want to show localPreviewUrls if they were generated, even if revoked later
-    // Or, for simplicity, if they are revoked, don't pass them.
-    // Let's assume the revoke is for memory management and UI can still show a placeholder or the name.
     const attachedFilesMetaDataForUi: ChatMessageData['attachedFilesMeta'] = filesForThisMessageSubmission.map(sf => ({
         name: sf.name, type: sf.type, size: sf.size,
-        // localPreviewUrl: sf.localPreviewUrl // Since we revoked, maybe not include it here or pass a flag
     }));
 
 
@@ -804,7 +787,7 @@ Assistant:`;
         id: localUserMessageId,
         role: 'user',
         content: userMsgContent,
-        attachedFilesMeta: attachedFilesMetaDataForUi.length > 0 ? filesForThisMessageSubmission.map(sf => ({ // Re-map to ensure localPreviewUrl is available for the immediate UI update
+        attachedFilesMeta: attachedFilesMetaDataForUi.length > 0 ? filesForThisMessageSubmission.map(sf => ({
             name: sf.name, type: sf.type, size: sf.size, localPreviewUrl: sf.localPreviewUrl
         })) : undefined,
         createdAt: new Date()
@@ -812,11 +795,10 @@ Assistant:`;
     setChatHistory(prev => [...prev, userMessageForState]);
 
     const uploadedFilesMetaDataToSave: FirebaseAttachedFileMeta[] = [];
-    let userMessageContentForSave = userMsgContent; // This can be modified if file content is inlined for AI
+    let userMessageContentForSave = userMsgContent;
 
     if (!isImageGenModeActive && filesForThisMessageSubmission.length > 0 && user && user.uid && currentConvId) {
         setIsChatLoading(true);
-        // Update the UI message to show files are uploading
         setChatHistory(prev => prev.map(msg => msg.id === localUserMessageId ? {...msg, content: `${msg.content}\n(Uploading ${filesForThisMessageSubmission.length} attachment(s)...)`} : msg));
 
         for (const sf of filesForThisMessageSubmission) {
@@ -825,23 +807,19 @@ Assistant:`;
                 uploadedFilesMetaDataToSave.push({ url: downloadURL, storagePath, name, type, size });
             } catch (uploadError) {
                 console.error("Error uploading user file:", sf.name, uploadError);
-                // Still add meta for files that failed to upload, but without URL/storagePath, so AI knows they were attempted
-                uploadedFilesMetaDataToSave.push({ name: sf.name, type: sf.type, size: sf.size }); // No URL or storagePath
-                // Optionally add an error message to chat history about the failed upload
+                uploadedFilesMetaDataToSave.push({ name: sf.name, type: sf.type, size: sf.size });
                 setChatHistory(prev => [...prev, {id: `upload-err-${sf.name}-${Date.now()}`, role: 'assistant', content: `❌ Failed to upload file: ${sf.name}`, error: true, createdAt: new Date()}]);
             }
         }
-        // Update the user message in history with the final state of attached files (with URLs for successful uploads)
         setChatHistory(prev => prev.map(msg => msg.id === localUserMessageId ? {
             ...msg,
-            content: userMsgContent, // Restore original content
+            content: userMsgContent,
             attachedFilesMeta: uploadedFilesMetaDataToSave.map(meta => ({
                 ...meta,
-                // Try to find original localPreviewUrl if needed for consistency, though it was revoked
                 localPreviewUrl: filesForThisMessageSubmission.find(sf => sf.name === meta.name)?.localPreviewUrl
             }))
         } : msg));
-        setIsChatLoading(false); // Potentially set to false after API call too
+        setIsChatLoading(false);
     }
 
     const userMessageToSave: Partial<FirebaseChatMessage> = {
@@ -852,9 +830,8 @@ Assistant:`;
     };
     if (currentConvId) await saveChatMessage(currentConvId, userMessageToSave);
 
-    setChatMessage(''); // Clear input field
+    setChatMessage('');
 
-    // Handle chat usage increment
     if (userTier !== 'premium' && userTier !== 'loading') {
       try {
         await incrementUserChatUsage(user.uid);
@@ -864,10 +841,9 @@ Assistant:`;
         const usageErrorMsgToSave: Partial<FirebaseChatMessage> = {
             role: 'assistant',
             content: "⚠️ Error saving usage count. Message sent.",
-            error: true // Or a specific type of warning
+            error: true
         };
        if (currentConvId) await saveChatMessage(currentConvId, usageErrorMsgToSave);
-       // Do not block chat for this error, message was already sent.
       }
     }
 
@@ -882,7 +858,7 @@ Assistant:`;
         timer: { type: 'timer', duration: timerDuration, id: timerId }
       };
       if (currentConvId) await saveChatMessage(currentConvId, timerMsgToSave);
-      return; // Don't proceed to Gemini if it's just a timer request
+      return;
     }
 
 
@@ -892,15 +868,15 @@ Assistant:`;
     const assistantResponsePlaceholder: ChatMessageData = {
       id: newAssistantLoadingPlaceholderId,
       role: 'assistant',
-      content: "...", // Placeholder content
+      content: "...",
       createdAt: new Date(),
-      isGeneratingImage: isImageGenModeActive, // Indicate if image generation is expected
+      isGeneratingImage: isImageGenModeActive,
     };
     setChatHistory(prev => [...prev, assistantResponsePlaceholder]);
-    setStreamingAssistantContent(''); // Reset streaming content
+    setStreamingAssistantContent('');
 
 
-    const prompt = createPrompt(userMsgContent, filesForThisMessageSubmission); // Pass files with base64 for prompt
+    const prompt = createPrompt(userMsgContent, filesForThisMessageSubmission);
     const currentTargetModel = isImageGenModeActive ? GEMINI_IMAGE_GEN_MODEL : GEMINI_TEXT_MODEL;
     const fullApiUrl = `${GEMINI_API_BASE}${currentTargetModel}:generateContent?key=${geminiApiKey}`;
 
@@ -908,11 +884,9 @@ Assistant:`;
 
     if (!isImageGenModeActive && filesForThisMessageSubmission.length > 0) {
         filesForThisMessageSubmission.forEach(selectedFile => {
-            // Only include supported types for inline data
             if (selectedFile.type.startsWith('image/') || selectedFile.type === 'application/pdf' || selectedFile.type === 'text/plain' || selectedFile.name.endsWith('.md') || selectedFile.type === "image/svg+xml") {
                  apiParts.push({ inline_data: { mime_type: selectedFile.type, data: selectedFile.base64Data }});
             }
-            // For other types, the AI is informed by the preamble in the prompt.
         });
     }
 
@@ -920,14 +894,13 @@ Assistant:`;
         contents: [{ parts: apiParts }]
     };
 
-    // Add generationConfig
     let generationConfig: any = {
-        temperature: 0.7, // Adjust as needed
-        maxOutputTokens: 8192, // Adjust for text model
+        temperature: 0.7,
+        maxOutputTokens: 8192,
     };
     if (isImageGenModeActive) {
-        generationConfig.maxOutputTokens = 2048; // Typically smaller for image-related text
-        generationConfig.responseModalities = ["TEXT", "IMAGE"]; // Explicitly request TEXT and IMAGE
+        generationConfig.maxOutputTokens = 2048;
+        generationConfig.responseModalities = ["TEXT", "IMAGE"];
     }
     apiRequestBody.generationConfig = generationConfig;
 
@@ -949,7 +922,6 @@ Assistant:`;
       let finalImageMeta: FirebaseImageMeta | undefined = undefined;
 
       if (isImageGenModeActive && geminiGeneratedImageData && user && user.uid && currentConvId) {
-        // Update placeholder to indicate image saving
         setChatHistory(prev => prev.map(msg => msg.id === newAssistantLoadingPlaceholderId ? {...msg, content: "Generating & saving image..." } : msg));
         try {
           const { downloadURL, storagePath } = await uploadBase64ImageToStorage(
@@ -968,7 +940,6 @@ Assistant:`;
         } catch (uploadError) {
           console.error("Error uploading AI generated image:", uploadError);
           assistantTextForDisplay = (assistantTextForDisplay ? assistantTextForDisplay + "\n" : "") + "Error: Failed to save generated image.";
-          // Potentially set an error flag on the message
         }
       }
 
@@ -978,31 +949,46 @@ Assistant:`;
       let combinedActionConfirmation = "";
       let finalActionDetails: ChatMessageData['actionDetails'] | undefined = undefined;
 
-      // Extract JSON blocks and separate text.
-      // This function should ideally handle cases where AI might return text AND JSON.
       const { blocks: jsonActionBlocks, cleanedText, originalText } = extractJsonBlocks(parsedApiResult.text || "");
       assistantTextForDisplay = isImageGenModeActive ? (parsedApiResult.text || (finalImageUrl ? "Generated image:" : "")) : cleanedText;
 
 
       if (!isImageGenModeActive && jsonActionBlocks.length > 0) {
-          for (const parsed of jsonActionBlocks) { // Iterate over all found JSON blocks
+          for (const parsed of jsonActionBlocks) {
             if (parsed.action && parsed.payload && user.uid) {
-              actionTaken = true; // Mark that an action was attempted
-              const payload = { ...parsed.payload }; // Clone payload for modification
-              let itemNaturalLanguageResponse = ""; // Confirmation for this specific action
+              actionTaken = true;
+              const payload = { ...parsed.payload };
+              let itemNaturalLanguageResponse = "";
 
-              // Date parsing logic
-              if (payload.dueDate && typeof payload.dueDate === 'string') {
-                const date = new Date(payload.dueDate);
-                if (!isNaN(date.getTime())) payload.dueDate = date; else delete payload.dueDate;
-              }
-              if (payload.targetDate && typeof payload.targetDate === 'string') { // For goals
-                const date = new Date(payload.targetDate);
-                if (!isNaN(date.getTime())) payload.targetDate = date; else delete payload.targetDate;
-              }
-              // Add similar for startDate, endDate for plans, deadline for projects if they come as strings
+              const dateFields = ['dueDate', 'targetDate', 'startDate', 'endDate', 'deadline'];
+              dateFields.forEach(field => {
+                if (payload[field] && typeof payload[field] === 'string') {
+                  const date = new Date(payload[field]);
+                  // Check if the date is valid; new Date() can return "Invalid Date" object whose getTime() is NaN
+                  if (!isNaN(date.getTime())) {
+                    payload[field] = date;
+                  } else {
+                    // Handle relative dates like "tomorrow" if new Date() fails directly.
+                    // This might need a more sophisticated date parser if AI gives complex relative dates.
+                    // For now, let's assume simple cases are handled by new Date() or AI gives YYYY-MM-DD.
+                    // If parsing failed, we might want to inform the user or delete the field.
+                    // For robustness, if new Date() fails with "tomorrow", it might be because the context isn't explicitly set.
+                    // Firebase functions might handle "tomorrow" correctly if they know server time. Client-side depends on client time.
+                    // Let's try a simple "tomorrow" check for now
+                    if (payload[field].toLowerCase() === 'tomorrow') {
+                        const tomorrow = new Date();
+                        tomorrow.setDate(tomorrow.getDate() + 1);
+                        payload[field] = tomorrow;
+                    } else {
+                        console.warn(`Could not parse date string "${payload[field]}" for field "${field}". Removing from payload.`);
+                        delete payload[field];
+                    }
+                  }
+                }
+              });
 
-              try { // Wrap Firebase calls in try-catch to handle individual action errors
+
+              try {
                 if (parsed.action === 'createTask') { await createUserTask(user.uid, payload); itemNaturalLanguageResponse = `Task "${payload.task || 'Untitled'}" created.`; }
                 else if (parsed.action === 'createGoal') { await createUserGoal(user.uid, payload); itemNaturalLanguageResponse = `Goal "${payload.goal || 'Untitled'}" set.`; }
                 else if (parsed.action === 'createPlan') { await createUserPlan(user.uid, payload); itemNaturalLanguageResponse = `Plan "${payload.plan || 'Untitled'}" created.`; }
@@ -1015,15 +1001,15 @@ Assistant:`;
                 else if (parsed.action === 'deleteGoal') { const id = payload.id || await findItemByName('goals',user.uid,payload.goal,'goal'); if(id){await deleteUserGoal(id);} itemNaturalLanguageResponse = `Goal "${payload.goal}" deleted.`; }
                 else if (parsed.action === 'deletePlan') { const id = payload.id || await findItemByName('plans',user.uid,payload.plan,'plan'); if(id){await deleteUserPlan(id);} itemNaturalLanguageResponse = `Plan "${payload.plan}" deleted.`; }
                 else if (parsed.action === 'deleteProject') { const id = payload.id || await findItemByName('projects',user.uid,payload.project,'project'); if(id){await deleteUserProject(id);} itemNaturalLanguageResponse = `Project "${payload.project}" deleted.`; }
-                else { actionTaken = false; /* Not a recognized action */ }
+                else { actionTaken = false; }
 
 
                 if (itemNaturalLanguageResponse) combinedActionConfirmation += (combinedActionConfirmation ? " " : "") + itemNaturalLanguageResponse;
-                finalActionDetails = { status: 'success' }; // Assume success if no throw
+                finalActionDetails = { status: 'success' };
               } catch (actionError: any) {
                   console.error(`Error processing action ${parsed.action}:`, actionError);
                   combinedActionConfirmation += (combinedActionConfirmation ? " " : "") + `Error with ${parsed.action}: ${actionError.message || 'Failed'}.`;
-                  finalActionDetails = { status: 'error' }; // Mark as error
+                  finalActionDetails = { status: 'error' };
               }
 
             } else if (parsed.type && parsed.data && (parsed.type === 'flashcard' || parsed.type === 'question')) {
@@ -1032,66 +1018,54 @@ Assistant:`;
           }
       }
 
-      // Consolidate assistant text based on outcomes
       if (actionTaken) {
           if (combinedActionConfirmation.trim()) {
-              // If there was a conversational confirmation from AI (cleanedText) AND specific action confirmations, combine them.
-              // Or, if AI provided text (cleanedText) meant as confirmation, and we also have our generated one.
-              // Let's prioritize our generated confirmation if `cleanedText` from AI was just the confirmation prompt itself.
               assistantTextForDisplay = (cleanedText && cleanedText !== "Okay, I'll create that task!" && cleanedText !== "Okay, I'll update that." && cleanedText !== "Okay, I'll delete that." ? cleanedText + "\n" : "") + combinedActionConfirmation;
-          } else if (!cleanedText.trim() && !isImageGenModeActive) { // No AI text, no generated confirmation, but action was taken
-              assistantTextForDisplay = "Action processed."; // Generic success
+          } else if (!cleanedText.trim() && !isImageGenModeActive) {
+              assistantTextForDisplay = "Action processed.";
           } else if (isImageGenModeActive && !assistantTextForDisplay.trim()) {
-              // This case should be rare if actions are disabled in image gen mode per prompt
               assistantTextForDisplay = "Action processed alongside image generation attempt.";
           }
-          // `finalActionDetails` is already set
       } else if (educationalContent) {
-          // If AI gave text along with educational JSON, use it. Otherwise, default.
           if (!cleanedText.trim()) {
             assistantTextForDisplay = "Here's the educational content you requested:";
           } else {
-            assistantTextForDisplay = cleanedText; // Use AI's text if provided
+            assistantTextForDisplay = cleanedText;
           }
       } else if (isImageGenModeActive) {
           if (parsedApiResult.error) {
-              assistantTextForDisplay = parsedApiResult.error; // API error for image gen
+              assistantTextForDisplay = parsedApiResult.error;
           } else if (!finalImageUrl && !assistantTextForDisplay.trim()) {
               assistantTextForDisplay = "Image generation may have failed or no content was returned.";
           } else if (finalImageUrl && !assistantTextForDisplay.trim()){
-              assistantTextForDisplay = "Generated image:"; // Default text if AI provided image but no text
+              assistantTextForDisplay = "Generated image:";
           }
       } else if (!assistantTextForDisplay.trim() && originalText && !finalImageUrl) {
-          // If cleanedText is empty (meaning original was all JSON or whitespace) but there was original text
-          // and no image was generated, use the original text (minus successfully parsed JSON).
-          // This handles cases where AI might return only malformed JSON.
           assistantTextForDisplay = originalText;
       }
 
-      // Final fallback if no content at all
       if (!assistantTextForDisplay.trim() && !finalImageUrl && !parsedApiResult.error && !educationalContent && !actionTaken) {
           assistantTextForDisplay = "(No specific content received)";
       }
 
-      // Ensure API errors are prioritized if no other meaningful content.
       if (parsedApiResult.error && (!assistantTextForDisplay.trim() || assistantTextForDisplay === "(No specific content received)")) {
           assistantTextForDisplay = parsedApiResult.error;
       }
 
 
       const finalAssistantMsgDataForUi: ChatMessageData = {
-          id: newAssistantLoadingPlaceholderId, // Use the placeholder ID
+          id: newAssistantLoadingPlaceholderId,
           role: 'assistant',
           content: assistantTextForDisplay.trim() || (finalImageUrl ? "Generated image:" : "(No text content)"),
           createdAt: new Date(),
           flashcard: educationalContent?.type === 'flashcard' ? educationalContent : undefined,
           question: educationalContent?.type === 'question' ? educationalContent : undefined,
-          actionDetails: actionTaken ? finalActionDetails : undefined, // Use the potentially modified finalActionDetails
+          actionDetails: actionTaken ? finalActionDetails : undefined,
           imageUrl: finalImageUrl,
           imageMeta: finalImageMeta,
-          wasImageGenerated: isImageGenModeActive && !!finalImageUrl && !parsedApiResult.error, // True if in mode, URL exists, and no API error
-          error: !!parsedApiResult.error || (actionTaken && finalActionDetails?.status === 'error'), // Also mark error if action failed
-          isGeneratingImage: false, // No longer generating
+          wasImageGenerated: isImageGenModeActive && !!finalImageUrl && !parsedApiResult.error,
+          error: !!parsedApiResult.error || (actionTaken && finalActionDetails?.status === 'error'),
+          isGeneratingImage: false,
       };
       setChatHistory(prev => prev.map(msg => msg.id === newAssistantLoadingPlaceholderId ? finalAssistantMsgDataForUi : msg ));
 
@@ -1109,38 +1083,33 @@ Assistant:`;
       };
       if (currentConvId) await saveChatMessage(currentConvId, finalAssistantMsgToSave);
 
-      // Auto-generate chat name
       const conversationHistoryForName = [...chatHistory.filter(m => m.id !== newAssistantLoadingPlaceholderId), finalAssistantMsgDataForUi];
       const totalUserMessagesInConv = conversationHistoryForName.filter(m => m.role === 'user').length;
       const currentConvInfo = conversationList.find(c => c.id === currentConvId);
 
       if (currentConvId && currentConvInfo?.chatName === "New Chat" && (!hasGeneratedChatName || totalUserMessagesInConv === 1)) {
-          // Create a temporary history that includes the latest user and assistant message for naming
-          const tempHistoryForNaming = chatHistory.filter(m => m.role === 'user' || (m.role === 'assistant' && m.id !== newAssistantLoadingPlaceholderId && m.id !== localUserMessageId)); // Exclude placeholders
-          tempHistoryForNaming.push({ ...userMessageForState, id: 'temp-user-for-name' } as ChatMessageData); // Add the processed user message
-          tempHistoryForNaming.push({ ...finalAssistantMsgDataForUi, id: 'temp-assistant-for-name' }); // Add the final assistant message
+          const tempHistoryForNaming = chatHistory.filter(m => m.role === 'user' || (m.role === 'assistant' && m.id !== newAssistantLoadingPlaceholderId && m.id !== localUserMessageId));
+          tempHistoryForNaming.push({ ...userMessageForState, id: 'temp-user-for-name' } as ChatMessageData);
+          tempHistoryForNaming.push({ ...finalAssistantMsgDataForUi, id: 'temp-assistant-for-name' });
 
-          const conversationTextForNaming = tempHistoryForNaming.slice(-6) // Take last few turns
+          const conversationTextForNaming = tempHistoryForNaming.slice(-6)
               .map((m) =>`${m.role === 'user' ? truncatedName : 'Assistant'}: ${m.content}`)
               .join('\n');
-          if (conversationTextForNaming.length > 10) { // Ensure there's enough content
+          if (conversationTextForNaming.length > 10) {
             await generateChatName(currentConvId, conversationTextForNaming);
             setHasGeneratedChatName(true);
           }
       }
 
-      // Switch back from image gen mode if successful, without the extra message
       if (isImageGenModeActive && finalImageUrl && !parsedApiResult.error) {
         setIsImageGenModeActive(false);
-        // The line below adding the chat message has been removed as per user request.
-        // setChatHistory(prev => [...prev, {id: `local-img-mode-off-${Date.now()}`, role: 'assistant', content: "🖼️ Image generated! Switched back to text & file mode.", createdAt: new Date()}]);
       }
 
     } catch (err: any) {
       console.error('Chat Submit Error:', err);
       const errorMsgContent = `Sorry, I encountered an error${err.message ? ': ' + err.message : '.'} Please try again.`;
       const errorMsgForState: ChatMessageData = {
-          id: newAssistantLoadingPlaceholderId, // Update the placeholder
+          id: newAssistantLoadingPlaceholderId,
           role: 'assistant',
           content: errorMsgContent,
           error: true,
@@ -1156,8 +1125,8 @@ Assistant:`;
       if (currentConvId) await saveChatMessage(currentConvId, errorMsgToSave);
     } finally {
       setIsChatLoading(false);
-      setAssistantLoadingPlaceholderId(null); // Clear placeholder ID
-      setStreamingAssistantContent(''); // Clear streaming content
+      setAssistantLoadingPlaceholderId(null);
+      setStreamingAssistantContent('');
     }
   };
 
@@ -1339,11 +1308,25 @@ Assistant:`;
                             remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}
                             components={{
                                 p: ({node, ...props}) => <p className="mb-1 last:mb-0" {...props} />,
-                                ul: ({node, ...props}) => <ul className="list-disc list-outside ml-4 mb-1 text-sm" {...props} />,
-                                ol: ({node, ...props}) => <ol className="list-decimal list-outside ml-4 mb-1 text-sm" {...props} />,
+                                ul: ({node, ...props}) => <ul className="list-disc list-outside ml-5 mb-1 text-sm space-y-0.5" {...props} />,
+                                ol: ({node, ...props}) => <ol className="list-decimal list-outside ml-5 mb-1 text-sm space-y-0.5" {...props} />,
                                 li: ({node, ...props}) => <li className="mb-0.5" {...props} />,
                                 a: ({node, ...props}) => <a className={`${currentTheme.accentColor} hover:underline`} target="_blank" rel="noopener noreferrer" {...props} />,
-                                code: ({ node, inline, className, children, ...props }) => { const match = /language-(\w+)/.exec(className || ''); return !inline ? (<pre className={`!${currentTheme.markdownPreBg} p-2 rounded-md overflow-x-auto my-1 text-[11px] leading-snug ${className}`} {...props}><code className={`language-${match?.[1] || 'plaintext'}`}>{children}</code></pre>) : (<code className={`!${currentTheme.markdownCodeBg} px-1 rounded text-xs ${className}`} {...props}>{children}</code>); },
+                                code: ({ node, inline, className, children, ...props }) => { const match = /language-(\w+)/.exec(className || ''); return !inline ? (<pre className={`!${currentTheme.markdownPreBg} p-2 rounded-md overflow-x-auto my-1 text-[11px] leading-snug ${className}`} {...props}><code className={`language-${match?.[1] || 'plaintext'}`}>{children}</code></pre>) : (<code className={`!${currentTheme.markdownCodeBg} px-1 py-0.5 rounded text-xs ${className}`} {...props}>{children}</code>); },
+                                h1: ({node, ...props}) => <h1 className="text-2xl font-bold my-3 pb-1 border-b border-gray-300 dark:border-gray-600" {...props} />,
+                                h2: ({node, ...props}) => <h2 className="text-xl font-semibold my-2.5 pb-0.5 border-b border-gray-300 dark:border-gray-600" {...props} />,
+                                h3: ({node, ...props}) => <h3 className="text-lg font-semibold my-2" {...props} />,
+                                h4: ({node, ...props}) => <h4 className="text-base font-semibold my-1.5" {...props} />,
+                                h5: ({node, ...props}) => <h5 className="text-sm font-semibold my-1" {...props} />,
+                                h6: ({node, ...props}) => <h6 className="text-xs font-semibold my-1" {...props} />,
+                                table: ({node, ...props}) => <table className="w-full my-2 border-collapse border border-gray-400 dark:border-gray-500 text-xs" {...props} />,
+                                thead: ({node, ...props}) => <thead className={`${currentTheme.name === 'illuminate' ? 'bg-gray-100' : 'bg-gray-800/50'}`} {...props} />,
+                                tbody: ({node, ...props}) => <tbody {...props} />,
+                                tr: ({node, ...props}) => <tr className="border-b border-gray-400 dark:border-gray-500 last:border-b-0" {...props} />,
+                                th: ({node, ...props}) => <th className="border border-gray-400 dark:border-gray-500 px-1.5 py-1 text-left font-medium" {...props} />,
+                                td: ({node, ...props}) => <td className="border border-gray-400 dark:border-gray-500 px-1.5 py-1" {...props} />,
+                                blockquote: ({node, ...props}) => <blockquote className={`my-1.5 pl-3 italic border-l-4 ${currentTheme.name === 'illuminate' ? 'border-gray-300 bg-gray-50 text-gray-700' : 'border-gray-600 bg-gray-700/30 text-gray-300'} p-1.5 rounded-r-md`} {...props} />,
+                                hr: ({node, ...props}) => <hr className={`my-3 ${currentTheme.name === 'illuminate' ? 'border-gray-300' : 'border-gray-600'}`} {...props} />,
                             }}
                         >{message.content}</ReactMarkdown>
                     )}
