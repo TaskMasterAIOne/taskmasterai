@@ -1329,7 +1329,6 @@ Provide only the JSON object.`;
               {React.cloneElement(greeting.icon, { className: `w-5 h-5 lg:w-6 lg:h-6 inline-block align-middle mr-1.5 -translate-y-0.5 ${greeting.color ? `text-${greeting.color}-500` : iconColor}` })}
               {greeting.greeting},{' '} <span className="font-semibold">{userName ? userName.split(' ')[0] : '...'}</span>
             </h1>
-            <p className={`italic text-xs md:text-sm ${subheadingClass}`}>"{quote.text}" - <span className={illuminateTextPurple}>{quote.author}</span></p>
           </header>
         </div>
 
