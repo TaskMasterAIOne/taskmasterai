@@ -1,4 +1,3 @@
-```tsx
 /* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -1694,5 +1693,3 @@ Provide only the JSON object.`;
     </div>
   );
 }
-
-```
