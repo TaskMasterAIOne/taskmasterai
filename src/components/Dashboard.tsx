@@ -1364,7 +1364,13 @@ Provide only the JSON object.`;
               {React.cloneElement(greeting.icon, { className: `w-6 h-6 inline-block align-middle mr-2 -translate-y-0.5 ${greeting.color ? `text-${greeting.color}-500` : iconColor}` })}
               {greeting.greeting}, <span className="font-semibold">{userName ? truncatedName : '...'}</span>
             </h1>
-            <p className={`${subheadingClass} text-sm mt-1`}>{quote}</p>
+            <p className={`${subheadingClass} text-sm mt-1`}>
+             {quote && quote.text && quote.author ? (
+                <>"{quote.text}" – <em className="opacity-80">{quote.author}</em></>
+              ) : (
+                "Loading quote..."
+              )}
+            </p>
           </header>
         </div>
 
