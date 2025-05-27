@@ -1,3 +1,4 @@
+```tsx
 /* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -121,7 +122,6 @@ const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 300
   } catch (error) {
     clearTimeout(timeoutId);
     if ((error as Error).name === 'AbortError') {
-         console.warn('Fetch timed out:', url);
          throw new Error('Request timed out');
     }
     throw error;
@@ -423,19 +423,20 @@ export function Dashboard() {
   const [lastCompletedItem, setLastCompletedItem] = useState<{ id: string; tab: string; timestamp: number } | null>(null);
   const undoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => { localStorage.setItem('isSidebarCollapsed', JSON.stringify(isSidebarCollapsed)), [isSidebarCollapsed]});
+  useEffect(() => { localStorage.setItem('isSidebarCollapsed', JSON.stringify(isSidebarCollapsed)); }, [isSidebarCollapsed]);
   useEffect(() => {
     localStorage.setItem('isBlackoutEnabled', JSON.stringify(isBlackoutEnabled));
     document.body.classList.toggle('blackout-mode', isBlackoutEnabled && !isIlluminateEnabled);
   }, [isBlackoutEnabled, isIlluminateEnabled]);
-  useEffect(() => localStorage.setItem('isSidebarBlackoutEnabled', JSON.stringify(isSidebarBlackoutEnabled)), [isSidebarBlackoutEnabled]);
+  useEffect(() => { localStorage.setItem('isSidebarBlackoutEnabled', JSON.stringify(isSidebarBlackoutEnabled)); }, [isSidebarBlackoutEnabled]);
   useEffect(() => {
     localStorage.setItem('isIlluminateEnabled', JSON.stringify(isIlluminateEnabled));
     document.body.classList.toggle('illuminate-mode', isIlluminateEnabled);
     if (isIlluminateEnabled) document.body.classList.remove('blackout-mode');
     else if (isBlackoutEnabled) document.body.classList.add('blackout-mode');
   }, [isIlluminateEnabled, isBlackoutEnabled]);
-  useEffect(() => localStorage.setItem('isSidebarIlluminateEnabled', JSON.stringify(isSidebarIlluminateEnabled)), [isSidebarIlluminateEnabled]);
+  useEffect(() => { localStorage.setItem('isSidebarIlluminateEnabled', JSON.stringify(isSidebarIlluminateEnabled)); }, [isSidebarIlluminateEnabled]);
+
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -483,7 +484,9 @@ export function Dashboard() {
   };
 
   useEffect(() => {
-    if (chatEndRef.current && isAiSidebarOpen) requestAnimationFrame(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }));
+    if (chatEndRef.current && isAiSidebarOpen) {
+        requestAnimationFrame(() => chatEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' }));
+    }
   }, [chatHistory, isAiSidebarOpen]);
 
   const formatItemsForChatContext = () => {
@@ -755,6 +758,7 @@ Assistant:`;
       if (currentConvId) await saveChatMessage(currentConvId, { role: 'assistant', content: errorMsgContent, error: true, createdAt: new Date() });
     } finally {
       setIsChatLoading(false); setAssistantLoadingPlaceholderId(null);
+      if (textareaRef.current) textareaRef.current.style.height = 'auto';
     }
   };
 
@@ -1008,7 +1012,7 @@ ${formattedData}`;
         } finally { setOverviewLoading(false); }
     };
     generateOverview();
-  }, [user, userTier, debouncedItemsSigForOverview, userName, geminiApiKey, lastResponse]);
+  }, [user, userTier, debouncedItemsSigForOverview, userName, geminiApiKey, lastResponse, overviewLoading]);
 
 
   const handleOverviewAction = async (action: OverviewAction, accepted: boolean) => {
@@ -1112,19 +1116,38 @@ ${formattedData}`;
   const plansProgress = useMemo(() => plans.length === 0 ? 0 : Math.round((plans.filter(pl => pl.data.completed).length / plans.length) * 100), [plans]);
 
 
-  const containerClass = isIlluminateEnabled ? "bg-slate-50 text-gray-900" : isBlackoutEnabled ? "bg-black text-gray-200" : "bg-gray-900 text-gray-200";
-  const cardClass = isIlluminateEnabled ? "bg-white text-gray-900 border border-gray-200/80 shadow-sm" : isBlackoutEnabled ? "bg-gray-900 text-gray-300 border border-gray-700/50 shadow-md shadow-black/20" : "bg-gray-800 text-gray-300 border border-gray-700/60 shadow-lg shadow-black/20";
-  const headingClass = isIlluminateEnabled ? "text-gray-800" : "text-gray-100";
-  const subheadingClass = isIlluminateEnabled ? "text-gray-600" : "text-gray-400";
-  const inputBg = isIlluminateEnabled ? "bg-gray-100 hover:bg-gray-200/70 border-gray-300 focus:border-blue-500 focus:ring-blue-500" : isBlackoutEnabled ? "bg-gray-800 hover:bg-gray-700/80 border-gray-700 focus:border-blue-500 focus:ring-blue-500 text-gray-300 placeholder-gray-500" : "bg-gray-700 hover:bg-gray-600/70 border-gray-600 focus:border-blue-500 focus:ring-blue-500 text-gray-300 placeholder-gray-500";
-  const iconColor = isIlluminateEnabled ? "text-gray-500 hover:text-gray-700" : "text-gray-400 hover:text-gray-200";
-  const tabBorderColor = isIlluminateEnabled ? "border-gray-300" : "border-gray-700";
-  const illuminateTextBlue = isIlluminateEnabled ? "text-blue-600" : "text-blue-400";
-  const illuminateTextPurple = isIlluminateEnabled ? "text-purple-600" : "text-purple-400";
-  const illuminateTextGreen = isIlluminateEnabled ? "text-green-600" : "text-green-400";
-  const illuminateTextPink = isIlluminateEnabled ? "text-pink-600" : "text-pink-400";
-  const illuminateTextYellow = isIlluminateEnabled ? "text-yellow-600" : "text-yellow-400";
+  const themeMode = isIlluminateEnabled ? 'light' : 'dark';
 
+  const containerClass = themeMode === 'light' ? "bg-slate-50 text-gray-900" : "bg-neutral-900 text-gray-200";
+  const cardClass = themeMode === 'light' ? "bg-white text-gray-800 border border-gray-200/80 shadow-sm" : "bg-neutral-800 text-gray-200 border border-neutral-700/60 shadow-lg shadow-black/20";
+  const headingClass = themeMode === 'light' ? "text-gray-800" : "text-gray-100";
+  const subheadingClass = themeMode === 'light' ? "text-gray-600" : "text-gray-400";
+  const inputBg = themeMode === 'light' ? "bg-gray-100 hover:bg-gray-200/70 border-gray-300 focus:border-blue-500 focus:ring-blue-500 text-gray-800 placeholder-gray-500" : "bg-neutral-700 hover:bg-neutral-600/80 border-neutral-600 focus:border-blue-500 focus:ring-blue-500 text-gray-200 placeholder-gray-500";
+  const iconColor = themeMode === 'light' ? "text-gray-500 hover:text-gray-700" : "text-gray-400 hover:text-gray-200";
+  const tabBorderColor = themeMode === 'light' ? "border-gray-300" : "border-neutral-700";
+  const generalIconColor = themeMode === 'light' ? "text-gray-500" : "text-gray-400";
+  const strongTextColor = themeMode === 'light' ? "text-gray-900" : "text-white";
+  const weakTextColor = themeMode === 'light' ? "text-gray-500" : "text-gray-400";
+
+  const brandColors = {
+    blue: themeMode === 'light' ? "text-blue-600" : "text-blue-400",
+    purple: themeMode === 'light' ? "text-purple-600" : "text-purple-400",
+    green: themeMode === 'light' ? "text-green-600" : "text-green-400",
+    pink: themeMode === 'light' ? "text-pink-600" : "text-pink-400",
+    yellow: themeMode === 'light' ? "text-yellow-600" : "text-yellow-400",
+    red: themeMode === 'light' ? "text-red-600" : "text-red-400",
+    orange: themeMode === 'light' ? "text-orange-600" : "text-orange-400",
+  };
+
+  const brandBgColors = {
+      blueLight: themeMode === 'light' ? "bg-blue-50 text-blue-700" : "bg-blue-900/30 text-blue-300",
+      greenLight: themeMode === 'light' ? "bg-green-50 text-green-700" : "bg-green-900/30 text-green-300",
+      redLight: themeMode === 'light' ? "bg-red-50 text-red-700" : "bg-red-900/30 text-red-300",
+      yellowLight: themeMode === 'light' ? "bg-yellow-50 text-yellow-700" : "bg-yellow-900/30 text-yellow-300",
+      orangeLight: themeMode === 'light' ? "bg-orange-50 text-orange-700" : "bg-orange-900/30 text-orange-300",
+      purpleLight: themeMode === 'light' ? "bg-purple-50 text-purple-700" : "bg-purple-900/30 text-purple-300",
+      grayLight: themeMode === 'light' ? "bg-gray-100 text-gray-700" : "bg-neutral-700 text-gray-300",
+  };
 
     const deadlinesByDate = useMemo(() => {
         const deadlines = new Map<string, { count: number, types: Set<string>, priorities: Set<string> }>();
@@ -1158,12 +1181,12 @@ ${formattedData}`;
         for (let i = 0; i < firstDayOfMonth; i++) daysArray.push(<div key={`blank-${i}`} className="min-h-[4rem] sm:min-h-[5rem] border border-transparent"></div>);
         for (let day = 1; day <= daysInMonth; day++) {
             const date = new Date(year, month, day); const dateStr = formatDateForComparison(date); const isToday = dateStr === formatDateForComparison(today); const deadlineInfo = deadlinesByDate.get(dateStr);
-            let dayClass = `${cardClass} p-1.5 text-xs sm:text-sm flex flex-col items-start justify-start min-h-[4rem] sm:min-h-[5rem] rounded-md transition-all duration-150 hover:shadow-md cursor-pointer `;
-            if (isToday) dayClass += `${isIlluminateEnabled ? 'bg-blue-50 border-blue-400 ring-1 ring-blue-400' : 'bg-blue-900/50 border-blue-500 ring-1 ring-blue-500'} `;
-            else if (deadlineInfo) dayClass += `${isIlluminateEnabled ? 'bg-amber-50/70' : 'bg-amber-900/30'} `; else dayClass += `${isIlluminateEnabled ? 'hover:bg-gray-100' : 'hover:bg-gray-700'} `;
+            let dayClass = `${cardClass} p-1.5 text-xs sm:text-sm flex flex-col items-start justify-start min-h-[4rem] sm:min-h-[5rem] rounded-md transition-all duration-150 hover:shadow-lg cursor-pointer `;
+            if (isToday) dayClass += `${themeMode === 'light' ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-400' : 'bg-blue-900/50 border-blue-500 ring-2 ring-blue-500'} `;
+            else if (deadlineInfo) dayClass += `${themeMode === 'light' ? 'bg-amber-50/70 hover:bg-amber-100/80' : 'bg-amber-900/30 hover:bg-amber-800/40'} `; else dayClass += `${themeMode === 'light' ? 'hover:bg-gray-100' : 'hover:bg-neutral-700'} `;
             let priorityIndicatorColor = '';
             if (deadlineInfo?.priorities.has('high')) priorityIndicatorColor = 'bg-red-500'; else if (deadlineInfo?.priorities.has('medium')) priorityIndicatorColor = 'bg-yellow-500'; else if (deadlineInfo?.priorities.has('low')) priorityIndicatorColor = 'bg-green-500';
-            daysArray.push( <div key={day} className={dayClass} title={date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })} onClick={() => handleCalendarDateClick(date)}> <span className={`font-semibold mb-0.5 ${isToday ? (isIlluminateEnabled ? 'text-blue-700' : 'text-blue-300') : ''}`}>{day}</span> {deadlineInfo && ( <div className="mt-auto w-full"> {priorityIndicatorColor && <div className={`h-1 w-full rounded-full ${priorityIndicatorColor} mb-1`}></div>} <div className="text-[9px] sm:text-[10px] leading-tight opacity-80"> {deadlineInfo.count} item{deadlineInfo.count > 1 ? 's' : ''} </div> </div> )} </div> );
+            daysArray.push( <div key={day} className={dayClass} title={date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })} onClick={() => handleCalendarDateClick(date)}> <span className={`font-semibold mb-0.5 ${isToday ? (themeMode === 'light' ? 'text-blue-700' : 'text-blue-300') : (themeMode === 'light' ? 'text-gray-700' : 'text-gray-300')}`}>{day}</span> {deadlineInfo && ( <div className="mt-auto w-full"> {priorityIndicatorColor && <div className={`h-1 w-full rounded-full ${priorityIndicatorColor} mb-1`}></div>} <div className={`text-[9px] sm:text-[10px] leading-tight ${weakTextColor}`}> {deadlineInfo.count} item{deadlineInfo.count > 1 ? 's' : ''} </div> </div> )} </div> );
         }
         return daysArray;
     };
@@ -1210,6 +1233,13 @@ ${formattedData}`;
     const handleRenameConversation = async (conv: any) => { setOpenDropdownId(null); const newName = window.prompt('Enter new chat name:', conv.chatName); if (newName?.trim()) await updateChatConversationName(conv.id, newName.trim()); };
     const handleDeleteConversationClick = async (conv: any) => { setOpenDropdownId(null); if (!window.confirm(`Delete "${conv.chatName}"?`)) return; await deleteChatConversation(conv.id); if (conversationId === conv.id) { setConversationId(null); setAiChatSidebarTab('history'); } };
     useEffect(() => { const handleClickOutside = (event: MouseEvent) => { if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) setOpenDropdownId(null); }; document.addEventListener('mousedown', handleClickOutside); return () => document.removeEventListener('mousedown', handleClickOutside); }, []);
+
+    useEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+        }
+    }, [chatMessage]);
 
 
     const generateProductivityAnalysis = async () => {
@@ -1316,62 +1346,68 @@ Provide only the JSON object.`;
 
 
   return (
-    <div className={`${containerClass} min-h-screen w-full overflow-x-hidden relative font-sans`}>
-      <Sidebar userName={userName} isCollapsed={isSidebarCollapsed} onToggle={handleToggleSidebar} isBlackoutEnabled={isBlackoutEnabled && isSidebarBlackoutEnabled} isIlluminateEnabled={isIlluminateEnabled && isSidebarIlluminateEnabled} />
-      <button onClick={() => setIsAiSidebarOpen(true)} className={`fixed bottom-4 md:bottom-6 lg:bottom-8 ${isSidebarCollapsed ? 'right-4 md:right-6' : 'right-4 md:right-6 lg:right-8'} z-40 p-3 rounded-full shadow-lg transition-all duration-300 transform hover:scale-110 active:scale-100 ${isIlluminateEnabled ? 'bg-white border border-gray-300 text-blue-600 hover:bg-gray-100' : 'bg-gradient-to-br from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700'} ${isAiSidebarOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`} title="Open TaskMaster AI Chat" aria-label="Open TaskMaster AI Chat">
+    <div className={`${containerClass} min-h-screen w-full overflow-x-hidden relative font-sans scrollbar-thin ${themeMode === 'light' ? 'scrollbar-thumb-gray-300 scrollbar-track-gray-100' : 'scrollbar-thumb-neutral-700 scrollbar-track-neutral-800'}`}>
+      <Sidebar userName={userName} isCollapsed={isSidebarCollapsed} onToggle={handleToggleSidebar} isBlackoutEnabled={themeMode === 'dark' && isSidebarBlackoutEnabled} isIlluminateEnabled={themeMode === 'light' && isSidebarIlluminateEnabled} themeMode={themeMode} />
+      
+      <button 
+        onClick={() => setIsAiSidebarOpen(true)} 
+        className={`fixed bottom-6 ${isSidebarCollapsed ? 'right-6' : 'right-6 lg:right-8'} z-40 p-3.5 rounded-full shadow-xl transition-all duration-300 transform hover:scale-110 active:scale-100 ${themeMode === 'light' ? 'bg-white border border-gray-300 text-blue-600 hover:bg-gray-100' : 'bg-gradient-to-br from-purple-600 to-indigo-600 text-white hover:from-purple-500 hover:to-indigo-500'} ${isAiSidebarOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`} 
+        title="Open TaskMaster AI Chat" 
+        aria-label="Open TaskMaster AI Chat"
+      >
         <BrainCircuit className="w-5 h-5" />
       </button>
 
-      <main className={`transition-all duration-300 ease-in-out min-h-screen ${isSidebarCollapsed ? 'ml-16 md:ml-20' : 'ml-0 md:ml-64'} p-3 md:p-4 lg:p-5 xl:p-6 overflow-x-hidden`}>
-         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 sm:gap-4 mb-4 sm:mb-5">
-          <header className={`dashboard-header w-full lg:w-auto animate-fadeIn ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} transition-all duration-500 ease-out pt-1 lg:pt-0`}>
-            <h1 className={`text-xl md:text-2xl lg:text-3xl font-bold mb-0.5 ${headingClass} break-words`}>
-              {React.cloneElement(greeting.icon, { className: `w-5 h-5 lg:w-6 lg:h-6 inline-block align-middle mr-1.5 -translate-y-0.5 ${greeting.color ? `text-${greeting.color}-500` : iconColor}` })}
-              {greeting.greeting},{' '} <span className="font-semibold">{userName ? userName.split(' ')[0] : '...'}</span>
+      <main className={`transition-all duration-300 ease-in-out min-h-screen ${isSidebarCollapsed ? 'ml-16 md:ml-20' : 'ml-0 md:ml-64'} p-4 md:p-6 lg:p-8`}>
+         <div className={`flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6 transition-opacity duration-500 ${cardVisible ? 'opacity-100' : 'opacity-0'}`}>
+          <header>
+            <h1 className={`text-2xl md:text-3xl font-bold ${headingClass}`}>
+              {React.cloneElement(greeting.icon, { className: `w-6 h-6 inline-block align-middle mr-2 -translate-y-0.5 ${greeting.color ? `text-${greeting.color}-500` : iconColor}` })}
+              {greeting.greeting}, <span className="font-semibold">{userName ? truncatedName : '...'}</span>
             </h1>
+            <p className={`${subheadingClass} text-sm mt-1`}>{quote}</p>
           </header>
         </div>
 
         {lastCompletedItem && (
-          <div className={`${cardClass} p-3 sm:p-4 mb-4 sm:mb-5 rounded-lg flex items-center justify-between animate-fadeIn`}>
-            <p className="text-sm">Item marked complete.</p>
+          <div className={`${cardClass} p-3 rounded-lg flex items-center justify-between mb-6 transition-all duration-300 ease-out transform opacity-0 animate-fadeIn`} style={{animationFillMode: 'forwards'}}>
+            <p className="text-sm flex items-center"><CheckCircle className={`w-4 h-4 mr-2 ${brandColors.green}`} /> Item marked complete.</p>
             <button
               onClick={handleUndoComplete}
-              className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${isIlluminateEnabled ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-blue-800 text-blue-200 hover:bg-blue-700'}`}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center ${themeMode === 'light' ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' : 'bg-neutral-700 text-gray-200 hover:bg-neutral-600'}`}
             >
-              <RotateCcw className="w-4 h-4 inline mr-1 -ml-1" /> Undo
+              <RotateCcw className="w-3.5 h-3.5 inline mr-1.5 -ml-0.5" /> Undo
             </button>
           </div>
         )}
 
-
-        <div className={`grid grid-cols-1 xl:grid-cols-5 gap-4 sm:gap-5 animate-fadeIn ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} delay-400`}>
-           <div className="xl:col-span-3 flex flex-col gap-4 sm:gap-5">
-            <div className={`${cardClass} rounded-xl p-3 sm:p-4 relative min-h-[60px] transition-all duration-300 ease-out animate-fadeIn ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} delay-300`}>
-              <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                <h2 className={`text-base sm:text-lg font-semibold mr-1 flex items-center ${illuminateTextBlue}`}>
-                  <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 text-yellow-400 animate-pulse" /> Smart Overview
+        <div className={`grid grid-cols-1 xl:grid-cols-10 gap-6 transition-opacity duration-700 delay-100 ${cardVisible ? 'opacity-100' : 'opacity-0'}`}>
+           <div className="xl:col-span-6 flex flex-col gap-6">
+            <div className={`${cardClass} rounded-lg p-4 sm:p-5 transition-all duration-300 ease-out opacity-0 animate-fadeIn`} style={{animationDelay: '200ms', animationFillMode: 'forwards'}}>
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                <h2 className={`text-lg font-semibold mr-1 flex items-center ${brandColors.blue}`}>
+                  <Sparkles className="w-5 h-5 mr-2 text-yellow-400 animate-pulse" /> Smart Overview
                 </h2>
-                {userTier === 'pro' && <span className="text-[9px] sm:text-[10px] bg-gradient-to-r from-teal-400 to-cyan-500 text-white px-1.5 py-0.5 rounded-full font-medium">PRO</span>}
-                {userTier === 'premium' && <span className="text-[9px] sm:text-[10px] bg-gradient-to-r from-amber-400 to-orange-500 text-white px-1.5 py-0.5 rounded-full font-medium">PREMIUM</span>}
+                {userTier === 'pro' && <span className="text-[10px] bg-gradient-to-r from-teal-400 to-cyan-500 text-white px-2 py-0.5 rounded-full font-medium">PRO</span>}
+                {userTier === 'premium' && <span className="text-[10px] bg-gradient-to-r from-amber-400 to-orange-500 text-white px-2 py-0.5 rounded-full font-medium">PREMIUM</span>}
               </div>
-              {userTier === 'loading' ? <div className="animate-pulse space-y-1.5 pt-1"><div className={`h-3 rounded-full w-1/2 ${isIlluminateEnabled ? 'bg-gray-200' : 'bg-gray-700'}`}></div></div>
-               : userTier === 'basic' ? <div className={`text-xs italic flex items-center justify-start gap-1.5 py-2 ${isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}`}><span>Smart Overview is a Pro/Premium feature.</span><Link to="/pricing" className={`font-medium ml-1 ${isIlluminateEnabled ? 'text-blue-600 hover:text-blue-700' : 'text-blue-400 hover:text-blue-300'} hover:underline not-italic`}>Upgrade now</Link></div>
-               : overviewLoading ? <div className="space-y-1.5 animate-pulse pt-1"><div className={`h-3 rounded-full w-11/12 ${isIlluminateEnabled ? 'bg-gray-200' : 'bg-gray-700'}`}></div><div className={`h-3 rounded-full w-3/4 ${isIlluminateEnabled ? 'bg-gray-200' : 'bg-gray-700'}`}></div></div>
-               : <> <div className={`text-xs sm:text-sm prose-sm max-w-none animate-fadeIn ${isIlluminateEnabled ? 'text-gray-800' : 'text-gray-300'} leading-snug ${smartOverview.includes('unavailable') || smartOverview.includes('failed') || smartOverview.includes('limit') ? (isIlluminateEnabled ? 'text-yellow-700 italic' : 'text-yellow-500 italic') : ''}`}>{smartOverview || "Add items for an overview."}</div>
+              {userTier === 'loading' ? <div className="animate-pulse space-y-2 pt-1"><div className={`h-4 rounded-full w-3/4 ${themeMode === 'light' ? 'bg-gray-200' : 'bg-neutral-700'}`}></div></div>
+               : userTier === 'basic' ? <div className={`text-sm italic flex items-center justify-start gap-1.5 py-2 ${subheadingClass}`}><span>Smart Overview is a Pro/Premium feature.</span><Link to="/pricing" className={`font-medium ml-1 ${brandColors.blue} hover:underline not-italic`}>Upgrade now</Link></div>
+               : overviewLoading ? <div className="space-y-2 animate-pulse pt-1"><div className={`h-4 rounded-full w-full ${themeMode === 'light' ? 'bg-gray-200' : 'bg-neutral-700'}`}></div><div className={`h-4 rounded-full w-4/5 ${themeMode === 'light' ? 'bg-gray-200' : 'bg-neutral-700'}`}></div></div>
+               : <> <div className={`text-sm prose-sm max-w-none ${themeMode === 'light' ? 'text-gray-700' : 'text-gray-300'} leading-relaxed ${smartOverview.includes('unavailable') || smartOverview.includes('failed') || smartOverview.includes('limit') ? (themeMode === 'light' ? 'text-yellow-700 italic' : 'text-yellow-500 italic') : ''}`}>{smartOverview || "Add items for an overview."}</div>
                   {overviewActions.length > 0 && (
-                    <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700 space-y-1.5">
-                      <h4 className={`text-xs font-semibold ${subheadingClass}`}>Suggested Actions:</h4>
+                    <div className="mt-3 pt-3 border-t border-gray-200 dark:border-neutral-700 space-y-2">
+                      <h4 className={`text-xs font-semibold uppercase tracking-wider ${subheadingClass}`}>Suggested Actions:</h4>
                       {overviewActions.map(action => (
-                        <div key={action.id} className={`p-2 rounded-lg text-xs flex items-center justify-between gap-2 ${isIlluminateEnabled ? 'bg-blue-50' : 'bg-blue-900/30'}`}>
+                        <div key={action.id} className={`p-2.5 rounded-md text-sm flex items-center justify-between gap-3 ${themeMode === 'light' ? 'bg-blue-50/70 border border-blue-200/60' : 'bg-blue-900/20 border border-blue-700/30'}`}>
                           <span className="flex-grow truncate mr-2" title={action.description}>{action.description}</span>
-                          <div className="flex-shrink-0 flex items-center space-x-1.5">
+                          <div className="flex-shrink-0 flex items-center space-x-2">
                             <button
                               onClick={() => handleOverviewAction(action, true)}
-                              className={`px-2 py-1 rounded-md text-[10px] flex items-center gap-1 font-medium transition-colors ${
-                                isIlluminateEnabled
+                              className={`px-2.5 py-1 rounded text-[11px] flex items-center gap-1.5 font-medium transition-colors ${
+                                themeMode === 'light'
                                 ? 'bg-green-500 hover:bg-green-600 text-white'
-                                : 'bg-green-600 hover:bg-green-700 text-white'
+                                : 'bg-green-600 hover:bg-green-500 text-white'
                               }`}
                               title="Accept suggestion"
                             >
@@ -1379,8 +1415,8 @@ Provide only the JSON object.`;
                             </button>
                             <button
                               onClick={() => handleOverviewAction(action, false)}
-                              className={`px-2 py-1 rounded-md text-[10px] flex items-center gap-1 font-medium transition-colors border ${
-                                isIlluminateEnabled
+                              className={`px-2.5 py-1 rounded text-[11px] flex items-center gap-1.5 font-medium transition-colors border ${
+                                themeMode === 'light'
                                 ? 'border-red-400 text-red-500 hover:bg-red-50 hover:border-red-500'
                                 : 'border-red-500 text-red-400 hover:bg-red-500/20 hover:border-red-400'
                               }`}
@@ -1393,85 +1429,75 @@ Provide only the JSON object.`;
                       ))}
                     </div>
                   )}
-                  {smartOverview && !smartOverview.includes('unavailable') && !smartOverview.includes('failed') && !smartOverview.includes('limit') && !smartOverview.includes('No pending items') && <div className="mt-1.5 text-left text-[10px] text-gray-500/80">AI responses may be inaccurate. Verify critical info.</div>} </>}
+                  {smartOverview && !smartOverview.includes('unavailable') && !smartOverview.includes('failed') && !smartOverview.includes('limit') && !smartOverview.includes('No pending items') && <div className="mt-2 text-left text-[11px] text-gray-500/80">AI responses may be inaccurate. Verify critical info.</div>} </>}
             </div>
 
-            <div className={`${cardClass} rounded-xl p-4 sm:p-5 transition-all duration-300`}>
+            <div className={`${cardClass} rounded-lg p-4 sm:p-5 transition-all duration-300 opacity-0 animate-fadeIn`} style={{animationDelay: '300ms', animationFillMode: 'forwards'}}>
                 <div className="flex justify-between items-center mb-3">
-                 <h2 className={`text-base sm:text-lg font-semibold ${illuminateTextPurple} flex items-center`}>
-                   <TrendingUp className="w-5 h-5 mr-1.5" /> Productivity
+                 <h2 className={`text-lg font-semibold ${brandColors.purple} flex items-center`}>
+                   <TrendingUp className="w-5 h-5 mr-2" /> Productivity
                  </h2>
-                 <button onClick={() => setShowAnalytics(prev => !prev)} className={`p-1 rounded-full transition-colors ${iconColor} ${isIlluminateEnabled ? 'hover:bg-gray-200' : 'hover:bg-gray-700'} flex items-center gap-1 text-[10px] sm:text-xs`} title={showAnalytics ? "Show Basic Progress" : "Show Analytics"}>
-                    {showAnalytics ? <BarChart className="w-3.5 h-3.5" /> : <PieChart className="w-3.5 h-3.5" />}
-                    <span>{showAnalytics ? 'Basic' : 'Analytics'}</span>
+                 <button onClick={() => setShowAnalytics(prev => !prev)} className={`p-1.5 rounded-md transition-colors ${iconColor} ${themeMode === 'light' ? 'hover:bg-gray-200' : 'hover:bg-neutral-700'} flex items-center gap-1.5 text-xs`} title={showAnalytics ? "Show Basic Progress" : "Show Analytics"}>
+                    {showAnalytics ? <BarChart className="w-4 h-4" /> : <PieChart className="w-4 h-4" />}
+                    <span className="hidden sm:inline">{showAnalytics ? 'Basic View' : 'Detailed Analytics'}</span>
                   </button>
                </div>
                {showAnalytics ? (
-                 <div className="animate-fadeIn"><TaskAnalytics tasks={tasks} goals={goals} projects={projects} plans={plans} isIlluminateEnabled={isIlluminateEnabled} /></div>
+                 <div className="transition-opacity duration-300 opacity-0 animate-fadeIn" style={{animationFillMode: 'forwards'}}><TaskAnalytics tasks={tasks} goals={goals} projects={projects} plans={plans} isIlluminateEnabled={themeMode === 'light'} /></div>
                ) : (
-                  <div className="space-y-3 animate-fadeIn">
+                  <div className="space-y-3.5 transition-opacity duration-300 opacity-0 animate-fadeIn" style={{animationFillMode: 'forwards'}}>
                     {(tasks.length > 0 || goals.length > 0 || projects.length > 0 || plans.length > 0) ? (
-                         <> {tasks.length > 0 && (<div> <div className="flex justify-between items-center mb-0.5 text-xs sm:text-sm"><p className="flex items-center font-medium"><Clipboard className="w-3.5 h-3.5 mr-1 text-gray-400" /> Tasks</p><p className={`${illuminateTextGreen} font-semibold text-xs`}>{tasks.filter(t => t.data.completed).length}/{tasks.length} ({tasksProgress}%)</p></div><div className={`w-full h-1.5 ${isIlluminateEnabled ? 'bg-gray-200' : 'bg-gray-600'} rounded-full overflow-hidden`}><div className="h-full bg-gradient-to-r from-green-400 to-green-500 rounded-full transition-all duration-700 ease-out" style={{ width: `${tasksProgress}%` }} /></div></div>)}
-                            {goals.length > 0 && (<div> <div className="flex justify-between items-center mb-0.5 text-xs sm:text-sm"><p className="flex items-center font-medium"><Target className="w-3.5 h-3.5 mr-1 text-gray-400" /> Goals</p><p className={`${illuminateTextPink} font-semibold text-xs`}>{goals.filter(g => g.data.completed).length}/{goals.length} ({goalsProgress}%)</p></div><div className={`w-full h-1.5 ${isIlluminateEnabled ? 'bg-gray-200' : 'bg-gray-600'} rounded-full overflow-hidden`}><div className="h-full bg-gradient-to-r from-pink-400 to-pink-500 rounded-full transition-all duration-700 ease-out" style={{ width: `${goalsProgress}%` }} /></div></div>)}
-                            {projects.length > 0 && (<div> <div className="flex justify-between items-center mb-0.5 text-xs sm:text-sm"><p className="flex items-center font-medium"><Layers className="w-3.5 h-3.5 mr-1 text-gray-400" /> Projects</p><p className={`${illuminateTextBlue} font-semibold text-xs`}>{projects.filter(p => p.data.completed).length}/{projects.length} ({projectsProgress}%)</p></div><div className={`w-full h-1.5 ${isIlluminateEnabled ? 'bg-gray-200' : 'bg-gray-600'} rounded-full overflow-hidden`}><div className="h-full bg-gradient-to-r from-blue-400 to-blue-500 rounded-full transition-all duration-700 ease-out" style={{ width: `${projectsProgress}%` }} /></div></div>)}
-                            {plans.length > 0 && (<div> <div className="flex justify-between items-center mb-0.5 text-xs sm:text-sm"><p className="flex items-center font-medium"><Rocket className="w-3.5 h-3.5 mr-1 text-gray-400" /> Plans</p><p className={`${illuminateTextYellow} font-semibold text-xs`}>{plans.filter(p => p.data.completed).length}/{plans.length} ({plansProgress}%)</p></div><div className={`w-full h-1.5 ${isIlluminateEnabled ? 'bg-gray-200' : 'bg-gray-600'} rounded-full overflow-hidden`}><div className="h-full bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-full transition-all duration-700 ease-out" style={{ width: `${plansProgress}%` }} /></div></div>)} </>
-                    ) : <p className={`${subheadingClass} text-xs sm:text-sm flex items-center justify-center py-4 italic`}><Lightbulb className="w-4 h-4 mr-1.5 text-yellow-400" />Add items to track your progress.</p>}
+                         <> {tasks.length > 0 && (<div> <div className="flex justify-between items-center mb-1 text-sm"><p className="flex items-center font-medium"><ClipboardList className={`w-4 h-4 mr-1.5 ${generalIconColor}`} /> Tasks</p><p className={`${brandColors.green} font-semibold text-xs`}>{tasks.filter(t => t.data.completed).length}/{tasks.length} ({tasksProgress}%)</p></div><div className={`w-full h-2 ${themeMode === 'light' ? 'bg-gray-200' : 'bg-neutral-700'} rounded-full overflow-hidden`}><div className="h-full bg-gradient-to-r from-green-400 to-green-500 rounded-full transition-all duration-700 ease-out" style={{ width: `${tasksProgress}%` }} /></div></div>)}
+                            {goals.length > 0 && (<div> <div className="flex justify-between items-center mb-1 text-sm"><p className="flex items-center font-medium"><Target className={`w-4 h-4 mr-1.5 ${generalIconColor}`} /> Goals</p><p className={`${brandColors.pink} font-semibold text-xs`}>{goals.filter(g => g.data.completed).length}/{goals.length} ({goalsProgress}%)</p></div><div className={`w-full h-2 ${themeMode === 'light' ? 'bg-gray-200' : 'bg-neutral-700'} rounded-full overflow-hidden`}><div className="h-full bg-gradient-to-r from-pink-400 to-pink-500 rounded-full transition-all duration-700 ease-out" style={{ width: `${goalsProgress}%` }} /></div></div>)}
+                            {projects.length > 0 && (<div> <div className="flex justify-between items-center mb-1 text-sm"><p className="flex items-center font-medium"><Layers className={`w-4 h-4 mr-1.5 ${generalIconColor}`} /> Projects</p><p className={`${brandColors.blue} font-semibold text-xs`}>{projects.filter(p => p.data.completed).length}/{projects.length} ({projectsProgress}%)</p></div><div className={`w-full h-2 ${themeMode === 'light' ? 'bg-gray-200' : 'bg-neutral-700'} rounded-full overflow-hidden`}><div className="h-full bg-gradient-to-r from-blue-400 to-blue-500 rounded-full transition-all duration-700 ease-out" style={{ width: `${projectsProgress}%` }} /></div></div>)}
+                            {plans.length > 0 && (<div> <div className="flex justify-between items-center mb-1 text-sm"><p className="flex items-center font-medium"><Rocket className={`w-4 h-4 mr-1.5 ${generalIconColor}`} /> Plans</p><p className={`${brandColors.yellow} font-semibold text-xs`}>{plans.filter(p => p.data.completed).length}/{plans.length} ({plansProgress}%)</p></div><div className={`w-full h-2 ${themeMode === 'light' ? 'bg-gray-200' : 'bg-neutral-700'} rounded-full overflow-hidden`}><div className="h-full bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-full transition-all duration-700 ease-out" style={{ width: `${plansProgress}%` }} /></div></div>)} </>
+                    ) : <p className={`${subheadingClass} text-sm flex items-center justify-center py-6 italic`}><Lightbulb className="w-4 h-4 mr-2 text-yellow-400" />Add items to track your progress here.</p>}
                  </div> )}
             </div>
 
-            <div className={`${cardClass} rounded-xl p-4 sm:p-5 transition-all duration-300`}>
-               <h2 className={`text-base sm:text-lg font-semibold mb-3 ${illuminateTextBlue} flex items-center`}>
-                 <Calendar className="w-5 h-5 mr-1.5" /> Upcoming
-               </h2>
-               {(() => {
-                   const allItems = [...tasks, ...goals, ...projects, ...plans]; const now = new Date(); const nowDateNormalized = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                   const upcomingDeadlines = allItems.filter(item => { const { dueDate, completed } = item.data; if (!dueDate || completed) return false; try { const dueDateObj = dueDate.toDate ? dueDate.toDate() : new Date(dueDate); const dueDateNormalized = new Date(dueDateObj.getFullYear(), dueDateObj.getMonth(), dueDateObj.getDate()); return dueDateNormalized >= nowDateNormalized; } catch { return false; } }).sort((a, b) => { try { const aDate = a.data.dueDate.toDate ? a.data.dueDate.toDate() : new Date(a.data.dueDate); const bDate = b.data.dueDate.toDate ? b.data.dueDate.toDate() : new Date(b.data.dueDate); return aDate.getTime() - bDate.getTime(); } catch { return 0; } }).slice(0, 5);
-                 if (!upcomingDeadlines.length) return ( <p className={`${subheadingClass} text-xs sm:text-sm flex items-center justify-center py-4 italic`}> <CheckCircle className="w-4 h-4 mr-1.5 text-green-400" /> All caught up! No upcoming deadlines. </p> );
-                 return ( <ul className="space-y-2"> {upcomingDeadlines.map((item, index) => { const { id, data } = item; const itemType = data.task ? 'Task' : data.goal ? 'Goal' : data.project ? 'Project' : 'Plan'; const dueDateObj = data.dueDate.toDate ? data.dueDate.toDate() : new Date(data.dueDate); const dueDateStr = dueDateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); const itemName = data[itemType.toLowerCase()] || 'Untitled'; const dueDateNormalized = new Date(dueDateObj.getFullYear(), dueDateObj.getMonth(), dueDateObj.getDate()); const daysRemaining = Math.ceil((dueDateNormalized.getTime() - nowDateNormalized.getTime()) / (1000 * 60 * 60 * 24)); let urgencyColorClass = isIlluminateEnabled ? 'border-l-gray-300' : 'border-l-gray-600'; let urgencyText = `${daysRemaining} days`; let urgencyTextClass = isIlluminateEnabled ? 'text-green-600' : 'text-green-400'; let urgencyBgClass = isIlluminateEnabled ? 'bg-green-100 text-green-600' : 'bg-green-900/50 text-green-400'; if (daysRemaining === 0) { urgencyColorClass = 'border-l-red-500'; urgencyText = 'Today!'; urgencyTextClass = isIlluminateEnabled ? 'text-red-600' : 'text-red-400'; urgencyBgClass = isIlluminateEnabled ? 'bg-red-100 text-red-600' : 'bg-red-900/50 text-red-400'; } else if (daysRemaining === 1) { urgencyColorClass = 'border-l-orange-500'; urgencyText = 'Tomorrow!'; urgencyTextClass = isIlluminateEnabled ? 'text-orange-600' : 'text-orange-400'; urgencyBgClass = isIlluminateEnabled ? 'bg-orange-100 text-orange-600' : 'bg-orange-900/50 text-orange-400'; } else if (daysRemaining <= 3) { urgencyColorClass = 'border-l-yellow-500'; urgencyTextClass = isIlluminateEnabled ? 'text-yellow-700' : 'text-yellow-400'; urgencyBgClass = isIlluminateEnabled ? 'bg-yellow-100 text-yellow-700' : 'bg-yellow-900/50 text-yellow-400'; } const priority = data.priority || calculatePriority(item);
-                       return ( <li key={id} className={`${isIlluminateEnabled ? 'bg-gray-100/80 hover:bg-gray-200/60' : 'bg-gray-700/40 hover:bg-gray-700/60'} p-2.5 rounded-lg transition-colors duration-150 border-l-4 ${urgencyColorClass} animate-slideInRight flex items-center justify-between gap-2`} style={{ animationDelay: `${index * 60}ms` }}> <div className="flex-grow overflow-hidden mr-2"> <div className="text-xs sm:text-sm font-medium flex items-center"> <span className={`font-semibold mr-1 ${isIlluminateEnabled ? 'text-gray-700' : 'text-gray-200'}`}>{itemType}:</span> <span className="truncate" title={itemName}>{itemName}</span> <PriorityBadge priority={priority} isIlluminateEnabled={isIlluminateEnabled} className="ml-1.5 flex-shrink-0" /> </div> </div> <div className={`text-[10px] sm:text-xs flex-shrink-0 ${isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'} flex items-center whitespace-nowrap`}> <Clock className={`w-3 h-3 mr-0.5 ${urgencyTextClass}`} /> <span className={`font-medium mr-1.5 ${urgencyTextClass}`}>{dueDateStr}</span> {urgencyText && (<span className={`px-1.5 py-0.5 rounded-full text-[9px] font-medium ${urgencyBgClass}`}>{urgencyText}</span>)} </div> </li>); })} </ul>);
-               })()}
-             </div>
-
-
-             <div className={`${cardClass} rounded-xl p-4 sm:p-5 transition-all duration-300 flex flex-col`}>
+             <div className={`${cardClass} rounded-lg p-4 sm:p-5 transition-all duration-300 opacity-0 animate-fadeIn`} style={{animationDelay: '400ms', animationFillMode: 'forwards'}}>
+               <div className="flex justify-between items-center mb-4">
+                 <h2 className={`text-lg font-semibold ${headingClass}`}>My Workspace</h2>
+                 <Link to="/all-items" className={`text-xs font-medium flex items-center gap-1 ${brandColors.blue} hover:underline`}>View All <ArrowRight className="w-3 h-3" /></Link>
+               </div>
                <div className="overflow-x-auto no-scrollbar mb-4">
-                 <div className={`flex space-x-1.5 w-full border-b pb-2 ${tabBorderColor}`}>
-                   {["tasks", "goals", "projects", "plans"].map((tab) => ( <button key={tab} className={`px-3 py-1.5 rounded-full transition-all duration-200 transform hover:scale-[1.03] text-xs sm:text-sm font-medium flex items-center whitespace-nowrap ${activeTab === tab ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-sm" : isIlluminateEnabled ? "bg-gray-100 text-gray-600 hover:bg-gray-200" : "bg-gray-700 text-gray-300 hover:bg-gray-600"}`} onClick={() => handleTabChange(tab as "tasks" | "goals" | "projects" | "plans")}> {tab === "tasks" && <Clipboard className="w-3.5 h-3.5 mr-1" />} {tab === "goals" && <Target className="w-3.5 h-3.5 mr-1" />} {tab === "projects" && <Layers className="w-3.5 h-3.5 mr-1" />} {tab === "plans" && <Rocket className="w-3.5 h-3.5 mr-1" />} {tab.charAt(0).toUpperCase() + tab.slice(1)} </button>))}
+                 <div className={`flex space-x-1 border-b pb-0 ${tabBorderColor}`}>
+                   {["tasks", "goals", "projects", "plans"].map((tab) => ( <button key={tab} className={`px-3 py-2.5 rounded-t-md transition-colors duration-200 text-sm font-medium flex items-center whitespace-nowrap border-b-2 ${activeTab === tab ? `${brandColors.blue} border-current` : `${themeMode === 'light' ? "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300" : "border-transparent text-gray-400 hover:text-gray-200 hover:border-neutral-600"}`}`} onClick={() => handleTabChange(tab as "tasks" | "goals" | "projects" | "plans")}> {tab === "tasks" && <ClipboardList className="w-4 h-4 mr-1.5" />} {tab === "goals" && <Target className="w-4 h-4 mr-1.5" />} {tab === "projects" && <Layers className="w-4 h-4 mr-1.5" />} {tab === "plans" && <Rocket className="w-4 h-4 mr-1.5" />} {tab.charAt(0).toUpperCase() + tab.slice(1)} </button>))}
                  </div>
                </div>
-               <div className="flex flex-col md:flex-row gap-1.5 mb-4">
-                 <input type="text" className={`flex-grow ${inputBg} rounded-full px-3.5 py-1.5 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-150 shadow-sm`} placeholder={`Add a new ${activeTab.slice(0, -1)}...`} value={newItemText} onChange={(e) => setNewItemText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleCreate()} />
-                 <div className="flex gap-1.5 flex-shrink-0">
-                   <input type="date" className={`${inputBg} rounded-full px-3 py-1.5 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-150 w-auto shadow-sm appearance-none ${iconColor}`} value={newItemDate} onChange={(e) => setNewItemDate(e.target.value)} title="Set due date" style={{ colorScheme: isIlluminateEnabled ? 'light' : 'dark' }} />
-                   <div className="relative"> <select className={`${inputBg} rounded-full pl-3 pr-7 py-1.5 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-150 shadow-sm appearance-none ${iconColor}`} value={newItemPriority} onChange={(e) => setNewItemPriority(e.target.value as 'high' | 'medium' | 'low')} title="Set priority"> <option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option> </select> <ChevronDown className={`w-3.5 h-3.5 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none ${iconColor}`} /> </div>
-                   <button className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white p-2 rounded-full flex items-center justify-center hover:shadow-md hover:shadow-purple-500/20 transition-all duration-200 transform hover:scale-105 active:scale-100 min-w-[32px] min-h-[32px]" onClick={handleCreate} title={`Add new ${activeTab.slice(0,-1)}`}><PlusCircle className="w-4 h-4" /></button>
+               <div className="flex flex-col md:flex-row gap-2 mb-4">
+                 <input type="text" className={`flex-grow ${inputBg} rounded-md px-3.5 py-2 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-150 shadow-sm`} placeholder={`Add a new ${activeTab.slice(0, -1)}...`} value={newItemText} onChange={(e) => setNewItemText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleCreate()} />
+                 <div className="flex gap-2 flex-shrink-0">
+                   <input type="date" className={`${inputBg} rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-150 w-auto shadow-sm appearance-none ${generalIconColor}`} value={newItemDate} onChange={(e) => setNewItemDate(e.target.value)} title="Set due date" style={{ colorScheme: themeMode }} />
+                   <div className="relative"> <select className={`${inputBg} rounded-md pl-3 pr-8 py-2 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-150 shadow-sm appearance-none ${generalIconColor}`} value={newItemPriority} onChange={(e) => setNewItemPriority(e.target.value as 'high' | 'medium' | 'low')} title="Set priority"> <option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option> </select> <ChevronDown className={`w-4 h-4 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none ${generalIconColor}`} /> </div>
+                   <button className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white p-2.5 rounded-md flex items-center justify-center hover:shadow-md hover:shadow-purple-500/20 transition-all duration-200 transform hover:scale-105 active:scale-100 min-w-[36px] min-h-[36px]" onClick={handleCreate} title={`Add new ${activeTab.slice(0,-1)}`}><PlusCircle className="w-4 h-4" /></button>
                  </div>
                </div>
-               <ul className="space-y-1.5 sm:space-y-2 flex-grow overflow-y-auto pr-1" style={{ maxHeight: 'calc(100vh - 550px)', minHeight: '250px' }}>
-                 {currentItems.length === 0 ? <li className={`${subheadingClass} text-sm text-center py-6 italic`}>No {activeTab} here yet... Add one above!</li>
+               <ul className={`space-y-2 flex-grow overflow-y-auto pr-1 scrollbar-thin ${themeMode === 'light' ? 'scrollbar-thumb-gray-300 scrollbar-track-gray-100' : 'scrollbar-thumb-neutral-600 scrollbar-track-neutral-700'}`} style={{ maxHeight: 'calc(100vh - 620px)', minHeight: '280px' }}>
+                 {currentItems.length === 0 ? <li className={`${subheadingClass} text-sm text-center py-10 italic flex flex-col items-center`}><Folder className="w-10 h-10 mb-2 opacity-50"/>No {activeTab} here yet. Add one above!</li>
                  : currentItems.sort((a, b) => { const po = { high: 0, medium: 1, low: 2 }; const ap = po[calculatePriority(a)]; const bp = po[calculatePriority(b)]; if (ap !== bp) return ap - bp; const ad = a.data.dueDate?.toDate ? a.data.dueDate.toDate() : (a.data.dueDate ? new Date(a.data.dueDate) : null); const bd = b.data.dueDate?.toDate ? b.data.dueDate.toDate() : (b.data.dueDate ? new Date(b.data.dueDate) : null); if (ad && bd) return ad.getTime() - bd.getTime(); if (ad) return -1; if (bd) return 1; return (b.data.createdAt?.seconds || 0) - (a.data.createdAt?.seconds || 0); })
                      .map((item, index) => {
                        const itemId = item.id; const { data } = item; const textValue = data[titleField] || 'Untitled'; const isCompleted = data.completed || false; const isEditing = editingItemId === itemId; const priority = data.priority || calculatePriority(item); let dueDateStr = ''; let overdue = false;
                        if (data.dueDate) { try { const ddo = data.dueDate.toDate ? data.dueDate.toDate() : new Date(data.dueDate); if (!isNaN(ddo.getTime())) { dueDateStr = ddo.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); const td = new Date(); const todayNormalized = new Date(td.getFullYear(), td.getMonth(), td.getDate()); const itemDateNormalized = new Date(ddo.getFullYear(), ddo.getMonth(), ddo.getDate()); overdue = itemDateNormalized < todayNormalized && !isCompleted; }} catch {} }
                        return (
-                         <li key={item.id} className={`group p-2 sm:p-2.5 rounded-lg flex flex-col md:flex-row md:items-center md:justify-between gap-1.5 md:gap-2 transition-all duration-150 animate-slideInUp ${isCompleted ? (isIlluminateEnabled ? 'bg-green-100/50 opacity-60' : 'bg-green-900/20 opacity-50') : overdue ? (isIlluminateEnabled ? 'bg-red-100/60' : 'bg-red-900/30') : isIlluminateEnabled ? 'bg-gray-100/70 hover:bg-gray-200/50' : 'bg-gray-700/30 hover:bg-gray-700/50'} ${isEditing ? (isIlluminateEnabled ? 'ring-1 ring-purple-400 bg-purple-50/50' : 'ring-1 ring-purple-500 bg-purple-900/20') : ''}`} style={{ animationDelay: `${index * 50}ms` }}>
-                           {!isEditing ? (<> <div className="flex items-center gap-2 flex-grow overflow-hidden mr-2">
-                                 <button onClick={() => handleMarkComplete(itemId, activeTab)} className={`flex-shrink-0 p-0.5 rounded-full transition-colors duration-150 ${isCompleted ? (isIlluminateEnabled ? 'bg-green-500 border-green-500' : 'bg-green-600 border-green-600') : (isIlluminateEnabled ? 'border border-gray-400 hover:border-green-500 hover:bg-green-100/50' : 'border border-gray-500 hover:border-green-500 hover:bg-green-900/30')} `} title={isCompleted ? "Mark Pending" : "Mark Complete"}><CheckCircle className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isCompleted ? 'text-white' : 'text-transparent'}`} /></button>
-                                 <span className={`font-medium text-sm sm:text-[0.9rem] truncate ${isCompleted ? 'line-through text-gray-500 dark:text-gray-600' : (isIlluminateEnabled ? 'text-gray-800' : 'text-gray-100')}`} title={textValue}>{textValue}</span>
-                                 <PriorityBadge priority={priority} isIlluminateEnabled={isIlluminateEnabled} className="flex-shrink-0 ml-auto sm:ml-1.5" />
-                                 {dueDateStr && <span className={`text-[10px] sm:text-xs font-medium px-1.5 py-0.5 rounded-full whitespace-nowrap flex-shrink-0 hidden sm:flex items-center ${overdue ? (isIlluminateEnabled ? 'bg-red-200 text-red-700' : 'bg-red-800/50 text-red-300') : (isIlluminateEnabled ? 'bg-gray-200 text-gray-600' : 'bg-gray-600/80 text-gray-300')}`}><Calendar className="w-2.5 h-2.5 mr-0.5" />{dueDateStr}</span>}
-                               </div> <div className="flex gap-1 flex-shrink-0 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150">
-                                 <button className={`p-1.5 rounded-lg ${isIlluminateEnabled ? 'hover:bg-blue-100 text-blue-600' : 'hover:bg-blue-900/50 text-blue-400'} transition-colors`} onClick={() => handleEditClick(itemId, data)} title="Edit"><Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></button>
-                                 <button className={`p-1.5 rounded-lg ${isIlluminateEnabled ? 'hover:bg-red-100 text-red-600' : 'hover:bg-red-900/50 text-red-500'} transition-colors`} onClick={() => handleDelete(itemId)} title="Delete"><Trash className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></button>
+                         <li key={item.id} className={`group p-2.5 rounded-md flex flex-col md:flex-row md:items-center md:justify-between gap-2 transition-all duration-200 opacity-0 animate-slideInUp ${isCompleted ? (themeMode === 'light' ? 'bg-green-50/60 opacity-60' : 'bg-green-900/30 opacity-50') : overdue ? (themeMode === 'light' ? 'bg-red-50/70' : 'bg-red-900/40') : themeMode === 'light' ? 'bg-gray-50/80 hover:bg-gray-100' : 'bg-neutral-700/40 hover:bg-neutral-700/60'} ${isEditing ? (themeMode === 'light' ? 'ring-2 ring-purple-400 bg-purple-50/50' : 'ring-2 ring-purple-500 bg-purple-900/30') : ''}`} style={{ animationDelay: `${index * 60}ms`, animationFillMode: 'forwards'}}>
+                           {!isEditing ? (<> <div className="flex items-center gap-2.5 flex-grow overflow-hidden mr-2">
+                                 <button onClick={() => handleMarkComplete(itemId, activeTab)} className={`flex-shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all duration-150 ${isCompleted ? (themeMode === 'light' ? 'bg-green-500 border-green-500' : 'bg-green-600 border-green-600') : (themeMode === 'light' ? 'border-gray-400 hover:border-green-500 bg-white' : 'border-neutral-500 hover:border-green-500 bg-neutral-800')} `} title={isCompleted ? "Mark Pending" : "Mark Complete"}><Check className={`w-3 h-3 transition-opacity duration-100 ${isCompleted ? 'text-white opacity-100' : 'opacity-0'}`} /></button>
+                                 <span className={`font-medium text-sm truncate ${isCompleted ? 'line-through text-gray-500 dark:text-neutral-500' : (themeMode === 'light' ? 'text-gray-800' : 'text-gray-100')}`} title={textValue}>{textValue}</span>
+                                 <PriorityBadge priority={priority} isIlluminateEnabled={themeMode === 'light'} className="flex-shrink-0 ml-auto sm:ml-2" />
+                                 {dueDateStr && <span className={`text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0 hidden sm:flex items-center ${overdue ? (themeMode === 'light' ? 'bg-red-100 text-red-600' : 'bg-red-800/50 text-red-300') : (themeMode === 'light' ? 'bg-gray-200 text-gray-600' : 'bg-neutral-600 text-gray-300')}`}><Calendar className="w-3 h-3 mr-1" />{dueDateStr}</span>}
+                               </div> <div className="flex gap-1.5 flex-shrink-0 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150">
+                                 <button className={`p-1.5 rounded-md ${themeMode === 'light' ? 'hover:bg-blue-100 text-blue-600' : 'hover:bg-blue-900/50 text-blue-400'} transition-colors`} onClick={() => handleEditClick(itemId, data)} title="Edit"><Edit className="w-4 h-4" /></button>
+                                 <button className={`p-1.5 rounded-md ${themeMode === 'light' ? 'hover:bg-red-100 text-red-600' : 'hover:bg-red-900/50 text-red-500'} transition-colors`} onClick={() => handleDelete(itemId)} title="Delete"><Trash className="w-4 h-4" /></button>
                                </div></>)
-                           : (<> <div className="flex flex-col sm:flex-row gap-1.5 w-full">
-                                   <input className={`flex-grow ${inputBg} rounded-full px-3 py-1 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-150 shadow-sm`} value={editingText} onChange={(e) => setEditingText(e.target.value)} autoFocus onKeyDown={(e) => { if (e.key === 'Enter') handleEditSave(itemId); if (e.key === 'Escape') setEditingItemId(null); }}/>
-                                    <div className="flex gap-1.5 flex-shrink-0">
-                                        <input type="date" className={`${inputBg} rounded-full px-3 py-1 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-150 w-auto shadow-sm appearance-none ${iconColor}`} value={editingDate} onChange={(e) => setEditingDate(e.target.value)} style={{ colorScheme: isIlluminateEnabled ? 'light' : 'dark' }}/>
-                                        <div className="relative"> <select className={`${inputBg} rounded-full pl-3 pr-7 py-1 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-150 shadow-sm appearance-none ${iconColor}`} value={editingPriority} onChange={(e) => setEditingPriority(e.target.value as 'high' | 'medium' | 'low')}> <option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option> </select> <ChevronDown className={`w-3.5 h-3.5 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none ${iconColor}`} /> </div></div></div>
-                                 <div className="flex gap-1 flex-shrink-0 mt-1 sm:mt-0 self-end sm:self-center">
-                                   <button className="bg-green-500 hover:bg-green-600 px-3 py-1 rounded-full text-white transition-colors text-xs sm:text-sm font-medium" onClick={() => handleEditSave(itemId)}>Save</button>
-                                   <button className="bg-gray-500 hover:bg-gray-600 px-3 py-1 rounded-full text-white transition-colors text-xs sm:text-sm" onClick={() => setEditingItemId(null)}>Cancel</button>
+                           : (<> <div className="flex flex-col sm:flex-row gap-2 w-full">
+                                   <input className={`flex-grow ${inputBg} rounded-md px-3 py-1.5 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-150 shadow-sm`} value={editingText} onChange={(e) => setEditingText(e.target.value)} autoFocus onKeyDown={(e) => { if (e.key === 'Enter') handleEditSave(itemId); if (e.key === 'Escape') setEditingItemId(null); }}/>
+                                    <div className="flex gap-2 flex-shrink-0">
+                                        <input type="date" className={`${inputBg} rounded-md px-3 py-1.5 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-150 w-auto shadow-sm appearance-none ${generalIconColor}`} value={editingDate} onChange={(e) => setEditingDate(e.target.value)} style={{ colorScheme: themeMode }}/>
+                                        <div className="relative"> <select className={`${inputBg} rounded-md pl-3 pr-8 py-1.5 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-150 shadow-sm appearance-none ${generalIconColor}`} value={editingPriority} onChange={(e) => setEditingPriority(e.target.value as 'high' | 'medium' | 'low')}> <option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option> </select> <ChevronDown className={`w-4 h-4 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none ${generalIconColor}`} /> </div></div></div>
+                                 <div className="flex gap-1.5 flex-shrink-0 mt-1.5 sm:mt-0 self-end sm:self-center">
+                                   <button className="bg-green-500 hover:bg-green-600 px-3 py-1.5 rounded-md text-white transition-colors text-xs font-medium" onClick={() => handleEditSave(itemId)}>Save</button>
+                                   <button className={`${themeMode === 'light' ? 'bg-gray-200 hover:bg-gray-300 text-gray-700' : 'bg-neutral-600 hover:bg-neutral-500 text-gray-200'} px-3 py-1.5 rounded-md transition-colors text-xs`} onClick={() => setEditingItemId(null)}>Cancel</button>
                                  </div> </>)}
                          </li>);
                      })}
@@ -1479,30 +1505,43 @@ Provide only the JSON object.`;
              </div>
            </div>
 
-           <div className="xl:col-span-2 flex flex-col gap-4 sm:gap-5">
-                <div className={`${cardClass} rounded-xl p-4 sm:p-5 transition-all duration-300 flex flex-col`} style={{ minHeight: '600px' }}>
+           <div className="xl:col-span-4 flex flex-col gap-6">
+                <div className={`${cardClass} rounded-lg p-4 sm:p-5 transition-all duration-300 flex flex-col opacity-0 animate-fadeIn`} style={{animationDelay: '500ms', animationFillMode: 'forwards', minHeight: '400px', maxHeight: '600px'}}>
                     <div className="flex items-center justify-between mb-3 sm:mb-4 flex-shrink-0">
-                        <button onClick={handlePreviousMonth} className={`p-2 rounded-full ${iconColor} ${isIlluminateEnabled ? 'hover:bg-gray-100' : 'hover:bg-gray-700'}`} title="Previous Month"><ChevronLeft className="w-5 h-5" /></button>
+                        <button onClick={handlePreviousMonth} className={`p-2 rounded-full ${iconColor} ${themeMode === 'light' ? 'hover:bg-gray-100' : 'hover:bg-neutral-700'} transition-transform hover:scale-110`} title="Previous Month"><ChevronLeft className="w-5 h-5" /></button>
                         <h2 className={`text-lg sm:text-xl font-semibold text-center ${headingClass}`}> {currentDisplayMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })} </h2>
-                        <button onClick={handleNextMonth} className={`p-2 rounded-full ${iconColor} ${isIlluminateEnabled ? 'hover:bg-gray-100' : 'hover:bg-gray-700'}`} title="Next Month"><ChevronRight className="w-5 h-5" /></button>
+                        <button onClick={handleNextMonth} className={`p-2 rounded-full ${iconColor} ${themeMode === 'light' ? 'hover:bg-gray-100' : 'hover:bg-neutral-700'} transition-transform hover:scale-110`} title="Next Month"><ChevronRight className="w-5 h-5" /></button>
                     </div>
                     <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center text-xs sm:text-sm font-medium mb-2 flex-shrink-0"> {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(day => ( <div key={day} className={subheadingClass}>{day}</div> ))} </div>
-                    <div className="grid grid-cols-7 gap-1 sm:gap-2 flex-grow overflow-y-auto"> {renderCalendarDays()} </div>
+                    <div className={`grid grid-cols-7 gap-1 sm:gap-1.5 flex-grow overflow-y-auto scrollbar-thin ${themeMode === 'light' ? 'scrollbar-thumb-gray-300 scrollbar-track-gray-100' : 'scrollbar-thumb-neutral-600 scrollbar-track-neutral-700'}`}> {renderCalendarDays()} </div>
                 </div>
+
+                <div className={`${cardClass} rounded-lg p-4 sm:p-5 transition-all duration-300 opacity-0 animate-fadeIn`} style={{animationDelay: '600ms', animationFillMode: 'forwards'}}>
+                   <h2 className={`text-lg font-semibold mb-3 ${brandColors.orange} flex items-center`}>
+                     <CalendarCheck className="w-5 h-5 mr-2" /> Upcoming Deadlines
+                   </h2>
+                   {(() => {
+                       const allItems = [...tasks, ...goals, ...projects, ...plans]; const now = new Date(); const nowDateNormalized = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                       const upcomingDeadlines = allItems.filter(item => { const { dueDate, completed } = item.data; if (!dueDate || completed) return false; try { const dueDateObj = dueDate.toDate ? dueDate.toDate() : new Date(dueDate); const dueDateNormalized = new Date(dueDateObj.getFullYear(), dueDateObj.getMonth(), dueDateObj.getDate()); return dueDateNormalized >= nowDateNormalized; } catch { return false; } }).sort((a, b) => { try { const aDate = a.data.dueDate.toDate ? a.data.dueDate.toDate() : new Date(a.data.dueDate); const bDate = b.data.dueDate.toDate ? b.data.dueDate.toDate() : new Date(b.data.dueDate); return aDate.getTime() - bDate.getTime(); } catch { return 0; } }).slice(0, 5);
+                     if (!upcomingDeadlines.length) return ( <p className={`${subheadingClass} text-sm flex items-center justify-center py-6 italic`}> <CheckCircle className={`w-5 h-5 mr-2 ${brandColors.green}`} /> All clear! No upcoming items. </p> );
+                     return ( <ul className="space-y-2.5"> {upcomingDeadlines.map((item, index) => { const { id, data } = item; const itemType = data.task ? 'Task' : data.goal ? 'Goal' : data.project ? 'Project' : 'Plan'; const dueDateObj = data.dueDate.toDate ? data.dueDate.toDate() : new Date(data.dueDate); const dueDateStr = dueDateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); const itemName = data[itemType.toLowerCase()] || 'Untitled'; const dueDateNormalized = new Date(dueDateObj.getFullYear(), dueDateObj.getMonth(), dueDateObj.getDate()); const daysRemaining = Math.ceil((dueDateNormalized.getTime() - nowDateNormalized.getTime()) / (1000 * 60 * 60 * 24)); let urgencyBorderClass = themeMode === 'light' ? 'border-l-gray-300' : 'border-l-neutral-600'; let urgencyText = `${daysRemaining} days`; let urgencyTextClass = brandColors.green; let urgencyBadgeClass = brandBgColors.greenLight; if (daysRemaining === 0) { urgencyBorderClass = 'border-l-red-500'; urgencyText = 'Today!'; urgencyTextClass = brandColors.red; urgencyBadgeClass = brandBgColors.redLight; } else if (daysRemaining === 1) { urgencyBorderClass = 'border-l-orange-500'; urgencyText = 'Tomorrow!'; urgencyTextClass = brandColors.orange; urgencyBadgeClass = brandBgColors.orangeLight; } else if (daysRemaining <= 3) { urgencyBorderClass = 'border-l-yellow-500'; urgencyTextClass = brandColors.yellow; urgencyBadgeClass = brandBgColors.yellowLight; } const priority = data.priority || calculatePriority(item);
+                           return ( <li key={id} className={`${themeMode === 'light' ? 'bg-gray-50/80 hover:bg-gray-100' : 'bg-neutral-700/30 hover:bg-neutral-700/50'} p-3 rounded-md transition-all duration-150 border-l-4 ${urgencyBorderClass} opacity-0 animate-slideInRight flex items-center justify-between gap-3`} style={{ animationDelay: `${index * 70}ms`, animationFillMode: 'forwards'}}> <div className="flex-grow overflow-hidden mr-2"> <div className="text-sm font-medium flex items-center"> <span className={`font-semibold mr-1.5 ${strongTextColor}`}>{itemType}:</span> <span className="truncate" title={itemName}>{itemName}</span> <PriorityBadge priority={priority} isIlluminateEnabled={themeMode === 'light'} className="ml-2 flex-shrink-0" /> </div> </div> <div className={`text-xs flex-shrink-0 ${weakTextColor} flex items-center whitespace-nowrap`}> <Clock className={`w-3.5 h-3.5 mr-1 ${urgencyTextClass}`} /> <span className={`font-medium mr-2 ${urgencyTextClass}`}>{dueDateStr}</span> {urgencyText && (<span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${urgencyBadgeClass}`}>{urgencyText}</span>)} </div> </li>); })} </ul>);
+                   })()}
+                 </div>
            </div>
          </div>
       </main>
 
-      <div aria-hidden={!isAiSidebarOpen} className={`fixed top-0 right-0 h-full w-full max-w-sm md:max-w-md lg:max-w-[440px] z-50 transform transition-transform duration-300 ease-in-out ${isAiSidebarOpen ? 'translate-x-0' : 'translate-x-full'} ${cardClass} flex flex-col shadow-2xl border-l ${isIlluminateEnabled ? 'border-gray-200' : 'border-gray-700'}`} role="complementary" aria-labelledby="ai-sidebar-title">
-        <div className={`p-3 sm:p-4 border-b ${isIlluminateEnabled ? 'border-gray-200 bg-gray-100/80' : 'border-gray-700 bg-gray-800/90'} flex justify-between items-center flex-shrink-0 sticky top-0 backdrop-blur-sm z-10`}>
-          <h3 id="ai-sidebar-title" className={`text-base sm:text-lg font-semibold flex items-center gap-2 ${illuminateTextBlue}`}><BrainCircuit className="w-5 h-5" />Chat with TaskMaster</h3>
-          <button onClick={() => setIsAiSidebarOpen(false)} className={`${isIlluminateEnabled ? 'text-gray-500 hover:text-gray-800 hover:bg-gray-200' : 'text-gray-400 hover:text-gray-100 hover:bg-gray-700'} p-1.5 rounded-full transition-colors transform hover:scale-110 active:scale-100`} title="Close Chat" aria-label="Close AI Chat Sidebar"><X className="w-5 h-5" /></button>
+      <div aria-hidden={!isAiSidebarOpen} className={`fixed top-0 right-0 h-full w-full max-w-sm md:max-w-md lg:max-w-[460px] z-50 transform transition-transform duration-300 ease-in-out ${isAiSidebarOpen ? 'translate-x-0' : 'translate-x-full'} ${cardClass} flex flex-col shadow-2xl border-l ${themeMode === 'light' ? 'border-gray-200' : 'border-neutral-700'}`} role="complementary" aria-labelledby="ai-sidebar-title">
+        <div className={`p-3 sm:p-4 border-b ${themeMode === 'light' ? 'border-gray-200 bg-gray-50/80' : 'border-neutral-700 bg-neutral-800/90'} flex justify-between items-center flex-shrink-0 sticky top-0 backdrop-blur-md z-10`}>
+          <h3 id="ai-sidebar-title" className={`text-lg font-semibold flex items-center gap-2 ${brandColors.blue}`}><BrainCircuit className="w-5 h-5" />TaskMaster AI</h3>
+          <button onClick={() => setIsAiSidebarOpen(false)} className={`${themeMode === 'light' ? 'text-gray-500 hover:text-gray-800 hover:bg-gray-200' : 'text-gray-400 hover:text-gray-100 hover:bg-neutral-700'} p-1.5 rounded-full transition-colors transform hover:scale-110 active:scale-100`} title="Close Chat" aria-label="Close AI Chat Sidebar"><X className="w-5 h-5" /></button>
         </div>
 
-        <div className={`flex border-b ${isIlluminateEnabled ? 'border-gray-200' : 'border-gray-700'} flex-shrink-0`}>
+        <div className={`flex border-b ${themeMode === 'light' ? 'border-gray-200' : 'border-neutral-700'} flex-shrink-0`}>
             {['Chat', 'History', 'Analytics'].map(tabName => (
                 <button key={tabName} onClick={() => setAiChatSidebarTab(tabName.toLowerCase() as any)}
-                    className={`flex-1 py-2.5 px-3 text-xs sm:text-sm font-medium transition-colors rounded-t-none ${aiChatSidebarTab === tabName.toLowerCase() ? `${isIlluminateEnabled ? 'bg-blue-100 text-blue-700 border-b-2 border-blue-600' : 'bg-gray-700 text-blue-300 border-b-2 border-blue-400'}` : `${isIlluminateEnabled ? 'hover:bg-gray-100 text-gray-600' : 'hover:bg-gray-700/60 text-gray-400'}`}`}>
+                    className={`flex-1 py-3 px-3 text-sm font-medium transition-colors border-b-2 ${aiChatSidebarTab === tabName.toLowerCase() ? `${brandColors.blue} border-current` : `${themeMode === 'light' ? 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-neutral-600'}`}`}>
                     {tabName}
                 </button>
             ))}
@@ -1510,28 +1549,28 @@ Provide only the JSON object.`;
         
         {aiChatSidebarTab === 'chat' && (
             <>
-            <div className="flex-1 overflow-y-auto p-3 space-y-3" ref={chatEndRef}>
+            <div className={`flex-1 overflow-y-auto p-3 space-y-3.5 scrollbar-thin ${themeMode === 'light' ? 'scrollbar-thumb-gray-300 scrollbar-track-gray-100' : 'scrollbar-thumb-neutral-600 scrollbar-track-neutral-700'}`} ref={chatEndRef}>
                 {!conversationId && (
-                     <div className="text-center py-10">
-                        <MessageCircle className={`w-12 h-12 mx-auto mb-3 ${subheadingClass}`} />
-                        <p className={`${subheadingClass} text-sm`}>Select a conversation from History or start a new one.</p>
-                        <button onClick={handleNewConversation} className={`mt-4 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${isIlluminateEnabled ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
-                            <PlusCircle className="w-4 h-4 inline mr-1.5" /> New Chat
+                     <div className="text-center py-12 flex flex-col items-center opacity-0 animate-fadeIn" style={{animationFillMode: 'forwards'}}>
+                        <MessageCircle className={`w-12 h-12 mx-auto mb-4 ${subheadingClass}`} />
+                        <p className={`${subheadingClass} text-sm`}>Select a conversation or start a new one.</p>
+                        <button onClick={handleNewConversation} className={`mt-5 px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center ${themeMode === 'light' ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-blue-600 text-white hover:bg-blue-500'}`}>
+                            <PlusCircle className="w-4 h-4 inline mr-2" /> New Chat
                         </button>
                     </div>
                 )}
-                {conversationId && chatHistory.map((message, index) => ( <div key={message.id || index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-fadeIn`} style={{ animationDelay: `${index * 30}ms`, animationDuration: '300ms' }}>
-                    <div className={`max-w-[85%] rounded-xl px-3.5 py-2 text-sm shadow-md break-words ${message.role === 'user' ? (isIlluminateEnabled ? 'bg-blue-500 text-white' : 'bg-blue-600 text-white') : message.error ? (isIlluminateEnabled ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-red-900/30 text-red-300 border border-red-700/50') : (isIlluminateEnabled ? 'bg-gray-100 text-gray-800 border border-gray-200/80' : 'bg-gray-700/80 text-gray-200 border border-gray-600/50')}`}>
-                        {message.content && message.content !== "..." && <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]} components={{ p: ({node, ...props}) => <p className="mb-1 last:mb-0" {...props} />, ul: ({node, ...props}) => <ul className="list-disc list-outside ml-4 mb-1 text-xs sm:text-sm" {...props} />, ol: ({node, ...props}) => <ol className="list-decimal list-outside ml-4 mb-1 text-xs sm:text-sm" {...props} />, li: ({node, ...props}) => <li className="mb-0.5" {...props} />, a: ({node, ...props}) => <a className="text-blue-500 hover:underline" target="_blank" rel="noopener noreferrer" {...props} />, code: ({ node, inline, className, children, ...props }) => { const match = /language-(\w+)/.exec(className || ''); return !inline ? (<pre className={`!bg-black/40 p-2 rounded-md overflow-x-auto my-1 text-[11px] leading-snug ${className}`} {...props}><code className={`language-${match?.[1] || 'plaintext'}`}>{children}</code></pre>) : (<code className={`!bg-black/20 px-1 rounded text-xs ${className}`} {...props}>{children}</code>); }, }}>{message.content}</ReactMarkdown>}
-                        {message.content === "..." && isChatLoading && message.id === assistantLoadingPlaceholderId && <div className="flex space-x-1 p-1"><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce opacity-60"></div><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce delay-100 opacity-60"></div><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce delay-200 opacity-60"></div></div>}
+                {conversationId && chatHistory.map((message, index) => ( <div key={message.id || index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} opacity-0 animate-fadeIn`} style={{ animationDelay: `${index * 40}ms`, animationDuration: '300ms', animationFillMode: 'forwards'}}>
+                    <div className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm shadow-md break-words ${message.role === 'user' ? (themeMode === 'light' ? 'bg-blue-500 text-white' : 'bg-blue-600 text-white') : message.error ? brandBgColors.redLight : (themeMode === 'light' ? 'bg-gray-100 text-gray-800 border border-gray-200/80' : 'bg-neutral-700 text-gray-200 border border-neutral-600/50')}`}>
+                        {message.content && message.content !== "..." && <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]} components={{ p: ({node, ...props}) => <p className="mb-1.5 last:mb-0" {...props} />, ul: ({node, ...props}) => <ul className="list-disc list-outside ml-4 mb-1.5 text-sm" {...props} />, ol: ({node, ...props}) => <ol className="list-decimal list-outside ml-4 mb-1.5 text-sm" {...props} />, li: ({node, ...props}) => <li className="mb-0.5" {...props} />, a: ({node, ...props}) => <a className={`${brandColors.blue} hover:underline`} target="_blank" rel="noopener noreferrer" {...props} />, code: ({ node, inline, className, children, ...props }) => { const match = /language-(\w+)/.exec(className || ''); return !inline ? (<pre className={`!bg-black/50 p-2.5 rounded-md overflow-x-auto my-1.5 text-xs leading-relaxed ${className}`} {...props}><code className={`language-${match?.[1] || 'plaintext'}`}>{children}</code></pre>) : (<code className={`!bg-black/30 px-1.5 py-0.5 rounded text-xs ${className}`} {...props}>{children}</code>); }, }}>{message.content}</ReactMarkdown>}
+                        {message.content === "..." && isChatLoading && message.id === assistantLoadingPlaceholderId && <div className="flex space-x-1.5 p-1.5"><div className="w-2 h-2 bg-current rounded-full animate-bounce opacity-70"></div><div className="w-2 h-2 bg-current rounded-full animate-bounce delay-150 opacity-70"></div><div className="w-2 h-2 bg-current rounded-full animate-bounce delay-300 opacity-70"></div></div>}
                         {message.role === 'user' && message.attachedFilesMeta && message.attachedFilesMeta.length > 0 && (
-                            <div className={`p-2 rounded-lg text-xs ${isIlluminateEnabled ? 'bg-blue-50 border border-blue-200' : 'bg-blue-900/30 border border-blue-700/50'} mt-2`}>
+                            <div className={`p-2.5 rounded-lg text-xs ${themeMode === 'light' ? 'bg-blue-100 border border-blue-200' : 'bg-blue-900/40 border border-blue-700/40'} mt-2.5 space-y-1.5`}>
                                 {message.attachedFilesMeta.filter(f => f.type.startsWith("image/") && (f.localPreviewUrl || f.url)).map(imgFile => (
-                                    <img key={imgFile.name} src={imgFile.url || imgFile.localPreviewUrl} alt={imgFile.name} className="max-w-full h-auto max-h-40 object-contain rounded-md border border-gray-300 dark:border-gray-600 cursor-pointer mb-1.5" onClick={() => window.open(imgFile.url || imgFile.localPreviewUrl, '_blank')} title="View full image"/>
+                                    <img key={imgFile.name} src={imgFile.url || imgFile.localPreviewUrl} alt={imgFile.name} className="max-w-full h-auto max-h-48 object-contain rounded-md border border-gray-300 dark:border-neutral-600 cursor-pointer" onClick={() => window.open(imgFile.url || imgFile.localPreviewUrl, '_blank')} title="View full image"/>
                                 ))}
                                 {message.attachedFilesMeta.filter(f => !f.type.startsWith("image/")).map(file => (
-                                    <div key={file.name} className="flex items-center gap-1.5 py-1">
-                                        <FileText className="w-3.5 h-3.5 flex-shrink-0" />
+                                    <div key={file.name} className="flex items-center gap-2 py-1">
+                                        <FileText className="w-4 h-4 flex-shrink-0" />
                                         <span className="truncate" title={file.name}>{file.name}</span>
                                         <span className="text-[10px] opacity-70 ml-auto">({formatBytes(file.size)})</span>
                                     </div>
@@ -1539,41 +1578,41 @@ Provide only the JSON object.`;
                             </div>
                         )}
                          {message.role === 'assistant' && message.imageUrl && message.wasImageGenerated && (
-                            <div className={`relative group mt-2 ${message.content && message.content !== "..." && message.content !== "Generated image:" ? (isIlluminateEnabled ? 'border-t border-gray-300/50 pt-2' : 'border-t border-gray-600/50 pt-2') : ''}`}>
-                                <img src={message.imageUrl} alt={message.imageMeta?.name || "Generated image"} className="max-w-full h-auto max-h-60 object-contain rounded-lg border border-gray-400 dark:border-gray-600 cursor-pointer" onClick={() => window.open(message.imageUrl, '_blank')} title="View full image"/>
-                                <button onClick={() => handleDownloadImageFromUrl(message.imageUrl!, message.imageMeta?.name)} className={`absolute top-1.5 right-1.5 p-1.5 rounded-full opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-200 ${isIlluminateEnabled ? 'bg-gray-200 hover:bg-gray-300 text-gray-600' : 'bg-gray-600 hover:bg-gray-500 text-gray-300'}`} title="Download Image">
-                                    <Download className="w-3.5 h-3.5" />
+                            <div className={`relative group mt-2.5 ${message.content && message.content !== "..." && message.content !== "Generated image:" ? (themeMode === 'light' ? 'border-t border-gray-300/60 pt-2.5' : 'border-t border-neutral-600/60 pt-2.5') : ''}`}>
+                                <img src={message.imageUrl} alt={message.imageMeta?.name || "Generated image"} className="max-w-full h-auto max-h-64 object-contain rounded-lg border border-gray-400 dark:border-neutral-600 cursor-pointer" onClick={() => window.open(message.imageUrl, '_blank')} title="View full image"/>
+                                <button onClick={() => handleDownloadImageFromUrl(message.imageUrl!, message.imageMeta?.name)} className={`absolute top-2 right-2 p-2 rounded-full opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-200 ${themeMode === 'light' ? 'bg-gray-200 hover:bg-gray-300 text-gray-600' : 'bg-neutral-600 hover:bg-neutral-500 text-gray-300'}`} title="Download Image">
+                                    <Download className="w-4 h-4" />
                                 </button>
                             </div>
                         )}
-                        {message.timer && <div className="mt-1.5"><div className={`flex items-center space-x-2 rounded-lg px-3 py-1.5 text-sm ${isIlluminateEnabled ? 'bg-blue-100/70 border border-blue-200/80' : 'bg-gray-800/60 border border-gray-600/50'}`}><TimerIcon className={`w-4 h-4 flex-shrink-0 ${illuminateTextBlue}`} /><Timer key={message.timer.id} initialDuration={message.timer.duration} onComplete={() => handleTimerComplete(message.timer!.id)} compact={true} isIlluminateEnabled={isIlluminateEnabled} /></div></div>}
-                        {message.flashcard && <div className="mt-1.5"><FlashcardsQuestions type="flashcard" data={message.flashcard.data} onComplete={() => {}} isIlluminateEnabled={isIlluminateEnabled} /></div>}
-                        {message.question && <div className="mt-1.5"><FlashcardsQuestions type="question" data={message.question.data} onComplete={() => {}} isIlluminateEnabled={isIlluminateEnabled} /></div>}
+                        {message.timer && <div className="mt-2"><div className={`flex items-center space-x-2 rounded-lg px-3 py-2 text-sm ${brandBgColors.blueLight}`}><TimerIcon className={`w-4 h-4 flex-shrink-0 ${brandColors.blue}`} /><Timer key={message.timer.id} initialDuration={message.timer.duration} onComplete={() => handleTimerComplete(message.timer!.id)} compact={true} isIlluminateEnabled={themeMode === 'light'} /></div></div>}
+                        {message.flashcard && <div className="mt-2"><FlashcardsQuestions type="flashcard" data={message.flashcard.data} onComplete={() => {}} isIlluminateEnabled={themeMode === 'light'} /></div>}
+                        {message.question && <div className="mt-2"><FlashcardsQuestions type="question" data={message.question.data} onComplete={() => {}} isIlluminateEnabled={themeMode === 'light'} /></div>}
                     </div> </div> ))}
-                {isChatLoading && conversationId && chatHistory.length > 0 && chatHistory[chatHistory.length -1]?.id !== assistantLoadingPlaceholderId && <div className="flex justify-start animate-fadeIn"><div className={`${isIlluminateEnabled ? 'bg-gray-100 border border-gray-200/80' : 'bg-gray-700/80 border border-gray-600/50'} rounded-xl px-3.5 py-2 max-w-[85%] shadow-md`}><div className="flex space-x-1 p-1"><div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></div><div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce delay-100"></div><div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce delay-200"></div></div></div></div>}
+                {isChatLoading && conversationId && chatHistory.length > 0 && chatHistory[chatHistory.length -1]?.id !== assistantLoadingPlaceholderId && <div className="flex justify-start opacity-0 animate-fadeIn" style={{animationFillMode: 'forwards'}}><div className={`${themeMode === 'light' ? 'bg-gray-100 border border-gray-200/80' : 'bg-neutral-700 border border-neutral-600/50'} rounded-xl px-3.5 py-2.5 max-w-[85%] shadow-md`}><div className="flex space-x-1.5 p-1.5"><div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div><div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-150"></div><div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-300"></div></div></div></div>}
             </div>
-            <div className={`px-3 pt-2 border-t ${isIlluminateEnabled ? 'border-gray-200 bg-gray-100/80' : 'border-gray-700 bg-gray-800/90'} flex-shrink-0 sticky bottom-0 backdrop-blur-sm z-10`}>
-                {userTier !== 'premium' && userTier !== 'loading' && (<div className="pb-1.5 text-xs text-center"> <span className={isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}>Messages: {chatUsageCount} / {currentChatLimitDisplay}</span> {isChatDisabledByLimit && <span className="text-red-500 ml-1 font-medium">(Limit Reached)</span>} {!isChatDisabledByLimit && userTier === 'basic' && <Link to="/pricing" className={`ml-2 font-medium ${isIlluminateEnabled ? 'text-blue-600 hover:text-blue-700' : 'text-blue-400 hover:text-blue-300'} hover:underline`}><Crown className="w-2.5 h-2.5 inline mr-0.5"/>Upgrade</Link>}</div>)}
+            <div className={`px-3 pt-2.5 border-t ${themeMode === 'light' ? 'border-gray-200 bg-gray-50/80' : 'border-neutral-700 bg-neutral-800/90'} flex-shrink-0 sticky bottom-0 backdrop-blur-md z-10`}>
+                {userTier !== 'premium' && userTier !== 'loading' && (<div className="pb-2 text-xs text-center"> <span className={themeMode === 'light' ? 'text-gray-600' : 'text-gray-400'}>Messages: {chatUsageCount} / {currentChatLimitDisplay}</span> {isChatDisabledByLimit && <span className="text-red-500 ml-1.5 font-medium">(Limit Reached)</span>} {!isChatDisabledByLimit && userTier === 'basic' && <Link to="/pricing" className={`ml-2 font-medium ${brandColors.blue} hover:underline`}><Crown className="w-3 h-3 inline mr-1"/>Upgrade</Link>}</div>)}
                 {selectedFiles.length > 0 && !isImageGenModeActive && (
-                     <div className="mb-2 flex flex-wrap gap-1.5 px-1 max-h-20 overflow-y-auto scrollbar-thin border border-dashed rounded-lg p-2 ${isIlluminateEnabled ? 'border-gray-300' : 'border-gray-600'}">
+                     <div className={`mb-2.5 flex flex-wrap gap-2 p-2.5 max-h-24 overflow-y-auto scrollbar-thin border border-dashed rounded-lg ${themeMode === 'light' ? 'border-gray-300 scrollbar-thumb-gray-300 scrollbar-track-gray-100' : 'border-neutral-600 scrollbar-thumb-neutral-600 scrollbar-track-neutral-700'}`}>
                         {selectedFiles.map(file => (
-                            <div key={file.name} className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border ${isIlluminateEnabled ? 'bg-blue-100 border-blue-300 text-blue-800' : 'bg-blue-900/50 border-blue-700/50 text-blue-300'}`}>
+                            <div key={file.name} className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border ${themeMode === 'light' ? 'bg-blue-100 border-blue-300 text-blue-800' : 'bg-blue-900/50 border-blue-700/50 text-blue-300'}`}>
                                  {file.type.startsWith("image/") && file.localPreviewUrl && (<img src={file.localPreviewUrl} alt={file.name} className="w-4 h-4 rounded-sm mr-0.5 object-cover"/> )}
-                                 {!file.type.startsWith("image/") && <FileText className="w-3 h-3 flex-shrink-0" />}
-                                <span className="truncate max-w-[100px]">{file.name}</span>
+                                 {!file.type.startsWith("image/") && <FileText className="w-3.5 h-3.5 flex-shrink-0" />}
+                                <span className="truncate max-w-[120px]">{file.name}</span>
                                 <span className="text-[10px] opacity-70">({formatBytes(file.size)})</span>
-                                <button type="button" onClick={() => handleRemoveFile(file.name)} className={`ml-1 p-0.5 rounded-full ${isIlluminateEnabled ? 'hover:bg-blue-200' : 'hover:bg-blue-700'} `} title="Remove"> <X className="w-2.5 h-2.5" /> </button>
+                                <button type="button" onClick={() => handleRemoveFile(file.name)} className={`ml-1.5 p-1 rounded-full ${themeMode === 'light' ? 'hover:bg-blue-200' : 'hover:bg-blue-700'} `} title="Remove"> <X className="w-3 h-3" /> </button>
                             </div>
                         ))}
                      </div>
                  )}
-                <form onSubmit={handleChatSubmit} className="flex gap-2 items-center pb-2.5">
-                    <button type="button" onClick={() => setIsContextDialogOpen(true)} disabled={!conversationId} className={`p-2.5 rounded-full transition-colors ${!conversationId ? 'opacity-50 cursor-not-allowed' : ''} ${isIlluminateEnabled ? 'hover:bg-gray-200 text-gray-500' : 'hover:bg-gray-700 text-gray-400'}`} title="Set AI Context"> <BrainCircuit className="w-4 h-4" /> </button>
+                <form onSubmit={handleChatSubmit} className="flex gap-2 items-end pb-3">
+                    <button type="button" onClick={() => setIsContextDialogOpen(true)} disabled={!conversationId} className={`p-2.5 rounded-full transition-colors ${!conversationId ? 'opacity-50 cursor-not-allowed' : ''} ${themeMode === 'light' ? 'hover:bg-gray-200 text-gray-500' : 'hover:bg-neutral-700 text-gray-400'}`} title="Set AI Context"> <Info className="w-4 h-4" /> </button>
                     <input type="file" ref={fileInputRef} onChange={handleFileSelect} multiple accept={SUPPORTED_FILE_TYPES} className="hidden" disabled={isImageGenModeActive || isChatLoading || isChatDisabledByLimit || !conversationId} />
-                    <button type="button" onClick={triggerFileSelect} disabled={isImageGenModeActive || isChatLoading || isChatDisabledByLimit || !conversationId} className={`p-2.5 rounded-full transition-colors ${(isImageGenModeActive || !conversationId) ? 'opacity-50 cursor-not-allowed' : ''} ${isIlluminateEnabled ? 'hover:bg-gray-200 text-gray-500' : 'hover:bg-gray-700 text-gray-400'}`} title={isImageGenModeActive ? "File attachment disabled in image mode" : "Attach Files"}> <Paperclip className="w-4 h-4" /> </button>
-                    <button type="button" onClick={handleToggleImageGenMode} disabled={isChatLoading || isChatDisabledByLimit || !conversationId} className={`p-2.5 rounded-full transition-colors ${(!conversationId) ? 'opacity-50 cursor-not-allowed' : ''} ${isImageGenModeActive ? (isIlluminateEnabled ? 'bg-purple-100 text-purple-700 ring-1 ring-purple-500' : 'bg-purple-800/70 text-purple-300 ring-1 ring-purple-500') : (isIlluminateEnabled ? 'hover:bg-gray-200 text-gray-500' : 'hover:bg-gray-700 text-gray-400') }`} title={isImageGenModeActive ? "Switch to Text/File Mode" : "Switch to Image Generation Mode"}> <ImageIcon className="w-4 h-4" /> </button>
-                    <textarea ref={textareaRef} rows={1} value={chatMessage} onChange={(e) => setChatMessage(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSubmit(); } }} onPaste={handlePaste} placeholder={!conversationId ? "Select or start a chat..." : (isChatDisabledByLimit ? "Monthly limit reached..." : (isImageGenModeActive ? "Describe image..." : "Ask TaskMaster AI..."))} className={`flex-1 ${inputBg} rounded-xl px-4 py-2 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-150 shadow-sm disabled:opacity-60 resize-none overflow-y-auto max-h-28 leading-snug`} disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading' || !conversationId} style={{ height: 'auto' }}/>
-                    <button type="submit" disabled={isChatLoading || !chatMessage.trim() || isChatDisabledByLimit || userTier === 'loading' || !conversationId} className={`bg-blue-600 text-white p-2.5 rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-100 shadow-md flex-shrink-0 ${isChatDisabledByLimit ? 'cursor-not-allowed' : ''}`} title="Send Message" aria-label="Send chat message">
+                    <button type="button" onClick={triggerFileSelect} disabled={isImageGenModeActive || isChatLoading || isChatDisabledByLimit || !conversationId} className={`p-2.5 rounded-full transition-colors ${(isImageGenModeActive || !conversationId) ? 'opacity-50 cursor-not-allowed' : ''} ${themeMode === 'light' ? 'hover:bg-gray-200 text-gray-500' : 'hover:bg-neutral-700 text-gray-400'}`} title={isImageGenModeActive ? "File attachment disabled in image mode" : "Attach Files"}> <Paperclip className="w-4 h-4" /> </button>
+                    <button type="button" onClick={handleToggleImageGenMode} disabled={isChatLoading || isChatDisabledByLimit || !conversationId} className={`p-2.5 rounded-full transition-colors ${(!conversationId) ? 'opacity-50 cursor-not-allowed' : ''} ${isImageGenModeActive ? (themeMode === 'light' ? 'bg-purple-100 text-purple-700 ring-1 ring-purple-500' : 'bg-purple-800/70 text-purple-300 ring-1 ring-purple-500') : (themeMode === 'light' ? 'hover:bg-gray-200 text-gray-500' : 'hover:bg-neutral-700 text-gray-400') }`} title={isImageGenModeActive ? "Switch to Text/File Mode" : "Switch to Image Generation Mode"}> <ImageIcon className="w-4 h-4" /> </button>
+                    <textarea ref={textareaRef} rows={1} value={chatMessage} onChange={(e) => setChatMessage(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSubmit(); } }} onPaste={handlePaste} placeholder={!conversationId ? "Select or start a chat..." : (isChatDisabledByLimit ? "Monthly limit reached..." : (isImageGenModeActive ? "Describe image..." : "Ask TaskMaster AI..."))} className={`flex-1 ${inputBg} rounded-xl px-4 py-2.5 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-150 shadow-sm disabled:opacity-60 resize-none overflow-y-auto max-h-32 leading-relaxed scrollbar-thin ${themeMode === 'light' ? 'scrollbar-thumb-gray-300 scrollbar-track-transparent' : 'scrollbar-thumb-neutral-600 scrollbar-track-transparent'}`} disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading' || !conversationId}/>
+                    <button type="submit" disabled={isChatLoading || !chatMessage.trim() || isChatDisabledByLimit || userTier === 'loading' || !conversationId} className={`bg-blue-600 text-white p-2.5 rounded-full hover:bg-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-100 shadow-md flex-shrink-0 ${isChatDisabledByLimit ? 'cursor-not-allowed' : ''}`} title="Send Message" aria-label="Send chat message">
                         {isChatLoading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Send className="w-4 h-4" />}
                     </button>
                 </form>
@@ -1581,20 +1620,20 @@ Provide only the JSON object.`;
             </>
         )}
         {aiChatSidebarTab === 'history' && (
-            <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
-                <button onClick={handleNewConversation} className={`mb-2.5 w-full flex items-center justify-center gap-2 p-2.5 rounded-lg transition-colors text-sm font-medium shadow-md ${isIlluminateEnabled ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
+            <div className={`flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin ${themeMode === 'light' ? 'scrollbar-thumb-gray-300 scrollbar-track-gray-100' : 'scrollbar-thumb-neutral-600 scrollbar-track-neutral-700'}`}>
+                <button onClick={handleNewConversation} className={`mb-3 w-full flex items-center justify-center gap-2 p-3 rounded-lg transition-colors text-sm font-medium shadow-md ${themeMode === 'light' ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-blue-600 text-white hover:bg-blue-500'}`}>
                     <PlusCircle className="w-4 h-4" /> New Chat
                 </button>
-                {conversationList.length === 0 && <p className={`${subheadingClass} text-center text-sm py-4`}>No chat history yet.</p>}
+                {conversationList.length === 0 && <p className={`${subheadingClass} text-center text-sm py-6`}>No chat history yet.</p>}
                 {conversationList.sort((a,b) => (b.updatedAt?.toDate?.() || 0) - (a.updatedAt?.toDate?.() || 0)).map((conv) => (
-                  <div key={conv.id} className={`flex items-center justify-between cursor-pointer p-2.5 rounded-lg transition-all text-sm ${conversationId === conv.id ? (isIlluminateEnabled ? 'bg-blue-100 text-blue-700' : 'bg-blue-700 text-white') : (isIlluminateEnabled ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-gray-700/60 text-gray-300')}`} onClick={() => handleSelectConversation(conv.id)} >
-                    <div className="flex items-center gap-2 flex-1 min-w-0"> <MessageCircle className="w-4 h-4 flex-shrink-0" /> <span className="truncate">{conv.chatName}</span> </div>
-                    <div className="relative flex-shrink-0">
-                      <button onClick={(e) => { e.stopPropagation(); setOpenDropdownId(openDropdownId === conv.id ? null : conv.id); }} className={`p-1.5 rounded-full ${isIlluminateEnabled ? 'hover:bg-gray-200' : 'hover:bg-gray-600'} transition-colors`}> <MoreHorizontal className="w-4 h-4" /> </button>
+                  <div key={conv.id} className={`group flex items-center justify-between cursor-pointer p-3 rounded-lg transition-all text-sm ${conversationId === conv.id ? (themeMode === 'light' ? 'bg-blue-100 text-blue-700' : 'bg-blue-700 text-white') : (themeMode === 'light' ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-neutral-700/60 text-gray-300')}`} onClick={() => handleSelectConversation(conv.id)} >
+                    <div className="flex items-center gap-2.5 flex-1 min-w-0"> <MessageCircle className="w-4 h-4 flex-shrink-0" /> <span className="truncate">{conv.chatName}</span> </div>
+                    <div className="relative flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={(e) => { e.stopPropagation(); setOpenDropdownId(openDropdownId === conv.id ? null : conv.id); }} className={`p-1.5 rounded-full ${themeMode === 'light' ? 'hover:bg-gray-200' : 'hover:bg-neutral-600'} transition-colors`}> <MoreHorizontal className="w-4 h-4" /> </button>
                       {openDropdownId === conv.id && (
-                        <div ref={dropdownRef} className={`absolute top-8 right-0 rounded-lg shadow-xl z-50 text-xs ${isIlluminateEnabled ? 'bg-white text-gray-800 border border-gray-200' : 'bg-gray-800 text-gray-200 border border-gray-700'}`} style={{ minWidth: '130px' }} onClick={(e) => e.stopPropagation()}>
-                          {[{ label: 'Rename', icon: Edit, action: () => handleRenameConversation(conv) }, { label: 'Delete', icon: Trash, action: () => handleDeleteConversationClick(conv), colorClass: isIlluminateEnabled ? 'text-red-600 hover:bg-red-50' : 'text-red-400 hover:bg-red-700/50' }].map(item => (
-                            <button key={item.label} className={`flex items-center w-full text-left px-3 py-2 ${isIlluminateEnabled ? 'hover:bg-gray-100' : 'hover:bg-gray-700'} ${item.colorClass || ''} first:rounded-t-lg last:rounded-b-lg`} onClick={item.action}> <item.icon className="w-3.5 h-3.5 mr-2" /> {item.label} </button>
+                        <div ref={dropdownRef} className={`absolute top-full right-0 mt-1 rounded-lg shadow-xl z-50 text-xs ${themeMode === 'light' ? 'bg-white text-gray-800 border border-gray-200' : 'bg-neutral-800 text-gray-200 border border-neutral-700'}`} style={{ minWidth: '140px' }} onClick={(e) => e.stopPropagation()}>
+                          {[{ label: 'Rename', icon: Edit, action: () => handleRenameConversation(conv) }, { label: 'Delete', icon: Trash, action: () => handleDeleteConversationClick(conv), colorClass: themeMode === 'light' ? 'text-red-600 hover:bg-red-50' : 'text-red-400 hover:bg-red-700/50' }].map(item => (
+                            <button key={item.label} className={`flex items-center w-full text-left px-3.5 py-2.5 ${themeMode === 'light' ? 'hover:bg-gray-100' : 'hover:bg-neutral-700'} ${item.colorClass || ''} first:rounded-t-lg last:rounded-b-lg transition-colors`} onClick={item.action}> <item.icon className="w-3.5 h-3.5 mr-2.5" /> {item.label} </button>
                           ))}
                         </div>
                       )}
@@ -1604,29 +1643,29 @@ Provide only the JSON object.`;
             </div>
         )}
         {aiChatSidebarTab === 'analytics' && (
-            <div className="flex-1 overflow-y-auto p-3 space-y-3">
-                <button onClick={generateProductivityAnalysis} disabled={isProductivityAnalysisLoading || !user} className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-colors shadow-md ${isIlluminateEnabled ? 'bg-indigo-500 text-white hover:bg-indigo-600 disabled:bg-indigo-300' : 'bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-indigo-400'}`}>
+            <div className={`flex-1 overflow-y-auto p-3 space-y-3.5 scrollbar-thin ${themeMode === 'light' ? 'scrollbar-thumb-gray-300 scrollbar-track-gray-100' : 'scrollbar-thumb-neutral-600 scrollbar-track-neutral-700'}`}>
+                <button onClick={generateProductivityAnalysis} disabled={isProductivityAnalysisLoading || !user} className={`w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium rounded-lg transition-colors shadow-md ${themeMode === 'light' ? 'bg-indigo-500 text-white hover:bg-indigo-600 disabled:bg-indigo-300' : 'bg-indigo-600 text-white hover:bg-indigo-500 disabled:bg-indigo-400'}`}>
                     {isProductivityAnalysisLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <BarChart className="w-4 h-4" />}
                     Generate Productivity Analysis
                 </button>
                 {productivityAnalysisResult && (
-                    <div className={`p-3.5 rounded-lg ${cardClass} animate-fadeIn`}>
-                        <h4 className={`text-lg font-semibold mb-2 ${illuminateTextPurple}`}>Productivity Score: {productivityAnalysisResult.productivity_score}%</h4>
-                        <div className={`w-full h-3 rounded-full mb-3 ${isIlluminateEnabled ? 'bg-gray-200' : 'bg-gray-700'}`}>
-                            <div className="h-full rounded-full bg-gradient-to-r from-purple-500 to-indigo-500" style={{width: `${productivityAnalysisResult.productivity_score}%`}}></div>
+                    <div className={`p-4 rounded-lg ${cardClass} opacity-0 animate-fadeIn`} style={{animationFillMode: 'forwards'}}>
+                        <h4 className={`text-lg font-semibold mb-2.5 ${brandColors.purple}`}>Productivity Score: {productivityAnalysisResult.productivity_score}%</h4>
+                        <div className={`w-full h-2.5 rounded-full mb-3.5 ${themeMode === 'light' ? 'bg-gray-200' : 'bg-neutral-700'}`}>
+                            <div className="h-full rounded-full bg-gradient-to-r from-purple-500 to-indigo-500 transition-all duration-500 ease-out" style={{width: `${productivityAnalysisResult.productivity_score}%`}}></div>
                         </div>
-                        <h5 className={`text-sm font-semibold mt-3 mb-1 ${headingClass}`}>Analysis:</h5>
-                        <p className={`text-xs mb-3 ${subheadingClass}`}>{productivityAnalysisResult.text_analysis}</p>
+                        <h5 className={`text-sm font-semibold mt-4 mb-1.5 ${headingClass}`}>Analysis:</h5>
+                        <p className={`text-xs mb-4 ${subheadingClass}`}>{productivityAnalysisResult.text_analysis}</p>
                         {productivityAnalysisResult.recommended_actions.length > 0 && (
                             <>
-                                <h5 className={`text-sm font-semibold mt-3 mb-1.5 ${headingClass}`}>Recommended Actions:</h5>
-                                <ul className="space-y-2">
+                                <h5 className={`text-sm font-semibold mt-4 mb-2 ${headingClass}`}>Recommended Actions:</h5>
+                                <ul className="space-y-2.5">
                                     {productivityAnalysisResult.recommended_actions.map(action => (
-                                        <li key={action.id} className={`p-2.5 rounded-lg text-xs flex items-center justify-between gap-2 ${isIlluminateEnabled ? 'bg-indigo-50 border border-indigo-200' : 'bg-indigo-900/40 border border-indigo-700/60'}`}>
+                                        <li key={action.id} className={`p-3 rounded-md text-xs flex items-center justify-between gap-3 ${themeMode === 'light' ? 'bg-indigo-50 border border-indigo-200' : 'bg-indigo-900/40 border border-indigo-700/60'}`}>
                                             <span className="truncate" title={action.description}>{action.description}</span>
                                             {action.action_type !== "suggestion" && (
-                                                <button onClick={() => handleAcceptProductivityAction(action)} className={`px-2.5 py-1 rounded-md text-white text-[10px] flex items-center gap-1.5 ${isIlluminateEnabled ? 'bg-green-500 hover:bg-green-600' : 'bg-green-600 hover:bg-green-700'}`}>
-                                                    <Check className="w-3 h-3"/> Accept
+                                                <button onClick={() => handleAcceptProductivityAction(action)} className={`px-3 py-1 rounded-md text-white text-[11px] flex items-center gap-1.5 ${themeMode === 'light' ? 'bg-green-500 hover:bg-green-600' : 'bg-green-600 hover:bg-green-500'}`}>
+                                                    <Check className="w-3.5 h-3.5"/> Accept
                                                 </button>
                                             )}
                                         </li>
@@ -1637,8 +1676,8 @@ Provide only the JSON object.`;
                     </div>
                 )}
                 {!isProductivityAnalysisLoading && !productivityAnalysisResult && (
-                    <div className={`text-center py-6 ${subheadingClass} text-sm`}>
-                        <Info className="w-8 h-8 mx-auto mb-2" />
+                    <div className={`text-center py-8 ${subheadingClass} text-sm flex flex-col items-center opacity-0 animate-fadeIn`} style={{animationFillMode: 'forwards'}}>
+                        <Info className="w-10 h-10 mx-auto mb-3" />
                         Click the button above to generate your productivity analysis.
                     </div>
                 )}
@@ -1650,8 +1689,10 @@ Provide only the JSON object.`;
         onClose={() => setIsContextDialogOpen(false)}
         onSave={handleSaveContext}
         initialContext={userContext}
-        isIlluminateEnabled={isIlluminateEnabled}
+        isIlluminateEnabled={themeMode === 'light'}
       />
     </div>
   );
 }
+
+```
