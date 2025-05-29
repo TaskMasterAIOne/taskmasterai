@@ -87,11 +87,45 @@
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "TaskMaster AI",
+      "url": "https://www.taskmaster.one",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://www.taskmaster.one/android-icon-192x192.png",
+        "width": 192,
+        "height": 192
+      },
+      "description": "Smart AI tools for task management, study, organization & achieving goals. Discover your ultimate AI partner.",
+      "sameAs": []
+    }
+    </script>
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "TaskMaster AI",
+      "url": "https://www.taskmaster.one",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://www.taskmaster.one/search?q={search_term_string}"
+        },
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
       "@type": "SoftwareApplication",
       "name": "TaskMaster AI",
       "applicationCategory": "ProductivityApplication",
       "operatingSystem": "Web Browser",
-      "softwareVersion": "1.0", // Optional: Add a version
+      "softwareVersion": "1.0",
       "url": "https://www.taskmaster.one/",
       "logo": "https://www.taskmaster.one/android-icon-192x192.png",
       "image": "https://www.taskmaster.one/og-image.png",
@@ -111,9 +145,9 @@
          "@type":"WebPage",
          "@id":"https://www.taskmaster.one/"
       },
-      "author": { // Or "provider"
+      "author": {
         "@type": "Organization",
-        "name": "TaskMaster AI", // Or your company name
+        "name": "TaskMaster AI",
         "url": "https://www.taskmaster.one/"
       }
     }
