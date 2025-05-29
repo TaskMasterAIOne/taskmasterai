@@ -1,190 +1,174 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <title>TaskMaster AI: AI Task Management & Productivity Software</title>
-    <meta
-      name="description"
-      content="Elevate productivity with TaskMaster AI! Smart AI tools for task management, study, organization & achieving goals. Discover your ultimate AI partner."
-    />
-    <meta
-      name="keywords"
-      content="TaskMaster AI, AI task management, AI productivity software, AI study tools, smart reminders, project collaboration, goal setting app, AI organization tools, focus mode, AI planner, student productivity, professional task manager, automate tasks with AI, AI notes, AI calendar, time management software, academic success tools"
-    />
-    <link rel="canonical" href="https://www.taskmaster.one/" />
+    <!-- Core SEO & Display Information -->
+    <title>TaskMaster AI: AI Task Management & Productivity Software</title>
+    <meta
+      name="description"
+      content="Elevate productivity with TaskMaster AI! Smart AI tools for task management, study, organization & achieving goals. Discover your ultimate AI partner."
+    />
+    <meta
+      name="keywords"
+      content="TaskMaster AI, AI task management, AI productivity software, AI study tools, smart reminders, project collaboration, goal setting app, AI organization tools, focus mode, AI planner, student productivity, professional task manager, automate tasks with AI, AI notes, AI calendar, time management software, academic success tools"
+    />
+    <link rel="canonical" href="https://www.taskmaster.one/" />
 
-    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png" />
-    <link rel="icon" type="image/png" sizes="192x192" href="/android-icon-192x192.png" />
+    <!-- Favicons (ensure favicon.ico exists in /public) -->
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/android-icon-192x192.png" />
 
-    <link rel="apple-touch-icon" href="/apple-icon-180x180.png" />
-    <link rel="apple-touch-icon" sizes="57x57" href="/apple-icon-57x57.png" />
-    <link rel="apple-touch-icon" sizes="60x60" href="/apple-icon-60x60.png" />
-    <link rel="apple-touch-icon" sizes="72x72" href="/apple-icon-72x72.png" />
-    <link rel="apple-touch-icon" sizes="76x76" href="/apple-icon-76x76.png" />
-    <link rel="apple-touch-icon" sizes="114x114" href="/apple-icon-114x114.png" />
-    <link rel="apple-touch-icon" sizes="120x120" href="/apple-icon-120x120.png" />
-    <link rel="apple-touch-icon" sizes="144x144" href="/apple-icon-144x144.png" />
-    <link rel="apple-touch-icon" sizes="152x152" href="/apple-icon-152x152.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-icon-180x180.png" />
-    <meta name="apple-mobile-web-app-title" content="TaskMaster AI" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <!-- Apple Touch Icons & PWA -->
+    <link rel="apple-touch-icon" href="/apple-icon-180x180.png" />
+    <link rel="apple-touch-icon" sizes="57x57" href="/apple-icon-57x57.png" />
+    <link rel="apple-touch-icon" sizes="60x60" href="/apple-icon-60x60.png" />
+    <link rel="apple-touch-icon" sizes="72x72" href="/apple-icon-72x72.png" />
+    <link rel="apple-touch-icon" sizes="76x76" href="/apple-icon-76x76.png" />
+    <link rel="apple-touch-icon" sizes="114x114" href="/apple-icon-114x114.png" />
+    <link rel="apple-touch-icon" sizes="120x120" href="/apple-icon-120x120.png" />
+    <link rel="apple-touch-icon" sizes="144x144" href="/apple-icon-144x144.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/apple-icon-152x152.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-icon-180x180.png" />
+    <meta name="apple-mobile-web-app-title" content="TaskMaster AI" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 
-    <link rel="manifest" href="/manifest.json" />
+    <!-- Web App Manifest -->
+    <link rel="manifest" href="/manifest.json" />
 
-    <meta name="theme-color" content="#6366F1" />
+    <!-- Theme Color for browsers -->
+    <meta name="theme-color" content="#6366F1" /> <!-- Match your manifest.json theme_color -->
 
-    <meta name="msapplication-TileColor" content="#6366F1" />
-    <meta name="msapplication-TileImage" content="/ms-icon-144x144.png" />
+    <!-- Microsoft Tiles -->
+    <meta name="msapplication-TileColor" content="#6366F1" />
+    <meta name="msapplication-TileImage" content="/ms-icon-144x144.png" />
 
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://www.taskmaster.one/" />
-    <meta property="og:title" content="TaskMaster AI: AI Task Management & Productivity Software" />
-    <meta property="og:site_name" content="TaskMaster AI" />
-    <meta
-      property="og:description"
-      content="Elevate your productivity with TaskMaster AI. Smart AI-powered tools for task management, study, organization, and achieving goals. Your ultimate AI productivity partner."
-    />
-    <meta property="og:image" content="https://www.taskmaster.one/og-image.png" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
-    <meta property="og:locale" content="en_US" />
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://www.taskmaster.one/" />
+    <meta property="og:title" content="TaskMaster AI: AI Task Management & Productivity Software" />
+    <meta property="og:site_name" content="TaskMaster AI" />
+    <meta
+      property="og:description"
+      content="Elevate your productivity with TaskMaster AI. Smart AI-powered tools for task management, study, organization, and achieving goals. Your ultimate AI productivity partner."
+    />
+    <meta property="og:image" content="https://www.taskmaster.one/og-image.png" /> <!-- Absolute URL -->
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="en_US" />
 
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:url" content="https://www.taskmaster.one/" />
-    <meta name="twitter:title" content="TaskMaster AI: AI Task Management & Productivity Software" />
-    <meta
-      name="twitter:description"
-      content="Elevate your productivity with TaskMaster AI. Smart AI-powered tools for task management, study, organization, and achieving goals. Your ultimate AI productivity partner."
-    />
-    <meta name="twitter:image" content="https://www.taskmaster.one/og-image.png" />
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://www.taskmaster.one/" />
+    <meta name="twitter:title" content="TaskMaster AI: AI Task Management & Productivity Software" />
+    <meta
+      name="twitter:description"
+      content="Elevate your productivity with TaskMaster AI. Smart AI-powered tools for task management, study, organization, and achieving goals. Your ultimate AI productivity partner."
+    />
+    <meta name="twitter:image" content="https://www.taskmaster.one/og-image.png" /> <!-- Absolute URL -->
+    <!-- <meta name="twitter:site" content="@YourTwitterHandle"> -->
 
-    <link
-      href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
+    <!-- Fonts -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
 
-    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+    <!-- MathJax -->
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
 
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      "name": "TaskMaster AI",
-      "applicationCategory": "ProductivityApplication",
-      "operatingSystem": "Web Browser",
-      "softwareVersion": "1.0",
-      "url": "https://www.taskmaster.one/",
-      "logo": "https://www.taskmaster.one/android-icon-192x192.png",
-      "image": "https://www.taskmaster.one/og-image.png",
-      "screenshot": "https://www.taskmaster.one/og-image.png",
-      "description": "Elevate your productivity with TaskMaster AI. Smart AI-powered tools for task management, study, organization, and achieving goals. Your ultimate AI productivity partner.",
-      "keywords": "AI task management, AI productivity software, AI study tools, organization app, AI planner, goal setting",
-      "offers": {
-        "@type": "Offer",
-        "price": "0.00",
-        "priceCurrency": "USD"
-      },
-      "potentialAction": {
-        "@type": "ViewAction",
-        "target": "https://www.taskmaster.one/"
-      },
-      "mainEntityOfPage": {
-         "@type":"WebPage",
-         "@id":"https://www.taskmaster.one/"
-      },
-      "author": {
-        "@type": "Organization",
-        "name": "TaskMaster AI",
-        "url": "https://www.taskmaster.one/"
-      }
-    }
-    </script>
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "WebSite",
-      "name": "TaskMaster AI",
-      "url": "https://www.taskmaster.one/",
-      "potentialAction": {
-        "@type": "SearchAction",
-        "target": {
-          "@type": "EntryPoint",
-          "urlTemplate": "https://www.taskmaster.one/search?q={search_term_string}"
-        },
-        "query-input": "required name=search_term_string"
-      },
-      "hasPart": [
-        {
-          "@type": "WebPage",
-          "@id": "https://www.taskmaster.one/pricing",
-          "name": "Pricing",
-          "url": "https://www.taskmaster.one/pricing",
-          "description": "Explore TaskMaster AI pricing plans and choose the best option for your productivity needs."
-        },
-        {
-          "@type": "WebPage",
-          "@id": "https://www.taskmaster.one/login",
-          "name": "Login",
-          "url": "https://www.taskmaster.one/login",
-          "description": "Login to your TaskMaster AI account to access your tasks and projects."
-        },
-        {
-          "@type": "WebPage",
-          "@id": "https://www.taskmaster.one/features",
-          "name": "Features",
-          "url": "https://www.taskmaster.one/features",
-          "description": "Discover the powerful AI-driven features of TaskMaster AI for task management, study, and organization."
-        },
-        {
-          "@type": "WebPage",
-          "@id": "https://www.taskmaster.one/contact",
-          "name": "Contact Us",
-          "url": "https://www.taskmaster.one/contact",
-          "description": "Get in touch with the TaskMaster AI team for support or inquiries."
-        },
-        {
-          "@type": "WebPage",
-          "@id": "https://www.taskmaster.one/signup",
-          "name": "Sign Up",
-          "url": "https://www.taskmaster.one/signup",
-          "description": "Create your TaskMaster AI account and start boosting your productivity today."
-        }
-      ]
-    }
-    </script>
-  </head>
-  <body>
-    <noscript>
-      <h1>Welcome to TaskMaster AI - AI Task Management & Productivity Software</h1>
-      <p>TaskMaster AI leverages Artificial Intelligence to provide you with advanced tools for task management, efficient studying, project organization, and goal achievement. Our platform is designed to help you reclaim your time and focus on what matters most.</p>
+    <!-- JSON-LD Structured Data for SEO -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "TaskMaster AI",
+      "applicationCategory": "ProductivityApplication",
+      "operatingSystem": "Web Browser",
+      "softwareVersion": "1.0", // Optional: Add a version
+      "url": "https://www.taskmaster.one/",
+      "logo": "https://www.taskmaster.one/android-icon-192x192.png",
+      "image": "https://www.taskmaster.one/og-image.png",
+      "screenshot": "https://www.taskmaster.one/og-image.png",
+      "description": "Elevate your productivity with TaskMaster AI. Smart AI-powered tools for task management, study, organization, and achieving goals. Your ultimate AI productivity partner.",
+      "keywords": "AI task management, AI productivity software, AI study tools, organization app, AI planner, goal setting",
+      "offers": {
+        "@type": "Offer",
+        "price": "0.00",
+        "priceCurrency": "USD"
+      },
+      "potentialAction": {
+        "@type": "ViewAction",
+        "target": "https://www.taskmaster.one/"
+      },
+      "mainEntityOfPage": {
+         "@type":"WebPage",
+         "@id":"https://www.taskmaster.one/"
+      },
+      "author": { // Or "provider"
+        "@type": "Organization",
+        "name": "TaskMaster AI", // Or your company name
+        "url": "https://www.taskmaster.one/"
+      }
+    }
+    </script>
+  </head>
+  <body>
+    <noscript>
+      <h1>Welcome to TaskMaster AI - AI Task Management & Productivity Software</h1>
+      <p>TaskMaster AI leverages Artificial Intelligence to provide you with advanced tools for task management, efficient studying, project organization, and goal achievement. Our platform is designed to help you reclaim your time and focus on what matters most.</p>
 
-      <h2>Unlock Peak Productivity with AI</h2>
-      <p>Discover how TaskMaster AI can transform your workflow. From smart task prioritization to AI-driven study aids, we provide the tools you need to succeed.</p>
+      <h2>Unlock Peak Productivity with AI</h2>
+      <p>Discover how TaskMaster AI can transform your workflow. From smart task prioritization to AI-driven study aids, we provide the tools you need to succeed.</p>
 
-      <h2>Core Features for Enhanced Efficiency</h2>
-      <ul>
-        <li>AI-Powered Task Management: Automate, organize, and prioritize tasks.</li>
-        <li>Intelligent Study Tools: Optimize your learning and retention.</li>
-        <li>Smart Reminders & Scheduling: Never miss a deadline.</li>
-        <li>Goal Setting & Tracking: Achieve your objectives with AI insights.</li>
-        <li>Project Collaboration: Streamline teamwork (if applicable).</li>
-      </ul>
+      <h2>Core Features for Enhanced Efficiency</h2>
+      <ul>
+        <li>AI-Powered Task Management: Automate, organize, and prioritize tasks.</li>
+        <li>Intelligent Study Tools: Optimize your learning and retention.</li>
+        <li>Smart Reminders & Scheduling: Never miss a deadline.</li>
+        <li>Goal Setting & Tracking: Achieve your objectives with AI insights.</li>
+        <li>Project Collaboration: Streamline teamwork (if applicable).</li>
+      </ul>
 
-      <h2>Why Choose TaskMaster AI?</h2>
-      <p>We're dedicated to providing a seamless, intuitive, and powerful AI experience to boost your productivity, whether you're a student, professional, or anyone looking to get more done.</p>
+      <h2>Why Choose TaskMaster AI?</h2>
+      <p>We're dedicated to providing a seamless, intuitive, and powerful AI experience to boost your productivity, whether you're a student, professional, or anyone looking to get more done.</p>
 
-      <p>Explore our <a href="https://www.taskmaster.one/features">features</a>, check out our <a href="https://www.taskmaster.one/pricing">pricing</a>, or <a href="https://www.taskmaster.one/signup">sign up today</a>!</p>
-    </noscript>
+      <p>Explore our <a href="https://www.taskmaster.one/features">features</a>, check out our <a href="https://www.taskmaster.one/pricing">pricing</a>, or <a href="https://www.taskmaster.one/signup">sign up today</a>!</p>
+    </noscript>
 
-    <div id="root">
-    </div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+    <div id="root">
+      <!--
+        Your React/Vue/Svelte/Angular app will render here.
+        For optimal SEO, ensure that your main application views also use semantic HTML,
+        including H1, H2, H3 tags appropriately to structure the content
+        that is dynamically loaded.
+
+        For example, your main App component might render something like:
+        <main>
+          <section>
+            <h1>Main Feature of This Page</h1>
+            <article>
+              <h2>Sub-section 1</h2>
+              <p>Content...</p>
+            </article>
+            <article>
+              <h2>Sub-section 2</h2>
+              <p>Content...</p>
+            </article>
+          </section>
+        </main>
+
+        You can add a simple H2 here as a placeholder if you wish,
+        but it will be replaced by your app.
+      -->
+      <!-- "Loading..." removed from here -->
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
