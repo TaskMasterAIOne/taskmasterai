@@ -739,7 +739,4 @@ function Pricing() {
 }
 
 export default Pricing;
-content_copy
-download
-Use code with caution.
-TypeScript
+
