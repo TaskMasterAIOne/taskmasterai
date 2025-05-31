@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Loader2, Crown, Gem, Check, AlertCircle, GraduationCap } from 'lucide-react';
+import { Loader2, Crown, Gem, Check, AlertCircle, GraduationCap, ChevronDown, ChevronUp } from 'lucide-react';
 import { subscribeToAuthState } from '../lib/pricing-firebase';
 import { Logo } from './Logo';
 import { createCheckoutSession, getStripe } from '../lib/stripe-client';
@@ -23,6 +23,188 @@ const STRIPE_PRICE_IDS = {
 };
 
 type PlanName = 'PREMIUM' | 'PRO' | 'BASIC';
+
+// Time Value Calculator Component
+const COST_OF_MOTION_PRO_PER_MONTH = 19;
+
+const TimeValueCalculator: React.FC = () => {
+  const [hoursLostPerWeek, setHoursLostPerWeek] = useState<number>(4);
+  const [hourlyRate, setHourlyRate] = useState<string>("20");
+  const [isExplanationExpanded, setIsExplanationExpanded] = useState<boolean>(false);
+
+  const handleHoursChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setHoursLostPerWeek(parseInt(event.target.value, 10));
+  };
+
+  const handleRateChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value;
+    if (value === '' || /^\d*\.?\d*$/.test(value)) {
+        setHourlyRate(value);
+    }
+  };
+  
+  const parsedHourlyRate = useMemo(() => {
+    const rate = parseFloat(hourlyRate);
+    return isNaN(rate) || rate < 0 ? 0 : rate;
+  }, [hourlyRate]);
+
+  const hoursLostPerMonth = useMemo(() => hoursLostPerWeek * 4, [hoursLostPerWeek]);
+  const valueOfTimeSaved = useMemo(() => hoursLostPerMonth * parsedHourlyRate, [hoursLostPerMonth, parsedHourlyRate]);
+  const totalROI = useMemo(() => valueOfTimeSaved - COST_OF_MOTION_PRO_PER_MONTH, [valueOfTimeSaved]);
+
+  const formatCurrency = (value: number) => {
+    const roundedValue = Math.round(value); // Round to nearest whole number
+    const absValue = Math.abs(roundedValue);
+    const formattedValue = absValue.toLocaleString(); // Adds commas for thousands
+    return roundedValue < 0 ? `-$${formattedValue}` : `$${formattedValue}`;
+  };
+
+  return (
+    <div className="my-12 md:my-16 lg:my-20 font-poppins">
+      <motion.h2 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
+        className="text-3xl md:text-4xl font-bold text-center text-white mb-8 md:mb-12 px-4"
+      >
+        How much is your time worth to you?
+      </motion.h2>
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.4 }}
+        className="max-w-4xl mx-auto grid md:grid-cols-2 gap-6 md:gap-8 p-4 md:p-0"
+      >
+        {/* Left Panel: Input Section */}
+        <div className="bg-gray-50 text-gray-800 p-6 md:p-8 rounded-xl shadow-2xl">
+          <h3 className="text-lg font-semibold mb-2 text-gray-700">
+            Hours lost per week on distractions, context-switching, and manual calendaring work
+          </h3>
+          <div className="my-6 text-center">
+            <span className="text-5xl md:text-6xl font-bold text-indigo-600">
+              {hoursLostPerWeek}
+            </span>
+            <span className="text-xl md:text-2xl text-gray-600 ml-2">hours</span>
+          </div>
+          <input
+            type="range"
+            min="1"
+            max="20"
+            value={hoursLostPerWeek}
+            onChange={handleHoursChange}
+            className="w-full h-3 bg-gray-300 rounded-lg appearance-none cursor-pointer range-lg accent-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50"
+            aria-label="Hours lost per week"
+            aria-valuemin={1}
+            aria-valuemax={20}
+            aria-valuenow={hoursLostPerWeek}
+          />
+          <div className="mt-8">
+            <label htmlFor="hourlyRate" className="block text-sm font-medium text-gray-600 mb-1">
+              How much 1 hour of your time is worth to you
+            </label>
+            <div className="relative mt-1 rounded-md shadow-sm">
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                <span className="text-gray-500 sm:text-sm">$</span>
+              </div>
+              <input
+                type="text"
+                name="hourlyRate"
+                id="hourlyRate"
+                value={hourlyRate}
+                onChange={handleRateChange}
+                className="block w-full rounded-md border-gray-300 pl-7 pr-12 py-2 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm text-gray-900"
+                placeholder="20"
+                inputMode="decimal"
+                aria-label="Hourly rate in dollars"
+                aria-describedby="hourly-rate-suffix"
+              />
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                <span className="text-gray-500 sm:text-sm" id="hourly-rate-suffix">
+                  /hr
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Panel: Results Section */}
+        <div className="bg-gray-800 text-white p-6 md:p-8 rounded-xl shadow-2xl flex flex-col">
+          <h3 className="text-xl md:text-2xl font-semibold mb-4 text-indigo-400">
+            Return on investment per month with Motion
+          </h3>
+          <div className="my-6 text-center">
+            <div className="text-5xl md:text-6xl font-extrabold text-green-400" aria-live="polite">
+              {formatCurrency(totalROI)}
+            </div>
+            <div className="mt-2 text-lg text-gray-300">
+              Or <span className="font-semibold text-indigo-300">{hoursLostPerMonth} hours</span> of your life
+            </div>
+          </div>
+          <motion.a
+            href="/signup"
+            variants={{ hover: { scale: 1.05 }, tap: { scale: 0.95 } }}
+            whileHover="hover"
+            whileTap="tap"
+            className="w-full text-center py-3 px-6 mt-6 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-semibold text-lg shadow-md hover:from-purple-600 hover:to-pink-600 transition-all duration-300"
+          >
+            Start your free trial
+          </motion.a>
+          
+          <div className="mt-auto pt-6">
+            <button
+              onClick={() => setIsExplanationExpanded(!isExplanationExpanded)}
+              className="flex items-center justify-between w-full text-left text-gray-400 hover:text-indigo-300 transition-colors py-2 focus:outline-none focus:text-indigo-300"
+              aria-expanded={isExplanationExpanded}
+              aria-controls="roi-explanation-content"
+            >
+              <span className="font-medium">How did we get this number?</span>
+              {isExplanationExpanded ? <ChevronUp className="w-5 h-5 flex-shrink-0" /> : <ChevronDown className="w-5 h-5 flex-shrink-0" />}
+            </button>
+            <AnimatePresence>
+              {isExplanationExpanded && (
+                <motion.div
+                  id="roi-explanation-content"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.3, ease: "easeInOut" }}
+                  className="overflow-hidden"
+                  role="region"
+                  aria-labelledby="roi-explanation-heading"
+                >
+                  <div className="mt-4 pt-4 border-t border-gray-700 text-sm text-gray-300">
+                    <h4 id="roi-explanation-heading" className="sr-only">Calculation Breakdown</h4>
+                    <table className="w-full">
+                      <tbody>
+                        <tr className="border-b border-gray-700/50">
+                          <td className="py-2 pr-2">Hours lost per month</td>
+                          <td className="py-2 text-right font-medium">{hoursLostPerMonth} hours</td>
+                        </tr>
+                        <tr className="border-b border-gray-700/50">
+                          <td className="py-2 pr-2">Value of Motion for saving {hoursLostPerMonth} hours</td>
+                          <td className="py-2 text-right font-medium">{formatCurrency(valueOfTimeSaved)}</td>
+                        </tr>
+                        <tr className="border-b border-gray-700/50">
+                          <td className="py-2 pr-2">Cost of Motion Pro subscription per month</td>
+                          <td className="py-2 text-right font-medium">${COST_OF_MOTION_PRO_PER_MONTH}</td>
+                        </tr>
+                        <tr>
+                          <td className="py-2 pr-2 pt-3 font-bold text-base text-indigo-300">Total ROI per month</td>
+                          <td className="py-2 pt-3 text-right font-bold text-base text-green-400">{formatCurrency(totalROI)}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
 
 function Pricing() {
   const { loading } = useAuth();
@@ -78,7 +260,7 @@ function Pricing() {
       return;
     }
 
-    const offerRevealDelay = 750; // Show offer after 0.75 seconds
+    const offerRevealDelay = 750; 
 
     const offerTimer = setTimeout(() => {
       setShowStudentOfferOnProCard(true);
@@ -276,6 +458,9 @@ function Pricing() {
           <h1 className="text-4xl font-bold text-indigo-400 mb-2">Choose Your Perfect Plan</h1>
           <p className="text-gray-300">Select a plan that works best for you.</p>
         </motion.div>
+
+        {/* Time Value Calculator Section */}
+        <TimeValueCalculator />
 
         <motion.div
           initial="hidden"
@@ -554,3 +739,7 @@ function Pricing() {
 }
 
 export default Pricing;
+content_copy
+download
+Use code with caution.
+TypeScript
