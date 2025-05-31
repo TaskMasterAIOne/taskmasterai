@@ -25,7 +25,7 @@ const STRIPE_PRICE_IDS = {
 type PlanName = 'PREMIUM' | 'PRO' | 'BASIC';
 
 // Time Value Calculator Component
-const COST_OF_MOTION_PRO_PER_MONTH = 19;
+const COST_OF_TASKMASTER_PREMIUM_PER_MONTH = 10;
 
 const TimeValueCalculator: React.FC = () => {
   const [hoursLostPerWeek, setHoursLostPerWeek] = useState<number>(4);
@@ -50,7 +50,7 @@ const TimeValueCalculator: React.FC = () => {
 
   const hoursLostPerMonth = useMemo(() => hoursLostPerWeek * 4, [hoursLostPerWeek]);
   const valueOfTimeSaved = useMemo(() => hoursLostPerMonth * parsedHourlyRate, [hoursLostPerMonth, parsedHourlyRate]);
-  const totalROI = useMemo(() => valueOfTimeSaved - COST_OF_MOTION_PRO_PER_MONTH, [valueOfTimeSaved]);
+  const totalROI = useMemo(() => valueOfTimeSaved - COST_OF_TASKMASTER_PREMIUM_PER_MONTH, [valueOfTimeSaved]);
 
   const formatCurrency = (value: number) => {
     const roundedValue = Math.round(value); // Round to nearest whole number
@@ -130,7 +130,7 @@ const TimeValueCalculator: React.FC = () => {
         {/* Right Panel: Results Section */}
         <div className="bg-gray-800 text-white p-6 md:p-8 rounded-xl shadow-2xl flex flex-col">
           <h3 className="text-xl md:text-2xl font-semibold mb-4 text-indigo-400">
-            Return on investment per month with Motion
+            Return on investment per month with TaskMaster
           </h3>
           <div className="my-6 text-center">
             <div className="text-5xl md:text-6xl font-extrabold text-green-400" aria-live="polite">
@@ -181,12 +181,12 @@ const TimeValueCalculator: React.FC = () => {
                           <td className="py-2 text-right font-medium">{hoursLostPerMonth} hours</td>
                         </tr>
                         <tr className="border-b border-gray-700/50">
-                          <td className="py-2 pr-2">Value of Motion for saving {hoursLostPerMonth} hours</td>
+                          <td className="py-2 pr-2">Value of TaskMaster for saving {hoursLostPerMonth} hours</td>
                           <td className="py-2 text-right font-medium">{formatCurrency(valueOfTimeSaved)}</td>
                         </tr>
                         <tr className="border-b border-gray-700/50">
-                          <td className="py-2 pr-2">Cost of Motion Pro subscription per month</td>
-                          <td className="py-2 text-right font-medium">${COST_OF_MOTION_PRO_PER_MONTH}</td>
+                          <td className="py-2 pr-2">Cost of TaskMaster Premium subscription per month</td>
+                          <td className="py-2 text-right font-medium">${COST_OF_TASKMASTER_PREMIUM_PER_MONTH}</td>
                         </tr>
                         <tr>
                           <td className="py-2 pr-2 pt-3 font-bold text-base text-indigo-300">Total ROI per month</td>
