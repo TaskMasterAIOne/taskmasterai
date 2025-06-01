@@ -9,20 +9,21 @@
       "src": "package.json",
       "use": "@vercel/static-build",
       "config": {
-        "distDir": "dist" 
+        "distDir": "dist"
       }
     }
   ],
-  "rewrites": [
-    
+  "routes": [
     {
-      "source": "/__/auth/handler",
-      "destination": "/auth/handler"
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
     },
-    
     {
-      "source": "/((?!api/).*)",
-      "destination": "/index.html"
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ]
 }
