@@ -3,10 +3,10 @@
   "builds": [
     {
       "src": "api/**/*.ts",
-      "use": "@vercel/node" 
+      "use": "@vercel/node"
     },
     {
-      "src": "package.json", 
+      "src": "package.json",
       "use": "@vercel/static-build",
       "config": {
         "distDir": "dist" 
@@ -16,14 +16,13 @@
   "rewrites": [
     
     {
-      "source": "/_/auth/handler",
+      "source": "/__/auth/handler",
       "destination": "/auth/handler"
     },
     
     {
-      "source": "/((?!api/).*)", 
+      "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
   ]
-  
 }
