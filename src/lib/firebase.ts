@@ -1,3 +1,4 @@
+// src/firebase.ts
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
@@ -8,7 +9,7 @@ import { getStorage } from "firebase/storage";
 // IMPORTANT: Consider using environment variables for security, especially apiKey
 const firebaseConfig = {
   apiKey: "AIzaSyDaMAlQRMXiDsZ4P0b06P18id3y5xBiZ1k", // Replace if different
-  authDomain: "deepworkai-c3419.firebaseapp.com",
+  authDomain: "taskmaster.one", // <--- UPDATED for custom auth domain
   projectId: "deepworkai-c3419",
   storageBucket: "deepworkai-c3419.appspot.com",
   messagingSenderId: "367439182644",
@@ -26,7 +27,7 @@ const storage = getStorage(app);
 
 
 // Export the initialized services
-export { app, auth, db, functions, storage };
+export { app, auth, db, functions, storage, firebaseConfig }; // Also exporting firebaseConfig for the AuthHandler page
 
 
 // --- File Type Pricing (Your existing data) ---
