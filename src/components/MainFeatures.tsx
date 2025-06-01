@@ -1776,7 +1776,7 @@ function StudentTestimonialsSection() {
       name: "Hrishi Chintakuntla",
       role: "Premed Student",
       university: "Johns Hopkins University",
-      logoUrl: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/jhulogo.webp?alt=media&token=9e02a024-c1ac-448b-bbfa-951f6d8e664d",
+      logoUrl: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/jhulogo.png?alt=media&token=cef74fd2-a36f-4424-b994-98628a254c6a",
       logoAlt: "Johns Hopkins University logo",
       text: "The collaborative study feature in TaskMaster AI completely changed my medical school preparation. I connected with classmates to share annotated lecture notes and created group study guides that synced automatically. The AI-powered question generator helped identify weak areas in my understanding before exams. My professors have commented on the notable improvement in my critical thinking skills since I started using TaskMaster for my studies.",
       rating: 5,
