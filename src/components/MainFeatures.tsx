@@ -1758,7 +1758,7 @@ function StudentTestimonialsSection() {
       name: "Kevin Su",
       role: "Economics Major",
       university: "Yale University",
-      logoUrl: "/images/university-logos/yale_logo.svg",
+      logoUrl: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/yalelogo.png?alt=media&token=aa5e32e9-ffb1-40be-bca3-f667f0ae2edb",
       logoAlt: "Yale University logo",
       text: "TaskMaster AI transformed my approach to economic theory research. The smart summarization tool condensed dense academic papers into actionable insights, saving me 15+ hours weekly. The citation manager automatically formatted my references in Chicago style, which was a lifesaver for my thesis. My GPA improved from 3.7 to 3.9 after just one semester of using TaskMaster.",
       rating: 5,
@@ -1767,7 +1767,7 @@ function StudentTestimonialsSection() {
       name: "Mohana Dayyam",
       role: "Premed Student",
       university: "Rice University",
-      logoUrl: "/images/university-logos/rice_logo.svg",
+      logoUrl: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/ricelogo.png?alt=media&token=1247209e-9df6-492c-8129-1e9b6c1403c1",
       logoAlt: "Rice University logo",
       text: "As a premed student juggling organic chemistry, biology, and physics, TaskMaster AI's study schedule optimizer has been revolutionary. It analyzes my learning patterns and creates personalized study blocks that maximized my retention. The flashcard system with spaced repetition algorithms helped me memorize complex biochemical pathways effortlessly. I scored in the 95th percentile on my MCAT, and I credit TaskMaster for making that possible.",
       rating: 5,
@@ -1776,7 +1776,7 @@ function StudentTestimonialsSection() {
       name: "Hrishi Chintakuntla",
       role: "Premed Student",
       university: "Johns Hopkins University",
-      logoUrl: "/images/university-logos/johns_hopkins_logo.svg",
+      logoUrl: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/jhulogo.webp?alt=media&token=9e02a024-c1ac-448b-bbfa-951f6d8e664d",
       logoAlt: "Johns Hopkins University logo",
       text: "The collaborative study feature in TaskMaster AI completely changed my medical school preparation. I connected with classmates to share annotated lecture notes and created group study guides that synced automatically. The AI-powered question generator helped identify weak areas in my understanding before exams. My professors have commented on the notable improvement in my critical thinking skills since I started using TaskMaster for my studies.",
       rating: 5,
@@ -1813,7 +1813,7 @@ function StudentTestimonialsSection() {
             <motion.div
               key={index}
               variants={itemVariants}
-              className="relative h-full testimonial-card"
+              className="relative h-full testimonial-card" // testimonial-card class might be for external styling or just a marker
               whileHover={{ y: -8, transition: { duration: 0.3, ease: "easeOut" } }}
             >
               <GlowingBorder className="h-full">
@@ -1830,7 +1830,7 @@ function StudentTestimonialsSection() {
                     <img
                       src={testimonial.logoUrl}
                       alt={testimonial.logoAlt}
-                      className="university-logo flex-shrink-0"
+                      className="h-10 md:h-12 w-auto object-contain flex-shrink-0" // Applied Tailwind classes for sizing
                     />
                     <div>
                       <h3 className="text-white font-semibold">{testimonial.name}</h3>
@@ -1846,7 +1846,6 @@ function StudentTestimonialsSection() {
     </section>
   );
 }
-
 
 
 function StudentCTASection() {
