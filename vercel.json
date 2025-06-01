@@ -1,35 +1,29 @@
 {
   "version": 2,
-  "rewrites": [
-    {
-      "source": "/_/auth/handler",
-      "destination": "/auth/handler"
-    }
-  ],
   "builds": [
     {
       "src": "api/**/*.ts",
-      "use": "@vercel/node"
+      "use": "@vercel/node" 
     },
     {
-      "src": "package.json",
+      "src": "package.json", 
       "use": "@vercel/static-build",
       "config": {
-        "distDir": "dist"
+        "distDir": "dist" 
       }
     }
   ],
-  "routes": [
+  "rewrites": [
+    
     {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
+      "source": "/_/auth/handler",
+      "destination": "/auth/handler"
     },
+    
     {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
+      "source": "/((?!api/).*)", 
+      "destination": "/index.html"
     }
   ]
+  
 }
