@@ -58,7 +58,6 @@ import {
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
-// Reusable components
 const GlowingBorder = ({ children, className = "" }) => (
   <div className={`relative rounded-xl overflow-hidden ${className}`}>
     <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500/30 via-purple-500/30 to-pink-500/30 opacity-75 blur-lg" />
@@ -138,15 +137,15 @@ const ParallaxText = ({ children, baseVelocity = 100 }) => {
       if (direction === -1 && newX < wrapThreshold) {
         newX -= wrapThreshold;
       } else if (direction === 1 && newX > 0) {
-        // Simplified, may need adjustment for rightward continuous scroll
+
       }
       baseX.set(newX);
       animationFrameId = requestAnimationFrame(update);
     };
     animationFrameId = requestAnimationFrame(update);
     return () => cancelAnimationFrame(animationFrameId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [baseVelocity, direction]);
+
+  }, [baseVelocity, direction, baseX]);
 
   const x = useTransform(baseX, (v) => `${(v % 100)}%`);
 
@@ -166,7 +165,6 @@ const ParallaxText = ({ children, baseVelocity = 100 }) => {
   );
 };
 
-// Feature sections
 export default function MainFeatures() {
   return (
     <>
@@ -1358,7 +1356,7 @@ function StudentHubSection() {
   const handleUploadFile = () => {
     const newFile = { id: Date.now(), fileName: `My Study Material ${yourFiles.length + 1}.pdf`, uploadedAt: new Date().toISOString(), type: "pdf" };
     setYourFiles([newFile, ...yourFiles]);
-    setStudyCredits(studyCredits + 20); // Reward credits
+    setStudyCredits(studyCredits + 20);
     setShowUploadModal(false);
   };
   const getFileIcon = (type) => {
@@ -1757,28 +1755,31 @@ function StudentTestimonialsSection() {
 
   const testimonials = [
     {
-      name: "Sarah Miller",
-      role: "Biology Major",
-      university: "State University",
-      image: "https://i.pravatar.cc/80?img=5",
-      text: "The AI note-taking saved me hours on my Biology lectures! I can finally focus in class and know my notes will be comprehensive and easy to search.",
+      name: "Kevin Su",
+      role: "Economics Major",
+      university: "Yale University",
+      logoUrl: "https://via.placeholder.com/64/00356B/FFFFFF?text=Yale",
+      logoAlt: "Yale University logo",
+      text: "TaskMaster AI transformed my approach to economic theory research. The smart summarization tool condensed dense academic papers into actionable insights, saving me 15+ hours weekly. The citation manager automatically formatted my references in Chicago style, which was a lifesaver for my thesis. My GPA improved from 3.7 to 3.9 after just one semester of using TaskMaster.",
       rating: 5,
     },
     {
-      name: "David Kim",
-      role: "Engineering Student",
-      university: "Tech Institute",
-      image: "https://i.pravatar.cc/80?img=11",
-      text: "Organizing all my course materials in folders and then getting AI-generated flashcards has been a lifesaver for my midterms. My grades have actually improved!",
+      name: "Mohana Dayyam",
+      role: "Premed Student",
+      university: "Rice University",
+      logoUrl: "https://via.placeholder.com/64/00205B/FFFFFF?text=Rice",
+      logoAlt: "Rice University logo",
+      text: "As a premed student juggling organic chemistry, biology, and physics, TaskMaster AI's study schedule optimizer has been revolutionary. It analyzes my learning patterns and creates personalized study blocks that maximized my retention. The flashcard system with spaced repetition algorithms helped me memorize complex biochemical pathways effortlessly. I scored in the 95th percentile on my MCAT, and I credit TaskMaster for making that possible.",
       rating: 5,
     },
     {
-      name: "Aisha Khan",
-      role: "Literature Student",
-      university: "Liberal Arts College",
-      image: "https://i.pravatar.cc/80?img=9",
-      text: "The study groups feature is amazing. Discussing essays and sharing resources with classmates directly in the app made a huge difference for my final paper.",
-      rating: 4,
+      name: "Hrishi Chintakuntla",
+      role: "Premed Student",
+      university: "Johns Hopkins University",
+      logoUrl: "https://via.placeholder.com/64/002D62/FFFFFF?text=JHU",
+      logoAlt: "Johns Hopkins University logo",
+      text: "The collaborative study feature in TaskMaster AI completely changed my medical school preparation. I connected with classmates to share annotated lecture notes and created group study guides that synced automatically. The AI-powered question generator helped identify weak areas in my understanding before exams. My professors have commented on the notable improvement in my critical thinking skills since I started using TaskMaster for my studies.",
+      rating: 5,
     },
   ];
 
@@ -1799,7 +1800,7 @@ function StudentTestimonialsSection() {
             Hear From Students Like You
           </motion.h2>
           <motion.p variants={itemVariants} className="text-xl text-gray-300 max-w-3xl mx-auto">
-            Discover how our platform is helping students achieve their academic goals and simplify their study life.
+            Discover how TaskMaster AI is helping students improve their academic performance and productivity.
           </motion.p>
         </motion.div>
         <motion.div
@@ -1812,8 +1813,7 @@ function StudentTestimonialsSection() {
             <motion.div
               key={index}
               variants={itemVariants}
-              className="relative h-full"
-              whileHover={{ y: -8, transition: { duration: 0.3, ease: "easeOut" } }}
+              className="relative h-full testimonial-card"
             >
               <GlowingBorder className="h-full">
                 <div className="bg-gray-800/70 backdrop-blur-sm p-6 rounded-xl h-full flex flex-col shadow-lg">
@@ -1826,9 +1826,11 @@ function StudentTestimonialsSection() {
                   </div>
                   <p className="text-gray-200 italic flex-grow mb-5 text-base leading-relaxed">"{testimonial.text}"</p>
                   <div className="mt-auto flex items-center gap-3 pt-4 border-t border-gray-700/50">
-                    <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-purple-500/50 flex-shrink-0">
-                      <img src={testimonial.image} alt={testimonial.name} className="w-full h-full object-cover" />
-                    </div>
+                    <img
+                      src={testimonial.logoUrl}
+                      alt={testimonial.logoAlt}
+                      className="university-logo flex-shrink-0"
+                    />
                     <div>
                       <h3 className="text-white font-semibold">{testimonial.name}</h3>
                       <p className="text-gray-400 text-sm">{testimonial.role}, <span className="font-medium">{testimonial.university}</span></p>
