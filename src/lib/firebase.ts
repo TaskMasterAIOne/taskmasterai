@@ -1,34 +1,40 @@
-// src/firebase.ts
-import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getFunctions } from "firebase/functions";
-import { getStorage } from "firebase/storage";
+// src/lib/firebase.ts
+import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
+import { getAuth, Auth } from 'firebase/auth';
+import { getFirestore, Firestore } from 'firebase/firestore';
+import { getFunctions, Functions } from 'firebase/functions';
+import { getStorage, FirebaseStorage } from 'firebase/storage';
 
 // Your Firebase project configuration
-// IMPORTANT: Consider using environment variables for security, especially apiKey
 const firebaseConfig = {
-  apiKey: "AIzaSyDaMAlQRMXiDsZ4P0b06P18id3y5xBiZ1k", // Replace if different
-  authDomain: "taskmaster.one", // <--- UPDATED for custom auth domain
+  apiKey: "AIzaSyDaMAlQRMXiDsZ4P0b06P18id3y5xBiZ1k",
+  authDomain: "taskmaster.one", // CRITICAL: Updated to custom domain
   projectId: "deepworkai-c3419",
   storageBucket: "deepworkai-c3419.appspot.com",
   messagingSenderId: "367439182644",
   appId: "1:367439182644:web:304216430df97eff68c361",
 };
 
-// Initialize Firebase App
-const app = initializeApp(firebaseConfig);
+let app: FirebaseApp;
+const apps = getApps();
+
+if (apps.length === 0) {
+  // No apps initialized, initialize the default app
+  app = initializeApp(firebaseConfig);
+} else {
+  // Get the already initialized default app
+  // (Firebase JS SDK v9+ typically initializes the default app if config is provided at top level)
+  app = getApp(); // Gets the [DEFAULT] app
+}
 
 // Initialize and get Firebase service instances
-const auth = getAuth(app);
-const db = getFirestore(app);
-const functions = getFunctions(app); // Initialize Functions service for calling deployed functions
-const storage = getStorage(app);
+const auth: Auth = getAuth(app);
+const db: Firestore = getFirestore(app);
+const functions: Functions = getFunctions(app);
+const storage: FirebaseStorage = getStorage(app);
 
-
-// Export the initialized services
-export { app, auth, db, functions, storage, firebaseConfig }; // Also exporting firebaseConfig for the AuthHandler page
-
+// Export the initialized services and the config (for AuthHandler)
+export { app, auth, db, functions, storage, firebaseConfig };
 
 // --- File Type Pricing (Your existing data) ---
 export const pricing = {
