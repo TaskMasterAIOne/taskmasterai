@@ -8,7 +8,7 @@ import { getStorage } from "firebase/storage";
 // IMPORTANT: Consider using environment variables for security, especially apiKey
 const firebaseConfig = {
   apiKey: "AIzaSyDaMAlQRMXiDsZ4P0b06P18id3y5xBiZ1k", // Replace if different
-  authDomain: "deepworkai-c3419.firebaseapp.com",
+  authDomain: "taskmaster.one",
   projectId: "deepworkai-c3419",
   storageBucket: "deepworkai-c3419.appspot.com",
   messagingSenderId: "367439182644",
