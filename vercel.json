@@ -1,5 +1,11 @@
 {
   "version": 2,
+  "rewrites": [
+    {
+      "source": "/_/auth/handler",
+      "destination": "/auth/handler"
+    }
+  ],
   "builds": [
     {
       "src": "api/**/*.ts",
