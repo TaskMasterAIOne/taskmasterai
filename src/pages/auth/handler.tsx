@@ -1,41 +1,40 @@
 // src/pages/auth/handler.tsx
 import React, { useEffect } from 'react';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
+import { getAuth, Auth } from 'firebase/auth';
+// Import the firebaseConfig from your main Firebase setup file
+// Adjust the path based on the location of your firebase.ts
+// If firebase.ts is in src/lib/, then from src/pages/auth/ the path is ../../lib/firebase
+import { firebaseConfig as globalFirebaseConfig } from '../../lib/firebase';
 
-// Firebase config:
-// IMPORTANT: This configuration is specific to the AuthHandler.
-// It ensures that Firebase operations on this page (like handling OAuth redirects)
-// are associated with your custom domain.
-const firebaseConfigForAuthHandler = {
-  apiKey: "AIzaSyDaMAlQRMXiDsZ4P0b06P18id3y5xBiZ1k", // Replace with your actual apiKey
-  authDomain: "taskmaster.one", // CRITICAL: Must be your custom domain
-  projectId: "deepworkai-c3419", // Replace with your actual projectId
-  storageBucket: "deepworkai-c3419.appspot.com", // Replace with your actual storageBucket
-  messagingSenderId: "367439182644", // Replace with your actual messagingSenderId
-  appId: "1:367439182644:web:304216430df97eff68c361" // Replace with your actual appId
-};
+const AUTH_HANDLER_APP_NAME = 'Firebase Auth Handler App'; // Unique name for this app instance
 
 function AuthHandler() {
   useEffect(() => {
-    let app;
-    // Initialize Firebase App for this handler page
-    // This ensures that the auth operations are correctly scoped to the custom domain context.
-    if (!getApps().find(app => app.name === 'AuthHandlerApp')) { // Use a named app to avoid conflict if default is used elsewhere
-        app = initializeApp(firebaseConfigForAuthHandler, 'AuthHandlerApp');
+    let appInstance: FirebaseApp;
+    const existingApps = getApps();
+    const alreadyInitializedApp = existingApps.find(app => app.name === AUTH_HANDLER_APP_NAME);
+
+    // Ensure the config used for this handler has the correct custom authDomain
+    const configForAuthHandler = {
+      ...globalFirebaseConfig, // Use the base config from your main firebase file
+      authDomain: "taskmaster.one", // Explicitly ensure the custom domain is set
+    };
+
+    if (alreadyInitializedApp) {
+      appInstance = alreadyInitializedApp;
     } else {
-        app = getApp('AuthHandlerApp');
+      appInstance = initializeApp(configForAuthHandler, AUTH_HANDLER_APP_NAME);
     }
     
-    const auth = getAuth(app);
+    // Get the Auth instance for this specific, named app
+    const authForHandler: Auth = getAuth(appInstance);
 
-    // The Firebase SDK, when initialized on this page (which is served from your custom domain
-    // e.g., https://taskmaster.one/_/auth/handler, rewritten to /auth/handler),
-    // and configured with authDomain: "taskmaster.one",
-    // will automatically process the OAuth response from Google.
-    // No explicit call to signInWithRedirectResult or similar is typically needed here,
-    // as the SDK handles the redirect result upon initialization if this is the redirect URL.
-    // The user should be redirected away by Firebase after processing.
+    // The Firebase SDK, when getAuth() is called for an app initialized
+    // with the correct authDomain (matching the page's domain) on the redirect page,
+    // will automatically process the OAuth response.
+    // The user should be redirected by Firebase Auth after it processes the sign-in.
+    // No explicit call to signInWithRedirectResult is usually needed here if using signInWithRedirect.
   }, []);
 
   return (
@@ -49,7 +48,6 @@ function AuthHandler() {
       fontFamily: 'Arial, sans-serif',
       color: '#333'
     }}>
-      {/* You can add a simple loading spinner here if you like */}
       <svg width="50" height="50" viewBox="0 0 38 38" xmlns="http://www.w3.org/2000/svg" stroke="#4f46e5">
         <g fill="none" fillRule="evenodd">
             <g transform="translate(1 1)" strokeWidth="2">
