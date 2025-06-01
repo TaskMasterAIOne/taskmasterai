@@ -1,4 +1,3 @@
-// src/main.tsx
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
@@ -41,9 +40,6 @@ import { FocusMode } from './components/Focus-Mode'; // Add this
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import Friends from './components/Friends';
-
-// Import the new AuthHandler component
-import AuthHandler from './pages/auth/handler'; // Make sure this path is correct
 
 // Global Helmet component - now primarily for scripts or dynamic global tags
 // Static favicons, apple-touch-icons, manifest, theme-color are in index.html
@@ -202,11 +198,6 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/" element={<RootTitle><App /></RootTitle>} />
             <Route path="/status" element={<PageTitle title="Status"><Status /></PageTitle>} />
             <Route path="/focus-mode" element={<PageTitle title="Focus Mode"><FocusMode /></PageTitle>} />
-            
-            {/* This is the new route for the authentication handler page */}
-            {/* The Vercel rewrite will send /_/auth/handler to this React route */}
-            <Route path="/auth/handler" element={<AuthHandler />} />
-            
             {/* <Route path="/api/*" element={null} /> This might be for Vercel serverless functions, not a React route */}
             <Route path="/public-note/:noteId" element={<PageTitle title="Public Note"><PublicNoteView /></PageTitle>} />
             
