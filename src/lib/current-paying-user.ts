@@ -32,7 +32,7 @@ export const PRO_EMAILS = [
     "9701532@tut4life.ac.za"
 ];
 
-// --- User Tier Type ---
+// --- User Tier Typ ---
 export type UserTier = 'basic' | 'pro' | 'premium' | 'loading';
 
 // --- Usage Limits ---
