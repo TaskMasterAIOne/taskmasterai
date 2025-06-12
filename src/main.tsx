@@ -13,7 +13,7 @@ import App from './App';
 import Login from './components/Login';
 import { SignUp } from './components/SignUp';
 import { AuthProvider } from './contexts/AuthContext';
-import Pricing from './components/Pricing';
+import Pricing from './components/Pricing'; // Keep the import, in case you re-enable it later
 import Terms from './components/Terms';
 import Settings from './components/Settings';
 import SplashScreen from './components/SplashScreen';
@@ -146,6 +146,98 @@ const NotFound = () => {
   );
 };
 
+// --- NEW COMPONENT FOR PRICING PAGE ---
+const PricingOutage = () => {
+  const isIlluminateEnabled = JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'false');
+  const isBlackoutEnabled = JSON.parse(localStorage.getItem('isBlackoutEnabled') || 'false');
+
+  const containerClass = isIlluminateEnabled
+    ? 'bg-white text-gray-900'
+    : isBlackoutEnabled
+    ? 'bg-gray-950 text-white'
+    : 'bg-gray-900 text-white'; // Default fallback
+
+  const headingColor = isIlluminateEnabled ? 'text-gray-900' : 'text-white';
+  const subheadingColor = isIlluminateEnabled ? 'text-gray-700' : 'text-gray-300';
+
+  return (
+    <div className={`relative flex flex-col items-center justify-center h-screen overflow-hidden ${containerClass} font-poppins`}>
+      {/* Background animations from NotFound page for similar feel */}
+      <motion.div
+        className="absolute bg-indigo-500 rounded-full opacity-30"
+        style={{ width: 350, height: 350, top: '-100px', left: '-100px' }}
+        animate={{ x: [0, 80, 0], y: [0, 50, 0] }}
+        transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <motion.div
+        className="absolute bg-purple-500 rounded-full opacity-30"
+        style={{ width: 300, height: 300, bottom: '-150px', right: '-150px' }}
+        animate={{ x: [0, -80, 0], y: [0, -50, 0] }}
+        transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+      />
+
+      <motion.div
+        className="text-center mb-6 md:mb-10 relative z-10"
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 1.2, type: "spring", stiffness: 200 }}
+      >
+        <motion.div
+          className="relative inline-block"
+          animate={{ y: [0, -10, 0], rotate: [0, 5, 0] }}
+          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+        >
+          <div className="absolute inset-0 bg-indigo-500 blur-2xl opacity-20 rounded-full transform scale-150"></div>
+          {/* Using a wrench/tools icon to signify 'work in progress' */}
+          <svg 
+            className="relative w-12 h-12 md:w-16 md:h-16 mx-auto text-indigo-400 mb-4" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="1.5"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17L17.25 21M16.023 16.023L21 21M8.57 15.17L3 20.74M3 20.74L8.57 15.17M8.57 15.17L15.17 8.57M15.17 8.57L21 3M21 3L15.17 8.57M3 3L8.57 8.57" />
+          </svg>
+        </motion.div>
+      </motion.div>
+      
+      <motion.h1
+        className={`text-6xl md:text-8xl font-extrabold text-center relative z-10 ${headingColor}`}
+        initial={{ y: -150, scale: 0.7, opacity: 0 }}
+        animate={{ y: 0, scale: 1, opacity: 1 }}
+        transition={{ type: "spring", stiffness: 220, damping: 20 }}
+      >
+        Temporarily Unavailable
+      </motion.h1>
+      
+      <motion.p
+        className={`mt-4 text-xl md:text-2xl text-center max-w-2xl relative z-10 ${subheadingColor}`}
+        initial={{ x: -150, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        transition={{ delay: 0.6, duration: 1.4, ease: "easeOut" }}
+      >
+        The pricing page is not available at the moment. We are actively working on a fix.
+      </motion.p>
+      
+      <motion.div
+        className="mt-8 relative z-10"
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        transition={{ delay: 1.2, type: "spring", stiffness: 260, damping: 20 }}
+      >
+        <Link 
+          to="/dashboard" 
+          className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-full transition-all transform hover:scale-105"
+        >
+          Go to Dashboard
+        </Link>
+      </motion.div>
+    </div>
+  );
+};
+// --- END NEW COMPONENT ---
+
 
 // Page title wrapper component
 const PageTitle = ({ title, children }: { title: string; children: React.ReactNode }) => (
@@ -180,7 +272,13 @@ createRoot(document.getElementById('root')!).render(
           <Routes>
             <Route path="/login" element={<PageTitle title="Login"><Login /></PageTitle>} />
             <Route path="/signup" element={<PageTitle title="Sign Up"><SignUp /></PageTitle>} />
-            <Route path="/pricing" element={<PageTitle title="Pricing"><Pricing /></PageTitle>} />
+            
+            {/* --- PRICING PAGE ROUTE MODIFIED --- */}
+            {/* The original route is commented out below */}
+            {/* <Route path="/pricing" element={<PageTitle title="Pricing"><Pricing /></PageTitle>} /> */}
+            <Route path="/pricing" element={<PageTitle title="Pricing"><PricingOutage /></PageTitle>} />
+            {/* --- END MODIFICATION --- */}
+            
             <Route path="/terms" element={<PageTitle title="Terms of Service"><Terms /></PageTitle>} />
             <Route path="/friends" element={<PageTitle title="Friends"><Friends /></PageTitle>} />
             <Route path="/settings" element={<PageTitle title="Settings"><Settings /></PageTitle>} />
