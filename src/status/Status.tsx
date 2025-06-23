@@ -134,30 +134,20 @@ const Logo = () => (
 const serviceStatus = [
   { name: "Dashboard", icon: LayoutDashboard, uptime: "99.99%", majorIssue: null, description: "Core application interface and widgets." },
   { name: "Notes", icon: NotebookText, uptime: "99.98%", majorIssue: null, description: "Note-taking, editing, and organization features." },
-  { name: "Calendar", icon: CalendarDays, uptime: "99.95%", majorIssue: null, description: "Event scheduling and calendar synchronization." },
-  { name: "Friends", icon: Users, uptime: "99.92%", majorIssue: null, description: "Social features, friend requests, and sharing. Functionality has been fully restored after a previous outage." },
-  { name: "Community", icon: Globe2, uptime: "99.88%", majorIssue: null, description: "File sharing, discovery, and community interactions." },
   { name: "Folders", icon: FolderKanban, uptime: "100.00%", majorIssue: null, description: "File and note organization using folders." },
   {
-    name: "Focus Mode",
+    name: "Focus",
     icon: Eye,
     uptime: "100.00%",
     majorIssue: null,
     description: "Distraction-free work environment feature. Now available for all users!",
     isNewFeature: true,
   },
-  { name: "AI Assistant", icon: BrainCircuit, uptime: "99.87%", majorIssue: null, description: "In-app AI chat, summarization, and generation." },
+  { name: "AI Chat", icon: BrainCircuit, uptime: "99.87%", majorIssue: null, description: "In-app AI chat, summarization, and generation." },
   { name: "Settings", icon: Settings, uptime: "99.96%", majorIssue: null, description: "User account and application preferences." },
 ];
 
 const incidentHistory = [
-    {
-        date: "Identified prior to April 18, 2025",
-        title: "Friends Feature Major Outage & Resolution",
-        description: "The Friends feature experienced a period of major instability due to complex state management and AI integration bugs, which led to crashes in other parts of the application. Our engineering team conducted a thorough investigation, addressed the root causes related to code, logic, and AI integrations, and deployed fixes. The feature is now fully operational and stable.",
-        resolvedDate: "May 21, 2025",
-        status: "Resolved"
-    },
     {
         date: "March 4, 2:59 PM EST",
         title: "Major Outage - Notes Feature",
@@ -324,7 +314,7 @@ Assistant:`;
   return (
     <div className="min-h-screen flex flex-col font-poppins bg-white text-gray-800 dark:bg-[#0C0E1A] dark:text-gray-200 illuminate-override">
       {/* Static Header */}
-      <header className="w-full py-5 sm:py-6 bg-white dark:bg-[#0C0E1A] illuminate-override border-b border-gray-200 dark:border-gray-800/60">
+      <header className="w-full py-5 sm:py-6 bg-white dark:bg-[#0C0E1A] illuminate-override ">
         <div className="container mx-auto px-5 sm:px-6">
           <nav className="flex items-center justify-between">
             <Logo />
@@ -454,18 +444,9 @@ Assistant:`;
         </div>
       </main>
 
-       {/* AI Chat Trigger Button */}
-       <button
-         onClick={() => setIsAiSidebarOpen(true)}
-         className={`fixed bottom-6 right-6 z-40 p-3 rounded-full shadow-lg transition-all duration-300 transform hover:scale-110 active:scale-100 bg-indigo-600 text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-[#0C0E1A] focus:ring-indigo-500 ${isAiSidebarOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
-         title="Open Status AI Assistant"
-         aria-label="Open Status AI Assistant"
-       >
-         <BrainCircuit className="w-6 h-6" />
-       </button>
 
       {/* Footer */}
-      <footer className="bg-white dark:bg-[#0C0E1A] mt-auto border-t border-gray-200 dark:border-gray-800/60 illuminate-override illuminate-border-override">
+      <footer className="bg-white dark:bg-[#0C0E1A] mt-auto illuminate-override illuminate-border-override">
         <div className="container mx-auto px-5 sm:px-6 py-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-5">
             <div className="flex items-center space-x-4 text-sm">
