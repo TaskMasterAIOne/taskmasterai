@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { Loader2, Crown, Gem, Check, AlertCircle, GraduationCap, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { useAuth as useGlobalAuth } from '../contexts/AuthContext';
+import { Loader2, Crown, Gem, Check, AlertCircle, GraduationCap } from 'lucide-react';
 import { subscribeToAuthState } from '../lib/pricing-firebase';
 import { Logo } from './Logo';
 import { createCheckoutSession, getStripe } from '../lib/stripe-client';
@@ -11,6 +11,7 @@ import {
 } from '../lib/current-paying-user';
 import StudentEmailModal from './StudentEmailModal';
 
+// ORIGINAL STRIPE PLACEHOLDER PRICE IDs - REPLACE WITH YOUR ACTUAL IDs
 const STRIPE_PRICE_IDS = {
   PREMIUM: {
     yearly: 'price_1Qe2OnIdgEonJvEbSDwoNCuH',
@@ -24,207 +25,92 @@ const STRIPE_PRICE_IDS = {
 
 type PlanName = 'PREMIUM' | 'PRO' | 'BASIC';
 
-// Time Value Calculator Component
-const COST_OF_TASKMASTER_PREMIUM_PER_MONTH = 10;
+interface ButtonInfo {
+    text: string;
+    disabled: boolean;
+    isCurrent: boolean;
+    isLoading: boolean;
+    actionType: 'subscribe' | 'redirect' | 'none';
+    redirectTo?: string;
+}
 
-const TimeValueCalculator: React.FC = () => {
-  const [hoursLostPerWeek, setHoursLostPerWeek] = useState<number>(4);
-  const [hourlyRate, setHourlyRate] = useState<string>("20");
-  const [isExplanationExpanded, setIsExplanationExpanded] = useState<boolean>(false);
+const FeatureItem = ({ text }: { text: string }) => (
+  <li className="flex items-start">
+    <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-400 mr-2 flex-shrink-0 mt-1" />
+    <span className="text-gray-300 text-xs sm:text-sm">{text}</span>
+  </li>
+);
 
-  const handleHoursChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setHoursLostPerWeek(parseInt(event.target.value, 10));
-  };
-
-  const handleRateChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const value = event.target.value;
-    if (value === '' || /^\d*\.?\d*$/.test(value)) {
-        setHourlyRate(value);
-    }
-  };
-  
-  const parsedHourlyRate = useMemo(() => {
-    const rate = parseFloat(hourlyRate);
-    return isNaN(rate) || rate < 0 ? 0 : rate;
-  }, [hourlyRate]);
-
-  const hoursLostPerMonth = useMemo(() => hoursLostPerWeek * 4, [hoursLostPerWeek]);
-  const valueOfTimeSaved = useMemo(() => hoursLostPerMonth * parsedHourlyRate, [hoursLostPerMonth, parsedHourlyRate]);
-  const totalROI = useMemo(() => valueOfTimeSaved - COST_OF_TASKMASTER_PREMIUM_PER_MONTH, [valueOfTimeSaved]);
-
-  const formatCurrency = (value: number) => {
-    const roundedValue = Math.round(value); // Round to nearest whole number
-    const absValue = Math.abs(roundedValue);
-    const formattedValue = absValue.toLocaleString(); // Adds commas for thousands
-    return roundedValue < 0 ? `-$${formattedValue}` : `$${formattedValue}`;
-  };
-
+const AnimatedBackground = () => {
   return (
-    <div className="my-12 md:my-16 lg:my-20 font-poppins">
-      <motion.h2 
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.2 }}
-        className="text-3xl md:text-4xl font-bold text-center text-white mb-8 md:mb-12 px-4"
-      >
-        How much is your time worth to you?
-      </motion.h2>
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.4 }}
-        className="max-w-4xl mx-auto grid md:grid-cols-2 gap-6 md:gap-8 p-4 md:p-0"
-      >
-        {/* Left Panel: Input Section */}
-        <div className="bg-gray-50 text-gray-800 p-6 md:p-8 rounded-xl shadow-2xl">
-          <h3 className="text-lg font-semibold mb-2 text-gray-700">
-            Hours lost per week on distractions, context-switching, and manual calendaring work
-          </h3>
-          <div className="my-6 text-center">
-            <span className="text-5xl md:text-6xl font-bold text-indigo-600">
-              {hoursLostPerWeek}
-            </span>
-            <span className="text-xl md:text-2xl text-gray-600 ml-2">hours</span>
-          </div>
-          <input
-            type="range"
-            min="1"
-            max="20"
-            value={hoursLostPerWeek}
-            onChange={handleHoursChange}
-            className="w-full h-3 bg-gray-300 rounded-lg appearance-none cursor-pointer range-lg accent-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50"
-            aria-label="Hours lost per week"
-            aria-valuemin={1}
-            aria-valuemax={20}
-            aria-valuenow={hoursLostPerWeek}
-          />
-          <div className="mt-8">
-            <label htmlFor="hourlyRate" className="block text-sm font-medium text-gray-600 mb-1">
-              How much 1 hour of your time is worth to you
-            </label>
-            <div className="relative mt-1 rounded-md shadow-sm">
-              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                <span className="text-gray-500 sm:text-sm">$</span>
-              </div>
-              <input
-                type="text"
-                name="hourlyRate"
-                id="hourlyRate"
-                value={hourlyRate}
-                onChange={handleRateChange}
-                className="block w-full rounded-md border-gray-300 pl-7 pr-12 py-2 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm text-gray-900"
-                placeholder="20"
-                inputMode="decimal"
-                aria-label="Hourly rate in dollars"
-                aria-describedby="hourly-rate-suffix"
-              />
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                <span className="text-gray-500 sm:text-sm" id="hourly-rate-suffix">
-                  /hr
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
+    <>
+      <style>{`
+        @keyframes subtleFloat1 {
+          0% { transform: translate(0px, 0px) rotate(0deg); opacity: 0.05; }
+          25% { transform: translate(30px, -40px) rotate(10deg); opacity: 0.07; }
+          50% { transform: translate(-20px, 30px) rotate(-8deg); opacity: 0.04; }
+          75% { transform: translate(40px, 20px) rotate(5deg); opacity: 0.08; }
+          100% { transform: translate(0px, 0px) rotate(0deg); opacity: 0.05; }
+        }
+        @keyframes subtleFloat2 {
+          0% { transform: translate(0px, 0px) rotate(0deg); opacity: 0.06; }
+          25% { transform: translate(-35px, 25px) rotate(-12deg); opacity: 0.08; }
+          50% { transform: translate(25px, -35px) rotate(10deg); opacity: 0.05; }
+          75% { transform: translate(-15px, 40px) rotate(15deg); opacity: 0.07; }
+          100% { transform: translate(0px, 0px) rotate(0deg); opacity: 0.06; }
+        }
+         @keyframes subtleFloat3 {
+          0% { transform: translate(0px, 0px) rotate(0deg); opacity: 0.04; }
+          25% { transform: translate(25px, 35px) rotate(8deg); opacity: 0.06; }
+          50% { transform: translate(-30px, -25px) rotate(-12deg); opacity: 0.03; }
+          75% { transform: translate(20px, -30px) rotate(18deg); opacity: 0.07; }
+          100% { transform: translate(0px, 0px) rotate(0deg); opacity: 0.04; }
+        }
+      `}</style>
 
-        {/* Right Panel: Results Section */}
-        <div className="bg-gray-800 text-white p-6 md:p-8 rounded-xl shadow-2xl flex flex-col">
-          <h3 className="text-xl md:text-2xl font-semibold mb-4 text-indigo-400">
-            Return on investment per month with TaskMaster
-          </h3>
-          <div className="my-6 text-center">
-            <div className="text-5xl md:text-6xl font-extrabold text-green-400" aria-live="polite">
-              {formatCurrency(totalROI)}
-            </div>
-            <div className="mt-2 text-lg text-gray-300">
-              Or <span className="font-semibold text-indigo-300">{hoursLostPerMonth} hours</span> of your life
-            </div>
-          </div>
-          <motion.a
-            href="/signup"
-            variants={{ hover: { scale: 1.05 }, tap: { scale: 0.95 } }}
-            whileHover="hover"
-            whileTap="tap"
-            className="w-full text-center py-3 px-6 mt-6 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-semibold text-lg shadow-md hover:from-purple-600 hover:to-pink-600 transition-all duration-300"
-          >
-            Start your free trial
-          </motion.a>
-          
-          <div className="mt-auto pt-6">
-            <button
-              onClick={() => setIsExplanationExpanded(!isExplanationExpanded)}
-              className="flex items-center justify-between w-full text-left text-gray-400 hover:text-indigo-300 transition-colors py-2 focus:outline-none focus:text-indigo-300"
-              aria-expanded={isExplanationExpanded}
-              aria-controls="roi-explanation-content"
-            >
-              <span className="font-medium">How did we get this number?</span>
-              {isExplanationExpanded ? <ChevronUp className="w-5 h-5 flex-shrink-0" /> : <ChevronDown className="w-5 h-5 flex-shrink-0" />}
-            </button>
-            <AnimatePresence>
-              {isExplanationExpanded && (
-                <motion.div
-                  id="roi-explanation-content"
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.3, ease: "easeInOut" }}
-                  className="overflow-hidden"
-                  role="region"
-                  aria-labelledby="roi-explanation-heading"
-                >
-                  <div className="mt-4 pt-4 border-t border-gray-700 text-sm text-gray-300">
-                    <h4 id="roi-explanation-heading" className="sr-only">Calculation Breakdown</h4>
-                    <table className="w-full">
-                      <tbody>
-                        <tr className="border-b border-gray-700/50">
-                          <td className="py-2 pr-2">Hours lost per month</td>
-                          <td className="py-2 text-right font-medium">{hoursLostPerMonth} hours</td>
-                        </tr>
-                        <tr className="border-b border-gray-700/50">
-                          <td className="py-2 pr-2">Value of TaskMaster for saving {hoursLostPerMonth} hours</td>
-                          <td className="py-2 text-right font-medium">{formatCurrency(valueOfTimeSaved)}</td>
-                        </tr>
-                        <tr className="border-b border-gray-700/50">
-                          <td className="py-2 pr-2">Cost of TaskMaster Premium subscription per month</td>
-                          <td className="py-2 text-right font-medium">${COST_OF_TASKMASTER_PREMIUM_PER_MONTH}</td>
-                        </tr>
-                        <tr>
-                          <td className="py-2 pr-2 pt-3 font-bold text-base text-indigo-300">Total ROI per month</td>
-                          <td className="py-2 pt-3 text-right font-bold text-base text-green-400">{formatCurrency(totalROI)}</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-      </motion.div>
-    </div>
+      {/* Shape 1 - Large, subtle purple */}
+      <div
+        className="fixed -z-10 top-[-25vh] left-[-25vw] w-[100vw] h-[100vh] bg-purple-600 rounded-full"
+        style={{
+          filter: 'blur(180px)',
+          animation: 'subtleFloat1 35s infinite ease-in-out',
+        }}
+      />
+      {/* Shape 2 - Medium, subtle indigo */}
+      <div
+        className="fixed -z-10 top-[20vh] right-[-30vw] w-[90vw] h-[90vh] bg-indigo-500 rounded-full"
+        style={{
+          filter: 'blur(150px)',
+          animation: 'subtleFloat2 45s infinite ease-in-out 5s',
+        }}
+      />
+      {/* Shape 3 - Smaller, subtle pink */}
+      <div
+        className="fixed -z-10 bottom-[-20vh] left-[10vw] w-[80vw] h-[80vh] bg-pink-400 rounded-full"
+        style={{
+          filter: 'blur(130px)',
+          animation: 'subtleFloat3 40s infinite ease-in-out 10s',
+        }}
+      />
+    </>
   );
 };
 
 
 function Pricing() {
-  const { loading } = useAuth();
-  const [user, setUser] = useState<any>(null);
+  const { user: authUser, loading: authLoading } = useGlobalAuth();
+  const [localUser, setLocalUser] = useState<any>(null);
   const [isYearly, setIsYearly] = useState(true);
-  const [isOpen, setIsOpen] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [userCurrentTier, setUserCurrentTier] = useState<UserTier>('loading');
-
   const [showStudentOfferOnProCard, setShowStudentOfferOnProCard] = useState(false);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
 
-  const toggleMenu = () => {
-    setIsOpen(!isOpen);
-  };
 
   useEffect(() => {
     const unsubscribe = subscribeToAuthState(async (firebaseUser) => {
-      setUser(firebaseUser);
+      setLocalUser(firebaseUser);
       setIsCheckingOut(null);
       setCheckoutError(null);
       if (firebaseUser) {
@@ -244,499 +130,271 @@ function Pricing() {
   }, []);
 
   useEffect(() => {
-    let canPotentiallyShowOffer = false;
-    if (!user) {
-      canPotentiallyShowOffer = true;
-    } else {
-      if (userCurrentTier === 'basic') {
-        canPotentiallyShowOffer = true;
-      } else {
-        canPotentiallyShowOffer = false;
-      }
-    }
-
+    let canPotentiallyShowOffer = !localUser || userCurrentTier === 'basic';
     if (!canPotentiallyShowOffer) {
       setShowStudentOfferOnProCard(false);
       return;
     }
-
-    const offerRevealDelay = 750; 
-
-    const offerTimer = setTimeout(() => {
-      setShowStudentOfferOnProCard(true);
-    }, offerRevealDelay);
-
-    return () => {
-      clearTimeout(offerTimer);
-    };
-  }, [user, userCurrentTier]);
-
+    const offerTimer = setTimeout(() => setShowStudentOfferOnProCard(true), 750);
+    return () => clearTimeout(offerTimer);
+  }, [localUser, userCurrentTier]);
 
   const handleSubscribe = async (priceId: string, targetPlan: PlanName) => {
-    if (!user) {
+    if (!localUser) {
+      // This case should be handled by button logic redirecting to signup
       setCheckoutError('Please login or sign up to subscribe.');
       return;
     }
-    if (isCheckingOut) return;
-
-    if (
-        (targetPlan === 'PREMIUM' && userCurrentTier === 'premium') ||
-        (targetPlan === 'PRO' && userCurrentTier === 'pro')
-    ) {
-        console.log("Attempted to subscribe to current plan.");
-        return;
+    if (isCheckingOut || (targetPlan === 'PREMIUM' && userCurrentTier === 'premium') || (targetPlan === 'PRO' && userCurrentTier === 'pro')) {
+      return;
     }
-
     setIsCheckingOut(priceId);
     setCheckoutError(null);
-
     try {
-      const { sessionId } = await createCheckoutSession(priceId);
+      const { sessionId } = await createCheckoutSession(priceId, localUser.uid);
       const stripe = await getStripe();
-      if (!stripe) { throw new Error('Stripe.js failed to load.'); }
+      if (!stripe) throw new Error('Stripe.js failed to load.');
       const { error } = await stripe.redirectToCheckout({ sessionId });
-      if (error) {
-        console.error("Stripe redirection error:", error);
-        setCheckoutError(error.message || 'Could not redirect to Stripe.');
-        setIsCheckingOut(null);
-      }
+      if (error) throw error;
     } catch (error: any) {
-      console.error("Subscription handling error:", error);
       setCheckoutError(error.message || 'Failed to initiate subscription.');
       setIsCheckingOut(null);
     }
   };
 
-  const getButtonInfo = (planName: PlanName, targetPriceId: string) => {
-    const isLoadingThisButton = isCheckingOut === targetPriceId;
+  const getButtonInfo = (planName: PlanName, targetPriceId?: string): ButtonInfo => {
+    if (!localUser && (planName === 'PREMIUM' || planName === 'PRO')) {
+      return { text: "Sign Up to Subscribe", disabled: false, isCurrent: false, isLoading: false, actionType: 'redirect', redirectTo: '/signup' };
+    }
 
-    if (isLoadingThisButton) {
-        return { text: "Processing...", disabled: true, isCurrent: false, isLoading: true, isDowngrade: false };
-    }
-    if (user && userCurrentTier === 'loading') {
-        return { text: "Loading Plans...", disabled: true, isCurrent: false, isLoading: false, isDowngrade: false };
-    }
+    if (targetPriceId && isCheckingOut === targetPriceId) return { text: "Processing...", disabled: true, isCurrent: false, isLoading: true, actionType: 'subscribe' };
+    
+    if (localUser && userCurrentTier === 'loading') return { text: "Loading...", disabled: true, isCurrent: false, isLoading: false, actionType: 'none' };
 
     switch (planName) {
-        case 'PREMIUM':
-            if (user && userCurrentTier === 'premium') return { text: "Current Plan", disabled: true, isCurrent: true, isLoading: false, isDowngrade: false };
-            if (!user || (user && userCurrentTier !== 'premium')) return { text: "Upgrade to Premium", disabled: false, isCurrent: false, isLoading: false, isDowngrade: false };
-            break;
-        case 'PRO':
-            if (user && userCurrentTier === 'pro') return { text: "Current Plan", disabled: true, isCurrent: true, isLoading: false, isDowngrade: false };
-            if (user && userCurrentTier === 'premium') return { text: "Manage Subscription", disabled: false, isCurrent: false, isDowngrade: true, isLoading: false };
-             if (!user || (user && userCurrentTier === 'basic')) return { text: "Upgrade to Pro", disabled: false, isCurrent: false, isLoading: false, isDowngrade: false };
-            break;
-        default:
-            break;
+      case 'PREMIUM':
+        if (localUser && userCurrentTier === 'premium') return { text: "Current Plan", disabled: true, isCurrent: true, isLoading: false, actionType: 'none' };
+        return { text: "Upgrade to Premium", disabled: false, isCurrent: false, isLoading: false, actionType: 'subscribe' };
+      case 'PRO':
+        if (localUser && userCurrentTier === 'pro') return { text: "Current Plan", disabled: true, isCurrent: true, isLoading: false, actionType: 'none' };
+        if (localUser && userCurrentTier === 'premium') return { text: "Manage Subscription", disabled: false, isCurrent: false, isLoading: false, actionType: 'redirect', redirectTo: '/settings' };
+        return { text: "Upgrade to Pro", disabled: false, isCurrent: false, isLoading: false, actionType: 'subscribe' };
+      case 'BASIC':
+        if (localUser && userCurrentTier === 'basic') return { text: "Current Plan", disabled: true, isCurrent: true, isLoading: false, actionType: 'redirect', redirectTo: '/dashboard' };
+        if (localUser) return { text: "Go to Dashboard", disabled: false, isCurrent: false, isLoading: false, actionType: 'redirect', redirectTo: '/dashboard' };
+        return { text: "Sign Up Free", disabled: false, isCurrent: false, isLoading: false, actionType: 'redirect', redirectTo: '/signup' };
+      default:
+        return { text: "Get Started", disabled: false, isCurrent: false, isLoading: false, actionType: 'none' };
     }
-    return { text: "Subscribe Now", disabled: false, isCurrent: false, isLoading: false, isDowngrade: false };
   };
 
 
-  if (loading && !user && userCurrentTier === 'loading') {
-    return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
-      </div>
-    );
+  if (authLoading && !localUser && userCurrentTier === 'loading') {
+    return <div className="min-h-screen bg-[#0C0E1A] flex items-center justify-center"><Loader2 className="w-12 h-12 text-indigo-500 animate-spin" /></div>;
   }
 
-  const premiumPriceText = isYearly ? '$7.99 per month' : '$9.99 per month';
-  const proPriceText = isYearly ? '$4.99 per month' : '$6.99 per month';
+  const premiumPriceText = isYearly ? '$7.99' : '$9.99';
+  const proPriceText = isYearly ? '$4.99' : '$6.99';
+  const priceSuffix = '/ month';
   const premiumBillingText = isYearly ? 'Billed yearly' : 'Billed monthly';
   const proBillingText = isYearly ? 'Billed yearly' : 'Billed monthly';
 
-  const premiumMonthlySavings = (9.99 - 7.99).toFixed(2);
-  const premiumAnnualSavings = (Number(premiumMonthlySavings) * 12).toFixed(2);
-  const recommendationText = `Recommended – Save $${premiumMonthlySavings}/month ($${premiumAnnualSavings}/year)`;
+  const premiumAnnualSavings = ((9.99 * 12) - (7.99 * 12)).toFixed(2);
+  const recommendationText = `Save $${premiumAnnualSavings} / year!`;
 
-  const headerVariants = {
-    hidden: { opacity: 0, y: -50 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: 'easeOut' } }
-  };
-
-  const containerVariants = {
-    hidden: {},
-    visible: { transition: { staggerChildren: 0.2 } }
-  };
-
-  const cardVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } }
-  };
-
-  const buttonVariants = {
-    hover: { scale: 1.05 },
-    tap: { scale: 0.95 }
-  };
-
-  const renderFeatureItem = (text: string) => (
-    <li className="flex items-center">
-      <Check className="w-5 h-5 text-green-500 mr-2 flex-shrink-0" />
-      <span>{text}</span>
-    </li>
-  );
-
-  const bannerHeightClass = "h-10";
-
+  const headerMotionVariants = { hidden: { opacity: 0, y: -30 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } } };
+  
   const premiumStripePriceId = STRIPE_PRICE_IDS.PREMIUM[isYearly ? 'yearly' : 'monthly'];
   const proStripePriceId = STRIPE_PRICE_IDS.PRO[isYearly ? 'yearly' : 'monthly'];
-
+  
   const premiumButtonInfo = getButtonInfo('PREMIUM', premiumStripePriceId);
   const proButtonInfo = getButtonInfo('PRO', proStripePriceId);
+  const basicButtonInfo = getButtonInfo('BASIC');
+
+
+  const planCardBaseStyle = "bg-[#16181D] rounded-2xl flex flex-col border border-gray-700/50 p-5 sm:p-6 transition-all duration-300";
+  const planButtonBaseStyle = "w-full block text-center py-2.5 px-5 rounded-full font-semibold text-xs transition-colors duration-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#16181D]";
+
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-900 font-poppins">
-      <motion.header
-        className="fixed w-full bg-gray-900/80 backdrop-blur-lg border-b border-gray-800 z-50"
-        variants={headerVariants}
-        initial="hidden"
-        animate="visible"
-      >
-        <div className="container mx-auto px-4 py-4">
+    <div className="flex flex-col min-h-screen bg-[#0C0E1A] text-gray-200 font-poppins selection:bg-purple-600 selection:text-white relative overflow-hidden">
+      <AnimatedBackground />
+<motion.header className="w-full py-5 sm:py-6 bg-transparent z-10" variants={headerMotionVariants} initial="hidden" animate="visible">
+        <div className="container mx-auto px-5 sm:px-6">
           <nav className="flex items-center justify-between">
-            <a href="/">
-              <Logo />
-            </a>
-            <button
-              className="md:hidden text-gray-300 hover:text-indigo-400 focus:outline-none"
-              onClick={toggleMenu}
-              aria-label="Toggle menu"
-            >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                {isOpen ? (
-                  <path d="M6 18L18 6M6 6l12 12" />
-                ) : (
-                  <path d="M4 6h16M4 12h16M4 18h16" />
-                )}
-              </svg>
-            </button>
-            <div className="hidden md:flex items-center space-x-8">
-              <a href="/#features" className="text-gray-300 hover:text-indigo-400 transition-colors">Features</a>
-              <a href="/pricing" className="text-gray-300 hover:text-indigo-400 transition-colors">Pricing</a>
-              <a href="/contact" className="text-gray-300 hover:text-indigo-400 transition-colors">Contact</a>
-              <a
-                href={user ? "/dashboard" : "/signup"}
-                className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-full transition-all transform hover:scale-105"
-              >
-                {user ? "Dashboard" : "Get Started Today"}
+            <a href="/" aria-label="TaskMaster AI Home"><Logo /></a>
+            <div className="flex items-center">
+              <a href={authUser ? "/dashboard" : "/signup"} className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full text-sm font-semibold transition-colors duration-200 shadow-md hover:shadow-[0_0_15px_2px_rgba(99,102,241,0.5)]">
+                {authUser ? "Dashboard" : "Start today - It's Free"}
               </a>
-            </div>
-            <div
-              className={`absolute top-full left-0 right-0 bg-gray-900/95 border-b border-gray-800 md:hidden transition-all duration-300 ease-in-out ${ isOpen ? 'opacity-100 visible' : 'opacity-0 invisible' }`}
-            >
-              <div className="container mx-auto px-4 py-4 flex flex-col space-y-4">
-                <a href="/#features" className="text-gray-300 hover:text-indigo-400 transition-colors" onClick={toggleMenu}>Features</a>
-                <a href="/pricing" className="text-gray-300 hover:text-indigo-400 transition-colors" onClick={toggleMenu}>Pricing</a>
-                <a href="/contact" className="text-gray-300 hover:text-indigo-400 transition-colors" onClick={toggleMenu}>Contact</a>
-                <a href={user ? "/dashboard" : "/signup"} className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-full text-center transition-all transform hover:scale-105" onClick={toggleMenu}>
-                  {user ? "Dashboard" : "Get Started Today"}
-                </a>
-              </div>
             </div>
           </nav>
         </div>
       </motion.header>
 
+      <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 w-full max-w-screen-2xl z-10"> {/* Added z-10 */}
+        <div className="text-center mb-16">
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-400 to-pink-400 mb-3">
+            Pricing Plans
+          </h1>
+        </div>
 
-      <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-8 text-white w-full">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: 'easeOut' }}
-          className="text-center mb-12"
-        >
-          <h1 className="text-4xl font-bold text-indigo-400 mb-2">Choose Your Perfect Plan</h1>
-          <p className="text-gray-300">Select a plan that works best for you.</p>
-        </motion.div>
-
-        {/* Time Value Calculator Section */}
-        <TimeValueCalculator />
-
-        <motion.div
-          initial="hidden"
-          animate="visible"
-          variants={containerVariants}
-          className="flex justify-center mb-8"
-        >
-          <div className="bg-gray-800 rounded-full flex">
-            <motion.button
-              variants={buttonVariants}
-              whileHover="hover"
-              whileTap="tap"
-              className={`px-4 py-2 rounded-full transition-colors duration-300 ${isYearly ? 'bg-indigo-500 text-white' : 'text-gray-300'}`}
+        <div className="flex justify-center mb-12">
+          <div className="bg-[#16181D]/70 backdrop-blur-sm p-1.5 rounded-full flex border border-gray-700/60 shadow-lg"> {/* Added backdrop-blur and adjusted bg opacity */}
+            <button
+              className={`px-6 py-2.5 rounded-full transition-all duration-300 text-sm font-medium focus:outline-none ${isYearly ? 'bg-indigo-600 text-white shadow-[0_0_12px_2px_rgba(99,102,241,0.5)]' : 'text-gray-400 hover:text-gray-100'}`}
               onClick={() => { setIsYearly(true); setCheckoutError(null); }}
             >
-              Yearly
-            </motion.button>
-            <motion.button
-              variants={buttonVariants}
-              whileHover="hover"
-              whileTap="tap"
-              className={`px-4 py-2 rounded-full transition-colors duration-300 ${!isYearly ? 'bg-indigo-500 text-white' : 'text-gray-300'}`}
+              Yearly <span className="text-xs opacity-80">(Save 20%)</span>
+            </button>
+            <button
+              className={`px-6 py-2.5 rounded-full transition-all duration-300 text-sm font-medium focus:outline-none ${!isYearly ? 'bg-indigo-600 text-white shadow-[0_0_12px_2px_rgba(99,102,241,0.5)]' : 'text-gray-400 hover:text-gray-100'}`}
               onClick={() => { setIsYearly(false); setCheckoutError(null); }}
             >
               Monthly
-            </motion.button>
+            </button>
           </div>
-        </motion.div>
+        </div>
 
         {checkoutError && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-8 p-4 bg-red-900/50 border border-red-700 rounded-lg text-red-200 text-sm flex items-center justify-center gap-3 max-w-2xl mx-auto shadow-md"
-          >
-            <AlertCircle className="w-5 h-5 shrink-0 text-red-300" />
+          <div className="mb-8 p-4 bg-red-900/50 backdrop-blur-sm border border-red-500/30 rounded-lg text-red-300 text-sm flex items-center justify-center gap-3 max-w-xl mx-auto"> {/* Added backdrop-blur and adjusted bg opacity */}
+            <AlertCircle className="w-5 h-5 shrink-0 text-red-400" />
             <span>{checkoutError}</span>
-          </motion.div>
+          </div>
         )}
 
-        <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={containerVariants}
-            className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch"
-        >
-            <motion.div
-                variants={cardVariants}
-                className="bg-gray-800 rounded-xl flex flex-col overflow-hidden border border-gray-800 hover:shadow-lg hover:shadow-indigo-500/30 transition-shadow duration-300"
-            >
-                <div className={`${bannerHeightClass} invisible`}></div>
-                <div className="p-6 flex flex-col flex-grow">
-                    <div className="flex-grow mb-6">
-                        <h2 className="text-2xl font-bold mb-4">Basic</h2>
-                        <p className="text-3xl font-extrabold text-indigo-400 mb-1">Free</p>
-                        <p className="text-sm text-gray-400 mb-4">Forever free</p>
-                        <ul className="mb-6 space-y-2 text-gray-300">
-                            {renderFeatureItem("2 PDF and Text Notes per month")}
-                            {renderFeatureItem("1 YouTube Notes per month")}
-                            {renderFeatureItem("10 AI Chat Interactions per month")}
-                            {renderFeatureItem("500 Tokens Included")}
-                            {renderFeatureItem("Add Up to 3 Friends")}
-                        </ul>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 xl:gap-5 items-stretch max-w-6xl mx-auto">
+            {/* Basic Plan Card */}
+            <div className={`${planCardBaseStyle} hover:border-gray-600 hover:shadow-xl bg-[#16181D]/80 backdrop-blur-sm`}> {/* Added backdrop-blur and adjusted bg opacity */}
+                <div className="flex-grow">
+                    <h3 className="text-xl font-semibold text-gray-100 mb-2">Basic</h3>
+                    <p className="text-gray-400 mb-1 text-xs">For light users and trying things out.</p>
+                    <div className="my-4">
+                        <span className="text-4xl font-extrabold text-indigo-400">Free</span>
+                        <span className="text-gray-400 text-sm"> / forever</span>
                     </div>
-                    <div className="mt-auto">
-                        <motion.a
-                            variants={buttonVariants}
-                            whileHover={ (user && userCurrentTier === 'basic') ? "" : "hover" }
-                            whileTap={ (user && userCurrentTier === 'basic') ? "" : "tap" }
-                            href={user ? "/dashboard" : "/signup"}
-                            className={`block w-full text-center py-3 rounded-full font-semibold transition-transform ${
-                                user && userCurrentTier === 'basic' ? 'bg-gray-600 text-gray-400 cursor-default' :
-                                'bg-indigo-500 text-white hover:bg-indigo-600'
-                            }`}
-                        >
-                            {user && userCurrentTier === 'basic' ? 'Current Plan' : (user ? 'Access Dashboard' : 'Sign Up Free')}
-                        </motion.a>
-                    </div>
+                    <ul className="space-y-2 mb-6">
+                        <FeatureItem text="2 PDF and Text Notes per month" />
+                        <FeatureItem text="1 YouTube Notes per month" />
+                        <FeatureItem text="10 AI Chat Interactions per month" />
+                    </ul>
                 </div>
-            </motion.div>
+                <a href={basicButtonInfo.redirectTo || '#'}
+                   className={`${planButtonBaseStyle} ${basicButtonInfo.disabled ? 'bg-gray-600 text-gray-400 cursor-default focus:ring-gray-500' : `bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-[0_0_15px_2px_rgba(99,102,241,0.6)] focus:ring-indigo-500`}`}>
+                  {basicButtonInfo.text}
+                </a>
+            </div>
 
-            <motion.div
-                variants={cardVariants}
-                className="bg-gray-800 rounded-xl flex flex-col border-2 border-indigo-500 overflow-hidden hover:shadow-xl hover:shadow-indigo-400/40 transition-shadow duration-300 relative"
-            >
-                <div className={`${bannerHeightClass} flex items-center justify-center w-full`}>
-                    <AnimatePresence mode="wait">
-                        {isYearly ? (
-                            <motion.div
-                                key="recommendationPremium"
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                className="bg-yellow-500 text-black text-xs font-bold w-full h-full flex items-center justify-center px-4 text-center truncate"
-                            >
-                                {recommendationText}
-                            </motion.div>
-                        ) : (
-                            <div key="spacerPremium" className="w-full h-full invisible"></div>
-                        )}
-                    </AnimatePresence>
+            {/* Premium Plan Card (Recommended) */}
+            <div className={`${planCardBaseStyle} border-2 border-indigo-500 relative shadow-[0_0_15px_-3px_rgba(99,102,241,0.5)] hover:shadow-[0_0_25px_0px_rgba(99,102,241,0.6)] bg-[#16181D]/80 backdrop-blur-sm`}>  {/* Added backdrop-blur and adjusted bg opacity */}
+                {isYearly && (
+                <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
+                    <span className="inline-block bg-yellow-400 text-black text-xs font-bold px-4 py-1.5 rounded-full shadow-md">
+                    {recommendationText}
+                    </span>
                 </div>
-                <div className="p-6 flex flex-col flex-grow">
-                    <div className="flex-grow mb-6">
-                        <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">
-                            <Crown className="w-6 h-6 text-yellow-400" />
-                            Premium
-                        </h2>
-                        <p className="text-3xl font-extrabold text-indigo-400 mb-1">{premiumPriceText}</p>
-                        <p className="text-sm text-gray-400 mb-4">{premiumBillingText}</p>
-                        <ul className="mb-6 space-y-2 text-gray-300">
-                            {renderFeatureItem("Unlimited PDF and Text Notes")}
-                            {renderFeatureItem("Unlimited YouTube Notes")}
-                            {renderFeatureItem("Unlimited AI Chat Interactions")}
-                            {renderFeatureItem("2,500 Tokens Included")}
-                            {renderFeatureItem("Add Unlimited Friends")}
-                            {renderFeatureItem("Unlimited Access to Smart Overview")}
-                        </ul>
+                )}
+                <div className="flex-grow pt-5">
+                    <h3 className="text-xl font-semibold text-gray-100 mb-2 flex items-center"><Crown className="w-5 h-5 text-yellow-400 mr-2" />Premium</h3>
+                    <p className="text-gray-400 mb-1 text-xs">Best value for unlimited access.</p>
+                    <div className="my-4">
+                        <span className="text-4xl font-extrabold text-indigo-400">{premiumPriceText}</span>
+                        <span className="text-gray-400 text-sm">{priceSuffix}</span>
+                        <p className="text-xs text-gray-500 mt-1">{premiumBillingText}</p>
                     </div>
-                    <div className="mt-auto">
-                        {user ? (
-                            <motion.button
-                                variants={buttonVariants}
-                                whileHover={premiumButtonInfo.disabled ? "" : "hover"}
-                                whileTap={premiumButtonInfo.disabled ? "" : "tap"}
-                                onClick={() => {
-                                    if(premiumButtonInfo.isDowngrade){
-                                        window.location.href = '/settings';
-                                    } else if (!premiumButtonInfo.disabled) {
-                                        handleSubscribe(premiumStripePriceId, 'PREMIUM');
-                                    }
-                                }}
-                                disabled={premiumButtonInfo.disabled || (!!isCheckingOut && !premiumButtonInfo.isLoading)}
-                                className={`w-full text-center py-3 rounded-full font-semibold transition-transform flex items-center justify-center gap-2 ${
-                                    premiumButtonInfo.disabled && premiumButtonInfo.isCurrent ? 'bg-gray-600 text-gray-400 cursor-default' :
-                                    'bg-white text-indigo-600 hover:bg-gray-100'
-                                } ${(!!isCheckingOut && !premiumButtonInfo.isLoading) ? 'opacity-60 cursor-not-allowed' : ''}`}
-                            >
-                                {premiumButtonInfo.isLoading ? (
-                                    <> <Loader2 className="w-5 h-5 animate-spin" /> {premiumButtonInfo.text} </>
-                                ) : (
-                                    premiumButtonInfo.text
-                                )}
-                            </motion.button>
-                        ) : (
-                            <motion.a
-                                variants={buttonVariants}
-                                whileHover="hover"
-                                whileTap="tap"
-                                href="/signup"
-                                className="block w-full text-center py-3 rounded-full font-semibold bg-white text-indigo-600 transition-transform"
-                            >
-                                Sign Up to Subscribe
-                            </motion.a>
-                        )}
-                    </div>
+                    <ul className="space-y-2 mb-6">
+                        <FeatureItem text="Unlimited PDF and Text Notes" />
+                        <FeatureItem text="Unlimited YouTube Notes" />
+                        <FeatureItem text="Unlimited AI Chat Interactions" />
+                        <FeatureItem text="Unlimited Smart Daily Brief" />
+                        <FeatureItem text="Unlimited Podcasts" />
+                        <FeatureItem text="Priority Support"/>
+                    </ul>
                 </div>
-            </motion.div>
+                <button 
+                    onClick={() => {
+                        if (premiumButtonInfo.actionType === 'redirect' && premiumButtonInfo.redirectTo) {
+                            window.location.href = premiumButtonInfo.redirectTo;
+                        } else if (premiumButtonInfo.actionType === 'subscribe' && !premiumButtonInfo.disabled) {
+                            handleSubscribe(premiumStripePriceId, 'PREMIUM');
+                        }
+                    }} 
+                    disabled={premiumButtonInfo.disabled || (!!isCheckingOut && !premiumButtonInfo.isLoading)}
+                    className={`${planButtonBaseStyle} ${premiumButtonInfo.disabled && premiumButtonInfo.isCurrent ? 'bg-gray-600 text-gray-400 cursor-default focus:ring-gray-500' : 'bg-white text-indigo-700 hover:bg-gray-200 hover:shadow-[0_0_15px_2px_rgba(255,255,255,0.3)] focus:ring-indigo-300'} ${(!!isCheckingOut && !premiumButtonInfo.isLoading) ? 'opacity-60 cursor-not-allowed' : ''} flex items-center justify-center gap-2`}
+                >
+                {premiumButtonInfo.isLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> {premiumButtonInfo.text}</> : premiumButtonInfo.text}
+                </button>
+            </div>
 
-            <motion.div
-                variants={cardVariants}
-                className="bg-gray-800 rounded-xl flex flex-col overflow-hidden border border-gray-800 hover:shadow-lg hover:shadow-purple-500/30 transition-shadow duration-300 relative"
-            >
-                 <div className={`${bannerHeightClass} flex items-center justify-center w-full`}>
-                    <AnimatePresence mode="wait">
-                        {showStudentOfferOnProCard ? (
-                            <motion.div
-                                key="studentOfferActualPro"
-                                initial={{ opacity: 0, y: -20, scale: 0.9 }}
-                                animate={{
-                                  opacity: 1, y: 0, scale: 1,
-                                  transition: { type: "spring", stiffness: 300, damping: 20, duration: 0.5 }
-                                }}
-                                exit={{ opacity: 0, y: 10, scale: 0.95, transition: { duration: 0.2 } }}
-                                className="w-full h-full bg-gradient-to-r from-purple-600 via-indigo-500 to-pink-500 text-white text-xs font-semibold flex flex-col items-center justify-center px-1.5 text-center leading-tight cursor-default"
-                            >
-                                <div className="flex items-center gap-1">
-                                    <GraduationCap className="w-3.5 h-3.5 shrink-0" />
-                                    <span>Student Offer!</span>
-                                </div>
-                                <span className="block">2 Months PRO FREE!
-                                  <button onClick={() => setIsEmailModalOpen(true)} className="underline hover:text-yellow-300 ml-1">Email</button> /
-                                  <a href="https://www.instagram.com/taskmasteroneai" target="_blank" rel="noopener noreferrer" className="underline hover:text-yellow-300 ml-1">DM</a>.
-                                </span>
-                            </motion.div>
-                        ) : (
-                            <div key="spacerActualPro" className="w-full h-full invisible"></div>
-                        )}
-                    </AnimatePresence>
-                </div>
-                <div className="p-6 flex flex-col flex-grow">
-                     <div className="flex-grow mb-6">
-                        <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-                            <Gem className="w-6 h-6 text-purple-400" />
-                            Pro
-                        </h2>
-                        <p className="text-3xl font-extrabold text-indigo-400 mb-1">{proPriceText}</p>
-                        <p className="text-sm text-gray-400 mb-4">{proBillingText}</p>
-                        <ul className="mb-6 space-y-2 text-gray-300">
-                            {renderFeatureItem("10 PDF and Text Notes per month")}
-                            {renderFeatureItem("5 YouTube Notes per month")}
-                            {renderFeatureItem("200 AI Chat Interactions per Month")}
-                            {renderFeatureItem("1,000 Tokens Included")}
-                            {renderFeatureItem("Add Up to 10 Friends")}
-                            {renderFeatureItem("Limited Access to Smart Overview")}
-                        </ul>
+            {/* Pro Plan Card */}
+            <div className={`${planCardBaseStyle} relative hover:border-gray-600 hover:shadow-xl bg-[#16181D]/80 backdrop-blur-sm`}>  {/* Added backdrop-blur and adjusted bg opacity */}
+                <AnimatePresence>
+                    {showStudentOfferOnProCard && (
+                        <motion.div
+                            key="studentOfferProCard" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0, transition: { delay: 0.1 } }} exit={{ opacity: 0 }}
+                            className="absolute -top-1 left-0 right-0 mx-auto -translate-y-1/2 w-max max-w-[calc(100%-1rem)] z-10">
+                            <div className="bg-gradient-to-r from-purple-600 via-indigo-500 to-pink-500 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1.5 whitespace-nowrap">
+                                <GraduationCap className="w-3.5 h-3.5 shrink-0" />
+                                <span>Student? Get 2 Months PRO FREE!</span>
+                                <button onClick={() => setIsEmailModalOpen(true)} className="underline hover:text-yellow-300 focus:outline-none ml-1">Details</button>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+                <div className={`flex-grow ${showStudentOfferOnProCard ? 'pt-5' : ''}`}>
+                    <h3 className="text-xl font-semibold text-gray-100 mb-2 flex items-center"><Gem className="w-4 h-4 text-purple-400 mr-2" />Pro</h3>
+                    <p className="text-gray-400 mb-1 text-xs">For students and regular usage.</p>
+                    <div className="my-4">
+                        <span className="text-4xl font-extrabold text-indigo-400">{proPriceText}</span>
+                        <span className="text-gray-400 text-sm">{priceSuffix}</span>
+                        <p className="text-xs text-gray-500 mt-1">{proBillingText}</p>
                     </div>
-                    <div className="mt-auto">
-                        {user ? (
-                            <motion.button
-                                variants={buttonVariants}
-                                whileHover={proButtonInfo.disabled ? "" : "hover"}
-                                whileTap={proButtonInfo.disabled ? "" : "tap"}
-                                onClick={() => {
-                                    if(proButtonInfo.isDowngrade){
-                                        window.location.href = '/settings';
-                                    } else if (!proButtonInfo.disabled) {
-                                        handleSubscribe(proStripePriceId, 'PRO');
-                                    }
-                                }}
-                                disabled={proButtonInfo.disabled || (!!isCheckingOut && !proButtonInfo.isLoading)}
-                                className={`w-full text-center py-3 rounded-full font-semibold transition-transform flex items-center justify-center gap-2 ${
-                                    proButtonInfo.disabled && proButtonInfo.isCurrent ? 'bg-gray-600 text-gray-400 cursor-default' :
-                                    proButtonInfo.isDowngrade ? 'bg-purple-600 text-white hover:bg-purple-700' :
-                                    'bg-indigo-500 text-white hover:bg-indigo-600'
-                                } ${(!!isCheckingOut && !proButtonInfo.isLoading) ? 'opacity-60 cursor-not-allowed' : ''}`}
-                            >
-                            {proButtonInfo.isLoading ? (
-                                    <> <Loader2 className="w-5 h-5 animate-spin" /> {proButtonInfo.text} </>
-                                ) : (
-                                    proButtonInfo.text
-                                )}
-                            </motion.button>
-                        ) : (
-                            <motion.a
-                                variants={buttonVariants}
-                                whileHover="hover"
-                                whileTap="tap"
-                                href="/signup"
-                                className="block w-full text-center py-3 rounded-full font-semibold bg-indigo-500 text-white transition-transform"
-                            >
-                                Sign Up to Subscribe
-                            </motion.a>
-                        )}
-                    </div>
+                    <ul className="space-y-2 mb-6">
+                        <FeatureItem text="10 PDF and Text Notes per month" />
+                        <FeatureItem text="5 YouTube Notes per month" />
+                        <FeatureItem text="200 AI Chat Interactions per Month" />
+                        <FeatureItem text="Limited Access to Smart Daily Brief" />
+                    </ul>
                 </div>
-            </motion.div>
-        </motion.div>
+                <button 
+                    onClick={() => {
+                        if (proButtonInfo.actionType === 'redirect' && proButtonInfo.redirectTo) {
+                            window.location.href = proButtonInfo.redirectTo;
+                        } else if (proButtonInfo.actionType === 'subscribe' && !proButtonInfo.disabled) {
+                            handleSubscribe(proStripePriceId, 'PRO');
+                        }
+                    }} 
+                    disabled={proButtonInfo.disabled || (!!isCheckingOut && !proButtonInfo.isLoading)}
+                    className={`${planButtonBaseStyle} ${
+                        proButtonInfo.disabled && proButtonInfo.isCurrent 
+                            ? 'bg-gray-600 text-gray-400 cursor-default focus:ring-gray-500' 
+                            : proButtonInfo.actionType === 'redirect' && proButtonInfo.redirectTo === '/settings' // This implies it's a "Manage Subscription" button (downgrade from Premium)
+                                ? 'bg-purple-600 text-white hover:bg-purple-700 hover:shadow-[0_0_15px_2px_rgba(168,85,247,0.6)] focus:ring-purple-500' 
+                                : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-[0_0_15px_2px_rgba(99,102,241,0.6)] focus:ring-indigo-500'
+                        } ${(!!isCheckingOut && !proButtonInfo.isLoading) ? 'opacity-60 cursor-not-allowed' : ''} flex items-center justify-center gap-2`}
+                >
+                {proButtonInfo.isLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> {proButtonInfo.text}</> : proButtonInfo.text}
+                </button>
+            </div>
+        </div>
       </main>
 
-      <footer className="bg-gray-900 border-t border-gray-800 mt-auto">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex flex-col md:flex-row items-center justify-between">
+      <footer className="bg-transparent z-10"> {/* Changed bg to transparent and added z-10 */}
+        <div className="container mx-auto px-5 sm:px-6 py-10">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-5">
             <div className="flex items-center space-x-4">
-              <a href="/privacy-policy" className="text-sm text-gray-400 hover:text-indigo-400">
-                Privacy Policy
-              </a>
-              <span className="text-gray-600">|</span>
-              <a href="/terms" className="text-sm text-gray-400 hover:text-indigo-400">
-                Terms & Conditions
-              </a>
+              <a href="/privacy-policy" className="text-sm text-gray-500 hover:text-indigo-400 transition-colors">Privacy Policy</a>
+              <span className="text-gray-700 hidden sm:inline">|</span>
+              <a href="/terms" className="text-sm text-gray-500 hover:text-indigo-400 transition-colors">Terms & Conditions</a>
             </div>
-            <p className="text-sm text-gray-400 mt-4 md:mt-0">
-              © {new Date().getFullYear()} TaskMaster AI. All rights reserved.
-            </p>
+            <p className="text-sm text-gray-500 text-center md:text-right">© {new Date().getFullYear()} TaskMaster AI. All rights reserved.</p>
           </div>
         </div>
       </footer>
 
-      <StudentEmailModal
-        isOpen={isEmailModalOpen}
-        onClose={() => setIsEmailModalOpen(false)}
-      />
+      <StudentEmailModal isOpen={isEmailModalOpen} onClose={() => setIsEmailModalOpen(false)} />
     </div>
   );
 }
 
 export default Pricing;
-
