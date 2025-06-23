@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
     FileText, Upload, Youtube, Mic, Plus, Search, Filter as FilterIcon,
@@ -7,25 +7,24 @@ import {
     Lock, Trash2, Copy, RefreshCw, SplitSquareVertical, Menu, List, Briefcase,
     Share2, ClipboardCopy, Eye, ZoomIn, ZoomOut, RotateCcw, Crown, Info,
     PanelRightClose, PanelLeftClose, GripVertical, PlusCircle,
-    Image as ImageIcon, Layers, Download, Camera, Trash
+    Image as ImageIconLucide, Layers, Download, Camera, Trash, CheckSquare, Square,
+    Award, TrendingUp, Flame, User as UserIconLucide, PanelLeftOpen, Lightbulb, BarChart3, Gift, BarChart, Milestone, Zap, ShieldCheck, UserCheck, PackagePlus, ListTodo,
+    GraduationCap, Palette, Target, SlidersHorizontal, BookCopy, CalendarDays, BrainCog, FileWarning, EyeIcon, EyeOff, MessageSquarePlus, Edit3,
+    Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Settings2 as SpeedIcon, Speaker, ChevronDown, ChevronUp, RotateCw as FlipIcon
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Sidebar } from './Sidebar';
-import { auth, db } from '../lib/firebase';
-import { User } from 'firebase/auth';
+import { auth, db, app } from '../lib/firebase';
+import { User as FirebaseUser } from 'firebase/auth';
 import { collection, query, where, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
-import ReactMarkdown from 'react-markdown';
-import remarkMath from 'remark-math';
-import remarkGfm from 'remark-gfm';
-import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { processPDF, ProcessedPDF } from '../lib/pdf-processor';
 import { processYouTube } from '../lib/youtube-processor';
 import {
     saveNote, savePersonalNote, updateNote, processTextToAINoteData,
-    deleteNote, toggleNotePublicStatus, regenerateStudyQuestions,
-    getNoteById,
-    NoteData as FirebaseNoteData,
-    Flashcard
+    deleteNote, toggleNotePublicStatus, regenerateStudyQuestions, getNoteById,
+    addPodcastToNote, deletePodcastFromNote,
+    NoteData as FirebaseNoteData, Podcast, PodcastSegment
 } from '../lib/notes-firebase';
 import { NewNoteModal } from './NewNoteModal';
 import { SplitView } from './SplitView';
@@ -36,75 +35,256 @@ import {
     getUserTier as determineUserTier,
     getUserNoteUsage,
     updateUserNoteUsage,
-    NOTE_LIMITS
+    NOTE_LIMITS,
+    UserProfileData,
+    onUserProfileSnapshot,
+    updateUserPointsAndLevel,
+    updateUserStreak,
+    addUserBadge,
+    incrementUserProfileCounter,
+    POINTS_FOR_FREE_PREMIUM,
+    calculateLevel
 } from '../lib/current-paying-user';
 import { pdfjs, Document, Page } from 'react-pdf';
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
 import 'react-pdf/dist/esm/Page/TextLayer.css';
-import MDEditor from '@uiw/react-md-editor';
-import { FlashcardStudyModal } from './FlashcardStudyModal';
+import ReactQuill, { Quill } from 'react-quill';
+import 'quill/dist/quill.snow.css';
+import QuillResizeImage from 'quill-resize-image';
 import html2canvas from 'html2canvas';
-
+import { getFunctions, httpsCallable, HttpsCallableResult } from 'firebase/functions';
+import {
+    processTextForPodcast,
+    ProcessedPodcastSegment,
+    PodcastTextProcessResult,
+    SpeakerProfileForProcessor,
+    PodcastPlaybackSettingsForProcessor
+} from '../lib/podcast-processor';
+import { ProfileModal } from './ProfileModal';
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
-interface Note {
-    id: string; title: string; content: string; type: 'personal' | 'pdf' | 'youtube' | 'audio';
-    createdAt: Timestamp; updatedAt: Timestamp; userId: string; sourceUrl?: string;
-    keyPoints?: string[]; questions?: { question: string; options: string[]; correctAnswer: number; explanation: string; }[];
-    isPublic: boolean; tags: string[];
-    flashcards?: Flashcard[];
+const GEMINI_TEXT_MODEL = 'gemini-2.5-flash';
+const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
+
+async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delayMs = 1000): Promise<Response> {
+    for (let attempt = 0; attempt < retries; attempt++) {
+        try {
+            const response = await fetch(url, options);
+            if (!response.ok && (response.status === 429 || response.status >= 500)) {
+                if (attempt === retries - 1) {
+                    let errorText = `API Error (${response.status}) after ${retries} attempts.`;
+                    try {
+                        const errJson = await response.json();
+                        errorText = errJson?.error?.message || errorText;
+                    } catch {}
+                    throw new Error(errorText);
+                }
+                await new Promise(resolve => setTimeout(resolve, delayMs * (attempt + 1)));
+                continue;
+            }
+            if (!response.ok) {
+                let errorText = `API Error (${response.status})`;
+                 try { const errJson = await response.json(); errorText = errJson?.error?.message || errorText; } catch { }
+                throw new Error(errorText);
+            }
+            return response;
+        } catch (error) {
+            if (attempt === retries - 1) throw error;
+            await new Promise(resolve => setTimeout(resolve, delayMs * (attempt + 1)));
+        }
+    }
+    throw new Error(`Max retries reached for: ${url}`);
 }
-interface UploadProgressState { progress: number; status: string; error: string | null; }
+
+const parseGeminiResponse = (responseText: string): { text: string | null; error: string | null; } => {
+    let textContent: string | null = null;
+    let errorMessage: string | null = null;
+
+    try {
+        const jsonResponse = JSON.parse(responseText);
+        if (jsonResponse?.promptFeedback?.blockReason) {
+            errorMessage = `Request blocked: ${jsonResponse.promptFeedback.blockReason}.`;
+            return { text: null, error: errorMessage };
+        }
+        if (jsonResponse?.candidates?.[0]) {
+            const candidate = jsonResponse.candidates[0];
+            if (candidate.content?.parts?.[0]?.text) {
+                textContent = candidate.content.parts[0].text;
+            } else if (candidate.finishReason) {
+                 errorMessage = `Response generation stopped: ${candidate.finishReason}.`;
+            }
+        } else if (jsonResponse?.error?.message) {
+             errorMessage = `API Error: ${jsonResponse.error.message}`;
+        }
+        if (!textContent && !errorMessage) {
+            errorMessage = "Sorry, I received an empty or non-standard response format.";
+        }
+        return { text: textContent, error: errorMessage };
+    } catch (err) {
+        return { text: null, error: "Error: Could not process AI response (Invalid format)." };
+    }
+};
+
+const QUILL_FONTS = [
+  'sans-serif', 'serif', 'monospace', 'Arial', 'ComicSansMS', 'CourierNew',
+  'Georgia', 'Helvetica', 'LucidaSansUnicode', 'Poppins', 'Tahoma',
+  'TimesNewRoman', 'TrebuchetMS', 'Verdana'
+];
+
+const QuillFont = ReactQuill.Quill.import('formats/font');
+QuillFont.whitelist = QUILL_FONTS;
+ReactQuill.Quill.register(QuillFont, true);
+
+Quill.register('modules/resize', QuillResizeImage);
+
+const Video = ReactQuill.Quill.import('formats/video');
+const Parchment = ReactQuill.Quill.import('parchment');
+
+class CustomVideo extends Video {
+  static create(value: any) {
+    const node = super.create(value) as HTMLIFrameElement;
+    if (typeof value === 'string') {
+      node.setAttribute('src', this.sanitize(value));
+    } else if (value && typeof value === 'object' && value.url) {
+      node.setAttribute('src', this.sanitize(value.url));
+    }
+    node.setAttribute('frameborder', '0');
+    node.setAttribute('allowfullscreen', 'true');
+    return node;
+  }
+
+  static formats(domNode: HTMLIFrameElement) {
+    const formats:any = super.formats(domNode);
+    if (domNode.style.width) formats['videoWidth'] = domNode.style.width;
+    return formats;
+  }
+
+  format(name: string, value: any) {
+    if (name === VideoSizeClass.attrName) {
+      super.format(name, value);
+      if (value) {
+        this.domNode.style.removeProperty('width');
+      } else {
+        this.domNode.style.removeProperty('width');
+      }
+    } else if (name === 'videoWidth') {
+      if (value) {
+        (this.domNode as HTMLElement).style.width = value;
+        if (String(value).endsWith('%') || String(value).match(/^\d+(\.\d+)?(vw|vh|vmin|vmax)$/)) {
+            (this.domNode as HTMLElement).style.height = 'auto';
+            (this.domNode as HTMLElement).style.aspectRatio = '16 / 9';
+        } else {
+             (this.domNode as HTMLElement).style.removeProperty('aspect-ratio');
+        }
+      } else {
+        (this.domNode as HTMLElement).style.removeProperty('width');
+        (this.domNode as HTMLElement).style.removeProperty('height');
+        (this.domNode as HTMLElement).style.removeProperty('aspect-ratio');
+      }
+    } else {
+      super.format(name, value);
+    }
+  }
+}
+CustomVideo.blotName = 'video';
+CustomVideo.tagName = 'IFRAME';
+ReactQuill.Quill.register(CustomVideo, true);
+
+const VideoSizeClass = new Parchment.Attributor.Class('videosize', 'ql-videosize', {
+  scope: Parchment.Scope.BLOCK,
+  whitelist: ['small', 'medium', 'large', 'full']
+});
+ReactQuill.Quill.register(VideoSizeClass, true);
+
+interface Note extends FirebaseNoteData {
+    id: string;
+}
+
+interface UploadProgressState { progress: number; status: string; error: string | null; icon?: React.FC<any>; type?: 'success' | 'error' | 'info'; }
 interface NoteUsage { pdfAi: number; youtube: number; }
-interface SelectedFileForChat { name: string; type: string; size: number; base64Data: string; }
 
+interface PodcastSpeakerProfile extends SpeakerProfileForProcessor {
+    description: string;
+    avatarUrl: string;
+    sampleAudioUrl: string; // For pre-recorded voice samples
+}
 
-const SimpleModal = ({ isOpen, onClose, title, children, isIlluminateEnabled, isBlackoutEnabled }: { isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; isIlluminateEnabled: boolean; isBlackoutEnabled: boolean; }) => {
+const PREDEFINED_PODCAST_SPEAKERS: PodcastSpeakerProfile[] = [
+    {
+        id: 'felicity', name: 'Felicity', description: 'Polished, articulate, and easy on the ears.',
+        avatarUrl: 'https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/girl%20-%20felicity.jpg?alt=media&token=2515318d-1917-4561-9abb-400285733ef4',
+        elevenLabsVoiceId: 'aTbnroHRGIomiKpqAQR8',
+        // IMPORTANT: You must generate this audio file and upload it to get a URL
+        sampleAudioUrl: 'https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/felicity_sample_voice.mp3?alt=media&token=d7c5bef0-cb45-491e-8e36-e792e63133e0'
+    },
+    {
+        id: 'christopher', name: 'Christopher', description: 'Lifelike, expressive, and professionally tuned.',
+        avatarUrl: 'https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/boy%20-%20christopher.jpg?alt=media&token=92d53b92-48a7-4b04-826e-bca0a8f0507f',
+        elevenLabsVoiceId: 'G17SuINrv2H9FC6nvetn',
+        // IMPORTANT: You must generate this audio file and upload it to get a URL
+        sampleAudioUrl: 'https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/christopher_sample_voice.mp3?alt=media&token=fd0d094a-dbbb-40b3-8019-b8bd1b6c17aa'
+    },
+];
+
+interface GeneratePodcastRequest {
+  segments: ProcessedPodcastSegment[];
+}
+// This interface now reflects the new backend response
+interface GeneratePodcastResponse {
+  audioSegmentUrls?: PodcastSegment[];
+  combinedUrl?: string;
+  totalDuration?: number;
+  error?: string;
+}
+
+const firebaseFunctions = getFunctions(app);
+const generateElevenLabsPodcastAudioFn = httpsCallable<
+    GeneratePodcastRequest,
+    GeneratePodcastResponse
+>(firebaseFunctions, 'generateElevenLabsPodcastAudio');
+
+const SimpleModal = ({ isOpen, onClose, title, children, maxWidth = "max-w-md" }: { isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; maxWidth?: string}) => {
     if (!isOpen) return null;
-    const modalBg = isIlluminateEnabled ? "bg-white" : (isBlackoutEnabled ? "bg-black" : "bg-gray-800");
-    const textColor = isIlluminateEnabled ? "text-gray-900" : "text-gray-100";
-    const modalBorderColor = isIlluminateEnabled ? 'border-gray-200' : (isBlackoutEnabled ? 'border-gray-800' : 'border-gray-700');
-    const iconColor = isIlluminateEnabled ? "text-gray-500 hover:text-gray-700" : "text-gray-400 hover:text-gray-200";
-
     return (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn" onClick={onClose}>
-            <div className={`${modalBg} rounded-lg shadow-xl w-full max-w-md flex flex-col overflow-hidden`} onClick={(e) => e.stopPropagation()}>
-                <div className={`flex justify-between items-center p-4 border-b ${modalBorderColor}`}>
-                    <h2 className={`text-lg font-semibold ${textColor}`}>{title}</h2>
-                    <button onClick={onClose} className={`${iconColor} p-1 rounded-full hover:bg-gray-500/10`}>
+            <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className={`bg-white dark:bg-[#161922] rounded-lg shadow-xl w-full ${maxWidth} flex flex-col overflow-hidden border border-gray-200 dark:border-gray-700/70`}
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className={`flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700`}>
+                    <h2 className={`text-lg font-semibold text-gray-800 dark:text-gray-100`}>{title}</h2>
+                    <button onClick={onClose} className={`text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 p-1 rounded-full`}>
                         <X className="w-5 h-5" />
                     </button>
                 </div>
-                <div className="p-4">
+                <div className="p-4 overflow-y-auto">
                     {children}
                 </div>
-            </div>
+            </motion.div>
         </div>
     );
 };
 
-const UpgradeModal = ({ isOpen, onClose, isIlluminateEnabled, isBlackoutEnabled }: { isOpen: boolean; onClose: () => void; isIlluminateEnabled: boolean; isBlackoutEnabled: boolean; }) => {
+const UpgradeModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void; }) => {
     if (!isOpen) return null;
-    const textColor = isIlluminateEnabled ? "text-gray-900" : "text-gray-100";
-    const headingColor = isIlluminateEnabled ? "text-purple-600" : "text-purple-400";
-    const buttonPrimaryClass = "bg-purple-600 hover:bg-purple-700 text-white";
-    const paragraphColor = isIlluminateEnabled ? 'text-gray-600' : (isBlackoutEnabled ? 'text-gray-400' : 'text-gray-400');
-
-
     return (
-        <SimpleModal isOpen={isOpen} onClose={onClose} title="Unlock Premium Feature" isIlluminateEnabled={isIlluminateEnabled} isBlackoutEnabled={isBlackoutEnabled}>
+        <SimpleModal isOpen={isOpen} onClose={onClose} title="Unlock Premium Feature">
             <div className="text-center">
-                <Crown className={`w-16 h-16 mx-auto mb-4 ${headingColor}`} />
-                <h3 className={`text-xl font-semibold mb-2 ${textColor}`}>Podcast Feature Locked</h3>
-                <p className={`${paragraphColor} text-sm mb-6`}>
-                    Want to listen to your notes as a podcast? This feature is exclusive to our Premium users.
+                <Crown className={`w-16 h-16 mx-auto mb-4 text-purple-500 dark:text-purple-400`} />
+                <h3 className={`text-xl font-semibold mb-2 text-gray-800 dark:text-gray-100`}>Feature Locked</h3>
+                <p className={`text-gray-600 dark:text-gray-400 text-sm mb-6`}>
+                    This feature is exclusive to our Premium users.
                     Upgrade your plan to unlock this and many other powerful tools to boost your learning!
                 </p>
                 <Link
                     to="/pricing"
                     onClick={onClose}
-                    className={`w-full flex items-center justify-center px-4 py-2.5 rounded-md text-sm font-medium ${buttonPrimaryClass} shadow-md hover:shadow-lg transition-shadow`}
+                    className={`w-full flex items-center justify-center px-4 py-2.5 rounded-md text-sm font-medium bg-purple-500 hover:bg-purple-600 text-white shadow-md hover:shadow-lg transition-shadow`}
                 >
                     Upgrade to Premium
                 </Link>
@@ -113,11 +293,45 @@ const UpgradeModal = ({ isOpen, onClose, isIlluminateEnabled, isBlackoutEnabled 
     );
 };
 
+const toDateSafe = (value: any): Date | null => {
+    if (!value) return null;
+    if (value instanceof Date) return value;
+    if (value instanceof Timestamp) return value.toDate();
+    if (typeof value === 'string' || typeof value === 'number') {
+        const d = new Date(value);
+        return isNaN(d.getTime()) ? null : d;
+    }
+    if (typeof value === 'object' && 'seconds' in value && 'nanoseconds' in value &&
+        typeof value.seconds === 'number' && typeof value.nanoseconds === 'number') {
+        try {
+            return new Timestamp(value.seconds, value.nanoseconds).toDate();
+        } catch (e) { console.warn("toDateSafe error converting object:", e); return null; }
+    }
+    return null;
+};
+
+const BADGES_CONFIG_NOTES: { [key: string]: { name: string, description: string, icon: React.FC<any>, unlock_criteria_text: string, condition?: (profile: UserProfileData, notes?: Note[], noteType?: Note['type']) => boolean } } = {
+    firstPersonalNote: { name: "Personal Scribe", description: "Created your first personal note.", icon: Pencil, unlock_criteria_text: "Create 1 personal note", condition: (p) => (p.notesCreatedCount || 0) >=1 && (p.notesCreatedCount || 0) - (p.pdfNotesCreatedCount || 0) - (p.youtubeNotesCreatedCount || 0) - (p.aiNotesCreatedCount || 0) >=1 },
+    firstPdfNote: { name: "PDF Powerhouse", description: "Processed your first PDF.", icon: FileText, unlock_criteria_text: "Process 1 PDF", condition: (p) => (p.pdfNotesCreatedCount || 0) >= 1 },
+    firstYoutubeNote: { name: "Video Virtuoso", description: "Summarized your first YouTube video.", icon: Youtube, unlock_criteria_text: "Summarize 1 YouTube video", condition: (p) => (p.youtubeNotesCreatedCount || 0) >= 1 },
+    firstAiNote: { name: "AI Note Crafter", description: "Created your first AI-processed text note.", icon: Sparkles, unlock_criteria_text: "Create 1 AI text note", condition: (p) => (p.aiNotesCreatedCount || 0) >= 1 },
+    fiveNotesCreated: { name: "Note Collector", description: "Created 5 notes in total.", icon: Layers, unlock_criteria_text: "Create 5 notes", condition: (p) => (p.notesCreatedCount || 0) >= 5 },
+    twentyFiveNotesCreated: { name: "Note Archivist", description: "Created 25 notes in total.", icon: Briefcase, unlock_criteria_text: "Create 25 notes", condition: (p) => (p.notesCreatedCount || 0) >= 25 },
+    firstFlashcardsFromNote: { name: "Note Card Wizard", description: "Generated or added flashcards to a note.", icon: Layers, unlock_criteria_text: "Add flashcards to a note", condition: (p) => (p.noteFlashcardsCreatedCount || 0) >=1 },
+    firstChatWithNote: { name: "Note Conversationalist", description: "Used chat with a note.", icon: MessageCircle, unlock_criteria_text: "Chat with a note", condition: (p) => (p.noteChatsStartedCount || 0) >=1 },
+    publicNoteSharer: { name: "Public Sharer", description: "Shared a note publicly.", icon: Share2, unlock_criteria_text: "Make a note public"},
+    splitViewUser: { name: "Dual Viewer", description: "Used the split view feature.", icon: SplitSquareVertical, unlock_criteria_text: "Use Split View"},
+    level5Reached: { name: "Level 5 Voyager", description: "Reached overall level 5.", icon: Award, unlock_criteria_text: "Reach Level 5", condition: (p) => p.level >= 5 },
+    level10Reached: { name: "Level 10 Expert", description: "Reached overall level 10.", icon: Crown, unlock_criteria_text: "Reach Level 10", condition: (p) => p.level >= 10 },
+    points1k: { name: "Point Collector (1k)", description: "Earned 1,000 total points.", icon: TrendingUp, unlock_criteria_text: "Earn 1,000 Points", condition: (p) => p.points >= 1000 },
+    overallStreak3Day: { name: "3-Day Streak", description: "Maintained a 3-day study streak.", icon: Flame, unlock_criteria_text: "3-Day Streak", condition: (p) => (p.overallStreakCount || 0) >= 3 },
+};
 
 export function Notes() {
     const navigate = useNavigate();
-    const [user, setUser] = useState<User | null>(null);
+    const [user, setUser] = useState<FirebaseUser | null>(null);
     const [userName, setUserName] = useState<string>("User");
+    const [userProfile, setUserProfile] = useState<UserProfileData | null>(null);
     const [loading, setLoading] = useState(true);
     const [notes, setNotes] = useState<Note[]>([]);
     const [selectedNote, setSelectedNote] = useState<Note | null>(null);
@@ -125,18 +339,44 @@ export function Notes() {
     const [uploadProgress, setUploadProgress] = useState<UploadProgressState>({ progress: 0, status: '', error: null });
     const [searchQuery, setSearchQuery] = useState('');
     const [filterType, setFilterType] = useState<'all' | 'personal' | 'pdf' | 'youtube' | 'audio'>('all');
-
     const [userTier, setUserTier] = useState<UserTier>('loading');
     const [noteUsage, setNoteUsage] = useState<NoteUsage>({ pdfAi: 0, youtube: 0 });
     const [usageMonth, setUsageMonth] = useState<string>('');
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+        const saved = localStorage.getItem('isSidebarCollapsed');
+        return saved ? JSON.parse(saved) : false;
+    });
+    const [isDarkMode, setIsDarkMode] = useState(false);
 
-    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => JSON.parse(localStorage.getItem('isSidebarCollapsed') || 'false'));
+    useEffect(() => {
+        const applyTheme = () => {
+            const isIlluminateEnabled = JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'false');
+            if (isIlluminateEnabled) {
+                document.documentElement.classList.remove('dark');
+                document.documentElement.classList.add('light');
+                setIsDarkMode(false);
+            } else {
+                document.documentElement.classList.remove('light');
+                if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    document.documentElement.classList.add('dark');
+                    setIsDarkMode(true);
+                } else {
+                    document.documentElement.classList.remove('dark');
+                    setIsDarkMode(false);
+                }
+            }
+        };
+        applyTheme();
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        mediaQuery.addEventListener('change', applyTheme);
+        window.addEventListener('storage', (event) => { if (event.key === 'isIlluminateEnabled') applyTheme(); });
+        return () => {
+            mediaQuery.removeEventListener('change', applyTheme);
+            window.removeEventListener('storage', (event) => { if (event.key === 'isIlluminateEnabled') applyTheme(); });
+        }
+    }, []);
+
     const [isNotesListHidden, setIsNotesListHidden] = useState(false);
-    const [isBlackoutEnabled, setIsBlackoutEnabled] = useState(() => JSON.parse(localStorage.getItem('isBlackoutEnabled') || 'false'));
-    const [isSidebarBlackoutEnabled, setIsSidebarBlackoutEnabled] = useState(() => JSON.parse(localStorage.getItem('isSidebarBlackoutEnabled') || 'false'));
-    const [isIlluminateEnabled, setIsIlluminateEnabled] = useState(() => JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'true'));
-    const [isSidebarIlluminateEnabled, setIsSidebarIlluminateEnabled] = useState(() => JSON.parse(localStorage.getItem('isSidebarIlluminateEnabled') || 'false'));
-
     const [isEditing, setIsEditing] = useState(false);
     const [editTitle, setEditTitle] = useState('');
     const [editContent, setEditContent] = useState<string | undefined>('');
@@ -147,25 +387,45 @@ export function Notes() {
     const [isSaving, setIsSaving] = useState(false);
     const [isRegeneratingQuestions, setIsRegeneratingQuestions] = useState(false);
     const [linkCopied, setLinkCopied] = useState(false);
-
     const [showNotesListOnMobile, setShowNotesListOnMobile] = useState(true);
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-
     const [showSplitView, setShowSplitView] = useState(false);
     const [splitViewNotes, setSplitViewNotes] = useState<{left: Note | null; right: Note | null}>({ left: null, right: null });
-
     const [isChatOverlayVisible, setIsChatOverlayVisible] = useState(false);
     const [chatNoteForOverlay, setChatNoteForOverlay] = useState<Note | null>(null);
     const noteChatRef = useRef<NoteChatHandle>(null);
-
-    const [showFlashcardStudyModal, setShowFlashcardStudyModal] = useState(false);
     const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+    const [showNotesProfileModal, setShowNotesProfileModal] = useState(false);
+    const [currentFlashcardIndex, setCurrentFlashcardIndex] = useState(0);
+    const [isFlashcardFlipped, setIsFlashcardFlipped] = useState(false);
+    const [showPodcastSection, setShowPodcastSection] = useState(false);
 
+    const [activePodcast, setActivePodcast] = useState<Podcast | null>(null);
+    const [isPodcastPlaying, setIsPodcastPlaying] = useState(false);
+    const [podcastPlaybackRate, setPodcastPlaybackRate] = useState(1);
+    const [podcastVolume, setPodcastVolume] = useState(0.75);
+    const [podcastCurrentTime, setPodcastCurrentTime] = useState(0);
+    const [podcastDuration, setPodcastDuration] = useState(0);
+    const audioPlayerRef = useRef<HTMLAudioElement>(null);
+    const [currentSegmentIndex, setCurrentSegmentIndex] = useState(-1); // Start at -1 to indicate no segment
+    const samplePlayer = useMemo(() => typeof window !== 'undefined' ? new Audio() : null, []);
+    const [isPodcastProcessing, setIsPodcastProcessing] = useState(false);
+    const [showPodcastConfigModal, setShowPodcastConfigModal] = useState(false);
+    const [showVoiceSelectionModal, setShowVoiceSelectionModal] = useState(false);
+    const [speakerSlotToConfigure, setSpeakerSlotToConfigure] = useState<1 | 2 | null>(null);
+    const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+    const synth = useMemo(() => typeof window !== 'undefined' ? window.speechSynthesis : null, []);
+    const [podcastPlaybackSettings, setPodcastPlaybackSettings] = useState<Podcast['settings']>({
+        language: 'en',
+        speaker1Id: PREDEFINED_PODCAST_SPEAKERS[0]?.id || null,
+        speaker2Id: null,
+        length: 'short',
+        instructions: '',
+    });
 
     const [questionAnswers, setQuestionAnswers] = useState<{[key: string]: number | null}>({});
     const mainContentAreaRef = useRef<HTMLDivElement>(null);
-
-
+    const noteContentRef = useRef<HTMLDivElement>(null);
     const [numPages, setNumPages] = useState<number | null>(null);
     const [pdfError, setPdfError] = useState<string | null>(null);
     const [showPdfViewer, setShowPdfViewer] = useState(false);
@@ -177,17 +437,300 @@ export function Notes() {
     const [isResizingPdfChatSplit, setIsResizingPdfChatSplit] = useState(false);
     const [firstPageNaturalWidth, setFirstPageNaturalWidth] = useState<number | null>(null);
     const [pdfPageInput, setPdfPageInput] = useState<string>(String(currentPage));
-
-
     const [selectedPdfText, setSelectedPdfText] = useState<string | null>(null);
     const [highlightButtonPosition, setHighlightButtonPosition] = useState<{ top: number; left: number } | null>(null);
     const [showHighlightButtons, setShowHighlightButtons] = useState(false);
-
     const [isScreenshotModeActive, setIsScreenshotModeActive] = useState(false);
     const [selectionRect, setSelectionRect] = useState<{ x: number, y: number, width: number, height: number } | null>(null);
     const [screenshotStartPoint, setScreenshotStartPoint] = useState<{ x: number, y: number } | null>(null);
     const targetPdfPageElementRef = useRef<HTMLElement | null>(null);
 
+    const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info', icon?: React.FC<any>) => {
+        setUploadProgress({ progress: type === 'success' ? 100 : 0, status: message, error: type === 'error' ? message : null, icon, type });
+        setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null, icon: undefined, type: undefined }), 3500);
+    }, []);
+
+    const podcastTextObjects = useMemo(() => {
+        if (!selectedNote) return { title: "", contentHtml: "", keyPoints: [] };
+        return {
+            title: selectedNote.title,
+            contentHtml: selectedNote.content || "",
+            keyPoints: selectedNote.keyPoints || [],
+        };
+    }, [selectedNote]);
+
+    useEffect(() => {
+        if (!synth) return;
+        const updateVoices = () => {
+            const voices = synth.getVoices();
+            setAvailableVoices(voices);
+            if (voices.length > 0 && !podcastPlaybackSettings.language) {
+                 const defaultLang = voices.find(v => v.lang.startsWith('en'))?.lang || voices[0].lang;
+                 setPodcastPlaybackSettings(prev => ({...prev, language: defaultLang.split('-')[0]}));
+            }
+        };
+        updateVoices();
+        if (synth.onvoiceschanged !== undefined) {
+            synth.onvoiceschanged = updateVoices;
+        }
+        return () => {
+            if (synth && synth.onvoiceschanged !== undefined) synth.onvoiceschanged = null;
+        };
+    }, [synth, podcastPlaybackSettings.language]);
+
+   // --- 4. REPLACE handlePodcastStop ---
+    const handlePodcastStop = useCallback(() => {
+        const audioEl = audioPlayerRef.current;
+        if (audioEl) {
+            audioEl.pause();
+            audioEl.currentTime = 0;
+            audioEl.src = "";
+        }
+        setIsPodcastPlaying(false);
+        setActivePodcast(null);
+        setCurrentSegmentIndex(-1);
+        setPodcastCurrentTime(0);
+        setPodcastDuration(0);
+    }, []);
+
+     useEffect(() => {
+        const audioEl = audioPlayerRef.current;
+        if (!audioEl || !activePodcast) {
+            if (audioEl && !audioEl.paused) audioEl.pause();
+            return;
+        }
+
+        let playPromise: Promise<void> | undefined;
+
+        // Load the combined URL if it's not already loaded
+        if (audioEl.src !== activePodcast.combinedUrl) {
+            audioEl.src = activePodcast.combinedUrl;
+            setPodcastDuration(activePodcast.totalDuration);
+            audioEl.load();
+            if (isPodcastPlaying) {
+                playPromise = audioEl.play();
+            }
+        } else if (isPodcastPlaying && audioEl.paused) {
+            playPromise = audioEl.play();
+        }
+
+        if (playPromise) {
+            playPromise.catch(e => {
+                console.error("Error playing combined audio:", e);
+                showToast("Playback error.", "error");
+                setIsPodcastPlaying(false);
+            });
+        }
+
+        const handleTimeUpdate = () => {
+            const currentTime = audioEl.currentTime;
+            setPodcastCurrentTime(currentTime);
+
+            // Find and set the current segment based on time
+            const activeIndex = activePodcast.segments.findIndex(
+                seg => currentTime >= seg.startTime && currentTime < seg.endTime
+            );
+            
+            if (activeIndex !== -1 && activeIndex !== currentSegmentIndex) {
+                 setCurrentSegmentIndex(activeIndex);
+            }
+        };
+
+        const handlePlay = () => setIsPodcastPlaying(true);
+        const handlePause = () => setIsPodcastPlaying(false);
+        const handleEnded = () => {
+            setIsPodcastPlaying(false);
+            setCurrentSegmentIndex(-1); // End of podcast
+            setPodcastCurrentTime(audioEl.duration || activePodcast.totalDuration);
+        };
+        const handleError = () => {
+            setIsPodcastPlaying(false);
+            showToast(`Error playing podcast audio.`, "error");
+            handlePodcastStop();
+        };
+
+        audioEl.addEventListener('timeupdate', handleTimeUpdate);
+        audioEl.addEventListener('play', handlePlay);
+        audioEl.addEventListener('pause', handlePause);
+        audioEl.addEventListener('ended', handleEnded);
+        audioEl.addEventListener('error', handleError);
+
+        return () => {
+            audioEl.removeEventListener('timeupdate', handleTimeUpdate);
+            audioEl.removeEventListener('play', handlePlay);
+            audioEl.removeEventListener('pause', handlePause);
+            audioEl.removeEventListener('ended', handleEnded);
+            audioEl.removeEventListener('error', handleError);
+        };
+    }, [activePodcast, isPodcastPlaying, showToast, handlePodcastStop, currentSegmentIndex]);
+
+const handlePodcastPlayPause = () => {
+        const audioEl = audioPlayerRef.current;
+        if (!audioEl || !activePodcast) return;
+
+        if (audioEl.paused) {
+            // If at the end, restart
+            if (audioEl.currentTime >= activePodcast.totalDuration - 0.1) {
+                audioEl.currentTime = 0;
+            }
+            audioEl.play().catch(e => setIsPodcastPlaying(false));
+            setIsPodcastPlaying(true);
+        } else {
+            audioEl.pause();
+            setIsPodcastPlaying(false);
+        }
+    };
+
+    const handlePodcastSeek = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const audioEl = audioPlayerRef.current;
+        if (audioEl && activePodcast && activePodcast.segments.length > 0) {
+            const newTime = Number(event.target.value);
+            audioEl.currentTime = newTime;
+            setPodcastCurrentTime(newTime);
+        }
+    };
+
+const handleSkipForwardSegment = () => {
+        if (activePodcast && audioPlayerRef.current) {
+            const nextIndex = currentSegmentIndex + 1;
+            if (nextIndex < activePodcast.segments.length) {
+                audioPlayerRef.current.currentTime = activePodcast.segments[nextIndex].startTime;
+                if (!isPodcastPlaying) setIsPodcastPlaying(true);
+            } else {
+                // Go to end
+                audioPlayerRef.current.currentTime = activePodcast.totalDuration;
+            }
+        }
+    };
+    const handleSkipBackSegment = () => {
+        if (activePodcast && audioPlayerRef.current) {
+            const currentTime = audioPlayerRef.current.currentTime;
+            const currentSegment = activePodcast.segments[currentSegmentIndex];
+            // If more than 2s into a segment, go to its start. Otherwise, go to previous.
+            if (currentSegment && currentTime > currentSegment.startTime + 2) {
+                 audioPlayerRef.current.currentTime = currentSegment.startTime;
+            } else {
+                const prevIndex = currentSegmentIndex - 1;
+                if (prevIndex >= 0) {
+                    audioPlayerRef.current.currentTime = activePodcast.segments[prevIndex].startTime;
+                } else {
+                    audioPlayerRef.current.currentTime = 0;
+                }
+            }
+            if (!isPodcastPlaying) setIsPodcastPlaying(true);
+        }
+    };
+
+
+    useEffect(() => {
+        if (audioPlayerRef.current) {
+            audioPlayerRef.current.volume = podcastVolume;
+        }
+    }, [podcastVolume]);
+
+    useEffect(() => {
+        if (audioPlayerRef.current) {
+            audioPlayerRef.current.playbackRate = podcastPlaybackRate;
+        }
+    }, [podcastPlaybackRate]);
+
+
+    const formatPodcastTime = (seconds: number) => {
+        const minutes = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${minutes}:${secs < 10 ? '0' : ''}${secs}`;
+    };
+
+    const handlePodcastToggle = () => {
+        if (userTier !== 'premium') {
+            setShowUpgradeModal(true);
+            return;
+        }
+        setShowPodcastSection(prev => !prev);
+    };
+
+
+    useEffect(() => {
+        const styleId = 'custom-quill-font-styles';
+        let styleElement = document.getElementById(styleId);
+        if (!styleElement) {
+            styleElement = document.createElement('style');
+            styleElement.id = styleId;
+            document.head.appendChild(styleElement);
+        }
+
+        let customStyles = '';
+        const fontDisplayMap: { [key: string]: string } = {
+            'sans-serif': 'Sans Serif', 'serif': 'Serif', 'monospace': 'Monospace',
+            'Arial': 'Arial', 'ComicSansMS': 'Comic Sans MS', 'CourierNew': 'Courier New',
+            'Georgia': 'Georgia', 'Helvetica': 'Helvetica', 'LucidaSansUnicode': 'Lucida Sans Unicode',
+            'Poppins': 'Poppins', 'Tahoma': 'Tahoma', 'TimesNewRoman': 'Times New Roman',
+            'TrebuchetMS': 'Trebuchet MS', 'Verdana': 'Verdana'
+        };
+
+        const fontCssFamilyMap: { [key: string]: string } = {
+            'sans-serif': 'sans-serif', 'serif': 'serif', 'monospace': 'monospace',
+            'Arial': 'Arial, sans-serif', 'ComicSansMS': '"Comic Sans MS", cursive, sans-serif',
+            'CourierNew': '"Courier New", Courier, monospace', 'Georgia': 'Georgia, serif',
+            'Helvetica': 'Helvetica, sans-serif', 'LucidaSansUnicode': '"Lucida Sans Unicode", "Lucida Grande", sans-serif',
+            'Poppins': 'Poppins, sans-serif', 'Tahoma': 'Tahoma, sans-serif',
+            'TimesNewRoman': '"Times New Roman", Times, serif', 'TrebuchetMS': '"Trebuchet MS", sans-serif',
+            'Verdana': 'Verdana, sans-serif'
+        };
+
+        QUILL_FONTS.forEach(fontValue => {
+            const displayName = fontDisplayMap[fontValue] || fontValue;
+            const fontFamilyCss = fontCssFamilyMap[fontValue] || `"${fontValue}"`;
+            customStyles += `
+            .ql-snow .ql-picker.ql-font .ql-picker-label[data-value="${fontValue}"]::before,
+            .ql-snow .ql-picker.ql-font .ql-picker-item[data-value="${fontValue}"]::before {
+                content: "${displayName}" !important;
+                font-family: ${fontFamilyCss} !important;
+            }
+            `;
+        });
+
+        const videoSizes = {
+        'small': 'Small (25%)', 'medium': 'Medium (50%)',
+        'large': 'Large (75%)', 'full': 'Full (100%)',
+        };
+
+        customStyles += `
+        .ql-snow .ql-picker.ql-videosize .ql-picker-label::before {
+            content: 'Video Size';
+        }
+        `;
+        Object.entries(videoSizes).forEach(([value, label]) => {
+        customStyles += `
+            .ql-snow .ql-picker.ql-videosize .ql-picker-label[data-value="${value}"]::before,
+            .ql-snow .ql-picker.ql-videosize .ql-picker-item[data-value="${value}"]::before {
+            content: "${label}";
+            }
+        `;
+        });
+        customStyles += `
+        .ql-snow .ql-toolbar .ql-picker.ql-videosize {
+            width: 140px;
+            margin-right: 4px;
+            margin-left: 4px;
+        }
+        .ql-snow .ql-toolbar button.ql-video + .ql-picker.ql-videosize {
+            margin-left: 4px;
+        }
+        .ql-snow .ql-toolbar .ql-picker.ql-videosize + button.ql-clean {
+            margin-left: 4px;
+        }
+        `;
+
+        styleElement.innerHTML = customStyles;
+
+        return () => {
+            const el = document.getElementById(styleId);
+            if (el && el.parentNode) {
+                el.parentNode.removeChild(el);
+            }
+        };
+    }, []);
 
     useEffect(() => {
         const handleResize = () => {
@@ -206,74 +749,71 @@ export function Notes() {
         return () => window.removeEventListener('resize', handleResize);
     }, [selectedNote, isEditing, showPdfViewer, showSplitView, splitViewNotes.left, splitViewNotes.right]);
 
-
-    useEffect(() => { localStorage.setItem('isSidebarCollapsed', JSON.stringify(isSidebarCollapsed)); }, [isSidebarCollapsed]);
-    useEffect(() => { localStorage.setItem('isBlackoutEnabled', JSON.stringify(isBlackoutEnabled)); document.body.classList.toggle('blackout-mode', isBlackoutEnabled && !isIlluminateEnabled); }, [isBlackoutEnabled, isIlluminateEnabled]);
-    useEffect(() => { localStorage.setItem('isIlluminateEnabled', JSON.stringify(isIlluminateEnabled)); document.body.classList.toggle('illuminate-mode', isIlluminateEnabled); }, [isIlluminateEnabled]);
-    useEffect(() => { localStorage.setItem('isSidebarBlackoutEnabled', JSON.stringify(isSidebarBlackoutEnabled)); }, [isSidebarBlackoutEnabled]);
-    useEffect(() => { localStorage.setItem('isSidebarIlluminateEnabled', JSON.stringify(isSidebarIlluminateEnabled)); }, [isSidebarIlluminateEnabled]);
+    useEffect(() => {
+        localStorage.setItem('isSidebarCollapsed', JSON.stringify(isSidebarCollapsed));
+    }, [isSidebarCollapsed]);
 
     useEffect(() => {
         setLoading(true);
         setUserTier('loading');
 
-        const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
-            if (firebaseUser) {
-                setUser(firebaseUser);
-                setUserName(firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "User");
+        const unsubscribeAuth = auth.onAuthStateChanged(async (firebaseUser) => {
+          let unsubProfile = () => {};
 
-                let resolvedTier: UserTier = 'basic';
-                try {
-                    resolvedTier = await determineUserTier(firebaseUser.uid, firebaseUser.email);
-                    setUserTier(resolvedTier);
-                } catch (error) {
-                    setUserTier('basic');
-                }
+          if (firebaseUser) {
+            setUser(firebaseUser);
+            setUserName(firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "User");
 
-                if (resolvedTier !== 'premium') {
-                    try {
-                        const currentMonthYear = new Date().toISOString().slice(0, 7);
-                        const usageData = await getUserNoteUsage(firebaseUser.uid);
-
-                        if (usageData?.month === currentMonthYear) {
-                            setNoteUsage({ pdfAi: usageData.pdfAi || 0, youtube: usageData.youtube || 0 });
-                            setUsageMonth(currentMonthYear);
-                        } else {
-                            setNoteUsage({ pdfAi: 0, youtube: 0 });
-                            setUsageMonth(currentMonthYear);
-                            await updateUserNoteUsage(firebaseUser.uid, { pdfAi: 0, youtube: 0 }, currentMonthYear);
-                        }
-                    } catch (err) {
-                        setNoteUsage({ pdfAi: 0, youtube: 0 });
-                        setUsageMonth(new Date().toISOString().slice(0, 7));
-                    }
-                } else {
+            unsubProfile = onUserProfileSnapshot(firebaseUser.uid, (profile) => {
+              setUserProfile(profile);
+              if (profile) {
+                determineUserTier(firebaseUser.uid, firebaseUser.email, profile).then(resolvedTier => {
+                  setUserTier(resolvedTier);
+                  const currentMonthYear = new Date().toISOString().slice(0, 7);
+                  setUsageMonth(currentMonthYear);
+                  if (resolvedTier !== 'premium') {
+                    const usageData = profile.noteUsageByMonth?.[currentMonthYear];
+                    setNoteUsage({ pdfAi: usageData?.pdfAi || 0, youtube: usageData?.youtube || 0 });
+                  } else {
                     setNoteUsage({ pdfAi: Infinity, youtube: Infinity });
-                    setUsageMonth('');
-                }
-            } else {
-                setUser(null);
-                setUserName("User");
-                setNotes([]);
-                setSelectedNote(null);
-                setShowPdfViewer(false);
-                setIsEditing(false);
-                setSplitViewNotes({ left: null, right: null });
-                setShowSplitView(false);
-                setIsChatOverlayVisible(false);
-                setChatNoteForOverlay(null);
-                setUserTier('loading');
+                  }
+                });
+              } else {
+                setUserTier('basic');
                 setNoteUsage({ pdfAi: 0, youtube: 0 });
-                setUsageMonth('');
-                setIsNotesListHidden(false);
-                setIsSidebarCollapsed(false);
-                setShowFlashcardStudyModal(false);
-                navigate('/login');
-            }
-            setLoading(false);
+                setUsageMonth(new Date().toISOString().slice(0, 7));
+              }
+            });
+
+          } else {
+            navigate('/login');
+            setUser(null);
+            setUserName("User");
+            setUserProfile(null);
+            setNotes([]);
+            setSelectedNote(null);
+            setShowPdfViewer(false);
+            setIsEditing(false);
+            setSplitViewNotes({ left: null, right: null });
+            setShowSplitView(false);
+            setIsChatOverlayVisible(false);
+            setChatNoteForOverlay(null);
+            setUserTier('loading');
+            setNoteUsage({ pdfAi: 0, youtube: 0 });
+            setUsageMonth('');
+            setIsNotesListHidden(false);
+            setIsSidebarCollapsed(false);
+            // This is the crucial cleanup call for when a user logs out.
+            handlePodcastStop();
+          }
+          setLoading(false);
+
+          return () => unsubProfile();
         });
-        return () => unsubscribe();
-    }, [navigate]);
+        
+        // This effect's cleanup function handles unsubscription from Firebase auth state changes.
+        return () => unsubscribeAuth();
+    }, [navigate, handlePodcastStop]); // Dependency array is fixed to prevent re-running on podcast state changes.
 
     useEffect(() => {
         if (!user?.uid) {
@@ -296,6 +836,23 @@ export function Notes() {
                 }
                 return prevSelectedNote;
             });
+
+            if (activePodcast) {
+                const updatedNoteForPodcast = notesList.find(n => n.id === selectedNote?.id);
+                if (updatedNoteForPodcast && updatedNoteForPodcast.podcasts) {
+                    const updatedActivePodcast = updatedNoteForPodcast.podcasts.find(p => p.id === activePodcast.id);
+                    if (updatedActivePodcast) {
+                        if (JSON.stringify(activePodcast) !== JSON.stringify(updatedActivePodcast)) {
+                           setActivePodcast(updatedActivePodcast);
+                        }
+                    } else {
+                        handlePodcastStop();
+                    }
+                } else {
+                    handlePodcastStop();
+                }
+            }
+
 
             setChatNoteForOverlay(prevChatNote => {
                 if (!prevChatNote) return null;
@@ -329,14 +886,16 @@ export function Notes() {
             setUploadProgress({ progress: 0, status: '', error: 'Could not load notes.' });
         });
         return () => unsubscribe();
-    }, [user?.uid, showSplitView]);
-
+    }, [user?.uid, showSplitView, selectedNote?.id, activePodcast, handlePodcastStop]);
 
     useEffect(() => {
         if (!showPdfViewer && mainContentAreaRef.current) {
             mainContentAreaRef.current.scrollTop = 0;
         }
-    }, [selectedNote?.id, showPdfViewer]);
+         if (noteContentRef.current && selectedNote && !isEditing) {
+            noteContentRef.current.scrollTop = 0;
+        }
+    }, [selectedNote?.id, showPdfViewer, isEditing]);
 
 
     useEffect(() => {
@@ -386,6 +945,7 @@ export function Notes() {
             document.removeEventListener('mousedown', handleClickOutside);
         };
     }, [showHighlightButtons, highlightButtonPosition, showPdfViewer, isScreenshotModeActive]);
+
 
     const handleResizeMouseMove = useCallback((e: MouseEvent) => {
         if (!isResizingPdfChatSplit || !firstPageNaturalWidth) return;
@@ -452,43 +1012,86 @@ export function Notes() {
         };
     }, [handleResizeMouseMove, handleResizeMouseUp, isResizingPdfChatSplit]);
 
+    const addPointsAndCheckBadges = useCallback(async (points: number, noteType?: Note['type']) => {
+        if (!user || !userProfile) return;
+        try {
+            const { newPoints, newLevel, newTier } = await updateUserPointsAndLevel(user.uid, points, { email: user.email!, displayName: userName });
+            if (points > 0) showToast(`+${points} Points!`, 'success', TrendingUp);
+            if (newLevel > userProfile.level) showToast(`Level Up! You reached Level ${newLevel}!`, 'info', Award);
+            if (newTier === 'premium' && userTier !== 'premium' && (!userProfile.premiumAwardedUntil || (toDateSafe(userProfile.premiumAwardedUntil) || new Date(0)) < new Date())) {
+                showToast(`🎉 You've earned 1 FREE week of Premium!`, 'info', Crown);
+            }
+
+            const updatedProfileForBadgeCheck = { ...userProfile, points: newPoints, level: newLevel };
+            Object.entries(BADGES_CONFIG_NOTES).forEach(async ([badgeKey, badgeConfig]) => {
+                if (!(userProfile.badges || []).includes(badgeKey) && badgeConfig.condition) {
+                     if (badgeConfig.condition(updatedProfileForBadgeCheck, notes, noteType)) {
+                        await addUserBadge(user.uid, badgeKey, { email: user.email!, displayName: userName });
+                        showToast(`Badge Unlocked: ${badgeConfig.name}!`, 'info', badgeConfig.icon);
+                    }
+                }
+            });
+        } catch (error) {
+            console.error("Error updating points/badges:", error);
+            showToast("Failed to update points.", "error");
+        }
+    }, [user, userProfile, userName, notes, userTier, showToast]);
+
+    const updateOverallStreakAndCheckBadges = useCallback(async () => {
+        if (!user || !userProfile) return;
+        try {
+            const { newStreakCount, streakBroken } = await updateUserStreak(user.uid, { email: user.email!, displayName: userName }, 'overall');
+             if (streakBroken && userProfile.overallStreakCount && userProfile.overallStreakCount > 0) {
+                 showToast("Welcome back! Your previous streak was broken.", "info", Zap);
+            } else if (newStreakCount > (userProfile.overallStreakCount || 0) && newStreakCount > 0) {
+                 showToast(`Streak: ${newStreakCount} days!`, "info", Flame);
+            }
+
+            const updatedProfileForBadgeCheck = { ...userProfile, overallStreakCount: newStreakCount };
+             Object.entries(BADGES_CONFIG_NOTES).forEach(async ([badgeKey, badgeConfig]) => {
+                if (badgeKey.includes('overallStreak') && !(userProfile.badges || []).includes(badgeKey) && badgeConfig.condition) {
+                     if (badgeConfig.condition(updatedProfileForBadgeCheck)) {
+                        await addUserBadge(user.uid, badgeKey, { email: user.email!, displayName: userName });
+                        showToast(`Badge Unlocked: ${badgeConfig.name}!`, 'info', badgeConfig.icon);
+                    }
+                }
+            });
+        } catch (error) {
+            console.error("Error updating streak:", error);
+        }
+    }, [user, userProfile, userName, showToast]);
+
 
     const checkNoteLimit = (noteType: 'pdfAi' | 'youtube'): boolean => {
         if (userTier === 'loading') {
-            setUploadProgress({ progress: 0, status: '', error: 'Verifying account status...' });
-            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+            showToast('Verifying account status...', 'info');
             return false;
         }
         if (userTier === 'premium') return true;
 
         const limits = NOTE_LIMITS[userTier];
-        const currentCount = noteUsage[noteType];
+        const currentCount = userProfile?.noteUsageByMonth?.[usageMonth]?.[noteType] ?? 0;
         const limit = limits[noteType];
 
         if (currentCount >= limit) {
             const typeName = noteType === 'pdfAi' ? 'PDF/AI Text Note' : 'YouTube Note';
-            setUploadProgress({ progress: 0, status: '', error: `Monthly ${typeName} limit (${limit}) reached for ${userTier} plan.` });
-             setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 4000);
+            showToast(`Monthly ${typeName} limit (${limit}) reached for ${userTier} plan.`, 'error');
             return false;
         }
         return true;
     };
 
-    const incrementNoteUsage = async (noteType: 'pdfAi' | 'youtube') => {
-        if (!user?.uid || userTier === 'premium') return;
-
-        const currentMonthYear = new Date().toISOString().slice(0, 7);
-        const newUsage = { ...noteUsage };
-        newUsage[noteType]++;
-        setNoteUsage(newUsage);
-        setUsageMonth(currentMonthYear);
-
-        try {
-            await updateUserNoteUsage(user.uid, newUsage, currentMonthYear);
-        } catch (error) {
-            // error
+    const incrementUsageAndCounters = async (noteTypeToIncrement: 'pdfAi' | 'youtube' | 'personal', isNewAiNote: boolean = false) => {
+        if (!user?.uid) return;
+        if (noteTypeToIncrement !== 'personal') {
+             await updateUserNoteUsage(user.uid, noteTypeToIncrement, usageMonth);
         }
+        await incrementUserProfileCounter(user.uid, 'notesCreatedCount');
+        if (noteTypeToIncrement === 'pdfAi' && !isNewAiNote) await incrementUserProfileCounter(user.uid, 'pdfNotesCreatedCount');
+        if (noteTypeToIncrement === 'youtube') await incrementUserProfileCounter(user.uid, 'youtubeNotesCreatedCount');
+        if (isNewAiNote) await incrementUserProfileCounter(user.uid, 'aiNotesCreatedCount');
     };
+
 
     const handleToggleSidebar = () => setIsSidebarCollapsed(prev => !prev);
     const handleToggleNotesList = useCallback(() => setIsNotesListHidden(prev => !prev), []);
@@ -506,6 +1109,7 @@ export function Notes() {
                 setHighlightButtonPosition(null);
                 setIsScreenshotModeActive(false);
                 targetPdfPageElementRef.current = null;
+                if (activePodcast) handlePodcastStop();
 
                 if (isChatOverlayVisible && chatNoteForOverlay?.id === selectedNote.id) {
                     setIsChatOverlayVisible(false);
@@ -513,8 +1117,7 @@ export function Notes() {
                 }
                 if (!isMobile) setIsNotesListHidden(true);
             } else {
-                setUploadProgress({ progress: 0, status: '', error: 'Cannot view PDF: Note type is not PDF or source is missing.' });
-                setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+                showToast('Cannot view PDF: Note type is not PDF or source is missing.', 'error');
                 if (showPdfViewer) setShowPdfViewer(false);
                 if (!isMobile && isNotesListHidden) setIsNotesListHidden(false);
             }
@@ -527,7 +1130,7 @@ export function Notes() {
             window.getSelection()?.removeAllRanges();
             if (!isMobile) setIsNotesListHidden(false);
         }
-    }, [selectedNote, showPdfViewer, isChatOverlayVisible, chatNoteForOverlay?.id, isMobile, isNotesListHidden]);
+    }, [selectedNote, showPdfViewer, isChatOverlayVisible, chatNoteForOverlay?.id, isMobile, isNotesListHidden, showToast, activePodcast, handlePodcastStop]);
 
     const switchToEditMode = useCallback((noteToEdit: Note | null) => {
         if (!noteToEdit) return;
@@ -542,11 +1145,11 @@ export function Notes() {
         if (isChatOverlayVisible) setIsChatOverlayVisible(false);
         setChatNoteForOverlay(null);
         if (showPdfViewer) togglePdfViewer(false);
-        setShowFlashcardStudyModal(false);
+        if (activePodcast) handlePodcastStop();
         if (showSplitView) setShowSplitView(false);
         if (isMobile) setShowNotesListOnMobile(false);
         if (!isMobile) setIsNotesListHidden(false);
-    }, [isChatOverlayVisible, showPdfViewer, togglePdfViewer, showSplitView, isMobile]);
+    }, [isChatOverlayVisible, showPdfViewer, togglePdfViewer, activePodcast, showSplitView, isMobile, handlePodcastStop]);
 
     const handleSplitViewSelect = useCallback((note: Note) => {
         if (!splitViewNotes.left) {
@@ -560,7 +1163,12 @@ export function Notes() {
         setIsChatOverlayVisible(false);
         setChatNoteForOverlay(null);
         if (showPdfViewer) togglePdfViewer(false);
-    }, [splitViewNotes, isMobile, showPdfViewer, togglePdfViewer]);
+        if (activePodcast) handlePodcastStop();
+        if (user && userProfile && !(userProfile.badges || []).includes('splitViewUser')) {
+            addUserBadge(user.uid, 'splitViewUser', { email: user.email!, displayName: userName });
+            showToast("Badge Unlocked: Dual Viewer!", "info", SplitSquareVertical);
+        }
+    }, [splitViewNotes, isMobile, showPdfViewer, togglePdfViewer, activePodcast, user, userProfile, userName, showToast, handlePodcastStop]);
 
     const handleSelectNote = useCallback((note: Note) => {
         if (selectedNote?.id === note.id && !isEditing && !showSplitView) return;
@@ -569,7 +1177,10 @@ export function Notes() {
         setIsChatOverlayVisible(false);
         setChatNoteForOverlay(null);
         setQuestionAnswers({});
-        setShowFlashcardStudyModal(false);
+        setCurrentFlashcardIndex(0);
+        setIsFlashcardFlipped(false);
+        setShowPodcastSection(false);
+        if (activePodcast) handlePodcastStop();
 
         if (showSplitView) {
              handleSplitViewSelect(note);
@@ -582,17 +1193,19 @@ export function Notes() {
                 setShowNotesListOnMobile(false);
             }
         }
-    }, [selectedNote?.id, showSplitView, isMobile, showPdfViewer, togglePdfViewer, isEditing, handleSplitViewSelect]);
+        updateOverallStreakAndCheckBadges();
+    }, [selectedNote?.id, showSplitView, isMobile, showPdfViewer, togglePdfViewer, isEditing, handleSplitViewSelect, updateOverallStreakAndCheckBadges, activePodcast, handlePodcastStop]);
 
     const startSplitView = useCallback(() => {
         setShowSplitView(true);
         setSelectedNote(null);
         if (showPdfViewer) togglePdfViewer(false);
+        if (activePodcast) handlePodcastStop();
         if (isChatOverlayVisible) setIsChatOverlayVisible(false);
         setSplitViewNotes({ left: null, right: null });
         if (isMobile) setShowNotesListOnMobile(true);
         if (!isMobile) setIsNotesListHidden(false);
-    }, [showPdfViewer, isChatOverlayVisible, isMobile, togglePdfViewer]);
+    }, [showPdfViewer, isChatOverlayVisible, isMobile, togglePdfViewer, activePodcast, handlePodcastStop]);
 
     const closeSplitView = useCallback(() => {
         setShowSplitView(false);
@@ -608,14 +1221,14 @@ export function Notes() {
 
     const handleChatWithNote = useCallback((note: Note | null, keepPdfOpen: boolean = false) => {
         if (!note || !geminiApiKey) {
-             setUploadProgress({progress: 0, status: '', error: 'Chat requires API key setup.'})
-             setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+             showToast('Chat requires API key setup.', 'error');
              return;
         }
 
         if (!showSplitView && selectedNote?.id !== note.id) {
             setSelectedNote(note);
         }
+        if (activePodcast) handlePodcastStop();
 
         const isSideBySideChatShouldBeActive = note.type === 'pdf' && showPdfViewer && !!note.sourceUrl && !!user && !!geminiApiKey && !isMobile;
 
@@ -634,7 +1247,13 @@ export function Notes() {
             }
             setTimeout(() => noteChatRef.current?.focusInput?.(), 150);
         }
-    }, [selectedNote?.id, showSplitView, showPdfViewer, isMobile, togglePdfViewer, geminiApiKey, user]);
+        if (user && userProfile && !(userProfile.badges || []).includes('firstChatWithNote')) {
+            incrementUserProfileCounter(user.uid, 'noteChatsStartedCount');
+            addUserBadge(user.uid, 'firstChatWithNote', { email: user.email!, displayName: userName });
+            showToast("Badge Unlocked: Note Conversationalist!", "info", MessageCircle);
+        }
+        updateOverallStreakAndCheckBadges();
+    }, [selectedNote?.id, showSplitView, showPdfViewer, isMobile, togglePdfViewer, geminiApiKey, user, userProfile, userName, showToast, updateOverallStreakAndCheckBadges, activePodcast, handlePodcastStop]);
 
 
     const handleCloseChatOverlay = useCallback(() => setIsChatOverlayVisible(false), []);
@@ -642,25 +1261,23 @@ export function Notes() {
     const handleUpdateNoteContentFromChat = useCallback(async (noteId: string, newContent: string) => {
         if (!user || isSaving) return;
         setIsSaving(true);
-        setUploadProgress({ progress: 0, status: 'Updating via chat...', error: null });
+        showToast('Updating via chat...', 'info');
         try {
             await updateNote(noteId, { content: newContent, updatedAt: Timestamp.now() });
-            setUploadProgress({ progress: 100, status: 'Updated via chat!', error: null });
-            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 2000);
+            showToast('Updated via chat!', 'success');
         } catch (error) {
-            setUploadProgress({ progress: 0, status: '', error: 'Failed to update note via chat.' });
-            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+            showToast('Failed to update note via chat.', 'error');
         } finally {
             setIsSaving(false);
         }
-    }, [user, isSaving]);
+    }, [user, isSaving, showToast]);
 
     const handleAddImageToNoteRequest = useCallback((imageData: ChatImageData) => {
         const targetNote = isEditing ? selectedNote : (chatNoteForOverlay || selectedNote);
         if (!targetNote) {
             return;
         }
-        const markdownImageTag = `\n\n![Generated Image](${`data:${imageData.type};base64,${imageData.base64}`})\n\n`;
+        const markdownImageTag = `<p><img src="data:${imageData.type};base64,${imageData.base64}" alt="Generated Image"></p>`;
         if (isEditing && selectedNote?.id === targetNote.id) {
             setEditContent(prevContent => (prevContent || '') + markdownImageTag);
         } else {
@@ -675,12 +1292,13 @@ export function Notes() {
     const handleEditNote = useCallback(() => {
         if (!selectedNote) return;
         switchToEditMode(selectedNote);
-    }, [selectedNote, switchToEditMode]);
+        updateOverallStreakAndCheckBadges();
+    }, [selectedNote, switchToEditMode, updateOverallStreakAndCheckBadges]);
 
     const handleSaveEdit = async () => {
         if (!selectedNote || !editTitle.trim() || isSaving) return;
         setIsSaving(true);
-        setUploadProgress({ progress: 0, status: 'Saving...', error: null });
+        showToast('Saving...', 'info');
         try {
             const finalKeyPoints = editKeyPoints.map(p => p.trim()).filter(p => p.length > 0);
             const finalFlashcards = editFlashcards.filter(fc => fc.front.trim().length > 0 && fc.back.trim().length > 0);
@@ -695,11 +1313,18 @@ export function Notes() {
             };
             await updateNote(selectedNote.id, updatedData);
             setIsEditing(false);
-            setUploadProgress({ progress: 100, status: 'Saved!', error: null });
-            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 2000);
+            showToast('Saved!', 'success');
+            addPointsAndCheckBadges(1);
+            updateOverallStreakAndCheckBadges();
+
+            if (user && userProfile && finalFlashcards.length > (selectedNote.flashcards?.length || 0) && !(userProfile.badges || []).includes('firstFlashcardsFromNote')) {
+                 incrementUserProfileCounter(user.uid, 'noteFlashcardsCreatedCount');
+                 addUserBadge(user.uid, 'firstFlashcardsFromNote', { email: user.email!, displayName: userName });
+                 showToast("Badge Unlocked: Note Card Wizard!", "info", Layers);
+            }
+
         } catch (error) {
-            setUploadProgress({ progress: 0, status: '', error: 'Failed to save note' });
-            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+            showToast('Failed to save note', 'error');
         } finally {
             setIsSaving(false);
         }
@@ -707,13 +1332,14 @@ export function Notes() {
 
     const handleDeleteNote = useCallback(async (noteId: string) => {
         if (!window.confirm('Are you sure you want to delete this note? This cannot be undone.')) return;
-        setUploadProgress({ progress: 0, status: 'Deleting...', error: null });
+        showToast('Deleting...', 'info');
         try {
             await deleteNote(noteId);
             if (selectedNote?.id === noteId) {
                  setSelectedNote(null);
                  setIsEditing(false);
                  if (showPdfViewer) togglePdfViewer(false);
+                 if (activePodcast) handlePodcastStop();
             }
             if (chatNoteForOverlay?.id === noteId) {
                  handleCloseChatOverlay();
@@ -726,25 +1352,26 @@ export function Notes() {
                  if (showSplitView && !uLeft && !uRight) closeSplitView();
                  else if (showSplitView && (!uLeft || !uRight) && isMobile) setShowNotesListOnMobile(true);
             }
-            setShowFlashcardStudyModal(false);
-            setUploadProgress({ progress: 100, status: 'Deleted!', error: null });
-            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 2000);
+            showToast('Deleted!', 'success');
         } catch (error) {
-            setUploadProgress({ progress: 0, status: '', error: 'Failed to delete note' });
-            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+            showToast('Failed to delete note', 'error');
         }
-    }, [selectedNote?.id, showPdfViewer, chatNoteForOverlay?.id, splitViewNotes, showSplitView, isMobile, togglePdfViewer, handleCloseChatOverlay, closeSplitView]);
+    }, [selectedNote?.id, showPdfViewer, chatNoteForOverlay?.id, splitViewNotes, showSplitView, isMobile, togglePdfViewer, handleCloseChatOverlay, closeSplitView, showToast, activePodcast, handlePodcastStop]);
 
     const handleTogglePublic = async (noteId: string, currentIsPublic: boolean) => {
-        setUploadProgress({ progress: 0, status: 'Updating visibility...', error: null });
+        showToast('Updating visibility...', 'info');
         try {
             await toggleNotePublicStatus(noteId, !currentIsPublic);
-            setUploadProgress({ progress: 100, status: 'Visibility updated!', error: null });
-            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 2000);
+            showToast('Visibility updated!', 'success');
             if (currentIsPublic) setLinkCopied(false);
+
+            if (user && userProfile && !currentIsPublic && !(userProfile.badges || []).includes('publicNoteSharer')) {
+                addUserBadge(user.uid, 'publicNoteSharer', { email: user.email!, displayName: userName });
+                showToast("Badge Unlocked: Public Sharer!", "info", Share2);
+            }
+
         } catch (error) {
-            setUploadProgress({ progress: 0, status: '', error: 'Failed to update note visibility' });
-            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+            showToast('Failed to update note visibility', 'error');
         }
     };
 
@@ -753,8 +1380,7 @@ export function Notes() {
         navigator.clipboard.writeText(shareUrl)
             .then(() => { setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2500); })
             .catch(err => {
-                setUploadProgress({ progress: 0, status: '', error: 'Could not copy link.' });
-                setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+                showToast('Could not copy link.', 'error');
             });
     };
 
@@ -762,19 +1388,24 @@ export function Notes() {
 
     const handleCreatePersonalNote = async (title: string, content: string, tags: string[]) => {
         if (!user) return;
-        setUploadProgress({ progress: 0, status: 'Creating note...', error: null });
+        showToast('Creating note...', 'info');
         try {
             const newNoteId = await savePersonalNote(user.uid, title, content, tags);
+            await incrementUsageAndCounters('personal');
             const newNoteDoc = await getNoteById(newNoteId);
             if (newNoteDoc) {
                 handleSelectNote(newNoteDoc as Note);
             }
-            setUploadProgress({ progress: 100, status: 'Note created!', error: null });
+            showToast('Note created!', 'success');
             setShowNewNoteModal(false);
-            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 2000);
+            addPointsAndCheckBadges(2, 'personal');
+            updateOverallStreakAndCheckBadges();
+            if (user && userProfile && !(userProfile.badges || []).includes('firstPersonalNote')) {
+                addUserBadge(user.uid, 'firstPersonalNote', { email: user.email!, displayName: userName });
+                 showToast("Badge Unlocked: Personal Scribe!", "info", Pencil);
+            }
         } catch (error) {
-            setUploadProgress({ progress: 0, status: '', error: `Failed to create note: ${error instanceof Error ? error.message : 'Unknown error'}` });
-            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+            showToast(`Failed to create note: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
         }
     };
 
@@ -782,35 +1413,30 @@ export function Notes() {
         const currentApiKey = geminiApiKey;
 
         if (!user || !currentApiKey) {
-            setUploadProgress({ progress: 0, status: '', error: 'AI features not available (check user/API key).' });
-            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+            showToast('AI features not available (check user/API key).', 'error');
             return;
         }
         if (!checkNoteLimit('pdfAi')) return;
-        setUploadProgress({ progress: 0, status: 'Processing text...', error: null });
         try {
-            setUploadProgress(prev => ({ ...prev, progress: 20 }));
             const aiNoteData = await processTextToAINoteData(text, user.uid, currentApiKey);
-
-            setUploadProgress(prev => ({ ...prev, progress: 80, status: 'Saving note...' }));
             const newNoteId = await saveNote({
                 ...aiNoteData,
                 isPublic: false,
-                tags: ['personal'],
+                tags: [],
             });
-            await incrementNoteUsage('pdfAi');
-
+            await incrementUsageAndCounters('pdfAi', true);
             const newNoteDoc = await getNoteById(newNoteId);
-            if (newNoteDoc) {
-                handleSelectNote(newNoteDoc as Note);
-            }
-
-            setUploadProgress({ progress: 100, status: 'AI Note Created!', error: null });
+            if (newNoteDoc) { handleSelectNote(newNoteDoc as Note); }
+            showToast('AI Note Created!', 'success');
             setShowNewNoteModal(false);
-            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 2000);
+            addPointsAndCheckBadges(5, 'personal');
+            updateOverallStreakAndCheckBadges();
+            if (user && userProfile && !(userProfile.badges || []).includes('firstAiNote')) {
+                addUserBadge(user.uid, 'firstAiNote', { email: user.email!, displayName: userName });
+                showToast("Badge Unlocked: AI Note Crafter!", "info", Sparkles);
+            }
         } catch (error) {
-            setUploadProgress({ progress: 0, status: '', error: error instanceof Error ? error.message : 'Failed to create AI note' });
-            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+            showToast(error instanceof Error ? error.message : 'Failed to create AI note', 'error');
         }
     };
 
@@ -818,98 +1444,71 @@ export function Notes() {
         const currentApiKey = geminiApiKey;
 
         if (!user || !currentApiKey) {
-            setUploadProgress({ progress: 0, status: '', error: 'AI features not available (check user/API key).' });
-            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+            showToast('AI features not available (check user/API key).', 'error');
             return;
         }
         if (!checkNoteLimit('pdfAi')) return;
-        setUploadProgress({ progress: 0, status: 'Uploading PDF...', error: null });
         try {
             const processedData: ProcessedPDF = await processPDF( file, user.uid, currentApiKey, (progressState) => setUploadProgress(progressState) );
-
             if (!processedData.extractedText || processedData.extractedText.trim().length === 0) {
                  throw new Error("Failed to extract text from PDF.");
             }
+            const tagsArray: string[] = [];
 
-            setUploadProgress(prev => ({ ...prev, progress: 95, status: 'Saving PDF note...' }));
-            
-            const fileExtension = file.name.split('.').pop()?.toLowerCase();
-            const tagsArray = ['pdf'];
-            if (fileExtension && fileExtension !== 'pdf') {
-                tagsArray.push(fileExtension);
-            } else if (!fileExtension) {
-                tagsArray.push('file');
-            }
 
             const noteToSave: Omit<FirebaseNoteData, 'id' | 'createdAt' | 'updatedAt'> = {
                 title: processedData.title || file.name.replace(/\.[^/.]+$/, ""),
-                content: processedData.content,
-                keyPoints: processedData.keyPoints,
-                questions: processedData.questions,
-                flashcards: processedData.flashcards,
-                type: 'pdf',
-                sourceUrl: processedData.sourceUrl,
-                isPublic: false,
-                tags: tagsArray,
-                userId: user.uid,
+                content: processedData.content, keyPoints: processedData.keyPoints, questions: processedData.questions,
+                flashcards: processedData.flashcards, type: 'pdf', sourceUrl: processedData.sourceUrl,
+                isPublic: false, tags: tagsArray, userId: user.uid,
             };
             const newNoteId = await saveNote(noteToSave);
-            await incrementNoteUsage('pdfAi');
-
+            await incrementUsageAndCounters('pdfAi');
             const newNoteDoc = await getNoteById(newNoteId);
-            if (newNoteDoc) {
-                handleSelectNote(newNoteDoc as Note);
-            }
-
-            setUploadProgress({ progress: 100, status: 'PDF Note Created!', error: null });
+            if (newNoteDoc) { handleSelectNote(newNoteDoc as Note); }
+            showToast('PDF Note Created!', 'success');
             setShowNewNoteModal(false);
-            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 2000);
+            addPointsAndCheckBadges(5, 'pdf');
+            updateOverallStreakAndCheckBadges();
+             if (user && userProfile && !(userProfile.badges || []).includes('firstPdfNote')) {
+                addUserBadge(user.uid, 'firstPdfNote', { email: user.email!, displayName: userName });
+                showToast("Badge Unlocked: PDF Powerhouse!", "info", FileText);
+            }
         } catch (error) {
-            setUploadProgress({ progress: 0, status: '', error: error instanceof Error ? error.message : 'Failed to process PDF' });
-            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+            showToast(error instanceof Error ? error.message : 'Failed to process PDF', 'error');
         }
     };
 
     const handleYoutubeLink = async (url: string) => {
         const currentApiKey = geminiApiKey;
-
         if (!user || !currentApiKey) {
-            setUploadProgress({ progress: 0, status: '', error: 'AI features not available (check user/API key).' });
-            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+            showToast('AI features not available (check user/API key).', 'error');
             return;
         }
         if (!checkNoteLimit('youtube')) return;
-        setUploadProgress({ progress: 0, status: 'Processing YouTube...', error: null });
         try {
             const processedData = await processYouTube( url, user.uid, currentApiKey, (progressState) => setUploadProgress(progressState) );
-
-            setUploadProgress(prev => ({ ...prev, progress: 95, status: 'Saving note...' }));
+            showToast('Saving note...', 'info');
             const noteToSave: Omit<FirebaseNoteData, 'id' | 'createdAt' | 'updatedAt'> = {
-                title: processedData.title || 'YouTube Note',
-                content: processedData.content,
-                keyPoints: processedData.keyPoints,
-                questions: processedData.questions,
-                flashcards: processedData.flashcards,
-                type: 'youtube',
-                sourceUrl: processedData.sourceUrl || url,
-                isPublic: false,
-                tags: ['youtube', 'video'],
-                userId: user.uid,
+                title: processedData.title || 'YouTube Note', content: processedData.content,
+                keyPoints: processedData.keyPoints, questions: processedData.questions,
+                flashcards: processedData.flashcards, type: 'youtube', sourceUrl: processedData.sourceUrl || url,
+                isPublic: false, tags: [], userId: user.uid,
             };
             const newNoteId = await saveNote(noteToSave);
-            await incrementNoteUsage('youtube');
-
+            await incrementUsageAndCounters('youtube');
             const newNoteDoc = await getNoteById(newNoteId);
-            if (newNoteDoc) {
-                handleSelectNote(newNoteDoc as Note);
-            }
-
-            setUploadProgress({ progress: 100, status: 'YouTube Note Created!', error: null });
+            if (newNoteDoc) { handleSelectNote(newNoteDoc as Note); }
+            showToast('YouTube Note Created!', 'success');
             setShowNewNoteModal(false);
-            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 2000);
+            addPointsAndCheckBadges(5, 'youtube');
+            updateOverallStreakAndCheckBadges();
+            if (user && userProfile && !(userProfile.badges || []).includes('firstYoutubeNote')) {
+                 addUserBadge(user.uid, 'firstYoutubeNote', { email: user.email!, displayName: userName });
+                 showToast("Badge Unlocked: Video Virtuoso!", "info", Youtube);
+            }
         } catch (error) {
-            setUploadProgress({ progress: 0, status: '', error: error instanceof Error ? error.message : 'Failed to process YouTube' });
-            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+            showToast(error instanceof Error ? error.message : 'Failed to process YouTube', 'error');
         }
     };
 
@@ -942,22 +1541,217 @@ export function Notes() {
     const handleAddFlashcard = () => setEditFlashcards([...editFlashcards, { front: '', back: '' }]);
     const handleRemoveFlashcard = (index: number) => setEditFlashcards(editFlashcards.filter((_, i) => i !== index));
 
-    const handleStudyFlashcards = useCallback(() => {
-        if (!selectedNote?.flashcards || selectedNote.flashcards.length === 0) {
-            setUploadProgress({ progress: 0, status: '', error: 'No flashcards available for this note.' });
-            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+    const handlePlayPodcast = (podcast: Podcast) => {
+        if (activePodcast?.id === podcast.id) {
+            handlePodcastPlayPause();
         } else {
-            setShowFlashcardStudyModal(true);
-        }
-    }, [selectedNote?.flashcards]);
-
-    const handlePodcastClick = () => {
-        if (userTier !== 'premium') {
-            setShowUpgradeModal(true);
-        } else {
-            alert("Podcast feature coming soon for Premium users!");
+            setCurrentSegmentIndex(0);
+            setPodcastCurrentTime(0);
+            setActivePodcast(podcast);
+            setIsPodcastPlaying(true);
         }
     };
+
+    const handleDeletePodcast = async (podcastId: string) => {
+        if (!selectedNote || !window.confirm("Are you sure you want to delete this podcast?")) return;
+        if (activePodcast?.id === podcastId) {
+            handlePodcastStop();
+        }
+        try {
+            await deletePodcastFromNote(selectedNote.id, podcastId);
+            showToast("Podcast deleted.", "success");
+        } catch (error) {
+            showToast("Failed to delete podcast.", "error");
+        }
+    };
+
+    const handleStartAIPodcast = async () => {
+        if (!selectedNote || !geminiApiKey) {
+            showToast('Please select a note.', 'error'); return;
+        }
+        if (userTier !== 'premium') {
+            setShowUpgradeModal(true); return;
+        }
+
+        setShowPodcastConfigModal(false);
+        setIsPodcastProcessing(true);
+        if (activePodcast) handlePodcastStop();
+
+        const { title, contentHtml, keyPoints } = podcastTextObjects;
+
+        try {
+            const speaker1Profile = PREDEFINED_PODCAST_SPEAKERS.find(s => s.id === podcastPlaybackSettings.speaker1Id);
+            const speaker2Profile = podcastPlaybackSettings.speaker2Id ? PREDEFINED_PODCAST_SPEAKERS.find(s => s.id === podcastPlaybackSettings.speaker2Id) : null;
+            
+            let speakerInstructions = `There is one speaker: [SPEAKER_1] (Name: ${speaker1Profile?.name}, Persona: "${speaker1Profile?.description}"). They will act as the primary narrator.`;
+            if (speaker2Profile) {
+                speakerInstructions = `There are two speakers. They must have a dynamic, conversational dialogue. Do not just have one read a paragraph and then the other. They should interact naturally.
+- [SPEAKER_1]: Name is ${speaker1Profile?.name}. Persona: "${speaker1Profile?.description}". Acts as the main host.
+- [SPEAKER_2]: Name is ${speaker2Profile.name}. Persona: "${speaker2Profile.description}". Acts as a co-host, asks clarifying questions, provides examples, or offers alternative perspectives.
+The script must alternate between [SPEAKER_1] and [SPEAKER_2] frequently to create a lively conversation.`;
+            }
+
+            const lengthInstruction = {
+                short: "The target length is 'short' (around 5-25 MIN. NOT ANY LONGER.). Be concise while covering the main ideas.",
+            }[podcastPlaybackSettings.length || 'short'];
+            
+            const scriptGenPrompt = `You are an expert podcast scriptwriter. Your task is to transform the following study note content into a natural, engaging, and conversational podcast script.
+
+**Source Note Content:**
+"""
+${contentHtml.replace(/<[^>]+>/g, '\n')}
+"""
+
+**Key Points to Emphasize:**
+- ${keyPoints.join('\n- ')}
+
+**CRITICAL SCRIPTING INSTRUCTIONS:**
+1.  **Conversational Style:** DO NOT simply read the note. Rephrase, expand, and explain the concepts in a natural, spoken style. Use analogies, rhetorical questions, and a clear, logical flow. Create a short, engaging intro and a concluding summary.
+2.  **Speaker Attribution:**
+    - ${speakerInstructions}
+    - **MANDATORY FORMAT:** Every single line of dialogue MUST start with either \`[SPEAKER_1]\` or \`[SPEAKER_2]\` followed by a colon and the dialogue. Example: \`[SPEAKER_1]: Hello and welcome to the show.\`
+3.  **DO NOT SPEAK TAGS:** The speaker tags like '[SPEAKER_1]' are for processing only. They MUST NOT be spoken in the audio. Your script should flow naturally as if the tags are not there.
+4.  **No Title Announcement:** Do NOT announce the title of the podcast (e.g., avoid saying "Welcome to the podcast on '${title}'"). Start the conversation directly.
+5.  **Length:** ${lengthInstruction}
+6.  **Special Instructions from User:** ${podcastPlaybackSettings.instructions || 'None provided.'}
+7.  **Output Format:** Return ONLY the raw script text with the specified speaker tags. Do not include any other explanations, titles, or formatting outside of the script itself. Start immediately with the first speaker tag. ENUSRE ITS SHORT AND ENGAGING. NOT JUST A READING OF THE NOTE. NOT VERY LONG 
+`;
+            
+            const scriptGenApiUrl = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${geminiApiKey}`;
+            const scriptGenBody = {
+                contents: [{ role: "user", parts: [{ text: scriptGenPrompt }] }],
+                generationConfig: { temperature: 0.75, maxOutputTokens: 8192, topP: 0.95 }
+            };
+
+            const scriptResponse = await fetchWithRetry(scriptGenApiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(scriptGenBody)
+            });
+            const scriptResponseText = await scriptResponse.text();
+            const parsedScriptResult = parseGeminiResponse(scriptResponseText);
+
+            if (parsedScriptResult.error || !parsedScriptResult.text) {
+                throw new Error(parsedScriptResult.error || "Failed to generate podcast script from note.");
+            }
+            
+            const podcastScript = parsedScriptResult.text;
+
+            const textProcessingResult: PodcastTextProcessResult = await processTextForPodcast(
+                title, podcastScript, [], podcastPlaybackSettings, PREDEFINED_PODCAST_SPEAKERS
+            );
+
+            if (textProcessingResult.error || !textProcessingResult.processedSegments || textProcessingResult.processedSegments.length === 0) {
+                throw new Error(textProcessingResult.error || 'No valid segments were processed from the script.');
+            }
+
+            const result: HttpsCallableResult<GeneratePodcastResponse> = await generateElevenLabsPodcastAudioFn({
+                segments: textProcessingResult.processedSegments,
+            });
+            const audioResult = result.data;
+
+            if (audioResult.error || !audioResult.audioSegmentUrls || !audioResult.combinedUrl) {
+                throw new Error(audioResult.error || 'The audio generation service returned incomplete data.');
+            }
+
+            const newPodcastData: Omit<Podcast, 'id' | 'createdAt'> = {
+                settings: podcastPlaybackSettings,
+                segments: audioResult.audioSegmentUrls,
+                combinedUrl: audioResult.combinedUrl,
+                totalDuration: audioResult.totalDuration || 0,
+            };
+
+            const newPodcastId = await addPodcastToNote(selectedNote.id, newPodcastData);
+            
+            const updatedNote = await getNoteById(selectedNote.id);
+            if (updatedNote && updatedNote.podcasts) {
+                const justCreatedPodcast = updatedNote.podcasts.find(p => p.id === newPodcastId);
+                if (justCreatedPodcast) {
+                    handlePlayPodcast(justCreatedPodcast);
+                    setShowPodcastSection(true);
+                }
+            }
+
+        } catch (error: any) {
+            console.error("Error generating podcast:", error);
+            showToast(error.message || 'Failed to generate podcast.', 'error', AlertTriangle);
+        } finally {
+            setIsPodcastProcessing(false);
+        }
+    };
+
+    // Add these state variables and ref at the top of your Notes component
+const [playingSpeakerSampleId, setPlayingSpeakerSampleId] = useState<string | null>(null);
+const [isSamplePlaying, setIsSamplePlaying] = useState(false);
+const sampleAudioRef = useRef<HTMLAudioElement | null>(null);
+
+// This effect cleans up the audio player when the modal is closed
+useEffect(() => {
+    // This is the cleanup function that runs when the component unmounts
+    // or when the dependency array values change.
+    return () => {
+        if (sampleAudioRef.current) {
+            sampleAudioRef.current.pause();
+            sampleAudioRef.current = null;
+        }
+    };
+}, []);
+
+// This function replaces your old `handlePlaySpeakerSample`
+const handleToggleSpeakerSample = (speaker: PodcastSpeakerProfile) => {
+    // If clicking the speaker that is currently playing, pause it.
+    if (isSamplePlaying && playingSpeakerSampleId === speaker.id && sampleAudioRef.current) {
+        sampleAudioRef.current.pause();
+        setIsSamplePlaying(false);
+    }
+    // If clicking the speaker that is currently paused, resume it.
+    else if (!isSamplePlaying && playingSpeakerSampleId === speaker.id && sampleAudioRef.current) {
+        sampleAudioRef.current.play().catch(e => console.error("Error resuming sample audio", e));
+        setIsSamplePlaying(true);
+    }
+    // If clicking a new speaker.
+    else {
+        // Stop any previously playing audio.
+        if (sampleAudioRef.current) {
+            sampleAudioRef.current.pause();
+        }
+        
+        // Ensure there's a valid URL to play.
+        if (!speaker.sampleAudioUrl) {
+            showToast("No audio sample available for this speaker.", "error");
+            return;
+        }
+        
+        // Create a new Audio object for the new speaker.
+        const newAudio = new Audio(speaker.sampleAudioUrl);
+        sampleAudioRef.current = newAudio;
+        newAudio.play().catch(e => {
+            console.error("Error playing sample audio:", e);
+            showToast("Could not play audio sample.", "error");
+        });
+
+        // When the audio finishes playing naturally, reset the state.
+        newAudio.onended = () => {
+            setIsSamplePlaying(false);
+            setPlayingSpeakerSampleId(null);
+        };
+
+        // Update state to reflect the new playing speaker.
+        setPlayingSpeakerSampleId(speaker.id);
+        setIsSamplePlaying(true);
+    }
+};
+
+// Also, add this effect to stop the sound if the modal is closed manually.
+useEffect(() => {
+    if (!showVoiceSelectionModal && isSamplePlaying) {
+        if (sampleAudioRef.current) {
+            sampleAudioRef.current.pause();
+        }
+        setIsSamplePlaying(false);
+        setPlayingSpeakerSampleId(null);
+    }
+}, [showVoiceSelectionModal, isSamplePlaying]);
 
 
     const handleRegenerateQuestions = async () => {
@@ -966,26 +1760,24 @@ export function Notes() {
         if (!selectedNote || !currentApiKey || isRegeneratingQuestions || !user) return;
 
         if (userTier !== 'premium' && !checkNoteLimit('pdfAi')) {
-            setUploadProgress({ progress: 0, status: '', error: 'Monthly AI Note limit reached.' });
-            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+            showToast('Monthly AI Note limit reached.', 'error');
             return;
         }
 
         setIsRegeneratingQuestions(true);
-        setUploadProgress({ progress: 0, status: 'Regenerating questions...', error: null });
+        showToast('Regenerating questions...', 'info');
         try {
             await regenerateStudyQuestions(selectedNote.id, selectedNote.content, currentApiKey);
             setQuestionAnswers({});
 
             if (userTier !== 'premium') {
-                await incrementNoteUsage('pdfAi');
+                await updateUserNoteUsage(user.uid, 'pdfAi', usageMonth);
             }
-
-            setUploadProgress({ progress: 100, status: 'Questions regenerated!', error: null });
-            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 2000);
+            addPointsAndCheckBadges(3);
+            updateOverallStreakAndCheckBadges();
+            showToast('Questions regenerated!', 'success');
         } catch (error) {
-            setUploadProgress({ progress: 0, status: '', error: error instanceof Error ? error.message : 'Failed to regenerate questions' });
-            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+            showToast(error instanceof Error ? error.message : 'Failed to regenerate questions', 'error');
         } finally {
             setIsRegeneratingQuestions(false);
         }
@@ -1035,8 +1827,7 @@ export function Notes() {
         if (selectedNote?.sourceUrl && selectedNote.type === 'pdf') {
             window.open(selectedNote.sourceUrl, '_blank');
         } else {
-            setUploadProgress({ progress: 0, status: '', error: 'No PDF source available for download.' });
-            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+            showToast('No PDF source available for download.', 'error');
         }
     };
 
@@ -1224,9 +2015,7 @@ export function Notes() {
                 }
             }
         } catch (error) {
-            console.error("Screenshot capture failed:", error);
-            setUploadProgress({ progress: 0, status: '', error: 'Failed to capture PDF snippet. See console for details.' });
-            setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null }), 3000);
+            showToast('Failed to capture PDF snippet. See console for details.', 'error');
         } finally {
             setIsScreenshotModeActive(false);
             setSelectionRect(null);
@@ -1235,72 +2024,9 @@ export function Notes() {
         }
     };
 
-
-    const containerClass = isIlluminateEnabled ? "bg-gray-100 text-gray-900" : (isBlackoutEnabled ? "bg-black text-gray-200" : "bg-gray-900 text-gray-200");
-    const notesListBg = isIlluminateEnabled ? "bg-white border-gray-200" : (isBlackoutEnabled ? "bg-black border-gray-800" : "bg-gray-800 border-gray-700");
-    const mainContentBgOuter = isIlluminateEnabled ? "bg-gray-100" : (isBlackoutEnabled ? "bg-black" : "bg-gray-900");
-    const noteViewContainerClass = isIlluminateEnabled ? "bg-white border border-gray-200/70 shadow-lg" : (isBlackoutEnabled ? "bg-black border border-gray-800 shadow-2xl" : "bg-gray-800 border border-gray-700/50 shadow-xl");
-
-    const headingClass = isIlluminateEnabled ? "text-gray-800" : "text-gray-100";
-    const subheadingClass = isIlluminateEnabled ? "text-gray-600" : "text-gray-400";
-    const textColor = isIlluminateEnabled ? "text-gray-700" : "text-gray-300";
-    const inputBg = isIlluminateEnabled ? "bg-gray-100 hover:bg-gray-200/60 border-gray-300 focus:border-blue-500 focus:ring-blue-500" : (isBlackoutEnabled ? "bg-gray-800 hover:bg-gray-700 border-gray-700 focus:border-blue-500 focus:ring-blue-500" : "bg-gray-700 hover:bg-gray-600/70 border-gray-600 focus:border-blue-500 focus:ring-blue-500");
-    const inputTextColor = isIlluminateEnabled ? "text-gray-900" : "text-gray-100";
-    const placeholderColor = isIlluminateEnabled ? "placeholder-gray-400" : (isBlackoutEnabled ? "placeholder-gray-500" : "placeholder-gray-500");
-    const buttonPrimaryClass = "bg-blue-600 hover:bg-blue-700 text-white";
-    const buttonSecondaryClass = isIlluminateEnabled ? "bg-gray-200 hover:bg-gray-300 text-gray-700" : (isBlackoutEnabled ? "bg-gray-800 hover:bg-gray-700 text-gray-300" : "bg-gray-700 hover:bg-gray-600 text-gray-300");
-    const buttonDisabledClass = "opacity-50 cursor-not-allowed";
-    const iconColor = isIlluminateEnabled ? "text-gray-500" : "text-gray-400";
-    const iconHoverColor = isIlluminateEnabled ? "hover:text-gray-700" : "hover:text-gray-100";
-    const iconActionColor = isIlluminateEnabled ? "text-blue-600" : "text-blue-400";
-    const iconActionHoverBg = isIlluminateEnabled ? "hover:bg-blue-100/50" : (isBlackoutEnabled ? "hover:bg-blue-800/30" : "hover:bg-blue-900/30");
-    const iconDeleteHoverColor = isIlluminateEnabled ? "hover:text-red-600" : "hover:text-red-400";
-    const iconDeleteHoverBg = isIlluminateEnabled ? "hover:bg-red-100/50" : (isBlackoutEnabled ? "hover:bg-red-800/30" : "hover:bg-red-900/30");
-    const borderColor = isIlluminateEnabled ? "border-gray-200" : (isBlackoutEnabled ? "border-gray-800" : "border-gray-700");
-    const divideColor = isIlluminateEnabled ? "divide-gray-200" : (isBlackoutEnabled ? "divide-gray-800" : "divide-gray-700");
-    const listItemHoverBg = isIlluminateEnabled ? "hover:bg-gray-100" : (isBlackoutEnabled ? "hover:bg-gray-800/60" : "hover:bg-gray-700/50");
-    const listItemSelectedBg = isIlluminateEnabled ? "bg-blue-50 border-l-2 border-blue-500" : (isBlackoutEnabled ? "bg-gray-800 border-l-2 border-blue-500" : "bg-gray-700 border-l-2 border-blue-500");
-    const listItemBaseClass = "border-l-2 border-transparent";
-    
-    const tagBaseBg = isIlluminateEnabled ? "bg-opacity-80" : (isBlackoutEnabled ? "bg-opacity-40" : "bg-opacity-20");
-    const tagTextBase = isIlluminateEnabled ? "text-opacity-90" : (isBlackoutEnabled ? "text-opacity-90" : "text-opacity-80");
-    const tagColors = {
-        personal: isIlluminateEnabled ? "bg-green-100 text-green-700" : (isBlackoutEnabled ? "bg-green-800/40 text-green-300" : "bg-green-500/20 text-green-300"),
-        pdf: isIlluminateEnabled ? "bg-red-100 text-red-700" : (isBlackoutEnabled ? "bg-red-800/40 text-red-300" : "bg-red-500/20 text-red-300"),
-        youtube: isIlluminateEnabled ? "bg-purple-100 text-purple-700" : (isBlackoutEnabled ? "bg-purple-800/40 text-purple-300" : "bg-purple-500/20 text-purple-300"),
-        audio: isIlluminateEnabled ? "bg-yellow-100 text-yellow-700" : (isBlackoutEnabled ? "bg-yellow-800/40 text-yellow-300" : "bg-yellow-500/20 text-yellow-300"),
-        public: isIlluminateEnabled ? "bg-cyan-100 text-cyan-700" : (isBlackoutEnabled ? "bg-cyan-800/40 text-cyan-300" : "bg-cyan-500/20 text-cyan-300"),
-        custom: isIlluminateEnabled ? "bg-blue-100 text-blue-700" : (isBlackoutEnabled ? "bg-blue-800/40 text-blue-300" : "bg-blue-500/20 text-blue-300"),
-    };
-
-    const proseClass = `prose prose-sm sm:prose-base max-w-none ${
-        isIlluminateEnabled 
-            ? 'prose-gray text-gray-800' 
-            : `prose-invert ${isBlackoutEnabled ? 'text-gray-200' : 'text-gray-300'}`
-    } prose-a:text-blue-500 hover:prose-a:text-blue-600 prose-headings:font-semibold prose-p:leading-relaxed prose-p:mb-3 prose-ul:list-disc prose-ul:my-2 prose-ul:ml-5 prose-ol:list-decimal prose-ol:my-2 prose-ol:ml-5 prose-li:my-1 prose-li:ml-2 prose-blockquote:border-l-4 ${
-        isIlluminateEnabled 
-            ? 'prose-blockquote:border-gray-300' 
-            : (isBlackoutEnabled ? 'prose-blockquote:border-gray-700' : 'prose-blockquote:border-gray-600')
-    } prose-blockquote:pl-4 prose-blockquote:pr-2 prose-blockquote:py-1 prose-blockquote:italic prose-blockquote:text-sm prose-blockquote:my-3 prose-code:before:content-none prose-code:after:content-none ${
-        isIlluminateEnabled 
-            ? 'prose-code:bg-gray-200/50' 
-            : (isBlackoutEnabled ? 'prose-code:bg-gray-700/50' : 'prose-code:bg-gray-700/50')
-    } prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-sm ${
-        isIlluminateEnabled 
-            ? 'prose-pre:bg-gray-100' 
-            : (isBlackoutEnabled ? 'prose-pre:bg-black' : 'prose-pre:bg-gray-800') 
-    } prose-pre:rounded-md prose-pre:p-3 prose-img:rounded-lg prose-img:shadow-sm prose-img:max-w-full prose-table:my-4 prose-table:w-full prose-table:text-sm prose-thead:border-b ${
-        isIlluminateEnabled 
-            ? 'prose-thead:border-gray-300 prose-th:bg-gray-100' 
-            : (isBlackoutEnabled ? 'prose-thead:border-gray-700 prose-th:bg-gray-800/60' : 'prose-thead:border-gray-600 prose-th:bg-gray-700/40')
-    } prose-th:px-3 prose-th:py-1.5 prose-th:font-medium prose-th:text-left prose-tbody:divide-y ${
-        isIlluminateEnabled 
-            ? 'prose-tbody:divide-gray-200' 
-            : (isBlackoutEnabled ? 'prose-tbody:divide-gray-700' : 'prose-tbody:divide-gray-700')
-    } prose-td:px-3 prose-td:py-1.5`;
-
-
     const currentLimits = userTier === 'loading' ? null : NOTE_LIMITS[userTier];
+    const pointsNeededForPremium = userProfile ? Math.max(0, POINTS_FOR_FREE_PREMIUM - userProfile.points) : POINTS_FOR_FREE_PREMIUM;
+
 
     const formatNoteTypeDisplay = (type: string): string => {
         if (type === 'pdf') return 'PDF';
@@ -1310,85 +2036,254 @@ export function Notes() {
         return type.charAt(0).toUpperCase() + type.slice(1);
     };
 
+    const tagColors = {
+        personal: "bg-green-100 text-green-700 dark:bg-green-700/30 dark:text-green-300 border-green-200 dark:border-green-600",
+        pdf: "bg-red-100 text-red-700 dark:bg-red-700/30 dark:text-red-300 border-red-200 dark:border-red-600",
+        youtube: "bg-purple-100 text-purple-700 dark:bg-purple-700/30 dark:text-purple-300 border-purple-200 dark:border-purple-600",
+        audio: "bg-yellow-100 text-yellow-700 dark:bg-yellow-700/30 dark:text-yellow-300 border-yellow-200 dark:border-yellow-600",
+        public: "bg-cyan-100 text-cyan-700 dark:bg-cyan-700/30 dark:text-cyan-300 border-cyan-200 dark:border-cyan-600",
+        custom: "bg-indigo-100 text-indigo-700 dark:bg-indigo-700/30 dark:text-indigo-300 border-indigo-200 dark:border-indigo-600",
+    };
+
+    const quillModules = useMemo(() => ({
+        toolbar: [
+            [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+            [{ 'font': QUILL_FONTS }],
+            [{ 'size': ['small', false, 'large', 'huge'] }],
+            ['bold', 'italic', 'underline', 'strike'],
+            [{ 'color': [] }, { 'background': [] }],
+            [{ 'script': 'sub'}, { 'script': 'super' }],
+            ['blockquote', 'code-block'],
+            [{ 'list': 'ordered'}, { 'list': 'bullet' }, { 'list': 'check' }],
+            [{ 'indent': '-1'}, { 'indent': '+1' }],
+            [{ 'direction': 'rtl' }],
+            [{ 'align': [] }],
+            ['link', 'image', 'video'],
+            [{ 'videosize': [false, 'small', 'medium', 'large', 'full'] }],
+            ['clean']
+        ],
+        resize: {
+            parchment: Quill.import('parchment'),
+            modules: [ 'Resize', 'DisplaySize' ],
+        },
+    }), []);
+
+    const quillFormats = [
+        'header', 'font', 'size',
+        'bold', 'italic', 'underline', 'strike',
+        'color', 'background',
+        'script',
+        'blockquote', 'code-block',
+        'list', 'bullet', 'indent', 'check',
+        'direction', 'align',
+        'link', 'image', 'video',
+        'width', 'height', 'style',
+        'videosize',
+    ];
+
+    const quillEditorClasses = `
+      flex-grow flex flex-col font-poppins min-h-0
+      [&_.ql-toolbar.ql-snow]:rounded-t-md
+      [&_.ql-toolbar.ql-snow]:border-gray-300 dark:[&_.ql-toolbar.ql-snow]:border-gray-700
+      [&_.ql-toolbar.ql-snow]:bg-gray-100 dark:[&_.ql-toolbar.ql-snow]:bg-[#1A1D29]
+      [&_.ql-toolbar.ql-snow]:p-2
+      [&_.ql-toolbar.ql-snow]:sticky [&_.ql-toolbar.ql-snow]:top-0 [&_.ql-toolbar.ql-snow]:z-10
+
+      [&_.ql-toolbar.ql-snow_.ql-picker-label]:text-gray-700 dark:[&_.ql-toolbar.ql-snow_.ql-picker-label]:text-gray-300
+      [&_.ql-snow.ql-toolbar_.ql-picker-item]:text-gray-700 dark:[&_.ql-snow.ql-toolbar_.ql-picker-item]:text-gray-300
+
+      [&_.ql-toolbar.ql-snow_.ql-stroke]:stroke-gray-700 dark:[&_.ql-toolbar.ql-snow_.ql-stroke]:stroke-gray-300
+      [&_.ql-toolbar.ql-snow_.ql-fill]:fill-gray-700 dark:[&_.ql-toolbar.ql-snow_.ql-fill]:fill-gray-300
+
+      [&_.ql-toolbar.ql-snow_button:hover_.ql-stroke]:stroke-indigo-500 dark:[&_.ql-toolbar.ql-snow_button:hover_.ql-stroke]:stroke-indigo-400
+      [&_.ql-toolbar.ql-snow_button:hover_.ql-fill]:fill-indigo-500 dark:[&_.ql-toolbar.ql-snow_button:hover_.ql-fill]:fill-indigo-400
+      [&_.ql-toolbar.ql-snow_button.ql-active_.ql-stroke]:stroke-indigo-600 dark:[&_.ql-toolbar.ql-snow_button.ql-active_.ql-stroke]:stroke-indigo-400
+      [&_.ql-toolbar.ql-snow_button.ql-active_.ql-fill]:fill-indigo-600 dark:[&_.ql-toolbar.ql-snow_button.ql-active_.ql-fill]:fill-indigo-400
+
+      [&_.ql-toolbar.ql-snow_.ql-picker.ql-expanded_.ql-picker-label]:text-indigo-600 dark:[&_.ql-toolbar.ql-snow_.ql-picker.ql-expanded_.ql-picker-label]:text-indigo-400
+      [&_.ql-toolbar.ql-snow_.ql-picker.ql-expanded_.ql-picker-label_.ql-stroke]:stroke-indigo-600 dark:[&_.ql-toolbar.ql-snow_.ql-picker.ql-expanded_.ql-picker-label_.ql-stroke]:stroke-indigo-400
+
+      [&_.ql-snow.ql-toolbar_.ql-picker-options]:bg-white dark:[&_.ql-snow.ql-toolbar_.ql-picker-options]:bg-gray-800
+      [&_.ql-snow.ql-toolbar_.ql-picker-options]:border-gray-300 dark:[&_.ql-snow.ql-toolbar_.ql-picker-options]:border-gray-700
+
+      [&_.ql-snow.ql-toolbar_.ql-picker-item.ql-selected]:text-indigo-600 dark:[&_.ql-snow.ql-toolbar_.ql-picker-item.ql-selected]:text-indigo-300
+      [&_.ql-snow.ql-toolbar_.ql-picker-item:hover]:text-indigo-500 dark:[&_.ql-snow.ql-toolbar_.ql-picker-item:hover]:text-indigo-300
+
+      [&_.ql-container.ql-snow]:flex-grow
+      [&_.ql-container.ql-snow]:overflow-y-auto
+      [&_.ql-container.ql-snow]:scrollbar-thin [&_.ql-container.ql-snow]:scrollbar-thumb-gray-400 dark:[&_.ql-container.ql-snow]:scrollbar-thumb-gray-600
+      [&_.ql-container.ql-snow]:border-x-gray-300 [&_.ql-container.ql-snow]:border-b-gray-300 dark:[&_.ql-container.ql-snow]:border-x-gray-700 dark:[&_.ql-container.ql-snow]:border-b-gray-700
+      [&_.ql-container.ql-snow]:rounded-b-md
+      [&_.ql-container.ql-snow]:bg-white dark:[&_.ql-container.ql-snow]:bg-[#10121A]
+
+      [&_.ql-editor]:font-poppins
+      [&_.ql-editor]:min-h-[250px]
+      [&_.ql-editor]:p-4
+      [&_.ql-editor]:text-gray-800 dark:[&_.ql-editor]:text-gray-100
+      [&_.ql-editor.ql-blank::before]:text-gray-400 dark:[&_.ql-editor.ql-blank::before]:text-gray-500
+      [&_.ql-editor.ql-blank::before]:italic
+      [&_.ql-editor.ql-blank::before]:content-[attr(data-placeholder)]
+
+      [&_.ql-editor_h1]:text-2xl [&_.ql-editor_h1]:font-bold [&_.ql-editor_h1]:mb-3 [&_.ql-editor_h1]:mt-4
+      [&_.ql-editor_h2]:text-xl [&_.ql-editor_h2]:font-semibold [&_.ql-editor_h2]:mb-2.5 [&_.ql-editor_h2]:mt-3.5
+      [&_.ql-editor_h3]:text-lg [&_.ql-editor_h3]:font-semibold [&_.ql-editor_h3]:mb-2 [&_.ql-editor_h3]:mt-3
+      [&_.ql-editor_h4]:text-base [&_.ql-editor_h4]:font-semibold [&_.ql-editor_h4]:mb-1.5 [&_.ql-editor_h4]:mt-2.5
+      [&_.ql-editor_h5]:text-sm [&_.ql-editor_h5]:font-semibold [&_.ql-editor_h5]:mb-1 [&_.ql-editor_h5]:mt-2
+      [&_.ql-editor_h6]:text-xs [&_.ql-editor_h6]:font-semibold [&_.ql-editor_h6]:mb-0.5 [&_.ql-editor_h6]:mt-1.5
+      [&_.ql-editor_p]:mb-3 [&_.ql-editor_p]:leading-relaxed
+
+      [&_.ql-editor_ul>li::before]:content-['•']
+      [&_.ql-editor_ul>li::before]:font-bold
+      [&_.ql-editor_ul>li::before]:absolute
+      [&_.ql-editor_ul>li::before]:left-0
+      [&_.ql-editor_ul>li::before]:top-[0.2em]
+      [&_.ql-editor_ul>li::before]:text-purple-500 dark:[&_.ql-editor_ul>li::before]:text-purple-400
+
+      [&_.ql-editor_ol]:my-3 [&_.ql-editor_ol]:list-decimal [&_.ql-editor_ol_>_li::before]:text-purple-500 [&_.ql-editor_ol_>_li::before]:dark:text-purple-400 [&_.ql-editor_ol_>_li::before]:font-semibold [&_.ql-editor_ol_>_li]:pl-5
+      [&_.ql-editor_li]:my-1
+
+      [&_.ql-editor_blockquote]:border-l-4 [&_.ql-editor_blockquote]:border-purple-500 [&_.ql-editor_blockquote]:dark:border-purple-400 [&_.ql-editor_blockquote]:pl-3 [&_.ql-editor_blockquote]:italic [&_.ql-editor_blockquote]:my-3 [&_.ql-editor_blockquote]:text-gray-600 [&_.ql-editor_blockquote]:dark:text-gray-400
+      [&_.ql-editor_pre]:bg-gray-100 [&_.ql-editor_pre]:dark:bg-gray-800/70 [&_.ql-editor_pre]:p-2 [&_.ql-editor_pre]:rounded [&_.ql-editor_pre]:text-sm [&_.ql-editor_pre]:my-3
+      [&_.ql-editor_li[data-list=checked]]:text-gray-500 [&_.ql-editor_li[data-list=checked]]:dark:text-gray-400 [&_.ql-editor_li[data-list=checked]]:line-through
+      [&_.ql-editor_li[data-list=checked]::before]:text-purple-600 [&_.ql-editor_li[data-list=checked]::before]:dark:text-purple-500
+      [&_.ql-editor_li[data-list=unchecked]::before]:text-gray-500 [&_.ql-editor_li[data-list=unchecked]::before]:dark:text-gray-400
+
+      [&_.ql-editor_iframe.ql-video.ql-videosize-small]:w-[25%] [&_.ql-editor_iframe.ql-video.ql-videosize-small]:aspect-video [&_.ql-editor_iframe.ql-video.ql-videosize-small]:my-2
+      [&_.ql-editor_iframe.ql-video.ql-videosize-medium]:w-[50%] [&_.ql-editor_iframe.ql-video.ql-videosize-medium]:aspect-video [&_.ql-editor_iframe.ql-video.ql-videosize-medium]:my-2
+      [&_.ql-editor_iframe.ql-video.ql-videosize-large]:w-[75%] [&_.ql-editor_iframe.ql-video.ql-videosize-large]:aspect-video [&_.ql-editor_iframe.ql-video.ql-videosize-large]:my-2
+      [&_.ql-editor_iframe.ql-video.ql-videosize-full]:w-full [&_.ql-editor_iframe.ql-video.ql-videosize-full]:aspect-video [&_.ql-editor_iframe.ql-video.ql-videosize-full]:my-2
+      [&_.ql-editor_iframe.ql-video:not(.ql-videosize-small):not(.ql-videosize-medium):not(.ql-videosize-large):not(.ql-videosize-full)]:w-[50%] [&_.ql-editor_iframe.ql-video:not(.ql-videosize-small):not(.ql-videosize-medium):not(.ql-videosize-large):not(.ql-videosize-full)]:aspect-video [&_.ql-editor_iframe.ql-video:not(.ql-videosize-small):not(.ql-videosize-medium):not(.ql-videosize-large):not(.ql-videosize-full)]:my-2
+    `;
+
+  const readOnlyQuillClasses = `
+      font-poppins
+      border-none
+      [&_.ql-container.ql-snow]:border-none
+      [&_.ql-editor]:prose [&_.ql-editor]:prose-sm sm:[&_.ql-editor]:prose-base [&_.ql-editor]:max-w-none
+      ${isDarkMode ? '[&_.ql-editor]:prose-invert' : ''}
+      [&_.ql-editor]:p-0
+      dark:[&_.ql-editor.ql-blank::before]:text-gray-500
+      [&_.ql-editor.ql-blank::before]:italic
+
+      [&_.ql-editor.prose_ul>li[data-list]]:list-none
+      [&_.ql-editor.prose_ul>li[data-list]]:pl-0
+
+      [&_.ql-editor.prose_ul>li[data-list=checked]::before]:content-['✔']
+      [&_.ql-editor.prose_ul>li[data-list=checked]::before]:font-normal
+      [&_.ql-editor.prose_ul>li[data-list=checked]::before]:mr-2
+      [&_.ql-editor.prose_ul>li[data-list=checked]::before]:text-purple-600 dark:[&_.ql-editor.prose_ul>li[data-list=checked]::before]:text-purple-500
+      [&_.ql-editor.prose_ul>li[data-list=checked]]:text-gray-500 dark:[&_.ql-editor.prose_ul>li[data-list=checked]]:dark:text-gray-400 [&_.ql-editor.prose_ul>li[data-list=checked]]:line-through
+
+      [&_.ql-editor.prose_ul>li[data-list=unchecked]::before]:content-['☐']
+      [&_.ql-editor.prose_ul>li[data-list=unchecked]::before]:font-normal
+      [&_.ql-editor.prose_ul>li[data-list=unchecked]::before]:mr-2
+      [&_.ql-editor.prose_ul>li[data-list=unchecked]::before]:text-gray-500 dark:[&_.ql-editor.prose_ul>li[data-list=unchecked]::before]:text-gray-400
+
+      [&_.ql-editor_img]:max-w-full [&_.ql-editor_img]:h-auto [&_.ql-editor_img]:rounded-md [&_.ql-editor_img]:my-4 [&_.ql-editor_img]:shadow-lg
+      [&_.ql-editor_iframe.ql-video]:rounded-md [&_.ql-editor_iframe.ql-video]:my-4 [&_.ql-editor_iframe.ql-video]:shadow-lg
+
+      [&_.ql-editor_iframe.ql-video.ql-videosize-small]:w-[25%] [&_.ql-editor_iframe.ql-video.ql-videosize-small]:aspect-video
+      [&_.ql-editor_iframe.ql-video.ql-videosize-medium]:w-[50%] [&_.ql-editor_iframe.ql-video.ql-videosize-medium]:aspect-video
+      [&_.ql-editor_iframe.ql-video.ql-videosize-large]:w-[75%] [&_.ql-editor_iframe.ql-video.ql-videosize-large]:aspect-video
+      [&_.ql-editor_iframe.ql-video.ql-videosize-full]:w-full [&_.ql-editor_iframe.ql-video.ql-videosize-full]:aspect-video
+      [&_.ql-editor_iframe.ql-video:not(.ql-videosize-small):not(.ql-videosize-medium):not(.ql-videosize-large):not(.ql-videosize-full)]:w-[50%] [&_.ql-editor_iframe.ql-video:not(.ql-videosize-small):not(.ql-videosize-medium):not(.ql-videosize-large):not(.ql-videosize-full)]:aspect-video
+    `;
 
     return (
-        <div className={`flex h-screen overflow-hidden ${containerClass} font-sans`}>
-            <Sidebar isCollapsed={isSidebarCollapsed} onToggle={handleToggleSidebar} userName={userName} isBlackoutEnabled={isBlackoutEnabled && isSidebarBlackoutEnabled} isIlluminateEnabled={isIlluminateEnabled && isSidebarIlluminateEnabled} />
+        <div className={`flex h-screen overflow-hidden bg-[#F7F8FA] dark:bg-[#0C0E1A] text-gray-900 dark:text-gray-100 font-poppins`}>
+            <Sidebar isCollapsed={isSidebarCollapsed} onToggleCollapse={handleToggleSidebar} userName={userName} isMobileOpen={false} setIsMobileOpen={() => {}} />
+            <ProfileModal
+                isOpen={showNotesProfileModal}
+                onClose={() => setShowNotesProfileModal(false)}
+                userProfile={userProfile}
+                userName={userName}
+            />
 
             <main className={`flex-1 flex overflow-hidden transition-all duration-300 ${ isSidebarCollapsed ? 'ml-16 md:ml-20' : 'ml-0 md:ml-64' }`}>
 
-                <div ref={mainContentAreaRef} className={`flex-1 ${mainContentBgOuter} relative ${showSideBySideChat || isScreenshotModeActive ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+                <div ref={mainContentAreaRef} className={`flex-1 bg-[#F7F8FA] dark:bg-[#0C0E1A] relative ${showSideBySideChat || isScreenshotModeActive ? 'overflow-hidden' : 'overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent'}`}>
+                    {!isMobile && isNotesListHidden && !showPdfViewer && (
+                         <button
+                            onClick={handleToggleNotesList}
+                            className="absolute top-3 left-3 z-20 p-2 rounded-full bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 shadow-md border border-gray-200 dark:border-gray-700/50 transition-colors"
+                            title="Show Notes List"
+                        >
+                            <PanelRightClose className="w-5 h-5" />
+                        </button>
+                    )}
+
 
                      {isMobile && !showNotesListOnMobile && !showSideBySideChat && (
-                         <div className={`sticky top-0 z-30 p-2 border-b ${borderColor} ${isIlluminateEnabled ? 'bg-white/80 backdrop-blur-sm' : (isBlackoutEnabled ? 'bg-black/80' : 'bg-gray-900/80')} backdrop-blur-sm flex items-center justify-between`}>
-                             <button onClick={() => setShowNotesListOnMobile(true)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Show Notes"> <List className="w-4 h-4" /> </button>
-                             <span className={`text-sm font-medium truncate px-2 ${headingClass}`}> {isEditing ? 'Editing Note' : selectedNote?.title || 'Note'} </span>
+                         <div className={`sticky top-0 z-30 p-2 border-b border-gray-200 dark:border-gray-700/50 bg-white/80 dark:bg-[#161922]/80 backdrop-blur-sm flex items-center justify-between`}>
+                             <button onClick={() => setShowNotesListOnMobile(true)} className={`p-1.5 rounded-md bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400`} title="Show Notes"> <List className="w-4 h-4" /> </button>
+                             <span className={`text-sm font-medium truncate px-2 text-gray-800 dark:text-gray-100`}> {isEditing ? 'Editing Note' : selectedNote?.title || 'Note'} </span>
                              <div className="w-8 h-8 flex items-center justify-center">
-                                 {selectedNote && !isEditing && !showPdfViewer && !showSplitView && ( <button onClick={handleEditNote} className={`p-1.5 rounded-md ${iconHoverColor} ${iconActionHoverBg}`} title="Edit note"> <Edit2 className="w-4 h-4" /> </button> )}
-                                 {isEditing && ( <button onClick={handleSaveEdit} disabled={isSaving || !editTitle.trim()} className={`p-1.5 rounded-md ${buttonPrimaryClass} ${isSaving || !editTitle.trim() ? buttonDisabledClass : ''}`} title="Save Changes"> {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} </button> )}
+                                 {selectedNote && !isEditing && !showPdfViewer && !showSplitView && ( <button onClick={handleEditNote} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60`} title="Edit note"> <Edit2 className="w-4 h-4" /> </button> )}
+                                 {isEditing && ( <button onClick={handleSaveEdit} disabled={isSaving || !editTitle.trim()} className={`p-1.5 rounded-full bg-indigo-500 hover:bg-indigo-600 text-white ${isSaving || !editTitle.trim() ? 'opacity-50 cursor-not-allowed' : ''}`} title="Save Changes"> {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} </button> )}
                              </div>
                          </div>
                     )}
 
                      {showSplitView && splitViewNotes.left && splitViewNotes.right ? (
                          <SplitView key={`${splitViewNotes.left.id}-${splitViewNotes.right.id}`} leftNote={splitViewNotes.left} rightNote={splitViewNotes.right} onClose={closeSplitView} onTogglePublic={handleTogglePublic} onDelete={handleDeleteNote} onChat={(note) => handleChatWithNote(note)}
-                          isIlluminateEnabled={isIlluminateEnabled} isBlackoutEnabled={isBlackoutEnabled} />
+                          isIlluminateEnabled={!isDarkMode} isBlackoutEnabled={false} />
 
                      ) : showSideBySideChat ? (
                          <div className="flex flex-row h-full overflow-hidden">
                              <div
-                                className="flex flex-col overflow-hidden relative border-r border-gray-200 dark:border-gray-700"
+                                className="flex flex-col overflow-hidden relative border-r border-gray-200 dark:border-gray-700/50"
                                 style={{ width: `${pdfChatSplitRatio}%` }}
                                 onMouseDown={isScreenshotModeActive ? handleScreenshotMouseDown : undefined}
                                 onMouseMove={isScreenshotModeActive ? handleScreenshotMouseMove : undefined}
                                 onMouseUp={isScreenshotModeActive ? handleScreenshotMouseUp : undefined}
                              >
-                                  <div className={`flex-shrink-0 p-1.5 border-b ${borderColor} ${isIlluminateEnabled ? 'bg-gray-50' : (isBlackoutEnabled ? 'bg-black' : 'bg-gray-800/50')} flex items-center justify-between gap-1 sticky top-0 z-20`}>
+                                  <div className={`flex-shrink-0 p-1.5 border-b border-gray-200 dark:border-gray-700/50 bg-gray-50 dark:bg-[#1A1D29] flex items-center justify-between gap-1 sticky top-0 z-20`}>
                                       <div className="flex items-center gap-1">
-                                        <button 
-                                            onClick={() => togglePdfViewer(false)} 
-                                            className={`p-1.5 rounded-md flex items-center gap-1 text-xs ${buttonSecondaryClass} ${iconHoverColor}`} 
+                                        <button
+                                            onClick={() => togglePdfViewer(false)}
+                                            className={`p-1.5 rounded-md flex items-center gap-1 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300`}
                                             title="Show Note Only"
-                                        > 
-                                            <FileText className="w-4 h-4" /> 
+                                        >
+                                            <FileText className="w-4 h-4" />
                                             <span className="hidden sm:inline">Note</span>
                                         </button>
-                                        <button 
-                                            onClick={() => setIsScreenshotModeActive(!isScreenshotModeActive)} 
-                                            className={`p-1.5 rounded-md flex items-center gap-1 text-xs ${isScreenshotModeActive 
-                                                ? (isIlluminateEnabled ? 'bg-blue-500 text-white hover:bg-blue-600' : (isBlackoutEnabled ? 'bg-blue-600 text-blue-100 hover:bg-blue-700' : 'bg-blue-700 text-blue-200 hover:bg-blue-800')) 
-                                                : (isIlluminateEnabled ? 'bg-green-500 text-white hover:bg-green-600' : (isBlackoutEnabled ? 'bg-green-600 text-green-100 hover:bg-green-700' : 'bg-green-700/30 text-green-300 hover:bg-green-600/40'))} shadow-sm hover:shadow-md transition-all`} 
+                                        <button
+                                            onClick={() => setIsScreenshotModeActive(!isScreenshotModeActive)}
+                                            className={`p-1.5 rounded-md flex items-center gap-1 text-xs shadow-sm hover:shadow-md transition-all ${isScreenshotModeActive
+                                                ? 'bg-indigo-500 text-white hover:bg-indigo-600'
+                                                : 'bg-green-500 text-white hover:bg-green-600'}`}
                                             title={isScreenshotModeActive ? "Cancel Screenshot Mode" : "Capture PDF Area"}
-                                        > 
-                                            <Camera className="w-4 h-4" /> 
+                                        >
+                                            <Camera className="w-4 h-4" />
                                             <span className="hidden sm:inline">{isScreenshotModeActive ? 'Cancel' : 'Snip'}</span>
                                         </button>
                                       </div>
+                                      
                                       <div className="flex items-center gap-1 text-xs font-medium">
-                                        <span className={`text-xs ${textColor}`}>Page</span>
-                                        <input type="number" value={pdfPageInput} onChange={handlePdfPageInputChange} onKeyPress={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleGoToPage(); (e.target as HTMLInputElement).blur(); } }} onBlur={handleGoToPage} className={`w-14 text-center ${inputBg} ${inputTextColor} ${placeholderColor} text-xs rounded p-1 border ${borderColor} focus:outline-none focus:ring-1 focus:ring-blue-500`} min="1" max={numPages || undefined} disabled={!numPages} aria-label="Current Page Number" />
-                                        {numPages != null && <span className={`text-xs ${textColor}`}>of {numPages}</span>}
+                                        <span className={`text-xs text-gray-700 dark:text-gray-300`}>Page</span>
+                                        <input type="number" value={pdfPageInput} onChange={handlePdfPageInputChange} onKeyPress={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleGoToPage(); (e.target as HTMLInputElement).blur(); } }} onBlur={handleGoToPage} className={`w-14 text-center bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 text-xs rounded p-1 border border-gray-200 dark:border-gray-600/80 focus:outline-none focus:ring-1 focus:ring-indigo-500`} min="1" max={numPages || undefined} disabled={!numPages} aria-label="Current Page Number" />
+                                        {numPages != null && <span className={`text-xs text-gray-700 dark:text-gray-300`}>of {numPages}</span>}
                                      </div>
                                      <div className="flex items-center gap-1">
-                                        <div className={`w-px h-4 ${isIlluminateEnabled ? 'bg-gray-300' : (isBlackoutEnabled ? 'bg-gray-700' : 'bg-gray-600')} mx-0.5`}></div>
-                                        <button onClick={() => changeScale(-0.1)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Zoom Out"> <ZoomOut className="w-4 h-4" /> </button>
-                                        <span className={`text-xs font-medium px-1 ${textColor}`}>{Math.round(pdfScale * 100)}%</span>
-                                        <button onClick={() => changeScale(0.1)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Zoom In"> <ZoomIn className="w-4 h-4" /> </button>
-                                        <div className={`w-px h-4 ${isIlluminateEnabled ? 'bg-gray-300' : (isBlackoutEnabled ? 'bg-gray-700' : 'bg-gray-600')} mx-0.5`}></div>
-                                        <button onClick={() => changeRotation(-90)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Rotate Left"> <RotateCcw className="w-4 h-4 transform -scale-x-100" /> </button>
-                                        <button onClick={() => changeRotation(90)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Rotate Right"> <RotateCcw className="w-4 h-4" /> </button>
-                                        <div className={`w-px h-4 ${isIlluminateEnabled ? 'bg-gray-300' : (isBlackoutEnabled ? 'bg-gray-700' : 'bg-gray-600')} mx-0.5`}></div>
-                                        <button onClick={handleDownloadPdf} disabled={!selectedNote?.sourceUrl || selectedNote.type !== 'pdf'} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor} ${(!selectedNote?.sourceUrl || selectedNote.type !== 'pdf') ? buttonDisabledClass : ''}`} title="Download PDF" > <Download className="w-4 h-4" /> </button>
+                                        <div className={`w-px h-4 bg-gray-300 dark:bg-gray-600 mx-0.5`}></div>
+                                        <button onClick={() => changeScale(-0.1)} className={`p-1.5 rounded-md bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400`} title="Zoom Out"> <ZoomOut className="w-4 h-4" /> </button>
+                                        <span className={`text-xs font-medium px-1 text-gray-700 dark:text-gray-300`}>{Math.round(pdfScale * 100)}%</span>
+                                        <button onClick={() => changeScale(0.1)} className={`p-1.5 rounded-md bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400`} title="Zoom In"> <ZoomIn className="w-4 h-4" /> </button>
+                                        <div className={`w-px h-4 bg-gray-300 dark:bg-gray-600 mx-0.5`}></div>
+                                        <button onClick={() => changeRotation(-90)} className={`p-1.5 rounded-md bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400`} title="Rotate Left"> <RotateCcw className="w-4 h-4 transform -scale-x-100" /> </button>
+                                        <button onClick={() => changeRotation(90)} className={`p-1.5 rounded-md bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400`} title="Rotate Right"> <RotateCcw className="w-4 h-4" /> </button>
+                                        <div className={`w-px h-4 bg-gray-300 dark:bg-gray-600 mx-0.5`}></div>
+                                        <button onClick={handleDownloadPdf} disabled={!selectedNote?.sourceUrl || selectedNote.type !== 'pdf'} className={`p-1.5 rounded-md bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 ${(!selectedNote?.sourceUrl || selectedNote.type !== 'pdf') ? 'opacity-50 cursor-not-allowed' : ''}`} title="Download PDF" > <Download className="w-4 h-4" /> </button>
                                     </div>
                                   </div>
-                                  <p className={`flex-shrink-0 text-center text-[10px] p-0.5 ${isIlluminateEnabled ? 'bg-blue-50 text-blue-700' : (isBlackoutEnabled ? 'bg-blue-900/60 text-blue-300' : 'bg-gray-800 text-gray-400')} sticky top-[37px] z-[19]`}>
+                                  <p className={`flex-shrink-0 text-center text-[10px] p-0.5 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 sticky top-[37px] z-[19]`}>
                                     {isScreenshotModeActive ? "Click and drag on a page to select an area for chat." : "Highlight text for Explain/Chat options. Use Camera to Snip PDF area."}
                                   </p>
-                                 <div ref={pdfViewerContainerRef} onMouseUp={isScreenshotModeActive ? undefined : handlePdfTextSelection} className={`flex-1 overflow-auto relative ${isIlluminateEnabled ? 'bg-gray-100' : (isBlackoutEnabled ? 'bg-black' : 'bg-gray-800/30')} ${isScreenshotModeActive ? 'cursor-crosshair' : ''}`} >
+                                 <div ref={pdfViewerContainerRef} onMouseUp={isScreenshotModeActive ? undefined : handlePdfTextSelection} className={`flex-1 overflow-auto relative bg-gray-100 dark:bg-[#0C0E1A] ${isScreenshotModeActive ? 'cursor-crosshair' : ''}`} >
                                      {pdfError ? ( <div className="p-6 text-center text-red-500 flex flex-col items-center justify-center h-full"> <AlertTriangle className="w-10 h-10 mb-3" /> <p className="text-sm font-medium">Error Loading PDF</p> <p className="text-xs mt-1">{pdfError}</p> </div>
                                      ) : selectedNote?.sourceUrl ? (
-                                        <Document file={selectedNote.sourceUrl} onLoadSuccess={onDocumentLoadSuccess} onLoadError={onDocumentLoadError} loading={<div className="flex justify-center items-center h-64 pt-10"><Loader2 className="w-6 h-6 animate-spin text-blue-500"/></div>} className="flex flex-col items-center pdf-document pt-4 pb-8" >
-                                            {numPages === null && !pdfError ? ( <div className="flex justify-center items-center h-64 pt-10"><Loader2 className="w-6 h-6 animate-spin text-blue-500" /></div>
+                                        <Document file={selectedNote.sourceUrl} onLoadSuccess={onDocumentLoadSuccess} onLoadError={onDocumentLoadError} loading={<div className="flex justify-center items-center h-64 pt-10"><Loader2 className="w-6 h-6 animate-spin text-indigo-500"/></div>} className="flex flex-col items-center pdf-document pt-4 pb-8" >
+                                            {numPages === null && !pdfError ? ( <div className="flex justify-center items-center h-64 pt-10"><Loader2 className="w-6 h-6 animate-spin text-indigo-500" /></div>
                                             ) : numPages && ( Array.from(new Array(numPages), (el, index) => (
                                                 <Page
                                                     key={`page_${index + 1}`}
@@ -1401,177 +2296,549 @@ export function Notes() {
                                                     renderAnnotationLayer={!isScreenshotModeActive}
                                                     renderTextLayer={!isScreenshotModeActive}
                                                     className="mb-2 shadow-md react-pdf__Page"
-                                                    loading={<div className="h-64 flex items-center justify-center text-xs">Loading page {index + 1}...</div>}
+                                                    loading={<div className="h-64 flex items-center justify-center text-xs text-gray-500 dark:text-gray-400">Loading page {index + 1}...</div>}
                                                 />
                                             )))}
                                         </Document>
-                                     ) : ( <div className="p-6 text-center text-gray-500">PDF source missing.</div> )}
+                                     ) : ( <div className="p-6 text-center text-gray-500 dark:text-gray-400">PDF source missing.</div> )}
                                      {isScreenshotModeActive && selectionRect && (
-                                        <div style={{ position: 'absolute', border: '2px dashed #007bff', backgroundColor: 'rgba(0,123,255,0.1)', left: selectionRect.x + (pdfViewerContainerRef.current?.scrollLeft || 0), top: selectionRect.y + (pdfViewerContainerRef.current?.scrollTop || 0), width: selectionRect.width, height: selectionRect.height, zIndex: 100, pointerEvents: 'none' }} />
+                                        <div style={{ position: 'absolute', border: '2px dashed #6366f1', backgroundColor: 'rgba(99,102,241,0.1)', left: selectionRect.x + (pdfViewerContainerRef.current?.scrollLeft || 0), top: selectionRect.y + (pdfViewerContainerRef.current?.scrollTop || 0), width: selectionRect.width, height: selectionRect.height, zIndex: 100, pointerEvents: 'none' }} />
                                      )}
-                                     {showHighlightButtons && highlightButtonPosition && ( <div className={`highlight-buttons-container absolute z-20 flex items-center gap-1 ${isIlluminateEnabled ? 'bg-white text-gray-700 border border-gray-300' : (isBlackoutEnabled ? 'bg-gray-950 text-gray-200 border border-gray-700' : 'bg-gray-800 text-white border border-gray-700')} p-1 rounded-md shadow-lg`} style={{ top: `${highlightButtonPosition.top}px`, left: `${highlightButtonPosition.left}px`, transform: 'translateX(-50%)' }} onMouseDown={(e) => e.stopPropagation()} > <button onClick={handleExplainHighlight} className={`text-xs px-2 py-1 rounded transition-colors ${isIlluminateEnabled ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>Explain</button> <button onClick={handleChatAboutHighlight} className={`text-xs px-2 py-1 rounded transition-colors ${isIlluminateEnabled ? 'bg-green-500 text-white hover:bg-green-600' : 'bg-green-600 text-white hover:bg-green-700'}`}>Chat</button> </div> )}
+                                     {showHighlightButtons && highlightButtonPosition && ( <div className={`highlight-buttons-container absolute z-20 flex items-center gap-1 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 p-1 rounded-md shadow-lg`} style={{ top: `${highlightButtonPosition.top}px`, left: `${highlightButtonPosition.left}px`, transform: 'translateX(-50%)' }} onMouseDown={(e) => e.stopPropagation()} > <button onClick={handleExplainHighlight} className={`text-xs px-2 py-1 rounded transition-colors bg-indigo-500 text-white hover:bg-indigo-600`}>Explain</button> <button onClick={handleChatAboutHighlight} className={`text-xs px-2 py-1 rounded transition-colors bg-green-500 text-white hover:bg-green-600`}>Chat</button> </div> )}
                                  </div>
                              </div>
-                             <div className={`w-1.5 cursor-col-resize flex items-center justify-center flex-shrink-0 ${isIlluminateEnabled ? 'bg-gray-300 hover:bg-gray-400' : (isBlackoutEnabled ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-600 hover:bg-gray-500')} ${isResizingPdfChatSplit ? (isIlluminateEnabled ? '!bg-blue-500' : '!bg-blue-500') : ''}`} onMouseDown={handleResizeMouseDown} title="Drag to resize panels"><GripVertical className={`w-4 h-4 pointer-events-none ${isIlluminateEnabled ? 'text-gray-600' : (isBlackoutEnabled ? 'text-gray-500' : 'text-gray-400')}`} /></div>
+                             <div className={`w-1.5 cursor-col-resize flex items-center justify-center flex-shrink-0 bg-gray-300 dark:bg-gray-700 hover:bg-gray-400 dark:hover:bg-gray-600 ${isResizingPdfChatSplit ? '!bg-indigo-500' : ''}`} onMouseDown={handleResizeMouseDown} title="Drag to resize panels"><GripVertical className={`w-4 h-4 pointer-events-none text-gray-600 dark:text-gray-400`} /></div>
                              <div className="h-full flex flex-col overflow-hidden" style={{ width: `${100 - pdfChatSplitRatio}%` }}>
-                                 {selectedNote && geminiApiKey && user && ( <NoteChat ref={noteChatRef} key={`chat-inline-${selectedNote.id}`} note={selectedNote} onClose={() => togglePdfViewer(false)} geminiApiKey={geminiApiKey} userName={userName} isIlluminateEnabled={isIlluminateEnabled} isBlackoutEnabled={isBlackoutEnabled} isVisible={true} onUpdateNoteContent={handleUpdateNoteContentFromChat} onAddImageToNoteRequest={handleAddImageToNoteRequest} displayMode="inline" userTier={userTier} /> )}
+                                 {selectedNote && geminiApiKey && user && ( <NoteChat ref={noteChatRef} key={`chat-inline-${selectedNote.id}`} note={selectedNote} onClose={() => togglePdfViewer(false)} geminiApiKey={geminiApiKey} userName={userName} isIlluminateEnabled={!isDarkMode} isBlackoutEnabled={false} isVisible={true} onUpdateNoteContent={handleUpdateNoteContentFromChat} onAddImageToNoteRequest={handleAddImageToNoteRequest} displayMode="inline" userTier={userTier} /> )}
                              </div>
                          </div>
                      ) : (
-                         <div className={`p-0 md:p-4 lg:p-6 h-full ${isEditing ? 'flex flex-col' : ''} ${showSideBySideChat ? 'hidden': ''}`}>
-                            {showSplitView && (!splitViewNotes.left || !splitViewNotes.right) ? ( <div className={`flex flex-col items-center justify-center rounded-lg ${noteViewContainerClass} h-full text-center p-6`}> <SplitSquareVertical className={`w-12 h-12 ${iconColor} mb-4`} /> <h2 className={`text-lg font-semibold ${headingClass} mb-2`}>Compare Notes</h2> <p className={`${subheadingClass} text-sm mb-4`}>Select {splitViewNotes.left ? 'one more note' : 'two notes'} from the list.</p> <p className={`text-xs ${subheadingClass} mb-4`}>Selected: {splitViewNotes.left ? 1 : 0}/2</p> <button onClick={closeSplitView} className={`${buttonSecondaryClass} px-3 py-1.5 rounded-md text-sm`}>Cancel Comparison</button> </div>
+                         <div className={`p-0 md:p-4 lg:p-6 h-full ${showSideBySideChat ? 'hidden': ''}`}>
+                            {showSplitView && (!splitViewNotes.left || !splitViewNotes.right) ? ( <div className={`flex flex-col items-center justify-center rounded-lg bg-white dark:bg-[#161922] border border-gray-200 dark:border-gray-700/50 h-full text-center p-6`}> <SplitSquareVertical className={`w-12 h-12 text-gray-400 dark:text-gray-500 mb-4`} /> <h2 className={`text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2`}>Compare Notes</h2> <p className={`text-gray-600 dark:text-gray-400 text-sm mb-4`}>Select {splitViewNotes.left ? 'one more note' : 'two notes'} from the list.</p> <p className={`text-xs text-gray-500 dark:text-gray-400 mb-4`}>Selected: {splitViewNotes.left ? 1 : 0}/2</p> <button onClick={closeSplitView} className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-md text-sm`}>Cancel Comparison</button> </div>
                             ) : selectedNote ? (
                                 isEditing ? (
-                                    <div className={`${noteViewContainerClass} rounded-lg p-4 md:p-6 flex flex-col h-full overflow-hidden`}>
-                                         <div className="space-y-3 flex-shrink-0"> <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className={`w-full ${inputBg} ${inputTextColor} text-xl font-semibold rounded-md px-3 py-2 focus:outline-none focus:ring-1 ${placeholderColor}`} placeholder="Note title..." /> <div className="flex flex-wrap items-center gap-2"> {editTags.map((tag) => ( <span key={tag} className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${tagColors.custom} ${tagBaseBg} ${tagTextBase}`}> {tag} <button onClick={() => handleRemoveTag(tag)} className={`${iconHoverColor} rounded-full hover:bg-black/10 dark:hover:bg-white/10 p-0.5`} title={`Remove tag "${tag}"`}> <X className="w-2.5 h-2.5" /> </button> </span> ))} {editTags.length < 5 && ( <div className="flex items-center gap-1"> <input type="text" value={newTag} onChange={(e) => setNewTag(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleAddTag()} placeholder="Add tag..." className={`${inputBg} ${inputTextColor} ${placeholderColor} rounded-full px-2.5 py-0.5 text-xs focus:outline-none focus:ring-1 w-24`} /> <button onClick={handleAddTag} className={`${buttonSecondaryClass} px-2 py-0.5 rounded-full text-xs`}>Add</button> </div> )} </div> </div>
-                                         <div className="flex-1 mt-3 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 pr-2">
-                                             <div className="mb-4" data-color-mode={isIlluminateEnabled ? 'light' : 'dark'}><MDEditor value={editContent} onChange={setEditContent} minHeight={200} preview="live" textareaProps={{ placeholder: "Start writing..." }} className={`[&_.w-md-editor-preview]:!bg-transparent [&_.w-md-editor-input]:!bg-transparent [&_.w-md-editor-toolbar]:!${isIlluminateEnabled ? 'bg-gray-100/50' : (isBlackoutEnabled ? 'bg-gray-900/50' : 'bg-gray-800/50')} border ${isIlluminateEnabled ? 'border-gray-300' : (isBlackoutEnabled ? 'border-gray-700' : 'border-gray-700')} rounded-md [&_.w-md-editor-live]:border-l ${isIlluminateEnabled ? '[&_.w-md-editor-live]:border-gray-300' : (isBlackoutEnabled ? '[&_.w-md-editor-live]:border-gray-700' : '[&_.w-md-editor-live]:border-gray-700')}`} /></div>
-                                             <div className={`mt-4 pt-3 border-t ${borderColor}`}> <h3 className={`text-sm font-semibold mb-2 flex items-center gap-1.5 ${headingClass}`}><Sparkles className={`w-4 h-4 ${isIlluminateEnabled ? 'text-yellow-500' : 'text-yellow-400'}`} />Edit Key Points</h3> <div className="space-y-1.5"> {editKeyPoints.map((point, index) => ( <div key={index} className="flex items-center gap-2"> <textarea rows={1} value={point} onChange={(e) => handleKeyPointChange(index, e.target.value)} placeholder={`Key point ${index + 1}`} className={`flex-grow ${inputBg} ${inputTextColor} ${placeholderColor} text-xs rounded px-2 py-1 focus:outline-none focus:ring-1 resize-y min-h-[28px]`} /> <button onClick={() => handleRemoveKeyPoint(index)} className={`${iconDeleteHoverColor} p-1 rounded`} title="Remove Point"><Trash className="w-3.5 h-3.5" /></button> </div> ))} </div> <button onClick={handleAddKeyPoint} className={`${buttonSecondaryClass} mt-2 px-2.5 py-1 rounded text-xs flex items-center gap-1`}> <PlusCircle className="w-3.5 h-3.5"/> Add Point </button> </div>
-                                             <div className={`mt-4 pt-3 border-t ${borderColor}`}> <h3 className={`text-sm font-semibold mb-2 flex items-center gap-1.5 ${headingClass}`}><Layers className={`w-4 h-4 ${isIlluminateEnabled ? 'text-purple-600' : 'text-purple-400'}`} />Edit Flashcards</h3> <div className="space-y-2"> {editFlashcards.map((card, index) => ( <div key={index} className={`flex items-start gap-2 border rounded p-2 ${isIlluminateEnabled ? 'border-gray-200 bg-gray-50/50' : (isBlackoutEnabled ? 'border-gray-700/50 bg-gray-800/30' : 'border-gray-600/50 bg-gray-700/30')}`}> <div className="flex-grow space-y-1"> <textarea rows={1} value={card.front} onChange={(e) => handleFlashcardChange(index, 'front', e.target.value)} placeholder="Front of flashcard" className={`w-full ${inputBg} ${inputTextColor} ${placeholderColor} text-xs rounded px-2 py-1 focus:outline-none focus:ring-1 resize-y min-h-[28px]`} /> <textarea rows={1} value={card.back} onChange={(e) => handleFlashcardChange(index, 'back', e.target.value)} placeholder="Back of flashcard" className={`w-full ${inputBg} ${inputTextColor} ${placeholderColor} text-xs rounded px-2 py-1 focus:outline-none focus:ring-1 resize-y min-h-[28px]`} /> </div> <button onClick={() => handleRemoveFlashcard(index)} className={`${iconDeleteHoverColor} p-1 rounded mt-1`} title="Remove Card"><Trash className="w-3.5 h-3.5" /></button> </div> ))} </div> <button onClick={handleAddFlashcard} className={`${buttonSecondaryClass} mt-2 px-2.5 py-1 rounded text-xs flex items-center gap-1`}> <PlusCircle className="w-3.5 h-3.5"/> Add Card </button> </div>
-                                         </div>
-                                         <div className={`flex justify-end items-center gap-2 pt-3 mt-3 border-t ${borderColor} flex-shrink-0`}>
-                                            <button onClick={handleCancelEdit} className={`${buttonSecondaryClass} px-4 py-1.5 rounded-md text-sm`}>Cancel</button>
-                                            <button onClick={handleSaveEdit} disabled={isSaving || !editTitle.trim()} className={`${buttonPrimaryClass} px-4 py-1.5 rounded-md text-sm flex items-center gap-1.5 ${isSaving || !editTitle.trim() ? buttonDisabledClass : ''}`}> {isSaving ? (<> <Loader2 className="w-4 h-4 animate-spin" /> Saving... </>) : (<> <Save className="w-4 h-4" /> Save </>)} </button>
-                                         </div>
-                                     </div>
-                                ) : (
-                                    <div className={`${noteViewContainerClass} rounded-lg flex flex-col overflow-hidden h-full p-4 md:p-5 lg:p-6 animate-fadeIn`}>
-                                        <div className={`flex flex-col sm:flex-row sm:items-start sm:justify-between mb-4 gap-3 flex-shrink-0`}>
-                                            <h1 className={`text-xl md:text-2xl font-semibold ${headingClass} break-words mr-auto pr-4`}>{selectedNote.title || "Untitled"}</h1>
-                                            <div className={`flex items-center gap-1 flex-shrink-0 border rounded-full p-0.5 ${borderColor} ${isIlluminateEnabled ? 'bg-gray-50' : (isBlackoutEnabled ? 'bg-gray-900/30' : 'bg-gray-800/50')}`}>
-                                                <button onClick={handleEditNote} className={`p-1.5 rounded-full ${iconHoverColor} ${iconActionHoverBg}`} title="Edit"><Edit2 className="w-4 h-4" /></button>
-                                                {geminiApiKey && <button onClick={() => handleChatWithNote(selectedNote)} className={`p-1.5 rounded-full ${iconHoverColor} ${iconActionHoverBg}`} title="Chat with AI"><MessageCircle className="w-4 h-4" /></button>}
-                                                {selectedNote.type === 'pdf' && selectedNote.sourceUrl && !isMobile && ( 
-                                                    <button 
-                                                        onClick={() => togglePdfViewer(true)} 
-                                                        className={`p-1.5 rounded-full flex items-center gap-1 text-xs ${isIlluminateEnabled ? 'text-sky-600 bg-sky-100 hover:bg-sky-200' : (isBlackoutEnabled ? 'text-sky-300 bg-sky-900/40 hover:bg-sky-800/60' : 'text-sky-300 bg-sky-700/30 hover:bg-sky-700/50')} focus:ring-1 ${isIlluminateEnabled ? 'focus:ring-sky-300' : 'focus:ring-sky-600'}`} 
-                                                        title="View PDF Side-by-Side"
-                                                    > 
-                                                        <Eye className="w-4 h-4" /> 
-                                                        <span className="hidden sm:inline">View PDF</span>
-                                                    </button> 
+                                    <div key={`edit-${selectedNote.id}`} className={`bg-white dark:bg-[#161922] border border-gray-200 dark:border-gray-700/50 rounded-lg p-4 md:p-6 flex flex-col h-full`}>
+                                        <div className="space-y-3 flex-shrink-0">
+                                            <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className={`w-full bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-800 dark:text-gray-100 text-xl font-semibold rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 placeholder-gray-400 dark:placeholder-gray-500`} placeholder="Note title..." />
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                {editTags.map((tag) => (
+                                                    <span key={tag} className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${(tagColors as any)[tag] || tagColors.custom}`}>
+                                                        {tag}
+                                                        <button onClick={() => handleRemoveTag(tag)} className={`hover:opacity-70 rounded-full hover:bg-black/10 dark:hover:bg-white/10 p-0.5`} title={`Remove tag "${tag}"`}>
+                                                            <X className="w-2.5 h-2.5" />
+                                                        </button>
+                                                    </span>
+                                                ))}
+                                                {editTags.length < 5 && (
+                                                    <div className="flex items-center gap-1">
+                                                        <input type="text" value={newTag} onChange={(e) => setNewTag(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleAddTag()} placeholder="Add tag..." className={`bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 rounded-full px-2.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 w-24`} />
+                                                        <button onClick={handleAddTag} className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-2 py-0.5 rounded-full text-xs`}>Add</button>
+                                                    </div>
                                                 )}
-                                                <button onClick={() => handleTogglePublic(selectedNote.id, selectedNote.isPublic)} className={`p-1.5 rounded-full ${iconHoverColor} ${selectedNote.isPublic ? (isIlluminateEnabled ? 'hover:bg-cyan-100/50' : (isBlackoutEnabled ? 'hover:bg-cyan-800/30' : 'hover:bg-cyan-900/30')) : iconActionHoverBg}`} title={selectedNote.isPublic ? 'Make private' : 'Make public'}>{selectedNote.isPublic ? <Globe className={`w-4 h-4 ${isIlluminateEnabled ? 'text-cyan-600' : 'text-cyan-400'}`} /> : <Lock className="w-4 h-4" />}</button>
-                                                {selectedNote.isPublic && ( <button onClick={() => handleGetShareLink(selectedNote.id)} className={`p-1.5 rounded-full relative ${iconHoverColor} ${isIlluminateEnabled ? 'hover:bg-green-100/50' : (isBlackoutEnabled ? 'hover:bg-green-800/30' : 'hover:bg-green-900/30')}`} title="Copy share link">{linkCopied ? <ClipboardCopy className={`w-4 h-4 text-green-500`} /> : <Share2 className="w-4 h-4" />}</button> )}
-                                                <div className={`w-px h-4 ${isIlluminateEnabled ? 'bg-gray-300' : (isBlackoutEnabled ? 'bg-gray-700' : 'bg-gray-600')} mx-0.5`}></div>
-                                                <button onClick={() => handleDeleteNote(selectedNote.id)} className={`p-1.5 rounded-full ${iconDeleteHoverColor} ${iconDeleteHoverBg}`} title="Delete"><Trash2 className="w-4 h-4" /></button>
                                             </div>
                                         </div>
+
+                                        <div className="mt-3 flex-grow flex flex-col min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
+                                            <div className="flex-shrink-0" data-color-mode={isDarkMode ? 'dark' : 'light'}>
+                                                <ReactQuill
+                                                    theme="snow"
+                                                    value={editContent}
+                                                    onChange={setEditContent}
+                                                    modules={quillModules}
+                                                    formats={quillFormats}
+                                                    placeholder="Start writing your note here..."
+                                                    className={quillEditorClasses}
+                                                />
+                                            </div>
+                                            <div className="flex-shrink-0 pt-1">
+                                                <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700/50">
+                                                    <h3 className="text-sm font-semibold mb-3 flex items-center gap-1.5 text-gray-800 dark:text-gray-100">
+                                                        <Sparkles className="w-4 h-4 text-yellow-500 dark:text-yellow-400" />
+                                                        Key Points
+                                                    </h3>
+                                                    {editKeyPoints.length > 0 ? (
+                                                        <div className="space-y-2.5">
+                                                            {editKeyPoints.map((point, index) => (
+                                                                <div key={index} className="group flex items-start gap-2 p-2.5 rounded-lg bg-gray-50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-700/40 transition-colors">
+                                                                    <span className="mt-1.5 flex-shrink-0 w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-700/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center text-[10px] font-semibold">{index + 1}</span>
+                                                                    <textarea
+                                                                        rows={1}
+                                                                        value={point}
+                                                                        onChange={(e) => handleKeyPointChange(index, e.target.value)}
+                                                                        placeholder={`Key point ${index + 1}`}
+                                                                        className="flex-grow bg-transparent text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 text-sm rounded focus:outline-none resize-y min-h-[28px] py-1 leading-relaxed"
+                                                                    />
+                                                                    <button
+                                                                        onClick={() => handleRemoveKeyPoint(index)}
+                                                                        className="mt-0.5 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                        title="Remove Point"
+                                                                    >
+                                                                        <Trash className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400 italic">No key points added yet.</p>
+                                                    )}
+                                                    <button
+                                                        onClick={handleAddKeyPoint}
+                                                        className="mt-3 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-700/20 dark:hover:bg-indigo-700/40 text-indigo-600 dark:text-indigo-300 px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-colors"
+                                                    >
+                                                        <PlusCircle className="w-3.5 h-3.5" /> Add Key Point
+                                                    </button>
+                                                </div>
+
+                                                <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700/50">
+                                                    <h3 className="text-sm font-semibold mb-3 flex items-center gap-1.5 text-gray-800 dark:text-gray-100">
+                                                        <Layers className="w-4 h-4 text-purple-500 dark:text-purple-400" />
+                                                        Flashcards
+                                                    </h3>
+                                                    {editFlashcards.length > 0 ? (
+                                                        <div className="space-y-3">
+                                                            {editFlashcards.map((card, index) => (
+                                                                <div key={index} className="group relative p-3.5 rounded-xl bg-gray-50 dark:bg-gray-800/30 shadow-sm hover:shadow-md transition-shadow">
+                                                                    <span className="absolute top-2 left-2.5 px-1.5 py-0.5 text-[9px] font-semibold bg-purple-100 dark:bg-purple-700/40 text-purple-700 dark:text-purple-200 rounded-full">
+                                                                        Card {index + 1}
+                                                                    </span>
+                                                                    <button
+                                                                        onClick={() => handleRemoveFlashcard(index)}
+                                                                        className="absolute top-2 right-2 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                        title="Remove Card"
+                                                                    >
+                                                                        <Trash className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                    <div className="space-y-2.5 mt-4">
+                                                                        <div>
+                                                                            <label htmlFor={`flashcard-front-${index}`} className="block text-[11px] font-medium text-gray-600 dark:text-gray-400 mb-0.5 ml-1">Front</label>
+                                                                            <textarea
+                                                                                id={`flashcard-front-${index}`}
+                                                                                rows={2}
+                                                                                value={card.front}
+                                                                                onChange={(e) => handleFlashcardChange(index, 'front', e.target.value)}
+                                                                                placeholder="Term or question..."
+                                                                                className="w-full bg-white dark:bg-gray-700/60 border border-gray-200 dark:border-gray-600/70 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y min-h-[40px] leading-relaxed"
+                                                                            />
+                                                                        </div>
+                                                                        <div>
+                                                                            <label htmlFor={`flashcard-back-${index}`} className="block text-[11px] font-medium text-gray-600 dark:text-gray-400 mb-0.5 ml-1">Back</label>
+                                                                            <textarea
+                                                                                id={`flashcard-back-${index}`}
+                                                                                rows={2}
+                                                                                value={card.back}
+                                                                                onChange={(e) => handleFlashcardChange(index, 'back', e.target.value)}
+                                                                                placeholder="Definition or answer..."
+                                                                                className="w-full bg-white dark:bg-gray-700/60 border border-gray-200 dark:border-gray-600/70 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y min-h-[40px] leading-relaxed"
+                                                                            />
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400 italic">No flashcards added yet.</p>
+                                                    )}
+                                                    <button
+                                                        onClick={handleAddFlashcard}
+                                                        className="mt-3 bg-purple-50 hover:bg-purple-100 dark:bg-purple-700/20 dark:hover:bg-purple-700/40 text-purple-600 dark:text-purple-300 px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-colors"
+                                                    >
+                                                        <PlusCircle className="w-3.5 h-3.5" /> Add Flashcard
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className={`flex justify-end items-center gap-2 pt-3 mt-auto border-t border-gray-200 dark:border-gray-700/50 flex-shrink-0`}>
+                                            <button onClick={handleCancelEdit} className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-4 py-1.5 rounded-md text-sm`}>Cancel</button>
+                                            <button onClick={handleSaveEdit} disabled={isSaving || !editTitle.trim()} className={`bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-1.5 rounded-md text-sm flex items-center gap-1.5 ${isSaving || !editTitle.trim() ? 'opacity-50 cursor-not-allowed' : ''}`}> {isSaving ? (<> <Loader2 className="w-4 h-4 animate-spin" /> Saving... </>) : (<> <Save className="w-4 h-4" /> Save </>)} </button>
+                                        </div>
+                                     </div>
+                                ) : (
+                                    <div key={`view-${selectedNote.id}`} className={`bg-white dark:bg-[#161922] border border-gray-200 dark:border-gray-700/50 rounded-lg flex flex-col overflow-hidden h-full p-4 md:p-5 lg:p-6 animate-fadeIn`}>
+                                        <div className={`flex flex-col sm:flex-row sm:items-start sm:justify-between mb-4 gap-3 flex-shrink-0`}>
+                                            <h1 className={`text-xl md:text-2xl font-semibold text-gray-800 dark:text-gray-100 break-words mr-auto pr-4`}>{selectedNote.title || "Untitled"}</h1>
+                                            <div className={`flex items-center gap-1 flex-shrink-0 border rounded-full p-0.5 border-gray-200 dark:border-gray-700/50 bg-gray-50 dark:bg-[#1A1D29]/50`}>
+                                                <button onClick={handleEditNote} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60`} title="Edit"><Edit2 className="w-4 h-4" /></button>
+                                                {geminiApiKey && <button onClick={() => handleChatWithNote(selectedNote)} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60`} title="Chat with AI"><MessageCircle className="w-4 h-4" /></button>}
+                                                {selectedNote.type === 'pdf' && selectedNote.sourceUrl && !isMobile && (
+                                                    <button
+                                                        onClick={() => togglePdfViewer(true)}
+                                                        className={`p-1.5 rounded-full flex items-center gap-1 text-xs text-sky-600 dark:text-sky-300 bg-sky-100 dark:bg-sky-700/30 hover:bg-sky-200 dark:hover:bg-sky-700/50 focus:ring-1 focus:ring-sky-300 dark:focus:ring-sky-600`}
+                                                        title="View PDF Side-by-Side"
+                                                    >
+                                                        <Eye className="w-4 h-4" />
+                                                        <span className="hidden sm:inline">View PDF</span>
+                                                    </button>
+                                                )}
+                                                <button onClick={() => handleTogglePublic(selectedNote.id, selectedNote.isPublic)} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60 ${selectedNote.isPublic ? 'hover:bg-cyan-100/50 dark:hover:bg-cyan-900/30' : ''}`} title={selectedNote.isPublic ? 'Make private' : 'Make public'}>{selectedNote.isPublic ? <Globe className={`w-4 h-4 text-cyan-600 dark:text-cyan-400`} /> : <Lock className="w-4 h-4" />}</button>
+                                                {selectedNote.isPublic && ( <button onClick={() => handleGetShareLink(selectedNote.id)} className={`p-1.5 rounded-full relative text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60 ${linkCopied ? 'hover:bg-green-100/50 dark:hover:bg-green-900/30' : ''}`} title="Copy share link">{linkCopied ? <ClipboardCopy className={`w-4 h-4 text-green-500`} /> : <Share2 className="w-4 h-4" />}</button> )}
+                                                <div className={`w-px h-4 bg-gray-300 dark:bg-gray-700/50 mx-0.5`}></div>
+                                                <button onClick={() => handleDeleteNote(selectedNote.id)} className={`p-1.5 rounded-full text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-700/30`} title="Delete"><Trash2 className="w-4 h-4" /></button>
+                                            </div>
+                                        </div>
+
+                                        {((selectedNote.tags?.length ?? 0) > 0) && ( <div className={`flex flex-wrap gap-1.5 mb-4 flex-shrink-0`}> {selectedNote.tags!.map((tag) => (<span key={tag} className={`px-2 py-0.5 rounded-full text-xs border ${(tagColors as any)[tag] || tagColors.custom}`}>#{tag}</span>))} </div> )}
 
                                         <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-5 flex-shrink-0`}>
                                             {(selectedNote.questions && selectedNote.questions.length > 0) && (
-                                                <button onClick={() => document.getElementById('study-questions-section')?.scrollIntoView({ behavior: 'smooth' })} className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 ${isIlluminateEnabled ? 'bg-purple-50 hover:bg-purple-100 shadow-sm border border-purple-200' : (isBlackoutEnabled ? 'bg-purple-900/40 hover:bg-purple-800/50 border border-purple-700/50' : 'bg-purple-800/30 hover:bg-purple-700/40 shadow-md border border-purple-700/50')}`} >
-                                                    <div className={`p-2 rounded-full ${isIlluminateEnabled ? 'bg-purple-100 text-purple-600' : (isBlackoutEnabled ? 'bg-purple-700/30 text-purple-300' : 'bg-purple-500/20 text-purple-400')}`}> <BookOpen className="w-5 h-5" /> </div>
-                                                    <div> <span className={`block font-semibold text-sm ${headingClass}`}>Quiz</span> <span className={`block text-xs ${subheadingClass}`}>Test your knowledge</span> </div>
+                                                <button onClick={() => document.getElementById('study-questions-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 bg-purple-50 dark:bg-purple-700/20 hover:bg-purple-100 dark:hover:bg-purple-700/30 shadow-sm border border-purple-200 dark:border-purple-700/50`} >
+                                                    <div className={`p-2 rounded-full bg-purple-100 dark:bg-purple-700/30 text-purple-600 dark:text-purple-300`}> <BookOpen className="w-5 h-5" /> </div>
+                                                    <div> <span className={`block font-semibold text-sm text-gray-800 dark:text-gray-100`}>Quiz</span> <span className={`block text-xs text-gray-600 dark:text-gray-400`}>Test your knowledge</span> </div>
                                                 </button>
                                             )}
                                             {(selectedNote.flashcards && selectedNote.flashcards.length > 0) && (
-                                                <button onClick={handleStudyFlashcards} className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 ${isIlluminateEnabled ? 'bg-indigo-50 hover:bg-indigo-100 shadow-sm border border-indigo-200' : (isBlackoutEnabled ? 'bg-indigo-900/40 hover:bg-indigo-800/50 border border-indigo-700/50' : 'bg-indigo-800/30 hover:bg-indigo-700/40 shadow-md border border-indigo-700/50')}`} >
-                                                    <div className={`p-2 rounded-full ${isIlluminateEnabled ? 'bg-indigo-100 text-indigo-600' : (isBlackoutEnabled ? 'bg-indigo-700/30 text-indigo-300' : 'bg-indigo-500/20 text-indigo-400')}`}> <Layers className="w-5 h-5" /> </div>
-                                                    <div> <span className={`block font-semibold text-sm ${headingClass}`}>Flashcards</span> <span className={`block text-xs ${subheadingClass}`}>Study the content</span> </div>
+                                                 <button onClick={() => document.getElementById('flashcards-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 bg-indigo-50 dark:bg-indigo-700/20 hover:bg-indigo-100 dark:hover:bg-indigo-700/30 shadow-sm border border-indigo-200 dark:border-indigo-700/50`} >
+                                                    <div className={`p-2 rounded-full bg-indigo-100 dark:bg-indigo-700/30 text-indigo-600 dark:text-indigo-300`}> <Layers className="w-5 h-5" /> </div>
+                                                    <div> <span className={`block font-semibold text-sm text-gray-800 dark:text-gray-100`}>Flashcards</span> <span className={`block text-xs text-gray-600 dark:text-gray-400`}>Review key terms</span> </div>
                                                 </button>
                                             )}
-                                            <button onClick={handlePodcastClick} className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 ${isIlluminateEnabled ? 'bg-teal-50 hover:bg-teal-100 shadow-sm border border-teal-200' : (isBlackoutEnabled ? 'bg-teal-900/40 hover:bg-teal-800/50 border border-teal-700/50' : 'bg-teal-800/30 hover:bg-teal-700/40 shadow-md border border-teal-700/50')} ${userTier !== 'premium' ? 'opacity-70' : ''}`} >
-                                                <div className={`p-2 rounded-full ${isIlluminateEnabled ? 'bg-teal-100 text-teal-600' : (isBlackoutEnabled ? 'bg-teal-700/30 text-teal-300' : 'bg-teal-500/20 text-teal-400')}`}> <Mic className="w-5 h-5" /> </div>
-                                                <div> <span className={`block font-semibold text-sm ${headingClass}`}>Podcast</span> <span className={`block text-xs ${subheadingClass}`}>Listen to your notes</span> </div>
-                                                {userTier !== 'premium' && <Lock className={`w-4 h-4 ml-auto ${isIlluminateEnabled ? 'text-gray-400' : 'text-gray-500'}`} />}
+                                            <button onClick={handlePodcastToggle} className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 bg-teal-50 dark:bg-teal-700/20 hover:bg-teal-100 dark:hover:bg-teal-700/30 shadow-sm border border-teal-200 dark:border-teal-700/50 ${userTier !== 'premium' ? 'opacity-70' : ''}`} >
+                                                <div className={`p-2 rounded-full bg-teal-100 dark:bg-teal-700/30 text-teal-600 dark:text-teal-300`}> <Mic className="w-5 h-5" /> </div>
+                                                <div> <span className={`block font-semibold text-sm text-gray-800 dark:text-gray-100`}>Podcast</span> <span className={`block text-xs text-gray-600 dark:text-gray-400`}>{showPodcastSection ? 'Close Player' : 'Listen to notes'}</span> </div>
+                                                {userTier !== 'premium' && <Lock className={`w-4 h-4 ml-auto text-gray-400 dark:text-gray-500`} />}
                                             </button>
                                         </div>
 
-                                        {((selectedNote.tags?.length ?? 0) > 0) && ( <div className={`flex flex-wrap gap-1.5 mb-4 flex-shrink-0`}> {selectedNote.tags!.map((tag) => (<span key={tag} className={`px-2 py-0.5 rounded-full text-xs ${tagColors.custom} ${tagBaseBg} ${tagTextBase}`}>#{tag}</span>))} </div> )}
-
-                                        <div className={`flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 -mr-2 md:-mr-3 lg:-mr-4 pr-2 md:pr-3 lg:pr-4 ${isIlluminateEnabled ? "bg-white" : (isBlackoutEnabled ? "bg-black" : "bg-gray-800")}`}>
-                                            <div className={`${proseClass} py-1`}>
-                                                <ReactMarkdown
-                                                    remarkPlugins={[remarkGfm, remarkMath]}
-                                                    rehypePlugins={[rehypeKatex]}
-                                                    components={{
-                                                        img: ({node, ...props}) => <img className="max-w-full h-auto rounded-md my-4 shadow-sm" {...props} alt={props.alt || 'Note image'}/>,
-                                                        a: ({node, ...props}) => <a target="_blank" rel="noopener noreferrer" {...props} />,
-                                                        table: ({node, ...props}) => <div className="overflow-x-auto my-4"><table className={`w-full text-left border-collapse border ${borderColor}`} {...props} /></div>,
-                                                        thead: ({node, ...props}) => <thead className={isIlluminateEnabled ? 'bg-gray-100' : (isBlackoutEnabled ? 'bg-gray-800/40' : 'bg-gray-700/40')} {...props} />,
-                                                        th: ({node, ...props}) => <th className={`border ${borderColor} px-3 py-2 font-medium text-sm`} {...props} />,
-                                                        td: ({node, ...props}) => <td className={`border ${borderColor} px-3 py-2 text-sm`} {...props} />,
-                                                        h1: ({node, ...props}) => <h1 className="text-xl font-semibold mb-2 mt-4 border-b pb-1" {...props} />,
-                                                        h2: ({node, ...props}) => <h2 className="text-lg font-semibold mb-1.5 mt-3 border-b pb-0.5" {...props} />,
-                                                        h3: ({node, ...props}) => <h3 className="text-base font-semibold mb-1 mt-2" {...props} />,
-                                                        p: ({node, ...props}) => <p className="text-sm leading-relaxed mb-2" {...props} />,
-                                                        ul: ({node, ...props}) => <ul className="list-disc list-outside ml-4 space-y-1 text-sm mb-2" {...props} />,
-                                                        ol: ({node, ...props}) => <ol className="list-decimal list-outside ml-4 space-y-1 text-sm mb-2" {...props} />,
-                                                        li: ({node, ...props}) => <li className="mb-0.5" {...props} />,
-                                                        blockquote: ({node, ...props}) => <blockquote className={`border-l-4 ${isIlluminateEnabled ? borderColor : (isBlackoutEnabled ? 'border-gray-700' : 'border-gray-600')} pl-3 italic text-sm my-2 ${subheadingClass}`} {...props} />,
-                                                        code: ({node, inline, className, children, ...props}) => {
-                                                            const match = /language-(\w+)/.exec(className || '');
-                                                            return !inline ? (
-                                                                <pre className={`text-[11px] leading-snug ${isIlluminateEnabled ? '!bg-gray-100 !text-gray-800 border border-gray-200' : (isBlackoutEnabled ? '!bg-black !text-gray-300 border border-gray-800' : '!bg-gray-900/80 !text-gray-300 border border-gray-700')} p-2 rounded-md overflow-x-auto my-2`} {...props}>
-                                                                    <code className={`language-${match?.[1] || 'plaintext'}`}>{children}</code>
-                                                                </pre>
-                                                            ) : (
-                                                                <code className={`text-xs ${isIlluminateEnabled ? 'bg-gray-200/70 text-gray-800' : (isBlackoutEnabled ? 'bg-gray-700/60 text-gray-200' : 'bg-gray-700/70 text-gray-200')} px-1 rounded`} {...props}>{children}</code>
-                                                            );
-                                                        },
-                                                    }}
+                                        <div ref={noteContentRef} className={`flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 -mr-2 md:-mr-3 lg:-mr-4 pr-2 md:pr-3 lg:pr-4 bg-white dark:bg-[#161922]`}>
+                                            <AnimatePresence>
+                                            {showPodcastSection && (
+                                                <motion.div
+                                                   initial={{ opacity: 0, height: 0 }}
+                                                   animate={{ opacity: 1, height: 'auto' }}
+                                                   exit={{ opacity: 0, height: 0 }}
+                                                   transition={{ duration: 0.3, ease: "easeInOut" }}
+                                                   className="overflow-hidden"
                                                 >
-                                                    {selectedNote.content || ''}
-                                                </ReactMarkdown>
+                                                {isPodcastProcessing && (
+                                                    <div className="my-6 p-4 rounded-xl shadow-lg bg-gray-100 dark:bg-gray-800/50 text-center">
+                                                        <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mx-auto mb-2" />
+                                                        <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Crafting your podcast...</p>
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400">This may take 5-10 min. Please wait.</p>
+                                                    </div>
+                                                )}
+                                                
+                                                {activePodcast && (
+                                                    <div id="podcast-player-section" className="my-6 p-4 rounded-xl shadow-lg bg-gradient-to-br from-indigo-500 to-purple-600 dark:from-indigo-700 dark:to-purple-800 text-white">
+                                                        <div className="flex items-center justify-between mb-3">
+                                                            <div className="flex items-center">
+                                                                <Speaker size={24} className="mr-3 opacity-80" />
+                                                                <h3 className="text-lg font-semibold truncate">{selectedNote.title} - Podcast</h3>
+                                                            </div>
+                                                            <button onClick={handlePodcastStop} className="p-1 text-white/70 hover:text-white rounded-full hover:bg-white/10"><X size={18}/></button>
+                                                        </div>
+
+                                                        <audio ref={audioPlayerRef} className="hidden" controls={false} />
+
+                                                        <>
+                                                            <div className="w-full space-y-2 mb-3">
+                                                                <input
+                                                                    type="range"
+                                                                    min="0"
+                                                                    max={podcastDuration || 100}
+                                                                    value={podcastCurrentTime}
+                                                                    onChange={handlePodcastSeek}
+                                                                    className="w-full h-2 bg-white/30 rounded-lg appearance-none cursor-pointer accent-white"
+                                                                />
+                                                                <div className="flex justify-between text-xs opacity-80">
+                                                                    <span>{formatPodcastTime(podcastCurrentTime)}</span>
+                                                                    <span>{formatPodcastTime(podcastDuration)}</span>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center justify-center space-x-4 mb-4">
+   <button
+        onClick={handleSkipBackSegment}
+        className="p-2 opacity-80 hover:opacity-100 transition-opacity"
+        disabled={!activePodcast || (audioPlayerRef.current?.currentTime || 0) < 1}
+    >
+        <SkipBack size={20} />
+    </button>
+                                                                <button
+                                                                    onClick={handlePodcastPlayPause}
+                                                                    className="p-3 bg-white/20 rounded-full hover:bg-white/30 transition-colors transform hover:scale-105"
+                                                                >
+                                                                    {isPodcastPlaying ? <Pause size={24} /> : <Play size={24} />}
+                                                                </button>
+    <button
+        onClick={handleSkipForwardSegment}
+        className="p-2 opacity-80 hover:opacity-100 transition-opacity"
+        disabled={!activePodcast || (audioPlayerRef.current?.currentTime || 0) >= activePodcast.totalDuration - 1}
+    >
+        <SkipForward size={20} />
+    </button>
+                                                            </div>
+    {activePodcast && currentSegmentIndex !== -1 && activePodcast.segments[currentSegmentIndex] && (
+        <div className="text-center text-xs opacity-80 mt-2 mb-3">
+        </div>
+    )}
+                                                            <div className="flex items-center justify-between text-xs opacity-90">
+                                                                <div className="flex items-center space-x-2">
+                                                                    {podcastVolume > 0 ? <Volume2 size={18} /> : <VolumeX size={18} />}
+                                                                    <input
+                                                                        type="range" min="0" max="1" step="0.05" value={podcastVolume}
+                                                                        onChange={(e) => setPodcastVolume(Number(e.target.value))}
+                                                                        className="w-20 h-1.5 bg-white/30 rounded-lg appearance-none cursor-pointer accent-white"
+                                                                    />
+                                                                </div>
+                                                                <div className="flex items-center space-x-2 relative group">
+                                                                    <span className="px-2 py-0.5 bg-white/20 rounded-md focus:ring-2 focus:ring-white/50">{podcastPlaybackRate}x</span>
+                                                                    <select value={podcastPlaybackRate} onChange={(e) => setPodcastPlaybackRate(Number(e.target.value))}
+                                                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                                                    >
+                                                                        {[0.5, 0.75, 1, 1.25, 1.5, 2].map(rate => (
+                                                                            <option key={rate} value={rate}>{rate}x</option>
+                                                                        ))}
+                                                                    </select>
+                                                                </div>
+                                                            </div>
+                                                        </>
+                                                    </div>
+                                                )}
+
+                                                <div id="podcast-list-section" className="mt-1 pt-6 mb-6 border-t border-gray-200 dark:border-gray-700/50">
+                                                    <div className="flex items-center justify-between mb-4">
+                                                        <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100">
+                                                            <Mic className="w-5 h-5 text-teal-500 dark:text-teal-400" /> Podcasts
+                                                        </h3>
+                                                        <button onClick={() => { if (userTier === 'premium') setShowPodcastConfigModal(true); else setShowUpgradeModal(true); }}
+                                                            className="bg-teal-50 dark:bg-teal-700/20 hover:bg-teal-100 dark:hover:bg-teal-700/30 text-teal-600 dark:text-teal-300 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
+                                                        >
+                                                            <PlusCircle className="w-3.5 h-3.5" /> New Podcast {userTier !== 'premium' && <Crown className="w-3 h-3 ml-1" />}
+                                                        </button>
+                                                    </div>
+                                                    {(selectedNote.podcasts?.length ?? 0) > 0 ? (
+                                                        <div className="space-y-2">
+                                                            {selectedNote.podcasts!.sort((a, b) => toDateSafe(b.createdAt)!.getTime() - toDateSafe(a.createdAt)!.getTime()).map(p => (
+                                                                <div key={p.id} className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700/50 flex items-center justify-between gap-3">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <button onClick={() => handlePlayPodcast(p)} className="p-2 rounded-full bg-teal-100 dark:bg-teal-700/30 text-teal-600 dark:text-teal-300 hover:bg-teal-200 dark:hover:bg-teal-700/50">
+                                                                            {activePodcast?.id === p.id && isPodcastPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+                                                                        </button>
+                                                                        <div>
+                                                                            <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                                                                                Podcast from {toDateSafe(p.createdAt)?.toLocaleString()}
+                                                                            </p>
+                                                                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                                                {p.settings.speaker2Id ? `${PREDEFINED_PODCAST_SPEAKERS.find(s=>s.id===p.settings.speaker1Id)?.name} & ${PREDEFINED_PODCAST_SPEAKERS.find(s=>s.id===p.settings.speaker2Id)?.name}` : PREDEFINED_PODCAST_SPEAKERS.find(s=>s.id===p.settings.speaker1Id)?.name}
+                                                                            </p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <button onClick={() => handleDeletePodcast(p.id)} className="p-1.5 text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30">
+                                                                        <Trash2 className="w-4 h-4" />
+                                                                    </button>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-center text-xs text-gray-500 dark:text-gray-400 py-1">No podcasts generated for this note yet.</p>
+                                                    )}
+                                                </div>
+                                                </motion.div>
+                                            )}
+                                            </AnimatePresence>
+
+                                            <div data-color-mode={isDarkMode ? 'dark' : 'light'} className="quill-read-only-container py-1">
+                                                <ReactQuill
+                                                    value={selectedNote.content || ''}
+                                                    readOnly={true}
+                                                    theme="snow"
+                                                    modules={{ toolbar: false }}
+                                                    formats={quillFormats}
+                                                    className={readOnlyQuillClasses}
+                                                />
                                             </div>
+
+
                                             {selectedNote.keyPoints && selectedNote.keyPoints.length > 0 && (
-                                            <div className={`mt-6 border-t pt-4 ${borderColor}`}>
-                                                <h3 className={`text-base font-semibold mb-3 flex items-center gap-1.5 ${headingClass}`}> <Sparkles className={`w-4 h-4 ${isIlluminateEnabled ? 'text-yellow-500' : 'text-yellow-400'}`} /> Key Points </h3>
-                                                <ul className={`space-y-1.5 text-sm`}> {selectedNote.keyPoints.map((point, index) => ( <li key={index} className={`flex items-start gap-2 ${textColor}`}> <span className={`flex-shrink-0 mt-1 w-1.5 h-1.5 rounded-full ${isIlluminateEnabled ? 'bg-blue-500' : 'bg-blue-400'}`}></span> {point} </li> ))} </ul>
+                                            <div className={`mt-8 pt-6 border-t border-gray-200 dark:border-gray-700/50`}>
+                                                <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 text-gray-800 dark:text-gray-100`}> <Sparkles className={`w-5 h-5 text-yellow-500 dark:text-yellow-400`} /> Key Points </h3>
+                                                <div className={`space-y-3`}> {selectedNote.keyPoints.map((point, index) => (
+                                                    <div key={index} className="flex items-start p-3 rounded-lg bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700/50 shadow-sm">
+                                                        <div className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-700/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center text-xs font-semibold mr-3 mt-0.5">{index + 1}</div>
+                                                        <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{point}</p>
+                                                    </div>
+                                                ))} </div>
                                             </div>
                                             )}
+
+                                            {selectedNote.flashcards && selectedNote.flashcards.length > 0 && (
+                                                <div id="flashcards-section" className="my-8 pt-6 border-t border-gray-200 dark:border-gray-700/50">
+                                                    <div className="flex justify-between items-center mb-4">
+                                                        <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100">
+                                                            <Layers className="w-5 h-5 text-indigo-500 dark:text-indigo-400" /> Flashcards
+                                                        </h3>
+                                                    </div>
+                                                    <AnimatePresence mode="wait">
+                                                        <motion.div
+                                                            key={currentFlashcardIndex}
+                                                            initial={{ opacity: 0, y: isFlashcardFlipped ? -10: 10 }}
+                                                            animate={{ opacity: 1, y:0 }}
+                                                            exit={{ opacity: 0, y: isFlashcardFlipped ? 10: -10}}
+                                                            transition={{ duration: 0.2 }}
+                                                        >
+                                                            <motion.div
+                                                                className="relative min-h-[280px] cursor-pointer [perspective:1000px]"
+                                                                onClick={() => setIsFlashcardFlipped(!isFlashcardFlipped)}
+                                                            >
+                                                                <motion.div
+                                                                    className="absolute inset-0 p-6 rounded-xl shadow-xl flex flex-col justify-center items-center text-center bg-indigo-500 dark:bg-indigo-700 text-white [backface-visibility:hidden]"
+                                                                    animate={{ rotateX: isFlashcardFlipped ? -180 : 0 }}
+                                                                    transition={{ type: "spring", stiffness: 200, damping: 20, duration: 0.5 }}
+                                                                >
+                                                                    <p className="text-xs uppercase tracking-wider mb-2 opacity-80">Term</p>
+                                                                    <p className="text-xl font-medium leading-tight">
+                                                                        {selectedNote.flashcards[currentFlashcardIndex].front}
+                                                                    </p>
+                                                                </motion.div>
+                                                                <motion.div
+                                                                    className="absolute inset-0 p-6 rounded-xl shadow-xl flex flex-col justify-center items-center text-center bg-purple-500 dark:bg-purple-700 text-white [backface-visibility:hidden] [transform:rotateX(180deg)]"
+                                                                    animate={{ rotateX: isFlashcardFlipped ? 0 : 180 }}
+                                                                    transition={{ type: "spring", stiffness: 200, damping: 20, duration: 0.5 }}
+                                                                >
+                                                                    <p className="text-xs uppercase tracking-wider mb-2 opacity-80">Definition</p>
+                                                                    <p className="text-xl font-medium leading-tight">
+                                                                        {selectedNote.flashcards[currentFlashcardIndex].back}
+                                                                    </p>
+                                                                </motion.div>
+                                                            </motion.div>
+                                                        </motion.div>
+                                                    </AnimatePresence>
+                                                    <div className="flex items-center justify-between mt-4">
+                                                        <button
+                                                            onClick={() => { setCurrentFlashcardIndex(prev => Math.max(0, prev - 1)); setIsFlashcardFlipped(false); }}
+                                                            disabled={currentFlashcardIndex === 0}
+                                                            className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-gray-600 dark:text-gray-300"
+                                                        > <ChevronLeft className="w-5 h-5" /> </button>
+                                                        <span className="text-sm text-gray-600 dark:text-gray-400"> {currentFlashcardIndex + 1} / {selectedNote.flashcards.length} </span>
+                                                        <button
+                                                            onClick={() => { setCurrentFlashcardIndex(prev => Math.min(selectedNote.flashcards!.length - 1, prev + 1)); setIsFlashcardFlipped(false); }}
+                                                            disabled={currentFlashcardIndex === selectedNote.flashcards.length - 1}
+                                                            className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-gray-600 dark:text-gray-300"
+                                                        > <ChevronRight className="w-5 h-5" /> </button>
+                                                    </div>
+                                                    <button onClick={() => setIsFlashcardFlipped(!isFlashcardFlipped)} className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200">
+                                                        <FlipIcon className="w-4 h-4" /> Flip Card
+                                                    </button>
+                                                </div>
+                                            )}
+
+
                                             {selectedNote.questions && selectedNote.questions.length > 0 && (
-                                            <div id="study-questions-section" className={`mt-6 border-t pt-4 ${borderColor}`}>
-                                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-2"> <h3 className={`text-base font-semibold flex items-center gap-1.5 ${headingClass}`}><BookOpen className={`w-4 h-4 ${isIlluminateEnabled ? 'text-purple-600' : 'text-purple-400'}`} />Study Questions</h3> {geminiApiKey && <button onClick={handleRegenerateQuestions} disabled={isRegeneratingQuestions || !geminiApiKey} className={`${buttonSecondaryClass} px-3 py-1 rounded-md text-xs flex items-center gap-1 ${isRegeneratingQuestions || !geminiApiKey ? buttonDisabledClass : ''}`} title={!geminiApiKey ? "API Key required" : "Regenerate"}> {isRegeneratingQuestions ? (<> <Loader2 className="w-3 h-3 animate-spin" /> Regenerating... </>) : (<> <RefreshCw className="w-3 h-3" /> Regenerate </>)} </button>} </div>
-                                                <div className="space-y-4"> {selectedNote.questions.map((q, index) => { const key = `${selectedNote?.id}-${index}`; const answer = questionAnswers[key]; const answered = answer != null; const isCorrect = answered && answer === q.correctAnswer; return ( <div key={key} className={`p-3 rounded-lg ${answered ? (isCorrect ? (isIlluminateEnabled ? 'bg-green-50' : (isBlackoutEnabled ? 'bg-green-900/30' : 'bg-green-900/30')) : (isIlluminateEnabled ? 'bg-red-50' : (isBlackoutEnabled ? 'bg-red-900/30' : 'bg-red-900/30'))) : (isIlluminateEnabled ? 'bg-gray-50/50' : (isBlackoutEnabled ? 'bg-gray-800/40' : 'bg-gray-800/40'))} border ${borderColor} ${answered ? (isCorrect ? (isIlluminateEnabled ? 'border-green-200' : (isBlackoutEnabled ? 'border-green-700/50' : 'border-green-700/50')) : (isIlluminateEnabled ? 'border-red-200' : (isBlackoutEnabled ? 'border-red-700/50' : 'border-red-700/50'))) : (isIlluminateEnabled ? 'border-gray-200' : (isBlackoutEnabled ? 'border-gray-800' : 'border-gray-700/50'))}`}> <p className={`${textColor} text-sm mb-2`}><span className="font-medium">{index + 1}.</span> {q.question}</p> <div className="space-y-1.5"> {q.options.map((opt, idx) => { const sel = answer === idx; const cor = idx === q.correctAnswer; let cls = `w-full text-left px-3 py-1.5 rounded-md transition-colors text-xs`; if (answered) { if (sel) cls += cor ? ` ${isIlluminateEnabled ? 'bg-green-100 text-green-800 font-medium' : (isBlackoutEnabled ? 'bg-green-700/40 text-green-200 font-medium' : 'bg-green-500/20 text-green-300 font-medium')}` : ` ${isIlluminateEnabled ? 'bg-red-100 text-red-800 font-medium' : (isBlackoutEnabled ? 'bg-red-700/40 text-red-200 font-medium' : 'bg-red-500/20 text-red-300 font-medium')}`; else if (cor) cls += ` ${isIlluminateEnabled ? 'bg-green-50/50 text-green-700' : (isBlackoutEnabled ? 'bg-green-800/20 text-green-300' : 'bg-green-500/10 text-green-400')}`; else cls += ` ${isIlluminateEnabled ? 'bg-gray-100 text-gray-500' : (isBlackoutEnabled ? 'bg-gray-800 text-gray-400 opacity-70' : 'bg-gray-700 text-gray-400 opacity-70')}`; } else { cls += ` ${buttonSecondaryClass} hover:brightness-110`; } return ( <button key={idx} onClick={() => !answered && handleAnswerSelect(key, idx)} disabled={answered} className={cls}> <div className="flex items-center justify-between"> <span>{opt}</span> {answered && sel && (cor ? <Check className={`w-3.5 h-3.5 ${isIlluminateEnabled ? 'text-green-600' : 'text-green-400'}`} /> : <X className={`w-3.5 h-3.5 ${isIlluminateEnabled ? 'text-red-600' : 'text-red-400'}`} />)} </div> </button> ); })} </div> {answered && q.explanation && (<div className={`mt-2 p-2 rounded-md text-xs ${isCorrect ? (isIlluminateEnabled ? 'bg-green-200/70 text-green-700' : (isBlackoutEnabled ? 'bg-green-900/50 text-green-300' : 'bg-green-900/50 text-green-300')) : (isIlluminateEnabled ? 'bg-red-200/70 text-red-700' : (isBlackoutEnabled ? 'bg-red-900/50 text-red-300' : 'bg-red-900/50 text-red-300'))}`}><span className="font-medium">Explanation: </span>{q.explanation}</div>)} </div> ); })} </div>
+                                            <div id="study-questions-section" className={`mt-8 pt-6 border-t border-gray-200 dark:border-gray-700/50`}>
+                                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
+                                                    <h3 className={`text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100`}><BookOpen className={`w-5 h-5 text-purple-500 dark:text-purple-400`} />Study Questions</h3>
+                                                    {geminiApiKey && <button onClick={handleRegenerateQuestions} disabled={isRegeneratingQuestions || !geminiApiKey} className={`bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-md text-xs flex items-center gap-1.5 ${isRegeneratingQuestions || !geminiApiKey ? 'opacity-50 cursor-not-allowed' : ''}`} title={!geminiApiKey ? "API Key required" : "Regenerate"}> {isRegeneratingQuestions ? (<> <Loader2 className="w-3.5 h-3.5 animate-spin" /> Regenerating... </>) : (<> <RefreshCw className="w-3.5 h-3.5" /> Regenerate </>)} </button>}
+                                                </div>
+                                                <div className="space-y-4"> {selectedNote.questions.map((q, index) => { const key = `${selectedNote?.id}-${index}`; const answer = questionAnswers[key]; const answered = answer != null; const isCorrect = answered && answer === q.correctAnswer; return (
+                                                <div key={key} className={`p-4 rounded-lg shadow-sm border ${answered ? (isCorrect ? 'bg-green-50 dark:bg-green-700/20 border-green-200 dark:border-green-600/50' : 'bg-red-50 dark:bg-red-700/20 border-red-200 dark:border-red-600/50') : 'bg-gray-50 dark:bg-gray-800/40 border-gray-200 dark:border-gray-700/50'}`}>
+                                                    <p className={`text-gray-700 dark:text-gray-200 text-sm mb-3 leading-relaxed`}><span className="font-semibold mr-1">{index + 1}.</span> {q.question}</p>
+                                                    <div className="space-y-2"> {q.options.map((opt, idx) => { const sel = answer === idx; const cor = idx === q.correctAnswer; let cls = `w-full text-left px-3 py-2 rounded-md transition-all duration-150 text-xs flex items-center justify-between border`; if (answered) { if (sel) cls += cor ? ` bg-green-100 dark:bg-green-600/30 text-green-800 dark:text-green-200 font-medium border-green-300 dark:border-green-500` : ` bg-red-100 dark:bg-red-600/30 text-red-800 dark:text-red-200 font-medium border-red-300 dark:border-red-500`; else if (cor) cls += ` bg-green-50/50 dark:bg-green-800/20 text-green-700 dark:text-green-300 border-green-200 dark:border-green-700/40 font-medium`; else cls += ` bg-gray-100 dark:bg-gray-700/40 text-gray-500 dark:text-gray-400 opacity-70 border-gray-200 dark:border-gray-700/40`; } else { cls += ` bg-white dark:bg-gray-700/60 hover:bg-gray-100 dark:hover:bg-gray-600/60 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 focus:ring-1 focus:ring-indigo-500`; } return ( <button key={idx} onClick={() => !answered && handleAnswerSelect(key, idx)} disabled={answered} className={cls}> <span>{opt}</span> {answered && sel && (cor ? <CheckSquare className={`w-4 h-4 text-green-600 dark:text-green-400`} /> : <X className={`w-4 h-4 text-red-600 dark:text-red-400`} />)} {answered && !sel && cor && <CheckSquare className={`w-4 h-4 text-green-500 dark:text-green-400 opacity-70`} />} </button> ); })} </div>
+                                                    {answered && q.explanation && (<div className={`mt-3 p-2.5 rounded-md text-xs ${isCorrect ? 'bg-green-100 dark:bg-green-700/30 text-green-700 dark:text-green-300' : 'bg-red-100 dark:bg-red-700/30 text-red-700 dark:text-red-300'}`}><strong className="font-medium">Explanation: </strong>{q.explanation}</div>)}
+                                                </div> ); })} </div>
                                             </div>
                                             )}
                                         </div>
                                     </div>
                                 )
-                            ) : ( <div className={`flex flex-col items-center justify-center rounded-lg ${noteViewContainerClass} h-full text-center p-6`}> <FileText className={`w-12 h-12 ${iconColor} mb-4`} /> <h2 className={`text-lg font-semibold ${headingClass} mb-2`}>No Note Selected</h2> <p className={`${subheadingClass} max-w-xs text-sm mb-4`}>Select a note from the list, or create a new one.</p> <button onClick={() => setShowNewNoteModal(true)} className={`${buttonPrimaryClass} px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 mb-2`}> <Plus className="w-4 h-4" /> Create Note </button> {!isMobile && notes.length >= 2 && !showSplitView && ( <button onClick={startSplitView} className={`${buttonSecondaryClass} px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5`}> <SplitSquareVertical className="w-4 h-4" /> Compare Notes </button> )} </div>
+                            ) : ( <div className={`flex flex-col items-center justify-center rounded-lg bg-white dark:bg-[#161922] border border-gray-200 dark:border-gray-700/50 h-full text-center p-6`}> <FileText className={`w-12 h-12 text-gray-400 dark:text-gray-500 mb-4`} /> <h2 className={`text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2`}>No Note Selected</h2> <p className={`text-gray-600 dark:text-gray-400 text-sm mb-4 max-w-xs`}>Select a note from the list, or create a new one.</p> <button onClick={() => setShowNewNoteModal(true)} className={`bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 mb-2`}> <Plus className="w-4 h-4" /> Create Note </button> {!isMobile && notes.length >= 2 && !showSplitView && ( <button onClick={startSplitView} className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5`}> <SplitSquareVertical className="w-4 h-4" /> Compare Notes </button> )} </div>
                             )}
                          </div>
                      )}
                 </div>
 
-                 <div className={` ${!isMobile && !isNotesListHidden ? 'w-full md:w-72 lg:w-80 xl:w-96 border-l' : 'w-0 hidden'} ${borderColor} flex-shrink-0 flex flex-col ${notesListBg} transition-all duration-300 ease-in-out relative h-full z-10 order-last `}>
+                 <div className={` ${!isMobile && !isNotesListHidden ? 'w-full md:w-72 lg:w-80 xl:w-96 border-l' : 'w-0 hidden'} border-gray-200 dark:border-gray-700/50 flex-shrink-0 flex flex-col bg-white dark:bg-[#161922] transition-all duration-300 ease-in-out relative h-full z-10 order-last `}>
                      {(!isMobile && !isNotesListHidden) && (
                          <>
-                         <div className={`p-3 border-b ${borderColor} flex items-center justify-between flex-shrink-0`}> <h2 className={`text-lg font-semibold ${headingClass} flex items-center gap-2`}> <FileText className={`w-5 h-5 ${iconActionColor}`} /> Notes </h2> <div className="flex items-center gap-1"> <button onClick={handleToggleNotesList} className={`${buttonSecondaryClass} p-1.5 rounded-full ${iconHoverColor}`} title="Hide List"> <PanelLeftClose className="w-4 h-4 transform scale-x-[-1]" /> </button> {notes.length >= 2 && !showPdfViewer && ( <button onClick={showSplitView ? closeSplitView : startSplitView} className={`${buttonSecondaryClass} p-1.5 rounded-full ${iconHoverColor}`} title={showSplitView ? "Close Comparison" : "Compare Notes"}> <SplitSquareVertical className={`w-4 h-4 ${showSplitView ? iconActionColor: ''}`} /> </button> )} <button onClick={() => setShowNewNoteModal(true)} className={`${buttonPrimaryClass} p-2 rounded-full hover:shadow-md transition-all duration-150`} title="New Note"> <Plus className="w-4 h-4" /> </button> </div> </div>
-                         <div className={`p-3 border-b ${borderColor} flex-shrink-0`}> <div className="relative mb-2"> <Search className={`absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 ${iconColor}`} /> <input type="text" placeholder="Search notes..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className={`w-full ${inputBg} ${inputTextColor} pl-8 pr-3 py-1.5 rounded-full text-sm focus:outline-none focus:ring-1 ${placeholderColor}`} /> </div> <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar"> {(['all', 'personal', 'pdf', 'youtube', 'audio'] as const).map(type => ( <button key={type} onClick={() => setFilterType(type)} className={`px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap ${filterType === type ? `${buttonPrimaryClass} shadow-sm` : `${buttonSecondaryClass}`}`}> {formatNoteTypeDisplay(type)} </button> ))} </div> </div>
-                         {userTier !== 'premium' && userTier !== 'loading' && currentLimits && ( <div className={`px-3 py-2 text-[10px] border-b ${borderColor} ${isIlluminateEnabled ? 'text-gray-600 bg-gray-50' : (isBlackoutEnabled ? 'text-gray-400 bg-black' : 'text-gray-400 bg-gray-800/50')}`}> <div className="flex justify-between items-center gap-2"> <span>PDF/AI Notes: {noteUsage.pdfAi} / {currentLimits.pdfAi === Infinity ? '∞' : currentLimits.pdfAi}</span> <span>YouTube Notes: {noteUsage.youtube} / {currentLimits.youtube === Infinity ? '∞' : currentLimits.youtube}</span> </div> </div> )}
-                         <div className="flex-1 overflow-y-auto"> {loading && notes.length === 0 ? ( <div className="flex justify-center items-center h-full p-6"> <Loader2 className={`w-6 h-6 animate-spin ${iconColor}`} /> </div> ) : !loading && notes.length === 0 ? ( <div className="flex flex-col items-center justify-center h-full text-center p-6"> <FileQuestion className={`w-12 h-12 ${iconColor} mb-3`} /> <p className={`${subheadingClass} mb-4 text-sm`}>No notes yet.</p> <button onClick={() => setShowNewNoteModal(true)} className={`${buttonPrimaryClass} px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5`}> <Plus className="w-4 h-4" /> Create Note </button> </div> ) : ( <div className={`divide-y ${divideColor}`}> {notes.filter((note) => { if (filterType !== 'all' && note.type !== filterType) return false; if (searchQuery) { const search = searchQuery.toLowerCase(); return (note.title.toLowerCase().includes(search) || (note.content || '').toLowerCase().includes(search) || note.tags?.some((tag) => tag.toLowerCase().includes(search))); } return true; }).map((note) => { const isSel = (!showSplitView && selectedNote?.id === note.id); const isSplitL = showSplitView && splitViewNotes.left?.id === note.id; const isSplitR = showSplitView && splitViewNotes.right?.id === note.id; const isSelectedAny = isSel || isSplitL || isSplitR; let typeIcon; switch (note.type) { case 'personal': typeIcon = <Briefcase className="w-3 h-3"/>; break; case 'pdf': typeIcon = <FileText className="w-3 h-3"/>; break; case 'youtube': typeIcon = <Youtube className="w-3 h-3"/>; break; case 'audio': typeIcon = <Mic className="w-3 h-3"/>; break; default: typeIcon = null; } return ( <div key={note.id} className={`p-3 cursor-pointer transition-colors duration-150 ${listItemHoverBg} ${listItemBaseClass} ${isSelectedAny ? listItemSelectedBg : ''}`} onClick={() => handleSelectNote(note)}> <div className="flex justify-between items-start gap-2"> <h3 className={`text-sm font-medium mb-0.5 line-clamp-1 ${headingClass}`}>{note.title || "Untitled"}</h3> {isSplitL && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-blue-500/20 text-blue-300`}>L</span>} {isSplitR && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-purple-500/20 text-purple-300`}>R</span>} </div> <p className={`${subheadingClass} text-xs line-clamp-2 mb-1.5`}>{(note.content || '').substring(0, 100)}</p> <div className="flex flex-wrap items-center gap-1 text-[10px]"> <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${tagColors[note.type] || tagColors.custom} ${tagBaseBg} ${tagTextBase}`}> {typeIcon} {formatNoteTypeDisplay(note.type)} </span> {note.isPublic && <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${tagColors.public} ${tagBaseBg} ${tagTextBase}`}><Globe className="w-3 h-3"/> Public</span>} {note.tags?.slice(0, 2).map((tag) => <span key={tag} className={`px-1.5 py-0.5 rounded ${tagColors.custom} ${tagBaseBg} ${tagTextBase} truncate max-w-[60px]`} title={tag}>#{tag}</span>)} {note.tags && note.tags.length > 2 && <span className={`px-1.5 py-0.5 rounded ${tagColors.custom} ${tagBaseBg} ${tagTextBase}`}>+{note.tags.length - 2}</span>} <span className={`ml-auto text-gray-500 dark:text-gray-500`}>{note.updatedAt?.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span> </div> </div> ); })} </div> )} </div>
+                         <div className={`p-3 border-b border-gray-200 dark:border-gray-700/50 flex items-center justify-between flex-shrink-0`}> <h2 className={`text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2`}> <FileText className={`w-5 h-5 text-indigo-500 dark:text-indigo-400`} /> Notes </h2> <div className="flex items-center gap-1"> <button onClick={handleToggleNotesList} className={`bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 p-1.5 rounded-full`} title="Hide List"> <PanelLeftClose className="w-4 h-4 transform scale-x-[-1]" /> </button> {notes.length >= 2 && !showPdfViewer && ( <button onClick={showSplitView ? closeSplitView : startSplitView} className={`bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 p-1.5 rounded-full`} title={showSplitView ? "Close Comparison" : "Compare Notes"}> <SplitSquareVertical className={`w-4 h-4 ${showSplitView ? 'text-indigo-500 dark:text-indigo-400': ''}`} /> </button> )} <button onClick={() => setShowNewNoteModal(true)} className={`bg-indigo-500 hover:bg-indigo-600 text-white p-2 rounded-full hover:shadow-md transition-all duration-150`} title="New Note"> <Plus className="w-4 h-4" /> </button> </div> </div>
+                                                  {userTier !== 'premium' && userProfile && pointsNeededForPremium > 0 && (
+                            <div className="px-3 pt-2 pb-2 border-b border-gray-200 dark:border-gray-700/50">
+                                <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-600/50 text-center shadow-sm">
+                                    <div className="flex items-center justify-center gap-1.5">
+                                        <Gift className="w-4 h-4 text-amber-500 dark:text-amber-400 flex-shrink-0" />
+                                        <p className="text-[10px] font-medium text-amber-700 dark:text-amber-200 leading-tight">
+                                            Collect {pointsNeededForPremium} more points to earn <span className="font-bold">1 FREE week of Premium</span>!
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                         {userProfile && (
+                            <div className="p-3 border-b border-gray-200 dark:border-gray-700/50 space-y-2 bg-gray-50 dark:bg-[#1A1D29]/70">
+                                <div className="grid grid-cols-3 gap-2 text-center">
+                                    {[
+                                        { label: 'Points', value: userProfile.points, icon: TrendingUp, color: 'text-indigo-500 dark:text-indigo-400' },
+                                        { label: 'Level', value: userProfile.level, icon: Award, color: 'text-green-500 dark:text-green-400' },
+                                        { label: 'Streak', value: userProfile.overallStreakCount, icon: Flame, color: 'text-orange-500 dark:text-orange-400' },
+                                    ].map(stat => (
+                                        <div key={stat.label} className="p-1.5 rounded-md bg-white dark:bg-slate-800/60 shadow-sm border border-gray-200 dark:border-gray-700/60">
+                                            <stat.icon className={`w-4 h-4 mx-auto mb-0.5 ${stat.color}`} />
+                                            <p className="text-sm font-bold text-gray-700 dark:text-gray-100">{stat.value}</p>
+                                            <p className="text-[9px] text-gray-500 dark:text-gray-400 uppercase">{stat.label}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                                <button onClick={() => setShowNotesProfileModal(true)} className="w-full text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline py-1 rounded-md hover:bg-indigo-100 dark:hover:bg-indigo-700/30 flex items-center justify-center gap-1">
+                                    <UserIconLucide className="w-3.5 h-3.5"/> View Full Profile
+                                </button>
+                            </div>
+                         )}
+                         <div className={`p-3 border-b border-gray-200 dark:border-gray-700/50 flex-shrink-0`}> <div className="relative mb-2"> <Search className={`absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500`} /> <input type="text" placeholder="Search notes..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className={`w-full bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 pl-8 pr-3 py-1.5 rounded-full text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500`} /> </div> <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar"> {(['all', 'personal', 'pdf', 'youtube', 'audio'] as const).map(type => ( <button key={type} onClick={() => setFilterType(type)} className={`px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap ${filterType === type ? `bg-indigo-500 text-white shadow-sm` : `bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300`}`}> {formatNoteTypeDisplay(type)} </button> ))} </div> </div>
+                         {userTier !== 'premium' && userTier !== 'loading' && currentLimits && ( <div className={`px-3 py-2 text-[10px] border-b border-gray-200 dark:border-gray-700/50 text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-[#1A1D29]`}> <div className="flex justify-between items-center gap-2"> <span>PDF/AI Notes: {userProfile?.noteUsageByMonth?.[usageMonth]?.pdfAi ?? 0} / {currentLimits.pdfAi === Infinity ? '∞' : currentLimits.pdfAi}</span> <span>YouTube Notes: {userProfile?.noteUsageByMonth?.[usageMonth]?.youtube ?? 0} / {currentLimits.youtube === Infinity ? '∞' : currentLimits.youtube}</span> </div> </div> )}
+                         <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600"> {loading && notes.length === 0 ? ( <div className="flex justify-center items-center h-full p-6"> <Loader2 className={`w-6 h-6 animate-spin text-gray-400 dark:text-gray-500`} /> </div> ) : !loading && notes.length === 0 ? ( <div className="flex flex-col items-center justify-center h-full text-center p-6"> <FileQuestion className={`w-12 h-12 text-gray-400 dark:text-gray-500 mb-3`} /> <p className={`text-gray-600 dark:text-gray-400 mb-4 text-sm`}>No notes yet.</p> <button onClick={() => setShowNewNoteModal(true)} className={`bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5`}> <Plus className="w-4 h-4" /> Create Note </button> </div> ) : ( <div className={`divide-y divide-gray-200 dark:divide-gray-700/50`}> {notes.filter((note) => { if (filterType !== 'all' && note.type !== filterType) return false; if (searchQuery) { const search = searchQuery.toLowerCase(); return (note.title.toLowerCase().includes(search) || (note.content || '').toLowerCase().includes(search) || note.tags?.some((tag) => tag.toLowerCase().includes(search))); } return true; }).map((note) => { const isSel = (!showSplitView && selectedNote?.id === note.id); const isSplitL = showSplitView && splitViewNotes.left?.id === note.id; const isSplitR = showSplitView && splitViewNotes.right?.id === note.id; const isSelectedAny = isSel || isSplitL || isSplitR; let typeIcon; switch (note.type) { case 'personal': typeIcon = <Briefcase className="w-3 h-3"/>; break; case 'pdf': typeIcon = <FileText className="w-3 h-3"/>; break; case 'youtube': typeIcon = <Youtube className="w-3 h-3"/>; break; case 'audio': typeIcon = <Mic className="w-3 h-3"/>; break; default: typeIcon = null; } return ( <div key={note.id} className={`p-3 cursor-pointer transition-colors duration-150 hover:bg-gray-50 dark:hover:bg-gray-800/60 border-l-2 ${isSelectedAny ? 'bg-indigo-50 dark:bg-indigo-700/20 border-indigo-500 dark:border-indigo-400' : 'border-transparent'}`} onClick={() => handleSelectNote(note)}> <div className="flex justify-between items-start gap-2"> <h3 className={`text-sm font-medium mb-0.5 line-clamp-1 text-gray-800 dark:text-gray-100 flex items-center`}>{note.title || "Untitled"}</h3> {isSplitL && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-indigo-500/20 text-indigo-300`}>L</span>} {isSplitR && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-purple-500/20 text-purple-300`}>R</span>} </div> <p className={`text-gray-600 dark:text-gray-400 text-xs line-clamp-2 mb-1.5`}>{(note.content || '').replace(/<[^>]+>/g, '').substring(0, 100)}</p> <div className="flex flex-wrap items-center gap-1 text-[10px]"> <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full border ${(tagColors as any)[note.type] || tagColors.custom}`}> {typeIcon} {formatNoteTypeDisplay(note.type)} </span> {note.isPublic && <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full border ${tagColors.public}`}><Globe className="w-3 h-3"/> Public</span>} {note.tags?.filter(t => t !== note.type).slice(0, 2).map((tag) => <span key={tag} className={`px-1.5 py-0.5 rounded-full border ${(tagColors as any)[tag] || tagColors.custom} truncate max-w-[60px]`} title={tag}>#{tag}</span>)} {note.tags && note.tags.filter(t => t !== note.type).length > 2 && <span className={`px-1.5 py-0.5 rounded-full border ${tagColors.custom}`}>+{note.tags.filter(t => t !== note.type).length - 2}</span>} <span className={`ml-auto text-gray-500 dark:text-gray-500`}>{note.updatedAt?.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span> </div> </div> ); })} </div> )} </div>
                          </>
                     )}
                  </div>
 
-                 {!isMobile && isNotesListHidden && (
-                    <button onClick={handleToggleNotesList} className={`fixed right-2 top-1/2 -translate-y-1/2 z-30 p-2 rounded-l-md shadow-lg ${buttonSecondaryClass} hover:brightness-110`} title="Show Notes List">
-                        <PanelRightClose className="w-5 h-5 transform scale-x-[-1]" />
-                    </button>
-                 )}
 
                   {isMobile && (
                     <div className={` fixed inset-0 z-40 bg-black/50 transition-opacity duration-300 ease-in-out ${showNotesListOnMobile ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'} `} onClick={() => setShowNotesListOnMobile(false)}>
-                        <div className={` absolute top-0 right-0 h-full w-4/5 max-w-sm ${notesListBg} border-l ${borderColor} shadow-xl flex flex-col transform transition-transform duration-300 ease-in-out ${showNotesListOnMobile ? 'translate-x-0' : 'translate-x-full'} `} onClick={(e) => e.stopPropagation()}>
-                            <div className={`p-3 border-b ${borderColor} flex items-center justify-between flex-shrink-0`}>
-                                <h2 className={`text-lg font-semibold ${headingClass} flex items-center gap-2`}> <FileText className={`w-5 h-5 ${iconActionColor}`} /> Notes </h2>
+                        <div className={` absolute top-0 right-0 h-full w-4/5 max-w-sm bg-white dark:bg-[#161922] border-l border-gray-200 dark:border-gray-700/50 shadow-xl flex flex-col transform transition-transform duration-300 ease-in-out ${showNotesListOnMobile ? 'translate-x-0' : 'translate-x-full'} `} onClick={(e) => e.stopPropagation()}>
+                            <div className={`p-3 border-b border-gray-200 dark:border-gray-700/50 flex items-center justify-between flex-shrink-0`}>
+                                <h2 className={`text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2`}> <FileText className={`w-5 h-5 text-indigo-500 dark:text-indigo-400`} /> Notes </h2>
                                 <div className="flex items-center gap-1">
-                                    <button onClick={() => setShowNewNoteModal(true)} className={`${buttonPrimaryClass} p-1.5 rounded-full hover:shadow-md`} title="New Note"> <Plus className="w-4 h-4" /> </button>
-                                    <button onClick={() => setShowNotesListOnMobile(false)} className={`p-1.5 rounded-md ${buttonSecondaryClass} ${iconHoverColor}`} title="Close List"> <X className="w-4 h-4" /> </button>
+                                    <button onClick={() => setShowNewNoteModal(true)} className={`bg-indigo-500 hover:bg-indigo-600 text-white p-1.5 rounded-full hover:shadow-md`} title="New Note"> <Plus className="w-4 h-4" /> </button>
+                                    <button onClick={() => setShowNotesListOnMobile(false)} className={`bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 p-1.5 rounded-md`} title="Close List"> <X className="w-4 h-4" /> </button>
                                 </div>
                             </div>
-                            <div className={`p-3 border-b ${borderColor} flex-shrink-0`}>
-                                <div className="relative mb-2"> <Search className={`absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 ${iconColor}`} /> <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className={`w-full ${inputBg} ${inputTextColor} pl-8 pr-3 py-1.5 rounded-full text-sm focus:outline-none focus:ring-1 ${placeholderColor}`} /> </div>
-                                <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar"> {(['all', 'personal', 'pdf', 'youtube', 'audio'] as const).map(type => ( <button key={type} onClick={() => setFilterType(type)} className={`px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap ${filterType === type ? `${buttonPrimaryClass} shadow-sm` : `${buttonSecondaryClass}`}`}> {formatNoteTypeDisplay(type)} </button> ))} </div>
+                            {userProfile && (
+                                <div className="p-3 border-b border-gray-200 dark:border-gray-700/50 space-y-2 bg-gray-50 dark:bg-[#1A1D29]/70">
+                                     <div className="grid grid-cols-3 gap-2 text-center">
+                                        {[
+                                            { label: 'Points', value: userProfile.points, icon: TrendingUp, color: 'text-indigo-500 dark:text-indigo-400' },
+                                            { label: 'Level', value: userProfile.level, icon: Award, color: 'text-green-500 dark:text-green-400' },
+                                            { label: 'Streak', value: userProfile.overallStreakCount, icon: Flame, color: 'text-orange-500 dark:text-orange-400' },
+                                        ].map(stat => (
+                                            <div key={stat.label} className="p-1.5 rounded-md bg-white dark:bg-slate-800/60 shadow-sm border border-gray-200 dark:border-gray-700/60">
+                                                <stat.icon className={`w-4 h-4 mx-auto mb-0.5 ${stat.color}`} />
+                                                <p className="text-sm font-bold text-gray-700 dark:text-gray-100">{stat.value}</p>
+                                                <p className="text-[9px] text-gray-500 dark:text-gray-400 uppercase">{stat.label}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <button onClick={() => setShowNotesProfileModal(true)} className="w-full text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline py-1 rounded-md hover:bg-indigo-100 dark:hover:bg-indigo-700/30 flex items-center justify-center gap-1">
+                                        <UserIconLucide className="w-3.5 h-3.5"/> View Full Profile
+                                    </button>
+                                </div>
+                            )}
+                             {userTier !== 'premium' && userProfile && pointsNeededForPremium > 0 && (
+                                <div className="px-3 pt-1 pb-1 border-b border-gray-200 dark:border-gray-700/50">
+                                    <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-600/50 text-center shadow-sm">
+                                        <div className="flex items-center justify-center gap-1">
+                                            <Gift className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 flex-shrink-0" />
+                                            <p className="text-[9px] font-medium text-amber-700 dark:text-amber-200 leading-tight">
+                                                Collect {pointsNeededForPremium} more points for <span className="font-bold">1 FREE week of Premium</span>!
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                            <div className={`p-3 border-b border-gray-200 dark:border-gray-700/50 flex-shrink-0`}>
+                                <div className="relative mb-2"> <Search className={`absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500`} /> <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className={`w-full bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 pl-8 pr-3 py-1.5 rounded-full text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500`} /> </div>
+                                <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar"> {(['all', 'personal', 'pdf', 'youtube', 'audio'] as const).map(type => ( <button key={type} onClick={() => setFilterType(type)} className={`px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap ${filterType === type ? `bg-indigo-500 text-white shadow-sm` : `bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300`}`}> {formatNoteTypeDisplay(type)} </button> ))} </div>
                             </div>
-                            {userTier !== 'premium' && userTier !== 'loading' && currentLimits && ( <div className={`px-3 py-2 text-[10px] border-b ${borderColor} ${isIlluminateEnabled ? 'text-gray-600 bg-gray-50' : (isBlackoutEnabled ? 'text-gray-400 bg-black' : 'text-gray-400 bg-gray-800/50')}`}> <div className="flex justify-between items-center gap-2"> <span>PDF/AI: {noteUsage.pdfAi}/{currentLimits.pdfAi === Infinity ? '∞' : currentLimits.pdfAi}</span> <span>YT: {noteUsage.youtube}/{currentLimits.youtube === Infinity ? '∞' : currentLimits.youtube}</span> </div> </div> )}
-                            <div className="flex-1 overflow-y-auto">
-                                {loading && notes.length === 0 ? ( <div className="flex justify-center items-center h-full p-6"> <Loader2 className={`w-6 h-6 animate-spin ${iconColor}`} /> </div>
-                                ) : !loading && notes.length === 0 ? ( <div className="flex flex-col items-center justify-center h-full text-center p-6"> <FileQuestion className={`w-12 h-12 ${iconColor} mb-3`} /> <p className={`${subheadingClass} mb-4 text-sm`}>No notes yet.</p> <button onClick={() => setShowNewNoteModal(true)} className={`${buttonPrimaryClass} px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5`}> <Plus className="w-4 h-4" /> Create </button> </div>
-                                ) : ( <div className={`divide-y ${divideColor}`}> {notes.filter((note) => { if (filterType !== 'all' && note.type !== filterType) return false; if (searchQuery) { const search = searchQuery.toLowerCase(); return (note.title.toLowerCase().includes(search) || (note.content || '').toLowerCase().includes(search) || note.tags?.some((tag) => tag.toLowerCase().includes(search))); } return true; }).map((note) => { const isSel = (!showSplitView && selectedNote?.id === note.id); const isSplitL = showSplitView && splitViewNotes.left?.id === note.id; const isSplitR = showSplitView && splitViewNotes.right?.id === note.id; const isSelectedAny = isSel || isSplitL || isSplitR; let typeIcon; switch (note.type) { case 'personal': typeIcon = <Briefcase className="w-3 h-3"/>; break; case 'pdf': typeIcon = <FileText className="w-3 h-3"/>; break; case 'youtube': typeIcon = <Youtube className="w-3 h-3"/>; break; case 'audio': typeIcon = <Mic className="w-3 h-3"/>; break; default: typeIcon = null; } return ( <div key={note.id} className={`p-3 cursor-pointer transition-colors duration-150 ${listItemHoverBg} ${listItemBaseClass} ${isSelectedAny ? listItemSelectedBg.replace('border-l-2', 'border-l-2') : ''}`} onClick={() => handleSelectNote(note)}> <div className="flex justify-between items-start gap-2"> <h3 className={`text-sm font-medium mb-0.5 line-clamp-1 ${headingClass}`}>{note.title || "Untitled"}</h3> {isSplitL && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-blue-500/20 text-blue-300`}>L</span>} {isSplitR && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-purple-500/20 text-purple-300`}>R</span>} </div> <p className={`${subheadingClass} text-xs line-clamp-2 mb-1.5`}>{(note.content || '').substring(0, 100)}</p> <div className="flex flex-wrap items-center gap-1 text-[10px]"> <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${tagColors[note.type] || tagColors.custom} ${tagBaseBg} ${tagTextBase}`}> {typeIcon} {formatNoteTypeDisplay(note.type)} </span> {note.isPublic && <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${tagColors.public} ${tagBaseBg} ${tagTextBase}`}><Globe className="w-3 h-3"/> Public</span>} {note.tags?.slice(0, 2).map((tag) => <span key={tag} className={`px-1.5 py-0.5 rounded ${tagColors.custom} ${tagBaseBg} ${tagTextBase} truncate max-w-[60px]`} title={tag}>#{tag}</span>)} {note.tags && note.tags.length > 2 && <span className={`px-1.5 py-0.5 rounded ${tagColors.custom} ${tagBaseBg} ${tagTextBase}`}>+{note.tags.length - 2}</span>} <span className={`ml-auto text-gray-500 dark:text-gray-500`}>{note.updatedAt?.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span> </div> </div> ); })} </div> )}
+                            {userTier !== 'premium' && userTier !== 'loading' && currentLimits && ( <div className={`px-3 py-2 text-[10px] border-b border-gray-200 dark:border-gray-700/50 text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-[#1A1D29]`}> <div className="flex justify-between items-center gap-2"> <span>PDF/AI: {userProfile?.noteUsageByMonth?.[usageMonth]?.pdfAi ?? 0}/{currentLimits.pdfAi === Infinity ? '∞' : currentLimits.pdfAi}</span> <span>YT: {userProfile?.noteUsageByMonth?.[usageMonth]?.youtube ?? 0}/{currentLimits.youtube === Infinity ? '∞' : currentLimits.youtube}</span> </div> </div> )}
+                            <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
+                                {loading && notes.length === 0 ? ( <div className="flex justify-center items-center h-full p-6"> <Loader2 className={`w-6 h-6 animate-spin text-gray-400 dark:text-gray-500`} /> </div>
+                                ) : !loading && notes.length === 0 ? ( <div className="flex flex-col items-center justify-center h-full text-center p-6"> <FileQuestion className={`w-12 h-12 text-gray-400 dark:text-gray-500 mb-3`} /> <p className={`text-gray-600 dark:text-gray-400 mb-4 text-sm`}>No notes yet.</p> <button onClick={() => setShowNewNoteModal(true)} className={`bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5`}> <Plus className="w-4 h-4" /> Create </button> </div>
+                                ) : ( <div className={`divide-y divide-gray-200 dark:divide-gray-700/50`}> {notes.filter((note) => { if (filterType !== 'all' && note.type !== filterType) return false; if (searchQuery) { const search = searchQuery.toLowerCase(); return (note.title.toLowerCase().includes(search) || (note.content || '').toLowerCase().includes(search) || note.tags?.some((tag) => tag.toLowerCase().includes(search))); } return true; }).map((note) => { const isSel = (!showSplitView && selectedNote?.id === note.id); const isSplitL = showSplitView && splitViewNotes.left?.id === note.id; const isSplitR = showSplitView && splitViewNotes.right?.id === note.id; const isSelectedAny = isSel || isSplitL || isSplitR; let typeIcon; switch (note.type) { case 'personal': typeIcon = <Briefcase className="w-3 h-3"/>; break; case 'pdf': typeIcon = <FileText className="w-3 h-3"/>; break; case 'youtube': typeIcon = <Youtube className="w-3 h-3"/>; break; case 'audio': typeIcon = <Mic className="w-3 h-3"/>; break; default: typeIcon = null; } return ( <div key={note.id} className={`p-3 cursor-pointer transition-colors duration-150 hover:bg-gray-50 dark:hover:bg-gray-800/60 border-l-2 ${isSelectedAny ? 'bg-indigo-50 dark:bg-indigo-700/20 border-indigo-500 dark:border-indigo-400' : 'border-transparent'}`} onClick={() => handleSelectNote(note)}> <div className="flex justify-between items-start gap-2"> <h3 className={`text-sm font-medium mb-0.5 line-clamp-1 text-gray-800 dark:text-gray-100 flex items-center`}>{note.title || "Untitled"}</h3> {isSplitL && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-indigo-500/20 text-indigo-300`}>L</span>} {isSplitR && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-purple-500/20 text-purple-300`}>R</span>} </div> <p className={`text-gray-600 dark:text-gray-400 text-xs line-clamp-2 mb-1.5`}>{(note.content || '').replace(/<[^>]+>/g, '').substring(0, 100)}</p> <div className="flex flex-wrap items-center gap-1 text-[10px]"> <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full border ${(tagColors as any)[note.type] || tagColors.custom}`}> {typeIcon} {formatNoteTypeDisplay(note.type)} </span> {note.isPublic && <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full border ${tagColors.public}`}><Globe className="w-3 h-3"/> Public</span>} {note.tags?.filter(t=>t !== note.type).slice(0, 2).map((tag) => <span key={tag} className={`px-1.5 py-0.5 rounded-full border ${(tagColors as any)[tag] || tagColors.custom} truncate max-w-[60px]`} title={tag}>#{tag}</span>)} {note.tags && note.tags.filter(t=>t !== note.type).length > 2 && <span className={`px-1.5 py-0.5 rounded-full border ${tagColors.custom}`}>+{note.tags.filter(t=>t !== note.type).length - 2}</span>} <span className={`ml-auto text-gray-500 dark:text-gray-500`}>{note.updatedAt?.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span> </div> </div> ); })} </div> )}
                             </div>
                         </div>
                     </div>
@@ -1586,29 +2853,161 @@ export function Notes() {
                     onCreateAINote={handleCreateAINote}
                     onUploadPDF={handlePDFUpload}
                     onYoutubeLink={handleYoutubeLink}
-                    isIlluminateEnabled={isIlluminateEnabled}
-                    isBlackoutEnabled={isBlackoutEnabled}
+                    isIlluminateEnabled={!isDarkMode}
+                    isBlackoutEnabled={false}
                     userTier={userTier}
                     noteUsage={noteUsage}
                 />
             )}
-            {selectedNote && selectedNote.flashcards && selectedNote.flashcards.length > 0 && (
-                <FlashcardStudyModal
-                    isOpen={showFlashcardStudyModal}
-                    onClose={() => setShowFlashcardStudyModal(false)}
-                    flashcards={selectedNote.flashcards}
-                    isIlluminateEnabled={isIlluminateEnabled}
-                    isBlackoutEnabled={isBlackoutEnabled}
-                />
+            <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
+             {showPodcastConfigModal && (
+                <SimpleModal isOpen={showPodcastConfigModal} onClose={() => setShowPodcastConfigModal(false)} title="Create New Podcast" maxWidth="max-w-lg">
+                    <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 -mt-2">Customize your podcast.</p>
+                        <div>
+                            <label className="block text-xs font-medium mb-1">Speaker 1:</label>
+                            <button
+                                onClick={() => { setSpeakerSlotToConfigure(1); setShowVoiceSelectionModal(true); }}
+                                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-600/50 text-left flex items-center justify-between"
+                            >
+                                <span>{podcastPlaybackSettings.speaker1Id ? PREDEFINED_PODCAST_SPEAKERS.find(s => s.id === podcastPlaybackSettings.speaker1Id)?.name : "Choose Speaker 1"}</span>
+                                <ChevronDown className="w-4 h-4" />
+                            </button>
+                        </div>
+                         <div>
+                            <label className="block text-xs font-medium mb-1">Speaker 2:</label>
+                            <button
+                                onClick={() => { setSpeakerSlotToConfigure(2); setShowVoiceSelectionModal(true); }}
+                                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-600/50 text-left flex items-center justify-between"
+                            >
+                                <span>{podcastPlaybackSettings.speaker2Id ? PREDEFINED_PODCAST_SPEAKERS.find(s => s.id === podcastPlaybackSettings.speaker2Id)?.name : "Choose Speaker 2"}</span>
+                                <ChevronDown className="w-4 h-4" />
+                            </button>
+                             {podcastPlaybackSettings.speaker2Id && podcastPlaybackSettings.speaker2Id === podcastPlaybackSettings.speaker1Id && (
+                                <p className="text-red-500 text-xs mt-1">Speaker 2 cannot be the same as Speaker 1.</p>
+                            )}
+                        </div>
+
+                        <div>
+                            <label htmlFor="podcastLength" className="block text-xs font-medium mb-1">Podcast Length:</label>
+                            <select
+                                id="podcastLength"
+                                value={podcastPlaybackSettings.length || 'short'}
+                                onChange={(e) => setPodcastPlaybackSettings(prev => ({ ...prev, length: e.target.value as 'short' | 'medium' | 'long' | null }))}
+                                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:ring-indigo-500 focus:border-indigo-500"
+                            >
+                                <option value="short">Short (5-15 min)</option>
+                                <option value="medium" disabled>Medium (15-30 min) - Coming Soon</option>
+                                <option value="long" disabled>Long (30+ min) - Coming Soon</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label htmlFor="podcastInstructions" className="block text-xs font-medium mb-1">Special Instructions:</label>
+                            <textarea
+                                id="podcastInstructions"
+                                value={podcastPlaybackSettings.instructions}
+                                onChange={(e) => setPodcastPlaybackSettings(prev => ({...prev, instructions: e.target.value}))}
+                                rows={3}
+                                placeholder="e.g., 'Explain this for a beginner', 'Focus on the historical context', 'Make the tone humorous'"
+                                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-400 dark:placeholder-gray-500 text-xs"
+                            />
+                        </div>
+
+                        <button
+                            onClick={handleStartAIPodcast}
+                            disabled={isPodcastProcessing || !podcastPlaybackSettings.speaker1Id || (podcastPlaybackSettings.speaker1Id === podcastPlaybackSettings.speaker2Id && !!podcastPlaybackSettings.speaker2Id) }
+                            className={`w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 ${(!podcastPlaybackSettings.speaker1Id || isPodcastProcessing || (podcastPlaybackSettings.speaker1Id === podcastPlaybackSettings.speaker2Id && !!podcastPlaybackSettings.speaker2Id) ) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                            {isPodcastProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+                            {isPodcastProcessing ? 'Generating...' : 'Generate Podcast'}
+                        </button>
+                    </div>
+                </SimpleModal>
             )}
-            <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} isIlluminateEnabled={isIlluminateEnabled} isBlackoutEnabled={isBlackoutEnabled} />
+
+            {showVoiceSelectionModal && speakerSlotToConfigure && (
+                <SimpleModal isOpen={showVoiceSelectionModal} onClose={() => setShowVoiceSelectionModal(false)} title={`Choose Podcast Speaker ${speakerSlotToConfigure}`} maxWidth="max-w-md">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 -mt-2 mb-3">Hear a sample by clicking the play icon!</p>
+                    <div className="space-y-3">
+                        {PREDEFINED_PODCAST_SPEAKERS.map(speaker => (
+                            <div
+                                key={speaker.id}
+                                onClick={() => {
+                                    if (speakerSlotToConfigure === 1) {
+                                        setPodcastPlaybackSettings(prev => ({ ...prev, speaker1Id: speaker.id, ...(prev.speaker2Id === speaker.id && { speaker2Id: null }) }));
+                                    } else if (speakerSlotToConfigure === 2) {
+                                         setPodcastPlaybackSettings(prev => ({ ...prev, speaker2Id: prev.speaker1Id === speaker.id ? null : speaker.id }));
+                                    }
+                                    setShowVoiceSelectionModal(false);
+                                }}
+                                className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg flex items-center space-x-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                            >
+                                <img src={speaker.avatarUrl} alt={speaker.name} className="w-12 h-12 rounded-full object-cover bg-gray-200 dark:bg-gray-600" />
+                                <div className="flex-1">
+                                    <h4 className="font-semibold text-gray-800 dark:text-gray-100">{speaker.name}</h4>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">{speaker.description}</p>
+                                </div>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); handleToggleSpeakerSample(speaker); }}
+                                    className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400"
+                                    title={isSamplePlaying && playingSpeakerSampleId === speaker.id ? `Pause sample of ${speaker.name}` : `Play sample of ${speaker.name}`}
+                                >
+                                    {isSamplePlaying && playingSpeakerSampleId === speaker.id ? (
+                                        <Pause className="w-5 h-5" />
+                                    ) : (
+                                        <Play className="w-5 h-5" />
+                                    )}
+                                </button>
+                            </div>
+                        ))}
+                        {speakerSlotToConfigure === 2 && (
+                             <button
+                                onClick={() => { setPodcastPlaybackSettings(prev => ({ ...prev, speaker2Id: null })); setShowVoiceSelectionModal(false); }}
+                                className="w-full mt-2 p-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/30 text-sm"
+                            >
+                                Clear Speaker 2 (Single Narrator)
+                            </button>
+                        )}
+                    </div>
+                </SimpleModal>
+            )}
 
             {chatNoteForOverlay && user && geminiApiKey && (
-                 <NoteChat key={`chat-overlay-${chatNoteForOverlay.id}`} ref={noteChatRef} note={chatNoteForOverlay} onClose={handleCloseChatOverlay} geminiApiKey={geminiApiKey} userName={userName} isIlluminateEnabled={isIlluminateEnabled} isBlackoutEnabled={isBlackoutEnabled} isVisible={isChatOverlayVisible} onUpdateNoteContent={handleUpdateNoteContentFromChat} onAddImageToNoteRequest={handleAddImageToNoteRequest} displayMode="overlay" userTier={userTier}/>
+                 <NoteChat key={`chat-overlay-${chatNoteForOverlay.id}`} ref={noteChatRef} note={chatNoteForOverlay} onClose={handleCloseChatOverlay} geminiApiKey={geminiApiKey} userName={userName} isIlluminateEnabled={!isDarkMode} isBlackoutEnabled={false} isVisible={isChatOverlayVisible} onUpdateNoteContent={handleUpdateNoteContentFromChat} onAddImageToNoteRequest={handleAddImageToNoteRequest} displayMode="overlay" userTier={userTier}/>
             )}
-             {isMobile && !showNotesListOnMobile && ( <button onClick={() => setShowNotesListOnMobile(true)} className={`fixed bottom-4 right-4 z-30 p-3 rounded-full shadow-lg ${buttonPrimaryClass} transform hover:scale-110 active:scale-100 ${isChatOverlayVisible ? 'bottom-16' : 'bottom-4'}`} title="Show Notes" > <List className="w-5 h-5" /> </button> )}
-            {uploadProgress.status && ( <div className={`fixed bottom-4 left-4 z-[80] p-3 rounded-lg shadow-lg text-xs font-medium transition-opacity duration-300 ${isIlluminateEnabled ? 'bg-white border border-gray-200 text-gray-800' : (isBlackoutEnabled ? 'bg-black border border-gray-700 text-gray-100' : 'bg-gray-800 border border-gray-700 text-gray-200')} ${uploadProgress.error ? (isIlluminateEnabled ? '!bg-red-100 !border-red-300 !text-red-700' : (isBlackoutEnabled ? '!bg-red-900/70 !border-red-700 !text-red-200' : '!bg-red-900/50 !border-red-700 !text-red-300')) : (uploadProgress.progress === 100 && !uploadProgress.error ? (isIlluminateEnabled ? '!bg-green-100 !border-green-300 !text-green-700' : (isBlackoutEnabled ? '!bg-green-900/70 !border-green-700 !text-green-200' : '!bg-green-900/50 !border-green-700 !text-green-300')) : '')}`}> <div className="flex items-center gap-2"> {uploadProgress.error ? <AlertTriangle className="w-4 h-4 text-red-500" /> : (uploadProgress.progress === 100 && !uploadProgress.error) ? <Check className="w-4 h-4 text-green-500" /> : <Loader2 className="w-4 h-4 animate-spin text-blue-500" />} <span>{uploadProgress.error || uploadProgress.status}</span> {uploadProgress.progress > 0 && uploadProgress.progress < 100 && !uploadProgress.error && (<span className="text-gray-500">({uploadProgress.progress}%)</span>)} </div> {!uploadProgress.error && uploadProgress.progress < 100 && ( <div className={`w-full h-1 mt-1 rounded-full overflow-hidden ${isIlluminateEnabled ? 'bg-gray-200' : (isBlackoutEnabled ? 'bg-gray-700' : 'bg-gray-600')}`}> <div className="h-full bg-blue-500 rounded-full transition-all duration-300" style={{ width: `${uploadProgress.progress}%` }}></div> </div> )} </div> )}
-
+             {isMobile && !showNotesListOnMobile && ( <button onClick={() => setShowNotesListOnMobile(true)} className={`fixed bottom-4 right-4 z-30 p-3 rounded-full shadow-lg bg-indigo-500 hover:bg-indigo-600 text-white transform hover:scale-110 active:scale-100 ${isChatOverlayVisible ? 'bottom-16' : 'bottom-4'}`} title="Show Notes" > <List className="w-5 h-5" /> </button> )}
+             {uploadProgress.status && (
+                <AnimatePresence>
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 20 }}
+                        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                        className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-[80] p-3 rounded-lg shadow-xl text-xs font-medium
+                                    ${uploadProgress.type === 'error' ? 'bg-red-100 dark:bg-red-700/40 border-red-300 dark:border-red-600 text-red-700 dark:text-red-200' :
+                                      uploadProgress.type === 'success' ? 'bg-green-100 dark:bg-green-700/40 border-green-300 dark:border-green-600 text-green-700 dark:text-green-200' :
+                                      'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100'}
+                                    border `}
+                    >
+                        <div className="flex items-center gap-2">
+                            {uploadProgress.icon ? <uploadProgress.icon className={`w-4 h-4 ${uploadProgress.type === 'error' ? 'text-red-500' : uploadProgress.type === 'success' ? 'text-green-500' : 'text-indigo-500'}`} /> :
+                             uploadProgress.type === 'error' ? <AlertTriangle className="w-4 h-4 text-red-500" /> :
+                             uploadProgress.type === 'success' ? <Check className="w-4 h-4 text-green-500" /> :
+                             <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />}
+                            <span>{uploadProgress.status}</span>
+                            {uploadProgress.progress > 0 && uploadProgress.progress < 100 && !uploadProgress.error && (
+                                <span className="text-gray-500 dark:text-gray-400">({uploadProgress.progress}%)</span>
+                            )}
+                        </div>
+                        {!uploadProgress.error && uploadProgress.progress < 100 && (
+                            <div className={`w-full h-1 mt-1.5 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-600`}>
+                                <div className="h-full bg-indigo-500 rounded-full transition-all duration-300" style={{ width: `${uploadProgress.progress}%` }}></div>
+                            </div>
+                        )}
+                    </motion.div>
+                </AnimatePresence>
+             )}
         </div>
     );
 };

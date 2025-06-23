@@ -11,7 +11,7 @@ interface StudentEmailModalProps {
 
 // --- Hardcoded EmailJS Credentials ---
 const EMAILJS_SERVICE_ID = 'service_92n9n5w';
-const EMAILJS_TEMPLATE_ID = 'template_ra8alpk'; // Updated Template ID
+const EMAILJS_TEMPLATE_ID = 'template_ra8alpk';
 const EMAILJS_PUBLIC_KEY = 'uE6sEAu0ykEIf36_V';
 
 
@@ -24,17 +24,12 @@ const StudentEmailModal: React.FC<StudentEmailModalProps> = ({ isOpen, onClose }
   const [isConfigReady, setIsConfigReady] = useState(false);
 
   useEffect(() => {
+    // Basic check for EmailJS configuration
     if (EMAILJS_SERVICE_ID && EMAILJS_TEMPLATE_ID && EMAILJS_PUBLIC_KEY && EMAILJS_TEMPLATE_ID !== 'YOUR_EMAILJS_TEMPLATE_ID') {
       setIsConfigReady(true);
     } else {
       setIsConfigReady(false);
-      if (EMAILJS_TEMPLATE_ID === 'YOUR_EMAILJS_TEMPLATE_ID') {
-        console.warn(
-          "EmailJS TEMPLATE_ID is still the placeholder 'YOUR_EMAILJS_TEMPLATE_ID'. Please update it in StudentEmailModal.tsx if 'template_ra8alpk' is incorrect."
-        );
-      } else if (!EMAILJS_SERVICE_ID || !EMAILJS_PUBLIC_KEY) {
-        console.error("EmailJS Service ID or Public Key is missing.");
-      }
+      console.error("EmailJS configuration is missing or incorrect in StudentEmailModal.tsx.");
     }
   }, []);
 
@@ -45,7 +40,7 @@ const StudentEmailModal: React.FC<StudentEmailModalProps> = ({ isOpen, onClose }
 
     if (!isConfigReady) {
       setStatus('error');
-      setErrorMsg('Email sending configuration is incomplete. Please contact support or check console.');
+      setErrorMsg('Email sending configuration is incomplete. Please contact support.');
       return;
     }
 
@@ -69,7 +64,8 @@ const StudentEmailModal: React.FC<StudentEmailModalProps> = ({ isOpen, onClose }
       setMessage('');
       setTimeout(() => {
         onClose();
-        setStatus('idle');
+        // Reset status after the modal is fully closed
+        setTimeout(() => setStatus('idle'), 300);
       }, 2500);
     } catch (err: any) {
       setStatus('error');
@@ -77,30 +73,29 @@ const StudentEmailModal: React.FC<StudentEmailModalProps> = ({ isOpen, onClose }
       console.error('EMAILJS SEND ERROR:', err);
     }
   };
-
+  
+  // Reset form state when modal is opened, but not on every render
   useEffect(() => {
     if (isOpen) {
-      if (status !== 'success') {
-        setStatus('idle');
-        setErrorMsg(null);
-      }
-    } else {
-      if (status === 'error') {
-        setStatus('idle');
-      }
+        // Don't reset if it's showing the success message
+        if (status !== 'success') {
+            setStatus('idle');
+            setErrorMsg(null);
+        }
     }
   }, [isOpen]);
 
+
   const modalVariants = {
     hidden: { opacity: 0, scale: 0.95, y: 20 },
-    visible: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } },
-    exit: { opacity: 0, scale: 0.95, y: 20, transition: { duration: 0.2, ease: "easeIn" } },
+    visible: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.2, ease: "easeOut" } },
+    exit: { opacity: 0, scale: 0.95, y: 20, transition: { duration: 0.15, ease: "easeIn" } },
   };
 
   const backdropVariants = {
     hidden: { opacity: 0 },
-    visible: { opacity: 1, transition: { duration: 0.3 } },
-    exit: { opacity: 0, transition: { duration: 0.2 } },
+    visible: { opacity: 1, transition: { duration: 0.2 } },
+    exit: { opacity: 0, transition: { duration: 0.15 } },
   };
 
   return (
@@ -111,33 +106,30 @@ const StudentEmailModal: React.FC<StudentEmailModalProps> = ({ isOpen, onClose }
           initial="hidden"
           animate="visible"
           exit="exit"
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-[100]"
+          // PERFORMANCE FIX 1: Removed `backdrop-blur`. A simple opacity transition is much faster.
+          // Added will-change to hint the browser for performance optimization.
+          className="fixed inset-0 bg-[#0C0E1A]/80 flex items-center justify-center p-4 z-[100] [will-change:opacity]"
           onClick={() => status !== 'sending' && onClose()}
         >
           <motion.div
             variants={modalVariants}
-            className="bg-slate-800 p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-lg text-slate-100 border border-slate-700"
+            // PERFORMANCE FIX 2: Removed blur from the modal itself and added will-change.
+            className="bg-[#16181D] p-6 sm:p-8 rounded-2xl shadow-2xl w-full max-w-lg text-gray-200 border border-gray-700/60 [will-change:transform,opacity]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-500">
+              <h2 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-400 to-pink-400">
                 Claim Student Offer
               </h2>
               <button
                 onClick={onClose}
-                className="text-slate-400 hover:text-slate-200 transition-colors disabled:opacity-50"
+                className="text-gray-500 hover:text-gray-200 transition-colors disabled:opacity-50"
                 disabled={status === 'sending'}
                 aria-label="Close modal"
               >
                 <X size={26} />
               </button>
             </div>
-
-            {!isConfigReady && status !== 'success' && (
-                 <div className="mb-4 p-3 bg-yellow-700/30 border border-yellow-600 rounded-md text-yellow-300 text-sm flex items-center gap-2">
-                    <AlertTriangle size={18} /> Email sending is temporarily unavailable. (Admin: Check EmailJS config)
-                </div>
-            )}
 
             {status === 'success' ? (
               <div className="text-center py-10">
@@ -148,37 +140,42 @@ const StudentEmailModal: React.FC<StudentEmailModalProps> = ({ isOpen, onClose }
                 >
                   <CheckCircle className="w-20 h-20 text-green-400 mx-auto mb-5" />
                 </motion.div>
-                <p className="text-xl font-semibold text-slate-50 mb-1">Request Sent Successfully!</p>
-                <p className="text-sm text-slate-300">We'll review your details and get back to you soon.</p>
+                <p className="text-xl font-semibold text-gray-100 mb-1">Request Sent!</p>
+                <p className="text-sm text-gray-400">We'll review your details and get back to you soon.</p>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-5">
+                {!isConfigReady && (
+                    <div className="p-3 bg-yellow-900/50 border border-yellow-500/30 rounded-lg text-yellow-300 text-sm flex items-center gap-2">
+                        <AlertTriangle size={18} /> Email sending is temporarily unavailable.
+                    </div>
+                )}
                 <div>
-                  <label htmlFor="name" className="block text-sm font-medium text-slate-300 mb-1.5">Full Name</label>
+                  <label htmlFor="name" className="block text-sm font-medium text-gray-400 mb-2">Full Name</label>
                   <input
                     type="text"
                     id="name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required
-                    className="w-full px-4 py-2.5 bg-slate-700/80 border border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 placeholder-slate-500 text-slate-100 transition-colors"
+                    className="w-full px-4 py-2.5 bg-[#0C0E1A] border border-gray-700/50 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-600 text-gray-200 transition-colors"
                     placeholder="e.g., Ada Lovelace"
                   />
                 </div>
                 <div>
-                  <label htmlFor="senderEmail" className="block text-sm font-medium text-slate-300 mb-1.5">Your Email Address</label>
+                  <label htmlFor="senderEmail" className="block text-sm font-medium text-gray-400 mb-2">Your Email Address</label>
                   <input
                     type="email"
                     id="senderEmail"
                     value={senderEmail}
                     onChange={(e) => setSenderEmail(e.target.value)}
                     required
-                    className="w-full px-4 py-2.5 bg-slate-700/80 border border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 placeholder-slate-500 text-slate-100 transition-colors"
+                    className="w-full px-4 py-2.5 bg-[#0C0E1A] border border-gray-700/50 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-600 text-gray-200 transition-colors"
                     placeholder="you@example.edu"
                   />
                 </div>
                 <div>
-                  <label htmlFor="message" className="block text-sm font-medium text-slate-300 mb-1.5">
+                  <label htmlFor="message" className="block text-sm font-medium text-gray-400 mb-2">
                     Student Verification Details
                   </label>
                   <textarea
@@ -187,16 +184,16 @@ const StudentEmailModal: React.FC<StudentEmailModalProps> = ({ isOpen, onClose }
                     onChange={(e) => setMessage(e.target.value)}
                     rows={4}
                     required
-                    className="w-full px-4 py-2.5 bg-slate-700/80 border border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 placeholder-slate-500 text-slate-100 transition-colors"
+                    className="w-full px-4 py-2.5 bg-[#0C0E1A] border border-gray-700/50 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-600 text-gray-200 transition-colors"
                     placeholder="e.g., Student at [University], ID: [Your ID]. My .edu email is [your .edu email if different from above]."
                   ></textarea>
-                   <p className="text-xs text-slate-400 mt-1.5">
+                   <p className="text-xs text-gray-500 mt-2">
                      Provide clear information like your .edu email, student ID, or university affiliation.
                    </p>
                 </div>
 
                 {status === 'error' && errorMsg && (
-                  <div className="p-3.5 bg-red-700/30 border border-red-600 rounded-lg text-red-300 text-sm flex items-center gap-2.5">
+                  <div className="p-3 bg-red-900/50 border border-red-500/30 rounded-lg text-red-300 text-sm flex items-center gap-2.5">
                     <AlertTriangle size={20} /> <span>{errorMsg}</span>
                   </div>
                 )}
@@ -204,15 +201,15 @@ const StudentEmailModal: React.FC<StudentEmailModalProps> = ({ isOpen, onClose }
                 <button
                   type="submit"
                   disabled={status === 'sending' || !isConfigReady}
-                  className="w-full flex items-center justify-center px-5 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-lg transition-all duration-300 ease-in-out disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-slate-800 transform hover:scale-105 active:scale-100"
+                  className="w-full flex items-center justify-center py-3 px-5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-full transition-all duration-300 ease-in-out disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-[#16181D] shadow-md hover:shadow-[0_0_15px_2px_rgba(99,102,241,0.5)]"
                 >
                   {status === 'sending' ? (
                     <>
-                      <Loader2 className="w-5 h-5 mr-2.5 animate-spin" /> Sending Request...
+                      <Loader2 className="w-5 h-5 mr-2.5 animate-spin" /> Sending...
                     </>
                   ) : (
                     <>
-                      <Send className="w-5 h-5 mr-2.5" /> Submit Student Offer Request
+                      <Send className="w-5 h-5 mr-2.5" /> Submit Request
                     </>
                   )}
                 </button>
@@ -225,4 +222,5 @@ const StudentEmailModal: React.FC<StudentEmailModalProps> = ({ isOpen, onClose }
   );
 };
 
-export default StudentEmailModal;
+// PERFORMANCE FIX 3: Memoize the component to prevent unnecessary re-renders from the parent.
+export default React.memo(StudentEmailModal);

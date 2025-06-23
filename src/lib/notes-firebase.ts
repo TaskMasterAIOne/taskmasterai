@@ -259,3 +259,58 @@ ${content.slice(0, 15000)}
     throw new Error(`Failed to regenerate questions: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
+
+export interface PodcastSegment {
+    speakerId: string | null;
+    url: string;
+    text: string;
+}
+
+export interface Podcast {
+    id: string;
+    createdAt: Timestamp;
+    settings: {
+        language: string;
+        speaker1Id: string | null;
+        speaker2Id: string | null;
+        length: 'short' | 'medium' | 'long' | null;
+        instructions: string;
+    };
+    segments: PodcastSegment[];
+}
+
+
+export async function addPodcastToNote(noteId: string, podcastData: Omit<Podcast, 'id'|'createdAt'>): Promise<string> {
+    const noteRef = doc(db, 'notes', noteId);
+    const noteSnap = await getDoc(noteRef);
+    if (!noteSnap.exists()) {
+        throw new Error("Note not found, cannot add podcast.");
+    }
+    const existingPodcasts = noteSnap.data().podcasts || [];
+    const newPodcastId = doc(collection(db, 'tmp')).id;
+    const newPodcastWithId = {
+        ...podcastData,
+        id: newPodcastId,
+        createdAt: Timestamp.now(),
+    };
+    await updateDoc(noteRef, {
+        podcasts: [...existingPodcasts, newPodcastWithId],
+        updatedAt: Timestamp.now()
+    });
+    return newPodcastId;
+}
+
+export async function deletePodcastFromNote(noteId: string, podcastId: string): Promise<void> {
+    const noteRef = doc(db, 'notes', noteId);
+    const noteSnap = await getDoc(noteRef);
+    if (!noteSnap.exists()) {
+        throw new Error("Note not found, cannot delete podcast.");
+    }
+    const existingPodcasts: Podcast[] = noteSnap.data().podcasts || [];
+    const updatedPodcasts = existingPodcasts.filter(p => p.id !== podcastId);
+    await updateDoc(noteRef, {
+        podcasts: updatedPodcasts,
+        updatedAt: Timestamp.now()
+    });
+}
+

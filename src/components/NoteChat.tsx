@@ -1,6 +1,5 @@
-
 import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react';
-import { MessageCircle, Send, Timer as TimerIcon, Paperclip, Bot, X, AlertTriangle, Loader2, ImageIcon, ChevronDown, Maximize, Minimize, Edit, Check, RefreshCcw, Crown, Download, Trash2, CornerDownRight } from 'lucide-react';
+import { MessageCircle, Send, Timer as TimerIcon, Paperclip, Bot, X, AlertTriangle, Loader2, ImageIcon, ChevronDown, Maximize, Minimize, Edit, Check, RefreshCcw, Crown, Download, Trash2, CornerDownRight, CheckSquare, Square } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Link } from "react-router-dom";
 import remarkMath from 'remark-math';
@@ -18,7 +17,7 @@ import {
 } from '../lib/current-paying-user';
 
 interface TimerMessage { type: 'timer'; duration: number; id: string; }
-interface ImageData { base64: string; type: string; name: string; }
+export interface ImageData { base64: string; type: string; name: string; }
 interface EditStep { editType: 'insert_after_context' | 'replace_context' | 'delete_context' | 'insert_at_start' | 'append_at_end'; targetContext: string | null; contentFragment: string; }
 interface ChatMessage {
     id?: string;
@@ -201,80 +200,89 @@ const parseGeminiResponse = (responseText: string, isImageGenCall: boolean): { t
 const parseTimerRequest = (message: string): number | null => { const cleanedMessage = message.trim().toLowerCase(); const keywords = ['set timer', 'start timer', 'timer for', 'remind me in']; const timeRegex = /(\d+)\s*(m|min|minute|h|hr|hour|s|sec|second)s?\b/i; let M: RegExpMatchArray | null = null; const hasKeywords = keywords.some(keyword => cleanedMessage.includes(keyword)); if (hasKeywords) { M = cleanedMessage.match(timeRegex); } if (!M) { M = cleanedMessage.match(/^\s*(\d+)\s*(m|min|minute|h|hr|hour|s|sec|second)s?\b/i); } if (!M) { M = cleanedMessage.match(/^\s*(\d+)\s*(m|min|minute|h|hr|hour|s|sec|second)s?\s*$/i); } if (!M) return null; const A = parseInt(M[1]); const U = M[2].toLowerCase(); if (isNaN(A) || A <= 0) return null; if (U.startsWith('h')) return A * 3600; if (U.startsWith('m')) return A * 60; if (U.startsWith('s')) return A; return null; };
 const handleDownloadImage = (imageData: ImageData) => { if (!imageData) return; const link = document.createElement('a'); link.href = `data:${imageData.type};base64,${imageData.base64}`; const fileExtension = imageData.type.split('/')[1] || 'png'; const fileName = `generated-image-${Date.now()}.${fileExtension}`; link.download = fileName; document.body.appendChild(link); link.click(); document.body.removeChild(link); };
 
-export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
-    ({ note, onClose, geminiApiKey, userName, isIlluminateEnabled, isBlackoutEnabled, isVisible, onUpdateNoteContent, onAddImageToNoteRequest, displayMode = 'overlay', userTier }: NoteChatProps, ref) => {
-        const [chatMessage, setChatMessage] = useState('');
-        const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
-        const [isChatLoading, setIsChatLoading] = useState(false);
-        const [isMinimized, setIsMinimized] = useState(false);
-        const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
-        const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([]);
-        const chatEndRef = useRef<HTMLDivElement>(null);
-        const initialMessageSent = useRef(false);
-        const currentNoteId = useRef<string | null>(null);
-        const fileInputRef = useRef<HTMLInputElement>(null);
-        const textareaRef = useRef<HTMLTextAreaElement>(null);
-        const [loadingMsgId, setLoadingMsgId] = useState<string | null>(null);
 
-        const [user, setUser] = useState<User | null>(null);
-        const [chatCount, setChatCount] = useState(0);
-        const [usageMonth, setUsageMonth] = useState('');
-        const [isChatLimitReached, setIsChatLimitReached] = useState(false);
-        const [isLoadingUsage, setIsLoadingUsage] = useState(true);
-        const [isImageGenModeActive, setIsImageGenModeActive] = useState(false);
-        const [pdfContextSegments, setPdfContextSegments] = useState<PdfContextSegment[]>([]);
+const NoteChatComponent: React.ForwardRefRenderFunction<NoteChatHandle, NoteChatProps> = (props, ref) => {
+    const {
+        note,
+        onClose,
+        geminiApiKey,
+        userName,
+        isIlluminateEnabled,
+        isBlackoutEnabled,
+        isVisible,
+        onUpdateNoteContent,
+        onAddImageToNoteRequest,
+        displayMode = 'overlay',
+        userTier
+    } = props;
 
-        const currentChatLimit = useMemo(() => getChatLimitForTier(userTier), [userTier]);
+    const isDarkMode = !isIlluminateEnabled;
+    const [chatMessage, setChatMessage] = useState('');
+    const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+    const [isChatLoading, setIsChatLoading] = useState(false);
+    const [isMinimized, setIsMinimized] = useState(false);
+    const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
+    const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([]);
+    const chatEndRef = useRef<HTMLDivElement>(null);
+    const initialMessageSent = useRef(false);
+    const currentNoteId = useRef<string | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const [loadingMsgId, setLoadingMsgId] = useState<string | null>(null);
 
-        const overlayBg = isIlluminateEnabled ? "bg-white" : isBlackoutEnabled ? "bg-black border border-gray-700/60" : "bg-gray-800"; const headerBg = isIlluminateEnabled ? "bg-gray-50/90 border-gray-200" : "bg-gray-900/80 border-gray-700"; const headingColor = isIlluminateEnabled ? "text-gray-800" : "text-white"; const inputBg = isIlluminateEnabled ? "bg-gray-100 border-gray-300 focus:border-blue-500 focus:ring-blue-500" : "bg-gray-700 border-gray-600 focus:border-blue-500 focus:ring-blue-500"; const inputTextColor = isIlluminateEnabled ? "text-gray-900" : "text-gray-200"; const placeholderColor = isIlluminateEnabled ? "placeholder-gray-400" : "placeholder-gray-500"; const buttonPrimaryClass = "bg-blue-600 hover:bg-blue-700 text-white"; const buttonSecondaryClass = isIlluminateEnabled ? "bg-gray-200 hover:bg-gray-300 text-gray-700" : "bg-gray-600 hover:bg-gray-500 text-gray-300"; const suggestionButtonClass = isIlluminateEnabled ? "bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200" : "bg-gray-700 hover:bg-gray-600 text-gray-300 border border-gray-600"; const buttonDisabledClass = "opacity-50 cursor-not-allowed"; const userBubbleClass = isIlluminateEnabled ? 'bg-blue-500 text-white' : 'bg-blue-600 text-white'; const assistantBubbleClass = isIlluminateEnabled ? 'bg-gray-100 text-gray-800 border border-gray-200/80' : 'bg-gray-700/80 text-gray-200 border border-gray-600/50'; const errorBubbleClass = isIlluminateEnabled ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-red-900/30 text-red-300 border border-red-700/50'; const editSuggestionBubbleClass = isIlluminateEnabled ? 'bg-yellow-50 border border-yellow-200 text-yellow-800' : 'bg-yellow-900/30 border border-yellow-700/50 text-yellow-300'; const confirmationBubbleClass = isIlluminateEnabled ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-green-900/30 border border-green-700/50 text-green-200'; const iconColor = isIlluminateEnabled ? "text-gray-500 hover:text-gray-700" : "text-gray-400 hover:text-gray-200"; const filePillBg = isIlluminateEnabled ? "bg-blue-100 border-blue-200" : "bg-blue-900/50 border-blue-700/50"; const filePillText = isIlluminateEnabled ? "text-blue-800" : "text-blue-300"; const downloadButtonClass = isIlluminateEnabled ? "bg-gray-200 hover:bg-gray-300 text-gray-600" : "bg-gray-600 hover:bg-gray-500 text-gray-300";
-        const imageGenButtonClass = isIlluminateEnabled
-            ? (isImageGenModeActive ? "bg-purple-100 hover:bg-purple-200 text-purple-700" : "bg-gray-200 hover:bg-gray-300 text-gray-700")
-            : (isImageGenModeActive ? "bg-purple-800/60 hover:bg-purple-700/60 text-purple-300" : "bg-gray-600 hover:bg-gray-500 text-gray-300");
+    const [user, setUser] = useState<User | null>(null);
+    const [chatCount, setChatCount] = useState(0);
+    const [usageMonth, setUsageMonth] = useState('');
+    const [isChatLimitReached, setIsChatLimitReached] = useState(false);
+    const [isLoadingUsage, setIsLoadingUsage] = useState(true);
+    const [isImageGenModeActive, setIsImageGenModeActive] = useState(false);
+    const [pdfContextSegments, setPdfContextSegments] = useState<PdfContextSegment[]>([]);
 
+    const currentChatLimit = useMemo(() => getChatLimitForTier(userTier), [userTier]);
 
-        useEffect(() => {
-            const currentAuthUser = auth.currentUser;
-            setUser(currentAuthUser);
+    useEffect(() => {
+        const currentAuthUser = auth.currentUser;
+        setUser(currentAuthUser);
 
-            if (!isVisible) { setIsLoadingUsage(false); return; }
-            if (userTier === 'loading' || !currentAuthUser) { setIsLoadingUsage(true); setChatCount(0); setUsageMonth(''); setIsChatLimitReached(userTier === 'loading'); return; }
-            setIsLoadingUsage(true);
-            if (userTier !== 'premium') {
-                const currentMonthYear = new Date().toISOString().slice(0, 7);
-                getCurrentMonthUserChatUsage(currentAuthUser.uid, currentMonthYear)
-                    .then(usageData => {
-                        const limit = getChatLimitForTier(userTier);
-                        if (usageData) {
-                            setChatCount(usageData.count);
-                            setUsageMonth(usageData.month);
-                            setIsChatLimitReached(limit !== Infinity && usageData.count >= limit);
-                        } else {
-                            setChatCount(0);
-                            setUsageMonth(currentMonthYear);
-                            setIsChatLimitReached(limit !== Infinity && 0 >= limit);
-                        }
-                    })
-                    .catch(err => {
+        if (!isVisible) { setIsLoadingUsage(false); return; }
+        if (userTier === 'loading' || !currentAuthUser) { setIsLoadingUsage(true); setChatCount(0); setUsageMonth(''); setIsChatLimitReached(userTier === 'loading'); return; }
+        setIsLoadingUsage(true);
+        if (userTier !== 'premium') {
+            const currentMonthYear = new Date().toISOString().slice(0, 7);
+            getCurrentMonthUserChatUsage(currentAuthUser.uid, currentMonthYear)
+                .then(usageData => {
+                    const limit = getChatLimitForTier(userTier);
+                    if (usageData) {
+                        setChatCount(usageData.count);
+                        setUsageMonth(usageData.month);
+                        setIsChatLimitReached(limit !== Infinity && usageData.count >= limit);
+                    } else {
                         setChatCount(0);
-                        setUsageMonth(new Date().toISOString().slice(0, 7));
-                        const limit = getChatLimitForTier(userTier);
-                        setIsChatLimitReached(limit === 0 && limit !== Infinity);
-                    })
-                    .finally(() => setIsLoadingUsage(false));
-            } else {
-                setChatCount(0);
-                setUsageMonth('');
-                setIsChatLimitReached(false);
-                setIsLoadingUsage(false);
-            }
-        }, [isVisible, userTier, user?.uid]);
+                        setUsageMonth(currentMonthYear);
+                        setIsChatLimitReached(limit !== Infinity && 0 >= limit);
+                    }
+                })
+                .catch(err => {
+                    setChatCount(0);
+                    setUsageMonth(new Date().toISOString().slice(0, 7));
+                    const limit = getChatLimitForTier(userTier);
+                    setIsChatLimitReached(limit === 0 && limit !== Infinity);
+                })
+                .finally(() => setIsLoadingUsage(false));
+        } else {
+            setChatCount(0);
+            setUsageMonth('');
+            setIsChatLimitReached(false);
+            setIsLoadingUsage(false);
+        }
+    }, [isVisible, userTier, user?.uid]);
 
 
-        useEffect(() => { if (note && (note.id !== currentNoteId.current || (displayMode === 'overlay' && isVisible && !initialMessageSent.current))) { const initialPrompt = `Hi ${userName}! Ask about **"${note.title}"**, ask me to change it, generate an image (click the ${isImageGenModeActive ? '✏️' : '🖼️'} button!), or attach/paste a file.`; setChatHistory([{ id: `init-${Date.now()}`, role: 'assistant', content: initialPrompt }]); setChatMessage(''); setSelectedFiles([]); setSuggestedPrompts([]); setIsChatLoading(false); initialMessageSent.current = true; currentNoteId.current = note.id; setLoadingMsgId(null); setIsImageGenModeActive(false); setPdfContextSegments([]); } else if (displayMode === 'overlay' && !isVisible) { initialMessageSent.current = false; currentNoteId.current = null; setIsImageGenModeActive(false); setPdfContextSegments([]); } }, [note, isVisible, userName, displayMode, isImageGenModeActive]);
-        useEffect(() => { if (!isMinimized || displayMode === 'inline') { setTimeout(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, 150); } }, [chatHistory, isMinimized, displayMode, suggestedPrompts, pdfContextSegments]);
+    useEffect(() => { if (note && (note.id !== currentNoteId.current || (displayMode === 'overlay' && isVisible && !initialMessageSent.current))) { const initialPrompt = `Hi ${userName}! Ask about **"${note.title}"**, ask me to change it, generate an image (click the ${isImageGenModeActive ? '✏️' : '🖼️'} button!), or attach/paste a file.`; setChatHistory([{ id: `init-${Date.now()}`, role: 'assistant', content: initialPrompt }]); setChatMessage(''); setSelectedFiles([]); setSuggestedPrompts([]); setIsChatLoading(false); initialMessageSent.current = true; currentNoteId.current = note.id; setLoadingMsgId(null); setIsImageGenModeActive(false); setPdfContextSegments([]); } else if (displayMode === 'overlay' && !isVisible) { initialMessageSent.current = false; currentNoteId.current = null; setIsImageGenModeActive(false); setPdfContextSegments([]); } }, [note, isVisible, userName, displayMode, isImageGenModeActive]);
+    useEffect(() => { if (!isMinimized || displayMode === 'inline') { setTimeout(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, 150); } }, [chatHistory, isMinimized, displayMode, suggestedPrompts, pdfContextSegments]);
 
-        const handleTimerComplete = (timerId: string) => setChatHistory(prev => [...prev, { id: `timer-comp-${timerId}`, role: 'assistant', content: "⏰ Time's up!" }]);
-        const handleAcceptEdit = async (message: ChatMessage) => { if (!note || isChatLoading || !message.isEditSuggestion || !message.editAction) { setChatHistory(prev => [...prev, { id: `edit-app-err-${Date.now()}`, role: 'assistant', content: `❌ Error: Could not apply edit. Invalid proposal data.`, error: true }]); return; } setIsChatLoading(true); setLoadingMsgId(null); let finalContent: string | null = null; const contentBeforeEdit = note.content; try { let currentContent = contentBeforeEdit; if (message.editAction === 'propose_targeted_edit') { if (!message.editType) throw new Error("Missing edit type."); let applied = false; const { editType, targetContext, contentFragment = "" } = message; switch (editType) { case 'insert_at_start': currentContent = contentFragment + (currentContent ? "\n" + currentContent : ""); applied = true; break; case 'append_at_end': currentContent = (currentContent ? currentContent + "\n" : "") + contentFragment; applied = true; break; case 'insert_after_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { const p = i + targetContext.length; const x = currentContent.endsWith('\n') || currentContent.slice(p).startsWith('\n') || p === 0 ? "" : "\n"; currentContent = currentContent.slice(0, p) + x + contentFragment + currentContent.slice(p); applied = true; } else throw new Error("Target context for insertion not found."); } else throw new Error("Missing target context for insert."); break; case 'replace_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { currentContent = currentContent.slice(0, i) + contentFragment + currentContent.slice(i + targetContext.length); applied = true; } else throw new Error("Target context for replacement not found."); } else throw new Error("Missing target context for replace."); break; case 'delete_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { currentContent = currentContent.slice(0, i) + currentContent.slice(i + targetContext.length); currentContent = currentContent.replace(/\n\n+/g, '\n').trim(); applied = true; } else throw new Error("Target context for deletion not found."); } else throw new Error("Missing target context for delete."); break; default: throw new Error(`Unsupported edit type: ${editType}`); } if (applied) finalContent = currentContent; else throw new Error("Targeted edit failed."); } else if (message.editAction === 'propose_full_content_replacement') { if (typeof message.newFullContent === 'string') { finalContent = message.newFullContent; } else { throw new Error("Missing new full content for replacement."); } } else if (message.editAction === 'propose_sequential_edits') { if (!message.sequentialEdits || !Array.isArray(message.sequentialEdits) || message.sequentialEdits.length === 0) { throw new Error("Invalid sequential edit proposal: 'edits' array is missing or empty."); } let allApplied = true; for (let i = 0; i < message.sequentialEdits.length; i++) { const editStep = message.sequentialEdits[i]; const { editType, targetContext, contentFragment } = editStep; let appliedThisStep = false; const stepNumber = i + 1; switch (editType) { case 'insert_at_start': currentContent = contentFragment + (currentContent ? "\n" + currentContent : ""); appliedThisStep = true; break; case 'append_at_end': currentContent = (currentContent ? currentContent + "\n" : "") + contentFragment; appliedThisStep = true; break; case 'insert_after_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { const p = idx + targetContext.length; const x = currentContent.endsWith('\n') || currentContent.slice(p).startsWith('\n') || p === 0 ? "" : "\n"; currentContent = currentContent.slice(0, p) + x + contentFragment + currentContent.slice(p); appliedThisStep = true; } else { allApplied = false; throw new Error(`Step ${stepNumber}: Target context for insertion not found.`); } } else { allApplied = false; throw new Error(`Step ${stepNumber}: Missing target context for insert.`); } break; case 'replace_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { currentContent = currentContent.slice(0, idx) + contentFragment + currentContent.slice(idx + targetContext.length); appliedThisStep = true; } else { allApplied = false; throw new Error(`Step ${stepNumber}: Target context for replacement not found.`); } } else { allApplied = false; throw new Error(`Step ${stepNumber}: Missing target context for replace.`); } break; case 'delete_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { currentContent = currentContent.slice(0, idx) + currentContent.slice(idx + targetContext.length); currentContent = currentContent.replace(/\n\n+/g, '\n').trim(); appliedThisStep = true; } else { allApplied = false; throw new Error(`Step ${stepNumber}: Target context for deletion not found.`); } } else { allApplied = false; throw new Error(`Step ${stepNumber}: Missing target context for delete.`); } break; default: allApplied = false; throw new Error(`Step ${stepNumber}: Unsupported edit type: ${editType}`); } if (!appliedThisStep) { allApplied = false; throw new Error(`Sequential edit step ${stepNumber} failed unexpectedly.`); } } if (allApplied) { finalContent = currentContent; } } else { throw new Error(`Unknown edit action: ${message.editAction}`); } if (finalContent !== null) { await onUpdateNoteContent(note.id, finalContent); const confirmationMsgId = `edit-ok-${Date.now()}`; setChatHistory(prev => [ ...prev, { id: confirmationMsgId, role: 'assistant', content: "✅ Note updated!", isUpdateConfirmation: true, canRevert: true, previousContent: contentBeforeEdit, noteIdToRevert: note.id } ]); } } catch (error) { const eMsg = error instanceof Error ? error.message : 'Unknown error during update.'; setChatHistory(prev => [...prev, { id: `edit-err-${Date.now()}`, role: 'assistant', content: `❌ Update failed: ${eMsg}`, error: true }]); } finally { setIsChatLoading(false); } };
+    const handleTimerComplete = (timerId: string) => setChatHistory(prev => [...prev, { id: `timer-comp-${timerId}`, role: 'assistant', content: "⏰ Time's up!" }]);
+    const handleAcceptEdit = async (message: ChatMessage) => { if (!note || isChatLoading || !message.isEditSuggestion || !message.editAction) { setChatHistory(prev => [...prev, { id: `edit-app-err-${Date.now()}`, role: 'assistant', content: `❌ Error: Could not apply edit. Invalid proposal data.`, error: true }]); return; } setIsChatLoading(true); setLoadingMsgId(null); let finalContent: string | null = null; const contentBeforeEdit = note.content; try { let currentContent = contentBeforeEdit; if (message.editAction === 'propose_targeted_edit') { if (!message.editType) throw new Error("Missing edit type."); let applied = false; const { editType, targetContext, contentFragment = "" } = message; switch (editType) { case 'insert_at_start': currentContent = contentFragment + (currentContent ? "\n" + currentContent : ""); applied = true; break; case 'append_at_end': currentContent = (currentContent ? currentContent + "\n" : "") + contentFragment; applied = true; break; case 'insert_after_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { const p = i + targetContext.length; const x = currentContent.endsWith('\n') || currentContent.slice(p).startsWith('\n') || p === 0 ? "" : "\n"; currentContent = currentContent.slice(0, p) + x + contentFragment + currentContent.slice(p); applied = true; } else throw new Error("Target context for insertion not found."); } else throw new Error("Missing target context for insert."); break; case 'replace_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { currentContent = currentContent.slice(0, i) + contentFragment + currentContent.slice(i + targetContext.length); applied = true; } else throw new Error("Target context for replacement not found."); } else throw new Error("Missing target context for replace."); break; case 'delete_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { currentContent = currentContent.slice(0, i) + currentContent.slice(i + targetContext.length); currentContent = currentContent.replace(/\n\n+/g, '\n').trim(); applied = true; } else throw new Error("Target context for deletion not found."); } else throw new Error("Missing target context for delete."); break; default: throw new Error(`Unsupported edit type: ${editType}`); } if (applied) finalContent = currentContent; else throw new Error("Targeted edit failed."); } else if (message.editAction === 'propose_full_content_replacement') { if (typeof message.newFullContent === 'string') { finalContent = message.newFullContent; } else { throw new Error("Missing new full content for replacement."); } } else if (message.editAction === 'propose_sequential_edits') { if (!message.sequentialEdits || !Array.isArray(message.sequentialEdits) || message.sequentialEdits.length === 0) { throw new Error("Invalid sequential edit proposal: 'edits' array is missing or empty."); } let allApplied = true; for (let i = 0; i < message.sequentialEdits.length; i++) { const editStep = message.sequentialEdits[i]; const { editType, targetContext, contentFragment } = editStep; let appliedThisStep = false; const stepNumber = i + 1; switch (editType) { case 'insert_at_start': currentContent = contentFragment + (currentContent ? "\n" + currentContent : ""); appliedThisStep = true; break; case 'append_at_end': currentContent = (currentContent ? currentContent + "\n" : "") + contentFragment; appliedThisStep = true; break; case 'insert_after_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { const p = idx + targetContext.length; const x = currentContent.endsWith('\n') || currentContent.slice(p).startsWith('\n') || p === 0 ? "" : "\n"; currentContent = currentContent.slice(0, p) + x + contentFragment + currentContent.slice(p); appliedThisStep = true; } else { allApplied = false; throw new Error(`Step ${stepNumber}: Target context for insertion not found.`); } } else { allApplied = false; throw new Error(`Step ${stepNumber}: Missing target context for insert.`); } break; case 'replace_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { currentContent = currentContent.slice(0, idx) + contentFragment + currentContent.slice(idx + targetContext.length); appliedThisStep = true; } else { allApplied = false; throw new Error(`Step ${stepNumber}: Target context for replacement not found.`); } } else { allApplied = false; throw new Error(`Step ${stepNumber}: Missing target context for replace.`); } break; case 'delete_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { currentContent = currentContent.slice(0, idx) + currentContent.slice(idx + targetContext.length); currentContent = currentContent.replace(/\n\n+/g, '\n').trim(); appliedThisStep = true; } else { allApplied = false; throw new Error(`Step ${stepNumber}: Target context for deletion not found.`); } } else { allApplied = false; throw new Error(`Step ${stepNumber}: Missing target context for delete.`); } break; default: allApplied = false; throw new Error(`Step ${stepNumber}: Unsupported edit type: ${editType}`); } if (!appliedThisStep) { allApplied = false; throw new Error(`Sequential edit step ${stepNumber} failed unexpectedly.`); } } if (allApplied) { finalContent = currentContent; } } else { throw new Error(`Unknown edit action: ${message.editAction}`); } if (finalContent !== null) { await onUpdateNoteContent(note.id, finalContent); const confirmationMsgId = `edit-ok-${Date.now()}`; setChatHistory(prev => [ ...prev, { id: confirmationMsgId, role: 'assistant', content: "✅ Note updated!", isUpdateConfirmation: true, canRevert: true, previousContent: contentBeforeEdit, noteIdToRevert: note.id } ]); } } catch (error) { const eMsg = error instanceof Error ? error.message : 'Unknown error during update.'; setChatHistory(prev => [...prev, { id: `edit-err-${Date.now()}`, role: 'assistant', content: `❌ Update failed: ${eMsg}`, error: true }]); } finally { setIsChatLoading(false); } };
         const handleRevertEdit = async (message: ChatMessage) => { if (!message.canRevert || typeof message.previousContent !== 'string' || !message.noteIdToRevert || isChatLoading || !message.id) { setChatHistory(prev => [...prev, { id: `revert-err-state-${Date.now()}`, role: 'assistant', content: `❌ Cannot revert. Invalid state.`, error: true }]); return; } setIsChatLoading(true); setLoadingMsgId(null); const originalMessageId = message.id; try { await onUpdateNoteContent(message.noteIdToRevert, message.previousContent); setChatHistory(prev => [ ...prev.map(msg => msg.id === originalMessageId ? { ...msg, canRevert: false } : msg ), { id: `revert-ok-${Date.now()}`, role: 'assistant', content: "🔄 Change reverted." } ]); } catch (error) { const eMsg = error instanceof Error ? error.message : 'Unknown error during revert.'; setChatHistory(prev => [...prev, { id: `revert-err-${Date.now()}`, role: 'assistant', content: `❌ Revert failed: ${eMsg}`, error: true }]); } finally { setIsChatLoading(false); } };
         const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => { const files = event.target.files; if (!files) return; setIsChatLoading(true); const newFiles: SelectedFile[] = []; const filePromises: Promise<SelectedFile>[] = []; const existingFileNames = new Set(selectedFiles.map(f => f.name)); for (let i = 0; i < files.length; i++) { const file = files[i]; if (existingFileNames.has(file.name)) { setChatHistory(prev => [...prev, { id: `file-err-dup-${Date.now()}-${file.name}`, role: 'assistant', content: `ℹ️ Skipped duplicate file: "${file.name}".`, error: false }]); continue; }
              if (!file.type.startsWith('image/') && file.type !== 'application/pdf') { setChatHistory(prev => [...prev, { id: `file-err-type-${Date.now()}`, role: 'assistant', content: `❌ File type for "${file.name}" is not supported (only images and PDFs).`, error: true }]); continue; } filePromises.push(readFileAsBase64(file)); existingFileNames.add(file.name); } try { const results = await Promise.all(filePromises); setSelectedFiles(prev => [...prev, ...results]); } catch (error) { setChatHistory(prev => [...prev, { id: `file-err-read-${Date.now()}`, role: 'assistant', content: `❌ Error processing selected file(s). Please try again.`, error: true }]); } finally { setIsChatLoading(false); if (fileInputRef.current) { fileInputRef.current.value = ''; } } };
@@ -329,8 +337,6 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
 
             if (isChatLimitReached && userTier !== 'premium') {
                 setChatHistory(prev => [...prev, { id: `limit-${Date.now()}`, role: 'assistant', content: `You've reached your ${currentChatLimit === Infinity ? 'monthly' : currentChatLimit} chat message limit. Upgrade for more interactions!`, error: true }]);
-                // Do not clear chatMessage here, let the user see what they typed
-                // if (isImageGenModeActive) setIsImageGenModeActive(false); // Don't change mode on limit
                 return;
             }
 
@@ -368,7 +374,6 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
 
             setSuggestedPrompts([]);
             setChatHistory(prev => [...prev, ...messagesToDisplayInChat]);
-            // State for selectedFiles and pdfContextSegments is cleared by handleChatSubmit
 
             let contentForAI = messageContent;
             if (collectedPdfContextText && !isUsingImageGenModel) {
@@ -383,10 +388,7 @@ export const NoteChat = forwardRef<NoteChatHandle, NoteChatProps>(
                     ...prev,
                     { id: `tstart-${tId}`, role: 'assistant', content: `Timer set: ${dTxt}.`, timer: { type: 'timer', duration: timerDuration, id: tId } }
                 ]);
-                if (messageContent.toLowerCase().startsWith('set timer') || messageContent.toLowerCase().startsWith('timer for')) {
-                    // setChatMessage(''); // Cleared by caller (handleChatSubmit)
-                }
-                 if (isImageGenModeActive) setIsImageGenModeActive(false);
+                if (isImageGenModeActive) setIsImageGenModeActive(false);
                 return;
             }
 
@@ -765,9 +767,7 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
             if (isImageGenModeActive) {
                  setIsImageGenModeActive(false);
             }
-            // For suggestions, we don't need to pass files or PDF context as they are new interactions
-            // The state for selectedFiles and pdfContextSegments should be empty here due to prior logic
-            setChatMessage(''); // Clear any current input
+            setChatMessage('');
             setSelectedFiles([]);
             setPdfContextSegments([]);
             submitMessageToAI(suggestion, [], false, []);
@@ -783,7 +783,6 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
         useImperativeHandle(ref, () => ({
             sendMessage: (message: string) => {
                 if (isImageGenModeActive) setIsImageGenModeActive(false);
-                // When sending programmatically, use current selectedFiles and context
                 const filesForExternalSend = [...selectedFiles];
                 const contextForExternalSend = [...pdfContextSegments];
                 setSelectedFiles([]);
@@ -795,27 +794,31 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
             focusInput: () => textareaRef.current?.focus(),
         }));
 
-        const rootClasses = displayMode === 'overlay' ? `fixed bottom-4 right-4 z-50 ${overlayBg} rounded-lg w-full max-w-sm flex flex-col shadow-xl transition-all duration-300 ease-in-out ${isMinimized ? 'h-12 overflow-hidden' : 'h-[75vh] max-h-[650px]'}` : `h-full w-full flex flex-col ${overlayBg}`; if (displayMode === 'overlay' && !isVisible) return null;
+        const rootClasses = displayMode === 'overlay'
+        ? `fixed bottom-4 right-4 z-50 bg-white dark:bg-[#12141D] rounded-lg w-full max-w-sm flex flex-col shadow-xl transition-all duration-300 ease-in-out border border-gray-200 dark:border-gray-700/50 ${isMinimized ? 'h-12 overflow-hidden' : 'h-[75vh] max-h-[600px]'}`
+        : `h-full w-full flex flex-col bg-white dark:bg-[#12141D]`;
+
+        if (displayMode === 'overlay' && !isVisible) return null;
 
         return (
             <div className={rootClasses}>
-                 <div className={`p-2 border-b ${headerBg} flex justify-between items-center shrink-0 sticky top-0 z-10 ${displayMode === 'overlay' ? 'cursor-pointer' : ''}`} onClick={displayMode === 'overlay' ? () => setIsMinimized(!isMinimized) : undefined} title={displayMode === 'overlay' ? (isMinimized ? "Expand" : "Minimize") : undefined}>
-                     <h3 className={`text-sm font-semibold ${headingColor} flex items-center gap-1.5 truncate pr-2`}>
-                         <MessageCircle className={`w-4 h-4 shrink-0 ${isIlluminateEnabled ? 'text-blue-600' : 'text-blue-400'}`} />
+                 <div className={`p-2 border-b border-gray-200 dark:border-gray-700/50 bg-gray-50 dark:bg-[#1A1D29]/90 flex justify-between items-center shrink-0 sticky top-0 z-10 ${displayMode === 'overlay' ? 'cursor-pointer rounded-t-lg' : ''}`} onClick={displayMode === 'overlay' ? () => setIsMinimized(!isMinimized) : undefined} title={displayMode === 'overlay' ? (isMinimized ? "Expand" : "Minimize") : undefined}>
+                     <h3 className={`text-sm font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-1.5 truncate pr-2`}>
+                         <MessageCircle className={`w-4 h-4 shrink-0 text-indigo-500 dark:text-indigo-400`} />
                          <span className="truncate" title={`Chat: ${note.title}`}>Chat: {note.title}</span>
                      </h3>
                      {displayMode === 'overlay' && (
                          <div className="flex items-center">
-                             <button onClick={(e) => { e.stopPropagation(); setIsMinimized(!isMinimized); }} className={`${iconColor} rounded-full p-1 mr-1`} title={isMinimized ? "Expand" : "Minimize"}>
+                             <button onClick={(e) => { e.stopPropagation(); setIsMinimized(!isMinimized); }} className={`text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full p-1 mr-1`} title={isMinimized ? "Expand" : "Minimize"}>
                                  {isMinimized ? <Maximize className="w-3 h-3" /> : <Minimize className="w-3 h-3" />}
                              </button>
-                             <button onClick={(e) => { e.stopPropagation(); onClose(); }} className={`${iconColor} rounded-full p-1`} title="Close">
+                             <button onClick={(e) => { e.stopPropagation(); onClose(); }} className={`text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full p-1`} title="Close">
                                  <X className="w-4 h-4" />
                              </button>
                          </div>
                      )}
                      {displayMode === 'inline' && (
-                         <button onClick={onClose} className={`${iconColor} rounded-full p-1`} title="Close Chat & PDF View">
+                         <button onClick={onClose} className={`text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full p-1`} title="Close Chat & PDF View">
                              <X className="w-4 h-4" />
                          </button>
                      )}
@@ -823,85 +826,71 @@ ${recentHistory.filter(msg => !msg.timer && !msg.isUpdateConfirmation && msg.con
 
                 {(!isMinimized || displayMode === 'inline') && (
                     <>
-                        <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-400 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
+                        <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
                             {chatHistory.map((message, index) => {
                                 const isCurrentLoadingMsg = message.role === 'assistant' && isChatLoading && message.id === loadingMsgId;
                                 const isPdfContextDisplayMsg = message.isPdfContextDisplay === true;
 
                                 const currentBubbleClass = isPdfContextDisplayMsg
                                     ? ''
-                                    : message.role === 'user' ? userBubbleClass
-                                    : message.error ? errorBubbleClass
-                                    : message.isEditSuggestion ? editSuggestionBubbleClass
-                                    : message.isUpdateConfirmation ? confirmationBubbleClass
-                                    : assistantBubbleClass;
+                                    : message.role === 'user' ? 'bg-indigo-500 text-white'
+                                    : message.error ? 'bg-red-100 dark:bg-red-700/30 text-red-700 dark:text-red-200 border border-red-200 dark:border-red-600'
+                                    : message.isEditSuggestion ? 'bg-yellow-50 dark:bg-yellow-700/20 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-600'
+                                    : message.isUpdateConfirmation ? 'bg-green-50 dark:bg-green-700/20 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-600'
+                                    : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700/70';
 
                                 const alignmentClass = message.role === 'user' ? 'justify-end' : 'justify-start';
 
-const getProseClass = (msg: ChatMessage) => {
-    let base = `prose prose-sm max-w-none prose-p:text-xs prose-p:my-1 prose-ul:text-xs prose-ol:text-xs prose-li:my-0 prose-code:text-[11px] prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:text-[11px] prose-pre:my-1 prose-pre:p-1.5 prose-pre:rounded`;
+                                const proseClassChat = `prose prose-xs max-w-none prose-p:my-0.5 prose-ul:my-0.5 prose-ol:my-0.5 prose-li:my-0 prose-code:text-[10px] prose-code:px-1 prose-code:py-0.5 prose-pre:text-[10px] prose-pre:my-0.5 prose-pre:p-1
+                                ${isDarkMode
+                                    ? 'prose-invert prose-p:text-gray-200 prose-strong:text-gray-100 prose-a:text-indigo-400 hover:prose-a:text-indigo-300 prose-code:bg-gray-700/70 prose-code:text-pink-400 prose-pre:bg-gray-900/70 prose-headings:text-gray-100'
+                                    : 'prose-p:text-gray-700 prose-strong:text-gray-900 prose-a:text-indigo-600 hover:prose-a:text-indigo-700 prose-code:bg-gray-200/70 prose-code:text-pink-600 prose-pre:bg-gray-200/70 prose-headings:text-gray-800'
+                                }
+                                ${message.role === 'user' ? '!prose-p:text-white !prose-strong:text-white !prose-a:text-indigo-200 hover:!prose-a:text-indigo-100 !prose-code:text-indigo-100' : ''}
+                                ${message.error ? '!prose-p:text-red-700 dark:!prose-p:text-red-200 !prose-strong:text-red-800 dark:!prose-strong:text-red-100 !prose-a:text-red-500 dark:!prose-a:text-red-400' : ''}
+                                ${message.isEditSuggestion ? '!prose-p:text-yellow-800 dark:!prose-p:text-yellow-200 !prose-strong:text-yellow-900 dark:!prose-strong:text-yellow-100 !prose-a:text-yellow-600 dark:!prose-a:text-yellow-400' : ''}
+                                ${message.isUpdateConfirmation ? '!prose-p:text-green-800 dark:!prose-p:text-green-200 !prose-strong:text-green-900 dark:!prose-strong:text-green-100 !prose-a:text-green-600 dark:!prose-a:text-green-400' : ''}`;
 
-    if (isIlluminateEnabled) {
-        if (msg.isEditSuggestion) {
-            base += ' prose-yellow text-yellow-900';
-        } else if (msg.error) {
-            base += ' prose-red text-red-800';
-        } else if (msg.isUpdateConfirmation) {
-            base += ' prose-green text-green-900';
-        } else if (msg.role === 'user') {
-
-            base += ' prose-invert';
-
-            base += ' prose-a:text-blue-300 hover:prose-a:text-blue-200 prose-code:text-gray-300';
-        } else {
-
-            base += ' prose-gray text-gray-800';
-        }
-    } else {
-        base += ' prose-invert';
-
-
-        if (msg.isEditSuggestion) {
-             base += ' prose-p:!text-yellow-300 prose-li:!text-yellow-300 prose-strong:!text-yellow-200 prose-a:!text-yellow-400 hover:prose-a:!text-yellow-300 prose-code:!text-yellow-200';
-        } else if (msg.error) {
-             base += ' prose-p:!text-red-300 prose-li:!text-red-300 prose-strong:!text-red-200 prose-a:!text-red-400 hover:prose-a:!text-red-300 prose-code:!text-red-200';
-        } else if (msg.isUpdateConfirmation) {
-             base += ' prose-p:!text-green-200 prose-li:!text-green-200 prose-strong:!text-green-100 prose-a:!text-green-400 hover:prose-a:!text-green-300 prose-code:!text-green-200';
-        } else if (msg.role === 'assistant' || !msg.role) {
-             base += ' prose-p:!text-gray-200 prose-li:!text-gray-200 prose-strong:!text-gray-100 prose-a:!text-blue-400 hover:prose-a:!text-blue-300 prose-code:!text-gray-300';
-        } else if (msg.role === 'user') {
-            base += ' prose-p:!text-white prose-li:!text-white prose-strong:!text-white prose-a:!text-blue-300 hover:prose-a:!text-blue-200 prose-code:!text-gray-200';
-        }
-    }
-    return base;
-};                                const proseClass = getProseClass(message);
                                 const showDownloadButton = message.role === 'assistant' && message.wasImageGenerated && message.imageData && !message.error;
 
 
                                 return (
-                                    <div key={message.id || index} className={`flex ${alignmentClass}`}>
+                                    <div key={message.id || index} className={`flex ${alignmentClass} animate-fadeIn`} style={{animationDelay: `${index * 50}ms`}}>
                                         <div className={`max-w-[85%] rounded-lg text-sm shadow-sm break-words
                                                         ${isPdfContextDisplayMsg
-                                                            ? `${isIlluminateEnabled ? 'bg-slate-200 text-slate-800' : 'bg-neutral-700 text-white'} px-3 py-2 flex items-start my-0.5`
+                                                            ? `bg-gray-200 dark:bg-gray-700/60 text-gray-700 dark:text-gray-200 px-3 py-2 flex items-start my-0.5 border border-gray-300 dark:border-gray-600/50`
                                                             : `px-2.5 py-1.5 ${currentBubbleClass}`}`}>
                                             {isPdfContextDisplayMsg ? (
                                                 <>
-                                                    <CornerDownRight className={`w-5 h-5 mr-2 mt-0.5 shrink-0 ${isIlluminateEnabled ? 'text-slate-600' : 'text-white'}`} />
-                                                    <span className={`whitespace-pre-wrap text-xs ${isIlluminateEnabled ? 'text-slate-700' : 'text-gray-200'}`}>
+                                                    <CornerDownRight className={`w-5 h-5 mr-2 mt-0.5 shrink-0 text-gray-500 dark:text-gray-400`} />
+                                                    <span className={`whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-200`}>
                                                         {message.content}
                                                     </span>
                                                 </>
                                             ) : isCurrentLoadingMsg ? (
-                                                <div className={`flex items-center gap-2 p-1 ${isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}`}>
+                                                <div className={`flex items-center gap-2 p-1 text-gray-600 dark:text-gray-400`}>
                                                     <Loader2 className="w-4 h-4 animate-spin" />
                                                     <span className="text-xs">{message.isGeneratingImage ? "Generating image..." : "Thinking..."}</span>
                                                 </div>
                                             ) : message.content ? (
-                                                <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]} className={proseClass} components={{ a: ({node, ...props}) => <a target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-600" {...props} />, code: ({node, inline, className, children, ...props}) => { const match = /language-(\w+)/.exec(className || ''); if (inline) { return <code className={`${isIlluminateEnabled ? 'bg-gray-200/70 text-gray-800' : 'bg-gray-600/70 text-gray-100'} px-1 py-0.5 rounded text-[10px]`} {...props}>{children}</code>; } return <pre className={`${isIlluminateEnabled ? '!bg-gray-200/70 !text-gray-800' : '!bg-gray-600/70 !text-gray-100'} p-1.5 rounded my-1 text-[11px] overflow-x-auto`} {...props}><code>{children}</code></pre>; }, }} >{message.content}</ReactMarkdown>
+                                                <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]} className={proseClassChat}
+                                                components={{
+                                                    a: ({node, ...props}) => <a target="_blank" rel="noopener noreferrer" {...props} />,
+                                                    li: ({ node, children, ...props }) => {
+                                                        const isTaskListItem = typeof (node?.children?.[0] as any)?.checked === 'boolean';
+                                                        if (isTaskListItem) {
+                                                            const checked = (node!.children[0] as any).checked;
+                                                            const restOfChildren = React.Children.toArray(children).slice(1);
+                                                            return ( <li className="flex items-start mb-0 text-xs list-none -ml-3" {...props}> <span className="mr-1 mt-[1px] flex-shrink-0"> {checked ? <CheckSquare className="w-3 h-3 text-current" /> : <Square className="w-3 h-3 text-current opacity-60" />} </span> <div className="flex-grow">{restOfChildren}</div> </li> );
+                                                        }
+                                                        return <li className="mb-0" {...props}>{children}</li>;
+                                                    },
+                                                }}
+                                                >{message.content}</ReactMarkdown>
                                             ) : null}
 
                                             {!isPdfContextDisplayMsg && message.imageData && (
-                                                 <div className={`relative group mt-1.5 ${message.content ? 'border-t pt-1.5' : ''} ${isIlluminateEnabled ? 'border-gray-300/50' : 'border-gray-600/50'}`}>
+                                                 <div className={`relative group mt-1.5 ${message.content ? 'border-t pt-1.5' : ''} border-gray-300/50 dark:border-gray-600/50`}>
                                                      <img
                                                          src={`data:${message.imageData.type};base64,${message.imageData.base64}`}
                                                          alt={message.imageData.name || "Chat Image"}
@@ -912,7 +901,7 @@ const getProseClass = (msg: ChatMessage) => {
                                                       {showDownloadButton && (
                                                         <button
                                                             onClick={(e) => { e.stopPropagation(); handleDownloadImage(message.imageData!); }}
-                                                            className={`absolute top-1 right-1 p-1 rounded opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-200 ${downloadButtonClass}`}
+                                                            className={`absolute top-1 right-1 p-1 rounded bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-200`}
                                                             title="Download Image"
                                                         >
                                                             <Download className="w-3.5 h-3.5" />
@@ -920,9 +909,9 @@ const getProseClass = (msg: ChatMessage) => {
                                                       )}
                                                  </div>
                                             )}
-                                            {!isPdfContextDisplayMsg && message.timer && ( <div className="mt-1.5"><div className={`flex items-center space-x-2 rounded-md px-2 py-1 text-xs border ${isIlluminateEnabled ? 'bg-blue-50 border-blue-200 text-blue-800' : 'bg-gray-800/60 border-gray-600 text-blue-300'}`}><TimerIcon className="w-3.5 h-3.5"/> <Timer key={message.timer.id} initialDuration={message.timer.duration} onComplete={() => handleTimerComplete(message.timer.id)} compact={true} isIlluminateEnabled={isIlluminateEnabled}/></div></div> )}
-                                            {!isPdfContextDisplayMsg && message.isEditSuggestion && message.editAction && !isChatLoading && !message.error && ( <div className="mt-2 border-t pt-1.5 flex justify-end border-yellow-300/50 dark:border-yellow-700/50"> <button onClick={() => handleAcceptEdit(message)} className={`${buttonSecondaryClass} px-2.5 py-1 rounded-md text-xs flex items-center gap-1 hover:brightness-110 ${isIlluminateEnabled ? 'hover:bg-yellow-100' : 'hover:bg-yellow-700/50'} `} disabled={isChatLoading} > <Check className="w-3.5 h-3.5" /> Apply Update{message.editAction === 'propose_sequential_edits' && message.sequentialEdits && message.sequentialEdits.length > 1 ? ` (${message.sequentialEdits.length} steps)` : ''} </button> </div> )}
-                                            {!isPdfContextDisplayMsg && message.isUpdateConfirmation && message.canRevert && !message.error && ( <div className="mt-2 border-t pt-1.5 flex justify-end border-green-300/50 dark:border-green-700/50"> <button onClick={() => handleRevertEdit(message)} className={`${buttonSecondaryClass} px-2.5 py-1 rounded-md text-xs flex items-center gap-1 hover:brightness-110 ${isIlluminateEnabled ? 'hover:bg-gray-200' : 'hover:bg-gray-600'}`} disabled={isChatLoading} title="Revert this change" > <RefreshCcw className="w-3.5 h-3.5" /> Revert </button> </div> )}
+                                            {!isPdfContextDisplayMsg && message.timer && ( <div className="mt-1.5"><div className={`flex items-center space-x-2 rounded-md px-2 py-1 text-xs border bg-indigo-50 dark:bg-indigo-700/20 border-indigo-200 dark:border-indigo-600 text-indigo-800 dark:text-indigo-200`}><TimerIcon className="w-3.5 h-3.5"/> <Timer key={message.timer.id} initialDuration={message.timer.duration} onComplete={() => handleTimerComplete(message.timer.id)} compact={true} isIlluminateEnabled={isIlluminateEnabled}/></div></div> )}
+                                            {!isPdfContextDisplayMsg && message.isEditSuggestion && message.editAction && !isChatLoading && !message.error && ( <div className="mt-2 border-t pt-1.5 flex justify-end border-yellow-300/50 dark:border-yellow-700/50"> <button onClick={() => handleAcceptEdit(message)} className={`bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-2.5 py-1 rounded-md text-xs flex items-center gap-1 hover:brightness-110 hover:bg-yellow-100 dark:hover:bg-yellow-700/50`} disabled={isChatLoading} > <Check className="w-3.5 h-3.5" /> Apply Update{message.editAction === 'propose_sequential_edits' && message.sequentialEdits && message.sequentialEdits.length > 1 ? ` (${message.sequentialEdits.length} steps)` : ''} </button> </div> )}
+                                            {!isPdfContextDisplayMsg && message.isUpdateConfirmation && message.canRevert && !message.error && ( <div className="mt-2 border-t pt-1.5 flex justify-end border-green-300/50 dark:border-green-700/50"> <button onClick={() => handleRevertEdit(message)} className={`bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-2.5 py-1 rounded-md text-xs flex items-center gap-1 hover:brightness-110`} disabled={isChatLoading} title="Revert this change" > <RefreshCcw className="w-3.5 h-3.5" /> Revert </button> </div> )}
                                         </div>
                                     </div>
                                 );
@@ -931,51 +920,44 @@ const getProseClass = (msg: ChatMessage) => {
                         </div>
 
                         {suggestedPrompts.length > 0 && !isChatLoading && (
-                            <div className={`px-3 py-2 border-t ${isIlluminateEnabled ? 'border-gray-200' : 'border-gray-700'}`}>
-                                <p className={`text-xs font-medium w-full mb-2 ${isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}`}>Suggestions:</p>
+                            <div className={`px-3 py-2 border-t border-gray-200 dark:border-gray-700/50`}>
+                                <p className={`text-xs font-medium w-full mb-2 text-gray-600 dark:text-gray-400`}>Suggestions:</p>
                                 <div className="flex flex-wrap gap-2">
                                     {suggestedPrompts.map((prompt, idx) => (
-                                        <button key={idx} onClick={() => handleSuggestionClick(prompt)} className={`${suggestionButtonClass} text-xs px-2.5 py-1 rounded-md hover:shadow-sm transition-all duration-150 cursor-pointer`} title={prompt} > {prompt} </button>
+                                        <button key={idx} onClick={() => handleSuggestionClick(prompt)} className={`bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-xs px-2.5 py-1 rounded-md hover:shadow-sm transition-all duration-150 cursor-pointer border border-gray-200 dark:border-gray-600`} title={prompt} > {prompt} </button>
                                     ))}
                                 </div>
                             </div>
                         )}
 
-                        <div className={`p-2 border-t ${headerBg} shrink-0 sticky bottom-0`}>
-                             {userTier !== 'premium' && userTier !== 'loading' && ( <div className="pb-1 text-xs text-center"> <span className={isIlluminateEnabled ? 'text-gray-600' : 'text-gray-400'}> Messages this month: {isLoadingUsage ? '...' : chatCount} / {currentChatLimit === Infinity ? '∞' : currentChatLimit} </span> {isChatLimitReached && !isLoadingUsage && ( <span className="text-red-500 ml-1 font-medium">(Limit Reached)</span> )} {!isChatLimitReached && userTier === 'basic' && ( <Link to="/pricing" className={`ml-2 font-medium ${isIlluminateEnabled ? 'text-blue-600 hover:text-blue-700' : 'text-blue-400 hover:text-blue-300'} hover:underline`}> <Crown className="w-2.5 h-2.5 inline mr-0.5"/>Upgrade </Link> )} </div> )}
+                        <div className={`p-2 border-t border-gray-200 dark:border-gray-700/50 bg-gray-50 dark:bg-[#1A1D29]/90 shrink-0 sticky bottom-0`}>
+                             {userTier !== 'premium' && userTier !== 'loading' && ( <div className="pb-1 text-xs text-center"> <span className="text-gray-600 dark:text-gray-400"> Messages this month: {isLoadingUsage ? '...' : chatCount} / {currentChatLimit === Infinity ? '∞' : currentChatLimit} </span> {isChatLimitReached && !isLoadingUsage && ( <span className="text-red-500 ml-1 font-medium">(Limit Reached)</span> )} {!isChatLimitReached && userTier === 'basic' && ( <Link to="/pricing" className={`ml-2 font-medium text-indigo-500 dark:text-indigo-400 hover:underline`}> <Crown className="w-2.5 h-2.5 inline mr-0.5"/>Upgrade </Link> )} </div> )}
 
                              {pdfContextSegments.length > 0 && !isImageGenModeActive && (
-                                <div className="mb-1.5 px-1 max-h-24 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent">
+                                <div className="mb-1.5 px-1 max-h-24 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
                                     <div className="flex flex-col gap-1.5">
-                                        {pdfContextSegments.map(segment => {
-                                            const segmentBg = isIlluminateEnabled ? "bg-gray-200" : "bg-neutral-700";
-                                            const segmentTextColor = isIlluminateEnabled ? "text-neutral-800" : "text-neutral-100";
-                                            const segmentIconColor = isIlluminateEnabled ? "text-neutral-600" : "text-neutral-100";
-                                            const removeButtonHoverBg = isIlluminateEnabled ? "hover:bg-neutral-300" : "hover:bg-neutral-600";
-                                            const removeButtonIconColor = isIlluminateEnabled ? "text-neutral-500 hover:text-red-600" : "text-neutral-300 hover:text-red-400";
-
-                                            return (
-                                                <div key={segment.id} className={`flex items-center p-2 rounded-lg shadow-sm ${segmentBg}`}>
-                                                    <CornerDownRight className={`w-4 h-4 mr-2 shrink-0 ${segmentIconColor}`} />
-                                                    <span className={`flex-1 text-xs truncate ${segmentTextColor}`} title={segment.text}>
+                                        {pdfContextSegments.map(segment => (
+                                                <div key={segment.id} className={`flex items-center p-2 rounded-lg shadow-sm bg-gray-200 dark:bg-gray-700/60`}>
+                                                    <CornerDownRight className={`w-4 h-4 mr-2 shrink-0 text-gray-500 dark:text-gray-400`} />
+                                                    <span className={`flex-1 text-xs truncate text-gray-700 dark:text-gray-200`} title={segment.text}>
                                                         {segment.text}
                                                     </span>
                                                     <button
                                                         type="button"
                                                         onClick={() => removePdfContextSegment(segment.id)}
-                                                        className={`ml-2 p-1 rounded-full ${removeButtonHoverBg} ${removeButtonIconColor} transition-colors`}
+                                                        className={`ml-2 p-1 rounded-full hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors`}
                                                         title="Remove context segment"
                                                     >
                                                         <X className="w-3 h-3" />
                                                     </button>
                                                 </div>
-                                            );
-                                        })}
+                                            )
+                                        )}
                                     </div>
                                 </div>
                              )}
 
-                             {selectedFiles.length > 0 && !isImageGenModeActive && ( <div className="mb-1.5 flex flex-wrap gap-1.5 px-1"> {selectedFiles.map(file => ( <div key={file.name} className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${filePillBg} ${filePillText}`}> <span className="truncate max-w-[100px]">{file.name}</span> <span className="text-[10px] opacity-70">({formatBytes(file.size)})</span> <button type="button" onClick={() => handleRemoveFile(file.name)} className={`ml-0.5 p-0.5 rounded-full ${isIlluminateEnabled ? 'hover:bg-blue-200' : 'hover:bg-blue-700'} `} title="Remove"> <X className="w-2.5 h-2.5" /> </button> </div> ))} </div> )}
+                             {selectedFiles.length > 0 && !isImageGenModeActive && ( <div className="mb-1.5 flex flex-wrap gap-1.5 px-1"> {selectedFiles.map(file => ( <div key={file.name} className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border bg-indigo-100 dark:bg-indigo-700/30 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-600`}> <span className="truncate max-w-[100px]">{file.name}</span> <span className="text-[10px] opacity-70">({formatBytes(file.size)})</span> <button type="button" onClick={() => handleRemoveFile(file.name)} className={`ml-0.5 p-0.5 rounded-full hover:bg-indigo-200 dark:hover:bg-indigo-700/50 `} title="Remove"> <X className="w-2.5 h-2.5" /> </button> </div> ))} </div> )}
                              <form onSubmit={handleChatSubmit} className="flex gap-1.5 items-end">
                                  <textarea
                                      ref={textareaRef}
@@ -985,7 +967,7 @@ const getProseClass = (msg: ChatMessage) => {
                                      onKeyDown={handleKeyDown}
                                      onPaste={handlePaste}
                                      placeholder={isChatLimitReached ? "Monthly chat limit reached..." : isImageGenModeActive ? "Describe the image to generate..." : "Ask, or attach file..."}
-                                     className={`flex-1 ${inputBg} ${inputTextColor} ${placeholderColor} rounded-lg px-3 py-1.5 text-sm focus:ring-1 focus:outline-none resize-none overflow-y-auto max-h-[100px] leading-snug ${isChatLoading || isChatLimitReached || isLoadingUsage ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                     className={`flex-1 bg-gray-100 dark:bg-gray-700/80 border-gray-200 dark:border-gray-600/80 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-lg px-3 py-1.5 text-sm focus:ring-1 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 resize-none overflow-y-auto max-h-[100px] leading-snug ${isChatLoading || isChatLimitReached || isLoadingUsage ? 'opacity-60 cursor-not-allowed' : ''}`}
                                      disabled={isChatLoading || isChatLimitReached || isLoadingUsage}
                                      style={{ height: 'auto' }}
                                      aria-label="Chat input"
@@ -995,7 +977,7 @@ const getProseClass = (msg: ChatMessage) => {
                                      type="button"
                                      onClick={triggerFileSelect}
                                      disabled={isChatLoading || isLoadingUsage || isImageGenModeActive}
-                                     className={`${buttonSecondaryClass} p-2 rounded-full self-end mb-[1px] transition-all duration-150 ${isChatLoading || isLoadingUsage || isImageGenModeActive ? buttonDisabledClass : 'hover:scale-105 active:scale-100'}`}
+                                     className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 p-2 rounded-full self-end mb-[1px] transition-all duration-150 ${isChatLoading || isLoadingUsage || isImageGenModeActive ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105 active:scale-100'}`}
                                      title={isImageGenModeActive ? "Image Generation mode active (no attachments)" : "Attach Files (Image/PDF)"}
                                  >
                                      <Paperclip className="w-4 h-4" />
@@ -1004,7 +986,7 @@ const getProseClass = (msg: ChatMessage) => {
                                      type="button"
                                      onClick={handleToggleImageGenMode}
                                      disabled={isChatLoading || isLoadingUsage || isChatLimitReached}
-                                     className={`${imageGenButtonClass} p-2 rounded-full self-end mb-[1px] transition-all duration-150 ${isChatLoading || isLoadingUsage || isChatLimitReached ? buttonDisabledClass : 'hover:scale-105 active:scale-100'} ${isImageGenModeActive ? 'ring-2 ring-purple-400 dark:ring-purple-500 ring-offset-1 dark:ring-offset-black' : ''}`}
+                                     className={`p-2 rounded-full self-end mb-[1px] transition-all duration-150 ${isChatLoading || isLoadingUsage || isChatLimitReached ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105 active:scale-100'} ${isImageGenModeActive ? 'bg-purple-100 dark:bg-purple-700/30 text-purple-600 dark:text-purple-300 ring-2 ring-purple-400 dark:ring-purple-500 ring-offset-1 dark:ring-offset-gray-900' : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400'}`}
                                      title={isImageGenModeActive ? "Switch to Text/File Mode" : "Switch to Image Generation Mode"}
                                  >
                                      <ImageIcon className="w-4 h-4" />
@@ -1019,9 +1001,9 @@ const getProseClass = (msg: ChatMessage) => {
                                          (!chatMessage.trim() && isImageGenModeActive) ||
                                          (isImageGenModeActive && (selectedFiles.length > 0 || pdfContextSegments.length > 0))
                                      }
-                                     className={`${buttonPrimaryClass} p-2 rounded-full self-end mb-[1px] transition-all duration-150 ${
+                                     className={`bg-indigo-500 hover:bg-indigo-600 text-white p-2 rounded-full self-end mb-[1px] transition-all duration-150 ${
                                          (isChatLoading || isLoadingUsage || isChatLimitReached || (!chatMessage.trim() && selectedFiles.length === 0 && !isImageGenModeActive && pdfContextSegments.length === 0) || (!chatMessage.trim() && isImageGenModeActive) || (isImageGenModeActive && (selectedFiles.length > 0 || pdfContextSegments.length > 0)))
-                                             ? buttonDisabledClass
+                                             ? 'opacity-50 cursor-not-allowed'
                                              : 'hover:scale-105 active:scale-100'
                                      }`}
                                      title="Send message"
@@ -1034,7 +1016,7 @@ const getProseClass = (msg: ChatMessage) => {
                 )}
             </div>
         );
-    }
-);
+};
 
+export const NoteChat = forwardRef(NoteChatComponent);
 NoteChat.displayName = 'NoteChat';

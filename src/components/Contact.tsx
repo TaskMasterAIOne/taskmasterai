@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { useAuth } from '../contexts/AuthContext'; // Adjust path if needed
-import { Loader2, CheckCircle, ArrowRight, ArrowLeft } from 'lucide-react';
+import { useAuth as useGlobalAuth } from '../contexts/AuthContext'; // Adjusted to useGlobalAuth
+import { Loader2, CheckCircle, ArrowRight, ArrowLeft, AlertCircle } from 'lucide-react'; // Added AlertCircle
 import { subscribeToAuthState } from '../lib/pricing-firebase'; // Adjust path if needed
 import { Logo } from './Logo'; // Adjust path if needed
 import { saveContactMessage } from '../lib/contact-firebase'; // Adjust path if needed
-import { motion, AnimatePresence } from 'framer-motion'; // Import motion and AnimatePresence
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface FormData {
   step: number;
@@ -12,14 +12,13 @@ interface FormData {
   email: string;
   inquiryType: string;
   subscriptionPlan: string;
-  planQuestion: string; // Keeping original fields
+  planQuestion: string;
   cancellationIssue: string;
   billingIssue: string;
   planChange: string;
   message: string;
 }
 
-// --- Initial Form State (Matches original structure) ---
 const initialFormData: FormData = {
   step: 1,
   name: '',
@@ -33,43 +32,88 @@ const initialFormData: FormData = {
   message: ''
 };
 
+// Copied from Pricing.tsx for the background effect
+const AnimatedBackground = () => {
+  return (
+    <>
+      <style>{`
+        @keyframes subtleFloat1 {
+          0% { transform: translate(0px, 0px) rotate(0deg); opacity: 0.05; }
+          25% { transform: translate(30px, -40px) rotate(10deg); opacity: 0.07; }
+          50% { transform: translate(-20px, 30px) rotate(-8deg); opacity: 0.04; }
+          75% { transform: translate(40px, 20px) rotate(5deg); opacity: 0.08; }
+          100% { transform: translate(0px, 0px) rotate(0deg); opacity: 0.05; }
+        }
+        @keyframes subtleFloat2 {
+          0% { transform: translate(0px, 0px) rotate(0deg); opacity: 0.06; }
+          25% { transform: translate(-35px, 25px) rotate(-12deg); opacity: 0.08; }
+          50% { transform: translate(25px, -35px) rotate(10deg); opacity: 0.05; }
+          75% { transform: translate(-15px, 40px) rotate(15deg); opacity: 0.07; }
+          100% { transform: translate(0px, 0px) rotate(0deg); opacity: 0.06; }
+        }
+         @keyframes subtleFloat3 {
+          0% { transform: translate(0px, 0px) rotate(0deg); opacity: 0.04; }
+          25% { transform: translate(25px, 35px) rotate(8deg); opacity: 0.06; }
+          50% { transform: translate(-30px, -25px) rotate(-12deg); opacity: 0.03; }
+          75% { transform: translate(20px, -30px) rotate(18deg); opacity: 0.07; }
+          100% { transform: translate(0px, 0px) rotate(0deg); opacity: 0.04; }
+        }
+      `}</style>
+      <div
+        className="fixed -z-10 top-[-25vh] left-[-25vw] w-[100vw] h-[100vh] bg-purple-600 rounded-full"
+        style={{ filter: 'blur(180px)', animation: 'subtleFloat1 35s infinite ease-in-out' }}
+      />
+      <div
+        className="fixed -z-10 top-[20vh] right-[-30vw] w-[90vw] h-[90vh] bg-indigo-500 rounded-full"
+        style={{ filter: 'blur(150px)', animation: 'subtleFloat2 45s infinite ease-in-out 5s' }}
+      />
+      <div
+        className="fixed -z-10 bottom-[-20vh] left-[10vw] w-[80vw] h-[80vh] bg-pink-400 rounded-full"
+        style={{ filter: 'blur(130px)', animation: 'subtleFloat3 40s infinite ease-in-out 10s' }}
+      />
+    </>
+  );
+};
+
 function Contact() {
-  const { loading } = useAuth(); // Use 'loading' from original context
-  const [user, setUser] = useState<any>(null);
-  const [isOpen, setIsOpen] = useState(false); // Keep original nav toggle state
+  const { user: authUser, loading: authLoading } = useGlobalAuth(); // Use authUser from global context for nav
+  const [localUser, setLocalUser] = useState<any>(null); // For form pre-fill and submission ID
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null); // Add error state
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const toggleMenu = () => setIsOpen(!isOpen); // Keep original nav toggle function
 
   useEffect(() => {
     const unsubscribe = subscribeToAuthState((firebaseUser) => {
-      setUser(firebaseUser);
-      // Pre-fill email/name logic from refined version
-      if (firebaseUser && !formData.email) {
-          setFormData(prev => ({ ...prev, email: firebaseUser.email || '' }));
+      setLocalUser(firebaseUser);
+      if (firebaseUser) {
+        if (!formData.email) {
+            setFormData(prev => ({ ...prev, email: firebaseUser.email || '' }));
+        }
+        if (!formData.name && firebaseUser.displayName) {
+            setFormData(prev => ({ ...prev, name: firebaseUser.displayName || '' }));
+        }
       }
-       if (firebaseUser && !formData.name && firebaseUser.displayName) {
-          setFormData(prev => ({ ...prev, name: firebaseUser.displayName }));
-       }
     });
     return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Keep dependency array minimal
+  }, []); // formData dependency removed to avoid re-triggering prefill unnecessarily
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormData(prev => ({
       ...prev,
       [e.target.id]: e.target.value
     }));
-    if (submitError) setSubmitError(null); // Clear error on change
+    if (submitError) setSubmitError(null);
   };
 
-  // nextStep/prevStep logic kept from refined version
   const nextStep = () => {
-    if (!formData.name || !formData.email || !formData.inquiryType) return; // Simple validation
+    if (!formData.name || !formData.email || !formData.inquiryType) {
+        setSubmitError("Please fill in all required fields: Name, Email, and Inquiry Type.");
+        return;
+    }
+    setSubmitError(null);
     setFormData(prev => ({ ...prev, step: prev.step + 1 }));
   };
 
@@ -77,32 +121,27 @@ function Contact() {
     setFormData(prev => ({ ...prev, step: prev.step - 1 }));
   };
 
-  // handleSubmit logic kept from refined version
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-     // Basic validation for step 2 message field
     if (formData.step === 2 && !formData.message && formData.inquiryType !== 'subscription') {
         setSubmitError("Please provide details in the message field.");
         return;
     }
-     // Example: More specific validation for subscription step if needed
      if (formData.step === 2 && formData.inquiryType === 'subscription' && !formData.subscriptionPlan) {
         setSubmitError("Please select your subscription plan for subscription inquiries.");
         return;
      }
-
+    setSubmitError(null);
     setIsSubmitting(true);
     setIsSuccess(false);
-    setSubmitError(null);
 
     try {
       await saveContactMessage({
         ...formData,
-        userId: user?.uid || null,
-        timestamp: new Date() // Keep timestamp
+        userId: localUser?.uid || null,
+        timestamp: new Date()
       });
       setIsSuccess(true);
-      // Don't reset form data here, let the success message button do it
     } catch (error) {
       console.error('Error submitting form:', error);
       setSubmitError('Failed to send message. Please try again later.');
@@ -111,81 +150,74 @@ function Contact() {
     }
   };
 
-  // resetForm logic kept from refined version
   const resetForm = () => {
     setIsSuccess(false);
     setFormData(initialFormData);
-    // Re-populate email/name if user is logged in
-    if (user) {
+    if (localUser) {
         setFormData(prev => ({
             ...prev,
-            email: user.email || '',
-            name: user.displayName || ''
+            email: localUser.email || '',
+            name: localUser.displayName || ''
         }));
     }
   };
 
-  // --- Framer Motion Variants (Same as refined version, matches Pricing's style) ---
-  const headerVariants = {
-    hidden: { opacity: 0, y: -50 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: 'easeOut' } }
+  // --- Framer Motion Variants ---
+  const headerMotionVariants = { // Matched with Pricing.tsx
+    hidden: { opacity: 0, y: -30 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } }
   };
 
-  // Adjusted delay to match original Pricing page feel if needed
-  const mainContentVariants = {
+  const mainContentVariants = { // Kept from original contact, slightly adjusted
     hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.6, delay: 0.1, ease: 'easeOut' } } // Slightly faster delay
+    visible: { opacity: 1, y: 0, transition: { duration: 0.5, delay: 0.2, ease: 'easeOut' } }
   };
 
-  // Using similar success animation
   const successVariants = {
     hidden: { opacity: 0, scale: 0.8 },
     visible: { opacity: 1, scale: 1, transition: { duration: 0.4, ease: 'backOut' } },
     exit: { opacity: 0, scale: 0.8, transition: { duration: 0.2, ease: 'easeIn' } }
   };
 
-  // Simple scale effect for buttons like OLD pricing
-  const buttonVariants = {
-    hover: { scale: 1.05 },
-    tap: { scale: 0.95 }
-  };
-
-  // Step transition variants
-   const stepVariants = {
-     hidden: (direction: number) => ({ opacity: 0, x: direction > 0 ? 50 : -50 }),
+  const stepVariants = {
+     hidden: (direction: number) => ({ opacity: 0, x: direction > 0 ? 30 : -30 }), // Slightly reduced x
      visible: { opacity: 1, x: 0, transition: { duration: 0.3, ease: 'easeInOut' } },
-     exit: (direction: number) => ({ opacity: 0, x: direction < 0 ? 50 : -50, transition: { duration: 0.3, ease: 'easeInOut' } })
+     exit: (direction: number) => ({ opacity: 0, x: direction < 0 ? 30 : -30, transition: { duration: 0.3, ease: 'easeInOut' } })
    };
 
-  // --- Revert to ORIGINAL styles ---
-  const inputBaseClasses = "w-full bg-gray-900 border border-gray-700 rounded-full px-6 py-3 text-white focus:outline-none focus:border-indigo-500 transition-colors"; // Original
-  const textareaClasses = "w-full bg-gray-900 border border-gray-700 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-indigo-500 transition-colors"; // Original
-  const selectClasses = inputBaseClasses; // Original used same style
+  // --- Input Styles (Inspired by Pricing.tsx aesthetic) ---
+  const inputBaseClasses = "w-full bg-[#1F2328] border border-gray-700 rounded-lg px-4 py-3 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors";
+  const textareaClasses = "w-full bg-[#1F2328] border border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"; // rounded-xl
+  const selectClasses = inputBaseClasses;
+  const labelClasses = "block text-sm font-medium text-gray-300 mb-1.5";
 
-  // --- Render Form Steps (Using original structure/fields/styles) ---
+  // Button Styles (Inspired by Pricing.tsx)
+  const buttonBaseStyle = "px-6 py-3 rounded-full font-semibold text-sm transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#16181D]"; // Adjusted from Pricing for slightly larger buttons
+  const primaryButtonStyle = `${buttonBaseStyle} bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-[0_0_15px_2px_rgba(99,102,241,0.6)] focus:ring-indigo-500`;
+  const secondaryButtonStyle = `${buttonBaseStyle} bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white focus:ring-gray-500`;
+
+
   const renderStep1 = () => (
      <motion.div
        key="step1"
-       custom={1} // Direction for animation
+       custom={1}
        variants={stepVariants}
        initial="hidden"
        animate="visible"
        exit="exit"
      >
-      {/* Original structure and classes */}
-      <div className="space-y-6">
+      <div className="space-y-5"> {/* Slightly increased spacing */}
           <div>
-            <label htmlFor="name" className="block text-sm text-gray-300 mb-2">Name <span className="text-red-500">*</span></label>
+            <label htmlFor="name" className={labelClasses}>Name <span className="text-red-500">*</span></label>
             <input type="text" id="name" value={formData.name} onChange={handleChange} className={inputBaseClasses} placeholder="Your Name" required disabled={isSubmitting}/>
           </div>
           <div>
-            <label htmlFor="email" className="block text-sm text-gray-300 mb-2">Email <span className="text-red-500">*</span></label>
+            <label htmlFor="email" className={labelClasses}>Email <span className="text-red-500">*</span></label>
             <input type="email" id="email" value={formData.email} onChange={handleChange} className={inputBaseClasses} placeholder="Your Email" required disabled={isSubmitting}/>
           </div>
           <div>
-            <label htmlFor="inquiryType" className="block text-sm text-gray-300 mb-2">Inquiry Type <span className="text-red-500">*</span></label>
+            <label htmlFor="inquiryType" className={labelClasses}>Inquiry Type <span className="text-red-500">*</span></label>
             <select id="inquiryType" value={formData.inquiryType} onChange={handleChange} className={selectClasses} required disabled={isSubmitting}>
-              {/* Original options */}
               <option value="" disabled>Select Inquiry Type</option>
               <option value="general">General Inquiry</option>
               <option value="subscription">Subscription/Payment Help</option>
@@ -201,33 +233,31 @@ function Contact() {
   const renderStep2 = () => (
      <motion.div
        key="step2"
-       custom={1} // Direction for animation
+       custom={1}
        variants={stepVariants}
        initial="hidden"
        animate="visible"
        exit="exit"
      >
-       {/* Original structure and classes */}
-       <div className="space-y-6">
+       <div className="space-y-5"> {/* Slightly increased spacing */}
           {formData.inquiryType === 'subscription' && (
             <>
               <div>
-                <label htmlFor="subscriptionPlan" className="block text-sm text-gray-300 mb-2">Subscription Plan <span className="text-red-500">*</span></label>
+                <label htmlFor="subscriptionPlan" className={labelClasses}>Subscription Plan <span className="text-red-500">*</span></label>
                 <select id="subscriptionPlan" value={formData.subscriptionPlan} onChange={handleChange} className={selectClasses} required={formData.inquiryType === 'subscription'} disabled={isSubmitting}>
                   <option value="">Select Your Plan</option>
                   <option value="pro">Pro Plan</option>
                   <option value="premium">Premium Plan</option>
-                  <option value="not-subscribed">Not Currently Subscribed</option> {/* Added this option based on refinement */}
+                  <option value="not-subscribed">Not Currently Subscribed</option>
                   <option value="not-sure">Not Sure</option>
                 </select>
               </div>
-               {/* Reverted back to individual optional fields as per original UI */}
                <div>
-                 <label htmlFor="planQuestion" className="block text-sm text-gray-300 mb-2">Question about plan? (Optional)</label>
+                 <label htmlFor="planQuestion" className={labelClasses}>Question about plan? (Optional)</label>
                  <textarea id="planQuestion" value={formData.planQuestion} onChange={handleChange} className={textareaClasses} rows={3} disabled={isSubmitting}/>
                </div>
                <div>
-                 <label htmlFor="cancellationIssue" className="block text-sm text-gray-300 mb-2">Cancellation Issue? (Optional)</label>
+                 <label htmlFor="cancellationIssue" className={labelClasses}>Cancellation Issue? (Optional)</label>
                  <select id="cancellationIssue" value={formData.cancellationIssue} onChange={handleChange} className={selectClasses} disabled={isSubmitting}>
                    <option value="">Select Issue (if applicable)</option>
                    <option value="find-cancel">Unable to find the cancel option</option>
@@ -236,7 +266,7 @@ function Contact() {
                  </select>
                </div>
                <div>
-                 <label htmlFor="billingIssue" className="block text-sm text-gray-300 mb-2">Billing/Payment Issue? (Optional)</label>
+                 <label htmlFor="billingIssue" className={labelClasses}>Billing/Payment Issue? (Optional)</label>
                  <select id="billingIssue" value={formData.billingIssue} onChange={handleChange} className={selectClasses} disabled={isSubmitting}>
                    <option value="">Select Billing Issue (if applicable)</option>
                    <option value="failed-payment">Failed Payments</option>
@@ -246,7 +276,7 @@ function Contact() {
                  </select>
                </div>
                <div>
-                 <label htmlFor="planChange" className="block text-sm text-gray-300 mb-2">Plan Change Request? (Optional)</label>
+                 <label htmlFor="planChange" className={labelClasses}>Plan Change Request? (Optional)</label>
                  <select id="planChange" value={formData.planChange} onChange={handleChange} className={selectClasses} disabled={isSubmitting}>
                    <option value="">Select Plan Change (if applicable)</option>
                    <option value="upgrade-premium">Upgrade from Pro to Premium</option>
@@ -257,202 +287,140 @@ function Contact() {
                </div>
             </>
           )}
-
-          {/* Original Message Field */}
           <div>
-            <label htmlFor="message" className="block text-sm text-gray-300 mb-2">
+            <label htmlFor="message" className={labelClasses}>
                 {formData.inquiryType === 'subscription' ? 'Additional Details' : 'Your Message'} <span className="text-red-500">*</span>
             </label>
-            <textarea id="message" value={formData.message} onChange={handleChange} className={textareaClasses} rows={6} placeholder="Please provide any additional details..." required disabled={isSubmitting}/>
+            <textarea id="message" value={formData.message} onChange={handleChange} className={textareaClasses} rows={5} placeholder="Please provide any additional details..." required disabled={isSubmitting}/>
           </div>
        </div>
      </motion.div>
   );
 
+  if (authLoading) { // Optional: Add a full page loader if global auth is loading
+    return <div className="min-h-screen bg-[#0C0E1A] flex items-center justify-center"><Loader2 className="w-12 h-12 text-indigo-500 animate-spin" /></div>;
+  }
 
-
-  // --- Main Component Return ---
   return (
-    // Base structure and classes from ORIGINAL code
-    <div className="flex flex-col min-h-screen bg-gray-900 font-poppins">
-      {/* --- START: NAV (Animated like Pricing, Original Structure) --- */}
-      <motion.header
-        className="fixed w-full bg-gray-900/80 backdrop-blur-lg border-b border-gray-800 z-50"
-        variants={headerVariants} // Use the shared variants
-        initial="hidden"
-        animate="visible"
-      >
-        {/* Original Nav Structure */}
-        <div className="container mx-auto px-4 py-4">
+    <div className="flex flex-col min-h-screen bg-[#0C0E1A] text-gray-200 font-poppins selection:bg-purple-600 selection:text-white relative overflow-hidden">
+      <AnimatedBackground />
+      {/* --- NAV (Copied from Pricing.tsx) --- */}
+<motion.header className="w-full py-5 sm:py-6 bg-transparent z-10" variants={headerMotionVariants} initial="hidden" animate="visible">
+        <div className="container mx-auto px-5 sm:px-6">
           <nav className="flex items-center justify-between">
-            <a href="/">
-              <Logo />
-            </a>
-            {/* Hamburger Menu Button */}
-            <button className="md:hidden text-gray-300 hover:text-indigo-400 focus:outline-none" onClick={toggleMenu} aria-label="Toggle menu">
-              <svg className="w-6 h-6" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
-                {isOpen ? <path d="M6 18L18 6M6 6l12 12" /> : <path d="M4 6h16M4 12h16M4 18h16" />}
-              </svg>
-            </button>
-            {/* Desktop Navigation (Original structure) */}
-            <div className="hidden md:flex items-center space-x-8">
-              <a href="/#features" className="text-gray-300 hover:text-indigo-400 transition-colors">Features</a>
-              <a href="/pricing" className="text-gray-300 hover:text-indigo-400 transition-colors">Pricing</a>
-              <a href="/contact" className="text-gray-300 hover:text-indigo-400 transition-colors">Contact</a>
-              {/* Use motion.a for hover/tap effect, original classes */}
-              <motion.a
-                href={user ? "/dashboard" : "/signup"}
-                className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-full transition-all transform" // Removed hover:scale-105, handled by motion
-                variants={buttonVariants} whileHover="hover" whileTap="tap"
-              >
-                {user ? "Dashboard" : "Get Started Today"}
-              </motion.a>
+            <a href="/" aria-label="TaskMaster AI Home"><Logo /></a>
+            <div className="flex items-center">
+              <a href={authUser ? "/dashboard" : "/signup"} className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full text-sm font-semibold transition-colors duration-200 shadow-md hover:shadow-[0_0_15px_2px_rgba(99,102,241,0.5)]">
+                {authUser ? "Dashboard" : "Start today - It's Free"}
+              </a>
             </div>
-            {/* Mobile Navigation (Original structure, animated container) */}
-             {/* Using AnimatePresence for smoother toggle */}
-             <AnimatePresence>
-                 {isOpen && (
-                   <motion.div
-                     initial={{ opacity: 0, y: -10 }} // Simple fade/slide down
-                     animate={{ opacity: 1, y: 0 }}
-                     exit={{ opacity: 0, y: -10 }}
-                     transition={{ duration: 0.2 }}
-                     // Original classes for positioning and style
-                     className={`absolute top-full left-0 right-0 bg-gray-900/95 border-b border-gray-800 md:hidden`}
-                   >
-                     <div className="container mx-auto px-4 py-4 flex flex-col space-y-4">
-                       <a href="/#features" className="text-gray-300 hover:text-indigo-400 transition-colors" onClick={toggleMenu}>Features</a>
-                       <a href="/pricing" className="text-gray-300 hover:text-indigo-400 transition-colors" onClick={toggleMenu}>Pricing</a>
-                       <a href="/contact" className="font-semibold text-indigo-400" onClick={toggleMenu}>Contact</a>
-                       <a href={user ? "/dashboard" : "/signup"} className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-full text-center transition-all transform hover:scale-105" onClick={toggleMenu}>
-                         {user ? "Dashboard" : "Get Started Today"}
-                       </a>
-                     </div>
-                   </motion.div>
-                 )}
-             </AnimatePresence>
           </nav>
         </div>
       </motion.header>
       {/* --- END: NAV --- */}
 
-      {/* --- START: Main Content (Animated like Pricing, Original Structure) --- */}
-      {/* Added motion.main wrapper */}
+      {/* --- Main Content --- */}
       <motion.main
-        className="flex-grow container mx-auto px-4 pt-28 pb-12" // Original classes
-        variants={mainContentVariants} // Use shared variants
+        className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 w-full max-w-screen-2xl z-10"
+        variants={mainContentVariants}
         initial="hidden"
         animate="visible"
       >
-        <div className="max-w-3xl mx-auto"> {/* Original max-width */}
-          {/* Original Heading */}
-          <div className="text-center mb-12">
-            <h1 className="text-4xl font-bold text-indigo-400 mb-2">Contact Us</h1>
-            <p className="text-gray-300">We're here to help with any questions or concerns.</p>
+        <div className="max-w-2xl mx-auto"> {/* Adjusted max-width for form content */}
+          <div className="text-center mb-12 sm:mb-16">
+            <h1 className="text-3xl sm:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-400 to-pink-400 mb-3">
+              Contact Us
+            </h1>
+            <p className="text-base text-gray-400 max-w-xl mx-auto">
+              We're here to help with any questions or concerns.
+            </p>
           </div>
 
-          {/* --- Form/Success Container --- */}
-          {/* Using AnimatePresence for the switch between form and success */}
           <AnimatePresence mode="wait">
             {isSuccess ? (
-              // --- Success Message (Animated, Original Styling) ---
               <motion.div
                 key="success"
-                variants={successVariants} // Use success animation
+                variants={successVariants}
                 initial="hidden"
                 animate="visible"
                 exit="exit"
-                className="bg-gray-800 rounded-2xl p-8 text-center" // Original container style
+                className="bg-[#16181D]/80 backdrop-blur-sm rounded-2xl p-6 sm:p-8 text-center border border-gray-700/50"
               >
-                <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-                <h2 className="text-2xl font-semibold text-white mb-2">Message Sent Successfully!</h2>
-                <p className="text-gray-300 mb-6">We'll get back to you as soon as possible.</p>
-                {/* Button styled like original form buttons */}
-                <motion.button
+                <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-5" />
+                <h2 className="text-2xl font-semibold text-gray-100 mb-2">Message Sent Successfully!</h2>
+                <p className="text-gray-400 mb-6">We'll get back to you as soon as possible.</p>
+                <button
                   onClick={resetForm}
-                  className="px-6 py-3 bg-indigo-500 text-white rounded-full hover:bg-indigo-600 transition-colors" // Original button style
-                  variants={buttonVariants} whileHover="hover" whileTap="tap"
+                  className={primaryButtonStyle} // Use new primary button style
                 >
                   Send Another Message
-                </motion.button>
+                </button>
               </motion.div>
             ) : (
-              // --- Form (Original structure, animated steps) ---
               <motion.form
                 key="form"
                 onSubmit={handleSubmit}
-                className="bg-gray-800 rounded-2xl p-8" // Original container style
+                className="bg-[#16181D]/80 backdrop-blur-sm rounded-2xl p-6 sm:p-8 border border-gray-700/50" // Styled like Pricing cards
                 initial={{ opacity: 1 }}
-                exit={{ opacity: 0 }} // Fade out form on success
+                exit={{ opacity: 0 }}
               >
-                 {/* Use AnimatePresence for step transitions */}
                  <AnimatePresence mode="wait" custom={formData.step === 1 ? 1 : -1}>
                     {formData.step === 1 ? renderStep1() : renderStep2()}
                  </AnimatePresence>
 
-
-                 {/* Submission Error Display (kept from refined, styled subtly) */}
                  {submitError && (
                    <motion.div
-                     initial={{ opacity: 0, height: 0 }}
-                     animate={{ opacity: 1, height: 'auto' }}
-                     className="mt-4 text-center text-sm text-red-400"
+                     initial={{ opacity: 0, y: 10 }}
+                     animate={{ opacity: 1, y: 0 }}
+                     exit={{ opacity: 0, y: 10 }}
+                     className="mt-6 p-3 bg-red-900/50 backdrop-blur-sm border border-red-500/30 rounded-lg text-red-300 text-sm flex items-center justify-center gap-2.5" // Styled like Pricing error
                    >
-                     {submitError}
+                     <AlertCircle className="w-5 h-5 shrink-0 text-red-400" />
+                     <span>{submitError}</span>
                    </motion.div>
                  )}
 
-
-                {/* --- Navigation Buttons (Original structure/styles, motion effects) --- */}
-                <div className="flex justify-between mt-8">
-                  {/* Previous Button - Conditionally rendered */}
-                   <div className="w-1/3"> {/* Add placeholder div to maintain spacing */}
+                <div className="flex justify-between items-center mt-8">
+                   <div className="w-1/3">
                       {formData.step > 1 && (
-                        <motion.button
+                        <button
                           type="button"
                           onClick={prevStep}
-                          // Original classes + flex for icon
-                          className="flex items-center px-6 py-3 text-gray-300 hover:text-white transition-colors disabled:opacity-50 rounded-full" // Rounded added
+                          className={`${secondaryButtonStyle} flex items-center justify-center`} // Use new secondary button style
                           disabled={isSubmitting}
-                          variants={buttonVariants} whileHover="hover" whileTap="tap"
                         >
-                          <ArrowLeft className="w-5 h-5 mr-2" /> {/* Original icon placement */}
+                          <ArrowLeft className="w-4 h-4 mr-2" />
                           Previous
-                        </motion.button>
+                        </button>
                       )}
                    </div>
 
-                  {/* Next / Submit Button */}
-                   <div className="w-1/3 flex justify-end"> {/* Use flex-end for right alignment */}
+                   <div className="w-1/3 flex justify-end">
                      {formData.step === 1 ? (
-                       <motion.button
+                       <button
                          type="button"
                          onClick={nextStep}
-                         // Original classes + flex for icon
-                         className="flex items-center px-6 py-3 bg-indigo-500 text-white rounded-full hover:bg-indigo-600 transition-colors disabled:opacity-50"
-                         disabled={!formData.name || !formData.email || !formData.inquiryType || isSubmitting}
-                         variants={buttonVariants} whileHover="hover" whileTap="tap"
+                         className={`${primaryButtonStyle} flex items-center justify-center`} // Use new primary button style
+                         disabled={isSubmitting} // Validation handled in nextStep
                        >
                          Next
-                         <ArrowRight className="w-5 h-5 ml-2" /> {/* Original icon placement */}
-                       </motion.button>
+                         <ArrowRight className="w-4 h-4 ml-2" />
+                       </button>
                      ) : (
-                       <motion.button
+                       <button
                          type="submit"
-                         // Original classes + flex for icon
-                         className="flex items-center justify-center px-6 py-3 bg-indigo-500 text-white rounded-full hover:bg-indigo-600 transition-colors disabled:opacity-50 min-w-[160px]" // min-width to prevent jump
+                         className={`${primaryButtonStyle} flex items-center justify-center min-w-[170px]`} // min-width to prevent jump
                          disabled={isSubmitting || (formData.step === 2 && !formData.message && formData.inquiryType !== 'subscription') || (formData.step === 2 && formData.inquiryType === 'subscription' && !formData.subscriptionPlan)}
-                         variants={buttonVariants} whileHover="hover" whileTap="tap"
                        >
                          {isSubmitting ? (
                            <>
-                             <Loader2 className="w-5 h-5 mr-2 animate-spin" /> {/* Original icon placement */}
+                             <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                              Sending...
                            </>
                          ) : (
                            'Send Message'
                          )}
-                       </motion.button>
+                       </button>
                      )}
                    </div>
                 </div>
@@ -461,28 +429,22 @@ function Contact() {
           </AnimatePresence>
         </div>
       </motion.main>
-      {/* --- END: Main Content --- */}
 
-
-      {/* --- START: FOOTER (Original Structure/Style) --- */}
-      <footer className="bg-gray-900 border-t border-gray-800 mt-auto"> {/* Added mt-auto */}
-        <div className="container mx-auto px-4 py-6">
-          {/* Original flex layout */}
-          <div className="flex flex-col md:flex-row items-center justify-between">
-            {/* Original links structure */}
+      {/* --- FOOTER (Copied from Pricing.tsx) --- */}
+      <footer className="bg-transparent  z-10 mt-auto">
+        <div className="container mx-auto px-5 sm:px-6 py-10">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-5">
             <div className="flex items-center space-x-4">
-              <a href="/privacy-policy" className="text-sm text-gray-400 hover:text-indigo-400">Privacy Policy</a>
-              <span className="text-gray-600">|</span>
-              <a href="/terms" className="text-sm text-gray-400 hover:text-indigo-400">Terms & Conditions</a>
+              <a href="/privacy-policy" className="text-sm text-gray-500 hover:text-indigo-400 transition-colors">Privacy Policy</a>
+              <span className="text-gray-700 hidden sm:inline">|</span>
+              <a href="/terms" className="text-sm text-gray-500 hover:text-indigo-400 transition-colors">Terms & Conditions</a>
             </div>
-            {/* Original copyright text */}
-            <p className="text-sm text-gray-400 mt-4 md:mt-0">
-              © {new Date().getFullYear()} TaskMaster AI. All rights reserved. {/* Dynamic Year */}
+            <p className="text-sm text-gray-500 text-center md:text-right">
+              © {new Date().getFullYear()} TaskMaster AI. All rights reserved.
             </p>
           </div>
         </div>
       </footer>
-      {/* --- END: FOOTER --- */}
     </div>
   );
 }

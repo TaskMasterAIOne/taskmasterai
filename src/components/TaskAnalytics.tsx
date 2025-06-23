@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useRef } from "react"
 import {
   Lightbulb,
@@ -13,39 +14,28 @@ import {
   ThumbsDown,
   Bookmark,
   Trash,
+  Loader2,
 } from "lucide-react"
 
-// AI helpers
-import { geminiEndpoint, streamResponse, extractCandidateText } from "../lib/ai-helpers"
-
-// Firebase dashboard module (for default Gemini key)
+import { geminiEndpoint, streamResponse, extractCandidateText } from "../lib/ai-helpers" 
 import { geminiApiKey as defaultGeminiApiKey } from "../lib/dashboard-firebase"
-
-// AI-actions for creating new items in Firestore
 import {
   createUserTask,
   createUserGoal,
-  createUserPlan,
-  createUserProject,
 } from "../lib/ai-actions-firebase"
-
-// Firestore functions for saving accepted insights
 import { db } from "../lib/firebase"
 import { collection, addDoc, getDoc, serverTimestamp, doc } from "firebase/firestore"
-
-// Firebase Auth imports
 import { auth } from "../lib/firebase"
 import { type User, onAuthStateChanged } from "firebase/auth"
 
 interface TaskAnalyticsProps {
   tasks: Array<{ id: string; data: any }>
   goals: Array<{ id: string; data: any }>
-  projects: Array<{ id: string; data: any }>
-  plans: Array<{ id: string; data: any }>
-  isIlluminateEnabled: boolean
   geminiApiKey?: string
   onAcceptInsight?: (insightId: string, action: string) => void
-  onUpdateData?: (collectionName: string, itemId: string, updates: any) => void
+  onUpdateData?: (collectionName: 'tasks' | 'goals', itemId: string, updates: any) => void
+  userContext?: UserContext | null;
+  triggerAnalysisSignal: number; 
 }
 
 interface Insight {
@@ -53,13 +43,8 @@ interface Insight {
   text: string
   type: "priority" | "deadline" | "suggestion" | "achievement"
   relatedItemId?: string
-  relatedItemType?: string
+  relatedItemType?: 'tasks' | 'goals'
   action?: string
-  /**
-   * The raw triple-backtick JSON returned by the AI.
-   * The AI must return a JSON block using only one of the allowed actions:
-   * "createTask", "createGoal", "createPlan", or "createProject".
-   */
   actionJson?: string
   accepted?: boolean
   declined?: boolean
@@ -78,24 +63,20 @@ interface UserContext {
 export function TaskAnalytics({
   tasks,
   goals,
-  projects,
-  plans,
-  isIlluminateEnabled,
   geminiApiKey,
   onAcceptInsight,
   onUpdateData,
+  userContext,
+  triggerAnalysisSignal,
 }: TaskAnalyticsProps) {
-  // Use provided geminiApiKey or fallback to default.
   const effectiveGeminiApiKey = geminiApiKey || defaultGeminiApiKey
 
   const [insights, setInsights] = useState<Insight[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<"all" | "priority" | "deadline" | "suggestion" | "achievement">("all")
-  // Accepted insights to be displayed in a dedicated section.
-  const [acceptedInsights, setAcceptedInsights] = useState<Insight[]>([])
-
-  // Get current user from Firebase Auth.
   const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const [acceptedInsights, setAcceptedInsights] = useState<Insight[]>([]);
+
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user)
@@ -103,88 +84,21 @@ export function TaskAnalytics({
     return () => unsubscribe()
   }, [])
 
-  // Instead of subscribing to user context changes, fetch it once when user is available.
-  const [userContext, setUserContext] = useState<UserContext | null>(null)
-  useEffect(() => {
-    async function fetchUserContext() {
-      if (currentUser) {
-        const contextRef = doc(db, "userContexts", currentUser.uid)
-        const contextSnap = await getDoc(contextRef)
-        if (contextSnap.exists()) {
-          setUserContext(contextSnap.data() as UserContext)
-        } else {
-          setUserContext(null)
-        }
-      }
-    }
-    fetchUserContext()
-  }, [currentUser])
-
-  // Cache for last-analyzed data and debounce timer.
-  const lastAnalyzedDataRef = useRef<string>("")
-  const analysisTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-
-  // Theme-based classes.
-  const headingClass = isIlluminateEnabled ? "text-gray-900" : "text-white"
-  const cardClass = isIlluminateEnabled ? "bg-gray-100" : "bg-gray-800"
-
-  // Colors and icons per insight type.
   const typeColors = {
-    priority: isIlluminateEnabled ? "text-red-700 bg-red-100" : "text-red-400 bg-red-900/20",
-    deadline: isIlluminateEnabled ? "text-orange-700 bg-orange-100" : "text-orange-400 bg-orange-900/20",
-    suggestion: isIlluminateEnabled ? "text-blue-700 bg-blue-100" : "text-blue-400 bg-blue-900/20",
-    achievement: isIlluminateEnabled ? "text-green-700 bg-green-100" : "text-green-400 bg-green-900/20",
+    priority: "text-red-700 bg-red-100 dark:text-red-300 dark:bg-red-500/20",
+    deadline: "text-orange-700 bg-orange-100 dark:text-orange-300 dark:bg-orange-500/20",
+    suggestion: "text-blue-700 bg-blue-100 dark:text-blue-300 dark:bg-blue-500/20",
+    achievement: "text-green-700 bg-green-100 dark:text-green-300 dark:bg-green-500/20",
   }
   const typeIcons = {
-    priority: <AlertTriangle className="w-4 h-4" />,
-    deadline: <Calendar className="w-4 h-4" />,
-    suggestion: <Lightbulb className="w-4 h-4" />,
-    achievement: <Award className="w-4 h-4" />,
+    priority: <AlertTriangle className="w-3.5 h-3.5" />,
+    deadline: <Calendar className="w-3.5 h-3.5" />,
+    suggestion: <Lightbulb className="w-3.5 h-3.5" />,
+    achievement: <Award className="w-3.5 h-3.5" />,
   }
 
-  // Debounced insight generation.
-  const debouncedGenerateInsights = useCallback(() => {
-    if (analysisTimeoutRef.current) {
-      clearTimeout(analysisTimeoutRef.current)
-    }
-    analysisTimeoutRef.current = setTimeout(() => {
-      generateInsights()
-    }, 2000)
-  }, [tasks, goals, projects, plans])
-
-  useEffect(() => {
-    const currentData = JSON.stringify({ tasks, goals, projects, plans })
-    if (currentData !== lastAnalyzedDataRef.current) {
-      lastAnalyzedDataRef.current = currentData
-      debouncedGenerateInsights()
-    }
-    return () => {
-      if (analysisTimeoutRef.current) {
-        clearTimeout(analysisTimeoutRef.current)
-      }
-    }
-  }, [tasks, goals, projects, plans, debouncedGenerateInsights])
-
-  // Get current date and time.
-  const currentDateTime = {
-    date: new Date().toISOString().split("T")[0],
-    time: new Date().toLocaleTimeString(),
-  }
-
-  // Format user context for the prompt.
-  const contextSection = userContext
-    ? `
-User Context:
-- Work: ${userContext.workDescription}
-- Short-term Focus: ${userContext.shortTermFocus}
-- Long-term Goals: ${userContext.longTermGoals}
-- Additional Context: ${userContext.otherContext}`
-    : ""
-
-  // 1) Generate insights using Gemini.
-  const generateInsights = async () => {
-    if (!effectiveGeminiApiKey) {
-      console.error("Gemini API key is not provided")
+  const generateInsights = useCallback(async () => {
+    if (!effectiveGeminiApiKey || !currentUser || isLoading) {
       return
     }
     setIsLoading(true)
@@ -195,123 +109,93 @@ User Context:
           type,
           title: item.data[type.toLowerCase()] || "Untitled",
           completed: Boolean(item.data.completed),
-          dueDate: item.data.dueDate
-            ? item.data.dueDate.toDate
-              ? item.data.dueDate.toDate()
-              : new Date(item.data.dueDate)
-            : null,
+          dueDate: item.data.dueDate?.toDate ? item.data.dueDate.toDate() : item.data.dueDate ? new Date(item.data.dueDate) : null,
           priority: item.data.priority || "medium",
-          createdAt: item.data.createdAt
-            ? item.data.createdAt.toDate
-              ? item.data.createdAt.toDate()
-              : new Date(item.data.createdAt)
-            : new Date(),
+          createdAt: item.data.createdAt?.toDate ? item.data.createdAt.toDate() : item.data.createdAt ? new Date(item.data.createdAt) : new Date(),
         }))
       }
 
       const formattedTasks = formatItems(tasks, "Task")
       const formattedGoals = formatItems(goals, "Goal")
-      const formattedProjects = formatItems(projects, "Project")
-      const formattedPlans = formatItems(plans, "Plan")
-      const allItems = [...formattedTasks, ...formattedGoals, ...formattedProjects, ...formattedPlans]
+      const allItems = [...formattedTasks, ...formattedGoals]
 
-// Generate a formatted text block for the user's items
-const itemsText = allItems.map(item => {
-  return `${item.type}: ${item.title} [Completed: ${item.completed ? 'Yes' : 'No'}]${item.dueDate ? ` (Due: ${new Date(item.dueDate).toLocaleDateString()})` : ''}`
-}).join('\n')
+      const itemsText = allItems.length > 0 ? allItems.map(item => {
+        return `${item.type}: ${item.title} [Completed: ${item.completed ? 'Yes' : 'No'}]${item.dueDate ? ` (Due: ${new Date(item.dueDate).toLocaleDateString()})` : ''} [Priority: ${item.priority}]`
+      }).join('\n') : "No active tasks or goals."
 
-// Modify your prompt to include the itemsText:
-const prompt = `
+      const currentDateTime = {
+        date: new Date().toISOString().split("T")[0],
+        time: new Date().toLocaleTimeString(),
+      }
+      const contextText = userContext
+        ? `\nUser Context:\n- Study Area: ${userContext.workDescription || 'N/A'}\n- Short-term Focus: ${userContext.shortTermFocus || 'N/A'}\n- Long-term Goals: ${userContext.longTermGoals || 'N/A'}`
+        : ""
+
+      const prompt = `
 [INST] <<SYS>>
 Current Date: ${currentDateTime.date}
-Current Time: ${currentDateTime.time}
-[CONTEXT]
-User's Name: ${currentUser?.displayName || currentUser?.email || "Unknown"}
-${contextSection}
-
-User Items:
+User: ${currentUser?.displayName || currentUser?.email || "Learner"}
+${contextText}
+User Items (Tasks and Goals):
 ${itemsText}
 
-You are TaskMaster, an advanced AI productivity assistant. Based on the user's current tasks, goals, projects, and plans, generate 5-7 actionable insights that will improve their productivity.
+You are TaskMaster AI, an insightful learning coach. Analyze the user's current tasks and goals.
+Generate 2-3 concise, actionable insights focused on improving their learning productivity and well-being.
+Prioritize identifying critical deadlines, suggesting task breakdowns for large goals, or celebrating progress.
 
-You must decide the best course of action based on the user's context and explicitly generate the necessary action(s). Do not suggest actions to the user—execute them directly.
+Allowed actions: "createTask", "createGoal".
+For "createTask", payload requires: "task" (string), optional "dueDate" (string YYYY-MM-DD), optional "priority" ('high', 'medium', 'low').
+For "createGoal", payload requires: "goal" (string), optional "targetDate" (string YYYY-MM-DD), optional "priority".
 
-Allowed actions: "createTask", "createGoal", "createPlan", "createProject".
-
-Each insight must be a JSON object with exactly these fields:
+Each insight MUST be a JSON object:
 {
-  "text": "A specific insight text to show to the user",
+  "text": "Insightful and encouraging text for the user (max 2 sentences).",
   "type": "priority | deadline | suggestion | achievement",
-  "relatedItemId": "The ID of the related item if applicable (or null)",
-  "relatedItemType": "task | goal | project | plan (or null)",
-  "actionJson": "A triple-backtick JSON block with no extra text, for example:
-  \\\`\`\`json
+  "relatedItemId": "ID of the item, or null.",
+  "relatedItemType": "tasks | goals, or null.",
+  "actionJson": "Optional. A triple-backtick JSON block for ONE AI-creatable action if highly relevant, else null. Example:
+  json
   {
-    \\"action\\": \\"createPlan\\",
-    \\"payload\\": {
-      \\"plan\\": \\"30-minute review session\\",
-      \\"dueDate\\": \\"2025-03-14\\"
-    }
+    "action": "createTask",
+    "payload": { "task": \\"Review Chapter 3 Notes\\", \\"dueDate\\": \\"${new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]}\\", \\"priority\\": \\"high\\" }
   }
-  \\\`\`\`
-  If no action is needed, omit this field."
+  \\\`\`\`"
 }
-
-Ensure that your decisions are based on the user's existing workload, priorities, and deadlines.
-
-Return an array of these JSON objects and nothing else.
+Return an array of these JSON objects. Ensure valid JSON.
 <</SYS>>[/INST]
 `
-
       const geminiOptions = {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-        }),
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
       }
 
-      const resultResponse = await streamResponse(
-        `${geminiEndpoint}?key=${effectiveGeminiApiKey}`,
-        geminiOptions,
-        () => {},
-        45000
-      )
+      const resultResponse = await streamResponse(`${geminiEndpoint}?key=${effectiveGeminiApiKey}`, geminiOptions, () => {}, 45000)
 
       if (!resultResponse) {
-        console.warn("No response from AI or rate limit reached. Try again later.")
+        generateFallbackInsights(allItems)
         setIsLoading(false)
         return
       }
-
       let rawText = extractCandidateText(resultResponse) || ""
       rawText = rawText.replace(/[\u0000-\u001F]+/g, "")
-      const jsonMatch = rawText.match(/\[\s*\{.*\}\s*\]/s)
+      const jsonMatch = rawText.match(/\[\s*\{[\s\S]*?\}\s*\]/s)
       if (jsonMatch) {
         try {
           const insightsData = JSON.parse(jsonMatch[0]) as any[]
-          const processedInsights = insightsData.map((insightObj) => {
-            let storedJson = ""
-            if (typeof insightObj.actionJson === "string") {
-              const blockMatch = insightObj.actionJson.match(/```json([\s\S]*?)```/i)
-              if (blockMatch) {
-                storedJson = blockMatch[1].trim().replace(/\\"/g, '"')
-              }
-            }
-            return {
-              ...insightObj,
-              id: Math.random().toString(36).substring(2, 11),
-              createdAt: new Date(),
-              actionJson: storedJson || "",
-            } as Insight
-          })
+          const processedInsights = insightsData.map((obj) => ({
+            ...obj,
+            id: Math.random().toString(36).substring(2, 11),
+            createdAt: new Date(),
+            actionJson: obj.actionJson && typeof obj.actionJson === 'string' && obj.actionJson.includes('```json') ? obj.actionJson.match(/```json([\s\S]*?)```/i)?.[1].trim().replace(/\\"/g, '"') : (obj.actionJson && typeof obj.actionJson === 'object' ? JSON.stringify(obj.actionJson) : ""),
+            relatedItemType: obj.relatedItemType === 'task' ? 'tasks' : obj.relatedItemType === 'goal' ? 'goals' : undefined,
+          } as Insight)).filter(i => i.text && i.type);
           setInsights(processedInsights)
         } catch (error) {
-          console.error("Failed to parse insights JSON:", error)
+          console.error("Failed to parse insights JSON:", error, "Raw text:", rawText)
           generateFallbackInsights(allItems)
         }
       } else {
-        console.error("No JSON array found in response")
         generateFallbackInsights(allItems)
       }
     } catch (error: any) {
@@ -320,350 +204,122 @@ Return an array of these JSON objects and nothing else.
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [effectiveGeminiApiKey, tasks, goals, currentUser, userContext, isLoading]);
 
-  // 2) Fallback insights if AI fails.
+  useEffect(() => {
+    if (triggerAnalysisSignal > 0 && !isLoading && currentUser) { // triggerAnalysisSignal changes to trigger
+      generateInsights();
+    }
+  }, [triggerAnalysisSignal, isLoading, currentUser, generateInsights]);
+
+
   const generateFallbackInsights = (items: any[]) => {
-    const fallbackInsights: Insight[] = []
-    fallbackInsights.push({
+    const fallbackInsights: Insight[] = [{
       id: Math.random().toString(36).substring(2, 11),
-      text: "Consider reviewing and updating the priorities of your tasks to stay organized.",
+      text: "Review your current tasks and goals. Are they aligned with your main learning objectives for the week?",
       type: "suggestion",
       createdAt: new Date(),
-    })
-    const now = new Date()
-    const upcomingDeadlines = items.filter(
-      (item) =>
-        item.dueDate &&
-        !item.completed &&
-        item.dueDate > now &&
-        item.dueDate < new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
-    )
-    upcomingDeadlines.forEach((item) => {
-      fallbackInsights.push({
-        id: Math.random().toString(36).substring(2, 11),
-        text: `"${item.title}" is due soon on ${item.dueDate.toLocaleDateString()}. Consider prioritizing this.`,
-        type: "deadline",
-        relatedItemId: item.id,
-        relatedItemType: item.type.toLowerCase(),
-        createdAt: new Date(),
-      })
-    })
-    const recentlyCompleted = items.filter(
-      (item) => item.completed && item.createdAt > new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-    )
-    if (recentlyCompleted.length > 0) {
-      fallbackInsights.push({
-        id: Math.random().toString(36).substring(2, 11),
-        text: `Great job! You've completed ${recentlyCompleted.length} item${recentlyCompleted.length > 1 ? "s" : ""} recently.`,
-        type: "achievement",
-        createdAt: new Date(),
-      })
-    }
+    }]
     setInsights(fallbackInsights)
   }
 
-  // 3) Save accepted insight to Firestore.
   async function storeAcceptedInsight(insight: Insight) {
-    const effectiveUserId = currentUser?.uid
-    if (!effectiveUserId) {
-      console.error("No user logged in, skipping accepted insight save")
-      return
-    }
+    if (!currentUser?.uid) return
     try {
-      await addDoc(collection(db, "acceptedInsights"), {
-        userId: effectiveUserId,
-        ...insight,
-        acceptedAt: serverTimestamp(),
-      })
-    } catch (error) {
-      console.error("Error saving accepted insight:", error)
-    }
+      await addDoc(collection(db, "acceptedInsights"), { userId: currentUser.uid, ...insight, acceptedAt: serverTimestamp() })
+    } catch (error) { console.error("Error saving accepted insight:", error) }
   }
 
-  // 4) Handle Accept: mark as accepted, process action, and store.
   const handleAcceptInsight = async (insight: Insight) => {
-    setInsights((prev) =>
-      prev.map((i) => (i.id === insight.id ? { ...i, accepted: true, declined: false } : i))
-    )
+    setInsights((prev) => prev.map((i) => (i.id === insight.id ? { ...i, accepted: true, declined: false } : i)))
     setAcceptedInsights((prev) => [...prev, { ...insight, accepted: true }])
-    const effectiveUserId = currentUser?.uid
-    if (!effectiveUserId) {
-      console.error("No user logged in, cannot process accepted insight")
-      return
-    }
+    if (!currentUser?.uid) return
+
     if (insight.actionJson) {
       try {
-        const parsed = JSON.parse(insight.actionJson)
-        if (parsed.action && parsed.payload) {
-          switch (parsed.action) {
-            case "createPlan":
-              await createUserPlan(effectiveUserId, {
-                plan: parsed.payload.plan || "AI Plan",
-                dueDate: parsed.payload.dueDate || null,
-              })
-              break
-            case "createTask":
-              await createUserTask(effectiveUserId, {
-                task: parsed.payload.task || "AI Task",
-                dueDate: parsed.payload.dueDate || null,
-              })
-              break
-            case "createGoal":
-              await createUserGoal(effectiveUserId, {
-                goal: parsed.payload.goal || "AI Goal",
-                dueDate: parsed.payload.dueDate || null,
-              })
-              break
-            case "createProject":
-              await createUserProject(effectiveUserId, {
-                project: parsed.payload.project || "AI Project",
-                dueDate: parsed.payload.dueDate || null,
-              })
-              break
-            default:
-              console.log("Unknown action:", parsed.action)
-              break
+        const parsedAction = JSON.parse(insight.actionJson)
+        if (parsedAction.action && parsedAction.payload) {
+          const { action, payload } = parsedAction;
+          const dateFields = ['dueDate', 'targetDate'];
+          dateFields.forEach(field => {
+            if (payload[field] && typeof payload[field] === 'string') {
+                payload[field] = new Date(payload[field]); // Ensure conversion to Date
+            }
+          });
+
+          if (action === "createTask") {
+            await createUserTask(currentUser.uid, payload.task, payload.dueDate, payload.priority);
+          } else if (action === "createGoal") {
+            await createUserGoal(currentUser.uid, payload.goal, payload.targetDate, payload.priority);
           }
         }
-      } catch (err) {
-        console.error("Error parsing or handling actionJson:", err)
-      }
+      } catch (err) { console.error("Error processing actionJson:", err) }
     }
-    if (insight.action) {
-      const collectionName = insight.relatedItemType || ""
-      const updates: Record<string, any> = {}
-      if (insight.action === "reschedule") {
-        const newDate = new Date()
-        newDate.setDate(newDate.getDate() + 1)
-        updates.dueDate = newDate
-      }
-      if (Object.keys(updates).length && onUpdateData && insight.relatedItemId) {
-        onUpdateData(collectionName, insight.relatedItemId, updates)
-      }
+    if (insight.action && insight.relatedItemType && insight.relatedItemId && onUpdateData) {
+        const updates: Record<string, any> = {};
+        if (insight.action === "set_high_priority") updates.priority = "high";
+        if (Object.keys(updates).length > 0) onUpdateData(insight.relatedItemType, insight.relatedItemId, updates);
     }
-    if (onAcceptInsight) {
-      onAcceptInsight(insight.id, insight.action || "")
-    }
+
+    if (onAcceptInsight) onAcceptInsight(insight.id, insight.action || "")
     await storeAcceptedInsight(insight)
   }
 
-  // 5) Handle Decline.
   const handleDeclineInsight = (insight: Insight) => {
-    setInsights((prev) =>
-      prev.map((i) => (i.id === insight.id ? { ...i, accepted: false, declined: true } : i))
-    )
-    if (insight.type === "priority" || insight.type === "deadline") {
-      const alternativeInsight: Insight = {
-        id: Math.random().toString(36).substring(2, 11),
-        text: `Would you like to adjust the priority or deadline for this item instead?`,
-        type: "suggestion",
-        relatedItemId: insight.relatedItemId,
-        relatedItemType: insight.relatedItemType,
-        action: "adjust_settings",
-        createdAt: new Date(),
-      }
-      setInsights((prev) => [...prev, alternativeInsight])
-    }
+    setInsights((prev) => prev.map((i) => (i.id === insight.id ? { ...i, accepted: false, declined: true } : i)))
+  }
+  
+  if (!currentUser) {
+    return (
+        <div className="p-4 text-center text-sm text-gray-500 dark:text-gray-400 italic">
+            Loading user data...
+        </div>
+    );
   }
 
-  // 6) Handle Save (if needed)
-  const handleSaveInsight = (insight: Insight) => {
-    setAcceptedInsights((prev) => [...prev, insight])
-    setInsights((prev) =>
-      prev.map((i) => (i.id === insight.id ? { ...i, saved: true } : i))
-    )
-  }
 
-  const handleDeleteSavedInsight = (insightId: string) => {
-    setAcceptedInsights((prev) => prev.filter((i) => i.id !== insightId))
-  }
 
-  // Filter insights by active tab.
-  const filteredInsights = activeTab === "all" ? insights : insights.filter((insight) => insight.type === activeTab)
 
   return (
-    <div className={`${cardClass} rounded-xl p-4 sm:p-6 shadow-lg animate-fadeIn`}>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className={`text-lg sm:text-xl font-semibold ${headingClass} flex items-center`}>
-          <Zap className="w-5 h-5 mr-2 text-yellow-400 animate-pulse" />
-          Smart Insights
-        </h2>
-        <button
-          onClick={generateInsights}
-          className="bg-gradient-to-r from-purple-400 to-purple-600 text-white px-3 py-1.5 rounded-full text-sm flex items-center gap-1 hover:shadow-lg transition-all duration-300 transform hover:scale-105"
-          disabled={isLoading}
-        >
-          <BarChart3 className="w-3.5 h-3.5" />
-          {isLoading ? "Analyzing..." : "Refresh"}
-        </button>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex flex-wrap gap-2 mb-4 overflow-x-auto pb-1">
-        {["all", "priority", "deadline", "suggestion", "achievement"].map((tab) => (
-          <button
-            key={tab}
-            className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 ${
-              activeTab === tab
-                ? "bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-md"
-                : isIlluminateEnabled
-                  ? "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-            }`}
-            onClick={() => setActiveTab(tab as any)}
-          >
-            {tab === "all" && "All Insights"}
-            {tab === "priority" && (
-              <span className="flex items-center">
-                <AlertTriangle className="w-3 h-3 mr-1" /> Priorities
-              </span>
-            )}
-            {tab === "deadline" && (
-              <span className="flex items-center">
-                <Calendar className="w-3 h-3 mr-1" /> Deadlines
-              </span>
-            )}
-            {tab === "suggestion" && (
-              <span className="flex items-center">
-                <Lightbulb className="w-3 h-3 mr-1" /> Suggestions
-              </span>
-            )}
-            {tab === "achievement" && (
-              <span className="flex items-center">
-                <Award className="w-3 h-3 mr-1" /> Achievements
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* Main Insights List */}
-      <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
-        {isLoading ? (
-          Array.from({ length: 3 }).map((_, index) => (
-            <div
-              key={index}
-              className={`animate-pulse p-3 rounded-lg ${isIlluminateEnabled ? "bg-gray-200" : "bg-gray-700"}`}
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <div className={`w-4 h-4 rounded-full ${isIlluminateEnabled ? "bg-gray-300" : "bg-gray-600"}`} />
-                <div className={`h-4 w-24 rounded ${isIlluminateEnabled ? "bg-gray-300" : "bg-gray-600"}`} />
-              </div>
-              <div className={`h-4 w-full rounded ${isIlluminateEnabled ? "bg-gray-300" : "bg-gray-600"} mb-2`} />
-              <div className={`h-4 w-3/4 rounded ${isIlluminateEnabled ? "bg-gray-300" : "bg-gray-600"}`} />
+    <div className="space-y-2.5">
+        {isLoading && insights.length === 0 ? (
+          Array.from({ length: 2 }).map((_, index) => (
+            <div key={index} className="animate-pulse p-3 rounded-lg bg-gray-200 dark:bg-gray-800/70">
+              <div className="h-3.5 w-3/4 rounded bg-gray-300 dark:bg-gray-700 mb-1.5"></div>
+              <div className="h-3 w-1/2 rounded bg-gray-300 dark:bg-gray-700"></div>
             </div>
           ))
-        ) : filteredInsights.length > 0 ? (
-          filteredInsights.map((insight) => (
+        ) : insights.map((insight) => (
             <div
               key={insight.id}
-              className={`p-3 rounded-lg ${isIlluminateEnabled ? "bg-gray-200/80" : "bg-gray-700/50"} transition-all duration-300 hover:shadow-md
-                ${insight.accepted ? "border-l-4 border-green-500" : ""}
+              className={`p-3 rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700/70 transition-all duration-300 hover:shadow-md
+                ${insight.accepted ? "border-l-2 border-green-500 dark:border-green-400" : ""}
                 ${insight.declined ? "opacity-50" : ""}
               `}
             >
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className={`px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1 ${typeColors[insight.type]}`}>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium flex items-center gap-1 ${typeColors[insight.type]}`}>
                   {typeIcons[insight.type]}
                   {insight.type.charAt(0).toUpperCase() + insight.type.slice(1)}
                 </span>
-                {insight.relatedItemType && (
-                  <span className="text-xs text-gray-500">
-                    {insight.relatedItemType.charAt(0).toUpperCase() + insight.relatedItemType.slice(1)}
-                  </span>
-                )}
               </div>
-              <p className="text-sm mb-2">{insight.text}</p>
-              {insight.action && (
-                <div className={`text-xs ${isIlluminateEnabled ? "text-blue-700" : "text-blue-400"} mb-2 flex items-center`}>
-                  <ArrowUpRight className="w-3 h-3 mr-1" />
-                  Suggested action: {insight.action}
-                </div>
-              )}
-              <div className="flex items-center justify-between mt-2">
-                <div className="flex gap-1">
+              <p className="text-xs sm:text-sm mb-2 text-gray-700 dark:text-gray-300">{insight.text}</p>
+              <div className="flex items-center justify-end mt-1.5 gap-1.5">
                   {!insight.accepted && !insight.declined && (
                     <>
-                      <button onClick={() => handleAcceptInsight(insight)} className="p-1 rounded-full hover:bg-green-500/20 transition-colors" title="Accept insight">
-                        <ThumbsUp className="w-4 h-4 text-green-500" />
+                      <button onClick={() => handleAcceptInsight(insight)} className="p-1 rounded-full hover:bg-green-100 dark:hover:bg-green-500/20 transition-colors" title="Accept">
+                        <ThumbsUp className="w-3.5 h-3.5 text-green-500 dark:text-green-400" />
                       </button>
-                      <button onClick={() => handleDeclineInsight(insight)} className="p-1 rounded-full hover:bg-red-500/20 transition-colors" title="Decline insight">
-                        <ThumbsDown className="w-4 h-4 text-red-500" />
+                      <button onClick={() => handleDeclineInsight(insight)} className="p-1 rounded-full hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors" title="Decline">
+                        <ThumbsDown className="w-3.5 h-3.5 text-red-500 dark:text-red-400" />
                       </button>
                     </>
                   )}
-                  {insight.accepted && (
-                    <span className="text-xs text-green-500 flex items-center">
-                      <CheckCircle className="w-3 h-3 mr-1" />
-                      Accepted
-                    </span>
-                  )}
-                  {insight.declined && (
-                    <span className="text-xs text-red-500 flex items-center">
-                      <XCircle className="w-3 h-3 mr-1" />
-                      Declined
-                    </span>
-                  )}
-                </div>
-                <button
-                  onClick={() => handleSaveInsight(insight)}
-                  className={`p-1 rounded-full hover:bg-blue-500/20 transition-colors ${insight.saved ? "text-blue-500" : ""}`}
-                  title="Save insight"
-                  disabled={insight.saved}
-                >
-                  <Bookmark className="w-4 h-4" />
-                </button>
+                  {insight.accepted && <span className="text-[10px] text-green-600 dark:text-green-400 flex items-center font-medium"><CheckCircle className="w-3 h-3 mr-1" /> Accepted</span>}
+                  {insight.declined && <span className="text-[10px] text-red-600 dark:text-red-400 flex items-center font-medium"><XCircle className="w-3 h-3 mr-1" /> Declined</span>}
               </div>
             </div>
-          ))
-        ) : (
-          <div className="text-center py-6">
-            <Lightbulb className={`w-8 h-8 mx-auto mb-2 ${isIlluminateEnabled ? "text-gray-400" : "text-gray-600"}`} />
-            <p className={`${isIlluminateEnabled ? "text-gray-600" : "text-gray-400"}`}>
-              No insights available. Add more tasks or refresh to generate insights.
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Accepted Insights Section */}
-      {acceptedInsights.length > 0 && (
-        <div className={`mt-8 p-4 rounded-lg ${isIlluminateEnabled ? "bg-gray-50 border border-gray-200 text-gray-900" : "bg-gray-800 border border-gray-700 text-gray-300"}`}>
-          <h3 className={`text-lg font-semibold mb-3 ${isIlluminateEnabled ? "text-gray-900" : "text-white"}`}>
-            Accepted Insights
-          </h3>
-          <div className="space-y-3">
-            {acceptedInsights.map((insight) => (
-              <div key={insight.id} className={`p-3 rounded-lg shadow-sm flex justify-between ${isIlluminateEnabled ? "bg-white text-gray-800 border border-gray-100" : "bg-gray-700 text-gray-200 border border-gray-600"}`}>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1 ${typeColors[insight.type]}`}>
-                      {typeIcons[insight.type]}
-                      {insight.type.charAt(0).toUpperCase() + insight.type.slice(1)}
-                    </span>
-                    <span className="text-xs text-gray-500">{insight.createdAt.toLocaleDateString()}</span>
-                  </div>
-                  <p className="text-sm">{insight.text}</p>
-                  {insight.action && (
-                    <div className="text-xs text-blue-600 mt-1 flex items-center">
-                      <ArrowUpRight className="w-3 h-3 mr-1" />
-                      {insight.action}
-                    </div>
-                  )}
-                </div>
-                <button
-                  onClick={() => handleDeleteSavedInsight(insight.id)}
-                  className={`self-start p-1.5 rounded-full ${isIlluminateEnabled ? "hover:bg-red-50 text-red-500" : "hover:bg-red-900/20 text-red-400"}`}
-                  title="Remove insight"
-                >
-                  <Trash className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+          ))}
     </div>
   )
 }

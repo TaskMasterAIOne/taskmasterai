@@ -10,6 +10,7 @@ export interface CustomStyle {
   hoverColor: string;
   lightBg: string;
   userId: string;
+  textColor?: string;  // Add this
   createdAt: Date;
 }
 

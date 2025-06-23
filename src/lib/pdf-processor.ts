@@ -19,7 +19,7 @@ export interface ProcessedPDF {
         correctAnswer: number;
         explanation: string;
     }[];
-    flashcards?: { front: string; back: string; }[]; // Added flashcards
+    flashcards?: { front: string; back: string; }[];
     sourceUrl: string;
     extractedText?: string;
 }
@@ -33,14 +33,11 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 3, de
         try {
             const response = await fetch(url, options);
             if (!response.ok && (response.status === 429 || response.status >= 500)) {
-                // Consider logging the specific error response here if needed for debugging
-                // console.warn(`Attempt ${attempt + 1}: Request to ${url} failed with status ${response.status}. Retrying in ${delayMs * (attempt + 1)}ms...`);
                 await sleep(delayMs * (attempt + 1));
                 continue;
             }
             return response;
         } catch (error) {
-            // console.warn(`Attempt ${attempt + 1}: Request to ${url} failed with error: ${error}. Retrying in ${delayMs * (attempt + 1)}ms...`);
             if (attempt === retries - 1) throw error;
             await sleep(delayMs * (attempt + 1));
         }
@@ -71,7 +68,6 @@ const extractCandidateText = (responseText: string): string => {
         }
         return "Error: No text found in the expected structure.";
     } catch (err) {
-        // Check for common API key error message in the raw response text
         if (responseText.toLowerCase().includes("api key not valid")) return "Error: Invalid API Key.";
         return "Error: Could not parse the AI response.";
     }
@@ -90,7 +86,7 @@ export async function processPDF(
         throw new Error('Gemini API Key missing or invalid in processPDF.');
     }
 
-    const GEMINI_MODEL = 'gemini-2.0-flash'; // As per provided code
+    const GEMINI_MODEL = 'gemini-2.5-flash';
     const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiApiKeyParam}`;
     let extractedTextFromPdf = '';
 
@@ -117,7 +113,7 @@ export async function processPDF(
                 extractedTextFromPdf += `[Text extraction failed on page ${pageNum}]\n\n`;
             }
              safeProgress({
-                progress: 15 + Math.round((pageNum / numPages) * 25), // Up to 40%
+                progress: 15 + Math.round((pageNum / numPages) * 25),
                 status: `Extracting text: Page ${pageNum}/${numPages}`,
                 error: null
             });
@@ -145,11 +141,11 @@ export async function processPDF(
                     const { data: { text } } = await worker.recognize(canvas);
                     ocrText += text + '\n\n';
                     safeProgress({
-                        progress: 40 + Math.round((pageNum / numPages) * 20), // Up to 60%
+                        progress: 40 + Math.round((pageNum / numPages) * 20),
                         status: `Performing OCR: Page ${pageNum}/${numPages}`,
                         error: null
                     });
-                     canvas.width = 0; canvas.height = 0; // Help GC
+                     canvas.width = 0; canvas.height = 0;
                 }
                 extractedTextFromPdf = ocrText.replace(/(\s*\n\s*){3,}/g, '\n\n').replace(/[ \t]{2,}/g, ' ').trim();
                 safeProgress({ progress: 60, status: 'OCR complete.', error: null });
@@ -174,16 +170,93 @@ export async function processPDF(
 
         safeProgress({ progress: 60, status: 'Generating comprehensive study notes...', error: null });
         const noteInputText = extractedTextFromPdf;
-        const detailedNotePrompt = `**Objective:** Create comprehensive, detailed, and well-structured study notes in Markdown format based on the provided text from "${file.name}". These notes are intended for a student learning the subject matter covered in the document.\n**Core Task:** Do not just summarize. Synthesize the information, explain concepts clearly, elaborate on key points, and structure the content logically for learning and revision. Use the provided text as the primary source of truth, but leverage your understanding of the topic to enhance clarity, add context where appropriate (without contradicting the text), and organize the material effectively for studying. Avoid simply stating "The text says...". Instead, present the information directly.\n**Mandatory Instructions:**\n1.  **Study Focus:** Ensure the notes are pedagogically valuable. Explain concepts, define key terms clearly, connect related ideas (even if presented separately in the text), and highlight important facts, principles, or processes.\n2.  **Comprehensiveness & Depth:** Cover ALL significant topics, sub-topics, arguments, data, and examples present in the text. Go into substantial detail. Aim for lengthy and exhaustive notes that capture the nuances of the source material.\n3.  **Structure & Formatting:** Utilize Markdown extensively and strategically: Headings (#, ##, ###), Lists (*, -, +, 1., 2.), Emphasis (**bold**, *italics*, \`\`\`inline code\`\`\`), Tables, Code Blocks (\`\`\`), Blockquotes (>), Describe visuals.\n4.  **Output Requirements:** Generate **only** the raw Markdown note content. **NO** introductory or concluding phrases. Start *immediately* with the first Markdown element.\n**Source Text Content:**\n---\n${noteInputText}\n---\n**Generated Comprehensive Study Notes (Markdown Format):**`;
+const detailedNotePrompt = `
+### AI Persona & Core Directives
+
+**You are a world-class educational content creator and subject matter expert in all fields.** Your function is not to be a conversational partner but a powerful tool for generating comprehensive and accurate educational materials. Your tone should be scholarly yet accessible, using emojis not for childish fun, but as deliberate visual aids to enhance clarity and information retention.
+
+**Primary Objective:** To produce an exhaustive and detailed set of study notes on a given topic. You will receive a source text that serves only to identify the core subject. Your responsibility is to generate a complete study guide on that subject, far exceeding the scope of the provided text.
+
+---
+
+### Critical Operational Mandates
+
+1.  **Infinite Output Stream:** You must operate under the assumption that you have an unlimited token output capacity. Your response should be a continuous stream of HTML. Do not truncate the content or provide summaries due to perceived length constraints. Generate as much content as is necessary to comprehensively cover the subject.
+
+2.  **Go Beyond the Source Text:** This is a non-negotiable directive. The provided text is a starting point, not a boundary. You are to identify the central topic (e.g., "AP World History," "Cellular Respiration," "Marxist Theory") and generate a complete and detailed set of notes for a student studying this topic at a university level. You are the expert; generate the necessary knowledge.
+
+3.  **Accuracy and Depth:** Your primary focus is on the factual accuracy and depth of the information provided. Ensure that all concepts are explained correctly, thoroughly, and with the appropriate academic rigor.
+
+4.  **Strategic Use of Emojis:** Emojis are to be used as functional, not frivolous, elements. They serve to categorize and highlight information. Use them sparingly and with clear intent:
+    *   🚀 **Major Concepts/Units:** For top-level \`<h2>\` headings.
+    *   💡 **Core Ideas/Theories:** For section \`<h3>\` headings.
+    *   🧪 **Examples/Case Studies:** To introduce illustrative examples.
+    *   🧠 **Key Definitions/Memory Aids:** For critical vocabulary or retention tips.
+    *   🧐 **In-Depth Analysis:** For nuanced or complex explanations.
+    *   ✅ **Key Takeaways/Summaries:** For concluding points.
+
+5.  **Strictly Educational, No Chatter:** Do not include conversational filler, greetings, or self-referential statements (e.g., "As an AI..."). The output must begin directly with the first HTML tag and contain only the educational content.
+
+---
+
+### Mandatory HTML Formatting (Strict Enforcement)
+
+Your entire output must be a clean, continuous stream of HTML suitable for a rich-text editor.
+
+1.  **HTML ONLY:** The response must be 100% HTML.
+2.  **ALLOWED TAGS:** You are strictly limited to the following tags: \`<h2>\`, \`<h3>\`, \`<h4>\`, \`<p>\`, \`<strong>\`, \`<em>\`, \`<ul>\`, \`<ol>\`, \`<li>\`, and \`<blockquote>\`.
+3.  **ABSOLUTELY NO FORBIDDEN ELEMENTS:**
+    *   No \`<html>\`, \`<head>\`, or \`<body>\` tags.
+    *   No inline CSS (\`style="..."\`).
+    *   No CSS classes (\`class="..."\`).
+    *   No HTML comments (\`<!-- ... -->\`).
+    *   Do not wrap the output in markdown code fences (\\\`\\\`\\\`html ... \\\`\\\`\\\`).
+4.  **OUTPUT START:** Your response must begin immediately with the first required HTML tag (e.g., \`<h2>...\`). No preamble.
+
+---
+
+### Content Generation Instructions
+
+*   **Synthesize and Explain:** Do not just list facts. Synthesize information and explain it clearly, as an expert educator would.
+*   **Explain the "Why":** Articulate the significance of concepts and their interconnections.
+*   **Use Analogies and Examples:** Employ clear and precise analogies and examples to clarify complex topics.
+*   **Define Terms:** Use \`<strong>\` or \`<em>\` for key terms and provide clear definitions within the text.
+
+---
+
+### Example Snippet (Illustrates expected style and format)
+
+\`\`\`html
+<h2>🚀 The Structure of the Atom</h2>
+<p>Understanding the atom is fundamental to chemistry. It is the basic unit of a chemical element. At its center is the nucleus, containing protons and neutrons, which is surrounded by a cloud of electrons.</p>
+<h3>💡 Subatomic Particles</h3>
+<p>The three primary subatomic particles are distinguished by their charge, mass, and location within the atom.</p>
+<ul>
+    <li><strong>Protons:</strong> Positively charged particles found in the nucleus. The number of protons defines the element.</li>
+    <li><strong>Neutrons:</strong> Neutral particles also located in the nucleus. They contribute to the atom's mass but not its charge.</li>
+    <li><strong>Electrons:</strong> Negatively charged particles that orbit the nucleus in specific energy levels or shells.</li>
+</ul>
+<h4>🧠 Key Definition: Atomic Number</h4>
+<p><em>The atomic number (Z) of a chemical element is the number of protons found in the nucleus of every atom of that element. It is the defining characteristic of an element.</em></p>
+\`\`\`
+
+**Source Text From Document Named "${file.name}":**
+---
+${noteInputText}
+---
+
+**Your Response (Must be only the raw, clean HTML content):**
+`;
+
         let detailedNoteContent = 'Error: AI detailed study note generation failed.';
         try {
-            const noteOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: detailedNotePrompt }] }], generationConfig: { temperature: 0.65, maxOutputTokens: 8192 } }) };
+            const noteOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: detailedNotePrompt }] }], generationConfig: { temperature: 0.65, maxOutputTokens: 60000 } }) };
             const noteResponse = await fetchWithRetry(GEMINI_ENDPOINT, noteOptions);
             const noteRawText = extractCandidateText(await noteResponse.text());
             if (noteRawText.startsWith("Error:")) {
-                 detailedNoteContent = noteRawText; // Keep error message
+                 detailedNoteContent = noteRawText;
                  safeProgress({ progress: 75, status: 'Note generation failed.', error: noteRawText });
-            } else if (noteRawText.trim().length < 100) { // Arbitrary short content check
+            } else if (noteRawText.trim().length < 100) {
                  const shortNoteError = "AI generated unexpectedly short study notes.";
                  detailedNoteContent = noteRawText.trim() + `\n\n[Warning: ${shortNoteError}]`;
                  safeProgress({ progress: 75, status: 'Note generation resulted in short content.', error: shortNoteError });
@@ -199,10 +272,35 @@ export async function processPDF(
 
         safeProgress({ progress: 75, status: 'Generating key points...', error: null });
         const keyPointsInputText = extractedTextFromPdf;
-        const keyPointsPrompt = `From the text (from PDF "${file.name}"), list up to 10 distinct and significant key points. Output ONLY the key points, each starting with '* '. No intro/conclusion. Text:\n---\n${keyPointsInputText}\n---\nKey Points (max 10):\n* `;
+        const keyPointsPrompt = `
+**AI Persona:** You are a hyper-precise Information Extractor. Your single purpose is to identify and list the most critical, high-impact key takeaways from a given text. You are ruthlessly efficient and accurate.
+
+**Core Objective:** Read the provided source text and extract between 5 and 10 of the most significant and distinct key points. These points should represent the absolute core ideas, findings, or conclusions of the text.
+
+**MANDATORY, NON-NEGOTIABLE FORMATTING RULES:**
+1.  **OUTPUT A LIST ONLY:** Your entire output must be a list of key points.
+2.  **ASTERISK PREFIX:** Every single key point you generate MUST begin with \`* \` (an asterisk, followed by a single space).
+3.  **NO OTHER PREFIXES:** Do NOT use numbers (e.g., "1."), dashes (e.g., "- "), or any other character to start a line. Only \`* \`.
+4.  **ONE POINT PER LINE:** Each key point must be on its own line.
+5.  **NO EXTRA TEXT:** Do NOT include any title (like "Key Points:"), introduction, preamble, explanation, or concluding remarks. Your response must start immediately with the first key point's asterisk.
+
+**Example of a PERFECT response:**
+* The study concluded that sleep deprivation has a significant negative impact on cognitive function.
+* Key biomarkers for the disease were identified in blood plasma samples.
+* The new algorithm outperforms previous models by a 15% margin in efficiency.
+* Early intervention is crucial for successful long-term outcomes.
+* KEEP KEY POINTS CONCISE: Each point should be a single, clear sentence or phrase that captures the essence of the idea. DO NOT include unnecessary details or explanations. DO NOT MAKE IT LONGER THAN 25 WORDS.
+
+**Source Text From Document Named "${file.name}":**
+---
+${keyPointsInputText}
+---
+
+**Your Response (Must be only a list of points starting with '* '):**
+* `;
         let keyPoints: string[] = ['Error: Key points generation failed.'];
         try {
-            const kpOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: keyPointsPrompt }] }], generationConfig: { temperature: 0.4, maxOutputTokens: 1500 } }) };
+            const kpOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: keyPointsPrompt }] }], generationConfig: { temperature: 0.4, maxOutputTokens: 60000 } }) };
             const kpResponse = await fetchWithRetry(GEMINI_ENDPOINT, kpOptions);
             const kpText = extractCandidateText(await kpResponse.text());
             if (kpText.startsWith("Error:")) { keyPoints = [`Error: Key points failed (${kpText})`]; }
@@ -212,20 +310,41 @@ export async function processPDF(
 
         safeProgress({ progress: 80, status: 'Generating flashcards...', error: null });
         const flashcardsInputText = extractedTextFromPdf;
-        const flashcardsPrompt = `**Objective:** Generate **between 10 to 15 flashcards** for studying the provided text from "${file.name}".
-**Mandatory Instructions:**
-1.  **Study Relevance:** Flashcards MUST focus on key terms, definitions, concepts, or important facts from the text.
-2.  **Text-Grounded:** Content for both front and back MUST be derived from the text.
-3.  **Conciseness:** Keep front and back text concise and to the point for effective memorization.
-4.  **Quantity:** Aim for 10-15 distinct flashcards.
-5.  **Strict Formatting:** Adhere **unfailingly** to the following format for each flashcard, separated by "---FLASHCARD_DIVIDER---":
-    Front: [Text for the front of the card - typically a question, term, or concept]
-    Back: [Text for the back of the card - typically the answer, definition, or explanation]
-    ---FLASHCARD_DIVIDER---
-**Source Text:**\n---\n${flashcardsInputText}\n---\n(Context Only Key Points: ${keyPoints.join('; ')})\n**Generated Flashcards:**\nFront:`; // Start with "Front:" to guide the model
+        const flashcardsPrompt = `
+**AI Persona:** You are "CardCrafter," an expert system for creating effective, concise, and accurate study flashcards. Your focus is on clarity and adherence to a strict data format.
+
+**Core Objective:** Generate between 50 and 100 high-quality flashcards based on the provided source text. Each flashcard must focus on a single, specific key term, concept, definition, or important fact.
+
+**MANDATORY, UNFAILINGLY STRICT FORMATTING INSTRUCTIONS:**
+1.  **BLOCK STRUCTURE:** Your entire response must be a series of flashcard blocks.
+2.  **BLOCK SEPARATOR:** Each flashcard block MUST be separated from the next by a single line containing exactly this text: \`---FLASHCARD_DIVIDER---\`
+3.  **FLASHCARD FORMAT:** Every block MUST follow this exact, multi-line structure:
+    Front: [Text for the front of the card, typically a question, term, or concept]
+    Back: [Text for the back of the card, typically the answer, definition, or explanation]
+4.  **CONCISENESS:** Keep the text for both the "Front" and "Back" concise and targeted for effective memorization.
+5.  **NO EXTRA TEXT:** Do not include any introductory text, concluding text, or any commentary outside of the defined block structure. Your response MUST begin directly with "Front:".
+
+**Example of a PERFECT response:**
+Front: What is the primary function of mitochondria in a cell?
+Back: To generate most of the cell's supply of adenosine triphosphate (ATP), used as a source of chemical energy. It is often called the "powerhouse" of the cell.
+---FLASHCARD_DIVIDER---
+Front: Define the term "photosynthesis."
+Back: The process used by plants, algae, and certain bacteria to convert light energy into chemical energy, through a process that converts carbon dioxide and water into glucose and oxygen.
+---FLASHCARD_DIVIDER---
+Front: Who wrote the play "Hamlet"?
+Back: William Shakespeare.
+
+**Source Text From Document Named "${file.name}":**
+---
+${flashcardsInputText}
+---
+**(For your context only, here are some key points that were identified: ${keyPoints.join('; ')})**
+
+**Your Response (Must follow the strict "Front/Back/Divider" format):**
+Front:`;
         let flashcards: ProcessedPDF['flashcards'] = [];
         try {
-            const fcOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: flashcardsPrompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 2048 } }) };
+            const fcOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: flashcardsPrompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 60000 } }) };
             const fcResponse = await fetchWithRetry(GEMINI_ENDPOINT, fcOptions);
             const fcRawText = extractCandidateText(await fcResponse.text());
 
@@ -235,16 +354,16 @@ export async function processPDF(
 
             const flashcardBlocks = fcRawText.split(/---FLASHCARD_DIVIDER---/i);
             for (const block of flashcardBlocks) {
-                if (flashcards.length >= 15) break;
+                if (flashcards.length >= 100) break;
                 const trimmedBlock = block.trim();
-                if (trimmedBlock.length < 10) continue; // Minimal length for a block
+                if (trimmedBlock.length < 10) continue;
 
                 const frontMatch = trimmedBlock.match(/^(?:Front:\s*)?([\s\S]*?)\s*\nBack:\s*([\s\S]*)$/is);
 
                 if (frontMatch && frontMatch[1] && frontMatch[2]) {
                     const frontText = frontMatch[1].trim();
                     const backText = frontMatch[2].trim();
-                    if (frontText.length > 2 && backText.length > 2) { // Basic validity
+                    if (frontText.length > 2 && backText.length > 2) {
                         flashcards.push({ front: frontText, back: backText });
                     }
                 }
@@ -252,39 +371,68 @@ export async function processPDF(
             
             if (flashcards.length > 0) {
                  safeProgress({ progress: 85, status: `Generated ${flashcards.length} flashcards.`, error: null });
-            } else if (!fcRawText.startsWith("Error:")) { // No API error, but no cards parsed
+            } else if (!fcRawText.startsWith("Error:")) {
                  safeProgress({ progress: 85, status: `Generated 0 flashcards. (Possible parsing issue or no relevant content)`, error: "No flashcards parsed from AI response, or AI returned no usable cards." });
-            } else { // fcRawText started with an error, handled by catch block below
+            } else {
                 throw new Error("Flashcard generation resulted in no usable cards due to an earlier error.");
             }
 
         } catch (fcError) {
             const errorMsg = fcError instanceof Error ? fcError.message : 'Unknown flashcards error';
             safeProgress({ progress: 85, status: 'Flashcards generation failed.', error: errorMsg });
-            flashcards = [{ front: 'Flashcard generation failed.', back: `Reason: ${errorMsg}` }]; // Provide a default error flashcard
+            flashcards = [{ front: 'Flashcard generation failed.', back: `Reason: ${errorMsg}` }];
         }
 
 
         safeProgress({ progress: 85, status: 'Generating study questions...', error: null });
         const questionsInputText = extractedTextFromPdf;
-        const questionsPrompt = `**Objective:** Generate **exactly 10 multiple-choice questions (MCQs)** for studying the provided text from "${file.name}".
-**Mandatory Instructions:**
-1.  **Study Relevance:** Questions MUST focus on the *actual subject matter*. **AVOID** questions *about* the document.
-2.  **Text-Grounded:** Correct answer and premise MUST be derivable from the text.
-3.  **Quantity & Scope:** Generate **exactly 10** distinct MCQs.
-4.  **Strict Formatting:** Adhere **unfailingly** to:
-    Question: [Question]
-    A) [Option A]
-    B) [Option B]
-    C) [Option C]
-    D) [Option D]
-    Correct: [Letter (A-D)]
-    Explanation: [Explanation]
-    ---DIVIDER---
-**Source Text:**\n---\n${questionsInputText}\n---\n(Context Only Key Points: ${keyPoints.join('; ')})\n**Generated Study Questions:**\n---DIVIDER---`;
+        const questionsPrompt = `
+**AI Persona:** You are "QuizMaster Pro," an expert in pedagogical assessment. Your specialty is creating high-quality, unambiguous multiple-choice questions (MCQs) that accurately test a student's understanding of source material. You are precise, methodical, and your output is flawlessly formatted.
+
+**Core Objective:** Generate **exactly 10** distinct, high-quality multiple-choice questions based on the core subject matter of the provided text.
+
+**CRITICAL, NON-NEGOTIABLE, AND EXTREMELY STRICT FORMATTING RULES:**
+Your entire output must consist of **exactly 10** question blocks. You must not fail to provide 10 blocks.
+1.  **BLOCK DIVIDER:** Each of the 10 question blocks MUST be separated by a single line containing exactly this text: \`---DIVIDER---\`. This is mandatory.
+2.  **FIXED 7-LINE STRUCTURE:** Every single block MUST adhere to the following rigid 7-line format without any deviation. Each item must be on a new line.
+    Line 1: \`Question: [The full text of the question]\`
+    Line 2: \`A) [Text for option A]\`
+    Line 3: \`B) [Text for option B]\`
+    Line 4: \`C) [Text for option C]\`
+    Line 5: \`D) [Text for option D]\`
+    Line 6: \`Correct: [A single uppercase letter: A, B, C, or D]\`
+    Line 7: \`Explanation: [A clear and concise explanation for why the correct answer is right, and bonus points if you explain why others are wrong.]\`
+3.  **NO EXTRA TEXT or DEVIATION:**
+    - Do NOT number the questions (e.g., "1. Question:").
+    - Do NOT add any introductory text, titles, or concluding summaries.
+    - Your response must start immediately with \`Question:\` on the first line of the first block.
+    - Do NOT ever deviate from the 7-line structure.
+
+**CONTENT GUIDELINES:**
+- **Relevance:** Questions MUST test the actual subject matter. AVOID "meta" questions about the document itself (e.g., "What did the author say on page 3?").
+- **Clarity:** The question and options must be clear and unambiguous. There should be only one single best answer.
+- **Plausible Distractors:** The incorrect options (distractors) should be plausible but clearly wrong based on the source material's concepts.
+
+**Example of a PERFECT First Block:**
+Question: According to the text, what is the primary purpose of the legislative branch of the U.S. government?
+A) To enforce the laws of the country
+B) To interpret the constitutionality of laws
+C) To create and enact laws
+D) To command the armed forces
+Correct: C
+Explanation: The legislative branch, consisting of the Senate and House of Representatives, is responsible for writing, debating, and passing bills to become laws. Enforcing laws is the executive branch, and interpreting them is the judicial branch.
+
+**Source Text From Document Named "${file.name}":**
+---
+${questionsInputText}
+---
+**(For your context only, here are some key points that were identified: ${keyPoints.join('; ')})**
+
+**Your Response (Must be 10 blocks in the strict 7-line format, separated by "---DIVIDER---"):**
+Question:`;
         let questions: ProcessedPDF['questions'] = [];
         try {
-            const qOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: questionsPrompt }] }], generationConfig: { temperature: 0.6, maxOutputTokens: 4096 } }) };
+            const qOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: questionsPrompt }] }], generationConfig: { temperature: 0.6, maxOutputTokens: 60000 } }) };
             const qResponse = await fetchWithRetry(GEMINI_ENDPOINT, qOptions);
             const qRawText = extractCandidateText(await qResponse.text());
             if (qRawText.startsWith("Error:")) { throw new Error(`Question Generation Failed: ${qRawText}`); }
@@ -304,10 +452,10 @@ export async function processPDF(
                     }
                 }
             }
-            if (questions.length === 0 && !qRawText.startsWith("Error:")) { // No API error, but nothing parsed
+            if (questions.length === 0 && !qRawText.startsWith("Error:")) {
                 throw new Error("No valid study questions parsed from AI response.");
             } else if (questions.length === 0 && qRawText.startsWith("Error:")) {
-                // Error already captured, will be part of the thrown error message
+                // Error already captured
             }
             safeProgress({ progress: 95, status: `Generated ${questions.length} study questions.`, error: questions.length < 10 ? `Generated only ${questions.length}/10 questions.` : null });
         } catch (qError) {
@@ -321,7 +469,7 @@ export async function processPDF(
             title: file.name.replace(/\.pdf$/i, ''),
             content: detailedNoteContent,
             keyPoints,
-            flashcards, // Added
+            flashcards,
             questions,
             sourceUrl: pdfUrl,
             extractedText: extractedTextFromPdf,
@@ -334,9 +482,9 @@ export async function processPDF(
             title: file.name.replace(/\.pdf$/i, ''),
             content: `Error: Processing failed. ${errorMessage}`,
             keyPoints: ['Processing failed.'],
-            flashcards: [], // Initialize as empty array on general failure
+            flashcards: [],
             questions: [],
-            sourceUrl: '', // Potentially pdfUrl could be set if upload succeeded before failure
+            sourceUrl: '',
             extractedText: extractedTextFromPdf || `Processing failed, no text extracted. Error: ${errorMessage}`,
         };
     }

@@ -1,268 +1,179 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Loader2 } from 'lucide-react';
-import { Logo } from './Logo';
+import { Link } from 'react-router-dom';
+import { Logo } from './Logo'; // Import the Logo component
 
 function PrivacyPolicy() {
-  const { user, loading } = useAuth();
-  const [isOpen, setIsOpen] = useState(false);
+  const { user } = useAuth(); // Re-added for header button
 
-  const toggleMenu = () => {
-    setIsOpen(!isOpen);
-  };
+  useEffect(() => {
+    // Instantly scroll to the top of the page on component mount
+    window.scrollTo(0, 0);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
-      </div>
-    );
-  }
+    const applyTheme = () => {
+        const isIlluminateEnabled = JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'false');
+        if (isIlluminateEnabled) {
+            document.documentElement.classList.remove('dark');
+            document.documentElement.classList.add('light');
+        } else {
+            document.documentElement.classList.remove('light');
+            if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        }
+    };
+    applyTheme();
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    mediaQuery.addEventListener('change', applyTheme);
+    window.addEventListener('storage', (event) => { if (event.key === 'isIlluminateEnabled') applyTheme(); });
+    return () => {
+        mediaQuery.removeEventListener('change', applyTheme);
+        window.removeEventListener('storage', applyTheme);
+    }
+  }, []);
+
+  const headerButtonText = user ? "Dashboard" : "Start today - It's Free";
+  const headerButtonLink = user ? "/dashboard" : "/signup";
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-900 font-poppins">
-      <header className="fixed w-full bg-gray-900/80 backdrop-blur-lg border-b border-gray-800 z-50">
-        <div className="container mx-auto px-4 py-4">
+    <div className="min-h-screen flex flex-col font-poppins bg-white text-gray-800 dark:bg-[#0C0E1A] dark:text-gray-200 illuminate-override">
+      {/* Simple Non-Floating Header with Logo */}
+      <header className="w-full py-5 sm:py-6 bg-white dark:bg-[#0C0E1A] illuminate-override">
+        <div className="container mx-auto px-5 sm:px-6">
           <nav className="flex items-center justify-between">
-            <a href="/">
+            <Link to="/" aria-label="TaskMaster AI Home">
               <Logo />
+            </Link>
+            <a
+              href={headerButtonLink}
+              className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white rounded-full text-sm font-semibold transition-colors duration-200 shadow-md hover:shadow-indigo-500/50 illuminate-button-override"
+            >
+              {headerButtonText}
             </a>
-            
-            <button
-              className="md:hidden text-gray-300 hover:text-indigo-400 focus:outline-none"
-              onClick={toggleMenu}
-              aria-label="Toggle menu"
-            >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                {isOpen ? (
-                  <path d="M6 18L18 6M6 6l12 12" />
-                ) : (
-                  <path d="M4 6h16M4 12h16M4 18h16" />
-                )}
-              </svg>
-            </button>
-
-            <div className="hidden md:flex items-center space-x-8">
-              <a href="/" className="text-gray-300 hover:text-indigo-400 transition-colors">Features</a>
-              <a href="pricing" className="text-gray-300 hover:text-indigo-400 transition-colors">Pricing</a>
-              <a href="contact" className="text-gray-300 hover:text-indigo-400 transition-colors">Contact</a>
-              <a 
-                href={user ? "/dashboard" : "/signup"} 
-                className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-full transition-all transform hover:scale-105"
-              >
-                {user ? "Dashboard" : "Get Started Today"}
-              </a>
-            </div>
-
-            <div
-              className={`absolute top-full left-0 right-0 bg-gray-900/95 border-b border-gray-800 md:hidden transition-all duration-300 ease-in-out ${
-                isOpen ? 'opacity-100 visible' : 'opacity-0 invisible'
-              }`}
-            >
-              <div className="container mx-auto px-4 py-4 flex flex-col space-y-4">
-                <a
-                  href="/"
-                  className="text-gray-300 hover:text-indigo-400 transition-colors"
-                  onClick={toggleMenu}
-                >
-                  Features
-                </a>
-                <a
-                  href="pricing"
-                  className="text-gray-300 hover:text-indigo-400 transition-colors"
-                  onClick={toggleMenu}
-                >
-                  Pricing
-                </a>
-                <a
-                  href="contact"
-                  className="text-gray-300 hover:text-indigo-400 transition-colors"
-                  onClick={toggleMenu}
-                >
-                  Contact
-                </a>
-                <a
-                  href={user ? "/dashboard" : "/signup"}
-                  className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-full text-center transition-all transform hover:scale-105"
-                  onClick={toggleMenu}
-                >
-                  {user ? "Dashboard" : "Get Started Today"}
-                </a>
-              </div>
-            </div>
           </nav>
         </div>
       </header>
+      
+      <main className="flex-grow pt-8 sm:pt-10 pb-16"> {/* Adjusted top padding */}
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-4xl">
+          <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 dark:text-white mb-4 illuminate-text-override">Privacy Policy</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-10 illuminate-subtext-override">Last updated: March 10, 2024</p>
+          <hr className="border-gray-200 dark:border-gray-700 mb-10 illuminate-border-override"/>
 
-      <main className="flex-grow max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-8 text-white">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-indigo-400 mb-2">🔒 Privacy Policy</h1>
-          <p className="text-gray-300">Last updated: January 1, 2024</p>
-        </div>
+          <article className="prose prose-lg lg:prose-xl dark:prose-invert max-w-none 
+                              prose-p:leading-relaxed prose-p:text-gray-700 prose-p:dark:text-gray-300 prose-p:illuminate-prose-text-override
+                              prose-strong:font-semibold prose-strong:text-gray-900 prose-strong:dark:text-white prose-strong:illuminate-prose-text-override
+                              prose-a:text-indigo-600 prose-a:dark:text-purple-400 prose-a:no-underline hover:prose-a:underline
+                              prose-li:marker:text-indigo-500 prose-li:dark:marker:text-purple-500
+                              prose-p:mb-6 prose-h2:mb-6 prose-h3:mb-5
+                              illuminate-prose-override">
+            
+            <h2 className="text-3xl font-semibold tracking-tight text-gray-900 dark:text-white illuminate-text-override mt-12">Our Commitment to Privacy</h2>
+            <p>At <strong className="text-indigo-600 dark:text-purple-400 illuminate-link-override">TaskMaster AI</strong> ("we," "us," or "our"), we prioritize the privacy of our users. This Privacy Policy outlines how we collect, use, disclose, and safeguard your information when you use our website, services, and applications (collectively, the "Services"). Our goal is to collect only what is necessary to deliver and improve our services effectively while safeguarding your personal details.</p>
+            <h3 className="text-2xl font-semibold tracking-tight text-indigo-500 dark:text-purple-400 illuminate-link-override mt-10">Minimal Information Collection Philosophy</h3>
+            <p>We are committed to a principle of minimal data collection. We aim to gather only the personal information essential for delivering our exceptional services, for legitimate operational purposes, and for improving user experience. Your private information remains confidential within the <strong className="text-indigo-600 dark:text-purple-400 illuminate-link-override">TaskMaster AI</strong> ecosystem and is shielded from unauthorized external entities. We avoid third-party tracking cookies for advertising purposes and ensure that any first-party cookies used are strictly for essential functionality and analytics, without storing unnecessary personal information.</p>
+            
+            <h2 className="text-3xl font-semibold tracking-tight text-gray-900 dark:text-white illuminate-text-override mt-12">What Information Does TaskMaster AI Collect?</h2>
+            <p>The nature of personal information <strong className="text-indigo-600 dark:text-purple-400 illuminate-link-override">TaskMaster AI</strong> collects varies based on your interactions with our platform:</p>
+            <ul>
+                <li><strong>Account Information:</strong> When you create an account, we collect information such as your name, email address, password (hashed), and account settings/preferences.</li>
+                <li><strong>Contact Information:</strong> If you contact us for support or other inquiries, we collect your name, email address, and the content of your communication.</li>
+                <li><strong>Payment and Transaction Information:</strong> If you subscribe to paid services, we (or our third-party payment processors) collect details necessary to process your payment, such as billing address, payment method details, and transaction history. We do not store full credit card numbers on our servers.</li>
+                <li><strong>Content You Provide ("User Content"):</strong> Any files (audio, video, PDF), text, tasks, notes, or other data you upload, input, or generate while using the Services (e.g., for note generation, summarization, flashcards, quizzes, chatbot interaction).</li>
+                <li><strong>Usage Information:</strong> Data on how you engage with our Services, such as features used, actions taken, session duration, interaction patterns, performance metrics, error reports, and diagnostic information. This helps us understand service usage and improve functionality.</li>
+                <li><strong>Device and Technical Information:</strong> IP address, browser type and version, operating system, device identifiers, screen resolution, language preferences, and other technical data collected automatically when you access our Services.</li>
+                <li><strong>Cookies and Similar Technologies:</strong> Information collected through cookies and other tracking technologies as described in Section 4.</li>
+                <li><strong>Other Provided Information:</strong> Any additional details you voluntarily convey to us, including through surveys, customer support interactions, or feedback forms.</li>
+            </ul>
+            <p><em>Note: Providing personal information is not always obligatory, but a lack of it may affect our ability to offer you certain services or respond to your inquiries effectively.</em></p>
 
-        <div className="space-y-8">
-          <section className="bg-gray-800 rounded-xl p-6">
-            <div className="prose prose-invert max-w-none">
-              <p className="text-gray-300">
-                At TaskMaster AI, your privacy is our top priority. This privacy policy outlines how we collect, use, and safeguard your data when you use our services. By using TaskMaster AI, you agree to the terms outlined below.
-              </p>
-            </div>
-          </section>
+            <h2 className="text-3xl font-semibold tracking-tight text-gray-900 dark:text-white illuminate-text-override mt-12">How We Use Your Information</h2>
+            <p>We use the information we collect for various purposes, including:</p>
+            <ul>
+                <li><strong>To Provide and Maintain Our Services:</strong> To operate our platform, process your inputs, generate outputs, authenticate users, and fulfill your requests.</li>
+                <li><strong>To Improve and Personalize Our Services:</strong> To understand user needs, customize content and features, develop new offerings, and enhance user experience.</li>
+                <li><strong>To Communicate With You:</strong> To send service-related announcements, updates, security alerts, support messages, and respond to your inquiries. We may also send marketing communications if you opt-in.</li>
+                <li><strong>To Process Transactions:</strong> To manage subscriptions, process payments, and prevent fraudulent transactions.</li>
+                <li><strong>For Security and Compliance:</strong> To protect the security and integrity of our Services, prevent abuse, enforce our Terms of Service, and comply with legal obligations.</li>
+                <li><strong>For Analytics and Research:</strong> To analyze trends, monitor usage patterns, and conduct research to improve our Services. Aggregated and anonymized data may be used for these purposes.</li>
+            </ul>
+            
+            <h2 className="text-3xl font-semibold tracking-tight text-gray-900 dark:text-white illuminate-text-override mt-12">Cookies and Other Tracking Technologies</h2>
+            <p><strong className="text-indigo-600 dark:text-purple-400 illuminate-link-override">TaskMaster AI</strong>'s digital ecosystem—spanning our website, online services, and interactive applications—may use "cookies" and other technologies like pixel tags or web beacons for functionality, analytics, and user experience enhancement. We avoid third-party cookies for cross-site tracking or advertising.</p>
+            <h3 className="text-2xl font-semibold tracking-tight text-indigo-500 dark:text-purple-400 illuminate-link-override mt-10">Types of Cookies We Use:</h3>
+            <ul>
+                <li><strong>Essential Cookies:</strong> Necessary for the basic functioning of the Services, such as session management and security.</li>
+                <li><strong>Performance and Analytics Cookies:</strong> Help us understand how users interact with our Services, allowing us to improve performance and user experience (e.g., Google Analytics). These cookies collect information in an aggregated and anonymous form.</li>
+                <li><strong>Functionality Cookies:</strong> Remember your preferences (like language or theme settings) to provide a more personalized experience.</li>
+            </ul>
+            <h3 className="text-2xl font-semibold tracking-tight text-indigo-500 dark:text-purple-400 illuminate-link-override mt-10">Your Choices Regarding Cookies:</h3>
+            <p>Most web browsers are set to accept cookies by default. You can usually modify your browser settings to decline cookies or to alert you when cookies are being sent. However, if you disable cookies, some parts of our Services may not function properly.</p>
 
-          <section className="bg-gray-800 rounded-xl p-6">
-            <h2 className="text-2xl font-bold mb-4 text-indigo-400">📊 Information We Collect</h2>
-            <div className="prose prose-invert max-w-none">
-              <p className="text-gray-300">We collect the following types of data to provide you with the best experience:</p>
-              <ul className="text-gray-300 list-disc pl-6 mt-4">
-                <li><strong>👤 Account Information:</strong> Name, email address, and other personal details for user authentication.</li>
-                <li><strong>📋 User-Generated Data:</strong> Tasks, goals, projects, and plans, including descriptions, deadlines, and statuses, stored in Firebase Firestore.</li>
-                <li><strong>🤖 AI-Generated Data:</strong> Content like Smart Overview, notes, and quizzes created from your input. Stored only if saved.</li>
-                <li><strong>💬 Friends and Messages:</strong> Messages exchanged with friends, securely stored in Firebase Firestore.</li>
-                <li><strong>📸 Profile Pictures:</strong> Uploaded images to personalize your experience, securely stored and visible only to friends.</li>
-                <li><strong>📅 Calendar Events:</strong> Schedule events stored to help manage your time effectively.</li>
-                <li><strong>🤝 AI Chat Bot:</strong> Real-time interaction data, not stored in Firebase Firestore.</li>
-                <li><strong>🔔 Notifications:</strong> Alerts for important messages and updates. Data is used temporarily and not stored.</li>
-                <li><strong>📍 Location Data:</strong> Used for features like weather updates, temporarily processed without storage.</li>
-              </ul>
-            </div>
-          </section>
+            <h2 className="text-3xl font-semibold tracking-tight text-gray-900 dark:text-white illuminate-text-override mt-12">How We Share Your Information</h2>
+            <p>We do not sell your personal information. We may share your information in the following limited circumstances:</p>
+            <ul>
+                <li><strong>With Service Providers:</strong> We may share information with third-party vendors, consultants, and other service providers who perform services on our behalf (e.g., payment processing, data hosting, analytics, customer support). These providers are contractually obligated to protect your information and use it only for the purposes for which it was disclosed.</li>
+                <li><strong>For Legal Reasons:</strong> We may disclose your information if required to do so by law or in response to valid requests by public authorities (e.g., a court or government agency), or if we believe in good faith that disclosure is necessary to protect our rights, protect your safety or the safety of others, investigate fraud, or respond to a government request.</li>
+                <li><strong>Business Transfers:</strong> In the event of a merger, acquisition, reorganization, bankruptcy, or sale of all or a portion of our assets, your information may be transferred as part of that transaction. We will notify you via email and/or a prominent notice on our Services of any change in ownership or uses of your personal information.</li>
+                <li><strong>With Your Consent:</strong> We may share your information with third parties when we have your explicit consent to do so.</li>
+                <li><strong>Aggregated or Anonymized Data:</strong> We may share aggregated or anonymized information that does not directly identify you for research, marketing, analytics, or other purposes.</li>
+            </ul>
 
-          <section className="bg-gray-800 rounded-xl p-6">
-            <h2 className="text-2xl font-bold mb-4 text-indigo-400">💼 How We Use Your Information</h2>
-            <div className="prose prose-invert max-w-none">
-              <p className="text-gray-300">We use your data to:</p>
-              <ul className="text-gray-300 list-disc pl-6 mt-4">
-                <li><strong>✔️ Task Management:</strong> Efficiently organize your tasks and projects, storing them securely in Firebase Firestore.</li>
-                <li><strong>🧠 AI Features:</strong> Provide insights through Smart Overview and generate custom notes or quizzes.</li>
-                <li><strong>💌 Friendship and Messaging:</strong> Enable communication with friends while keeping your conversations secure.</li>
-                <li><strong>🖼️ Profile Customization:</strong> Personalize your experience with profile pictures visible only to your friends.</li>
-                <li><strong>📆 Event Management:</strong> Help you stay on top of deadlines and schedules.</li>
-                <li><strong>📈 Service Improvement:</strong> Enhance AI models and optimize user experience.</li>
-                <li><strong>🔔 Notifications:</strong> Keep you updated on tasks, events, and friend interactions.</li>
-                <li><strong>🌍 Location-Based Features:</strong> Provide contextual services like weather updates without storing your location data.</li>
-              </ul>
-            </div>
-          </section>
+            <h2 className="text-3xl font-semibold tracking-tight text-gray-900 dark:text-white illuminate-text-override mt-12">Data Security</h2>
+            <p>We implement reasonable administrative, technical, and physical security measures designed to protect your personal information from unauthorized access, use, alteration, and disclosure. These measures include encryption, access controls, and secure development practices. However, no method of transmission over the Internet or method of electronic storage is 100% secure, and we cannot guarantee absolute security.</p>
 
-          <section className="bg-gray-800 rounded-xl p-6">
-            <h2 className="text-2xl font-bold mb-4 text-indigo-400">🛡️ Data Storage and Retention</h2>
-            <div className="prose prose-invert max-w-none">
-              <p className="text-gray-300">We store your data securely in Firebase Firestore, including:</p>
-              <ul className="text-gray-300 list-disc pl-6 mt-4">
-                <li>Tasks, goals, projects, and plans</li>
-                <li>Messages with friends</li>
-                <li>Profile pictures and calendar events</li>
-              </ul>
-              <p className="text-gray-300 mt-4">
-                <strong>Temporary Data:</strong> AI-generated content (e.g., Smart Overview) and location data are processed in real-time and not stored unless saved by you.
-              </p>
-              <p className="text-gray-300 mt-4">
-                We retain your data as long as your account is active. You can delete your data anytime through the app. If you delete your account, your data will be removed in accordance with our data retention policy.
-              </p>
-            </div>
-          </section>
+            <h2 className="text-3xl font-semibold tracking-tight text-gray-900 dark:text-white illuminate-text-override mt-12">Data Retention</h2>
+            <p>We retain your personal information for as long as necessary to fulfill the purposes outlined in this Privacy Policy, unless a longer retention period is required or permitted by law. This includes retaining information to provide you with the Services, comply with our legal obligations, resolve disputes, and enforce our agreements. User Content is generally retained as long as your account is active or as needed to provide you services, and may be deleted upon account closure or inactivity according to our policies.</p>
 
-          <section className="bg-gray-800 rounded-xl p-6">
-            <h2 className="text-2xl font-bold mb-4 text-indigo-400">🔒 How We Protect Your Information</h2>
-            <div className="prose prose-invert max-w-none">
-              <p className="text-gray-300">Your data security is critical. We implement:</p>
-              <ul className="text-gray-300 list-disc pl-6 mt-4">
-                <li>🔐 Encryption for data in transit and at rest</li>
-                <li>🔑 Secure access controls</li>
-                <li>⚠️ Regular security audits and updates</li>
-              </ul>
-              <p className="text-gray-300 mt-4">
-                While we strive to protect your information, please note that no method of transmission or storage is entirely secure.
-              </p>
-            </div>
-          </section>
+            <h2 className="text-3xl font-semibold tracking-tight text-gray-900 dark:text-white illuminate-text-override mt-12">Your Rights and Choices</h2>
+            <p>Depending on your jurisdiction, you may have certain rights regarding your personal information, including:</p>
+            <ul>
+                <li><strong>Access:</strong> The right to request access to the personal information we hold about you.</li>
+                <li><strong>Correction:</strong> The right to request correction of inaccurate or incomplete personal information.</li>
+                <li><strong>Deletion:</strong> The right to request deletion of your personal information, subject to certain exceptions.</li>
+                <li><strong>Opt-out of Communications:</strong> You can opt-out of receiving promotional emails from us by following the unsubscribe instructions in those emails. You may still receive transactional or service-related communications.</li>
+                <li><strong>Cookie Controls:</strong> As described in Section 4, you can manage your cookie preferences through your browser settings.</li>
+            </ul>
+            <p>To exercise these rights, please contact us using the details provided in Section 11.</p>
 
-          <section className="bg-gray-800 rounded-xl p-6">
-            <h2 className="text-2xl font-bold mb-4 text-indigo-400">🍪 Cookies and Tracking Technologies</h2>
-            <div className="prose prose-invert max-w-none">
-              <p className="text-gray-300">We use cookies to enhance your experience, including:</p>
-              <ul className="text-gray-300 list-disc pl-6 mt-4">
-                <li>🔧 Remembering your preferences</li>
-                <li>📊 Analyzing app usage</li>
-              </ul>
-              <p className="text-gray-300 mt-4">
-                You can control cookies through your browser settings, but this may impact app functionality.
-              </p>
-            </div>
-          </section>
+            <h2 className="text-3xl font-semibold tracking-tight text-gray-900 dark:text-white illuminate-text-override mt-12">International Data Transfers</h2>
+            <p>Your information, including personal data, may be transferred to — and maintained on — computers located outside of your state, province, country, or other governmental jurisdiction where the data protection laws may differ from those in your jurisdiction. If you are located outside the United States and choose to provide information to us, please note that we transfer the data, including personal data, to the United States and process it there. Your consent to this Privacy Policy followed by your submission of such information represents your agreement to that transfer.</p>
 
-          <section className="bg-gray-800 rounded-xl p-6">
-            <h2 className="text-2xl font-bold mb-4 text-indigo-400">🌐 Third-Party Services</h2>
-            <div className="prose prose-invert max-w-none">
-              <p className="text-gray-300">
-                We partner with third-party services like Firebase Firestore for secure data storage and AI tools for processing. These services are governed by their own privacy policies.
-              </p>
-            </div>
-          </section>
+            <h2 className="text-3xl font-semibold tracking-tight text-gray-900 dark:text-white illuminate-text-override mt-12">Children's Privacy</h2>
+            <p>Our Services are not directed to individuals under the age of 13 (or a higher age threshold depending on applicable law). We do not knowingly collect personal information from children. If we become aware that a child has provided us with personal information without parental consent, we will take steps to delete such information. If you believe we might have any information from or about a child, please contact us.</p>
 
-          <section className="bg-gray-800 rounded-xl p-6">
-            <h2 className="text-2xl font-bold mb-4 text-indigo-400">📜 Your Rights</h2>
-            <div className="prose prose-invert max-w-none">
-              <p className="text-gray-300">You have the right to:</p>
-              <ul className="text-gray-300 list-disc pl-6 mt-4">
-                <li>📂 Access your data</li>
-                <li>✏️ Update your information</li>
-                <li>🗑️ Delete your data</li>
-              </ul>
-              <p className="text-gray-300 mt-4">
-                To request data access or deletion, contact us at taskmasteroneai@gmail.com.
-              </p>
-            </div>
-          </section>
+            <h2 className="text-3xl font-semibold tracking-tight text-gray-900 dark:text-white illuminate-text-override mt-12">Changes to This Privacy Policy</h2>
+            <p>We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page and updating the "Last updated" date. You are advised to review this Privacy Policy periodically for any changes. Changes to this Privacy Policy are effective when they are posted on this page.</p>
 
-          <section className="bg-gray-800 rounded-xl p-6">
-            <h2 className="text-2xl font-bold mb-4 text-indigo-400">🔄 Changes to This Privacy Policy</h2>
-            <div className="prose prose-invert max-w-none">
-              <p className="text-gray-300">
-                We may update this privacy policy periodically. Changes will be posted here with an updated revision date. Please check back regularly to stay informed.
-              </p>
-            </div>
-          </section>
-        </div>
+            <h2 className="text-3xl font-semibold tracking-tight text-gray-900 dark:text-white illuminate-text-override mt-12">Contact Us</h2>
+            <p>If you have any questions or concerns about this Privacy Policy or our data practices, please contact us at: <a href="mailto:taskmasteroneai@gmail.com" className="illuminate-link-override">taskmasteroneai@gmail.com</a></p>
 
-        <div className="mt-12 bg-gray-800 rounded-xl p-6">
-          <h2 className="text-2xl font-bold mb-4 text-center text-indigo-400">📞 Contact Us</h2>
-          <p className="text-center text-gray-300 mb-6">
-            If you have questions or concerns about this privacy policy, contact us at taskmasteroneai@gmail.com
-          </p>
-          <div className="text-center">
-            <a 
-              href="mailto:taskmasteroneai@gmail.com" 
-              className="inline-block px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-full transition-all transform hover:scale-105"
-            >
-              Contact Support
-            </a>
-          </div>
+          </article>
         </div>
       </main>
 
-      <footer className="bg-gray-900 border-t border-gray-800">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex flex-col md:flex-row items-center justify-between">
+      <footer className="bg-white dark:bg-[#0C0E1A]  dark:border-gray-800/60 illuminate-override illuminate-border-override">
+        <div className="container mx-auto px-5 sm:px-6 py-10">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-5">
             <div className="flex items-center space-x-4">
-              <a href="/privacy-policy" className="text-sm text-gray-400 hover:text-indigo-400">
+              <Link 
+                to="/privacy-policy" 
+                className="text-sm text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 transition-colors illuminate-subtext-override dark:illuminate-link-override"
+              >
                 Privacy Policy
-              </a>
-              <span className="text-gray-600">|</span>
-              <a href="/terms" className="text-sm text-gray-400 hover:text-indigo-400">
+              </Link>
+              <span className="text-gray-400 dark:text-gray-700 hidden sm:inline illuminate-subtext-override">|</span>
+              <Link 
+                to="/terms" 
+                className="text-sm text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 transition-colors illuminate-subtext-override dark:illuminate-link-override"
+              >
                 Terms & Conditions
-              </a>
+              </Link>
             </div>
-            <p className="text-sm text-gray-400 mt-4 md:mt-0">
-              © 2024 TaskMaster AI. All rights reserved.
+            <p className="text-sm text-gray-500 dark:text-gray-400 text-center md:text-right illuminate-subtext-override">
+              © {new Date().getFullYear()} TaskMaster AI. All rights reserved.
             </p>
           </div>
         </div>

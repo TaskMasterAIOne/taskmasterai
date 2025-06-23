@@ -1,138 +1,69 @@
 import React, { useState } from 'react';
+import { Loader2 } from 'lucide-react';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { auth, db } from '../../lib/firebase';
-import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore'; // Added getDoc just in case, though not strictly needed here
-import { useNavigate } from 'react-router-dom'; // Use useNavigate for better practice
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { useNavigate } from 'react-router-dom';
 
-export function SignUpForm() {
+interface SignUpFormProps {
+  isDarkMode: boolean;
+}
+
+export function SignUpForm({ isDarkMode }: SignUpFormProps) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate(); // Initialize navigate
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(''); // Clear previous errors
-    setLoading(true);
-    try {
-      // Step 1: Create user in Firebase Auth
-      const result = await createUserWithEmailAndPassword(auth, email, password);
-      const user = result.user;
-      const fullName = `${firstName} ${lastName}`;
-
-      // Step 2: Update Firebase Auth profile (optional but good practice)
-      await updateProfile(user, { displayName: fullName });
-
-      // Step 3: Create user document in Firestore with initial data
-      // Since createUserWithEmailAndPassword only succeeds for new users,
-      // we can directly set the initial data including tokens.
-      const userDocRef = doc(db, "users", user.uid);
-
-      await setDoc(userDocRef, {
-          uid: user.uid,
-          email: user.email,
-          firstName,
-          lastName,
-          name: fullName, // Combined name
-          displayName: fullName, // Sync with Auth profile
-          createdAt: serverTimestamp(), // Timestamp for creation
-          tokens: 500, // **** Set initial tokens ****
-          uploadBonusCount: 0, // Initialize bonus count
-          abuseWarningCount: 0, // Initialize warning count
-          // photoURL: user.photoURL || null // Can add if default photo needed
-        }
-        // No need for { merge: true } when creating a new document with setDoc
-      );
-
-      console.log("User created and Firestore document set with initial tokens.");
-      // window.location.href = '/splashscreen'; // Hard redirect
-      navigate('/splashscreen'); // Use navigate for SPA routing
-
-    } catch (err: any) {
-      // Handle specific errors
-      if (err.code === 'auth/email-already-in-use') {
-        setError('This email address is already in use.');
-      } else if (err.code === 'auth/weak-password') {
-        setError('Password should be at least 6 characters long.');
-      } else {
-        setError('Failed to create account. Please try again.');
-      }
-      console.error("Sign up error:", err);
-    } finally { // Ensure loading is always set to false
-      setLoading(false);
-    }
+    e.preventDefault(); setError(''); setLoading(true);
+    try { const result = await createUserWithEmailAndPassword(auth, email, password); const user = result.user; const fullName = `${firstName.trim()} ${lastName.trim()}`; await updateProfile(user, { displayName: fullName }); const userDocRef = doc(db, "users", user.uid); await setDoc(userDocRef, { uid: user.uid, email: user.email, firstName: firstName.trim(), lastName: lastName.trim(), name: fullName, displayName: fullName, createdAt: serverTimestamp(), tokens: 500, uploadBonusCount: 0, abuseWarningCount: 0, }); navigate('/splashscreen'); }
+    catch (err: any) { if (err.code === 'auth/email-already-in-use') setError('This email address is already in use.'); else if (err.code === 'auth/weak-password') setError('Password should be at least 6 characters long.'); else setError('Failed to create account. Please try again.'); console.error("Sign up error:", err); }
+    finally { setLoading(false); }
   };
+  
+  // Define conditional styles based on the isDarkMode prop
+  const labelClass = isDarkMode ? "text-gray-400" : "text-gray-500"; // Light mode label slightly darker
+  const inputBgClass = isDarkMode ? "bg-[#2A2F3B]" : "bg-gray-100"; // Lighter input for light mode
+  const inputBorderClass = isDarkMode ? "border-gray-700/60" : "border-gray-300";
+  const inputTextColorClass = isDarkMode ? "text-gray-200" : "text-gray-800"; // Darker text for light mode inputs
+  const inputFocusRingClass = isDarkMode ? "focus:ring-purple-500 focus:border-purple-500" : "focus:ring-indigo-500 focus:border-indigo-500";
+  const placeholderColorClass = isDarkMode ? "placeholder-gray-500" : "placeholder-gray-400";
+  
+  const primaryButtonBgClass = isDarkMode 
+    ? "bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700"
+    : "bg-indigo-600 hover:bg-indigo-700"; // Solid color for light mode button
+  const focusOffsetClass = isDarkMode ? "focus:ring-offset-[#16181D]" : "focus:ring-offset-white";
+  const errorTextClass = isDarkMode ? "text-red-400" : "text-red-600";
+  const loaderColorClass = "text-white"; // Loader on primary button is always white
+
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div className="grid grid-cols-2 gap-4 mb-4">
+    <form onSubmit={handleSubmit} className="space-y-5">
+      <div className="grid grid-cols-2 gap-x-4">
         <div>
-          <label htmlFor="firstName" className="text-gray-300 text-sm font-medium">First Name</label>
-          <input
-            type="text"
-            id="firstName"
-            className="w-full p-3 mt-1 rounded-lg bg-gray-700 text-white border border-gray-600 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition"
-            value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
-            required
-            aria-required="true"
-          />
+          <label htmlFor="firstName" className={`block text-xs font-medium ${labelClass} mb-1.5`}>First name</label>
+          <input type="text" id="firstName" className={`w-full px-4 py-3 ${inputBgClass} border ${inputBorderClass} ${inputTextColorClass} rounded-lg focus:outline-none focus:ring-2 ${inputFocusRingClass} transition-colors duration-200 ${placeholderColorClass} text-sm`} value={firstName} onChange={(e) => setFirstName(e.target.value)} required aria-required="true" />
         </div>
         <div>
-          <label htmlFor="lastName" className="text-gray-300 text-sm font-medium">Last Name</label>
-          <input
-            type="text"
-            id="lastName"
-            className="w-full p-3 mt-1 rounded-lg bg-gray-700 text-white border border-gray-600 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition"
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-            required
-            aria-required="true"
-          />
+          <label htmlFor="lastName" className={`block text-xs font-medium ${labelClass} mb-1.5`}>Last name</label>
+          <input type="text" id="lastName" className={`w-full px-4 py-3 ${inputBgClass} border ${inputBorderClass} ${inputTextColorClass} rounded-lg focus:outline-none focus:ring-2 ${inputFocusRingClass} transition-colors duration-200 ${placeholderColorClass} text-sm`} value={lastName} onChange={(e) => setLastName(e.target.value)} required aria-required="true" />
         </div>
       </div>
-      <div className="mb-4">
-        <label htmlFor="email" className="text-gray-300 text-sm font-medium">Email</label>
-        <input
-          type="email"
-          id="email"
-          className="w-full p-3 mt-1 rounded-lg bg-gray-700 text-white border border-gray-600 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition"
-          placeholder="you@example.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          aria-required="true"
-        />
+      <div>
+        <label htmlFor="email" className={`block text-xs font-medium ${labelClass} mb-1.5`}>Email</label>
+        <input type="email" id="email" className={`w-full px-4 py-3 ${inputBgClass} border ${inputBorderClass} ${inputTextColorClass} rounded-lg focus:outline-none focus:ring-2 ${inputFocusRingClass} transition-colors duration-200 ${placeholderColorClass} text-sm`} placeholder="sarthak@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required aria-required="true" />
       </div>
-      <div className="mb-6">
-        <label htmlFor="password" className="text-gray-300 text-sm font-medium">Password</label>
-        <input
-          type="password"
-          id="password"
-          className="w-full p-3 mt-1 rounded-lg bg-gray-700 text-white border border-gray-600 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition"
-          placeholder="••••••••"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          aria-required="true"
-          minLength={6} // Enforce minimum length
-        />
+      <div>
+        <label htmlFor="password" className={`block text-xs font-medium ${labelClass} mb-1.5`}>Password</label>
+        <input type="password" id="password" className={`w-full px-4 py-3 ${inputBgClass} border ${inputBorderClass} ${inputTextColorClass} rounded-lg focus:outline-none focus:ring-2 ${inputFocusRingClass} transition-colors duration-200 ${placeholderColorClass} text-sm`} placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required aria-required="true" minLength={6} />
       </div>
-      {error && <p className="text-red-400 text-sm text-center mb-4">{error}</p>}
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold rounded-full hover:scale-[1.03] transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-indigo-500"
-      >
-        {loading ? (
-            <svg className="animate-spin h-5 w-5 text-white mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-        ) : 'Sign Up'}
+      {error && <p className={`text-sm text-center -mt-2 ${errorTextClass}`}>{error}</p>}
+      <button type="submit" disabled={loading} className={`w-full py-3.5 mt-1 ${primaryButtonBgClass} text-white font-semibold rounded-full transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed focus:outline-none focus:ring-2 ${focusOffsetClass} ${inputFocusRingClass} text-sm`} >
+        {loading ? <Loader2 className={`animate-spin h-5 w-5 ${loaderColorClass} mx-auto`} /> : 'Create an account'}
       </button>
     </form>
   );

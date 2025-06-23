@@ -13,7 +13,8 @@ import {
   where,
   orderBy,
   getDocs,
-  Timestamp
+  Timestamp,
+  writeBatch
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, uploadString } from "firebase/storage"; // Storage imports
 import { createDeepInsightAction, updateDeepInsightActionStatus, voteOnDeepInsightAction } from './ai-context-firebase';
@@ -218,10 +219,20 @@ export async function updateChatConversationName(conversationId: string, newName
   }
 }
 
-export async function deleteChatConversation(conversationId: string): Promise<void> {
+export async function deleteChatConversation(userId: string, conversationId: string): Promise<void> {
   try {
+    const messagesQuery = query(collection(db, "chatConversations", conversationId, "messages"));
+    const messagesSnapshot = await getDocs(messagesQuery);
+
+    const batch = writeBatch(db);
+
+    messagesSnapshot.forEach((doc) => {
+        batch.delete(doc.ref);
+    });
+
+    await batch.commit();
+
     await deleteDoc(doc(db, "chatConversations", conversationId));
-    console.warn(`Conversation document ${conversationId} deleted. Messages subcollection requires manual or Cloud Function deletion if not handled elsewhere.`);
   } catch (error) {
     console.error("deleteChatConversation error: ", error);
     throw error;
