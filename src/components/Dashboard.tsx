@@ -3212,7 +3212,7 @@ Assistant:`;
         if (!user) return;
 
         if (action === 'start_focus') {
-            navigate('/focus-mode', { state: { autoStartFocus: { name: "Quick Focus", duration: 25 * 60 } } });
+            navigate('/focus', { state: { autoStartFocus: { name: "Quick Focus", duration: 25 * 60 } } });
             return;
         }
 
@@ -3683,7 +3683,7 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                     </div>
                   ) : smartDailyBrief && smartDailyBrief.suggestedFocusBlocks && smartDailyBrief.suggestedFocusBlocks.length > 0 ? (
                     smartDailyBrief.suggestedFocusBlocks.map((block, idx) => (
-                      <button key={idx} onClick={() => navigate('/focus-mode', { state: { autoStartFocus: { name: block.name, duration: block.duration * 60 } } })} className="w-full bg-white/10 hover:bg-white/20 p-3 rounded-lg text-sm font-medium transition-all duration-200 ease-out flex items-center gap-2.5 cursor-pointer text-left transform hover:scale-[1.02] active:scale-[0.98]" title={`Start focus session: ${block.name}`}>
+                      <button key={idx} onClick={() => navigate('/focus', { state: { autoStartFocus: { name: block.name, duration: block.duration * 60 } } })} className="w-full bg-white/10 hover:bg-white/20 p-3 rounded-lg text-sm font-medium transition-all duration-200 ease-out flex items-center gap-2.5 cursor-pointer text-left transform hover:scale-[1.02] active:scale-[0.98]" title={`Start focus session: ${block.name}`}>
                         <Play className="w-5 h-5 text-white flex-shrink-0" />
                         <span className="text-white flex-grow">{block.name} ({block.duration}m)</span>
                       </button>
