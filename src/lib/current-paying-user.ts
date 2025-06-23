@@ -16,7 +16,7 @@ const PREMIUM_EMAILS = [
     "robinmyh@gmail.com", "oliverbeckett069420@gmail.com", "bajinsrinivasr@lexington1.net",
     "guyplayin2k@gmail.com", "chagio@gmail.com", "patrick@envoymobile.com",
     "mitevandon94@gmail.com", "starboyy87@outlook.com", "draco77654@gmail.com",
-    "poojarameshkumar789@gmail.com", "achallapureddy@gmail.com", "ali.ahsan.a214@gmail.com", "testuser@example.com"
+    "poojarameshkumar789@gmail.com", "achallapureddy@gmail.com", "ali.ahsan.a214@gmail.com", "testuser@example.com", "amrish.naranappa@gmail.com", "navaneeth.ravindranath@gmail.com", "Goduwin_Ravi@yahoo.com", "gautham.paddu@outlook.com", "Isha.kandhaluram@gmail.com"
 ];
 export const PRO_EMAILS = ["srinibaj10@gmail.com"];
 
