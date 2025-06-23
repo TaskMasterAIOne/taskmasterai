@@ -689,14 +689,10 @@ function App() {
                         transition={{ duration: 0.7, delay: 0.35, ease: "easeOut" }}
                     >
                         <div className="absolute -inset-3 rounded-2xl bg-gradient-to-r from-indigo-600/80 via-purple-600/80 to-pink-600/80 opacity-20 blur-2xl"></div>
-                        <video 
+                        <img
                             src="https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/Screenshot%202025-06-23%20at%201.28.08%E2%80%AFPM.png?alt=media&token=64186bbb-662d-41d4-88ef-ec1debf7739a"
-                            alt="TaskMaster AI Product Demo Video" 
+                            alt="TaskMaster AI Product Screenshot" 
                             className="relative rounded-2xl shadow-2xl border-2 border-gray-700/70 w-full"
-                            autoPlay
-                            loop
-                            muted
-                            playsInline
                         />
                     </motion.div>
                     </div>
