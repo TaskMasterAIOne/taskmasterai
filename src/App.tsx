@@ -719,34 +719,6 @@ function App() {
             </div>
           </div>
         </footer>
-
-        <AnimatePresence>
-          {showScrollIndicator && (
-            <motion.div
-              className="fixed bottom-6 sm:bottom-8 left-1/2 transform -translate-x-1/2 z-40 cursor-pointer"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-              transition={{ duration: 0.4, ease: "circOut" }}
-              onClick={(e) => {
-                e.preventDefault();
-                document.getElementById('trusted-by')?.scrollIntoView({ behavior: 'smooth' });
-                setShowScrollIndicator(false);
-              }}
-              aria-label="Scroll to next section"
-            >
-              <div className="w-11 h-11 bg-[#2A2F3B] rounded-full flex items-center justify-center relative overflow-hidden shadow-lg border border-gray-600/20 group">
-                <motion.div
-                  animate={{ y: [1, -1, 1] }}
-                  transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
-                  className="absolute"
-                >
-                  <ChevronDown className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
-                </motion.div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
     </div>
   );
 }
