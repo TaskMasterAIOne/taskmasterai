@@ -140,7 +140,6 @@ const AppRoutes = () => {
       <Route path="/signup" element={user ? <Navigate to="/dashboard" replace /> : <PageTitle title="Sign Up"><SignUp /></PageTitle>} />
       <Route path="/pricing" element={<PageTitle title="Pricing"><Pricing /></PageTitle>} />
       <Route path="/terms" element={<PageTitle title="Terms of Service"><Terms /></PageTitle>} />
-      <Route path="/friends" element={<PageTitle title="Friends"><Friends /></PageTitle>} />
       <Route path="/settings" element={user ? <PageTitle title="Settings"><Settings /></PageTitle> : <Navigate to="/login" replace />} />
       <Route path="/onboarding" element={<PageTitle title="Welcome"><Onboarding /></PageTitle>} />
       <Route path="/privacy-policy" element={<PageTitle title="Privacy Policy"><PrivacyPolicy /></PageTitle>} />
@@ -148,14 +147,13 @@ const AppRoutes = () => {
       <Route path="/dashboard" element={user ? <PageTitle title="Dashboard"><Dashboard /></PageTitle> : <Navigate to="/login" replace />} />
       <Route path="/contact" element={<PageTitle title="Contact Us"><Contact /></PageTitle>} />
       <Route path="/folders" element={user ? <PageTitle title="Folders"><Folders /></PageTitle> : <Navigate to="/login" replace />} />
-      <Route path="/ai" element={user ? <PageTitle title="AI Assistant"><AIChat /></PageTitle> : <Navigate to="/login" replace />} />
+      <Route path="/ai" element={user ? <PageTitle title="AI Chat"><AIChat /></PageTitle> : <Navigate to="/login" replace />} />
       <Route path="/calendar" element={user ? <PageTitle title="Calendar"><Calendar /></PageTitle> : <Navigate to="/login" replace />} />
       <Route path="/notes" element={user ? <PageTitle title="Notes"><Notes /></PageTitle> : <Navigate to="/login" replace />} />
       <Route path="/school" element={user ? <PageTitle title="School"><SchoolPage /></PageTitle> : <Navigate to="/login" replace />} />
-      <Route path="/community" element={user ? <PageTitle title="Community"><Community /></PageTitle> : <Navigate to="/login" replace />} />
       <Route path="/" element={<RootTitle><App /></RootTitle>} />
       <Route path="/status" element={<PageTitle title="Status"><Status /></PageTitle>} />
-      <Route path="/focus" element={user ? <PageTitle title="Focus Mode"><FocusMode /></PageTitle> : <Navigate to="/login" replace />} />
+      <Route path="/focus" element={user ? <PageTitle title="Focus"><FocusMode /></PageTitle> : <Navigate to="/login" replace />} />
       <Route path="/public-note/:noteId" element={<PageTitle title="Public Note"><PublicNoteView /></PageTitle>} />
       <Route path="*" element={<PageTitle title="404 Not Found"><NotFound /></PageTitle>} />
     </Routes>
