@@ -1579,42 +1579,80 @@ const handleSkipForwardSegment = () => {
 
         const { title, contentHtml, keyPoints } = podcastTextObjects;
 
-        try {
-            const speaker1Profile = PREDEFINED_PODCAST_SPEAKERS.find(s => s.id === podcastPlaybackSettings.speaker1Id);
-            const speaker2Profile = podcastPlaybackSettings.speaker2Id ? PREDEFINED_PODCAST_SPEAKERS.find(s => s.id === podcastPlaybackSettings.speaker2Id) : null;
-            
-            let speakerInstructions = `There is one speaker: [SPEAKER_1] (Name: ${speaker1Profile?.name}, Persona: "${speaker1Profile?.description}"). They will act as the primary narrator.`;
-            if (speaker2Profile) {
-                speakerInstructions = `There are two speakers. They must have a dynamic, conversational dialogue. Do not just have one read a paragraph and then the other. They should interact naturally.
-- [SPEAKER_1]: Name is ${speaker1Profile?.name}. Persona: "${speaker1Profile?.description}". Acts as the main host.
-- [SPEAKER_2]: Name is ${speaker2Profile.name}. Persona: "${speaker2Profile.description}". Acts as a co-host, asks clarifying questions, provides examples, or offers alternative perspectives.
-The script must alternate between [SPEAKER_1] and [SPEAKER_2] frequently to create a lively conversation.`;
-            }
+ try {
+    const speaker1Profile = PREDEFINED_PODCAST_SPEAKERS.find(s => s.id === podcastPlaybackSettings.speaker1Id);
+    const speaker2Profile = podcastPlaybackSettings.speaker2Id ? PREDEFINED_PODCAST_SPEAKERS.find(s => s.id === podcastPlaybackSettings.speaker2Id) : null;
 
-            const lengthInstruction = {
-                short: "The target length is 'short' (around 5-25 MIN. NOT ANY LONGER.). Be concise while covering the main ideas.",
-            }[podcastPlaybackSettings.length || 'short'];
-            
-            const scriptGenPrompt = `You are an expert podcast scriptwriter. Your task is to transform the following study note content into a natural, engaging, and conversational podcast script.
+    let speakerInstructions = `There is one speaker: [SPEAKER_1].
+- **Name**: ${speaker1Profile?.name}
+- **Persona**: "${speaker1Profile?.description}"
+- **Role**: They are the sole narrator and host. They must embody their persona fully, making the script sound like a captivating monologue or story, not a dry reading.`;
+    if (speaker2Profile) {
+        speakerInstructions = `There are two speakers. Their interaction is the heart of the podcast. It must be a living, breathing conversation.
+- **[SPEAKER_1] (The Host)**:
+  - **Name**: ${speaker1Profile?.name}
+  - **Persona**: "${speaker1Profile?.description}"
+  - **Role**: To steer the conversation, introduce the main ideas, and pose thoughtful questions. They are the anchor of the show.
 
-**Source Note Content:**
+- **[SPEAKER_2] (The Co-Host)**:
+  - **Name**: ${speaker2Profile.name}
+  - **Persona**: "${speaker2Profile.description}"
+  - **Role**: To be the voice of the listener. They must actively interject with clarifying questions ("So, what you're saying is..."), provide real-world examples, challenge assumptions ("But does that always hold true?"), and offer alternative viewpoints to create a rich, multi-faceted dialogue.`;
+    }
+
+    const lengthInstruction = {
+        short: "The target length is 'short' (approx. 5-25 minutes). Every line must serve a purpose. Be ruthless in cutting fluff. The goal is maximum impact in minimum time.",
+    }[podcastPlaybackSettings.length || 'short'];
+
+    const scriptGenPrompt = `You are a world-class podcast scriptwriter and narrative designer. Your job is not to summarize text, but to transmute it into a deeply engaging and authentic audio experience. You will adhere to every single rule in this prompt with absolute fidelity.
+
+**Your Secret Raw Material (Source Note Content):**
 """
 ${contentHtml.replace(/<[^>]+>/g, '\n')}
 """
 
-**Key Points to Emphasize:**
+**Core Themes to Weave into the Conversation:**
 - ${keyPoints.join('\n- ')}
 
-**CRITICAL SCRIPTING INSTRUCTIONS:**
-1.  **Conversational Style:** DO NOT simply read the note. Rephrase, expand, and explain the concepts in a natural, spoken style. Use analogies, rhetorical questions, and a clear, logical flow. Create a short, engaging intro and a concluding summary.
-2.  **Speaker Attribution:**
-    - ${speakerInstructions}
-    - **MANDATORY FORMAT:** Every single line of dialogue MUST start with either \`[SPEAKER_1]\` or \`[SPEAKER_2]\` followed by a colon and the dialogue. Example: \`[SPEAKER_1]: Hello and welcome to the show.\`
-3.  **DO NOT SPEAK TAGS:** The speaker tags like '[SPEAKER_1]' are for processing only. They MUST NOT be spoken in the audio. Your script should flow naturally as if the tags are not there.
-4.  **No Title Announcement:** Do NOT announce the title of the podcast (e.g., avoid saying "Welcome to the podcast on '${title}'"). Start the conversation directly.
-5.  **Length:** ${lengthInstruction}
-6.  **Special Instructions from User:** ${podcastPlaybackSettings.instructions || 'None provided.'}
-7.  **Output Format:** Return ONLY the raw script text with the specified speaker tags. Do not include any other explanations, titles, or formatting outside of the script itself. Start immediately with the first speaker tag. ENUSRE ITS SHORT AND ENGAGING. NOT JUST A READING OF THE NOTE. NOT VERY LONG 
+// --- THE CORE DIRECTIVES: A MASTERCLASS IN SCRIPTWRITING --- //
+
+**DIRECTIVE 1: THE SOUL OF THE SCRIPT - RADICAL AUTHENTICITY**
+- **This is a Conversation, Not a Recitation:** The source content is your inspiration, not your script. You must completely re-imagine it as a natural dialogue. The final script should have no trace of its origin as written notes.
+- **Embrace Spoken Language:** Use contractions (it's, that's, you're), conversational phrasing, and rhetorical questions. Write for the ear, not the eye.
+- **No Monologues:** A speaker should rarely deliver more than 3-4 sentences before the other speaker contributes. The dialogue must be a rapid, engaging volley of ideas. Keep the pace brisk and the exchanges tight.
+- **Show, Don't Just Tell:** Instead of stating a fact, have the hosts discuss its implications. Use analogies, stories, and examples to illustrate complex points.
+
+**DIRECTIVE 2: MASTER THE SPEAKER PERSONAS & DYNAMICS**
+- ${speakerInstructions}
+- **FOR TWO-SPEAKER SCRIPTS:** The interplay is everything. [SPEAKER_2] must not be a passive listener. They should interrupt, question, and push the conversation in new directions. Their lines should sound like genuine reactions to [SPEAKER_1]. For example:
+    - "Hang on, let me stop you there. What does that actually mean for someone who isn't an expert?"
+    - "That's a great point, and it reminds me of a situation where..."
+    - "I'm not sure I totally agree with that. Couldn't you also argue that...?"
+
+**DIRECTIVE 3: THE UNBREAKABLE RULES OF FORMATTING (ZERO TOLERANCE FOR ERRORS)**
+- **THE ONE TRUE FORMAT:** Every single line of dialogue MUST start with either \`[SPEAKER_1]:\` or \`[SPEAKER_2]:\`. This is a non-negotiable, absolute rule.
+- **VALID TAGS ONLY:** The only tags you are permitted to use are \`[SPEAKER_1]:\` and \`[SPEAKER_2]:\`.
+- **NO DEVIATION:** There must be a colon directly after the bracketed tag, followed by a space.
+- **OUTPUT MUST BE PURE SCRIPT:** Your entire output must be nothing but the script itself. It must begin with the first speaker tag and end with the last line of dialogue.
+
+**DIRECTIVE 4: A COMPENDIUM OF FORBIDDEN ACTIONS (CRITICAL)**
+- **NEVER MENTION THE SOURCE MATERIAL:** The audience must never know this was generated from notes. You are strictly forbidden from using phrases like: "The notes say...", "According to the text...", "The author mentions...", "As we see in the source content...". This breaks the illusion and is an immediate failure.
+- **NO IMAGINARY TAGS:** You are forbidden from creating, modifying, or using any speaker tags other than the two specified above. Do not use \`SPEAKER_1_MALE\`, \`[SPEAKER 1]\`, \`Host:\`, or any other variation. This will be considered a critical error.
+- **NO METADATA OR EXPLANATIONS:** Do not include a title, scene settings, author notes, sound effect cues (e.g., "[upbeat music]"), or any explanatory text. The response must be 100% raw script.
+- **DO NOT ANNOUNCE THE TOPIC:** Avoid openings like, "Welcome to today's podcast on [Topic]." The conversation should start naturally and reveal the topic organically.
+- **NO SELF-CORRECTION IN THE OUTPUT:** Do not include phrases like "Oops, let me rephrase that" or notes about your own process.
+
+**DIRECTIVE 5: THE ANATOMY OF A PERFECT PODCAST EPISODE**
+1.  **The Hook (First 30 Seconds):** Start in the middle of a thought, with a provocative question, or a bold statement. Grab the listener's attention immediately.
+2.  **The Body (The Conversation):** Unfold the key points through a natural, back-and-forth discussion. Use the speaker dynamics to explore the topic from multiple angles. Guide the listener logically from one idea to the next.
+3.  **The Landing (The Conclusion):** Don't just stop. Bring the conversation to a satisfying close. Have the speakers summarize the one or two most important takeaways. Leave the listener with a clear, memorable final thought.
+
+**DIRECTIVE 6: LENGTH, PACE, AND USER INSTRUCTIONS**
+- **Adhere to Length:** ${lengthInstruction}
+- **Pacing is Key:** The script should feel energetic. Vary sentence length. Short, punchy lines create speed; longer, more thoughtful sentences can be used for emphasis.
+- **Custom Instructions:** ${podcastPlaybackSettings.instructions || 'None provided. Adhere to the core directives above.'}
+
+**FINAL MANDATE:** Review all directives. Your mission is to produce a flawless script. The formatting must be perfect. The conversation must be authentic. The illusion must not be broken. Generate only the script. Begin now.
 `;
             
             const scriptGenApiUrl = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${geminiApiKey}`;
