@@ -3733,6 +3733,30 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
 
       </section>
 
+
+      <section className={`p-4 sm:p-5 rounded-xl shadow-lg bg-white dark:bg-[#161922] border border-gray-200 dark:border-gray-700/50 animate-fadeIn delay-100 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+        {[
+            { label: "Add Task", icon: ListTodo, action: () => { document.getElementById('new-item-input')?.focus(); setActiveTab('tasks'); }, color: "text-blue-500 dark:text-blue-400", bgColor: "bg-blue-50 dark:bg-blue-500/10", hoverBgColor: "hover:bg-blue-100 dark:hover:bg-blue-500/20" },
+            { label: "Set Goal", icon: GoalIcon, action: () => { document.getElementById('new-item-input')?.focus(); setActiveTab('goals'); }, color: "text-pink-500 dark:text-pink-400", bgColor: "bg-pink-50 dark:bg-pink-500/10", hoverBgColor: "hover:bg-pink-100 dark:hover:bg-pink-500/20" },
+            { label: "New Event", icon: CalendarDays, action: () => { setShowEventForm(true); resetEventForm(); document.getElementById('event-form-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, color: "text-green-500 dark:text-green-400", bgColor: "bg-green-50 dark:bg-green-500/10", hoverBgColor: "hover:bg-green-100 dark:hover:bg-green-500/20" },
+            { label: "New Note", icon: Notebook, action: () => navigate('/notes', { state: { openNewNoteModal: true } }), color: "text-yellow-500 dark:text-yellow-400", bgColor: "bg-yellow-50 dark:bg-yellow-500/10", hoverBgColor: "hover:bg-yellow-100 dark:hover:bg-yellow-500/20" },
+            { label: "New Folder", icon: Folder, action: () => navigate('/folders', { state: { openNewFolderForm: true } }), color: "text-orange-500 dark:text-orange-400", bgColor: "bg-orange-50 dark:bg-orange-500/10", hoverBgColor: "hover:bg-orange-100 dark:hover:bg-orange-500/20" },
+            { label: "AI Chat", icon: Brain, action: () => setIsAiAssistantOpen(true), color: "text-purple-500 dark:text-purple-400", bgColor: "bg-purple-50 dark:bg-purple-500/10", hoverBgColor: "hover:bg-purple-100 dark:hover:bg-purple-500/20" },
+        ].map(item => (
+            <button
+                key={item.label}
+                onClick={item.action}
+                className={`flex flex-col items-center justify-center gap-1 p-2 rounded-xl w-full h-24 text-xs font-medium transition-all duration-200 ease-out transform hover:scale-105 active:scale-95 shadow-md hover:shadow-lg ${item.bgColor} ${item.hoverBgColor}`}
+                title={item.label}
+            >
+                <item.icon className={`w-6 h-6 ${item.color}`} />
+                <span className="text-gray-700 dark:text-gray-200">{item.label}</span>
+            </button>
+        ))}
+    </div>
+</section>
+
         
             <section id="add-edit-form-section" className={`p-4 sm:p-5 rounded-xl shadow-lg bg-white dark:bg-[#161922] border border-gray-200 dark:border-gray-700/50 animate-fadeIn delay-100 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
                 <h3 className="text-md font-semibold mb-3 text-gray-800 dark:text-gray-100">
@@ -4267,27 +4291,6 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                 </div>
             </section>
 
-            <section className={`sticky bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] lg:bottom-5 z-30 animate-fadeIn delay-400 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
-                <div className="bg-white/90 dark:bg-[#12141D]/90 backdrop-blur-xl p-3 sm:p-4 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700/70 flex flex-wrap justify-around items-center gap-3 sm:gap-4">
-                    {[
-                        { label: "Summarize", icon: BookCopy, action: () => handleAiQuickAction('summarize_notes'), color: "text-blue-500 dark:text-blue-400", bgColor: "bg-blue-50 dark:bg-blue-500/10", hoverBgColor: "hover:bg-blue-100 dark:hover:bg-blue-500/20" },
-                        { label: "Quick Quiz", icon: FileQuestion, action: () => handleAiQuickAction('generate_quiz'), color: "text-purple-500 dark:text-purple-400", bgColor: "bg-purple-50 dark:bg-purple-500/10", hoverBgColor: "hover:bg-purple-100 dark:hover:bg-purple-500/20" },
-                        { label: "Plan Week", icon: CalendarDays, action: () => handleAiQuickAction('plan_week'), color: "text-green-500 dark:text-green-400", bgColor: "bg-green-50 dark:bg-green-500/10", hoverBgColor: "hover:bg-green-100 dark:hover:bg-green-500/20" },
-                        { label: "Start Focus", icon: Play, action: () => handleAiQuickAction('start_focus'), color: "text-red-500 dark:text-red-400", bgColor: "bg-red-50 dark:bg-red-500/10", hoverBgColor: "hover:bg-red-100 dark:hover:bg-red-500/20" },
-                        { label: "Brainstorm", icon: Lightbulb, action: () => handleAiQuickAction('ai_brainstorm'), color: "text-yellow-500 dark:text-yellow-400", bgColor: "bg-yellow-50 dark:bg-yellow-500/10", hoverBgColor: "hover:bg-yellow-100 dark:hover:bg-yellow-500/20" },
-                        { label: "Get Insights", icon: TrendingUp, action: () => handleAiQuickAction('check_progress'), color: "text-teal-500 dark:text-teal-400", bgColor: "bg-teal-50 dark:bg-teal-500/10", hoverBgColor: "hover:bg-teal-100 dark:hover:bg-teal-500/20" },                     ].map(item => (
-                        <button
-                            key={item.label}
-                            onClick={item.action}
-                            className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl w-24 h-24 sm:w-28 sm:h-28 text-xs font-medium transition-all duration-200 ease-out transform hover:scale-105 active:scale-95 shadow-md hover:shadow-lg ${item.bgColor} ${item.hoverBgColor}`}
-                            title={item.label}
-                        >
-                            <item.icon className={`w-7 h-7 sm:w-8 sm:h-8 ${item.color}`} />
-                            <span className="text-gray-700 dark:text-gray-200">{item.label}</span>
-                        </button>
-                    ))}
-                </div>
-            </section>
 
             <section className={`my-6 animate-fadeIn delay-500 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
                 <div className="flex justify-between items-center mb-3">
