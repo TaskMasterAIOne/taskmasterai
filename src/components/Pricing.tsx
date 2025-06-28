@@ -11,7 +11,6 @@ import {
 } from '../lib/current-paying-user';
 import StudentEmailModal from './StudentEmailModal';
 
-// ORIGINAL STRIPE PLACEHOLDER PRICE IDs - REPLACE WITH YOUR ACTUAL IDs
 const STRIPE_PRICE_IDS = {
   PREMIUM: {
     yearly: 'price_1Qe2OnIdgEonJvEbSDwoNCuH',
@@ -36,8 +35,8 @@ interface ButtonInfo {
 
 const FeatureItem = ({ text }: { text: string }) => (
   <li className="flex items-start">
-    <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-400 mr-2 flex-shrink-0 mt-1" />
-    <span className="text-gray-300 text-xs sm:text-sm">{text}</span>
+    <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-500 dark:text-indigo-400 mr-2 flex-shrink-0 mt-1" />
+    <span className="text-gray-600 dark:text-gray-300 text-xs sm:text-sm">{text}</span>
   </li>
 );
 
@@ -67,16 +66,13 @@ const AnimatedBackground = () => {
           100% { transform: translate(0px, 0px) rotate(0deg); opacity: 0.04; }
         }
       `}</style>
-
-      {/* Shape 1 - Large, subtle purple */}
       <div
-        className="fixed -z-10 top-[-25vh] left-[-25vw] w-[100vw] h-[100vh] bg-purple-600 rounded-full"
+        className="fixed -z-10 top-[-25vh] left-[-25vw] w-[100vw] h-[100vh] bg-purple-500 rounded-full"
         style={{
           filter: 'blur(180px)',
           animation: 'subtleFloat1 35s infinite ease-in-out',
         }}
       />
-      {/* Shape 2 - Medium, subtle indigo */}
       <div
         className="fixed -z-10 top-[20vh] right-[-30vw] w-[90vw] h-[90vh] bg-indigo-500 rounded-full"
         style={{
@@ -84,7 +80,6 @@ const AnimatedBackground = () => {
           animation: 'subtleFloat2 45s infinite ease-in-out 5s',
         }}
       />
-      {/* Shape 3 - Smaller, subtle pink */}
       <div
         className="fixed -z-10 bottom-[-20vh] left-[10vw] w-[80vw] h-[80vh] bg-pink-400 rounded-full"
         style={{
@@ -106,7 +101,39 @@ function Pricing() {
   const [userCurrentTier, setUserCurrentTier] = useState<UserTier>('loading');
   const [showStudentOfferOnProCard, setShowStudentOfferOnProCard] = useState(false);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
+  useEffect(() => {
+    const applyTheme = () => {
+        const savedTheme = localStorage.getItem('appTheme') || 'system';
+        document.documentElement.classList.remove('light', 'dark');
+
+        if (savedTheme === 'dark') {
+            document.documentElement.classList.add('dark');
+            setIsDarkMode(true);
+        } else if (savedTheme === 'light') {
+            document.documentElement.classList.add('light');
+            setIsDarkMode(false);
+        } else {
+            if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                document.documentElement.classList.add('dark');
+                setIsDarkMode(true);
+            } else {
+                document.documentElement.classList.add('light');
+                setIsDarkMode(false);
+            }
+        }
+    };
+
+    applyTheme();
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    mediaQuery.addEventListener('change', applyTheme);
+    window.addEventListener('storage', (event) => { if (event.key === 'appTheme') applyTheme(); });
+    return () => {
+        mediaQuery.removeEventListener('change', applyTheme);
+        window.removeEventListener('storage', (event) => { if (event.key === 'appTheme') applyTheme(); });
+    }
+  }, []);
 
   useEffect(() => {
     const unsubscribe = subscribeToAuthState(async (firebaseUser) => {
@@ -141,7 +168,6 @@ function Pricing() {
 
   const handleSubscribe = async (priceId: string, targetPlan: PlanName) => {
     if (!localUser) {
-      // This case should be handled by button logic redirecting to signup
       setCheckoutError('Please login or sign up to subscribe.');
       return;
     }
@@ -190,7 +216,7 @@ function Pricing() {
 
 
   if (authLoading && !localUser && userCurrentTier === 'loading') {
-    return <div className="min-h-screen bg-[#0C0E1A] flex items-center justify-center"><Loader2 className="w-12 h-12 text-indigo-500 animate-spin" /></div>;
+    return <div className="min-h-screen bg-white dark:bg-[#0C0E1A] flex items-center justify-center"><Loader2 className="w-12 h-12 text-indigo-500 animate-spin" /></div>;
   }
 
   const premiumPriceText = isYearly ? '$7.99' : '$9.99';
@@ -211,15 +237,13 @@ function Pricing() {
   const proButtonInfo = getButtonInfo('PRO', proStripePriceId);
   const basicButtonInfo = getButtonInfo('BASIC');
 
-
-  const planCardBaseStyle = "bg-[#16181D] rounded-2xl flex flex-col border border-gray-700/50 p-5 sm:p-6 transition-all duration-300";
-  const planButtonBaseStyle = "w-full block text-center py-2.5 px-5 rounded-full font-semibold text-xs transition-colors duration-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#16181D]";
-
+  const planCardBaseStyle = "bg-white/80 dark:bg-[#16181D]/80 rounded-2xl flex flex-col border border-gray-200 dark:border-gray-700/50 p-5 sm:p-6 transition-all duration-300 backdrop-blur-sm";
+  const planButtonBaseStyle = "w-full block text-center py-2.5 px-5 rounded-full font-semibold text-xs transition-colors duration-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-[#16181D]";
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#0C0E1A] text-gray-200 font-poppins selection:bg-purple-600 selection:text-white relative overflow-hidden">
+    <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-[#0C0E1A] text-gray-800 dark:text-gray-200 font-poppins selection:bg-purple-600 selection:text-white relative overflow-hidden">
       <AnimatedBackground />
-<motion.header className="w-full py-5 sm:py-6 bg-transparent z-10" variants={headerMotionVariants} initial="hidden" animate="visible">
+      <motion.header className="w-full py-5 sm:py-6 bg-transparent z-10" variants={headerMotionVariants} initial="hidden" animate="visible">
         <div className="container mx-auto px-5 sm:px-6">
           <nav className="flex items-center justify-between">
             <a href="/" aria-label="TaskMaster AI Home"><Logo /></a>
@@ -232,23 +256,23 @@ function Pricing() {
         </div>
       </motion.header>
 
-      <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 w-full max-w-screen-2xl z-10"> {/* Added z-10 */}
+      <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 w-full max-w-screen-2xl z-10">
         <div className="text-center mb-16">
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-400 to-pink-400 mb-3">
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-500 via-indigo-500 to-pink-500 dark:from-purple-400 dark:via-indigo-400 dark:to-pink-400 mb-3 pb-2">
             Pricing Plans
           </h1>
         </div>
 
         <div className="flex justify-center mb-12">
-          <div className="bg-[#16181D]/70 backdrop-blur-sm p-1.5 rounded-full flex border border-gray-700/60 shadow-lg"> {/* Added backdrop-blur and adjusted bg opacity */}
+          <div className="bg-gray-100 dark:bg-[#16181D]/70 backdrop-blur-sm p-1.5 rounded-full flex border border-gray-200 dark:border-gray-700/60 shadow-lg">
             <button
-              className={`px-6 py-2.5 rounded-full transition-all duration-300 text-sm font-medium focus:outline-none ${isYearly ? 'bg-indigo-600 text-white shadow-[0_0_12px_2px_rgba(99,102,241,0.5)]' : 'text-gray-400 hover:text-gray-100'}`}
+              className={`px-6 py-2.5 rounded-full transition-all duration-300 text-sm font-medium focus:outline-none ${isYearly ? 'bg-indigo-600 text-white shadow-[0_0_12px_2px_rgba(99,102,241,0.5)]' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'}`}
               onClick={() => { setIsYearly(true); setCheckoutError(null); }}
             >
               Yearly <span className="text-xs opacity-80">(Save 20%)</span>
             </button>
             <button
-              className={`px-6 py-2.5 rounded-full transition-all duration-300 text-sm font-medium focus:outline-none ${!isYearly ? 'bg-indigo-600 text-white shadow-[0_0_12px_2px_rgba(99,102,241,0.5)]' : 'text-gray-400 hover:text-gray-100'}`}
+              className={`px-6 py-2.5 rounded-full transition-all duration-300 text-sm font-medium focus:outline-none ${!isYearly ? 'bg-indigo-600 text-white shadow-[0_0_12px_2px_rgba(99,102,241,0.5)]' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'}`}
               onClick={() => { setIsYearly(false); setCheckoutError(null); }}
             >
               Monthly
@@ -257,21 +281,20 @@ function Pricing() {
         </div>
 
         {checkoutError && (
-          <div className="mb-8 p-4 bg-red-900/50 backdrop-blur-sm border border-red-500/30 rounded-lg text-red-300 text-sm flex items-center justify-center gap-3 max-w-xl mx-auto"> {/* Added backdrop-blur and adjusted bg opacity */}
-            <AlertCircle className="w-5 h-5 shrink-0 text-red-400" />
+          <div className="mb-8 p-4 bg-red-100/50 dark:bg-red-900/50 backdrop-blur-sm border border-red-500/30 rounded-lg text-red-700 dark:text-red-300 text-sm flex items-center justify-center gap-3 max-w-xl mx-auto">
+            <AlertCircle className="w-5 h-5 shrink-0 text-red-500 dark:text-red-400" />
             <span>{checkoutError}</span>
           </div>
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 xl:gap-5 items-stretch max-w-6xl mx-auto">
-            {/* Basic Plan Card */}
-            <div className={`${planCardBaseStyle} hover:border-gray-600 hover:shadow-xl bg-[#16181D]/80 backdrop-blur-sm`}> {/* Added backdrop-blur and adjusted bg opacity */}
+            <div className={`${planCardBaseStyle} hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-xl`}>
                 <div className="flex-grow">
-                    <h3 className="text-xl font-semibold text-gray-100 mb-2">Basic</h3>
-                    <p className="text-gray-400 mb-1 text-xs">For light users and trying things out.</p>
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">Basic</h3>
+                    <p className="text-gray-500 dark:text-gray-400 mb-1 text-xs">For light users and trying things out.</p>
                     <div className="my-4">
-                        <span className="text-4xl font-extrabold text-indigo-400">Free</span>
-                        <span className="text-gray-400 text-sm"> / forever</span>
+                        <span className="text-4xl font-extrabold text-indigo-600 dark:text-indigo-400">Free</span>
+                        <span className="text-gray-500 dark:text-gray-400 text-sm"> / forever</span>
                     </div>
                     <ul className="space-y-2 mb-6">
                         <FeatureItem text="2 PDF and Text Notes per month" />
@@ -280,13 +303,12 @@ function Pricing() {
                     </ul>
                 </div>
                 <a href={basicButtonInfo.redirectTo || '#'}
-                   className={`${planButtonBaseStyle} ${basicButtonInfo.disabled ? 'bg-gray-600 text-gray-400 cursor-default focus:ring-gray-500' : `bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-[0_0_15px_2px_rgba(99,102,241,0.6)] focus:ring-indigo-500`}`}>
+                   className={`${planButtonBaseStyle} ${basicButtonInfo.disabled ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-default focus:ring-gray-400' : `bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-[0_0_15px_2px_rgba(99,102,241,0.6)] focus:ring-indigo-500`}`}>
                   {basicButtonInfo.text}
                 </a>
             </div>
 
-            {/* Premium Plan Card (Recommended) */}
-            <div className={`${planCardBaseStyle} border-2 border-indigo-500 relative shadow-[0_0_15px_-3px_rgba(99,102,241,0.5)] hover:shadow-[0_0_25px_0px_rgba(99,102,241,0.6)] bg-[#16181D]/80 backdrop-blur-sm`}>  {/* Added backdrop-blur and adjusted bg opacity */}
+            <div className={`${planCardBaseStyle} border-2 border-indigo-500 relative shadow-[0_0_15px_-3px_rgba(99,102,241,0.5)] hover:shadow-[0_0_25px_0px_rgba(99,102,241,0.6)]`}>
                 {isYearly && (
                 <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
                     <span className="inline-block bg-yellow-400 text-black text-xs font-bold px-4 py-1.5 rounded-full shadow-md">
@@ -295,12 +317,12 @@ function Pricing() {
                 </div>
                 )}
                 <div className="flex-grow pt-5">
-                    <h3 className="text-xl font-semibold text-gray-100 mb-2 flex items-center"><Crown className="w-5 h-5 text-yellow-400 mr-2" />Premium</h3>
-                    <p className="text-gray-400 mb-1 text-xs">Best value for unlimited access.</p>
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center"><Crown className="w-5 h-5 text-yellow-400 mr-2" />Premium</h3>
+                    <p className="text-gray-500 dark:text-gray-400 mb-1 text-xs">Best value for unlimited access.</p>
                     <div className="my-4">
-                        <span className="text-4xl font-extrabold text-indigo-400">{premiumPriceText}</span>
-                        <span className="text-gray-400 text-sm">{priceSuffix}</span>
-                        <p className="text-xs text-gray-500 mt-1">{premiumBillingText}</p>
+                        <span className="text-4xl font-extrabold text-indigo-600 dark:text-indigo-400">{premiumPriceText}</span>
+                        <span className="text-gray-500 dark:text-gray-400 text-sm">{priceSuffix}</span>
+                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">{premiumBillingText}</p>
                     </div>
                     <ul className="space-y-2 mb-6">
                         <FeatureItem text="Unlimited PDF and Text Notes" />
@@ -320,14 +342,13 @@ function Pricing() {
                         }
                     }} 
                     disabled={premiumButtonInfo.disabled || (!!isCheckingOut && !premiumButtonInfo.isLoading)}
-                    className={`${planButtonBaseStyle} ${premiumButtonInfo.disabled && premiumButtonInfo.isCurrent ? 'bg-gray-600 text-gray-400 cursor-default focus:ring-gray-500' : 'bg-white text-indigo-700 hover:bg-gray-200 hover:shadow-[0_0_15px_2px_rgba(255,255,255,0.3)] focus:ring-indigo-300'} ${(!!isCheckingOut && !premiumButtonInfo.isLoading) ? 'opacity-60 cursor-not-allowed' : ''} flex items-center justify-center gap-2`}
+                    className={`${planButtonBaseStyle} ${premiumButtonInfo.disabled && premiumButtonInfo.isCurrent ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-default focus:ring-gray-400' : 'bg-white text-indigo-700 hover:bg-gray-200 hover:shadow-[0_0_15px_2px_rgba(255,255,255,0.3)] focus:ring-indigo-300'} ${(!!isCheckingOut && !premiumButtonInfo.isLoading) ? 'opacity-60 cursor-not-allowed' : ''} flex items-center justify-center gap-2`}
                 >
                 {premiumButtonInfo.isLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> {premiumButtonInfo.text}</> : premiumButtonInfo.text}
                 </button>
             </div>
 
-            {/* Pro Plan Card */}
-            <div className={`${planCardBaseStyle} relative hover:border-gray-600 hover:shadow-xl bg-[#16181D]/80 backdrop-blur-sm`}>  {/* Added backdrop-blur and adjusted bg opacity */}
+            <div className={`${planCardBaseStyle} relative hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-xl`}>
                 <AnimatePresence>
                     {showStudentOfferOnProCard && (
                         <motion.div
@@ -342,12 +363,12 @@ function Pricing() {
                     )}
                 </AnimatePresence>
                 <div className={`flex-grow ${showStudentOfferOnProCard ? 'pt-5' : ''}`}>
-                    <h3 className="text-xl font-semibold text-gray-100 mb-2 flex items-center"><Gem className="w-4 h-4 text-purple-400 mr-2" />Pro</h3>
-                    <p className="text-gray-400 mb-1 text-xs">For students and regular usage.</p>
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center"><Gem className="w-4 h-4 text-purple-500 dark:text-purple-400 mr-2" />Pro</h3>
+                    <p className="text-gray-500 dark:text-gray-400 mb-1 text-xs">For students and regular usage.</p>
                     <div className="my-4">
-                        <span className="text-4xl font-extrabold text-indigo-400">{proPriceText}</span>
-                        <span className="text-gray-400 text-sm">{priceSuffix}</span>
-                        <p className="text-xs text-gray-500 mt-1">{proBillingText}</p>
+                        <span className="text-4xl font-extrabold text-indigo-600 dark:text-indigo-400">{proPriceText}</span>
+                        <span className="text-gray-500 dark:text-gray-400 text-sm">{priceSuffix}</span>
+                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">{proBillingText}</p>
                     </div>
                     <ul className="space-y-2 mb-6">
                         <FeatureItem text="10 PDF and Text Notes per month" />
@@ -367,8 +388,8 @@ function Pricing() {
                     disabled={proButtonInfo.disabled || (!!isCheckingOut && !proButtonInfo.isLoading)}
                     className={`${planButtonBaseStyle} ${
                         proButtonInfo.disabled && proButtonInfo.isCurrent 
-                            ? 'bg-gray-600 text-gray-400 cursor-default focus:ring-gray-500' 
-                            : proButtonInfo.actionType === 'redirect' && proButtonInfo.redirectTo === '/settings' // This implies it's a "Manage Subscription" button (downgrade from Premium)
+                            ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-default focus:ring-gray-400' 
+                            : proButtonInfo.actionType === 'redirect' && proButtonInfo.redirectTo === '/settings'
                                 ? 'bg-purple-600 text-white hover:bg-purple-700 hover:shadow-[0_0_15px_2px_rgba(168,85,247,0.6)] focus:ring-purple-500' 
                                 : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-[0_0_15px_2px_rgba(99,102,241,0.6)] focus:ring-indigo-500'
                         } ${(!!isCheckingOut && !proButtonInfo.isLoading) ? 'opacity-60 cursor-not-allowed' : ''} flex items-center justify-center gap-2`}
@@ -379,13 +400,13 @@ function Pricing() {
         </div>
       </main>
 
-      <footer className="bg-transparent z-10"> {/* Changed bg to transparent and added z-10 */}
+      <footer className="bg-transparent z-10">
         <div className="container mx-auto px-5 sm:px-6 py-10">
           <div className="flex flex-col md:flex-row items-center justify-between gap-5">
             <div className="flex items-center space-x-4">
-              <a href="/privacy-policy" className="text-sm text-gray-500 hover:text-indigo-400 transition-colors">Privacy Policy</a>
-              <span className="text-gray-700 hidden sm:inline">|</span>
-              <a href="/terms" className="text-sm text-gray-500 hover:text-indigo-400 transition-colors">Terms & Conditions</a>
+              <a href="/privacy-policy" className="text-sm text-gray-500 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors">Privacy Policy</a>
+              <span className="text-gray-300 dark:text-gray-700 hidden sm:inline">|</span>
+              <a href="/terms" className="text-sm text-gray-500 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors">Terms & Conditions</a>
             </div>
             <p className="text-sm text-gray-500 text-center md:text-right">© {new Date().getFullYear()} TaskMaster AI. All rights reserved.</p>
           </div>
