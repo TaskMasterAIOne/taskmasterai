@@ -317,9 +317,9 @@ Preferred Usage Style: ${usageStyleText}
   };
   
   const plans = [
-    { id: 'basic', name: 'Basic', price: 'Free', priceSuffix: '/ forever', features: [ "2 PDF and Text Notes per month", "1 YouTube Notes per month", "10 AI Chat Interactions per month", "500 Tokens Included", "Add Up to 3 Friends" ] },
-    { id: 'premium', name: 'Premium', icon: Crown, priceYearly: '$7.99', priceMonthly: '$9.99', recommended: true, billingTextYearly: "Billed yearly", billingTextMonthly: "Billed monthly", features: [ "Unlimited PDF and Text Notes", "Unlimited YouTube Notes", "Unlimited AI Chat Interactions", "2,500 Tokens Included / month", "Add Unlimited Friends", "Unlimited Access to Smart Overview", "Priority Support" ] },
-    { id: 'pro', name: 'Pro', icon: Gem, priceYearly: '$4.99', priceMonthly: '$6.99', billingTextYearly: "Billed yearly", billingTextMonthly: "Billed monthly", features: [ "10 PDF and Text Notes per month", "5 YouTube Notes per month", "200 AI Chat Interactions per Month", "1,000 Tokens Included / month", "Add Up to 10 Friends", "Limited Access to Smart Overview" ] }
+    { id: 'basic', name: 'Basic', price: 'Free', priceSuffix: '/ forever', features: [ "2 PDF and Text Notes per month", "1 YouTube Notes per month", "10 AI Chat Interactions per month" ] },
+    { id: 'premium', name: 'Premium', icon: Crown, priceYearly: '$7.99', priceMonthly: '$9.99', recommended: true, billingTextYearly: "Billed yearly", billingTextMonthly: "Billed monthly", features: [ "Unlimited PDF and Text Notes", "Unlimited YouTube Notes", "Unlimited AI Chat Interactions", "Unlimited Smart Daily Brief", "Unlimited Podcasts", "Priority Support" ] },
+    { id: 'pro', name: 'Pro', icon: Gem, priceYearly: '$4.99', priceMonthly: '$6.99', billingTextYearly: "Billed yearly", billingTextMonthly: "Billed monthly", features: [ "10 PDF and Text Notes per month", "5 YouTube Notes per month", "200 AI Chat Interactions per Month", "Limited Access to Smart Daily Brief" ] }
   ];
 
   const progressPercentage = (step / (TOTAL_STEPS - 1)) * 100;
