@@ -872,46 +872,6 @@ export function AIChat() {
     ];
 
     const searchTriggers = [
-      'who is', 'what is', 'when is', 'where is', 'why is', 'how is', 'how does', 'how many', 'how much', 'what are', 'what was', 'who won',
-      'what happened', 'what happened in', 'what’s going on', 'what is going on', 'what do we know about', 'tell me about', 'can you tell me about', 'give me info on',
-      'real-time update', 'give me the current', 'is it true that', 'current info on', 'latest news on', 'update on', 'who', 'when', 'where', 'hey when', 'hi when', 'hello when', 'hey where', 'hi where', 'hello where', 'hey what', 'hi what', 'hello what', 'find', 'search for', 'google', 'search', 'please find',
-      'what day is it', 'what date is it', 'what year is it', 'what time is it', 'what time is it in', 'time in', 'date in', 'day in',
-      'sunrise in', 'sunset in', 'moon phase today', 'time zone of', 'timezone in',
-      'how old is', 'how tall is', 'where is', 'where was', 'what nationality is', 'is still alive', 'did die', 'who died', 'who passed away',
-      'celebrities who died', 'who just died', 'famous deaths', 'latest celebrity death', 'current president of', 'prime minister of', 'governor of', 'senator of',
-      'mayor of', 'leader of', 'dictator of', 'general of', 'ambassador of', 'ceo of', 'founder of', 'chairman of', 'director of', 'owner of', 'manager of',
-      'breaking news', 'live update', 'currently happening', 'latest news', 'real-time news', 'trending now', 'trending today', 'hot topics', 'news update',
-      'summary of news', 'headline', 'headlines today', 'what’s the top story', 'what’s the main headline', 'top story right now', 'biggest news today',
-      'earthquake in', 'fire in', 'shooting in', 'explosion in', 'flood in', 'storm in', 'tsunami in', 'disaster in', 'crash in', 'accident in', 'emergency in',
-      'evacuation in', 'power outage in', 'tornado in', 'hurricane in', 'volcano in',
-      'covid cases in', 'covid today', 'covid deaths', 'flu cases', 'disease outbreak in', 'epidemic in', 'pandemic update', 'cases of', 'hospitalization rate',
-      'health alert in', 'infection rate in', 'vaccination rate in',
-      'crime in', 'shooting in', 'murder in', 'robbery in', 'assault in', 'arrest in', 'wanted list in', 'missing person in', 'police report in',
-      'fbi case', 'most wanted in', 'crime stats in', 'is it safe in', 'danger level in', 'crime index of',
-      'capital of', 'largest city in', 'population of', 'current population of', 'how many people in', 'area of', 'size of', 'bordering countries of', 'country that owns',
-      'distance from', 'how far is', 'what country is', 'city in', 'town in', 'village in',
-      'weather in', 'forecast in', 'forecast for', 'temperature in', 'humidity in', 'air quality in', 'pollution level in', 'uv index in', 'is it raining in',
-      'is it snowing in', 'climate in', 'natural disaster in', 'fire danger in', 'rainfall in', 'heat wave in', 'cold front in', 'storm alert in',
-      'nba scores', 'nfl scores', 'mlb scores', 'soccer scores', 'football scores', 'who won the game', 'final score of', 'current score of', 'who is winning',
-      'sports standings', 'sports news', 'league table for', 'match results', 'tournament bracket', 'playoff update', 'draft results', 'sports schedule for',
-      'stock price of', 'price of', 'price for', 'value of', 'share price of', 'market cap of', 'how much is', 'worth of', 'net worth of', 'salary of',
-      'budget of', 'revenue of', 'profit of', 'interest rate', 'inflation rate', 'unemployment rate', 'gdp of', 'economic update', 'trade deficit of',
-      'crypto price of', 'bitcoin price', 'ethereum price', 'crypto news', 'crypto crash', 'market update', 'trading volume of', 'altcoin price', 'crypto prediction',
-      'election results', 'polling in', 'voting in', 'exit poll in', 'approval rating of', 'senate control', 'house vote', 'president of', 'leader of', 'candidate in',
-      'who is running for', 'ballot measure', 'referendum in', 'government of', 'minister of',
-      'tech news', 'latest invention', 'ai update', 'new gadget', 'software release', 'apple news', 'google update', 'microsoft news', 'elon musk update',
-      'space launch', 'nasa mission', 'space news', 'new discovery', 'scientific breakthrough', 'lab result', 'experiment in', 'satellite in', 'meteor spotted in',
-      'asteroid near earth',
-      'box office numbers', 'movie release', 'who stars in', 'cast of', 'director of', 'trailer for', 'tv show premiere', 'tv ratings', 'oscars winners',
-      'emmy winners', 'grammy winners', 'celebrity news', 'who is dating', 'relationship of', 'divorce of', 'drama about', 'viral video', 'trending tiktok',
-      'trending reel', 'youtube trending', 'latest episode of', 'show finale', 'streaming on', 'where to watch',
-      'test scores in', 'graduation rate in', 'school ranking in', 'college acceptance rate', 'number of students in', 'education rate in', 'top school in',
-      'literacy rate in', 'math score average in',
-      'traffic in', 'road closure in', 'train delay in', 'bus strike in', 'airport closed in', 'flight status of', 'gas price in', 'subway delay in',
-      'how long is', 'how big is', 'how deep is', 'how wide is', 'how tall is', 'how fast is', 'length of', 'height of', 'weight of', 'depth of',
-      'volume of', 'mass of', 'density of', 'radius of', 'diameter of', 'distance between', 'comparison of', 'vs', 'versus', 'difference between',
-      'info on', 'news about', 'news from', 'data on', 'statistics on', 'facts about', 'what’s the status of', 'current update on', 'report on',
-      'did something happen in', 'was there', 'is there news about', 'what can you tell me about', 'show me what’s happening in'
     ];
 
     const containsTrigger = (message: string, triggers: string[]) => {
@@ -1261,7 +1221,7 @@ Assistant:`;
                   contents: [{ parts: [{ text: imageGenPrompt }] }],
                   generationConfig: {
                       temperature: 0.8,
-                      maxOutputTokens: 2048,
+                      maxOutputTokens: 5048,
                       responseModalities: ["TEXT", "IMAGE"],
                   }
               };
