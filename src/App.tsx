@@ -18,27 +18,28 @@ const universityLogos = [
 
 const testimonials = [
   {
-    quote: "As a premed student juggling organic chemistry, biology, and physics, TaskMaster AI's study schedule optimizer has been revolutionary. It analyzes my learning patterns and creates personalized study blocks that maximized my retention. The flashcard system with spaced repetition algorithms helped me memorize complex biochemical pathways effortlessly. I scored in the 95th percentile on my MCAT, and I credit TaskMaster for making that possible",
+    quote: "TaskMaster AI became my personal study coach. The way it broke down orgo, physics, and bio into manageable blocks based on how I learn was incredible. The flashcards with spaced repetition actually stuck, and the podcast-style breakdowns helped me review on the go. I went from overwhelmed to confident—and scored in the 95th percentile on the MCAT.",
     name: "Mohana Dayyam",
     role: "Premed Student, Rice University",
     avatar: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/ricelogo.png?alt=media&token=1247209e-9df6-492c-8129-1e9b6c1403c1",
     stars: 5,
   },
   {
-    quote: "The collaborative study feature in TaskMaster AI completely changed my medical school preparation. I connected with classmates to share annotated lecture notes and created group study guides that synced automatically. The AI-powered question generator helped identify weak areas in my understanding before exams. My professors have commented on the notable improvement in my critical thinking skills since I started using TaskMaster for my studies.",
+    quote: "The AI agent completely changed how I study. It plans my sessions, adjusts based on how I perform, and makes sure I focus on my weakest topics. The flashcards are sharp, the notes are super clean, and the study sets are way more effective than anything I’ve used before. Even the AI-generated audio recaps help me study while walking between classes.",
     name: "Hrishi Chintakuntla",
     role: "Premed Student, Johns Hopkins University",
     avatar: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/jhulogo.png?alt=media&token=f3dc5ef0-8b1c-4645-94dd-f10fdf8fe3bf",
     stars: 5,
   },
   {
-    quote: "The flashcards are tailored to my learning style. It's like the AI knows exactly what I need to study. A real game-changer!",
-    name: "Yash Sharma",
-    role: "Public Policy Student at Duke",
-    avatar: "https://i.pravatar.cc/150?img=5",
+    quote: "TaskMaster feels like a tutor that actually gets me. It knows exactly what I need to review and when. I rely on the flashcards every day, and the smart note summaries keep everything organized and easy to revisit. The podcast feature is genius—I listen to entire study sets during my commute without missing a beat.",
+    name: "Rayhan Mohammad",
+    role: "Data Science Student, UT Austin",
+    avatar: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/utaustin.svg?alt=media&token=988de05d-403d-47c6-9073-3da63aa3ce56",
     stars: 5,
   },
 ];
+
 
 const features = [
   {
