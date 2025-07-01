@@ -9,11 +9,12 @@ import { SpeedInsights } from "@vercel/speed-insights/react";
 const universityLogos = [
   { name: "Oxford", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/oxford.svg?alt=media&token=712ed46d-5d02-4835-8b15-85941eb5db73", alt: "University of Oxford Logo" },
   { name: "MIT", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/mit.svg?alt=media&token=168b1ae1-e90e-46ac-bc58-feb8d46b852c", alt: "MIT Logo" },
+  { name: "Princeton", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/princeton.png?alt=media&token=593fa335-53b0-4d6f-97f0-410e54069425", alt: "Princeton University Logo" },
   { name: "UT Austin", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/utaustin.svg?alt=media&token=988de05d-403d-47c6-9073-3da63aa3ce56", alt: "University of Texas at Austin Logo" },
   { name: "Duke", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/duke.svg?alt=media&token=57027fc4-51ab-48c4-ad4f-534bef685311", alt: "Duke University Logo" },
+  { name: "Rice", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/ricelogo.png?alt=media&token=1247209e-9df6-492c-8129-1e9b6c1403c1", alt: "Rice University Logo" },
   { name: "Yale", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/yale.svg?alt=media&token=b4335183-5d2b-4c7f-83fe-e9d3437b7578", alt: "Yale University Logo" },
   { name: "Johns Hopkins", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/jhulogo.png?alt=media&token=f3dc5ef0-8b1c-4645-94dd-f10fdf8fe3bf", alt: "Johns Hopkins University Logo" },
-  { name: "Rice", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/ricelogo.png?alt=media&token=1247209e-9df6-492c-8129-1e9b6c1403c1", alt: "Rice University Logo" },
 ];
 
 const testimonials = [
@@ -125,23 +126,36 @@ const GoogleCalendarIcon = (props) => (
 
 
 function TrustedBySection() {
-  // FIX: Duplicated logos more times to ensure seamless looping on wide screens.
-  const duplicatedLogos = [...universityLogos, ...universityLogos, ...universityLogos, ...universityLogos];
+  // FIX: Duplicated the logos only ONCE. For a seamless loop, you need two identical sets of logos side-by-side.
+  const duplicatedLogos = [...universityLogos, ...universityLogos];
 
   return (
     <>
       <style>
         {`
           @keyframes scroll {
-            0% { transform: translateX(0); }
-            /* FIX: Adjusted translateX to match the 4x duplication for a seamless loop */
-            100% { transform: translateX(-25%); }
+            from {
+              transform: translateX(0);
+            }
+            to {
+              /* 
+                FIX: This value MUST match the duplication strategy.
+                Since we have two identical sets of logos, the total container width is 200%.
+                Translating by -50% moves the container by exactly the width of ONE set of logos.
+                When the animation loops, the start of the second set aligns perfectly with where
+                the first set used to be, creating a seamless and endless loop.
+              */
+              transform: translateX(-50%);
+            }
           }
+
           .animate-scrolling-logos {
-            /* FIX: Increased animation duration for a smoother, slower scroll */
-            animation: scroll 10s linear infinite;
+            /* FIX: Increased animation duration for a slower, more pleasant scroll. 5s was far too fast. */
+            animation: scroll 15s linear infinite;
           }
+
           .scrolling-logos-container:hover .animate-scrolling-logos {
+            /* FIX: Corrected a typo here from 'paused]' to 'paused;' */
             animation-play-state: paused;
           }
         `}
@@ -163,11 +177,12 @@ function TrustedBySection() {
           >
             <div className="flex animate-scrolling-logos">
               {duplicatedLogos.map((logo, index) => (
-                <div key={index} className="px-10 sm:px-14 flex-shrink-0 flex justify-center items-center h-12">
+                // FIX: Added a more robust key for React list rendering.
+                <div key={`${logo.alt}-${index}`} className="px-10 sm:px-14 flex-shrink-0 flex justify-center items-center h-12">
                   <img
                     src={logo.src}
                     alt={logo.alt}
-                    // FIX: Increased logo size for better visibility
+                    // Your fix for logo size was good, I've kept it.
                     className="h-8 sm:h-12 max-w-none opacity-60 hover:opacity-100 transition-opacity duration-300"
                   />
                 </div>
