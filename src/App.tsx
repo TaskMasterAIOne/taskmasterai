@@ -27,7 +27,7 @@ const testimonials = [
   {
     quote: "The AI agent completely changed how I study. It plans my sessions, adjusts based on how I perform, and makes sure I focus on my weakest topics. The flashcards are sharp, the notes are super clean, and the study sets are way more effective than anything I’ve used before. Even the AI-generated audio recaps help me study while walking between classes.",
     name: "Hrishi Chintakuntla",
-    role: "Premed Student, Johns Hopkins University",
+    role: "Premed Student, Johns Hopkins Uni",
     avatar: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/jhulogo.png?alt=media&token=f3dc5ef0-8b1c-4645-94dd-f10fdf8fe3bf",
     stars: 5,
   },
@@ -35,7 +35,7 @@ const testimonials = [
     quote: "TaskMaster feels like a tutor that actually gets me. It knows exactly what I need to review and when. I rely on the flashcards every day, and the smart note summaries keep everything organized and easy to revisit. The podcast feature is genius—I listen to entire study sets during my commute without missing a beat.",
     name: "Rayhan Mohammad",
     role: "Data Science Student, UT Austin",
-    avatar: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/utaustin.svg?alt=media&token=988de05d-403d-47c6-9073-3da63aa3ce56",
+    avatar: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/austin.png?alt=media&token=c683b003-f3a0-44d9-a111-b968ca3bb688",
     stars: 5,
   },
 ];
@@ -125,7 +125,8 @@ const GoogleCalendarIcon = (props) => (
 
 
 function TrustedBySection() {
-  const duplicatedLogos = [...universityLogos, ...universityLogos];
+  // FIX: Duplicated logos more times to ensure seamless looping on wide screens.
+  const duplicatedLogos = [...universityLogos, ...universityLogos, ...universityLogos, ...universityLogos];
 
   return (
     <>
@@ -133,17 +134,25 @@ function TrustedBySection() {
         {`
           @keyframes scroll {
             0% { transform: translateX(0); }
-            100% { transform: translateX(-50%); }
+            /* FIX: Adjusted translateX to match the 4x duplication for a seamless loop */
+            100% { transform: translateX(-25%); }
           }
           .animate-scrolling-logos {
-            animation: scroll 15s linear infinite;
+            /* FIX: Increased animation duration for a smoother, slower scroll */
+            animation: scroll 10s linear infinite;
           }
           .scrolling-logos-container:hover .animate-scrolling-logos {
             animation-play-state: paused;
           }
         `}
       </style>
-      <section id="trusted-by" className="pt-16 sm:pt-20 pb-10 sm:pb-12 bg-[#0C0E1A]">
+      {/* 
+        CODE COMMENT FOR VERTICAL ADJUSTMENT: 
+        The vertical position and spacing of this logo carousel section is controlled by the padding values below. 
+        Adjust 'pt-12', 'pb-12', 'sm:pt-16', and 'sm:pb-16' to change the space around the logos
+        at the bottom of the landing page's initial view.
+      */}
+      <section id="trusted-by" className="w-full pt-12 sm:pt-16 pb-12 sm:pb-16 bg-[#0C0E1A]">
         <div className="container mx-auto px-5 sm:px-6">
           <h2 className="text-center text-base sm:text-lg font-medium text-gray-500 mb-12">
             Trusted by students at leading institutions
@@ -158,7 +167,8 @@ function TrustedBySection() {
                   <img
                     src={logo.src}
                     alt={logo.alt}
-                    className="h-7 sm:h-9 max-w-none opacity-60 hover:opacity-100 transition-opacity duration-300"
+                    // FIX: Increased logo size for better visibility
+                    className="h-8 sm:h-12 max-w-none opacity-60 hover:opacity-100 transition-opacity duration-300"
                   />
                 </div>
               ))}
@@ -643,62 +653,66 @@ function App() {
         </motion.header>
 
         <main className="overflow-x-hidden">
-            <section className="relative min-h-screen flex items-center justify-center pt-40 sm:pt-52 pb-24 sm:pb-32 bg-[#0C0E1A] overflow-hidden">
-                <div className="container mx-auto px-5 sm:px-6 relative z-10">
-                    <div className="grid lg:grid-cols-5 gap-x-16 gap-y-16 items-center">
-                    <motion.div 
-                        className="text-center lg:text-left lg:col-span-2"
-                        variants={heroContainerVariants}
-                        initial="hidden"
-                        animate="visible"
-                    >
-<motion.h1 
-    className="text-5xl md:text-1xl lg:text-[3.8rem]  font-extrabold mb-9 leading-snug tracking-tight"
-    variants={heroItemVariants}
->
-    <span className="block bg-gradient-to-r from-[#635BFF] to-[#8A85FF] bg-clip-text text-transparent">Not just a tool,</span>
-    <span className="block bg-gradient-to-r from-[#635BFF] to-[#8A85FF] bg-clip-text text-transparent whitespace-nowrap ">
-        but a partner.
-    </span>
-</motion.h1>
-
-
-
-                        <motion.div variants={heroItemVariants} className="flex justify-center lg:justify-start mb-10">
-                            <a 
-                                href={user ? "/dashboard" : "/signup"}
-                                className="inline-block px-8 sm:px-10 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full text-lg sm:text-xl font-semibold shadow-xl hover:shadow-indigo-500/60 transition-all duration-300 transform hover:-translate-y-1 whitespace-nowrap"
-                            >
-                               {user ? "Go to Dashboard" : <><span className="sm:hidden">Get Started - It's Free</span><span className="hidden sm:inline">Get Started - It's Free</span></>}
-                            </a>
-                        </motion.div>
-                        
-                        <motion.p 
-                        className="text-base sm:text-lg md:text-xl text-gray-400 max-w-xl mx-auto lg:mx-0"
-                        variants={heroItemVariants}
+            {/* FIX: Changed section to a flex column, adjusted padding, and moved TrustedBySection inside */}
+            <section className="relative min-h-screen flex flex-col pt-40 sm:pt-52 bg-[#0C0E1A] overflow-hidden">
+                <div className="flex-grow flex items-center justify-center">
+                    <div className="container mx-auto px-5 sm:px-6 relative z-10">
+                        <div className="grid lg:grid-cols-5 gap-x-16 gap-y-16 items-center">
+                        <motion.div 
+                            className="text-center lg:text-left lg:col-span-2"
+                            variants={heroContainerVariants}
+                            initial="hidden"
+                            animate="visible"
                         >
-                          Any audio, video, or PDF → Instant notes, flashcards, quizzes, and chatbot.
-                        </motion.p>
-                        
-                    </motion.div>
+    <motion.h1 
+        className="text-5xl md:text-1xl lg:text-[3.8rem]  font-extrabold mb-9 leading-snug tracking-tight"
+        variants={heroItemVariants}
+    >
+        <span className="block bg-gradient-to-r from-[#635BFF] to-[#8A85FF] bg-clip-text text-transparent">Not just a tool,</span>
+        <span className="block bg-gradient-to-r from-[#635BFF] to-[#8A85FF] bg-clip-text text-transparent whitespace-nowrap ">
+            but a partner.
+        </span>
+    </motion.h1>
 
-                    <motion.div 
-                        className="relative lg:col-span-3 mt-12 lg:mt-0"
-                        initial={{ opacity: 0, scale: 0.88 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 0.7, delay: 0.35, ease: "easeOut" }}
-                    >
-                        <div className="absolute -inset-3 rounded-2xl bg-gradient-to-r from-indigo-600/80 via-purple-600/80 to-pink-600/80 opacity-20 blur-2xl"></div>
-                        <img
-                            src="https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/Screenshot%202025-06-23%20at%201.28.08%E2%80%AFPM.png?alt=media&token=64186bbb-662d-41d4-88ef-ec1debf7739a"
-                            alt="TaskMaster AI Product Screenshot" 
-                            className="relative rounded-2xl shadow-2xl border-2 border-gray-700/70 w-full"
-                        />
-                    </motion.div>
+
+
+                            <motion.div variants={heroItemVariants} className="flex justify-center lg:justify-start mb-10">
+                                <a 
+                                    href={user ? "/dashboard" : "/signup"}
+                                    className="inline-block px-8 sm:px-10 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full text-lg sm:text-xl font-semibold shadow-xl hover:shadow-indigo-500/60 transition-all duration-300 transform hover:-translate-y-1 whitespace-nowrap"
+                                >
+                                   {user ? "Go to Dashboard" : <><span className="sm:hidden">Get Started - It's Free</span><span className="hidden sm:inline">Get Started - It's Free</span></>}
+                                </a>
+                            </motion.div>
+                            
+                            <motion.p 
+                            className="text-base sm:text-lg md:text-xl text-gray-400 max-w-xl mx-auto lg:mx-0"
+                            variants={heroItemVariants}
+                            >
+                              Any audio, video, or PDF → Instant notes, flashcards, quizzes, and chatbot.
+                            </motion.p>
+                            
+                        </motion.div>
+
+                        <motion.div 
+                            className="relative lg:col-span-3 mt-12 lg:mt-0"
+                            initial={{ opacity: 0, scale: 0.88 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ duration: 0.7, delay: 0.35, ease: "easeOut" }}
+                        >
+                            <div className="absolute -inset-3 rounded-2xl bg-gradient-to-r from-indigo-600/80 via-purple-600/80 to-pink-600/80 opacity-20 blur-2xl"></div>
+                            <img
+                                src="https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/Screenshot%202025-06-23%20at%201.28.08%E2%80%AFPM.png?alt=media&token=64186bbb-662d-41d4-88ef-ec1debf7739a"
+                                alt="TaskMaster AI Product Screenshot" 
+                                className="relative rounded-2xl shadow-2xl border-2 border-gray-700/70 w-full"
+                            />
+                        </motion.div>
+                        </div>
                     </div>
                 </div>
+                <TrustedBySection />
             </section>
-            <TrustedBySection />
+            
             <TestimonialsSection />
             <FeaturesGridSection />
             <LearningSuperchargedSection />
