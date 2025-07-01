@@ -157,8 +157,7 @@ function TrustedBySection() {
                   <img
                     src={logo.src}
                     alt={logo.alt}
-                    className="h-7 sm:h-9 max-w-none opacity-40 hover:opacity-75 transition-opacity duration-300"
-                    style={{ filter: 'grayscale(100%) contrast(0%) brightness(2.5)' }}
+                    className="h-7 sm:h-9 max-w-none opacity-60 hover:opacity-100 transition-opacity duration-300"
                   />
                 </div>
               ))}
