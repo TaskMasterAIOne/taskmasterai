@@ -129,7 +129,7 @@ const GoogleCalendarIcon = (props) => (
 
 function TrustedBySection() {
   // FIX: Duplicated the logos only ONCE. For a seamless loop, you need two identical sets of logos side-by-side.
-  const duplicatedLogos = [...universityLogos, ...universityLogos];
+  const duplicatedLogos = [...universityLogos, ...universityLogos, ...universityLogos, ...universityLogos, ...universityLogos, ...universityLogos]];
 
   return (
     <>
