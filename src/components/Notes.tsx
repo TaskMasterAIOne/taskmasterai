@@ -2788,7 +2788,7 @@ useEffect(() => {
                          <div className={`p-3 border-b border-gray-200 dark:border-gray-700/50 flex items-center justify-between flex-shrink-0`}> <h2 className={`text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2`}>
     <FileText className={`w-5 h-5 text-indigo-500 dark:text-indigo-400`} />
     <span>Notes</span>
-    <span className="text-[9px] font-bold uppercase tracking-wider bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded-full">
+    <span className="text-[9px] font-bold uppercase tracking-wider bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-2 py-0 rounded-full">
         BETA
     </span>
 </h2> <div className="flex items-center gap-1"> <button onClick={handleToggleNotesList} className={`bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 p-1.5 rounded-full`} title="Hide List"> <PanelLeftClose className="w-4 h-4 transform scale-x-[-1]" /> </button> {notes.length >= 2 && !showPdfViewer && ( <button onClick={showSplitView ? closeSplitView : startSplitView} className={`bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 p-1.5 rounded-full`} title={showSplitView ? "Close Comparison" : "Compare Notes"}> <SplitSquareVertical className={`w-4 h-4 ${showSplitView ? 'text-indigo-500 dark:text-indigo-400': ''}`} /> </button> )} <button onClick={() => setShowNewNoteModal(true)} className={`bg-indigo-500 hover:bg-indigo-600 text-white p-2 rounded-full hover:shadow-md transition-all duration-150`} title="New Note"> <Plus className="w-4 h-4" /> </button> </div> </div>
@@ -2819,9 +2819,6 @@ useEffect(() => {
                                         </div>
                                     ))}
                                 </div>
-                                <button onClick={() => setShowNotesProfileModal(true)} className="w-full text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline py-1 rounded-md hover:bg-indigo-100 dark:hover:bg-indigo-700/30 flex items-center justify-center gap-1">
-                                    <UserIconLucide className="w-3.5 h-3.5"/> View Full Profile
-                                </button>
                             </div>
                          )}
                          <div className={`p-3 border-b border-gray-200 dark:border-gray-700/50 flex-shrink-0`}> <div className="relative mb-2"> <Search className={`absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500`} /> <input type="text" placeholder="Search notes..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className={`w-full bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 pl-8 pr-3 py-1.5 rounded-full text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500`} /> </div> <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar"> {(['all', 'personal', 'pdf', 'youtube', 'audio'] as const).map(type => ( <button key={type} onClick={() => setFilterType(type)} className={`px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap ${filterType === type ? `bg-indigo-500 text-white shadow-sm` : `bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300`}`}> {formatNoteTypeDisplay(type)} </button> ))} </div> </div>
