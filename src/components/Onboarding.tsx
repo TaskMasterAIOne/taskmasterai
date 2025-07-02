@@ -426,7 +426,7 @@ Preferred Usage Style: ${usageStyleText}
                     <p className="text-gray-500 dark:text-gray-400 mx-auto mb-8"></p>
                     <div className="flex justify-center mb-8">
                         <div className="bg-gray-200 dark:bg-[#161922] p-1.5 rounded-full flex border border-gray-300 dark:border-gray-700/60">
-                            <button onClick={() => setIsYearly(true)} className={`px-5 py-2 rounded-full transition-all duration-300 text-sm font-medium focus:outline-none ${isYearly ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-100'}`}>Yearly (Save 20%)</button>
+                            <button onClick={() => setIsYearly(true)} className={`px-5 py-2 rounded-full transition-all duration-300 text-sm font-medium focus:outline-none ${isYearly ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-100'}`}>Yearly (Save 33%)</button>
                             <button onClick={() => setIsYearly(false)} className={`px-5 py-2 rounded-full transition-all duration-300 text-sm font-medium focus:outline-none ${!isYearly ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-100'}`}>Monthly</button>
                         </div>
                     </div>
