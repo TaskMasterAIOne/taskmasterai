@@ -12,6 +12,8 @@ const universityLogos = [
   { name: "Princeton", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/princeton.png?alt=media&token=593fa335-53b0-4d6f-97f0-410e54069425", alt: "Princeton University Logo" },
   { name: "UT Austin", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/utaustin.svg?alt=media&token=988de05d-403d-47c6-9073-3da63aa3ce56", alt: "University of Texas at Austin Logo" },
   { name: "Duke", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/duke.svg?alt=media&token=57027fc4-51ab-48c4-ad4f-534bef685311", alt: "Duke University Logo" },
+  { name: "Harvard", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/harvard%20(2).png?alt=media&token=bc675261-2d71-4b37-8a38-f9f266a1f08e", alt: "Harvard University Logo" },
+  { name: "Georgia Tech", src: "https://yunzhi.netlify.app/authors/admin/gatech-logo-cropped.png", alt: "Georgia Tech University Logo" },
   { name: "Rice", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/ricelogo.png?alt=media&token=1247209e-9df6-492c-8129-1e9b6c1403c1", alt: "Rice University Logo" },
   { name: "Yale", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/yale.svg?alt=media&token=b4335183-5d2b-4c7f-83fe-e9d3437b7578", alt: "Yale University Logo" },
   { name: "Johns Hopkins", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/jhulogo.png?alt=media&token=f3dc5ef0-8b1c-4645-94dd-f10fdf8fe3bf", alt: "Johns Hopkins University Logo" },
@@ -145,13 +147,13 @@ function TrustedBySection() {
                 When the animation loops, the start of the second set aligns perfectly with where
                 the first set used to be, creating a seamless and endless loop.
               */
-              transform: translateX(-50%);
+              transform: translateX(-500%);
             }
           }
 
           .animate-scrolling-logos {
             /* FIX: Increased animation duration for a slower, more pleasant scroll. 5s was far too fast. */
-            animation: scroll 15s linear infinite;
+            animation: scroll 70s linear infinite;
           }
 
           .scrolling-logos-container:hover .animate-scrolling-logos {
