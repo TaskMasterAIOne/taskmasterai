@@ -13,12 +13,12 @@ import StudentEmailModal from './StudentEmailModal';
 
 const STRIPE_PRICE_IDS = {
   PREMIUM: {
-    yearly: 'price_1Qe2OnIdgEonJvEbSDwoNCuH',
-    monthly: 'price_1Qe2JWIdgEonJvEbGUYEkTu6'
+    yearly: 'price_1RgUEnIdgEonJvEbAhkfqVPd',
+    monthly: 'price_1RgULrIdgEonJvEbOM5n608H'
   },
   PRO: {
-    yearly: 'price_1Qe2QaIdgEonJvEbaq1M4CQs',
-    monthly: 'price_1Qe2NXIdgEonJvEbxSUK8dMB'
+    yearly: 'price_1RgUI7IdgEonJvEbshTziusz',
+    monthly: 'price_1RUFTSIdgEonJvEbDIcAvUQ6'
   }
 };
 
@@ -219,13 +219,13 @@ function Pricing() {
     return <div className="min-h-screen bg-white dark:bg-[#0C0E1A] flex items-center justify-center"><Loader2 className="w-12 h-12 text-indigo-500 animate-spin" /></div>;
   }
 
-  const premiumPriceText = isYearly ? '$7.99' : '$9.99';
-  const proPriceText = isYearly ? '$4.99' : '$6.99';
+  const premiumPriceText = isYearly ? '$9.99' : '$14.99';
+  const proPriceText = isYearly ? '$7.99' : '$11.99';
   const priceSuffix = '/ month';
   const premiumBillingText = isYearly ? 'Billed yearly' : 'Billed monthly';
   const proBillingText = isYearly ? 'Billed yearly' : 'Billed monthly';
 
-  const premiumAnnualSavings = ((9.99 * 12) - (7.99 * 12)).toFixed(2);
+  const premiumAnnualSavings = ((14.99 * 12) - (9.99 * 12)).toFixed(2);
   const recommendationText = `Save $${premiumAnnualSavings} / year!`;
 
   const headerMotionVariants = { hidden: { opacity: 0, y: -30 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } } };
