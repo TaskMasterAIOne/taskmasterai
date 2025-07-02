@@ -8,6 +8,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 
 import { motion } from 'framer-motion';
 import App from './App';
+import Partner from './components/Partner';
 import Login from './components/Login';
 import SignUp from './components/SignUp';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -140,9 +141,11 @@ const AppRoutes = () => {
       <Route path="/signup" element={user ? <Navigate to="/dashboard" replace /> : <PageTitle title="Sign Up"><SignUp /></PageTitle>} />
       <Route path="/pricing" element={<PageTitle title="Pricing"><Pricing /></PageTitle>} />
       <Route path="/terms" element={<PageTitle title="Terms of Service"><Terms /></PageTitle>} />
+      <Route path="/friends" element={<PageTitle title="Friends"><Friends /></PageTitle>} />
       <Route path="/settings" element={user ? <PageTitle title="Settings"><Settings /></PageTitle> : <Navigate to="/login" replace />} />
       <Route path="/onboarding" element={<PageTitle title="Welcome"><Onboarding /></PageTitle>} />
       <Route path="/privacy-policy" element={<PageTitle title="Privacy Policy"><PrivacyPolicy /></PageTitle>} />
+      <Route path="/partner" element={<PageTitle title="TaskPartner"><Partner /></PageTitle>} />
       <Route path="/forgot-password" element={<PageTitle title="Reset Password"><ForgotPassword /></PageTitle>} />
       <Route path="/dashboard" element={user ? <PageTitle title="Dashboard"><Dashboard /></PageTitle> : <Navigate to="/login" replace />} />
       <Route path="/contact" element={<PageTitle title="Contact Us"><Contact /></PageTitle>} />
@@ -151,6 +154,7 @@ const AppRoutes = () => {
       <Route path="/calendar" element={user ? <PageTitle title="Calendar"><Calendar /></PageTitle> : <Navigate to="/login" replace />} />
       <Route path="/notes" element={user ? <PageTitle title="Notes"><Notes /></PageTitle> : <Navigate to="/login" replace />} />
       <Route path="/school" element={user ? <PageTitle title="School"><SchoolPage /></PageTitle> : <Navigate to="/login" replace />} />
+      <Route path="/community" element={user ? <PageTitle title="Community"><Community /></PageTitle> : <Navigate to="/login" replace />} />
       <Route path="/" element={<RootTitle><App /></RootTitle>} />
       <Route path="/status" element={<PageTitle title="Status"><Status /></PageTitle>} />
       <Route path="/focus" element={user ? <PageTitle title="Focus"><FocusMode /></PageTitle> : <Navigate to="/login" replace />} />
