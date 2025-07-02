@@ -153,7 +153,7 @@ function TrustedBySection() {
 
           .animate-scrolling-logos {
             /* FIX: Increased animation duration for a slower, more pleasant scroll. 5s was far too fast. */
-            animation: scroll 70s linear infinite;
+            animation: scroll 80s linear infinite;
           }
 
           .scrolling-logos-container:hover .animate-scrolling-logos {
