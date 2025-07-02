@@ -269,7 +269,7 @@ function Pricing() {
               className={`px-6 py-2.5 rounded-full transition-all duration-300 text-sm font-medium focus:outline-none ${isYearly ? 'bg-indigo-600 text-white shadow-[0_0_12px_2px_rgba(99,102,241,0.5)]' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'}`}
               onClick={() => { setIsYearly(true); setCheckoutError(null); }}
             >
-              Yearly <span className="text-xs opacity-80">(Save 20%)</span>
+              Yearly <span className="text-xs opacity-80">(Save 33%)</span>
             </button>
             <button
               className={`px-6 py-2.5 rounded-full transition-all duration-300 text-sm font-medium focus:outline-none ${!isYearly ? 'bg-indigo-600 text-white shadow-[0_0_12px_2px_rgba(99,102,241,0.5)]' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'}`}
