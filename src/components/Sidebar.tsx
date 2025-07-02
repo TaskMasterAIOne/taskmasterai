@@ -100,7 +100,7 @@ export function Sidebar({
   const menuItems = [
     { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
     { label: "Folders", icon: Folders, path: "/folders" },
-    { label: "Notes", icon: FileText, path: "/notes" },
+    { label: "Notes", icon: FileText, path: "/notes", isBeta: true },
     { label: "Focus", icon: ZapOff, path: "/focus" },
     { label: "AI Chat", icon: MessageCircle, path: "/ai" },
     { label: "Settings", icon: Settings, path: "/settings" },
@@ -178,19 +178,16 @@ export function Sidebar({
 <div className={`mb-5 flex items-center h-[44px] relative ${isCollapsed && !isMobileOpen ? "justify-center" : "justify-between"}`}>
     <a href="/" title="TaskMaster AI">
         {(!isCollapsed || isMobileOpen) ? (
-            <div className="ml-1"> {/* move LogoSmall to the right */}
+            <div className="ml-1">
                 <LogoSmall />
             </div>
         ) : (
-            <div className="ml-[-15px]"> {/* move CollapsedLogoIcon to the left */}
+            <div className="ml-[-15px]">
                 <CollapsedLogoIcon />
             </div>
         )}
     </a>
 
-
-
-            
             {isMobileOpen && (
                 <button
                     onClick={() => setIsMobileOpen(false)}
@@ -226,7 +223,16 @@ export function Sidebar({
                 <li key={item.label}>
                   <button onClick={() => handleNavigation(item.path)} className={`w-full flex items-center gap-3 px-2.5 py-2.5 text-sm rounded-lg transition-all duration-200 ease-out transform hover:scale-[1.01] ${sidebarTextColor} ${menuItemHoverBg} ${menuItemHoverText} ${isActive ? `${activeMenuItemBg} ${activeMenuItemText} ${activeMenuItemFontWeight}` : ""}`} title={isCollapsed && !isMobileOpen ? item.label : undefined}>
                     <Icon className="w-5 h-5 min-w-[1.25rem]" strokeWidth={isActive ? 2.5 : 2} />
-                    {(!isCollapsed || isMobileOpen) && <span className="whitespace-nowrap">{item.label}</span>}
+{(!isCollapsed || isMobileOpen) && (
+  <span className="flex items-center gap-2">
+    <span className="whitespace-nowrap">{item.label}</span>
+    {item.isBeta && (
+      <span className="text-[9px] font-bold uppercase tracking-wider bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-1.5 py-0 rounded-full">
+        Beta
+      </span>
+    )}
+  </span>
+)}
                   </button>
                 </li>
               );
