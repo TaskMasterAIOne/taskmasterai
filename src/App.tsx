@@ -203,7 +203,7 @@ function TestimonialsSection() {
           className="text-center mb-16 sm:mb-20"
         >
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-5">
-            Join <span className="text-white">2,000,000+</span> Learners & Professionals
+            Join <span className="text-white">2,000,000+</span> Learners
           </h2>
           <p className="text-base sm:text-lg text-gray-400 max-w-4xl mx-auto">
             Discover how TaskMaster AI is transforming productivity and learning efficiency worldwide.
