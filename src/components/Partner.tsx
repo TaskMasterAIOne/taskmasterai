@@ -427,7 +427,7 @@ export default function Partner() {
         ) : (
           <form onSubmit={handleReferralSubmit} className="space-y-6">
             <h2 className="text-3xl font-bold text-white text-center mb-2">Refer a Friend</h2>
-            <p className="text-gray-300 text-center mb-6 whitespace-nowrap">Enter your approved creator email and your friend's info.</p>
+            <p className="text-gray-300 text-center mb-6 whitespace-nowrap">Enter your creator email and your friend's info.</p>
             
             <FormInput icon={<Mail className="w-5 h-5 text-gray-300"/>} type="email" name="referrerEmail" placeholder="Your Creator Email Address" value={referralFormData.referrerEmail} onChange={handleReferralInputChange} required />
             <FormInput icon={<User className="w-5 h-5 text-gray-300"/>} type="text" name="friendName" placeholder="Friend's Full Name" value={referralFormData.friendName} onChange={handleReferralInputChange} required />
