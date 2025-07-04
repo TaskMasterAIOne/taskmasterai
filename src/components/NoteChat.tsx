@@ -516,7 +516,7 @@ Just ask to get started.
     const handleToggleSearchMode = () => { if (isChatLoading || isLoadingUsage) return; const nextState = !isSearchModeActive; setIsSearchModeActive(nextState); if (nextState) { setIsImageGenModeActive(false); if (selectedFiles.length > 0 || pdfContextSegments.length > 0) { setAiActionStatus("Search mode enabled. Files/context ignored."); setTimeout(() => setAiActionStatus(null), 2500); setSelectedFiles([]); setPdfContextSegments([]); } } textareaRef.current?.focus(); };
     const addPdfScreenshot = (fileData: SelectedFile) => { if (isImageGenModeActive || isSearchModeActive) { setIsImageGenModeActive(false); setIsSearchModeActive(false); setChatHistory(prev => [...prev, { id: `mode-off-screenshot-${Date.now()}`, role: 'assistant', content: `ℹ️ Image/Search mode disabled to attach PDF snippet.`, error: false }]); } setSelectedFiles(prev => [...prev, fileData]); };
 
-        const submitMessageToAI = async (
+           const submitMessageToAI = async (
             messageContent: string,
             filesToSend?: SelectedFile[],
             forceImageGenMode = false,
@@ -741,22 +741,30 @@ What else can you do?
                         temperature: isUsingImageGenModel ? 0.8 : 0.7,
                         maxOutputTokens: isUsingImageGenModel ? 2048 : 8192,
                     },
-                    systemInstruction: { parts: [{ text: systemInstruction }]},
-                    tools: isUsingSearch ? [{ "google_search": {} }] : [],
                 };
-                if (isUsingImageGenModel) requestBody.generationConfig.responseModalities = ["TEXT", "IMAGE"];
+                
+                if (isUsingImageGenModel) {
+                    requestBody.generationConfig.responseModalities = ["TEXT", "IMAGE"];
+                    const imageGenPrompt = `[IMAGE GENERATION TASK] You are an AI assistant. The user wants to generate an image based on the following description: "${messageContent}". Your primary goal is to generate this image. You MUST also provide a creative, descriptive, or fun text caption. Your response MUST include both image data AND a text part. If the user is just chatting, respond normally without generating an image unless asked.`;
+                    requestBody.contents = [{ parts: [{ text: imageGenPrompt }] }];
+                } else {
+                    requestBody.systemInstruction = { parts: [{ text: systemInstruction }] };
+                    requestBody.tools = isUsingSearch ? [{ "google_search": {} }] : [];
 
-                const apiContent: any[] = [];
-                recentHistory.forEach(msg => {
-                    if (msg.timer || msg.isUpdateConfirmation || msg.content === '...' || msg.isGeneratingImage || msg.isPdfContextDisplay) return;
-                    if (msg.role === 'user') { const userParts: any[] = [{ text: msg.content.replace(/\[(?:Image )?Attached:.*?\]/g, '').trim() }]; if (msg.imageData && !isUsingImageGenModel && !isUsingSearch) userParts.push({ inline_data: { mime_type: msg.imageData.type, data: msg.imageData.base64 } }); if (userParts[0].text || userParts.length > 1) apiContent.push({ role: "user", parts: userParts }); }
-                    else if (msg.role === 'assistant') { let assistantHistoryContent = msg.content?.replace(/```json[\s\S]*?```/g, msg.isEditSuggestion ? `(I proposed an edit: ${msg.editExplanation || 'Details omitted'})` : '(I provided a response)'); if (msg.wasImageGenerated) assistantHistoryContent += " [I generated an image]"; if (assistantHistoryContent?.trim()) apiContent.push({ role: "model", parts: [{ text: assistantHistoryContent.trim() }] }); }
-                });
-                const currentUserParts: any[] = [{ text: contentForAI }];
-                if (currentFiles.length > 0 && !isUsingImageGenModel && !isUsingSearch) currentFiles.forEach(file => { if (file.type.startsWith('image/') || file.type === 'application/pdf') currentUserParts.push({ inline_data: { mime_type: file.type, data: file.base64Data } }); });
-                if (currentUserParts[0].text || currentUserParts.length > 1) apiContent.push({ role: "user", parts: currentUserParts });
-                const filteredApiContent = apiContent.reduce((acc, current) => { const last = acc[acc.length - 1]; if (last && last.role === current.role) { last.parts = [...last.parts, ...current.parts]; } else { acc.push(current); } return acc; }, [] as { role: string, parts: any[] }[]);
-                requestBody.contents = filteredApiContent;
+                    const apiContent: any[] = [];
+                    recentHistory.forEach(msg => {
+                        if (msg.timer || msg.isUpdateConfirmation || msg.content === '...' || msg.isGeneratingImage || msg.isPdfContextDisplay) return;
+                        if (msg.role === 'user') { const userParts: any[] = [{ text: msg.content.replace(/\[(?:Image )?Attached:.*?\]/g, '').trim() }]; if (msg.imageData && !isUsingSearch) userParts.push({ inline_data: { mime_type: msg.imageData.type, data: msg.imageData.base64 } }); if (userParts[0].text || userParts.length > 1) apiContent.push({ role: "user", parts: userParts }); }
+                        else if (msg.role === 'assistant') { let assistantHistoryContent = msg.content?.replace(/```json[\s\S]*?```/g, msg.isEditSuggestion ? `(I proposed an edit: ${msg.editExplanation || 'Details omitted'})` : '(I provided a response)'); if (msg.wasImageGenerated) assistantHistoryContent += " [I generated an image]"; if (assistantHistoryContent?.trim()) apiContent.push({ role: "model", parts: [{ text: assistantHistoryContent.trim() }] }); }
+                    });
+                    const currentUserParts: any[] = [{ text: contentForAI }];
+                    if (currentFiles.length > 0 && !isUsingSearch) {
+                        currentFiles.forEach(file => { if (file.type.startsWith('image/') || file.type === 'application/pdf') currentUserParts.push({ inline_data: { mime_type: file.type, data: file.base64Data } }); });
+                    }
+                    if (currentUserParts[0].text || currentUserParts.length > 1) apiContent.push({ role: "user", parts: currentUserParts });
+                    const filteredApiContent = apiContent.reduce((acc, current) => { const last = acc[acc.length - 1]; if (last && last.role === current.role) { last.parts = [...last.parts, ...current.parts]; } else { acc.push(current); } return acc; }, [] as { role: string, parts: any[] }[]);
+                    requestBody.contents = filteredApiContent;
+                }
                 
                 const response = await fetchWithRetry(fullGeminiEndpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody) });
                 const responseText = await response.text();
