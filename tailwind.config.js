@@ -152,7 +152,7 @@ export default {
             },
             'pre code': { backgroundColor: 'transparent !important', padding: '0 !important', fontSize: '0.875em !important', color: 'inherit !important'},
             img: { borderRadius: theme('borderRadius.lg'), boxShadow: theme('boxShadow.md'), marginTop: theme('spacing.6'), marginBottom: theme('spacing.6'),},
-            table: { width: '100%', marginTop: theme('spacing.6'), marginBottom: theme('spacing.6'), fontSize: theme('fontSize.sm'), borderCollapse: 'collapse' },
+            table: { width: '100%', marginTop: theme('spacing.6'), marginBottom: 'spacing.6', fontSize: theme('fontSize.sm'), borderCollapse: 'collapse' },
             'thead th': { color: theme('colors.gray.800'), padding: `${theme('spacing.2')} ${theme('spacing.3')}`, fontWeight: '600', textAlign: 'left', border: `1px solid var(--tw-prose-th-borders)`, backgroundColor: theme('colors.gray.100'),},
             'tbody td': { padding: `${theme('spacing.2')} ${theme('spacing.3')}`, border: `1px solid var(--tw-prose-td-borders)`,},
             'tbody tr:nth-child(even) td': { backgroundColor: theme('colors.gray.50'),},
@@ -206,16 +206,50 @@ export default {
   plugins: [
     require('@tailwindcss/typography'),
     require('@tailwindcss/forms'),
-    plugin(function({ addUtilities }) {
-      const newUtilities = {
-        '.scrollbar-thin': { 'scrollbar-width': 'thin', },
-        '.scrollbar-thumb-gray-300::-webkit-scrollbar-thumb': { 'background-color': '#d1d5db', 'border-radius': '4px',},
-        '.dark .scrollbar-thumb-gray-600::-webkit-scrollbar-thumb': { 'background-color': '#4b5563',},
-        '.scrollbar-track-transparent::-webkit-scrollbar-track': { 'background-color': 'transparent',},
-         '.no-scrollbar::-webkit-scrollbar': { 'display': 'none'},
-        '.no-scrollbar': { '-ms-overflow-style': 'none', 'scrollbar-width': 'none'}
-      }
-      addUtilities(newUtilities, ['responsive', 'hover'])
+    plugin(function({ addBase, addUtilities, theme }) {
+      // Add base styles for consistent, modern scrollbars
+      addBase({
+        // For Firefox
+        'html': {
+          'scrollbar-width': 'thin',
+          'scrollbar-color': `${theme('colors.gray.400')} transparent`,
+        },
+        '.dark html': {
+          'scrollbar-color': `${theme('colors.gray.600')} ${theme('colors.dark.primary')}`,
+        },
+        // For Webkit-based browsers (Chrome, Safari, Edge)
+        '::-webkit-scrollbar': {
+          width: '8px',
+          height: '8px',
+        },
+        '::-webkit-scrollbar-track': {
+          backgroundColor: 'transparent',
+        },
+        '::-webkit-scrollbar-thumb': {
+          backgroundColor: theme('colors.gray.300'),
+          borderRadius: '10px',
+          border: `2px solid transparent`,
+          backgroundClip: 'content-box',
+        },
+        '::-webkit-scrollbar-thumb:hover': {
+          backgroundColor: theme('colors.gray.400'),
+        },
+        '.dark ::-webkit-scrollbar-thumb': {
+          backgroundColor: theme('colors.gray.600'),
+        },
+        '.dark ::-webkit-scrollbar-thumb:hover': {
+          backgroundColor: theme('colors.gray.500'),
+        },
+      });
+
+      // Add utility to hide scrollbars if needed
+      addUtilities({
+        '.no-scrollbar::-webkit-scrollbar': { 'display': 'none' },
+        '.no-scrollbar': {
+          '-ms-overflow-style': 'none',  /* IE and Edge */
+          'scrollbar-width': 'none'    /* Firefox */
+        },
+      });
     })
   ],
 };
