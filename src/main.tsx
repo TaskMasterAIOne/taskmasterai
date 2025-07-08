@@ -37,10 +37,15 @@ import { SpeedInsights } from "@vercel/speed-insights/react";
 import { Friends } from './components/Friends';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { Logo } from './components/Logo';
+import Blog from './blog/Blog';
+import AIStudyTool from './blog/ai-study-tool';
+import AINoteTaking from './blog/ai-note-taking';
+import StudentProductivityApp from './blog/student-productivity-app';
+import AlternativesToNotionForStudents from './blog/alternatives-to-notion-for-students';
+
 
 const DefaultHelmet = () => (
   <Helmet>
-    {/* Correctly formatted script tags for react-helmet-async */}
     <script async src="https://www.googletagmanager.com/gtag/js?id=AW-17070659093"></script>
     <script>
       {`
@@ -156,6 +161,11 @@ const AppRoutes = () => {
       <Route path="/school" element={user ? <PageTitle title="School"><SchoolPage /></PageTitle> : <Navigate to="/login" replace />} />
       <Route path="/community" element={user ? <PageTitle title="Community"><Community /></PageTitle> : <Navigate to="/login" replace />} />
       <Route path="/" element={<RootTitle><App /></RootTitle>} />
+      <Route path="/blog" element={<PageTitle title="Blog"><Blog /></PageTitle>} />
+      <Route path="/blog/ai-study-tool" element={<PageTitle title="AI Study Tool"><AIStudyTool /></PageTitle>} />
+      <Route path="/blog/ai-note-taking" element={<PageTitle title="AI Note-Taking"><AINoteTaking /></PageTitle>} />
+      <Route path="/blog/student-productivity-app" element={<PageTitle title="Student Productivity App"><StudentProductivityApp /></PageTitle>} />
+      <Route path="/blog/alternatives-to-notion-for-students" element={<PageTitle title="Alternatives to Notion for Students"><AlternativesToNotionForStudents /></PageTitle>} />
       <Route path="/status" element={<PageTitle title="Status"><Status /></PageTitle>} />
       <Route path="/focus" element={user ? <PageTitle title="Focus"><FocusMode /></PageTitle> : <Navigate to="/login" replace />} />
       <Route path="/public-note/:noteId" element={<PageTitle title="Public Note"><PublicNoteView /></PageTitle>} />
