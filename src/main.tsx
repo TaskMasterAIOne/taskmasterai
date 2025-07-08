@@ -37,11 +37,11 @@ import { SpeedInsights } from "@vercel/speed-insights/react";
 import { Friends } from './components/Friends';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { Logo } from './components/Logo';
-import Blog from './blog/Blog';
-import AIStudyTool from './blog/ai-study-tool';
-import AINoteTaking from './blog/ai-note-taking';
-import StudentProductivityApp from './blog/student-productivity-app';
-import AlternativesToNotionForStudents from './blog/alternatives-to-notion-for-students';
+import Blog from '../blog/Blog';
+import AIStudyTool from '../blog/ai-study-tool';
+import AINoteTaking from '../blog/ai-note-taking';
+import StudentProductivityApp from '../blog/student-productivity-app';
+import AlternativesToNotionForStudents from '../blog/alternatives-to-notion-for-students';
 
 
 const DefaultHelmet = () => (
