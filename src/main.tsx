@@ -1,4 +1,3 @@
-Generated typescript
 import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
