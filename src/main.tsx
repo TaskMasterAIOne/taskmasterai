@@ -1,3 +1,4 @@
+Generated typescript
 import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
@@ -37,10 +38,14 @@ import { SpeedInsights } from "@vercel/speed-insights/react";
 import { Friends } from './components/Friends';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { Logo } from './components/Logo';
+import BlogLayout from './components/blog/BlogLayout';
+import AIStudyTool from './components/blog/AIStudyTool';
+import AINotesTaking from './components/blog/AINotesTaking';
+import StudentProductivityApp from './components/blog/StudentProductivityApp';
+import AlternativesToNotion from './components/blog/AlternativesToNotion';
 
 const DefaultHelmet = () => (
   <Helmet>
-    {/* Correctly formatted script tags for react-helmet-async */}
     <script async src="https://www.googletagmanager.com/gtag/js?id=AW-17070659093"></script>
     <script>
       {`
@@ -159,6 +164,11 @@ const AppRoutes = () => {
       <Route path="/status" element={<PageTitle title="Status"><Status /></PageTitle>} />
       <Route path="/focus" element={user ? <PageTitle title="Focus"><FocusMode /></PageTitle> : <Navigate to="/login" replace />} />
       <Route path="/public-note/:noteId" element={<PageTitle title="Public Note"><PublicNoteView /></PageTitle>} />
+      <Route path="/blog/ai-study-tool" element={<PageTitle title="AI Study Tool"><BlogLayout><AIStudyTool /></BlogLayout></PageTitle>} />
+      <Route path="/blog/ai-note-taking" element={<PageTitle title="AI Note-Taking"><BlogLayout><AINotesTaking /></BlogLayout></PageTitle>} />
+      <Route path="/blog/student-productivity-app" element={<PageTitle title="Student Productivity App"><BlogLayout><StudentProductivityApp /></BlogLayout></PageTitle>} />
+      <Route path="/blog/alternatives-to-notion-for-students" element={<PageTitle title="Notion Alternatives for Students"><BlogLayout><AlternativesToNotion /></BlogLayout></PageTitle>} />
+      <Route path="/blog" element={<Navigate to="/blog/ai-study-tool" replace />} />
       <Route path="*" element={<PageTitle title="404 Not Found"><NotFound /></PageTitle>} />
     </Routes>
   );
