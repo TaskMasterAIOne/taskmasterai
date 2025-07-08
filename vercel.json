@@ -25,15 +25,5 @@
       "src": "/(.*)",
       "dest": "/index.html"
     }
-  ],
-  "rewrites": [
-    {
-      "source": "/blog",
-      "destination": "/blog/"
-    },
-    {
-      "source": "/blog/(.*)",
-      "destination": "/blog/index.html"
-    }
   ]
 }
