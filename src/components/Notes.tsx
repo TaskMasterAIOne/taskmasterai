@@ -235,21 +235,21 @@ const PREDEFINED_PODCAST_SPEAKERS: PodcastSpeakerProfile[] = [
     },
 ];
 
-interface GeneratePodcastRequest {
+interface TriggerPodcastRequest {
+  noteId: string;
   segments: ProcessedPodcastSegment[];
 }
-interface GeneratePodcastResponse {
-  audioSegmentUrls?: PodcastSegment[];
-  combinedUrl?: string;
-  totalDuration?: number;
-  error?: string;
+
+interface TriggerPodcastResponse {
+  jobId: string;
+  message: string;
 }
 
 const firebaseFunctions = getFunctions(app);
-const generateElevenLabsPodcastAudioFn = httpsCallable<
-    GeneratePodcastRequest,
-    GeneratePodcastResponse
->(firebaseFunctions, 'generateElevenLabsPodcastAudio');
+const triggerPodcastGenerationFn = httpsCallable<
+    TriggerPodcastRequest,
+    TriggerPodcastResponse
+>(firebaseFunctions, 'triggerPodcastGeneration');
 
 const SimpleModal = ({ isOpen, onClose, title, children, maxWidth = "max-w-md" }: { isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; maxWidth?: string}) => {
     if (!isOpen) return null;
@@ -294,7 +294,7 @@ const UpgradeModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
                     onClick={onClose}
                     className={`w-full flex items-center justify-center px-4 py-2.5 rounded-full text-sm font-medium bg-purple-500 hover:bg-purple-600 text-white shadow-md hover:shadow-lg transition-shadow`}
                 >
-                    {/* --- FIX IS HER: Added Crown icon --- */}
+                    {/* --- FIX IS HERE: Added Crown icon --- */}
                     <Crown className="w-4 h-4 mr-2" />
                     Upgrade to Premium
                 </Link>
@@ -746,86 +746,97 @@ const handlePodcastToggle = () => {
         return () => unsubscribeAuth();
     }, [navigate, handlePodcastStop]);
 
-    useEffect(() => {
-        if (!user?.uid) {
-            setNotes([]);
-            setLoading(false);
-            return;
-        }
-        setLoading(true);
-        const q = query(collection(db, 'notes'), where('userId', '==', user.uid), orderBy('updatedAt', 'desc'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const notesList: Note[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Note));
-            setNotes(notesList);
+useEffect(() => {
+    if (!user?.uid) {
+        setNotes([]);
+        setLoading(false);
+        return;
+    }
+    setLoading(true);
+    const q = query(collection(db, 'notes'), where('userId', '==', user.uid), orderBy('updatedAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const notesList: Note[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Note));
+        setNotes(notesList);
 
-            if (notesList.length > 0 && !selectedNote && !isMobile && !showSplitView) {
-                setSelectedNote(notesList[0]);
+        if (notesList.length > 0 && !selectedNote && !isMobile && !showSplitView) {
+            setSelectedNote(notesList[0]);
+        }
+        
+        setSelectedNote(prevSelectedNote => {
+            if (!prevSelectedNote) return null;
+            const updatedNoteData = notesList.find(n => n.id === prevSelectedNote.id);
+            if (!updatedNoteData) {
+                if (isEditing) setIsEditing(false);
+                return null;
+            }
+
+            if (isPodcastProcessing && updatedNoteData.podcasts && updatedNoteData.podcasts.length > (prevSelectedNote.podcasts?.length || 0)) {
+                setIsPodcastProcessing(false);
+                showToast("Your podcast is ready!", 'success', Check);
+                const newestPodcast = updatedNoteData.podcasts.sort((a,b) => toDateSafe(b.createdAt)!.getTime() - toDateSafe(a.createdAt)!.getTime())[0];
+                if (newestPodcast) {
+                    handlePlayPodcast(newestPodcast);
+                    setShowPodcastSection(true);
+                }
             }
             
-            setSelectedNote(prevSelectedNote => {
-                if (!prevSelectedNote) return null;
-                const updatedNoteData = notesList.find(n => n.id === prevSelectedNote.id);
-                if (!updatedNoteData) {
-                    if (isEditing) setIsEditing(false);
-                    return null;
-                }
-                if (JSON.stringify(prevSelectedNote) !== JSON.stringify(updatedNoteData)) {
-                    return updatedNoteData;
-                }
-                return prevSelectedNote;
-            });
+            if (JSON.stringify(prevSelectedNote) !== JSON.stringify(updatedNoteData)) {
+                return updatedNoteData;
+            }
+            return prevSelectedNote;
+        });
 
-            if (activePodcast) {
-                const updatedNoteForPodcast = notesList.find(n => n.id === selectedNote?.id);
-                if (updatedNoteForPodcast && updatedNoteForPodcast.podcasts) {
-                    const updatedActivePodcast = updatedNoteForPodcast.podcasts.find(p => p.id === activePodcast.id);
-                    if (updatedActivePodcast) {
-                        if (JSON.stringify(activePodcast) !== JSON.stringify(updatedActivePodcast)) {
-                           setActivePodcast(updatedActivePodcast);
-                        }
-                    } else {
-                        handlePodcastStop();
+        if (activePodcast) {
+            const updatedNoteForPodcast = notesList.find(n => n.id === selectedNote?.id);
+            if (updatedNoteForPodcast && updatedNoteForPodcast.podcasts) {
+                const updatedActivePodcast = updatedNoteForPodcast.podcasts.find(p => p.id === activePodcast.id);
+                if (updatedActivePodcast) {
+                    if (JSON.stringify(activePodcast) !== JSON.stringify(updatedActivePodcast)) {
+                       setActivePodcast(updatedActivePodcast);
                     }
                 } else {
                     handlePodcastStop();
                 }
+            } else {
+                handlePodcastStop();
             }
+        }
 
 
-            setChatNoteForOverlay(prevChatNote => {
-                if (!prevChatNote) return null;
-                const updatedChatNoteData = notesList.find(n => n.id === prevChatNote.id);
-                if (!updatedChatNoteData) return null;
-                if (JSON.stringify(prevChatNote) !== JSON.stringify(updatedChatNoteData)) {
-                   return updatedChatNoteData;
-                }
-                return prevChatNote;
-            });
-
-            if (showSplitView) {
-                 setSplitViewNotes(prevSplitNotes => {
-                    const currentLeftId = prevSplitNotes.left?.id;
-                    const currentRightId = prevSplitNotes.right?.id;
-                    const updatedLeft = currentLeftId ? notesList.find(n => n.id === currentLeftId) : null;
-                    const updatedRight = currentRightId ? notesList.find(n => n.id === currentRightId) : null;
-                     if (prevSplitNotes.left?.id !== updatedLeft?.id || prevSplitNotes.right?.id !== updatedRight?.id ||
-                         (updatedLeft && JSON.stringify(prevSplitNotes.left) !== JSON.stringify(updatedLeft)) ||
-                         (updatedRight && JSON.stringify(prevSplitNotes.right) !== JSON.stringify(updatedRight))
-                        ) {
-                         return { left: updatedLeft || null, right: updatedRight || null };
-                     }
-                     return prevSplitNotes;
-                 });
-             }
-
-            setLoading(false);
-        }, (error) => {
-            console.error("Firestore snapshot error:", error)
-            setLoading(false);
-            setUploadProgress({ progress: 0, status: '', error: 'Could not load notes.' });
+        setChatNoteForOverlay(prevChatNote => {
+            if (!prevChatNote) return null;
+            const updatedChatNoteData = notesList.find(n => n.id === prevChatNote.id);
+            if (!updatedChatNoteData) return null;
+            if (JSON.stringify(prevChatNote) !== JSON.stringify(updatedChatNoteData)) {
+               return updatedChatNoteData;
+            }
+            return prevChatNote;
         });
-        return () => unsubscribe();
-    }, [user?.uid]);
+
+        if (showSplitView) {
+             setSplitViewNotes(prevSplitNotes => {
+                const currentLeftId = prevSplitNotes.left?.id;
+                const currentRightId = prevSplitNotes.right?.id;
+                const updatedLeft = currentLeftId ? notesList.find(n => n.id === currentLeftId) : null;
+                const updatedRight = currentRightId ? notesList.find(n => n.id === currentRightId) : null;
+                 if (prevSplitNotes.left?.id !== updatedLeft?.id || prevSplitNotes.right?.id !== updatedRight?.id ||
+                     (updatedLeft && JSON.stringify(prevSplitNotes.left) !== JSON.stringify(updatedLeft)) ||
+                     (updatedRight && JSON.stringify(prevSplitNotes.right) !== JSON.stringify(updatedRight))
+                    ) {
+                     return { left: updatedLeft || null, right: updatedRight || null };
+                 }
+                 return prevSplitNotes;
+             });
+         }
+
+        setLoading(false);
+    }, (error) => {
+        console.error("Firestore snapshot error:", error)
+        setLoading(false);
+        setUploadProgress({ progress: 0, status: '', error: 'Could not load notes.' });
+    });
+    return () => unsubscribe();
+}, [user?.uid, isPodcastProcessing]);
 
 
     useEffect(() => {
@@ -1480,29 +1491,29 @@ const handleYoutubeLink = async (url: string, onProgress: (progress: number) => 
     };
 
     const handleStartAIPodcast = async () => {
-        if (!selectedNote || !geminiApiKey) {
-            showToast('Please select a note.', 'error'); return;
-        }
-        if (userTier !== 'premium') {
-            setShowUpgradeModal(true); return;
-        }
+    if (!selectedNote || !geminiApiKey) {
+        showToast('Please select a note.', 'error'); return;
+    }
+    if (userTier !== 'premium') {
+        setShowUpgradeModal(true); return;
+    }
 
-        setShowPodcastConfigModal(false);
-        setIsPodcastProcessing(true);
-        if (activePodcast) handlePodcastStop();
+    setShowPodcastConfigModal(false);
+    setIsPodcastProcessing(true);
+    if (activePodcast) handlePodcastStop();
 
+    try {
         const { title, contentHtml, keyPoints } = podcastTextObjects;
 
- try {
-    const speaker1Profile = PREDEFINED_PODCAST_SPEAKERS.find(s => s.id === podcastPlaybackSettings.speaker1Id);
-    const speaker2Profile = podcastPlaybackSettings.speaker2Id ? PREDEFINED_PODCAST_SPEAKERS.find(s => s.id === podcastPlaybackSettings.speaker2Id) : null;
+        const speaker1Profile = PREDEFINED_PODCAST_SPEAKERS.find(s => s.id === podcastPlaybackSettings.speaker1Id);
+        const speaker2Profile = podcastPlaybackSettings.speaker2Id ? PREDEFINED_PODCAST_SPEAKERS.find(s => s.id === podcastPlaybackSettings.speaker2Id) : null;
 
-    let speakerInstructions = `There is one speaker: [SPEAKER_1].
+        let speakerInstructions = `There is one speaker: [SPEAKER_1].
 - **Name**: ${speaker1Profile?.name}
 - **Persona**: "${speaker1Profile?.description}"
 - **Role**: They are the sole narrator and host. They must embody their persona fully, making the script sound like a captivating monologue or story, not a dry reading.`;
-    if (speaker2Profile) {
-        speakerInstructions = `There are two speakers. Their interaction is the heart of the podcast. It must be a living, breathing conversation.
+        if (speaker2Profile) {
+            speakerInstructions = `There are two speakers. Their interaction is the heart of the podcast. It must be a living, breathing conversation.
 - **[SPEAKER_1] (The Host)**:
   - **Name**: ${speaker1Profile?.name}
   - **Persona**: "${speaker1Profile?.description}"
@@ -1512,13 +1523,13 @@ const handleYoutubeLink = async (url: string, onProgress: (progress: number) => 
   - **Name**: ${speaker2Profile.name}
   - **Persona**: "${speaker2Profile.description}"
   - **Role**: To be the voice of the listener. They must actively interject with clarifying questions ("So, what you're saying is..."), provide real-world examples, challenge assumptions ("But does that always hold true?"), and offer alternative viewpoints to create a rich, multi-faceted dialogue.`;
-    }
+        }
 
-    const lengthInstruction = {
-        short: "The target length is 'short' (approx. 5-25 minutes). Every line must serve a purpose. Be ruthless in cutting fluff. The goal is maximum impact in minimum time.",
-    }[podcastPlaybackSettings.length || 'short'];
+        const lengthInstruction = {
+            short: "The target length is 'short' (approx. 5-15 minutes). Every line must serve a purpose. Be ruthless in cutting fluff. The goal is maximum impact in minimum time.",
+        }[podcastPlaybackSettings.length || 'short'];
 
-    const scriptGenPrompt = `You are a world-class podcast scriptwriter and narrative designer. Your job is not to summarize text, but to transmute it into a deeply engaging and authentic audio experience. You will adhere to every single rule in this prompt with absolute fidelity.
+        const scriptGenPrompt = `You are a world-class podcast scriptwriter and narrative designer. Your job is not to summarize text, but to transmute it into a deeply engaging and authentic audio experience. You will adhere to every single rule in this prompt with absolute fidelity.
 
 **Your Secret Raw Material (Source Note Content):**
 """
@@ -1566,70 +1577,46 @@ ${contentHtml.replace(/<[^>]+>/g, '\n')}
 
 **FINAL MANDATE:** Review all directives. Your mission is to produce a flawless script. The formatting must be perfect. The conversation must be authentic. The illusion must not be broken. Generate only the script. Begin now.
 `;
-            
-            const scriptGenApiUrl = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${geminiApiKey}`;
-            const scriptGenBody = {
-                contents: [{ role: "user", parts: [{ text: scriptGenPrompt }] }],
-                generationConfig: { temperature: 0.75, maxOutputTokens: 8192, topP: 0.95 }
-            };
+        
+        const scriptGenApiUrl = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${geminiApiKey}`;
+        const scriptGenBody = {
+            contents: [{ role: "user", parts: [{ text: scriptGenPrompt }] }],
+            generationConfig: { temperature: 0.75, maxOutputTokens: 8192, topP: 0.95 }
+        };
 
-            const scriptResponse = await fetchWithRetry(scriptGenApiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(scriptGenBody)
-            });
-            const scriptResponseText = await scriptResponse.text();
-            const parsedScriptResult = parseGeminiResponse(scriptResponseText);
+        const scriptResponse = await fetchWithRetry(scriptGenApiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(scriptGenBody)
+        });
+        const scriptResponseText = await scriptResponse.text();
+        const parsedScriptResult = parseGeminiResponse(scriptResponseText);
 
-            if (parsedScriptResult.error || !parsedScriptResult.text) {
-                throw new Error(parsedScriptResult.error || "Failed to generate podcast script from note.");
-            }
-            
-            const podcastScript = parsedScriptResult.text;
-
-            const textProcessingResult: PodcastTextProcessResult = await processTextForPodcast(
-                title, podcastScript, [], podcastPlaybackSettings, PREDEFINED_PODCAST_SPEAKERS
-            );
-
-            if (textProcessingResult.error || !textProcessingResult.processedSegments || textProcessingResult.processedSegments.length === 0) {
-                throw new Error(textProcessingResult.error || 'No valid segments were processed from the script.');
-            }
-
-            const result: HttpsCallableResult<GeneratePodcastResponse> = await generateElevenLabsPodcastAudioFn({
-                segments: textProcessingResult.processedSegments,
-            });
-            const audioResult = result.data;
-
-            if (audioResult.error || !audioResult.audioSegmentUrls || !audioResult.combinedUrl) {
-                throw new Error(audioResult.error || 'The audio generation service returned incomplete data.');
-            }
-
-            const newPodcastData: Omit<Podcast, 'id' | 'createdAt'> = {
-                settings: podcastPlaybackSettings,
-                segments: audioResult.audioSegmentUrls,
-                combinedUrl: audioResult.combinedUrl,
-                totalDuration: audioResult.totalDuration || 0,
-            };
-
-            const newPodcastId = await addPodcastToNote(selectedNote.id, newPodcastData);
-            
-            const updatedNote = await getNoteById(selectedNote.id);
-            if (updatedNote && updatedNote.podcasts) {
-                const justCreatedPodcast = updatedNote.podcasts.find(p => p.id === newPodcastId);
-                if (justCreatedPodcast) {
-                    handlePlayPodcast(justCreatedPodcast);
-                    setShowPodcastSection(true);
-                }
-            }
-
-        } catch (error: any) {
-            console.error("Error generating podcast:", error);
-            showToast(error.message || 'Failed to generate podcast.', 'error', AlertTriangle);
-        } finally {
-            setIsPodcastProcessing(false);
+        if (parsedScriptResult.error || !parsedScriptResult.text) {
+            throw new Error(parsedScriptResult.error || "Failed to generate podcast script from note.");
         }
-    };
+        
+        const podcastScript = parsedScriptResult.text;
 
+        const textProcessingResult: PodcastTextProcessResult = await processTextForPodcast(
+            title, podcastScript, [], podcastPlaybackSettings, PREDEFINED_PODCAST_SPEAKERS
+        );
+
+        if (textProcessingResult.error || !textProcessingResult.processedSegments || textProcessingResult.processedSegments.length === 0) {
+            throw new Error(textProcessingResult.error || 'No valid segments were processed from the script.');
+        }
+
+        await triggerPodcastGenerationFn({
+            noteId: selectedNote.id,
+            segments: textProcessingResult.processedSegments,
+        });
+
+    } catch (error: any) {
+        console.error("Error triggering podcast generation:", error);
+        showToast(error.message || 'Failed to start podcast generation.', 'error', AlertTriangle);
+        setIsPodcastProcessing(false);
+    }
+};
 const [playingSpeakerSampleId, setPlayingSpeakerSampleId] = useState<string | null>(null);
 const [isSamplePlaying, setIsSamplePlaying] = useState(false);
 const sampleAudioRef = useRef<HTMLAudioElement | null>(null);
