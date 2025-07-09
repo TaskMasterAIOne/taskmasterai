@@ -2282,33 +2282,36 @@ isEditing ? (
                                                 </button>
                                             )}
 <button
+    // Disable the button ONLY if the user is premium
+    disabled={userTier === 'premium'}
     onClick={handlePodcastToggle}
-    className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 bg-teal-50 dark:bg-teal-700/20 hover:bg-teal-100 dark:hover:bg-teal-700/30 shadow-sm  ${
-        userTier !== 'premium' ? 'opacity-70' : ''
-    }`}
+    className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 bg-teal-50 dark:bg-teal-700/20 hover:bg-teal-100 dark:hover:bg-teal-700/30 shadow-sm
+    
+    {/* These styles apply only when the button is disabled (for premium users) */}
+    disabled:opacity-60 disabled:grayscale disabled:cursor-not-allowed`}
 >
     <div className={`p-2 rounded-full bg-teal-100 dark:bg-teal-700/30 text-teal-600 dark:text-teal-300`}>
         <Mic className="w-5 h-5" />
     </div>
 
     <div>
-        {/* --- FIX IS HERE --- */}
-        {/* 1. Use a flex container with `items-center` and `gap` for spacing */}
+        {/* --- LOCK ICON LOGIC IS RESTORED HERE --- */}
         <div className="flex items-center gap-1.5">
             <span className="font-semibold text-sm text-gray-800 dark:text-gray-100">
                 Podcast
             </span>
             
+            {/* Show lock icon for non-premium users to encourage an upgrade */}
             {userTier !== 'premium' && (
-                // 2. Add a tiny relative upward shift to the icon for perfect visual centering
-                // You can adjust or remove this if `items-center` is sufficient.
-                // Common values are `translate-y-[-0.5px]` or `translate-y-[-1px]`
                 <Lock className="w-4 h-4 text-gray-500 dark:text-gray-500 relative translate-y-[-0.5px]" />
             )}
         </div>
 
         <span className="block text-xs text-gray-600 dark:text-gray-400">
-            {showPodcastSection ? 'Close Player' : 'Listen to your notes'}
+            {/* Show the correct text for each user state */}
+            {userTier === 'premium'
+                ? 'Temporarily Unavailable'
+                : 'Listen to your notes'}
         </span>
     </div>
 </button>
