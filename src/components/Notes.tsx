@@ -1,16 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
-    FileText, Upload, Youtube, Mic, Plus, Search, Filter as FilterIcon,
+    FileText, Upload, Youtube, Mic, Plus, Search,
     AlertTriangle, X, ChevronRight, ChevronLeft, Bot, FileQuestion, BookOpen,
     Sparkles, Loader2, Save, Tag, Edit2, Check, Pencil, MessageCircle, Globe,
     Lock, Trash2, Copy, RefreshCw, SplitSquareVertical, Menu, List, Briefcase,
     Share2, ClipboardCopy, Eye, ZoomIn, ZoomOut, RotateCcw, Crown, Info,
     PanelRightClose, PanelLeftClose, GripVertical, PlusCircle,
-    Image as ImageIconLucide, Layers, Download, Camera, Trash, CheckSquare, Square,
-    Award, TrendingUp, Flame, User as UserIconLucide, PanelLeftOpen, Lightbulb, BarChart3, Gift, BarChart, Milestone, Zap, ShieldCheck, UserCheck, PackagePlus, ListTodo,
-    GraduationCap, Palette, Target, SlidersHorizontal, BookCopy, CalendarDays, BrainCog, FileWarning, EyeIcon, EyeOff, MessageSquarePlus, Edit3,
-    Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Settings2 as SpeedIcon, Speaker, ChevronDown, ChevronUp, RotateCw as FlipIcon
+    Image as ImageIconLucide, Layers, Download, Camera, Trash, CheckSquare,
+    Award, TrendingUp, Flame, User as UserIconLucide, PanelLeftOpen,
+    Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Speaker, ChevronDown, ChevronUp, RotateCw as FlipIcon, Gift
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sidebar } from './Sidebar';
@@ -24,7 +23,7 @@ import {
     saveNote, savePersonalNote, updateNote, processTextToAINoteData,
     deleteNote, toggleNotePublicStatus, regenerateStudyQuestions, getNoteById,
     addPodcastToNote, deletePodcastFromNote,
-    NoteData as FirebaseNoteData, Podcast, PodcastSegment
+    NoteData as FirebaseNoteData, Podcast, PodcastSegment, Flashcard
 } from '../lib/notes-firebase';
 import { NewNoteModal } from './NewNoteModal';
 import { SplitView } from './SplitView';
@@ -42,15 +41,11 @@ import {
     updateUserStreak,
     addUserBadge,
     incrementUserProfileCounter,
-    POINTS_FOR_FREE_PREMIUM,
-    calculateLevel
+    POINTS_FOR_FREE_PREMIUM
 } from '../lib/current-paying-user';
 import { pdfjs, Document, Page } from 'react-pdf';
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
 import 'react-pdf/dist/esm/Page/TextLayer.css';
-import ReactQuill, { Quill } from 'react-quill';
-import 'quill/dist/quill.snow.css';
-import QuillResizeImage from 'quill-resize-image';
 import html2canvas from 'html2canvas';
 import { getFunctions, httpsCallable, HttpsCallableResult } from 'firebase/functions';
 import {
@@ -62,10 +57,96 @@ import {
 } from '../lib/podcast-processor';
 import { ProfileModal } from './ProfileModal';
 
+import SunEditorCore from "suneditor/src/lib/core";
+import suneditor from 'suneditor';
+import plugins from 'suneditor/src/plugins';
+import { en } from 'suneditor/src/lang';
+import 'suneditor/dist/css/suneditor.min.css';
+import './Editor.scss';
+
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
-const GEMINI_TEXT_MODEL = 'gemini-2.5-flash';
+const GEMINI_TEXT_MODEL = 'gemini-2.0-flash';
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
+
+interface SunEditorWrapperProps {
+  initialContent?: string;
+  onChange?: (content: string) => void;
+  readOnly?: boolean;
+}
+
+const SunEditorWrapper: React.FC<SunEditorWrapperProps> = ({ initialContent = '', onChange, readOnly = false }) => {
+    const editorRef = useRef<SunEditorCore>();
+    const textAreaRef = useRef<HTMLTextAreaElement>(null);
+
+    useEffect(() => {
+      if (textAreaRef.current) {
+        const editor = suneditor.create(textAreaRef.current, {
+            plugins: plugins,
+            lang: en,
+            width: '100%',
+            height: '100%',
+            minHeight: '400px',
+            buttonList: [
+                ['undo', 'redo'],
+                ['font', 'fontSize', 'formatBlock'],
+                ['bold', 'underline', 'italic', 'strike'],
+                ['fontColor', 'hiliteColor'],
+                ['outdent', 'indent', 'align'],
+                ['horizontalRule', 'list', 'lineHeight'],
+                ['table', 'link', 'image', 'video'],
+                ['removeFormat'],
+                ['fullScreen']
+            ],
+            defaultStyle: "font-family: 'Poppins', sans-serif; font-size: 16px;",
+            mode: 'classic',
+            font: ['Poppins', 'Arial', 'Georgia', 'Tahoma', 'Verdana'],
+        });
+
+        editor.onChange = (contents: string) => {
+          if (onChange) {
+            onChange(contents);
+          }
+        };
+
+        editorRef.current = editor;
+      }
+
+      return () => {
+        if (editorRef.current) {
+          editorRef.current.destroy();
+        }
+      };
+    }, []);
+
+    useEffect(() => {
+        if(editorRef.current && editorRef.current.core) {
+            if (editorRef.current.getContents() !== initialContent) {
+                editorRef.current.setContents(initialContent);
+            }
+        }
+    }, [initialContent])
+
+    useEffect(() => {
+        if(editorRef.current && editorRef.current.core) {
+            const editorElement = editorRef.current.core.context.element.wysiwyg;
+            editorRef.current.readOnly(readOnly);
+
+            if (readOnly) {
+                editorRef.current.toolbar.hide();
+                editorElement.setAttribute('data-gramm', 'false');
+                editorElement.style.cursor = 'default';
+            } else {
+                editorRef.current.toolbar.show();
+                editorElement.removeAttribute('data-gramm');
+                editorElement.style.cursor = 'text';
+            }
+        }
+    }, [readOnly, initialContent]);
+
+    return <textarea ref={textAreaRef} style={{ visibility: 'hidden', display: 'block', width: '100%', height: '100%' }} />;
+};
+
 
 async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delayMs = 1000): Promise<Response> {
     for (let attempt = 0; attempt < retries; attempt++) {
@@ -126,77 +207,6 @@ const parseGeminiResponse = (responseText: string): { text: string | null; error
     }
 };
 
-const QUILL_FONTS = [
-  'sans-serif', 'serif', 'monospace', 'Arial', 'ComicSansMS', 'CourierNew',
-  'Georgia', 'Helvetica', 'LucidaSansUnicode', 'Poppins', 'Tahoma',
-  'TimesNewRoman', 'TrebuchetMS', 'Verdana'
-];
-
-const QuillFont = ReactQuill.Quill.import('formats/font');
-QuillFont.whitelist = QUILL_FONTS;
-ReactQuill.Quill.register(QuillFont, true);
-
-Quill.register('modules/resize', QuillResizeImage);
-
-const Video = ReactQuill.Quill.import('formats/video');
-const Parchment = ReactQuill.Quill.import('parchment');
-
-class CustomVideo extends Video {
-  static create(value: any) {
-    const node = super.create(value) as HTMLIFrameElement;
-    if (typeof value === 'string') {
-      node.setAttribute('src', this.sanitize(value));
-    } else if (value && typeof value === 'object' && value.url) {
-      node.setAttribute('src', this.sanitize(value.url));
-    }
-    node.setAttribute('frameborder', '0');
-    node.setAttribute('allowfullscreen', 'true');
-    return node;
-  }
-
-  static formats(domNode: HTMLIFrameElement) {
-    const formats:any = super.formats(domNode);
-    if (domNode.style.width) formats['videoWidth'] = domNode.style.width;
-    return formats;
-  }
-
-  format(name: string, value: any) {
-    if (name === VideoSizeClass.attrName) {
-      super.format(name, value);
-      if (value) {
-        this.domNode.style.removeProperty('width');
-      } else {
-        this.domNode.style.removeProperty('width');
-      }
-    } else if (name === 'videoWidth') {
-      if (value) {
-        (this.domNode as HTMLElement).style.width = value;
-        if (String(value).endsWith('%') || String(value).match(/^\d+(\.\d+)?(vw|vh|vmin|vmax)$/)) {
-            (this.domNode as HTMLElement).style.height = 'auto';
-            (this.domNode as HTMLElement).style.aspectRatio = '16 / 9';
-        } else {
-             (this.domNode as HTMLElement).style.removeProperty('aspect-ratio');
-        }
-      } else {
-        (this.domNode as HTMLElement).style.removeProperty('width');
-        (this.domNode as HTMLElement).style.removeProperty('height');
-        (this.domNode as HTMLElement).style.removeProperty('aspect-ratio');
-      }
-    } else {
-      super.format(name, value);
-    }
-  }
-}
-CustomVideo.blotName = 'video';
-CustomVideo.tagName = 'IFRAME';
-ReactQuill.Quill.register(CustomVideo, true);
-
-const VideoSizeClass = new Parchment.Attributor.Class('videosize', 'ql-videosize', {
-  scope: Parchment.Scope.BLOCK,
-  whitelist: ['small', 'medium', 'large', 'full']
-});
-ReactQuill.Quill.register(VideoSizeClass, true);
-
 interface Note extends FirebaseNoteData {
     id: string;
 }
@@ -207,7 +217,7 @@ interface NoteUsage { pdfAi: number; youtube: number; }
 interface PodcastSpeakerProfile extends SpeakerProfileForProcessor {
     description: string;
     avatarUrl: string;
-    sampleAudioUrl: string; // For pre-recorded voice samples
+    sampleAudioUrl: string;
 }
 
 const PREDEFINED_PODCAST_SPEAKERS: PodcastSpeakerProfile[] = [
@@ -215,14 +225,12 @@ const PREDEFINED_PODCAST_SPEAKERS: PodcastSpeakerProfile[] = [
         id: 'felicity', name: 'Felicity', description: 'Polished, articulate, and easy on the ears.',
         avatarUrl: 'https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/girl%20-%20felicity.jpg?alt=media&token=2515318d-1917-4561-9abb-400285733ef4',
         elevenLabsVoiceId: 'aTbnroHRGIomiKpqAQR8',
-        // IMPORTANT: You must generate this audio file and upload it to get a URL
         sampleAudioUrl: 'https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/felicity_sample_voice.mp3?alt=media&token=d7c5bef0-cb45-491e-8e36-e792e63133e0'
     },
     {
         id: 'christopher', name: 'Christopher', description: 'Lifelike, expressive, and professionally tuned.',
         avatarUrl: 'https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/boy%20-%20christopher.jpg?alt=media&token=92d53b92-48a7-4b04-826e-bca0a8f0507f',
         elevenLabsVoiceId: 'G17SuINrv2H9FC6nvetn',
-        // IMPORTANT: You must generate this audio file and upload it to get a URL
         sampleAudioUrl: 'https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/christopher_sample_voice.mp3?alt=media&token=fd0d094a-dbbb-40b3-8019-b8bd1b6c17aa'
     },
 ];
@@ -230,7 +238,6 @@ const PREDEFINED_PODCAST_SPEAKERS: PodcastSpeakerProfile[] = [
 interface GeneratePodcastRequest {
   segments: ProcessedPodcastSegment[];
 }
-// This interface now reflects the new backend response
 interface GeneratePodcastResponse {
   audioSegmentUrls?: PodcastSegment[];
   combinedUrl?: string;
@@ -270,22 +277,25 @@ const SimpleModal = ({ isOpen, onClose, title, children, maxWidth = "max-w-md" }
     );
 };
 
+
+
 const UpgradeModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void; }) => {
     if (!isOpen) return null;
     return (
-        <SimpleModal isOpen={isOpen} onClose={onClose} title="Unlock Premium Feature">
+        <SimpleModal isOpen={isOpen} onClose={onClose} title="Premium Feature">
             <div className="text-center">
-                <Crown className={`w-16 h-16 mx-auto mb-4 text-purple-500 dark:text-purple-400`} />
+                <Lock className={`w-16 h-16 mx-auto mb-4 text-purple-500 dark:text-purple-400`} />
                 <h3 className={`text-xl font-semibold mb-2 text-gray-800 dark:text-gray-100`}>Feature Locked</h3>
-                <p className={`text-gray-600 dark:text-gray-400 text-sm mb-6`}>
-                    This feature is exclusive to our Premium users.
-                    Upgrade your plan to unlock this and many other powerful tools to boost your learning!
+                <p className={`text-gray-600 dark:text-gray-400 text-sm  mb-6`}>
+                    This is a Premium feature — upgrade to unlock.
                 </p>
                 <Link
                     to="/pricing"
                     onClick={onClose}
-                    className={`w-full flex items-center justify-center px-4 py-2.5 rounded-md text-sm font-medium bg-purple-500 hover:bg-purple-600 text-white shadow-md hover:shadow-lg transition-shadow`}
+                    className={`w-full flex items-center justify-center px-4 py-2.5 rounded-full text-sm font-medium bg-purple-500 hover:bg-purple-600 text-white shadow-md hover:shadow-lg transition-shadow`}
                 >
+                    {/* --- FIX IS HERE: Added Crown icon --- */}
+                    <Crown className="w-4 h-4 mr-2" />
                     Upgrade to Premium
                 </Link>
             </div>
@@ -342,6 +352,7 @@ export function Notes() {
     const [userTier, setUserTier] = useState<UserTier>('loading');
     const [noteUsage, setNoteUsage] = useState<NoteUsage>({ pdfAi: 0, youtube: 0 });
     const [usageMonth, setUsageMonth] = useState<string>('');
+    const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
         const saved = localStorage.getItem('isSidebarCollapsed');
         return saved ? JSON.parse(saved) : false;
@@ -351,20 +362,9 @@ export function Notes() {
     useEffect(() => {
         const applyTheme = () => {
             const isIlluminateEnabled = JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'false');
-            if (isIlluminateEnabled) {
-                document.documentElement.classList.remove('dark');
-                document.documentElement.classList.add('light');
-                setIsDarkMode(false);
-            } else {
-                document.documentElement.classList.remove('light');
-                if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                    document.documentElement.classList.add('dark');
-                    setIsDarkMode(true);
-                } else {
-                    document.documentElement.classList.remove('dark');
-                    setIsDarkMode(false);
-                }
-            }
+            document.body.classList.toggle('dark', !isIlluminateEnabled && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            document.body.classList.toggle('light', isIlluminateEnabled || !window.matchMedia('(prefers-color-scheme: dark)').matches);
+            setIsDarkMode(document.body.classList.contains('dark'));
         };
         applyTheme();
         const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -379,7 +379,7 @@ export function Notes() {
     const [isNotesListHidden, setIsNotesListHidden] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editTitle, setEditTitle] = useState('');
-    const [editContent, setEditContent] = useState<string | undefined>('');
+    const [editContent, setEditContent] = useState<string>('');
     const [editTags, setEditTags] = useState<string[]>([]);
     const [newTag, setNewTag] = useState('');
     const [editKeyPoints, setEditKeyPoints] = useState<string[]>([]);
@@ -407,14 +407,11 @@ export function Notes() {
     const [podcastCurrentTime, setPodcastCurrentTime] = useState(0);
     const [podcastDuration, setPodcastDuration] = useState(0);
     const audioPlayerRef = useRef<HTMLAudioElement>(null);
-    const [currentSegmentIndex, setCurrentSegmentIndex] = useState(-1); // Start at -1 to indicate no segment
-    const samplePlayer = useMemo(() => typeof window !== 'undefined' ? new Audio() : null, []);
+    const [currentSegmentIndex, setCurrentSegmentIndex] = useState(-1);
     const [isPodcastProcessing, setIsPodcastProcessing] = useState(false);
     const [showPodcastConfigModal, setShowPodcastConfigModal] = useState(false);
     const [showVoiceSelectionModal, setShowVoiceSelectionModal] = useState(false);
     const [speakerSlotToConfigure, setSpeakerSlotToConfigure] = useState<1 | 2 | null>(null);
-    const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
-    const synth = useMemo(() => typeof window !== 'undefined' ? window.speechSynthesis : null, []);
     const [podcastPlaybackSettings, setPodcastPlaybackSettings] = useState<Podcast['settings']>({
         language: 'en',
         speaker1Id: PREDEFINED_PODCAST_SPEAKERS[0]?.id || null,
@@ -459,26 +456,6 @@ export function Notes() {
         };
     }, [selectedNote]);
 
-    useEffect(() => {
-        if (!synth) return;
-        const updateVoices = () => {
-            const voices = synth.getVoices();
-            setAvailableVoices(voices);
-            if (voices.length > 0 && !podcastPlaybackSettings.language) {
-                 const defaultLang = voices.find(v => v.lang.startsWith('en'))?.lang || voices[0].lang;
-                 setPodcastPlaybackSettings(prev => ({...prev, language: defaultLang.split('-')[0]}));
-            }
-        };
-        updateVoices();
-        if (synth.onvoiceschanged !== undefined) {
-            synth.onvoiceschanged = updateVoices;
-        }
-        return () => {
-            if (synth && synth.onvoiceschanged !== undefined) synth.onvoiceschanged = null;
-        };
-    }, [synth, podcastPlaybackSettings.language]);
-
-   // --- 4. REPLACE handlePodcastStop ---
     const handlePodcastStop = useCallback(() => {
         const audioEl = audioPlayerRef.current;
         if (audioEl) {
@@ -502,7 +479,6 @@ export function Notes() {
 
         let playPromise: Promise<void> | undefined;
 
-        // Load the combined URL if it's not already loaded
         if (audioEl.src !== activePodcast.combinedUrl) {
             audioEl.src = activePodcast.combinedUrl;
             setPodcastDuration(activePodcast.totalDuration);
@@ -526,7 +502,6 @@ export function Notes() {
             const currentTime = audioEl.currentTime;
             setPodcastCurrentTime(currentTime);
 
-            // Find and set the current segment based on time
             const activeIndex = activePodcast.segments.findIndex(
                 seg => currentTime >= seg.startTime && currentTime < seg.endTime
             );
@@ -540,7 +515,7 @@ export function Notes() {
         const handlePause = () => setIsPodcastPlaying(false);
         const handleEnded = () => {
             setIsPodcastPlaying(false);
-            setCurrentSegmentIndex(-1); // End of podcast
+            setCurrentSegmentIndex(-1);
             setPodcastCurrentTime(audioEl.duration || activePodcast.totalDuration);
         };
         const handleError = () => {
@@ -569,7 +544,6 @@ const handlePodcastPlayPause = () => {
         if (!audioEl || !activePodcast) return;
 
         if (audioEl.paused) {
-            // If at the end, restart
             if (audioEl.currentTime >= activePodcast.totalDuration - 0.1) {
                 audioEl.currentTime = 0;
             }
@@ -597,7 +571,6 @@ const handleSkipForwardSegment = () => {
                 audioPlayerRef.current.currentTime = activePodcast.segments[nextIndex].startTime;
                 if (!isPodcastPlaying) setIsPodcastPlaying(true);
             } else {
-                // Go to end
                 audioPlayerRef.current.currentTime = activePodcast.totalDuration;
             }
         }
@@ -606,7 +579,6 @@ const handleSkipForwardSegment = () => {
         if (activePodcast && audioPlayerRef.current) {
             const currentTime = audioPlayerRef.current.currentTime;
             const currentSegment = activePodcast.segments[currentSegmentIndex];
-            // If more than 2s into a segment, go to its start. Otherwise, go to previous.
             if (currentSegment && currentTime > currentSegment.startTime + 2) {
                  audioPlayerRef.current.currentTime = currentSegment.startTime;
             } else {
@@ -641,96 +613,26 @@ const handleSkipForwardSegment = () => {
         return `${minutes}:${secs < 10 ? '0' : ''}${secs}`;
     };
 
-    const handlePodcastToggle = () => {
-        if (userTier !== 'premium') {
-            setShowUpgradeModal(true);
-            return;
-        }
-        setShowPodcastSection(prev => !prev);
-    };
+const handlePodcastToggle = () => {
+    if (userTier !== 'premium') {
+        setShowUpgradeModal(true);
+        return;
+    }
 
-
-    useEffect(() => {
-        const styleId = 'custom-quill-font-styles';
-        let styleElement = document.getElementById(styleId);
-        if (!styleElement) {
-            styleElement = document.createElement('style');
-            styleElement.id = styleId;
-            document.head.appendChild(styleElement);
-        }
-
-        let customStyles = '';
-        const fontDisplayMap: { [key: string]: string } = {
-            'sans-serif': 'Sans Serif', 'serif': 'Serif', 'monospace': 'Monospace',
-            'Arial': 'Arial', 'ComicSansMS': 'Comic Sans MS', 'CourierNew': 'Courier New',
-            'Georgia': 'Georgia', 'Helvetica': 'Helvetica', 'LucidaSansUnicode': 'Lucida Sans Unicode',
-            'Poppins': 'Poppins', 'Tahoma': 'Tahoma', 'TimesNewRoman': 'Times New Roman',
-            'TrebuchetMS': 'Trebuchet MS', 'Verdana': 'Verdana'
-        };
-
-        const fontCssFamilyMap: { [key: string]: string } = {
-            'sans-serif': 'sans-serif', 'serif': 'serif', 'monospace': 'monospace',
-            'Arial': 'Arial, sans-serif', 'ComicSansMS': '"Comic Sans MS", cursive, sans-serif',
-            'CourierNew': '"Courier New", Courier, monospace', 'Georgia': 'Georgia, serif',
-            'Helvetica': 'Helvetica, sans-serif', 'LucidaSansUnicode': '"Lucida Sans Unicode", "Lucida Grande", sans-serif',
-            'Poppins': 'Poppins, sans-serif', 'Tahoma': 'Tahoma, sans-serif',
-            'TimesNewRoman': '"Times New Roman", Times, serif', 'TrebuchetMS': '"Trebuchet MS", sans-serif',
-            'Verdana': 'Verdana, sans-serif'
-        };
-
-        QUILL_FONTS.forEach(fontValue => {
-            const displayName = fontDisplayMap[fontValue] || fontValue;
-            const fontFamilyCss = fontCssFamilyMap[fontValue] || `"${fontValue}"`;
-            customStyles += `
-            .ql-snow .ql-picker.ql-font .ql-picker-label[data-value="${fontValue}"]::before,
-            .ql-snow .ql-picker.ql-font .ql-picker-item[data-value="${fontValue}"]::before {
-                content: "${displayName}" !important;
-                font-family: ${fontFamilyCss} !important;
+    // If the section is currently hidden, we are about to show it.
+    // We schedule the scroll to happen right after the state update.
+    if (!showPodcastSection) {
+        // A small timeout ensures the element is rendered and its animation has started.
+        setTimeout(() => {
+            const element = document.getElementById('podcast-section-wrapper');
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
-            `;
-        });
+        }, 100); 
+    }
 
-        const videoSizes = {
-        'small': 'Small (25%)', 'medium': 'Medium (50%)',
-        'large': 'Large (75%)', 'full': 'Full (100%)',
-        };
-
-        customStyles += `
-        .ql-snow .ql-picker.ql-videosize .ql-picker-label::before {
-            content: 'Video Size';
-        }
-        `;
-        Object.entries(videoSizes).forEach(([value, label]) => {
-        customStyles += `
-            .ql-snow .ql-picker.ql-videosize .ql-picker-label[data-value="${value}"]::before,
-            .ql-snow .ql-picker.ql-videosize .ql-picker-item[data-value="${value}"]::before {
-            content: "${label}";
-            }
-        `;
-        });
-        customStyles += `
-        .ql-snow .ql-toolbar .ql-picker.ql-videosize {
-            width: 140px;
-            margin-right: 4px;
-            margin-left: 4px;
-        }
-        .ql-snow .ql-toolbar button.ql-video + .ql-picker.ql-videosize {
-            margin-left: 4px;
-        }
-        .ql-snow .ql-toolbar .ql-picker.ql-videosize + button.ql-clean {
-            margin-left: 4px;
-        }
-        `;
-
-        styleElement.innerHTML = customStyles;
-
-        return () => {
-            const el = document.getElementById(styleId);
-            if (el && el.parentNode) {
-                el.parentNode.removeChild(el);
-            }
-        };
-    }, []);
+    setShowPodcastSection(prev => !prev);
+};
 
     useEffect(() => {
         const handleResize = () => {
@@ -753,6 +655,30 @@ const handleSkipForwardSegment = () => {
         localStorage.setItem('isSidebarCollapsed', JSON.stringify(isSidebarCollapsed));
     }, [isSidebarCollapsed]);
 
+    const updateOverallStreakAndCheckBadges = useCallback(async () => {
+        if (!user || !userProfile) return;
+        try {
+            const { newStreakCount, streakBroken } = await updateUserStreak(user.uid, { email: user.email!, displayName: userName }, 'overall');
+             if (streakBroken && userProfile.overallStreakCount && userProfile.overallStreakCount > 0) {
+                 showToast("Welcome back! Your previous streak was broken.", "info");
+            } else if (newStreakCount > (userProfile.overallStreakCount || 0) && newStreakCount > 0) {
+                 showToast(`Streak: ${newStreakCount} days!`, "info", Flame);
+            }
+
+            const updatedProfileForBadgeCheck = { ...userProfile, overallStreakCount: newStreakCount };
+             Object.entries(BADGES_CONFIG_NOTES).forEach(async ([badgeKey, badgeConfig]) => {
+                if (badgeKey.includes('overallStreak') && !(userProfile.badges || []).includes(badgeKey) && badgeConfig.condition) {
+                     if (badgeConfig.condition(updatedProfileForBadgeCheck)) {
+                        await addUserBadge(user.uid, badgeKey, { email: user.email!, displayName: userName });
+                        showToast(`Badge Unlocked: ${badgeConfig.name}!`, 'info', badgeConfig.icon);
+                    }
+                }
+            });
+        } catch (error) {
+            console.error("Error updating streak:", error);
+        }
+    }, [user, userProfile, userName, showToast]);
+
     useEffect(() => {
         setLoading(true);
         setUserTier('loading');
@@ -765,8 +691,10 @@ const handleSkipForwardSegment = () => {
             setUserName(firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "User");
 
             unsubProfile = onUserProfileSnapshot(firebaseUser.uid, (profile) => {
-              setUserProfile(profile);
               if (profile) {
+                const hadProfile = !!userProfile;
+                setUserProfile(profile);
+
                 determineUserTier(firebaseUser.uid, firebaseUser.email, profile).then(resolvedTier => {
                   setUserTier(resolvedTier);
                   const currentMonthYear = new Date().toISOString().slice(0, 7);
@@ -778,6 +706,11 @@ const handleSkipForwardSegment = () => {
                     setNoteUsage({ pdfAi: Infinity, youtube: Infinity });
                   }
                 });
+
+                if (!hadProfile) {
+                    updateOverallStreakAndCheckBadges();
+                }
+
               } else {
                 setUserTier('basic');
                 setNoteUsage({ pdfAi: 0, youtube: 0 });
@@ -803,7 +736,6 @@ const handleSkipForwardSegment = () => {
             setUsageMonth('');
             setIsNotesListHidden(false);
             setIsSidebarCollapsed(false);
-            // This is the crucial cleanup call for when a user logs out.
             handlePodcastStop();
           }
           setLoading(false);
@@ -811,9 +743,8 @@ const handleSkipForwardSegment = () => {
           return () => unsubProfile();
         });
         
-        // This effect's cleanup function handles unsubscription from Firebase auth state changes.
         return () => unsubscribeAuth();
-    }, [navigate, handlePodcastStop]); // Dependency array is fixed to prevent re-running on podcast state changes.
+    }, [navigate, handlePodcastStop]);
 
     useEffect(() => {
         if (!user?.uid) {
@@ -827,10 +758,17 @@ const handleSkipForwardSegment = () => {
             const notesList: Note[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Note));
             setNotes(notesList);
 
+            if (notesList.length > 0 && !selectedNote && !isMobile && !showSplitView) {
+                setSelectedNote(notesList[0]);
+            }
+            
             setSelectedNote(prevSelectedNote => {
                 if (!prevSelectedNote) return null;
                 const updatedNoteData = notesList.find(n => n.id === prevSelectedNote.id);
-                if (!updatedNoteData) return null;
+                if (!updatedNoteData) {
+                    if (isEditing) setIsEditing(false);
+                    return null;
+                }
                 if (JSON.stringify(prevSelectedNote) !== JSON.stringify(updatedNoteData)) {
                     return updatedNoteData;
                 }
@@ -882,11 +820,13 @@ const handleSkipForwardSegment = () => {
 
             setLoading(false);
         }, (error) => {
+            console.error("Firestore snapshot error:", error)
             setLoading(false);
             setUploadProgress({ progress: 0, status: '', error: 'Could not load notes.' });
         });
         return () => unsubscribe();
-    }, [user?.uid, showSplitView, selectedNote?.id, activePodcast, handlePodcastStop]);
+    }, [user?.uid]);
+
 
     useEffect(() => {
         if (!showPdfViewer && mainContentAreaRef.current) {
@@ -1037,30 +977,6 @@ const handleSkipForwardSegment = () => {
         }
     }, [user, userProfile, userName, notes, userTier, showToast]);
 
-    const updateOverallStreakAndCheckBadges = useCallback(async () => {
-        if (!user || !userProfile) return;
-        try {
-            const { newStreakCount, streakBroken } = await updateUserStreak(user.uid, { email: user.email!, displayName: userName }, 'overall');
-             if (streakBroken && userProfile.overallStreakCount && userProfile.overallStreakCount > 0) {
-                 showToast("Welcome back! Your previous streak was broken.", "info", Zap);
-            } else if (newStreakCount > (userProfile.overallStreakCount || 0) && newStreakCount > 0) {
-                 showToast(`Streak: ${newStreakCount} days!`, "info", Flame);
-            }
-
-            const updatedProfileForBadgeCheck = { ...userProfile, overallStreakCount: newStreakCount };
-             Object.entries(BADGES_CONFIG_NOTES).forEach(async ([badgeKey, badgeConfig]) => {
-                if (badgeKey.includes('overallStreak') && !(userProfile.badges || []).includes(badgeKey) && badgeConfig.condition) {
-                     if (badgeConfig.condition(updatedProfileForBadgeCheck)) {
-                        await addUserBadge(user.uid, badgeKey, { email: user.email!, displayName: userName });
-                        showToast(`Badge Unlocked: ${badgeConfig.name}!`, 'info', badgeConfig.icon);
-                    }
-                }
-            });
-        } catch (error) {
-            console.error("Error updating streak:", error);
-        }
-    }, [user, userProfile, userName, showToast]);
-
 
     const checkNoteLimit = (noteType: 'pdfAi' | 'youtube'): boolean => {
         if (userTier === 'loading') {
@@ -1193,8 +1109,7 @@ const handleSkipForwardSegment = () => {
                 setShowNotesListOnMobile(false);
             }
         }
-        updateOverallStreakAndCheckBadges();
-    }, [selectedNote?.id, showSplitView, isMobile, showPdfViewer, togglePdfViewer, isEditing, handleSplitViewSelect, updateOverallStreakAndCheckBadges, activePodcast, handlePodcastStop]);
+    }, [selectedNote?.id, showSplitView, isMobile, showPdfViewer, togglePdfViewer, isEditing, handleSplitViewSelect, activePodcast, handlePodcastStop]);
 
     const startSplitView = useCallback(() => {
         setShowSplitView(true);
@@ -1252,8 +1167,7 @@ const handleSkipForwardSegment = () => {
             addUserBadge(user.uid, 'firstChatWithNote', { email: user.email!, displayName: userName });
             showToast("Badge Unlocked: Note Conversationalist!", "info", MessageCircle);
         }
-        updateOverallStreakAndCheckBadges();
-    }, [selectedNote?.id, showSplitView, showPdfViewer, isMobile, togglePdfViewer, geminiApiKey, user, userProfile, userName, showToast, updateOverallStreakAndCheckBadges, activePodcast, handlePodcastStop]);
+    }, [selectedNote?.id, showSplitView, showPdfViewer, isMobile, togglePdfViewer, geminiApiKey, user, userProfile, userName, showToast, activePodcast, handlePodcastStop]);
 
 
     const handleCloseChatOverlay = useCallback(() => setIsChatOverlayVisible(false), []);
@@ -1292,8 +1206,7 @@ const handleSkipForwardSegment = () => {
     const handleEditNote = useCallback(() => {
         if (!selectedNote) return;
         switchToEditMode(selectedNote);
-        updateOverallStreakAndCheckBadges();
-    }, [selectedNote, switchToEditMode, updateOverallStreakAndCheckBadges]);
+    }, [selectedNote, switchToEditMode]);
 
     const handleSaveEdit = async () => {
         if (!selectedNote || !editTitle.trim() || isSaving) return;
@@ -1315,7 +1228,6 @@ const handleSkipForwardSegment = () => {
             setIsEditing(false);
             showToast('Saved!', 'success');
             addPointsAndCheckBadges(1);
-            updateOverallStreakAndCheckBadges();
 
             if (user && userProfile && finalFlashcards.length > (selectedNote.flashcards?.length || 0) && !(userProfile.badges || []).includes('firstFlashcardsFromNote')) {
                  incrementUserProfileCounter(user.uid, 'noteFlashcardsCreatedCount');
@@ -1397,120 +1309,122 @@ const handleSkipForwardSegment = () => {
                 handleSelectNote(newNoteDoc as Note);
             }
             showToast('Note created!', 'success');
-            setShowNewNoteModal(false);
             addPointsAndCheckBadges(2, 'personal');
-            updateOverallStreakAndCheckBadges();
             if (user && userProfile && !(userProfile.badges || []).includes('firstPersonalNote')) {
                 addUserBadge(user.uid, 'firstPersonalNote', { email: user.email!, displayName: userName });
                  showToast("Badge Unlocked: Personal Scribe!", "info", Pencil);
             }
         } catch (error) {
-            showToast(`Failed to create note: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            showToast(`Failed to create note: ${errorMessage}`, 'error');
+            throw error;
         }
     };
 
-    const handleCreateAINote = async (text: string) => {
-        const currentApiKey = geminiApiKey;
-
-        if (!user || !currentApiKey) {
-            showToast('AI features not available (check user/API key).', 'error');
-            return;
+   const handleCreateAINote = async (text: string, onProgress: (progress: number) => void) => {
+    const currentApiKey = geminiApiKey;
+    if (!user || !currentApiKey) { throw new Error('AI features not available.'); }
+    if (!checkNoteLimit('pdfAi')) { throw new Error('AI note creation limit reached.'); }
+    
+    try {
+        const aiNoteData = await processTextToAINoteData(text, user.uid, currentApiKey, onProgress);
+        const newNoteId = await saveNote({ ...aiNoteData, isPublic: false, tags: ['ai-processed'] });
+        
+        await incrementUsageAndCounters('pdfAi', true);
+        const newNoteDoc = await getNoteById(newNoteId);
+        if (newNoteDoc) { handleSelectNote(newNoteDoc as Note); }
+        
+        showToast('AI Note Created!', 'success', Check);
+        addPointsAndCheckBadges(5, 'personal');
+        if (user && userProfile && !(userProfile.badges || []).includes('firstAiNote')) {
+            addUserBadge(user.uid, 'firstAiNote', { email: user.email!, displayName: userName });
+            showToast("Badge Unlocked: AI Note Crafter!", "info", Sparkles);
         }
-        if (!checkNoteLimit('pdfAi')) return;
-        try {
-            const aiNoteData = await processTextToAINoteData(text, user.uid, currentApiKey);
-            const newNoteId = await saveNote({
-                ...aiNoteData,
-                isPublic: false,
-                tags: [],
-            });
-            await incrementUsageAndCounters('pdfAi', true);
-            const newNoteDoc = await getNoteById(newNoteId);
-            if (newNoteDoc) { handleSelectNote(newNoteDoc as Note); }
-            showToast('AI Note Created!', 'success');
-            setShowNewNoteModal(false);
-            addPointsAndCheckBadges(5, 'personal');
-            updateOverallStreakAndCheckBadges();
-            if (user && userProfile && !(userProfile.badges || []).includes('firstAiNote')) {
-                addUserBadge(user.uid, 'firstAiNote', { email: user.email!, displayName: userName });
-                showToast("Badge Unlocked: AI Note Crafter!", "info", Sparkles);
-            }
-        } catch (error) {
-            showToast(error instanceof Error ? error.message : 'Failed to create AI note', 'error');
-        }
-    };
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to create AI note';
+        showToast(errorMessage, 'error', AlertTriangle);
+        throw error;
+    }
+};
 
-    const handlePDFUpload = async (file: File) => {
-        const currentApiKey = geminiApiKey;
+const handlePDFUpload = async (file: File, onProgress: (progress: number) => void) => {
+    const currentApiKey = geminiApiKey;
+    if (!user || !currentApiKey) { throw new Error('AI features not available.'); }
+    if (!checkNoteLimit('pdfAi')) { throw new Error('PDF processing limit reached.'); }
 
-        if (!user || !currentApiKey) {
-            showToast('AI features not available (check user/API key).', 'error');
-            return;
+    try {
+        const processedData: ProcessedPDF = await processPDF(file, user.uid, currentApiKey, onProgress);
+        
+        const noteToSave: Omit<FirebaseNoteData, 'id' | 'createdAt' | 'updatedAt'> = {
+            title: processedData.title,
+            content: processedData.content,
+            keyPoints: processedData.keyPoints,
+            questions: processedData.questions,
+            flashcards: processedData.flashcards,
+            type: 'pdf',
+            sourceUrl: processedData.sourceUrl,
+            isPublic: false,
+            tags: [],
+            userId: user.uid,
+        };
+        const newNoteId = await saveNote(noteToSave);
+
+        await incrementUsageAndCounters('pdfAi');
+        const newNoteDoc = await getNoteById(newNoteId);
+        if (newNoteDoc) { handleSelectNote(newNoteDoc as Note); }
+
+        showToast('PDF Note Created!', 'success', Check);
+        addPointsAndCheckBadges(5, 'pdf');
+        if (user && userProfile && !(userProfile.badges || []).includes('firstPdfNote')) {
+            addUserBadge(user.uid, 'firstPdfNote', { email: user.email!, displayName: userName });
+            showToast("Badge Unlocked: PDF Powerhouse!", "info", FileText);
         }
-        if (!checkNoteLimit('pdfAi')) return;
-        try {
-            const processedData: ProcessedPDF = await processPDF( file, user.uid, currentApiKey, (progressState) => setUploadProgress(progressState) );
-            if (!processedData.extractedText || processedData.extractedText.trim().length === 0) {
-                 throw new Error("Failed to extract text from PDF.");
-            }
-            const tagsArray: string[] = [];
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to process PDF';
+        showToast(errorMessage, 'error', AlertTriangle);
+        throw error;
+    }
+};
 
 
-            const noteToSave: Omit<FirebaseNoteData, 'id' | 'createdAt' | 'updatedAt'> = {
-                title: processedData.title || file.name.replace(/\.[^/.]+$/, ""),
-                content: processedData.content, keyPoints: processedData.keyPoints, questions: processedData.questions,
-                flashcards: processedData.flashcards, type: 'pdf', sourceUrl: processedData.sourceUrl,
-                isPublic: false, tags: tagsArray, userId: user.uid,
-            };
-            const newNoteId = await saveNote(noteToSave);
-            await incrementUsageAndCounters('pdfAi');
-            const newNoteDoc = await getNoteById(newNoteId);
-            if (newNoteDoc) { handleSelectNote(newNoteDoc as Note); }
-            showToast('PDF Note Created!', 'success');
-            setShowNewNoteModal(false);
-            addPointsAndCheckBadges(5, 'pdf');
-            updateOverallStreakAndCheckBadges();
-             if (user && userProfile && !(userProfile.badges || []).includes('firstPdfNote')) {
-                addUserBadge(user.uid, 'firstPdfNote', { email: user.email!, displayName: userName });
-                showToast("Badge Unlocked: PDF Powerhouse!", "info", FileText);
-            }
-        } catch (error) {
-            showToast(error instanceof Error ? error.message : 'Failed to process PDF', 'error');
-        }
-    };
+const handleYoutubeLink = async (url: string, onProgress: (progress: number) => void) => {
+    const currentApiKey = geminiApiKey;
+    if (!user || !currentApiKey) { throw new Error('AI features not available.'); }
+    if (!checkNoteLimit('youtube')) { throw new Error('YouTube processing limit reached.'); }
 
-    const handleYoutubeLink = async (url: string) => {
-        const currentApiKey = geminiApiKey;
-        if (!user || !currentApiKey) {
-            showToast('AI features not available (check user/API key).', 'error');
-            return;
+    try {
+        const processedData = await processYouTube(url, user.uid, currentApiKey, onProgress);
+        
+        const noteToSave: Omit<FirebaseNoteData, 'id' | 'createdAt' | 'updatedAt'> = {
+            title: processedData.title,
+            content: processedData.content,
+            keyPoints: processedData.keyPoints,
+            questions: processedData.questions,
+            flashcards: processedData.flashcards,
+            type: 'youtube',
+            sourceUrl: processedData.sourceUrl || url,
+            isPublic: false,
+            tags: [],
+            userId: user.uid,
+        };
+        const newNoteId = await saveNote(noteToSave);
+
+        await incrementUsageAndCounters('youtube');
+        const newNoteDoc = await getNoteById(newNoteId);
+        if (newNoteDoc) { handleSelectNote(newNoteDoc as Note); }
+
+        showToast('YouTube Note Created!', 'success', Check);
+        addPointsAndCheckBadges(5, 'youtube');
+        if (user && userProfile && !(userProfile.badges || []).includes('firstYoutubeNote')) {
+            addUserBadge(user.uid, 'firstYoutubeNote', { email: user.email!, displayName: userName });
+            showToast("Badge Unlocked: Video Virtuoso!", "info", Youtube);
         }
-        if (!checkNoteLimit('youtube')) return;
-        try {
-            const processedData = await processYouTube( url, user.uid, currentApiKey, (progressState) => setUploadProgress(progressState) );
-            showToast('Saving note...', 'info');
-            const noteToSave: Omit<FirebaseNoteData, 'id' | 'createdAt' | 'updatedAt'> = {
-                title: processedData.title || 'YouTube Note', content: processedData.content,
-                keyPoints: processedData.keyPoints, questions: processedData.questions,
-                flashcards: processedData.flashcards, type: 'youtube', sourceUrl: processedData.sourceUrl || url,
-                isPublic: false, tags: [], userId: user.uid,
-            };
-            const newNoteId = await saveNote(noteToSave);
-            await incrementUsageAndCounters('youtube');
-            const newNoteDoc = await getNoteById(newNoteId);
-            if (newNoteDoc) { handleSelectNote(newNoteDoc as Note); }
-            showToast('YouTube Note Created!', 'success');
-            setShowNewNoteModal(false);
-            addPointsAndCheckBadges(5, 'youtube');
-            updateOverallStreakAndCheckBadges();
-            if (user && userProfile && !(userProfile.badges || []).includes('firstYoutubeNote')) {
-                 addUserBadge(user.uid, 'firstYoutubeNote', { email: user.email!, displayName: userName });
-                 showToast("Badge Unlocked: Video Virtuoso!", "info", Youtube);
-            }
-        } catch (error) {
-            showToast(error instanceof Error ? error.message : 'Failed to process YouTube', 'error');
-        }
-    };
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to process YouTube';
+        showToast(errorMessage, 'error', AlertTriangle);
+        throw error;
+    }
+};
 
     const handleAddTag = () => {
         const trimmedTag = newTag.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
@@ -1614,8 +1528,6 @@ ${contentHtml.replace(/<[^>]+>/g, '\n')}
 **Core Themes to Weave into the Conversation:**
 - ${keyPoints.join('\n- ')}
 
-// --- THE CORE DIRECTIVES: A MASTERCLASS IN SCRIPTWRITING --- //
-
 **DIRECTIVE 1: THE SOUL OF THE SCRIPT - RADICAL AUTHENTICITY**
 - **This is a Conversation, Not a Recitation:** The source content is your inspiration, not your script. You must completely re-imagine it as a natural dialogue. The final script should have no trace of its origin as written notes.
 - **Embrace Spoken Language:** Use contractions (it's, that's, you're), conversational phrasing, and rhetorical questions. Write for the ear, not the eye.
@@ -1718,15 +1630,11 @@ ${contentHtml.replace(/<[^>]+>/g, '\n')}
         }
     };
 
-    // Add these state variables and ref at the top of your Notes component
 const [playingSpeakerSampleId, setPlayingSpeakerSampleId] = useState<string | null>(null);
 const [isSamplePlaying, setIsSamplePlaying] = useState(false);
 const sampleAudioRef = useRef<HTMLAudioElement | null>(null);
 
-// This effect cleans up the audio player when the modal is closed
 useEffect(() => {
-    // This is the cleanup function that runs when the component unmounts
-    // or when the dependency array values change.
     return () => {
         if (sampleAudioRef.current) {
             sampleAudioRef.current.pause();
@@ -1735,32 +1643,25 @@ useEffect(() => {
     };
 }, []);
 
-// This function replaces your old `handlePlaySpeakerSample`
 const handleToggleSpeakerSample = (speaker: PodcastSpeakerProfile) => {
-    // If clicking the speaker that is currently playing, pause it.
     if (isSamplePlaying && playingSpeakerSampleId === speaker.id && sampleAudioRef.current) {
         sampleAudioRef.current.pause();
         setIsSamplePlaying(false);
     }
-    // If clicking the speaker that is currently paused, resume it.
     else if (!isSamplePlaying && playingSpeakerSampleId === speaker.id && sampleAudioRef.current) {
         sampleAudioRef.current.play().catch(e => console.error("Error resuming sample audio", e));
         setIsSamplePlaying(true);
     }
-    // If clicking a new speaker.
     else {
-        // Stop any previously playing audio.
         if (sampleAudioRef.current) {
             sampleAudioRef.current.pause();
         }
         
-        // Ensure there's a valid URL to play.
         if (!speaker.sampleAudioUrl) {
             showToast("No audio sample available for this speaker.", "error");
             return;
         }
         
-        // Create a new Audio object for the new speaker.
         const newAudio = new Audio(speaker.sampleAudioUrl);
         sampleAudioRef.current = newAudio;
         newAudio.play().catch(e => {
@@ -1768,19 +1669,16 @@ const handleToggleSpeakerSample = (speaker: PodcastSpeakerProfile) => {
             showToast("Could not play audio sample.", "error");
         });
 
-        // When the audio finishes playing naturally, reset the state.
         newAudio.onended = () => {
             setIsSamplePlaying(false);
             setPlayingSpeakerSampleId(null);
         };
 
-        // Update state to reflect the new playing speaker.
         setPlayingSpeakerSampleId(speaker.id);
         setIsSamplePlaying(true);
     }
 };
 
-// Also, add this effect to stop the sound if the modal is closed manually.
 useEffect(() => {
     if (!showVoiceSelectionModal && isSamplePlaying) {
         if (sampleAudioRef.current) {
@@ -1812,7 +1710,6 @@ useEffect(() => {
                 await updateUserNoteUsage(user.uid, 'pdfAi', usageMonth);
             }
             addPointsAndCheckBadges(3);
-            updateOverallStreakAndCheckBadges();
             showToast('Questions regenerated!', 'success');
         } catch (error) {
             showToast(error instanceof Error ? error.message : 'Failed to regenerate questions', 'error');
@@ -2083,154 +1980,18 @@ useEffect(() => {
         custom: "bg-indigo-100 text-indigo-700 dark:bg-indigo-700/30 dark:text-indigo-300 border-indigo-200 dark:border-indigo-600",
     };
 
-    const quillModules = useMemo(() => ({
-        toolbar: [
-            [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
-            [{ 'font': QUILL_FONTS }],
-            [{ 'size': ['small', false, 'large', 'huge'] }],
-            ['bold', 'italic', 'underline', 'strike'],
-            [{ 'color': [] }, { 'background': [] }],
-            [{ 'script': 'sub'}, { 'script': 'super' }],
-            ['blockquote', 'code-block'],
-            [{ 'list': 'ordered'}, { 'list': 'bullet' }, { 'list': 'check' }],
-            [{ 'indent': '-1'}, { 'indent': '+1' }],
-            [{ 'direction': 'rtl' }],
-            [{ 'align': [] }],
-            ['link', 'image', 'video'],
-            [{ 'videosize': [false, 'small', 'medium', 'large', 'full'] }],
-            ['clean']
-        ],
-        resize: {
-            parchment: Quill.import('parchment'),
-            modules: [ 'Resize', 'DisplaySize' ],
-        },
-    }), []);
-
-    const quillFormats = [
-        'header', 'font', 'size',
-        'bold', 'italic', 'underline', 'strike',
-        'color', 'background',
-        'script',
-        'blockquote', 'code-block',
-        'list', 'bullet', 'indent', 'check',
-        'direction', 'align',
-        'link', 'image', 'video',
-        'width', 'height', 'style',
-        'videosize',
-    ];
-
-    const quillEditorClasses = `
-      flex-grow flex flex-col font-poppins min-h-0
-      [&_.ql-toolbar.ql-snow]:rounded-t-md
-      [&_.ql-toolbar.ql-snow]:border-gray-300 dark:[&_.ql-toolbar.ql-snow]:border-gray-700
-      [&_.ql-toolbar.ql-snow]:bg-gray-100 dark:[&_.ql-toolbar.ql-snow]:bg-[#1A1D29]
-      [&_.ql-toolbar.ql-snow]:p-2
-      [&_.ql-toolbar.ql-snow]:sticky [&_.ql-toolbar.ql-snow]:top-0 [&_.ql-toolbar.ql-snow]:z-10
-
-      [&_.ql-toolbar.ql-snow_.ql-picker-label]:text-gray-700 dark:[&_.ql-toolbar.ql-snow_.ql-picker-label]:text-gray-300
-      [&_.ql-snow.ql-toolbar_.ql-picker-item]:text-gray-700 dark:[&_.ql-snow.ql-toolbar_.ql-picker-item]:text-gray-300
-
-      [&_.ql-toolbar.ql-snow_.ql-stroke]:stroke-gray-700 dark:[&_.ql-toolbar.ql-snow_.ql-stroke]:stroke-gray-300
-      [&_.ql-toolbar.ql-snow_.ql-fill]:fill-gray-700 dark:[&_.ql-toolbar.ql-snow_.ql-fill]:fill-gray-300
-
-      [&_.ql-toolbar.ql-snow_button:hover_.ql-stroke]:stroke-indigo-500 dark:[&_.ql-toolbar.ql-snow_button:hover_.ql-stroke]:stroke-indigo-400
-      [&_.ql-toolbar.ql-snow_button:hover_.ql-fill]:fill-indigo-500 dark:[&_.ql-toolbar.ql-snow_button:hover_.ql-fill]:fill-indigo-400
-      [&_.ql-toolbar.ql-snow_button.ql-active_.ql-stroke]:stroke-indigo-600 dark:[&_.ql-toolbar.ql-snow_button.ql-active_.ql-stroke]:stroke-indigo-400
-      [&_.ql-toolbar.ql-snow_button.ql-active_.ql-fill]:fill-indigo-600 dark:[&_.ql-toolbar.ql-snow_button.ql-active_.ql-fill]:fill-indigo-400
-
-      [&_.ql-toolbar.ql-snow_.ql-picker.ql-expanded_.ql-picker-label]:text-indigo-600 dark:[&_.ql-toolbar.ql-snow_.ql-picker.ql-expanded_.ql-picker-label]:text-indigo-400
-      [&_.ql-toolbar.ql-snow_.ql-picker.ql-expanded_.ql-picker-label_.ql-stroke]:stroke-indigo-600 dark:[&_.ql-toolbar.ql-snow_.ql-picker.ql-expanded_.ql-picker-label_.ql-stroke]:stroke-indigo-400
-
-      [&_.ql-snow.ql-toolbar_.ql-picker-options]:bg-white dark:[&_.ql-snow.ql-toolbar_.ql-picker-options]:bg-gray-800
-      [&_.ql-snow.ql-toolbar_.ql-picker-options]:border-gray-300 dark:[&_.ql-snow.ql-toolbar_.ql-picker-options]:border-gray-700
-
-      [&_.ql-snow.ql-toolbar_.ql-picker-item.ql-selected]:text-indigo-600 dark:[&_.ql-snow.ql-toolbar_.ql-picker-item.ql-selected]:text-indigo-300
-      [&_.ql-snow.ql-toolbar_.ql-picker-item:hover]:text-indigo-500 dark:[&_.ql-snow.ql-toolbar_.ql-picker-item:hover]:text-indigo-300
-
-      [&_.ql-container.ql-snow]:flex-grow
-      [&_.ql-container.ql-snow]:overflow-y-auto
-      [&_.ql-container.ql-snow]:scrollbar-thin [&_.ql-container.ql-snow]:scrollbar-thumb-gray-400 dark:[&_.ql-container.ql-snow]:scrollbar-thumb-gray-600
-      [&_.ql-container.ql-snow]:border-x-gray-300 [&_.ql-container.ql-snow]:border-b-gray-300 dark:[&_.ql-container.ql-snow]:border-x-gray-700 dark:[&_.ql-container.ql-snow]:border-b-gray-700
-      [&_.ql-container.ql-snow]:rounded-b-md
-      [&_.ql-container.ql-snow]:bg-white dark:[&_.ql-container.ql-snow]:bg-[#10121A]
-
-      [&_.ql-editor]:font-poppins
-      [&_.ql-editor]:min-h-[250px]
-      [&_.ql-editor]:p-4
-      [&_.ql-editor]:text-gray-800 dark:[&_.ql-editor]:text-gray-100
-      [&_.ql-editor.ql-blank::before]:text-gray-400 dark:[&_.ql-editor.ql-blank::before]:text-gray-500
-      [&_.ql-editor.ql-blank::before]:italic
-      [&_.ql-editor.ql-blank::before]:content-[attr(data-placeholder)]
-
-      [&_.ql-editor_h1]:text-2xl [&_.ql-editor_h1]:font-bold [&_.ql-editor_h1]:mb-3 [&_.ql-editor_h1]:mt-4
-      [&_.ql-editor_h2]:text-xl [&_.ql-editor_h2]:font-semibold [&_.ql-editor_h2]:mb-2.5 [&_.ql-editor_h2]:mt-3.5
-      [&_.ql-editor_h3]:text-lg [&_.ql-editor_h3]:font-semibold [&_.ql-editor_h3]:mb-2 [&_.ql-editor_h3]:mt-3
-      [&_.ql-editor_h4]:text-base [&_.ql-editor_h4]:font-semibold [&_.ql-editor_h4]:mb-1.5 [&_.ql-editor_h4]:mt-2.5
-      [&_.ql-editor_h5]:text-sm [&_.ql-editor_h5]:font-semibold [&_.ql-editor_h5]:mb-1 [&_.ql-editor_h5]:mt-2
-      [&_.ql-editor_h6]:text-xs [&_.ql-editor_h6]:font-semibold [&_.ql-editor_h6]:mb-0.5 [&_.ql-editor_h6]:mt-1.5
-      [&_.ql-editor_p]:mb-3 [&_.ql-editor_p]:leading-relaxed
-
-      [&_.ql-editor_ul>li::before]:content-['•']
-      [&_.ql-editor_ul>li::before]:font-bold
-      [&_.ql-editor_ul>li::before]:absolute
-      [&_.ql-editor_ul>li::before]:left-0
-      [&_.ql-editor_ul>li::before]:top-[0.2em]
-      [&_.ql-editor_ul>li::before]:text-purple-500 dark:[&_.ql-editor_ul>li::before]:text-purple-400
-
-      [&_.ql-editor_ol]:my-3 [&_.ql-editor_ol]:list-decimal [&_.ql-editor_ol_>_li::before]:text-purple-500 [&_.ql-editor_ol_>_li::before]:dark:text-purple-400 [&_.ql-editor_ol_>_li::before]:font-semibold [&_.ql-editor_ol_>_li]:pl-5
-      [&_.ql-editor_li]:my-1
-
-      [&_.ql-editor_blockquote]:border-l-4 [&_.ql-editor_blockquote]:border-purple-500 [&_.ql-editor_blockquote]:dark:border-purple-400 [&_.ql-editor_blockquote]:pl-3 [&_.ql-editor_blockquote]:italic [&_.ql-editor_blockquote]:my-3 [&_.ql-editor_blockquote]:text-gray-600 [&_.ql-editor_blockquote]:dark:text-gray-400
-      [&_.ql-editor_pre]:bg-gray-100 [&_.ql-editor_pre]:dark:bg-gray-800/70 [&_.ql-editor_pre]:p-2 [&_.ql-editor_pre]:rounded [&_.ql-editor_pre]:text-sm [&_.ql-editor_pre]:my-3
-      [&_.ql-editor_li[data-list=checked]]:text-gray-500 [&_.ql-editor_li[data-list=checked]]:dark:text-gray-400 [&_.ql-editor_li[data-list=checked]]:line-through
-      [&_.ql-editor_li[data-list=checked]::before]:text-purple-600 [&_.ql-editor_li[data-list=checked]::before]:dark:text-purple-500
-      [&_.ql-editor_li[data-list=unchecked]::before]:text-gray-500 [&_.ql-editor_li[data-list=unchecked]::before]:dark:text-gray-400
-
-      [&_.ql-editor_iframe.ql-video.ql-videosize-small]:w-[25%] [&_.ql-editor_iframe.ql-video.ql-videosize-small]:aspect-video [&_.ql-editor_iframe.ql-video.ql-videosize-small]:my-2
-      [&_.ql-editor_iframe.ql-video.ql-videosize-medium]:w-[50%] [&_.ql-editor_iframe.ql-video.ql-videosize-medium]:aspect-video [&_.ql-editor_iframe.ql-video.ql-videosize-medium]:my-2
-      [&_.ql-editor_iframe.ql-video.ql-videosize-large]:w-[75%] [&_.ql-editor_iframe.ql-video.ql-videosize-large]:aspect-video [&_.ql-editor_iframe.ql-video.ql-videosize-large]:my-2
-      [&_.ql-editor_iframe.ql-video.ql-videosize-full]:w-full [&_.ql-editor_iframe.ql-video.ql-videosize-full]:aspect-video [&_.ql-editor_iframe.ql-video.ql-videosize-full]:my-2
-      [&_.ql-editor_iframe.ql-video:not(.ql-videosize-small):not(.ql-videosize-medium):not(.ql-videosize-large):not(.ql-videosize-full)]:w-[50%] [&_.ql-editor_iframe.ql-video:not(.ql-videosize-small):not(.ql-videosize-medium):not(.ql-videosize-large):not(.ql-videosize-full)]:aspect-video [&_.ql-editor_iframe.ql-video:not(.ql-videosize-small):not(.ql-videosize-medium):not(.ql-videosize-large):not(.ql-videosize-full)]:my-2
-    `;
-
-  const readOnlyQuillClasses = `
-      font-poppins
-      border-none
-      [&_.ql-container.ql-snow]:border-none
-      [&_.ql-editor]:prose [&_.ql-editor]:prose-sm sm:[&_.ql-editor]:prose-base [&_.ql-editor]:max-w-none
-      ${isDarkMode ? '[&_.ql-editor]:prose-invert' : ''}
-      [&_.ql-editor]:p-0
-      dark:[&_.ql-editor.ql-blank::before]:text-gray-500
-      [&_.ql-editor.ql-blank::before]:italic
-
-      [&_.ql-editor.prose_ul>li[data-list]]:list-none
-      [&_.ql-editor.prose_ul>li[data-list]]:pl-0
-
-      [&_.ql-editor.prose_ul>li[data-list=checked]::before]:content-['✔']
-      [&_.ql-editor.prose_ul>li[data-list=checked]::before]:font-normal
-      [&_.ql-editor.prose_ul>li[data-list=checked]::before]:mr-2
-      [&_.ql-editor.prose_ul>li[data-list=checked]::before]:text-purple-600 dark:[&_.ql-editor.prose_ul>li[data-list=checked]::before]:text-purple-500
-      [&_.ql-editor.prose_ul>li[data-list=checked]]:text-gray-500 dark:[&_.ql-editor.prose_ul>li[data-list=checked]]:dark:text-gray-400 [&_.ql-editor.prose_ul>li[data-list=checked]]:line-through
-
-      [&_.ql-editor.prose_ul>li[data-list=unchecked]::before]:content-['☐']
-      [&_.ql-editor.prose_ul>li[data-list=unchecked]::before]:font-normal
-      [&_.ql-editor.prose_ul>li[data-list=unchecked]::before]:mr-2
-      [&_.ql-editor.prose_ul>li[data-list=unchecked]::before]:text-gray-500 dark:[&_.ql-editor.prose_ul>li[data-list=unchecked]::before]:text-gray-400
-
-      [&_.ql-editor_img]:max-w-full [&_.ql-editor_img]:h-auto [&_.ql-editor_img]:rounded-md [&_.ql-editor_img]:my-4 [&_.ql-editor_img]:shadow-lg
-      [&_.ql-editor_iframe.ql-video]:rounded-md [&_.ql-editor_iframe.ql-video]:my-4 [&_.ql-editor_iframe.ql-video]:shadow-lg
-
-      [&_.ql-editor_iframe.ql-video.ql-videosize-small]:w-[25%] [&_.ql-editor_iframe.ql-video.ql-videosize-small]:aspect-video
-      [&_.ql-editor_iframe.ql-video.ql-videosize-medium]:w-[50%] [&_.ql-editor_iframe.ql-video.ql-videosize-medium]:aspect-video
-      [&_.ql-editor_iframe.ql-video.ql-videosize-large]:w-[75%] [&_.ql-editor_iframe.ql-video.ql-videosize-large]:aspect-video
-      [&_.ql-editor_iframe.ql-video.ql-videosize-full]:w-full [&_.ql-editor_iframe.ql-video.ql-videosize-full]:aspect-video
-      [&_.ql-editor_iframe.ql-video:not(.ql-videosize-small):not(.ql-videosize-medium):not(.ql-videosize-large):not(.ql-videosize-full)]:w-[50%] [&_.ql-editor_iframe.ql-video:not(.ql-videosize-small):not(.ql-videosize-medium):not(.ql-videosize-large):not(.ql-videosize-full)]:aspect-video
-    `;
-
     return (
         <div className={`flex h-screen overflow-hidden bg-[#F7F8FA] dark:bg-[#0C0E1A] text-gray-900 dark:text-gray-100 font-poppins`}>
-            <Sidebar isCollapsed={isSidebarCollapsed} onToggleCollapse={handleToggleSidebar} userName={userName} isMobileOpen={false} setIsMobileOpen={() => {}} />
-            <ProfileModal
+      <Sidebar
+        userName={userName}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed(prev => !prev)}
+        isMobileOpen={isMobileSidebarOpen}
+        setIsMobileOpen={setIsMobileSidebarOpen}
+        userProfile={userProfile}
+        onProfileClick={() => setShowProfileModal(true)}
+      />
+                  <ProfileModal
                 isOpen={showNotesProfileModal}
                 onClose={() => setShowNotesProfileModal(false)}
                 userProfile={userProfile}
@@ -2252,7 +2013,7 @@ useEffect(() => {
 
 
                      {isMobile && !showNotesListOnMobile && !showSideBySideChat && (
-                         <div className={`sticky top-0 z-30 p-2 border-b border-gray-200 dark:border-gray-700/50 bg-white/80 dark:bg-[#161922]/80 backdrop-blur-sm flex items-center justify-between`}>
+                         <div className={`sticky top-0 z-30 p-2 border-b border-gray-200 dark:border-gray-700/50 bg-white/80 dark:bg-[#0C0E1A]/80 backdrop-blur-sm flex items-center justify-between`}>
                              <button onClick={() => setShowNotesListOnMobile(true)} className={`p-1.5 rounded-md bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400`} title="Show Notes"> <List className="w-4 h-4" /> </button>
                              <span className={`text-sm font-medium truncate px-2 text-gray-800 dark:text-gray-100`}> {isEditing ? 'Editing Note' : selectedNote?.title || 'Note'} </span>
                              <div className="w-8 h-8 flex items-center justify-center">
@@ -2351,53 +2112,54 @@ useEffect(() => {
                              </div>
                          </div>
                      ) : (
-                         <div className={`p-0 md:p-4 lg:p-6 h-full ${showSideBySideChat ? 'hidden': ''}`}>
-                            {showSplitView && (!splitViewNotes.left || !splitViewNotes.right) ? ( <div className={`flex flex-col items-center justify-center rounded-lg bg-white dark:bg-[#161922] border border-gray-200 dark:border-gray-700/50 h-full text-center p-6`}> <SplitSquareVertical className={`w-12 h-12 text-gray-400 dark:text-gray-500 mb-4`} /> <h2 className={`text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2`}>Compare Notes</h2> <p className={`text-gray-600 dark:text-gray-400 text-sm mb-4`}>Select {splitViewNotes.left ? 'one more note' : 'two notes'} from the list.</p> <p className={`text-xs text-gray-500 dark:text-gray-400 mb-4`}>Selected: {splitViewNotes.left ? 1 : 0}/2</p> <button onClick={closeSplitView} className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-md text-sm`}>Cancel Comparison</button> </div>
+                         <div className={`h-full ${showSideBySideChat ? 'hidden': ''}`}>
+                            {showSplitView && (!splitViewNotes.left || !splitViewNotes.right) ? ( <div className={`flex flex-col items-center justify-center bg-white dark:bg-[#0C0E1A] h-full text-center p-6`}> <SplitSquareVertical className={`w-12 h-12 text-gray-400 dark:text-gray-500 mb-4`} /> <h2 className={`text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2`}>Compare Notes</h2> <p className={`text-gray-600 dark:text-gray-400 text-sm mb-4`}>Select {splitViewNotes.left ? 'one more note' : 'two notes'} from the list.</p> <p className={`text-xs text-gray-500 dark:text-gray-400 mb-4`}>Selected: {splitViewNotes.left ? 1 : 0}/2</p> <button onClick={closeSplitView} className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-md text-sm`}>Cancel Comparison</button> </div>
                             ) : selectedNote ? (
-                                isEditing ? (
-                                    <div key={`edit-${selectedNote.id}`} className={`bg-white dark:bg-[#161922] border border-gray-200 dark:border-gray-700/50 rounded-lg p-4 md:p-6 flex flex-col h-full`}>
-                                        <div className="space-y-3 flex-shrink-0">
-                                            <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className={`w-full bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-800 dark:text-gray-100 text-xl font-semibold rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 placeholder-gray-400 dark:placeholder-gray-500`} placeholder="Note title..." />
-                                            <div className="flex flex-wrap items-center gap-2">
-                                                {editTags.map((tag) => (
-                                                    <span key={tag} className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${(tagColors as any)[tag] || tagColors.custom}`}>
-                                                        {tag}
-                                                        <button onClick={() => handleRemoveTag(tag)} className={`hover:opacity-70 rounded-full hover:bg-black/10 dark:hover:bg-white/10 p-0.5`} title={`Remove tag "${tag}"`}>
-                                                            <X className="w-2.5 h-2.5" />
-                                                        </button>
-                                                    </span>
-                                                ))}
-                                                {editTags.length < 5 && (
-                                                    <div className="flex items-center gap-1">
-                                                        <input type="text" value={newTag} onChange={(e) => setNewTag(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleAddTag()} placeholder="Add tag..." className={`bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 rounded-full px-2.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 w-24`} />
-                                                        <button onClick={handleAddTag} className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-2 py-0.5 rounded-full text-xs`}>Add</button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="mt-3 flex-grow flex flex-col min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
-                                            <div className="flex-shrink-0" data-color-mode={isDarkMode ? 'dark' : 'light'}>
-                                                <ReactQuill
-                                                    theme="snow"
-                                                    value={editContent}
-                                                    onChange={setEditContent}
-                                                    modules={quillModules}
-                                                    formats={quillFormats}
-                                                    placeholder="Start writing your note here..."
-                                                    className={quillEditorClasses}
-                                                />
-                                            </div>
-                                            <div className="flex-shrink-0 pt-1">
-                                                <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700/50">
-                                                    <h3 className="text-sm font-semibold mb-3 flex items-center gap-1.5 text-gray-800 dark:text-gray-100">
+isEditing ? (
+    <div key={`edit-${selectedNote.id}`} className={`bg-white dark:bg-[#0C0E1A] flex flex-col h-full`}>
+        
+        <div className="p-4 pt-5 md:p-6 flex-shrink-0 border-b border-gray-200 dark:border-gray-700">
+            <input 
+                type="text" 
+                value={editTitle} 
+                onChange={(e) => setEditTitle(e.target.value)} 
+                className={`w-full bg-transparent text-gray-800 dark:text-gray-100 text-2xl font-semibold focus:outline-none placeholder-gray-400 dark:placeholder-gray-500 border-none ring-0 focus:ring-0 p-0`} 
+                placeholder="Note title..." 
+            />
+            <div className="flex flex-wrap items-center gap-2 mt-3">
+                {editTags.map((tag) => (
+                    <span key={tag} className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${(tagColors as any)[tag] || tagColors.custom}`}>
+                        {tag}
+                        <button onClick={() => handleRemoveTag(tag)} className={`hover:opacity-70 rounded-full hover:bg-black/10 dark:hover:bg-white/10 p-0.5`} title={`Remove tag "${tag}"`}>
+                            <X className="w-2.5 h-2.5" />
+                        </button>
+                    </span>
+                ))}
+                {editTags.length < 5 && (
+                    <div className="flex items-center gap-1">
+                        <input type="text" value={newTag} onChange={(e) => setNewTag(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleAddTag()} placeholder="Add tag..." className={`bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 rounded-full px-2.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 w-24`} />
+                        <button onClick={handleAddTag} className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-2 py-0.5 rounded-full text-xs`}>Add</button>
+                    </div>
+                )}
+            </div>
+        </div>
+        <div className="flex-grow flex flex-col min-h-0 overflow-y-auto">
+            <div className="flex-grow" data-color-mode={isDarkMode ? 'dark' : 'light'}>
+                <SunEditorWrapper
+                    onChange={setEditContent}
+                    initialContent={editContent}
+                />
+            </div>
+            <div className="flex-shrink-0 p-4">
+                                                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700/50">
+                                                    <h3 className="text-base font-semibold mb-3 flex items-center gap-1.5 text-gray-800 dark:text-gray-100">
                                                         <Sparkles className="w-4 h-4 text-yellow-500 dark:text-yellow-400" />
                                                         Key Points
                                                     </h3>
                                                     {editKeyPoints.length > 0 ? (
-                                                        <div className="space-y-2.5">
+                                                        <div className="space-y-2">
                                                             {editKeyPoints.map((point, index) => (
-                                                                <div key={index} className="group flex items-start gap-2 p-2.5 rounded-lg bg-gray-50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-700/40 transition-colors">
+                                                                <div key={index} className="group flex items-start gap-2 p-2 rounded-lg bg-gray-50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-700/40 transition-colors">
                                                                     <span className="mt-1.5 flex-shrink-0 w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-700/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center text-[10px] font-semibold">{index + 1}</span>
                                                                     <textarea
                                                                         rows={1}
@@ -2427,15 +2189,15 @@ useEffect(() => {
                                                     </button>
                                                 </div>
 
-                                                <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700/50">
-                                                    <h3 className="text-sm font-semibold mb-3 flex items-center gap-1.5 text-gray-800 dark:text-gray-100">
+                                                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700/50">
+                                                    <h3 className="text-base font-semibold mb-3 flex items-center gap-1.5 text-gray-800 dark:text-gray-100">
                                                         <Layers className="w-4 h-4 text-purple-500 dark:text-purple-400" />
                                                         Flashcards
                                                     </h3>
                                                     {editFlashcards.length > 0 ? (
                                                         <div className="space-y-3">
                                                             {editFlashcards.map((card, index) => (
-                                                                <div key={index} className="group relative p-3.5 rounded-xl bg-gray-50 dark:bg-gray-800/30 shadow-sm hover:shadow-md transition-shadow">
+                                                                <div key={index} className="group relative p-3 rounded-lg bg-gray-50 dark:bg-gray-800/30 shadow-sm">
                                                                     <span className="absolute top-2 left-2.5 px-1.5 py-0.5 text-[9px] font-semibold bg-purple-100 dark:bg-purple-700/40 text-purple-700 dark:text-purple-200 rounded-full">
                                                                         Card {index + 1}
                                                                     </span>
@@ -2455,7 +2217,7 @@ useEffect(() => {
                                                                                 value={card.front}
                                                                                 onChange={(e) => handleFlashcardChange(index, 'front', e.target.value)}
                                                                                 placeholder="Term or question..."
-                                                                                className="w-full bg-white dark:bg-gray-700/60 border border-gray-200 dark:border-gray-600/70 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y min-h-[40px] leading-relaxed"
+                                                                                className="w-full bg-white dark:bg-gray-700/60 border border-gray-200 dark:border-gray-600/70 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 text-sm rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y min-h-[40px] leading-relaxed"
                                                                             />
                                                                         </div>
                                                                         <div>
@@ -2466,7 +2228,7 @@ useEffect(() => {
                                                                                 value={card.back}
                                                                                 onChange={(e) => handleFlashcardChange(index, 'back', e.target.value)}
                                                                                 placeholder="Definition or answer..."
-                                                                                className="w-full bg-white dark:bg-gray-700/60 border border-gray-200 dark:border-gray-600/70 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y min-h-[40px] leading-relaxed"
+                                                                                className="w-full bg-white dark:bg-gray-700/60 border border-gray-200 dark:border-gray-600/70 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 text-sm rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y min-h-[40px] leading-relaxed"
                                                                             />
                                                                         </div>
                                                                     </div>
@@ -2484,16 +2246,16 @@ useEffect(() => {
                                                     </button>
                                                 </div>
                                             </div>
-                                        </div>
-                                        <div className={`flex justify-end items-center gap-2 pt-3 mt-auto border-t border-gray-200 dark:border-gray-700/50 flex-shrink-0`}>
-                                            <button onClick={handleCancelEdit} className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-4 py-1.5 rounded-md text-sm`}>Cancel</button>
-                                            <button onClick={handleSaveEdit} disabled={isSaving || !editTitle.trim()} className={`bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-1.5 rounded-md text-sm flex items-center gap-1.5 ${isSaving || !editTitle.trim() ? 'opacity-50 cursor-not-allowed' : ''}`}> {isSaving ? (<> <Loader2 className="w-4 h-4 animate-spin" /> Saving... </>) : (<> <Save className="w-4 h-4" /> Save </>)} </button>
-                                        </div>
-                                     </div>
-                                ) : (
-                                    <div key={`view-${selectedNote.id}`} className={`bg-white dark:bg-[#161922] border border-gray-200 dark:border-gray-700/50 rounded-lg flex flex-col overflow-hidden h-full p-4 md:p-5 lg:p-6 animate-fadeIn`}>
-                                        <div className={`flex flex-col sm:flex-row sm:items-start sm:justify-between mb-4 gap-3 flex-shrink-0`}>
-                                            <h1 className={`text-xl md:text-2xl font-semibold text-gray-800 dark:text-gray-100 break-words mr-auto pr-4`}>{selectedNote.title || "Untitled"}</h1>
+        </div>
+        <div className={`flex justify-end items-center gap-2 p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0 bg-white dark:bg-[#0C0E1A]`}>
+            <button onClick={handleCancelEdit} className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-4 py-1.5 rounded-md text-sm`}>Cancel</button>
+            <button onClick={handleSaveEdit} disabled={isSaving || !editTitle.trim()} className={`bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-1.5 rounded-md text-sm flex items-center gap-1.5 ${isSaving || !editTitle.trim() ? 'opacity-50 cursor-not-allowed' : ''}`}> {isSaving ? (<> <Loader2 className="w-4 h-4 animate-spin" /> Saving... </>) : (<> <Save className="w-4 h-4" /> Save </>)} </button>
+        </div>
+    </div>
+) : (
+                                    <div key={`view-${selectedNote.id}`} className={`bg-white dark:bg-[#0C0E1A] flex flex-col overflow-hidden h-full animate-fadeIn`}>
+                                        <div className={`p-4 md:p-6 flex flex-col sm:flex-row sm:items-start sm:justify-between mb-0 gap-3 flex-shrink-0`}>
+                                            <h1 className={`text-2xl md:text-2xl font-semibold text-gray-800 dark:text-gray-100 break-words mr-auto pr-4`}>{selectedNote.title || "Untitled"}</h1>
                                             <div className={`flex items-center gap-1 flex-shrink-0 border rounded-full p-0.5 border-gray-200 dark:border-gray-700/50 bg-gray-50 dark:bg-[#1A1D29]/50`}>
                                                 <button onClick={handleEditNote} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60`} title="Edit"><Edit2 className="w-4 h-4" /></button>
                                                 {geminiApiKey && <button onClick={() => handleChatWithNote(selectedNote)} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60`} title="Chat with AI"><MessageCircle className="w-4 h-4" /></button>}
@@ -2514,32 +2276,59 @@ useEffect(() => {
                                             </div>
                                         </div>
 
-                                        {((selectedNote.tags?.length ?? 0) > 0) && ( <div className={`flex flex-wrap gap-1.5 mb-4 flex-shrink-0`}> {selectedNote.tags!.map((tag) => (<span key={tag} className={`px-2 py-0.5 rounded-full text-xs border ${(tagColors as any)[tag] || tagColors.custom}`}>#{tag}</span>))} </div> )}
+                                        {((selectedNote.tags?.length ?? 0) > 0) && ( <div className={`px-4 md:px-6 flex flex-wrap gap-1.5 mb-4 flex-shrink-0`}> {selectedNote.tags!.map((tag) => (<span key={tag} className={`px-2 py-0.5 rounded-full text-xs border ${(tagColors as any)[tag] || tagColors.custom}`}>#{tag}</span>))} </div> )}
 
-                                        <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-5 flex-shrink-0`}>
+                                        <div className={`px-4 md:px-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4 flex-shrink-0`}>
                                             {(selectedNote.questions && selectedNote.questions.length > 0) && (
-                                                <button onClick={() => document.getElementById('study-questions-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 bg-purple-50 dark:bg-purple-700/20 hover:bg-purple-100 dark:hover:bg-purple-700/30 shadow-sm border border-purple-200 dark:border-purple-700/50`} >
+                                                <button onClick={() => document.getElementById('study-questions-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 bg-purple-50 dark:bg-purple-700/20 hover:bg-purple-100 dark:hover:bg-purple-700/30 shadow-sm `} >
                                                     <div className={`p-2 rounded-full bg-purple-100 dark:bg-purple-700/30 text-purple-600 dark:text-purple-300`}> <BookOpen className="w-5 h-5" /> </div>
                                                     <div> <span className={`block font-semibold text-sm text-gray-800 dark:text-gray-100`}>Quiz</span> <span className={`block text-xs text-gray-600 dark:text-gray-400`}>Test your knowledge</span> </div>
                                                 </button>
                                             )}
                                             {(selectedNote.flashcards && selectedNote.flashcards.length > 0) && (
-                                                 <button onClick={() => document.getElementById('flashcards-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 bg-indigo-50 dark:bg-indigo-700/20 hover:bg-indigo-100 dark:hover:bg-indigo-700/30 shadow-sm border border-indigo-200 dark:border-indigo-700/50`} >
+                                                 <button onClick={() => document.getElementById('flashcards-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 bg-indigo-50 dark:bg-indigo-700/20 hover:bg-indigo-100 dark:hover:bg-indigo-700/30 shadow-sm `} >
                                                     <div className={`p-2 rounded-full bg-indigo-100 dark:bg-indigo-700/30 text-indigo-600 dark:text-indigo-300`}> <Layers className="w-5 h-5" /> </div>
                                                     <div> <span className={`block font-semibold text-sm text-gray-800 dark:text-gray-100`}>Flashcards</span> <span className={`block text-xs text-gray-600 dark:text-gray-400`}>Review key terms</span> </div>
                                                 </button>
                                             )}
-                                            <button onClick={handlePodcastToggle} className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 bg-teal-50 dark:bg-teal-700/20 hover:bg-teal-100 dark:hover:bg-teal-700/30 shadow-sm border border-teal-200 dark:border-teal-700/50 ${userTier !== 'premium' ? 'opacity-70' : ''}`} >
-                                                <div className={`p-2 rounded-full bg-teal-100 dark:bg-teal-700/30 text-teal-600 dark:text-teal-300`}> <Mic className="w-5 h-5" /> </div>
-                                                <div> <span className={`block font-semibold text-sm text-gray-800 dark:text-gray-100`}>Podcast</span> <span className={`block text-xs text-gray-600 dark:text-gray-400`}>{showPodcastSection ? 'Close Player' : 'Listen to notes'}</span> </div>
-                                                {userTier !== 'premium' && <Lock className={`w-4 h-4 ml-auto text-gray-400 dark:text-gray-500`} />}
-                                            </button>
+<button
+    onClick={handlePodcastToggle}
+    className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 bg-teal-50 dark:bg-teal-700/20 hover:bg-teal-100 dark:hover:bg-teal-700/30 shadow-sm  ${
+        userTier !== 'premium' ? 'opacity-70' : ''
+    }`}
+>
+    <div className={`p-2 rounded-full bg-teal-100 dark:bg-teal-700/30 text-teal-600 dark:text-teal-300`}>
+        <Mic className="w-5 h-5" />
+    </div>
+
+    <div>
+        {/* --- FIX IS HERE --- */}
+        {/* 1. Use a flex container with `items-center` and `gap` for spacing */}
+        <div className="flex items-center gap-1.5">
+            <span className="font-semibold text-sm text-gray-800 dark:text-gray-100">
+                Podcast
+            </span>
+            
+            {userTier !== 'premium' && (
+                // 2. Add a tiny relative upward shift to the icon for perfect visual centering
+                // You can adjust or remove this if `items-center` is sufficient.
+                // Common values are `translate-y-[-0.5px]` or `translate-y-[-1px]`
+                <Lock className="w-4 h-4 text-gray-500 dark:text-gray-500 relative translate-y-[-0.5px]" />
+            )}
+        </div>
+
+        <span className="block text-xs text-gray-600 dark:text-gray-400">
+            {showPodcastSection ? 'Close Player' : 'Listen to your notes'}
+        </span>
+    </div>
+</button>
                                         </div>
 
-                                        <div ref={noteContentRef} className={`flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 -mr-2 md:-mr-3 lg:-mr-4 pr-2 md:pr-3 lg:pr-4 bg-white dark:bg-[#161922]`}>
+                                        <div ref={noteContentRef} className={`flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 px-4 md:px-6 bg-white dark:bg-[#0C0E1A]`}>
                                             <AnimatePresence>
                                             {showPodcastSection && (
                                                 <motion.div
+                                                        id="podcast-section-wrapper"
                                                    initial={{ opacity: 0, height: 0 }}
                                                    animate={{ opacity: 1, height: 'auto' }}
                                                    exit={{ opacity: 0, height: 0 }}
@@ -2547,7 +2336,7 @@ useEffect(() => {
                                                    className="overflow-hidden"
                                                 >
                                                 {isPodcastProcessing && (
-                                                    <div className="my-6 p-4 rounded-xl shadow-lg bg-gray-100 dark:bg-gray-800/50 text-center">
+                                                    <div className="my-6 p-4 rounded-lg bg-gray-100 dark:bg-gray-800/50 text-center">
                                                         <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mx-auto mb-2" />
                                                         <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Crafting your podcast...</p>
                                                         <p className="text-xs text-gray-500 dark:text-gray-400">This may take 5-10 min. Please wait.</p>
@@ -2555,7 +2344,7 @@ useEffect(() => {
                                                 )}
                                                 
                                                 {activePodcast && (
-                                                    <div id="podcast-player-section" className="my-6 p-4 rounded-xl shadow-lg bg-gradient-to-br from-indigo-500 to-purple-600 dark:from-indigo-700 dark:to-purple-800 text-white">
+                                                    <div id="podcast-player-section" className="my-6 p-4 rounded-lg shadow-lg bg-gradient-to-br from-indigo-500 to-purple-600 dark:from-indigo-700 dark:to-purple-800 text-white">
                                                         <div className="flex items-center justify-between mb-3">
                                                             <div className="flex items-center">
                                                                 <Speaker size={24} className="mr-3 opacity-80" />
@@ -2582,31 +2371,16 @@ useEffect(() => {
                                                                 </div>
                                                             </div>
                                                             <div className="flex items-center justify-center space-x-4 mb-4">
-   <button
-        onClick={handleSkipBackSegment}
-        className="p-2 opacity-80 hover:opacity-100 transition-opacity"
-        disabled={!activePodcast || (audioPlayerRef.current?.currentTime || 0) < 1}
-    >
-        <SkipBack size={20} />
-    </button>
-                                                                <button
-                                                                    onClick={handlePodcastPlayPause}
-                                                                    className="p-3 bg-white/20 rounded-full hover:bg-white/30 transition-colors transform hover:scale-105"
-                                                                >
+                                                               <button onClick={handleSkipBackSegment} className="p-2 opacity-80 hover:opacity-100 transition-opacity" disabled={!activePodcast || (audioPlayerRef.current?.currentTime || 0) < 1} >
+                                                                    <SkipBack size={20} />
+                                                                </button>
+                                                                <button onClick={handlePodcastPlayPause} className="p-3 bg-white/20 rounded-full hover:bg-white/30 transition-colors transform hover:scale-105" >
                                                                     {isPodcastPlaying ? <Pause size={24} /> : <Play size={24} />}
                                                                 </button>
-    <button
-        onClick={handleSkipForwardSegment}
-        className="p-2 opacity-80 hover:opacity-100 transition-opacity"
-        disabled={!activePodcast || (audioPlayerRef.current?.currentTime || 0) >= activePodcast.totalDuration - 1}
-    >
-        <SkipForward size={20} />
-    </button>
+                                                                <button onClick={handleSkipForwardSegment} className="p-2 opacity-80 hover:opacity-100 transition-opacity" disabled={!activePodcast || (audioPlayerRef.current?.currentTime || 0) >= activePodcast.totalDuration - 1} >
+                                                                    <SkipForward size={20} />
+                                                                </button>
                                                             </div>
-    {activePodcast && currentSegmentIndex !== -1 && activePodcast.segments[currentSegmentIndex] && (
-        <div className="text-center text-xs opacity-80 mt-2 mb-3">
-        </div>
-    )}
                                                             <div className="flex items-center justify-between text-xs opacity-90">
                                                                 <div className="flex items-center space-x-2">
                                                                     {podcastVolume > 0 ? <Volume2 size={18} /> : <VolumeX size={18} />}
@@ -2673,14 +2447,10 @@ useEffect(() => {
                                             )}
                                             </AnimatePresence>
 
-                                            <div data-color-mode={isDarkMode ? 'dark' : 'light'} className="quill-read-only-container py-1">
-                                                <ReactQuill
-                                                    value={selectedNote.content || ''}
+                                            <div className="py-1">
+                                                <SunEditorWrapper
                                                     readOnly={true}
-                                                    theme="snow"
-                                                    modules={{ toolbar: false }}
-                                                    formats={quillFormats}
-                                                    className={readOnlyQuillClasses}
+                                                    initialContent={selectedNote.content}
                                                 />
                                             </div>
 
@@ -2689,7 +2459,7 @@ useEffect(() => {
                                             <div className={`mt-8 pt-6 border-t border-gray-200 dark:border-gray-700/50`}>
                                                 <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 text-gray-800 dark:text-gray-100`}> <Sparkles className={`w-5 h-5 text-yellow-500 dark:text-yellow-400`} /> Key Points </h3>
                                                 <div className={`space-y-3`}> {selectedNote.keyPoints.map((point, index) => (
-                                                    <div key={index} className="flex items-start p-3 rounded-lg bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700/50 shadow-sm">
+                                                    <div key={index} className="flex items-start p-3 rounded-lg bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700/50">
                                                         <div className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-700/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center text-xs font-semibold mr-3 mt-0.5">{index + 1}</div>
                                                         <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{point}</p>
                                                     </div>
@@ -2717,7 +2487,7 @@ useEffect(() => {
                                                                 onClick={() => setIsFlashcardFlipped(!isFlashcardFlipped)}
                                                             >
                                                                 <motion.div
-                                                                    className="absolute inset-0 p-6 rounded-xl shadow-xl flex flex-col justify-center items-center text-center bg-indigo-500 dark:bg-indigo-700 text-white [backface-visibility:hidden]"
+                                                                    className="absolute inset-0 p-6 rounded-lg shadow-lg flex flex-col justify-center items-center text-center bg-indigo-500 dark:bg-indigo-700 text-white [backface-visibility:hidden]"
                                                                     animate={{ rotateX: isFlashcardFlipped ? -180 : 0 }}
                                                                     transition={{ type: "spring", stiffness: 200, damping: 20, duration: 0.5 }}
                                                                 >
@@ -2727,7 +2497,7 @@ useEffect(() => {
                                                                     </p>
                                                                 </motion.div>
                                                                 <motion.div
-                                                                    className="absolute inset-0 p-6 rounded-xl shadow-xl flex flex-col justify-center items-center text-center bg-purple-500 dark:bg-purple-700 text-white [backface-visibility:hidden] [transform:rotateX(180deg)]"
+                                                                    className="absolute inset-0 p-6 rounded-lg shadow-lg flex flex-col justify-center items-center text-center bg-purple-500 dark:bg-purple-700 text-white [backface-visibility:hidden] [transform:rotateX(180deg)]"
                                                                     animate={{ rotateX: isFlashcardFlipped ? 0 : 180 }}
                                                                     transition={{ type: "spring", stiffness: 200, damping: 20, duration: 0.5 }}
                                                                 >
@@ -2765,18 +2535,72 @@ useEffect(() => {
                                                     <h3 className={`text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100`}><BookOpen className={`w-5 h-5 text-purple-500 dark:text-purple-400`} />Study Questions</h3>
                                                     {geminiApiKey && <button onClick={handleRegenerateQuestions} disabled={isRegeneratingQuestions || !geminiApiKey} className={`bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-md text-xs flex items-center gap-1.5 ${isRegeneratingQuestions || !geminiApiKey ? 'opacity-50 cursor-not-allowed' : ''}`} title={!geminiApiKey ? "API Key required" : "Regenerate"}> {isRegeneratingQuestions ? (<> <Loader2 className="w-3.5 h-3.5 animate-spin" /> Regenerating... </>) : (<> <RefreshCw className="w-3.5 h-3.5" /> Regenerate </>)} </button>}
                                                 </div>
-                                                <div className="space-y-4"> {selectedNote.questions.map((q, index) => { const key = `${selectedNote?.id}-${index}`; const answer = questionAnswers[key]; const answered = answer != null; const isCorrect = answered && answer === q.correctAnswer; return (
-                                                <div key={key} className={`p-4 rounded-lg shadow-sm border ${answered ? (isCorrect ? 'bg-green-50 dark:bg-green-700/20 border-green-200 dark:border-green-600/50' : 'bg-red-50 dark:bg-red-700/20 border-red-200 dark:border-red-600/50') : 'bg-gray-50 dark:bg-gray-800/40 border-gray-200 dark:border-gray-700/50'}`}>
-                                                    <p className={`text-gray-700 dark:text-gray-200 text-sm mb-3 leading-relaxed`}><span className="font-semibold mr-1">{index + 1}.</span> {q.question}</p>
-                                                    <div className="space-y-2"> {q.options.map((opt, idx) => { const sel = answer === idx; const cor = idx === q.correctAnswer; let cls = `w-full text-left px-3 py-2 rounded-md transition-all duration-150 text-xs flex items-center justify-between border`; if (answered) { if (sel) cls += cor ? ` bg-green-100 dark:bg-green-600/30 text-green-800 dark:text-green-200 font-medium border-green-300 dark:border-green-500` : ` bg-red-100 dark:bg-red-600/30 text-red-800 dark:text-red-200 font-medium border-red-300 dark:border-red-500`; else if (cor) cls += ` bg-green-50/50 dark:bg-green-800/20 text-green-700 dark:text-green-300 border-green-200 dark:border-green-700/40 font-medium`; else cls += ` bg-gray-100 dark:bg-gray-700/40 text-gray-500 dark:text-gray-400 opacity-70 border-gray-200 dark:border-gray-700/40`; } else { cls += ` bg-white dark:bg-gray-700/60 hover:bg-gray-100 dark:hover:bg-gray-600/60 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 focus:ring-1 focus:ring-indigo-500`; } return ( <button key={idx} onClick={() => !answered && handleAnswerSelect(key, idx)} disabled={answered} className={cls}> <span>{opt}</span> {answered && sel && (cor ? <CheckSquare className={`w-4 h-4 text-green-600 dark:text-green-400`} /> : <X className={`w-4 h-4 text-red-600 dark:text-red-400`} />)} {answered && !sel && cor && <CheckSquare className={`w-4 h-4 text-green-500 dark:text-green-400 opacity-70`} />} </button> ); })} </div>
-                                                    {answered && q.explanation && (<div className={`mt-3 p-2.5 rounded-md text-xs ${isCorrect ? 'bg-green-100 dark:bg-green-700/30 text-green-700 dark:text-green-300' : 'bg-red-100 dark:bg-red-700/30 text-red-700 dark:text-red-300'}`}><strong className="font-medium">Explanation: </strong>{q.explanation}</div>)}
-                                                </div> ); })} </div>
+{/* Replace the original study questions section with this redesigned one */}
+<div className="space-y-5">
+    {selectedNote.questions.map((q, index) => {
+        const key = `${selectedNote?.id}-${index}`;
+        const answer = questionAnswers[key];
+        const answered = answer != null;
+        const isCorrect = answered && answer === q.correctAnswer;
+        return (
+            <div key={key} className={`p-4 md:p-5 rounded-xl transition-colors duration-300 ${answered ? (isCorrect ? 'bg-green-500/10' : 'bg-red-500/10') : 'bg-gray-50 dark:bg-[#1A1D29]'}`}>
+                <p className={`text-gray-800 dark:text-gray-200 font-medium mb-4 leading-relaxed`}>
+                    <span className="text-indigo-500 dark:text-indigo-400 font-bold mr-2">{index + 1}.</span>
+                    {q.question}
+                </p>
+                <div className="space-y-3">
+                    {q.options.map((opt, idx) => {
+                        const sel = answer === idx;
+                        const cor = idx === q.correctAnswer;
+
+                        let stateClasses = '';
+                        if (answered) {
+                            if (sel) { // The one the user selected
+                                stateClasses = cor
+                                    ? `bg-green-100 dark:bg-green-500/20 text-green-800 dark:text-white font-semibold border-green-300 dark:border-green-500/50 cursor-default`
+                                    : `bg-red-100 dark:bg-red-500/20 text-red-800 dark:text-white font-semibold border-red-300 dark:border-red-500/50 cursor-default`;
+                            } else if (cor) { // The correct answer, if user selected wrong
+                                stateClasses = `bg-green-100 dark:bg-green-500/20 text-green-800 dark:text-white border-green-300 dark:border-green-500/50 cursor-default`;
+                            } else { // Other incorrect answers
+                                stateClasses = `bg-gray-100 dark:bg-gray-700/40 text-gray-500 dark:text-gray-400 border-transparent cursor-default opacity-70`;
+                            }
+                        } else { // Not answered yet
+                            stateClasses = `bg-white dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 focus:ring-2 focus:ring-indigo-400 focus:outline-none text-gray-700 dark:text-gray-300`;
+                        }
+
+                        return (
+                            <button
+                                key={idx}
+                                onClick={() => !answered && handleAnswerSelect(key, idx)}
+                                disabled={answered}
+                                className={`w-full text-left p-3 rounded-lg transition-all duration-200 text-sm flex items-center justify-between group border ${stateClasses}`}
+                            >
+                                <span>{opt}</span>
+                                <div className={`flex-shrink-0 ml-4 w-6 h-6 flex items-center justify-center rounded-full transition-colors
+                                    ${answered && (sel || cor) ? (cor ? 'bg-green-500/20 border-green-500/30' : 'bg-red-500/20 border-red-500/30') : 'bg-gray-200/50 dark:bg-gray-700/50 border-gray-300 dark:border-gray-600'}
+                                `}>
+                                    {answered && sel && (cor ? <Check className="w-4 h-4 text-green-600" /> : <X className="w-4 h-4 text-red-600" />)}
+                                    {answered && !sel && cor && <Check className="w-4 h-4 text-green-600" />}
+                                </div>
+                            </button>
+                        );
+                    })}
+                </div>
+                {answered && q.explanation && (
+                    <div className={`mt-4 p-3 rounded-lg text-sm leading-relaxed ${isCorrect ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'}`}>
+                        <strong className="font-semibold">Explanation: </strong>{q.explanation}
+                    </div>
+                )}
+            </div>
+        );
+    })}
+</div>
                                             </div>
                                             )}
                                         </div>
                                     </div>
                                 )
-                            ) : ( <div className={`flex flex-col items-center justify-center rounded-lg bg-white dark:bg-[#161922] border border-gray-200 dark:border-gray-700/50 h-full text-center p-6`}> <FileText className={`w-12 h-12 text-gray-400 dark:text-gray-500 mb-4`} /> <h2 className={`text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2`}>No Note Selected</h2> <p className={`text-gray-600 dark:text-gray-400 text-sm mb-4 max-w-xs`}>Select a note from the list, or create a new one.</p> <button onClick={() => setShowNewNoteModal(true)} className={`bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 mb-2`}> <Plus className="w-4 h-4" /> Create Note </button> {!isMobile && notes.length >= 2 && !showSplitView && ( <button onClick={startSplitView} className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5`}> <SplitSquareVertical className="w-4 h-4" /> Compare Notes </button> )} </div>
+                            ) : ( <div className={`flex flex-col items-center justify-center bg-white dark:bg-[#0C0E1A] h-full text-center p-6`}> <FileQuestion className={`w-12 h-12 text-gray-400 dark:text-gray-500 mb-4`} /> <h2 className={`text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2`}>No Note Selected</h2> <p className={`text-gray-600 dark:text-gray-400 text-sm mb-4 max-w-xs whitespace-nowrap`}>Select a note from the list, or create a new one.</p> <button onClick={() => setShowNewNoteModal(true)} className={`bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 mb-2`}> <Plus className="w-4 h-4" /> Create Note </button> {!isMobile && notes.length >= 2 && !showSplitView && ( <button onClick={startSplitView} className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5`}> <SplitSquareVertical className="w-4 h-4" /> Compare Notes </button> )} </div>
                             )}
                          </div>
                      )}
@@ -2788,9 +2612,6 @@ useEffect(() => {
                          <div className={`p-3 border-b border-gray-200 dark:border-gray-700/50 flex items-center justify-between flex-shrink-0`}> <h2 className={`text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2`}>
     <FileText className={`w-5 h-5 text-indigo-500 dark:text-indigo-400`} />
     <span>Notes</span>
-    <span className="text-[9px] font-bold uppercase tracking-wider bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-2 py-0 rounded-full">
-        BETA
-    </span>
 </h2> <div className="flex items-center gap-1"> <button onClick={handleToggleNotesList} className={`bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 p-1.5 rounded-full`} title="Hide List"> <PanelLeftClose className="w-4 h-4 transform scale-x-[-1]" /> </button> {notes.length >= 2 && !showPdfViewer && ( <button onClick={showSplitView ? closeSplitView : startSplitView} className={`bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 p-1.5 rounded-full`} title={showSplitView ? "Close Comparison" : "Compare Notes"}> <SplitSquareVertical className={`w-4 h-4 ${showSplitView ? 'text-indigo-500 dark:text-indigo-400': ''}`} /> </button> )} <button onClick={() => setShowNewNoteModal(true)} className={`bg-indigo-500 hover:bg-indigo-600 text-white p-2 rounded-full hover:shadow-md transition-all duration-150`} title="New Note"> <Plus className="w-4 h-4" /> </button> </div> </div>
                                                   {userTier !== 'premium' && userProfile && pointsNeededForPremium > 0 && (
                             <div className="px-3 pt-2 pb-2 border-b border-gray-200 dark:border-gray-700/50">
@@ -2831,7 +2652,7 @@ useEffect(() => {
 
                   {isMobile && (
                     <div className={` fixed inset-0 z-40 bg-black/50 transition-opacity duration-300 ease-in-out ${showNotesListOnMobile ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'} `} onClick={() => setShowNotesListOnMobile(false)}>
-                        <div className={` absolute top-0 right-0 h-full w-4/5 max-w-sm bg-white dark:bg-[#161922] border-l border-gray-200 dark:border-gray-700/50 shadow-xl flex flex-col transform transition-transform duration-300 ease-in-out ${showNotesListOnMobile ? 'translate-x-0' : 'translate-x-full'} `} onClick={(e) => e.stopPropagation()}>
+                        <div className={` absolute top-0 right-0 h-full w-4/5 max-w-sm bg-white dark:bg-[#0C0E1A] border-l border-gray-200 dark:border-gray-700/50 shadow-xl flex flex-col transform transition-transform duration-300 ease-in-out ${showNotesListOnMobile ? 'translate-x-0' : 'translate-x-full'} `} onClick={(e) => e.stopPropagation()}>
                             <div className={`p-3 border-b border-gray-200 dark:border-gray-700/50 flex items-center justify-between flex-shrink-0`}>
                                 <h2 className={`text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2`}> <FileText className={`w-5 h-5 text-indigo-500 dark:text-indigo-400`} /> Notes </h2>
                                 <div className="flex items-center gap-1">
@@ -2889,7 +2710,7 @@ useEffect(() => {
 
             {showNewNoteModal && (
                 <NewNoteModal
-                    onClose={() => { setShowNewNoteModal(false); setUploadProgress({ progress: 0, status: '', error: null }); }}
+                    onClose={() => setShowNewNoteModal(false)}
                     onCreatePersonalNote={handleCreatePersonalNote}
                     onCreateAINote={handleCreateAINote}
                     onUploadPDF={handlePDFUpload}
@@ -2958,7 +2779,7 @@ useEffect(() => {
                         <button
                             onClick={handleStartAIPodcast}
                             disabled={isPodcastProcessing || !podcastPlaybackSettings.speaker1Id || (podcastPlaybackSettings.speaker1Id === podcastPlaybackSettings.speaker2Id && !!podcastPlaybackSettings.speaker2Id) }
-                            className={`w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 ${(!podcastPlaybackSettings.speaker1Id || isPodcastProcessing || (podcastPlaybackSettings.speaker1Id === podcastPlaybackSettings.speaker2Id && !!podcastPlaybackSettings.speaker2Id) ) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            className={`w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2.5 px-4 rounded-full transition-colors flex items-center justify-center gap-2 ${(!podcastPlaybackSettings.speaker1Id || isPodcastProcessing || (podcastPlaybackSettings.speaker1Id === podcastPlaybackSettings.speaker2Id && !!podcastPlaybackSettings.speaker2Id) ) ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                             {isPodcastProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
                             {isPodcastProcessing ? 'Generating...' : 'Generate Podcast'}
