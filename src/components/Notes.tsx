@@ -294,7 +294,7 @@ const UpgradeModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
                     onClick={onClose}
                     className={`w-full flex items-center justify-center px-4 py-2.5 rounded-full text-sm font-medium bg-purple-500 hover:bg-purple-600 text-white shadow-md hover:shadow-lg transition-shadow`}
                 >
-                    {/* --- FIX IS HERE: Added Crown icon --- */}
+                    {/* --- FIX IS HER: Added Crown icon --- */}
                     <Crown className="w-4 h-4 mr-2" />
                     Upgrade to Premium
                 </Link>
