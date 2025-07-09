@@ -1606,10 +1606,13 @@ ${contentHtml.replace(/<[^>]+>/g, '\n')}
             throw new Error(textProcessingResult.error || 'No valid segments were processed from the script.');
         }
 
-        await triggerPodcastGenerationFn({
-            noteId: selectedNote.id,
-            segments: textProcessingResult.processedSegments,
-        });
+await triggerPodcastGenerationFn(
+    {
+        noteId: selectedNote.id,
+        segments: textProcessingResult.processedSegments,
+    },
+    { timeout: 300000 } // Add this options object
+);
 
     } catch (error: any) {
         console.error("Error triggering podcast generation:", error);
