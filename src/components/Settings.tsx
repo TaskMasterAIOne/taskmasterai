@@ -772,6 +772,9 @@ export function Settings() {
                  <div className="bg-white dark:bg-[#161922] shadow-lg border border-gray-200 dark:border-gray-700/50 rounded-xl p-4 sm:p-5">
                     <h2 className="text-base sm:text-lg font-semibold mb-4 text-gray-800 dark:text-gray-100">Account Actions</h2>
                     <div className="space-y-3">
+                        <Link to="/contact" className="w-full flex items-center justify-center gap-2.5 px-3 py-2.5 text-sm font-medium rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200">
+                            <Info className="w-4 h-4" /> Help
+                        </Link>
                         <button onClick={handleSignOut} className="w-full flex items-center justify-center gap-2.5 px-3 py-2.5 text-sm font-medium rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200"><LogOut className="w-4 h-4" /> Sign Out</button>
                         <button onClick={() => { setShowDeleteConfirm(true); setFormData(prev => ({ ...prev, currentPassword: '' })); setError(null); }} className="w-full flex items-center justify-center gap-2.5 px-3 py-2.5 text-sm font-medium rounded-lg bg-red-100 hover:bg-red-200 dark:bg-red-900/50 dark:hover:bg-red-800/60 text-red-700 dark:text-red-400"><Trash2 className="w-4 h-4" /> Delete Account</button>
                     </div>
