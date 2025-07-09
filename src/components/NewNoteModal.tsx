@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  FileText,
   Upload,
   Youtube,
   Plus,
@@ -8,44 +7,38 @@ import {
   AlertTriangle,
   Tag,
   Sparkles,
-  Loader2,
   Briefcase,
-  Clock
+  Text,
+  Loader2
 } from 'lucide-react';
 import {
     UserTier,
     NOTE_LIMITS
 } from '../lib/current-paying-user';
 
-const SIMULATION_INTERVAL = 150;
-const LONG_OPERATION_THRESHOLD = 30000;
-
-const STATUS_UPDATE_TIMES = {
-  pdf: [5000],
-  youtube: [6000],
-  ai: [4000],
-  personal: [],
-};
-
-const ESTIMATED_DURATIONS = {
-    pdf: 25000,
-    youtube: 30000,
-    ai: 12000,
-    personal: 1000,
-    select: 0,
-};
-
 interface NewNoteModalProps {
   onClose: () => void;
   onCreatePersonalNote: (title: string, content: string, tags: string[]) => Promise<void>;
-  onCreateAINote: (text: string) => Promise<void>;
-  onUploadPDF: (file: File) => Promise<void>;
-  onYoutubeLink: (url: string) => Promise<void>;
+  onCreateAINote: (text: string, onProgress: (progress: number) => void) => Promise<void>;
+  onUploadPDF: (file: File, onProgress: (progress: number) => void) => Promise<void>;
+  onYoutubeLink: (url: string, onProgress: (progress: number) => void) => Promise<void>;
   isIlluminateEnabled: boolean;
   isBlackoutEnabled: boolean;
   userTier: UserTier;
   noteUsage: { pdfAi: number; youtube: number; };
 }
+
+// Helper function to format the estimated time remaining
+const formatEtr = (ms: number): string => {
+    if (ms < 0) return '';
+    const seconds = Math.round(ms / 1000);
+    if (seconds < 5) return 'a few seconds left';
+    if (seconds < 30) return `less than 30 seconds`;
+    if (seconds < 45) return 'less than a minute';
+    const minutes = Math.ceil(seconds / 60);
+    return `about ${minutes} minute${minutes > 1 ? 's' : ''}`;
+};
+
 
 export function NewNoteModal({
   onClose,
@@ -66,54 +59,39 @@ export function NewNoteModal({
   const [aiText, setAiText] = useState('');
   const [youtubeUrl, setYoutubeUrl] = useState('');
 
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [currentStatusMessage, setCurrentStatusMessage] = useState("");
-  const [showLongOperationWarning, setShowLongOperationWarning] = useState(false);
-  const [currentOperationMode, setCurrentOperationMode] = useState<'select' | 'personal' | 'ai' | 'pdf' | 'youtube' | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
-
-  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const statusTimeoutRefs = useRef<NodeJS.Timeout[]>([]);
-  const longWarningTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  const [startTime, setStartTime] = useState<number | null>(null);
+  const [etr, setEtr] = useState<string>('Estimating...');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const clearAllTimers = () => {
-    if (progressIntervalRef.current) {
-      clearInterval(progressIntervalRef.current);
-      progressIntervalRef.current = null;
+  // Effect to calculate Estimated Time Remaining
+  useEffect(() => {
+    if (!isSubmitting || !startTime || progress < 5) {
+        setEtr('Estimating...');
+        return;
     }
-    if (longWarningTimeoutRef.current) {
-      clearTimeout(longWarningTimeoutRef.current);
-      longWarningTimeoutRef.current = null;
+    if (progress >= 100) {
+        setEtr('Finishing up...');
+        return;
     }
-    statusTimeoutRefs.current.forEach(clearTimeout);
-    statusTimeoutRefs.current = [];
+
+    const elapsedTime = Date.now() - startTime;
+    const timePerPercent = elapsedTime / progress;
+    const totalEstimatedTime = timePerPercent * 100;
+    const remainingTime = totalEstimatedTime - elapsedTime;
+    
+    setEtr(formatEtr(remainingTime));
+
+  }, [progress, isSubmitting, startTime]);
+
+  const handleProgressUpdate = (newProgress: number) => {
+      setProgress(Math.min(100, Math.max(0, newProgress)));
   };
-
-  useEffect(() => {
-    return () => {
-      clearAllTimers();
-    };
-  }, []);
-
-   useEffect(() => {
-    if (!isLoading) {
-      setCurrentOperationMode(null);
-      setProgress(0);
-      setCurrentStatusMessage("");
-      setShowLongOperationWarning(false);
-      setIsDraggingOver(false);
-      clearAllTimers();
-    }
-  }, [isLoading]);
-
-  useEffect(() => {
-    setError(null);
-    setIsDraggingOver(false);
-  }, [mode]);
 
   const checkNoteLimit = (noteType: 'pdfAi' | 'youtube'): boolean => {
     if (userTier === 'loading') {
@@ -148,88 +126,40 @@ export function NewNoteModal({
     setTags(tags.filter(tag => tag !== tagToRemove));
   };
 
-  const handleClose = () => {
-      if (!isLoading) {
-          setError(null);
-          onClose();
-      }
-  }
-
   const handleSetMode = (newMode: 'select' | 'personal' | 'ai' | 'pdf' | 'youtube') => {
-    if (!isLoading) {
+    if (!isSubmitting) {
         setError(null);
+        setProgress(0);
         setMode(newMode);
     }
   }
-
-  const getStatusMessages = (actionType: typeof mode): string[] => {
-      switch (actionType) {
-          case 'pdf': return ["Uploading PDF...", "Creating notes...", "Notes created from PDF!"];
-          case 'youtube': return ["Fetching video info...", "Creating notes...", "Notes created from YouTube!"];
-          case 'ai': return ["Processing text...", "Creating notes...", "AI notes generated!"];
-          case 'personal': return ["Saving note...", "Note saved!"];
-          default: return ["Processing...", "Completed!"];
-      }
+  
+  const executeAction = async (action: () => Promise<void>) => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    setStartTime(Date.now());
+    setProgress(0);
+    setError(null);
+    try {
+        await action();
+        onClose();
+    } catch(e: any) {
+        setError(e.message || "An unexpected error occurred. Please try again.");
+        setIsSubmitting(false);
+        setProgress(0);
+        setStartTime(null);
+    }
   }
 
-  const executeAction = async (action: () => Promise<void>, actionType: Exclude<typeof mode, 'select'>) => {
-    if (isLoading) return;
-
-    setCurrentOperationMode(actionType);
-    setIsLoading(true);
-    setError(null);
-    setProgress(0);
-    setShowLongOperationWarning(false);
-    setIsDraggingOver(false);
-    clearAllTimers();
-
-    const statusMessages = getStatusMessages(actionType);
-    setCurrentStatusMessage(statusMessages[0] || "Processing...");
-
-    const estimatedDuration = ESTIMATED_DURATIONS[actionType];
-    const progressIncrement = (100 / (estimatedDuration / SIMULATION_INTERVAL));
-
-    progressIntervalRef.current = setInterval(() => {
-        setProgress(prev => Math.min(prev + progressIncrement, 99));
-    }, SIMULATION_INTERVAL);
-
-    const updateTimes = STATUS_UPDATE_TIMES[actionType] || [];
-    if (updateTimes.length > 0 && statusMessages.length > 2) {
-       const timeoutId = setTimeout(() => {
-         setCurrentStatusMessage(statusMessages[1]);
-       }, updateTimes[0]);
-       statusTimeoutRefs.current.push(timeoutId);
-    }
-
-    longWarningTimeoutRef.current = setTimeout(() => {
-        setShowLongOperationWarning(true);
-    }, LONG_OPERATION_THRESHOLD);
-
-    try {
-      await action();
-      clearAllTimers();
-      setProgress(100);
-      setCurrentStatusMessage(statusMessages[statusMessages.length - 1] || "Completed!");
-      setIsLoading(false);
-
-    } catch (e: any) {
-      clearAllTimers();
-      setError(e.message || "An unexpected error occurred. Please try again.");
-      setProgress(0);
-      setIsLoading(false);
-    }
-  };
-
-
   const handleCreatePersonalNoteSubmit = () => {
-    if (!title.trim() || !content.trim() || isLoading) return;
-    executeAction(() => onCreatePersonalNote(title.trim(), content.trim(), tags), 'personal');
+    if (!title.trim() || !content.trim()) return;
+    executeAction(() => onCreatePersonalNote(title.trim(), content.trim(), tags));
   };
 
   const handleCreateAINoteSubmit = () => {
-    if (!aiText.trim() || isLoading) return;
+    if (!aiText.trim()) return;
     if (!checkNoteLimit('pdfAi')) return;
-    executeAction(() => onCreateAINote(aiText.trim()), 'ai');
+    executeAction(() => onCreateAINote(aiText.trim(), handleProgressUpdate));
   };
 
   const processPDFFile = (file: File) => {
@@ -243,109 +173,80 @@ export function NewNoteModal({
         if (fileInputRef.current) fileInputRef.current.value = "";
         return;
     }
-    executeAction(() => onUploadPDF(file), 'pdf');
+    executeAction(() => onUploadPDF(file, handleProgressUpdate));
      if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (isLoading) return;
     const file = event.target.files?.[0];
-    processPDFFile(file as File);
+    if(file) processPDFFile(file);
   };
 
   const handleYoutubeLinkSubmit = () => {
-    if (!youtubeUrl.trim() || isLoading) return;
+    if (!youtubeUrl.trim()) return;
     const urlPattern = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$/;
     if (!urlPattern.test(youtubeUrl.trim())) {
       setError("Please enter a valid YouTube URL.");
       return;
     }
     if (!checkNoteLimit('youtube')) return;
-    executeAction(() => onYoutubeLink(youtubeUrl.trim()), 'youtube');
+    executeAction(() => onYoutubeLink(youtubeUrl.trim(), handleProgressUpdate));
   };
 
   const handleDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    if (!isLoading) {
-      setIsDraggingOver(true);
-    }
+    setIsDraggingOver(true);
   };
 
   const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    if (!isLoading) {
-      setIsDraggingOver(true);
-    }
   };
 
   const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    const dropZone = event.currentTarget;
-    if (!dropZone.contains(event.relatedTarget as Node)) {
-        setIsDraggingOver(false);
-    }
+    setIsDraggingOver(false);
   };
 
   const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.stopPropagation();
     setIsDraggingOver(false);
-
-    if (isLoading) return;
-
     const files = event.dataTransfer.files;
     if (files && files.length > 0) {
-      const file = files[0];
-      processPDFFile(file);
+      processPDFFile(files[0]);
     }
   };
 
-  const getLoadingState = () => {
-    if (!isLoading || !currentOperationMode) return null;
-
-    let IconComponent: React.ElementType | null = null;
-     switch (currentOperationMode) {
-       case 'personal': IconComponent = Briefcase; break;
-       case 'ai': IconComponent = Sparkles; break;
-       case 'pdf': IconComponent = FileText; break;
-       case 'youtube': IconComponent = Youtube; break;
-     }
-
-    return (
-      <div className="flex flex-col items-center justify-center text-center p-4 space-y-3 animate-fadeIn min-h-[200px]">
-         <div className="flex items-center justify-center gap-3 mb-2">
-            {IconComponent && <IconComponent className={`w-7 h-7 text-gray-500 dark:text-gray-400 animate-pulse`} />}
-            <Loader2 className={`w-6 h-6 text-gray-500 dark:text-gray-400 animate-spin`} />
-         </div>
-         <p className={`text-sm font-medium text-gray-700 dark:text-gray-300`}>{currentStatusMessage}</p>
-         <div className={`w-full h-2 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700`}>
-            <div
-              className={`h-full bg-indigo-500 transition-all duration-150 ease-linear`}
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <p className={`text-xs text-gray-500 dark:text-gray-400 opacity-80`}>{Math.round(progress)}%</p>
-         <p className={`text-xs text-gray-500 dark:text-gray-400 opacity-70 mt-1`}>Please wait...</p>
-         {showLongOperationWarning && (
-            <div className={`flex items-center gap-1.5 text-xs text-yellow-700 dark:text-yellow-300 opacity-90 mt-2 p-1.5 rounded-md bg-yellow-100/60 dark:bg-yellow-700/20`}>
-                <Clock className="w-3 h-3 text-yellow-500 dark:text-yellow-400" />
-                <span>This may take a while...</span>
+const renderContent = () => {
+    if (isSubmitting) {
+        return (
+            // The outer centering container
+            <div className="flex items-center justify-center h-full">
+                {/* 
+                  This wrapper now has no max-width, so it will expand
+                  to the full width of its parent container.
+                */}
+                <div className="w-full text-center">  {/* <-- REMOVED max-w-sm HERE */}
+                    <div className="flex items-center justify-center gap-3 mb-4 text-gray-700 dark:text-gray-300">
+                        <Loader2 className="w-6 h-6 animate-spin" />
+                        <p className="text-lg font-medium">Creating notes...</p>
+                    </div>
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                        <div
+                            className="bg-indigo-600 h-2.5 rounded-full transition-all duration-300 ease-linear"
+                            style={{ width: `${progress}%` }}
+                        ></div>
+                    </div>
+                    <div className="w-full flex justify-between mt-2 text-sm">
+                        <span className="font-semibold text-gray-800 dark:text-gray-200">{Math.round(progress)}%</span>
+                        <span className="text-gray-500 dark:text-gray-400">{etr}</span>
+                    </div>
+                </div>
             </div>
-         )}
-      </div>
-    );
-  };
-
-  const renderContent = () => {
-    if (isLoading) {
-      return (
-        <div className="flex items-center justify-center min-h-[250px]">
-             {getLoadingState()}
-        </div>
-       );
+        );
     }
 
     switch (mode) {
@@ -354,7 +255,7 @@ export function NewNoteModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-fadeIn">
             {[
               { mode: 'personal', Icon: Briefcase, title: 'Personal Note', desc: 'Create manually', color: 'text-green-500 dark:text-green-400' },
-              { mode: 'ai', Icon: Sparkles, title: 'AI Note', desc: 'Generate from text', color: 'text-purple-500 dark:text-purple-400' },
+              { mode: 'ai', Icon: Text, title: 'Text to Note', desc: 'Generate from text', color: 'text-purple-500 dark:text-purple-400' },
               { mode: 'pdf', Icon: Upload, title: 'PDF to Note', desc: 'Upload a PDF', color: 'text-red-500 dark:text-red-400' },
               { mode: 'youtube', Icon: Youtube, title: 'YouTube to Note', desc: 'Use a video link', color: 'text-pink-500 dark:text-pink-400' },
             ].map(({ mode: btnMode, Icon, title, desc, color }) => (
@@ -378,7 +279,7 @@ export function NewNoteModal({
               <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Note title..." className={`w-full bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500`} />
             </div>
             <div>
-              <label className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1`}>Content (Markdown)</label>
+              <label className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1`}>Content</label>
               <textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="Note content..." rows={8} className={`w-full bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 min-h-[150px]`} />
             </div>
             <div>
@@ -414,36 +315,32 @@ export function NewNoteModal({
         return (
            <div className="space-y-3 animate-fadeIn">
             <label className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1`}>Text to Process</label>
-            <textarea value={aiText} onChange={(e) => setAiText(e.target.value)} placeholder="Paste or type text here..." rows={8} className={`w-full bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 min-h-[150px]`} />
+            <textarea value={aiText} onChange={(e) => setAiText(e.target.value)} placeholder="Paste or type any text here to turn it into a structured note with key points, flashcards, and a quiz..." rows={8} className={`w-full bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 min-h-[150px]`} />
           </div>
         );
       case 'pdf':
         return (
           <div className="animate-fadeIn">
             <div
-              onClick={() => !isLoading && fileInputRef.current?.click()}
+              onClick={() => fileInputRef.current?.click()}
               onDragEnter={handleDragEnter}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
-              className={`border-2 border-dashed rounded-lg p-6 text-center transition-all duration-150 ease-in-out
-                ${isLoading
-                  ? 'opacity-50 cursor-not-allowed bg-opacity-50 border-gray-300 dark:border-gray-700'
-                  : `cursor-pointer
-                     ${isDraggingOver
-                       ? `border-indigo-500 bg-indigo-50 dark:bg-indigo-700/20`
-                       : `border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50`
-                     }`
+              className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors
+                ${isDraggingOver
+                  ? `border-indigo-500 bg-indigo-50 dark:bg-indigo-700/20`
+                  : `border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50`
                 }
               `}
             >
-              <Upload className={`w-10 h-10 text-gray-500 dark:text-gray-400 mx-auto mb-3 ${isDraggingOver && !isLoading ? 'text-indigo-500 dark:text-indigo-400' : ''}`} />
+              <Upload className={`w-10 h-10 text-gray-500 dark:text-gray-400 mx-auto mb-3 ${isDraggingOver ? 'text-indigo-500 dark:text-indigo-400' : ''}`} />
               <p className={`text-sm font-medium text-gray-700 dark:text-gray-200 mb-1`}>
-                {isDraggingOver && !isLoading ? 'Drop PDF here' : 'Click or drag PDF file here'}
+                {isDraggingOver ? 'Drop PDF here' : 'Click or drag PDF file here'}
               </p>
               <p className={`text-xs text-gray-500 dark:text-gray-400`}>No file size limit</p>
             </div>
-            <input ref={fileInputRef} type="file" accept=".pdf" onChange={handleFileSelect} disabled={isLoading} className="hidden" />
+            <input ref={fileInputRef} type="file" accept=".pdf" onChange={handleFileSelect} className="hidden" />
           </div>
         );
       case 'youtube':
@@ -462,16 +359,18 @@ export function NewNoteModal({
   };
 
    const renderFooterButtons = () => {
-     if (isLoading || mode === 'select') return null;
+     if (mode === 'select' || isSubmitting) return null;
 
      const goBackAction = () => handleSetMode('select');
+     
+     const submitButtonClasses = "bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed";
 
      switch (mode) {
        case 'personal':
          return (
            <>
              <button onClick={goBackAction} className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-md text-sm`}>Back</button>
-             <button onClick={handleCreatePersonalNoteSubmit} disabled={!title.trim() || !content.trim()} className={`bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 ${!title.trim() || !content.trim() ? 'opacity-50 cursor-not-allowed' : ''}`} >
+             <button onClick={handleCreatePersonalNoteSubmit} disabled={!title.trim() || !content.trim()} className={submitButtonClasses} >
                <Plus className="w-4 h-4" /> Create Note
              </button>
            </>
@@ -480,7 +379,7 @@ export function NewNoteModal({
          return (
            <>
              <button onClick={goBackAction} className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-md text-sm`}>Back</button>
-             <button onClick={handleCreateAINoteSubmit} disabled={!aiText.trim()} className={`bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 ${!aiText.trim() ? 'opacity-50 cursor-not-allowed' : ''}`} >
+             <button onClick={handleCreateAINoteSubmit} disabled={!aiText.trim()} className={submitButtonClasses} >
                <Sparkles className="w-4 h-4" /> Generate Note
              </button>
            </>
@@ -491,7 +390,7 @@ export function NewNoteModal({
          return (
            <>
              <button onClick={goBackAction} className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-md text-sm`}>Back</button>
-             <button onClick={handleYoutubeLinkSubmit} disabled={!youtubeUrl.trim()} className={`bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 ${!youtubeUrl.trim() ? 'opacity-50 cursor-not-allowed' : ''}`} >
+             <button onClick={handleYoutubeLinkSubmit} disabled={!youtubeUrl.trim()} className={submitButtonClasses} >
                <Youtube className="w-4 h-4" /> Generate Note
              </button>
            </>
@@ -501,6 +400,7 @@ export function NewNoteModal({
      }
    };
 
+// In NewNoteModal.tsx -> REPLACE the entire return statement
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
@@ -508,29 +408,34 @@ export function NewNoteModal({
 
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700/50 flex-shrink-0">
            <h2 className={`text-lg font-semibold text-gray-800 dark:text-gray-100`}>
-             {isLoading ? (currentOperationMode === 'personal' ? 'Saving Note...' :
-                           currentOperationMode === 'ai' ? 'Generating AI Note...' :
-                           currentOperationMode === 'pdf' ? 'Processing PDF...' :
-                           currentOperationMode === 'youtube' ? 'Processing YouTube...' :
-                           'Processing...') :
+             {isSubmitting ? 'Processing...' :
               mode === 'select' ? 'Create New Note' :
               mode === 'personal' ? 'New Personal Note' :
-              mode === 'ai' ? 'New AI Note' :
+              mode === 'ai' ? 'Text to Note' :
               mode === 'pdf' ? 'PDF to Note' :
               mode === 'youtube' ? 'YouTube to Note' : 'Create New Note'
              }
            </h2>
-          <button onClick={handleClose} disabled={isLoading} className={`text-gray-500 dark:text-gray-400 ${isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-700'} transition-opacity rounded-full p-1`}>
+          <button onClick={onClose} disabled={isSubmitting} className={`text-gray-500 dark:text-gray-400 disabled:opacity-50 transition-opacity rounded-full p-1`}>
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent min-h-[250px]">
+        {/* --- CORRECTED CONTENT WRAPPER --- */}
+        <div 
+          className={isSubmitting 
+            // When submitting, use flexbox to push content to the bottom, then add padding to lift it up.
+            ? "flex-1 p-4 flex flex-col  justify-end pb-20 min-h-[250px]"
+            // Otherwise, use the standard scrolling behavior.
+            : "flex-1 overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent min-h-[250px]"
+          }
+        >
           {renderContent()}
         </div>
+        {/* --- END OF CORRECTION --- */}
 
         <div className="p-4 border-t border-gray-200 dark:border-gray-700/50 flex-shrink-0 min-h-[68px] flex items-center justify-end gap-2">
-          {!isLoading && error && (
+          {error && !isSubmitting && (
             <div className={`p-2 rounded-md flex items-center gap-2 text-xs bg-red-100 dark:bg-red-700/30 text-red-700 dark:text-red-200 border border-red-200 dark:border-red-600 w-full animate-fadeIn`}>
               <AlertTriangle className="w-4 h-4 flex-shrink-0" />
               <span className="flex-1">{error}</span>
@@ -539,14 +444,10 @@ export function NewNoteModal({
                 </button>
             </div>
           )}
-
-          {!isLoading && !error && (
-             <div className="flex justify-end gap-2 w-full">
-                 {renderFooterButtons()}
-             </div>
-          )}
-
-           {isLoading && <div className="h-[16px] w-full"></div> }
+          
+          <div className="flex justify-end gap-2 w-full">
+              {renderFooterButtons()}
+          </div>
         </div>
       </div>
     </div>
