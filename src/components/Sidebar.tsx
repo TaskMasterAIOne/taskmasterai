@@ -122,7 +122,7 @@ export function Sidebar({
 
   const sidebarContainerBg = "bg-white dark:bg-[#12141D]";
   const sidebarTextColor = "text-gray-500 dark:text-gray-400";
-  const sidebarBorderColor = "border-gray-200 dark:border-gray-700/50";
+const sidebarBorderColor = "border-transparent dark:border-transparent";
   const menuItemHoverBg = "hover:bg-gray-100 dark:hover:bg-[#1A1D29]";
   const menuItemHoverText = "hover:text-gray-800 dark:hover:text-gray-100";
   const activeMenuItemBg = "bg-indigo-50 dark:bg-[#635BFF]/20";
@@ -240,7 +240,7 @@ export function Sidebar({
           </ul>
         </nav>
 
-        <div className="mt-auto flex flex-col gap-3 pt-4 border-t border-gray-200 dark:border-gray-700/40">
+        <div className="mt-auto flex flex-col gap-3 pt-4 ">
           {!isSettingsPage && (userTier === 'basic' || userTier === 'pro') && (
             <button onClick={handleUpgradeClick} className={`mx-auto flex items-center justify-center text-white rounded-lg transition-all duration-200 ease-out hover:opacity-90 active:scale-95 transform hover:scale-[1.02] bg-gradient-to-br from-[#635BFF] to-[#8A85FF] shadow-lg shadow-indigo-500/30 dark:shadow-indigo-500/20 ${isCollapsed && !isMobileOpen ? "w-10 h-10 aspect-square" : "w-full px-4 py-2.5"}`} title={isCollapsed && !isMobileOpen ? (userTier === 'basic' ? "Upgrade to Premium" : "Upgrade to Premium") : undefined}>
               <Crown className={`min-w-[1.25rem] ${isCollapsed && !isMobileOpen ? "w-5 h-5" : "w-5 h-5 mr-2"}`} strokeWidth={2} />
