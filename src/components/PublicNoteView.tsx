@@ -1,16 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { db } from '../lib/firebase'; // Adjust path as needed
+import { db } from '../lib/firebase';
 import { doc, getDoc, Timestamp } from 'firebase/firestore';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
-import remarkGfm from 'remark-gfm'; // Needed for tables, etc.
+import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
-import { Loader2, Lock, Share2, Download, Sun, Moon } from 'lucide-react';
-import html2pdf from 'html2pdf.js'; // Import PDF generation library
+import { Loader2, Lock, Share2, Download, Sun, Moon, FileText } from 'lucide-react';
+import html2pdf from 'html2pdf.js';
 
-// Interface matching the Note structure in Notes.tsx
 interface Note {
   id: string;
   title: string;
@@ -18,10 +17,10 @@ interface Note {
   type: 'personal' | 'pdf' | 'youtube' | 'audio';
   createdAt: Timestamp;
   updatedAt: Timestamp;
-  userId: string; // Keep for potential future use, but don't display
+  userId: string;
   sourceUrl?: string;
-  keyPoints?: string[]; // Not displayed on public page currently
-  questions?: any[]; // Not displayed on public page currently
+  keyPoints?: string[];
+  questions?: any[];
   isPublic: boolean;
   tags: string[];
 }
@@ -32,24 +31,31 @@ export function PublicNoteView() {
   const [note, setNote] = useState<Note | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const contentRef = useRef<HTMLDivElement>(null); // Ref for PDF export content
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
 
-  // --- Theme State ---
-  const [isBlackoutEnabled, setIsBlackoutEnabled] = useState(() => JSON.parse(localStorage.getItem('isBlackoutEnabled') || 'false'));
-  const [isIlluminateEnabled, setIsIlluminateEnabled] = useState(() => JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'false'));
-
-  // --- Effects ---
-
-  // Apply theme classes to body and save to localStorage
-  useEffect(() => { localStorage.setItem('isBlackoutEnabled', JSON.stringify(isBlackoutEnabled)); document.body.classList.toggle('blackout-mode', isBlackoutEnabled && !isIlluminateEnabled); }, [isBlackoutEnabled, isIlluminateEnabled]);
-  useEffect(() => { localStorage.setItem('isIlluminateEnabled', JSON.stringify(isIlluminateEnabled)); document.body.classList.toggle('illuminate-mode', isIlluminateEnabled); }, [isIlluminateEnabled]);
-
-  // Fetch Note Data
   useEffect(() => {
-    // Ensure theme classes are applied on initial load based on localStorage
-    document.body.classList.toggle('illuminate-mode', JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'false'));
-    document.body.classList.toggle('blackout-mode', JSON.parse(localStorage.getItem('isBlackoutEnabled') || 'false') && !JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'false'));
+    const applyTheme = () => {
+        const savedTheme = localStorage.getItem('theme');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+            document.documentElement.classList.add('dark');
+            setIsDarkMode(true);
+        } else {
+            document.documentElement.classList.remove('dark');
+            setIsDarkMode(false);
+        }
+    };
+    applyTheme();
 
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = () => applyTheme();
+    mediaQuery.addEventListener('change', handleChange);
+    
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
+
+  useEffect(() => {
     if (!noteId) {
       setError("Invalid note ID.");
       setLoading(false);
@@ -67,203 +73,169 @@ export function PublicNoteView() {
           const fetchedData = { id: docSnap.id, ...docSnap.data() } as Note;
           if (fetchedData.isPublic) {
             setNote(fetchedData);
-             // Set document title after fetching
-             document.title = `${fetchedData.title} | Public Note`;
+            document.title = `${fetchedData.title} | Public Note`;
           } else {
             setError("This note is private and cannot be viewed.");
-             document.title = `Private Note | StudyKit`;
+            document.title = `Private Note`;
           }
         } else {
           setError("Note not found.");
-           document.title = `Note Not Found | StudyKit`;
+          document.title = `Note Not Found`;
         }
       } catch (err) {
         console.error("Error fetching public note:", err);
         setError("Failed to load the note. Please try again later.");
-         document.title = `Error | StudyKit`;
+        document.title = `Error`;
       } finally {
         setLoading(false);
       }
     };
 
     fetchNote();
-
-     // Cleanup function to remove classes when component unmounts
      return () => {
-        document.body.classList.remove('illuminate-mode', 'blackout-mode');
-        document.title = 'StudyKit'; // Reset title or to your app's default
+        document.title = 'TaskMaster AI';
      };
-
   }, [noteId]);
 
-  // --- Handlers ---
-
-  const toggleTheme = (theme: 'illuminate' | 'blackout') => {
-    if (theme === 'illuminate') {
-        setIsIlluminateEnabled(prev => !prev);
-        if (!isIlluminateEnabled) setIsBlackoutEnabled(false); // Turn off blackout if illuminating
-    } else if (theme === 'blackout') {
-        setIsBlackoutEnabled(prev => !prev);
-         if (!isBlackoutEnabled) setIsIlluminateEnabled(false); // Turn off illuminate if blacking out
-    }
+  const toggleDarkMode = () => {
+      setIsDarkMode(prev => {
+          const newIsDark = !prev;
+          if (newIsDark) {
+              document.documentElement.classList.add('dark');
+              localStorage.setItem('theme', 'dark');
+          } else {
+              document.documentElement.classList.remove('dark');
+              localStorage.setItem('theme', 'light');
+          }
+          return newIsDark;
+      });
   };
 
   const handleDownloadPdf = () => {
     if (!note || !contentRef.current) return;
 
-    const element = contentRef.current;
-    const filename = `${note.title.replace(/[^a-z0-9]/gi, '_')}.pdf`;
+    const element = contentRef.current.cloneNode(true) as HTMLElement;
+    const headerElement = element.querySelector('.pdf-export-header');
+    if(headerElement) {
+        headerElement.classList.remove('hidden');
+    }
+
+    const filename = `${note.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`;
 
     const opt = {
-      margin:       [0.5, 0.5, 0.5, 0.5], // inches [top, left, bottom, right]
+      margin:       [0.7, 0.7, 0.7, 0.7],
       filename:     filename,
       image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2, useCORS: true, logging: false }, // Increase scale for better resolution
-      jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait', compress: true },
-      // Add page breaks before H1 and H2 elements for better structure
-      pagebreak:    { mode: ['avoid-all', 'css', 'legacy'], before: ['h1', 'h2'] }
+      html2canvas:  { scale: 2, useCORS: true, logging: false, scrollY: 0 },
+      jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' },
+      pagebreak:    { mode: ['avoid-all', 'css', 'legacy'], before: ['h1', 'h2', 'h3'] }
     };
 
-    // Temporarily add a class for PDF styling if needed
-    element.classList.add('pdf-export-styles');
-
-    html2pdf().from(element).set(opt).save().then(() => {
-        // Remove the temporary class after generation
-        element.classList.remove('pdf-export-styles');
-    }).catch(err => {
-        console.error("Error generating PDF:", err);
-        element.classList.remove('pdf-export-styles');
-        alert("Failed to generate PDF. Please try again.");
-    });
+    html2pdf().from(element).set(opt).save();
   };
 
-
-  // --- Dynamic Theme Styles ---
-  // (Copied and adapted from Notes.tsx for consistency)
-  const containerClass = `min-h-screen ${isIlluminateEnabled ? "bg-gray-100 text-gray-900" : isBlackoutEnabled ? "bg-black text-gray-200" : "bg-gray-900 text-gray-200"}`;
-  const noteViewContainerBg = isIlluminateEnabled ? "bg-white border border-gray-200/70" : isBlackoutEnabled ? "bg-gray-900 border border-gray-700/50" : "bg-gray-800 border border-gray-700/50";
-  const headerBg = isIlluminateEnabled ? "bg-gray-50" : isBlackoutEnabled ? "bg-gray-800/50" : "bg-gray-700/30";
-  const headingClass = isIlluminateEnabled ? "text-gray-800" : "text-gray-100";
-  const subheadingClass = isIlluminateEnabled ? "text-gray-600" : "text-gray-400";
-  const textColor = isIlluminateEnabled ? "text-gray-700" : "text-gray-300";
-  const borderColor = isIlluminateEnabled ? "border-gray-200" : "border-gray-700";
-  const buttonSecondaryClass = isIlluminateEnabled ? "bg-gray-200 hover:bg-gray-300 text-gray-700" : "bg-gray-700 hover:bg-gray-600 text-gray-300";
-  const iconColor = isIlluminateEnabled ? "text-gray-500" : "text-gray-400";
-  const iconHoverColor = isIlluminateEnabled ? "hover:text-gray-700" : "hover:text-gray-100";
-  const tagPublicBg = isIlluminateEnabled ? "bg-cyan-100 text-cyan-700" : "bg-cyan-500/20 text-cyan-300";
-  const tagCustomBg = isIlluminateEnabled ? "bg-blue-100 text-blue-700" : "bg-blue-500/20 text-blue-300";
-  const footerTextColor = isIlluminateEnabled ? "text-gray-500" : "text-gray-500"; // Keep footer subtle
-  const footerLinkColor = isIlluminateEnabled ? "text-blue-600 hover:text-blue-700" : "text-blue-400 hover:text-blue-300";
-
-  // Consistent prose class adapting to theme
-  const proseClass = `prose prose-sm sm:prose-base max-w-none ${isIlluminateEnabled ? 'prose-gray' : 'prose-invert'} ${isIlluminateEnabled ? 'text-gray-800' : 'text-gray-300'} prose-a:text-blue-500 hover:prose-a:text-blue-600 prose-code:before:content-none prose-code:after:content-none prose-code:bg-gray-200/50 dark:prose-code:bg-gray-700/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-pre:bg-gray-100 dark:prose-pre:bg-gray-800 prose-pre:rounded-md prose-pre:p-3 prose-img:rounded-lg prose-img:shadow-sm prose-headings:font-semibold prose-h1:text-xl prose-h1:mb-2 prose-h1:mt-4 prose-h2:text-lg prose-h2:mb-1.5 prose-h2:mt-3 prose-h3:text-base prose-h3:mb-1 prose-h3:mt-2 prose-p:leading-relaxed prose-p:mb-2 prose-ul:list-disc prose-ul:my-1 prose-ul:ml-4 prose-ol:list-decimal prose-ol:my-1 prose-ol:ml-4 prose-li:my-0.5 prose-blockquote:border-l-4 ${isIlluminateEnabled ? 'prose-blockquote:border-gray-300' : 'prose-blockquote:border-gray-600'} prose-blockquote:pl-3 prose-blockquote:italic prose-blockquote:text-sm prose-blockquote:my-2 prose-table:text-sm prose-table:my-2 prose-thead:border-b ${isIlluminateEnabled ? 'prose-thead:border-gray-300' : 'prose-thead:border-gray-600'} prose-th:px-2 prose-th:py-1 prose-th:font-medium ${isIlluminateEnabled ? 'prose-th:bg-gray-100/50' : 'prose-th:bg-gray-700/30'} prose-td:border ${isIlluminateEnabled ? 'prose-td:border-gray-200' : 'prose-td:border-gray-700'} prose-td:px-2 prose-td:py-1`;
-
-  // Add specific styles for PDF export if needed (optional)
-  const pdfExportStyles = `
-    .pdf-export-styles {
-        /* Example: Ensure code blocks wrap in PDF */
-        pre { white-space: pre-wrap !important; word-wrap: break-word !important; }
-        /* Example: Remove box shadow from images */
-        img { box-shadow: none !important; }
-        /* Add any other PDF-specific overrides */
-    }
-  `;
-
   return (
-    <>
-     {/* Inject PDF specific styles into head (optional) */}
-     <style>{pdfExportStyles}</style>
-     <div className={`${containerClass} p-4 md:p-8 font-sans`}>
-      <div className={`max-w-4xl mx-auto ${noteViewContainerBg} rounded-lg overflow-hidden shadow-lg`}>
-        {loading ? (
-          <div className="flex justify-center items-center h-64">
-            <Loader2 className={`w-8 h-8 animate-spin ${isIlluminateEnabled ? 'text-blue-600' : 'text-blue-400'}`} />
-          </div>
-        ) : error ? (
-          <div className="p-6 text-center flex flex-col items-center">
-            <Lock className={`w-12 h-12 mb-4 ${isIlluminateEnabled ? 'text-red-600' : 'text-red-500'}`} />
-            <h2 className={`text-xl font-semibold mb-2 ${headingClass}`}>Access Denied or Not Found</h2>
-            <p className={`${textColor}`}>{error}</p>
-            <button onClick={() => navigate('/')} className={`mt-4 ${buttonSecondaryClass} px-4 py-2 rounded-md text-sm`}>Go Home</button>
-          </div>
-        ) : note ? (
-          <>
-            {/* Header */}
-            <div className={`p-4 md:p-6 border-b ${borderColor} ${headerBg}`}>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <h1 className={`text-xl md:text-2xl font-semibold ${headingClass} break-words mr-auto`}>
-                        {note.title}
-                    </h1>
-                    {/* Actions and Theme Toggles */}
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs ${tagPublicBg}`}>
-                            <Share2 className="w-3.5 h-3.5" /> Public Note
-                        </span>
-                         <button
-                            onClick={handleDownloadPdf}
-                            className={`${buttonSecondaryClass} px-3 py-1 rounded-md text-xs flex items-center gap-1`}
-                            title="Download as PDF"
-                         >
-                             <Download className="w-3.5 h-3.5" /> PDF
-                         </button>
-                         {/* Theme Toggles */}
-                         <div className={`w-px h-4 mx-1 ${isIlluminateEnabled ? 'bg-gray-300' : 'bg-gray-600'}`}></div>
-                         <button onClick={() => toggleTheme('illuminate')} className={`p-1.5 rounded-full ${buttonSecondaryClass} ${iconHoverColor} ${isIlluminateEnabled ? (isIlluminateEnabled ? 'bg-yellow-100 text-yellow-600' : 'bg-yellow-500/20 text-yellow-300') : ''}`} title="Toggle Light Mode">
-                             <Sun className="w-4 h-4" />
-                         </button>
-                         <button onClick={() => toggleTheme('blackout')} className={`p-1.5 rounded-full ${buttonSecondaryClass} ${iconHoverColor} ${isBlackoutEnabled ? (isIlluminateEnabled ? 'bg-gray-600 text-gray-100' : 'bg-gray-500 text-gray-100') : ''}`} title="Toggle Dark Mode">
-                              <Moon className="w-4 h-4" />
-                         </button>
-                    </div>
+    <div className={`min-h-screen font-poppins bg-[#F7F8FA] dark:bg-[#0C0E1A] text-gray-900 dark:text-gray-100 transition-colors duration-300`}>
+        <div className="max-w-4xl mx-auto p-4 sm:p-6 md:p-8">
+            <div className={`bg-white dark:bg-[#161922] rounded-xl overflow-hidden shadow-lg border border-gray-200 dark:border-gray-700/50`}>
+                {loading ? (
+                <div className="flex justify-center items-center h-96">
+                    <Loader2 className={`w-8 h-8 animate-spin text-indigo-500`} />
                 </div>
-              {(note.tags?.length ?? 0) > 0 && (
-                <div className="flex flex-wrap gap-1.5 mt-3">
-                  {note.tags!.map((tag) => (
-                    <span key={tag} className={`px-2 py-0.5 rounded-full text-xs ${tagCustomBg}`}>
-                      #{tag}
-                    </span>
-                  ))}
+                ) : error ? (
+                <div className="p-8 text-center flex flex-col items-center">
+                    <Lock className={`w-12 h-12 mb-4 text-red-500`} />
+                    <h2 className={`text-xl font-semibold mb-2 text-gray-800 dark:text-gray-100`}>Access Denied or Not Found</h2>
+                    <p className={`text-gray-600 dark:text-gray-400`}>{error}</p>
+                    <button onClick={() => navigate('/')} className={`mt-6 bg-indigo-500 hover:bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-medium`}>Go Home</button>
                 </div>
-              )}
-              <p className={`text-xs ${subheadingClass} mt-2`}>
-                Last updated: {note.updatedAt?.toDate().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
-              </p>
+                ) : note ? (
+                <>
+                    <header className="p-4 md:p-6 border-b border-gray-200 dark:border-gray-700/50 print:hidden">
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                            <div className="flex-grow">
+                                <h1 className={`text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100 break-words`}>
+                                    {note.title}
+                                </h1>
+                                <p className={`text-xs text-gray-500 dark:text-gray-400 mt-2`}>
+                                    Last updated: {note.updatedAt?.toDate().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0 self-start sm:self-center">
+                                 <div className="flex items-center gap-1 flex-shrink-0 border rounded-full p-1 border-gray-200 dark:border-gray-700/50 bg-gray-50 dark:bg-[#2A2F45]/50">
+                                    <button onClick={handleDownloadPdf} className={`p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60`} title="Download as PDF">
+                                        <Download className="w-4 h-4" />
+                                    </button>
+                                    <div className={`w-px h-4 bg-gray-300 dark:bg-gray-700/50 mx-0.5`}></div>
+                                    <button onClick={toggleDarkMode} className={`p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60`} title="Toggle Theme">
+                                        {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                                    </button>
+                                 </div>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 mt-4">
+                            <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-cyan-100 text-cyan-700 dark:bg-cyan-700/30 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-600`}>
+                                <Share2 className="w-3.5 h-3.5"/>
+                                Public
+                            </span>
+                            {note.tags?.map((tag) => (
+                                <span key={tag} className={`px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700 dark:bg-indigo-700/30 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-600`}>
+                                #{tag}
+                                </span>
+                            ))}
+                        </div>
+                    </header>
+
+                    <main ref={contentRef} className="p-4 md:p-6 lg:p-8">
+                        <div className="hidden pdf-export-header print:block mb-8">
+                            <h1 className="text-3xl font-bold text-gray-900">{note.title}</h1>
+                             <p className={`text-sm text-gray-600 mt-2`}>
+                                Last updated: {note.updatedAt?.toDate().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+                            </p>
+                            <div className="border-b border-gray-300 mt-4"></div>
+                        </div>
+                        <ReactMarkdown
+                            remarkPlugins={[remarkMath, remarkGfm]}
+                            rehypePlugins={[rehypeKatex]}
+                            components={{
+                                h1: ({node, ...props}) => <h1 className="text-2xl font-semibold mt-6 mb-3 pb-1 border-b border-gray-200 dark:border-gray-700" {...props} />,
+                                h2: ({node, ...props}) => <h2 className="text-xl font-semibold mt-5 mb-2.5" {...props} />,
+                                h3: ({node, ...props}) => <h3 className="text-lg font-semibold mt-4 mb-2" {...props} />,
+                                p: ({node, ...props}) => <p className="text-base leading-relaxed my-3 text-gray-800 dark:text-gray-300" {...props} />,
+                                a: ({node, ...props}) => <a className="text-indigo-500 dark:text-indigo-400 hover:underline" {...props} />,
+                                ul: ({node, ...props}) => <ul className="list-disc list-outside ml-5 space-y-2 my-4" {...props} />,
+                                ol: ({node, ...props}) => <ol className="list-decimal list-outside ml-5 space-y-2 my-4" {...props} />,
+                                li: ({node, ...props}) => <li className="text-base text-gray-800 dark:text-gray-300" {...props} />,
+                                blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-gray-300 dark:border-gray-600 pl-4 italic text-gray-600 dark:text-gray-400 my-4" {...props} />,
+                                table: ({node, ...props}) => <div className="overflow-x-auto my-4 border border-gray-200 dark:border-gray-700 rounded-lg"><table className="w-full" {...props} /></div>,
+                                thead: ({node, ...props}) => <thead className="bg-gray-50 dark:bg-gray-800/60" {...props} />,
+                                th: ({node, ...props}) => <th className="px-4 py-2 text-left font-semibold border-b border-gray-200 dark:border-gray-700" {...props} />,
+                                td: ({node, ...props}) => <td className="px-4 py-2 border-t border-gray-200 dark:border-gray-700" {...props} />,
+                                code: ({node, inline, className, children, ...props}) => {
+                                    const match = /language-(\w+)/.exec(className || '');
+                                    return !inline ? (
+                                    <pre className="bg-gray-100 dark:bg-gray-900/70 p-4 rounded-lg my-4 overflow-x-auto text-sm" {...props}>
+                                        <code>{children}</code>
+                                    </pre>
+                                    ) : (
+                                    <code className="bg-gray-200 dark:bg-gray-700 text-red-500 dark:text-red-400 font-mono text-sm px-1.5 py-1 rounded" {...props}>
+                                        {children}
+                                    </code>
+                                    );
+                                },
+                            }}
+                        >
+                            {note.content || ''}
+                        </ReactMarkdown>
+                    </main>
+                </>
+                ) : null}
             </div>
-            {/* Content - Ref added here */}
-            <div ref={contentRef} className="p-4 md:p-6 lg:p-8">
-               <div className={`${proseClass}`}>
-                   {/* Add note title inside the content for PDF export */}
-                   <h1 className="!text-2xl !mb-4 !mt-0 !border-b-0 pdf-export-title">{note.title}</h1>
-                   <ReactMarkdown
-                        remarkPlugins={[remarkMath, remarkGfm]}
-                        rehypePlugins={[rehypeKatex]}
-                        components={{
-                             // Use consistent prose styling components
-                             h1: ({node, ...props}) => <h1 className="text-xl font-semibold mb-2 mt-4 border-b pb-1" {...props} />,
-                             h2: ({node, ...props}) => <h2 className="text-lg font-semibold mb-1.5 mt-3 border-b pb-0.5" {...props} />,
-                             h3: ({node, ...props}) => <h3 className="text-base font-semibold mb-1 mt-2" {...props} />,
-                             table: ({node, ...props}) => <div className="overflow-x-auto my-2"><table {...props} /></div>,
-                             th: ({node, ...props}) => <th className={`border px-2 py-1 font-medium ${isIlluminateEnabled ? 'border-gray-300 bg-gray-100' : 'border-gray-600 bg-gray-700/50'}`} {...props} />,
-                             td: ({node, ...props}) => <td className={`border px-2 py-1 ${isIlluminateEnabled ? 'border-gray-200' : 'border-gray-700'}`} {...props} />,
-                             p: ({node, ...props}) => <p className="text-sm leading-relaxed mb-2" {...props} />,
-                             ul: ({node, ...props}) => <ul className="list-disc list-outside ml-4 space-y-1 text-sm mb-2" {...props} />,
-                             ol: ({node, ...props}) => <ol className="list-decimal list-outside ml-4 space-y-1 text-sm mb-2" {...props} />,
-                             li: ({node, ...props}) => <li className="mb-0.5" {...props} />,
-                             blockquote: ({node, ...props}) => <blockquote className={`border-l-4 ${borderColor} pl-3 italic text-sm my-2 ${subheadingClass}`} {...props} />,
-                             code: ({node, inline, className, children, ...props}) => { const match = /language-(\w+)/.exec(className || ''); return !inline ? ( <pre className={`text-[11px] leading-snug ${isIlluminateEnabled ? '!bg-gray-100 !text-gray-800 border border-gray-200' : '!bg-gray-900/80 !text-gray-300 border border-gray-700'} p-2 rounded-md overflow-x-auto my-2`} {...props}> <code className={`language-${match?.[1] || 'plaintext'}`}>{children}</code> </pre> ) : ( <code className={`text-xs ${isIlluminateEnabled ? 'bg-gray-200/70 text-gray-800' : 'bg-gray-700/70 text-gray-200'} px-1 rounded`} {...props}>{children}</code> ); },
-                        }}
-                   >
-                        {note.content || ''}
-                   </ReactMarkdown>
-               </div>
-            </div>
-          </>
-        ) : null}
-      </div>
-        <footer className={`text-center text-xs ${footerTextColor} mt-6 pb-6`}>
-            Note shared via TaskMaster AI | <a href="/notes" className={`hover:underline ${footerLinkColor}`}>Create your own</a>
-        </footer>
-     </div>
-    </>
+             <footer className="text-center text-xs text-gray-500 dark:text-gray-500 mt-8 pb-4 print:hidden">
+                Shared via <a href="/" className="font-semibold text-indigo-500 dark:text-indigo-400 hover:underline">TaskMaster AI</a>
+            </footer>
+        </div>
+    </div>
   );
 }
