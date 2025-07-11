@@ -8,7 +8,7 @@ import {
     Share2, ClipboardCopy, Eye, ZoomIn, ZoomOut, RotateCcw, Crown, Info,
     PanelRightClose, PanelLeftClose, GripVertical, PlusCircle,
     Image as ImageIconLucide, Layers, Download, Camera, Trash, CheckSquare,
-    Award, TrendingUp, Flame, User as UserIconLucide, PanelLeftOpen,
+    Award, TrendingUp, Flame, User as UserIconLucide, PanelRightOpen,
     Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Speaker, ChevronDown, ChevronUp, RotateCw as FlipIcon, Gift
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -235,21 +235,21 @@ const PREDEFINED_PODCAST_SPEAKERS: PodcastSpeakerProfile[] = [
     },
 ];
 
-interface GeneratePodcastRequest {
+interface TriggerPodcastRequest {
+  noteId: string;
   segments: ProcessedPodcastSegment[];
 }
-interface GeneratePodcastResponse {
-  audioSegmentUrls?: PodcastSegment[];
-  combinedUrl?: string;
-  totalDuration?: number;
-  error?: string;
+
+interface TriggerPodcastResponse {
+  jobId: string;
+  message: string;
 }
 
 const firebaseFunctions = getFunctions(app);
-const generateElevenLabsPodcastAudioFn = httpsCallable<
-    GeneratePodcastRequest,
-    GeneratePodcastResponse
->(firebaseFunctions, 'generateElevenLabsPodcastAudio');
+const triggerPodcastGenerationFn = httpsCallable<
+    TriggerPodcastRequest,
+    TriggerPodcastResponse
+>(firebaseFunctions, 'triggerPodcastGeneration');
 
 const SimpleModal = ({ isOpen, onClose, title, children, maxWidth = "max-w-md" }: { isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; maxWidth?: string}) => {
     if (!isOpen) return null;
@@ -294,7 +294,7 @@ const UpgradeModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
                     onClick={onClose}
                     className={`w-full flex items-center justify-center px-4 py-2.5 rounded-full text-sm font-medium bg-purple-500 hover:bg-purple-600 text-white shadow-md hover:shadow-lg transition-shadow`}
                 >
-                    {/* --- FIX IS HER: Added Crown icon --- */}
+                    {/* --- FIX IS HERE: Added Crown icon --- */}
                     <Crown className="w-4 h-4 mr-2" />
                     Upgrade to Premium
                 </Link>
@@ -351,6 +351,9 @@ export function Notes() {
     const [filterType, setFilterType] = useState<'all' | 'personal' | 'pdf' | 'youtube' | 'audio'>('all');
     const [userTier, setUserTier] = useState<UserTier>('loading');
     const [noteUsage, setNoteUsage] = useState<NoteUsage>({ pdfAi: 0, youtube: 0 });
+    const [isSideBySideNoteChatVisible, setIsSideBySideNoteChatVisible] = useState(false);
+    const [noteChatSplitRatio, setNoteChatSplitRatio] = useState(60);
+    const [isResizingNoteChatSplit, setIsResizingNoteChatSplit] = useState(false);
     const [usageMonth, setUsageMonth] = useState<string>('');
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
@@ -638,18 +641,15 @@ const handlePodcastToggle = () => {
         const handleResize = () => {
             const mobile = window.innerWidth < 768;
             setIsMobile(mobile);
-            if (!mobile) {
-                setShowNotesListOnMobile(true);
-                setIsNotesListHidden(showPdfViewer);
-            } else {
-                setShowNotesListOnMobile(!(selectedNote || isEditing || showPdfViewer || (showSplitView && (splitViewNotes.left || splitViewNotes.right))));
+            if (mobile) {
+                setShowNotesListOnMobile(!(selectedNote || isEditing || showPdfViewer || isSideBySideNoteChatVisible || (showSplitView && (splitViewNotes.left || splitViewNotes.right))));
             }
             setIsResizingPdfChatSplit(false);
         };
         window.addEventListener('resize', handleResize);
         handleResize();
         return () => window.removeEventListener('resize', handleResize);
-    }, [selectedNote, isEditing, showPdfViewer, showSplitView, splitViewNotes.left, splitViewNotes.right]);
+    }, [selectedNote, isEditing, showPdfViewer, showSplitView, splitViewNotes.left, splitViewNotes.right, isSideBySideNoteChatVisible]);
 
     useEffect(() => {
         localStorage.setItem('isSidebarCollapsed', JSON.stringify(isSidebarCollapsed));
@@ -746,86 +746,97 @@ const handlePodcastToggle = () => {
         return () => unsubscribeAuth();
     }, [navigate, handlePodcastStop]);
 
-    useEffect(() => {
-        if (!user?.uid) {
-            setNotes([]);
-            setLoading(false);
-            return;
-        }
-        setLoading(true);
-        const q = query(collection(db, 'notes'), where('userId', '==', user.uid), orderBy('updatedAt', 'desc'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const notesList: Note[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Note));
-            setNotes(notesList);
+useEffect(() => {
+    if (!user?.uid) {
+        setNotes([]);
+        setLoading(false);
+        return;
+    }
+    setLoading(true);
+    const q = query(collection(db, 'notes'), where('userId', '==', user.uid), orderBy('updatedAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const notesList: Note[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Note));
+        setNotes(notesList);
 
-            if (notesList.length > 0 && !selectedNote && !isMobile && !showSplitView) {
-                setSelectedNote(notesList[0]);
+        if (notesList.length > 0 && !selectedNote && !isMobile && !showSplitView) {
+            setSelectedNote(notesList[0]);
+        }
+        
+        setSelectedNote(prevSelectedNote => {
+            if (!prevSelectedNote) return null;
+            const updatedNoteData = notesList.find(n => n.id === prevSelectedNote.id);
+            if (!updatedNoteData) {
+                if (isEditing) setIsEditing(false);
+                return null;
+            }
+
+            if (isPodcastProcessing && updatedNoteData.podcasts && updatedNoteData.podcasts.length > (prevSelectedNote.podcasts?.length || 0)) {
+                setIsPodcastProcessing(false);
+                showToast("Your podcast is ready!", 'success', Check);
+                const newestPodcast = updatedNoteData.podcasts.sort((a,b) => toDateSafe(b.createdAt)!.getTime() - toDateSafe(a.createdAt)!.getTime())[0];
+                if (newestPodcast) {
+                    handlePlayPodcast(newestPodcast);
+                    setShowPodcastSection(true);
+                }
             }
             
-            setSelectedNote(prevSelectedNote => {
-                if (!prevSelectedNote) return null;
-                const updatedNoteData = notesList.find(n => n.id === prevSelectedNote.id);
-                if (!updatedNoteData) {
-                    if (isEditing) setIsEditing(false);
-                    return null;
-                }
-                if (JSON.stringify(prevSelectedNote) !== JSON.stringify(updatedNoteData)) {
-                    return updatedNoteData;
-                }
-                return prevSelectedNote;
-            });
+            if (JSON.stringify(prevSelectedNote) !== JSON.stringify(updatedNoteData)) {
+                return updatedNoteData;
+            }
+            return prevSelectedNote;
+        });
 
-            if (activePodcast) {
-                const updatedNoteForPodcast = notesList.find(n => n.id === selectedNote?.id);
-                if (updatedNoteForPodcast && updatedNoteForPodcast.podcasts) {
-                    const updatedActivePodcast = updatedNoteForPodcast.podcasts.find(p => p.id === activePodcast.id);
-                    if (updatedActivePodcast) {
-                        if (JSON.stringify(activePodcast) !== JSON.stringify(updatedActivePodcast)) {
-                           setActivePodcast(updatedActivePodcast);
-                        }
-                    } else {
-                        handlePodcastStop();
+        if (activePodcast) {
+            const updatedNoteForPodcast = notesList.find(n => n.id === selectedNote?.id);
+            if (updatedNoteForPodcast && updatedNoteForPodcast.podcasts) {
+                const updatedActivePodcast = updatedNoteForPodcast.podcasts.find(p => p.id === activePodcast.id);
+                if (updatedActivePodcast) {
+                    if (JSON.stringify(activePodcast) !== JSON.stringify(updatedActivePodcast)) {
+                       setActivePodcast(updatedActivePodcast);
                     }
                 } else {
                     handlePodcastStop();
                 }
+            } else {
+                handlePodcastStop();
             }
+        }
 
 
-            setChatNoteForOverlay(prevChatNote => {
-                if (!prevChatNote) return null;
-                const updatedChatNoteData = notesList.find(n => n.id === prevChatNote.id);
-                if (!updatedChatNoteData) return null;
-                if (JSON.stringify(prevChatNote) !== JSON.stringify(updatedChatNoteData)) {
-                   return updatedChatNoteData;
-                }
-                return prevChatNote;
-            });
-
-            if (showSplitView) {
-                 setSplitViewNotes(prevSplitNotes => {
-                    const currentLeftId = prevSplitNotes.left?.id;
-                    const currentRightId = prevSplitNotes.right?.id;
-                    const updatedLeft = currentLeftId ? notesList.find(n => n.id === currentLeftId) : null;
-                    const updatedRight = currentRightId ? notesList.find(n => n.id === currentRightId) : null;
-                     if (prevSplitNotes.left?.id !== updatedLeft?.id || prevSplitNotes.right?.id !== updatedRight?.id ||
-                         (updatedLeft && JSON.stringify(prevSplitNotes.left) !== JSON.stringify(updatedLeft)) ||
-                         (updatedRight && JSON.stringify(prevSplitNotes.right) !== JSON.stringify(updatedRight))
-                        ) {
-                         return { left: updatedLeft || null, right: updatedRight || null };
-                     }
-                     return prevSplitNotes;
-                 });
-             }
-
-            setLoading(false);
-        }, (error) => {
-            console.error("Firestore snapshot error:", error)
-            setLoading(false);
-            setUploadProgress({ progress: 0, status: '', error: 'Could not load notes.' });
+        setChatNoteForOverlay(prevChatNote => {
+            if (!prevChatNote) return null;
+            const updatedChatNoteData = notesList.find(n => n.id === prevChatNote.id);
+            if (!updatedChatNoteData) return null;
+            if (JSON.stringify(prevChatNote) !== JSON.stringify(updatedChatNoteData)) {
+               return updatedChatNoteData;
+            }
+            return prevChatNote;
         });
-        return () => unsubscribe();
-    }, [user?.uid]);
+
+        if (showSplitView) {
+             setSplitViewNotes(prevSplitNotes => {
+                const currentLeftId = prevSplitNotes.left?.id;
+                const currentRightId = prevSplitNotes.right?.id;
+                const updatedLeft = currentLeftId ? notesList.find(n => n.id === currentLeftId) : null;
+                const updatedRight = currentRightId ? notesList.find(n => n.id === currentRightId) : null;
+                 if (prevSplitNotes.left?.id !== updatedLeft?.id || prevSplitNotes.right?.id !== updatedRight?.id ||
+                     (updatedLeft && JSON.stringify(prevSplitNotes.left) !== JSON.stringify(updatedLeft)) ||
+                     (updatedRight && JSON.stringify(prevSplitNotes.right) !== JSON.stringify(updatedRight))
+                    ) {
+                     return { left: updatedLeft || null, right: updatedRight || null };
+                 }
+                 return prevSplitNotes;
+             });
+         }
+
+        setLoading(false);
+    }, (error) => {
+        console.error("Firestore snapshot error:", error)
+        setLoading(false);
+        setUploadProgress({ progress: 0, status: '', error: 'Could not load notes.' });
+    });
+    return () => unsubscribe();
+}, [user?.uid, isPodcastProcessing]);
 
 
     useEffect(() => {
@@ -1012,10 +1023,11 @@ const handlePodcastToggle = () => {
     const handleToggleSidebar = () => setIsSidebarCollapsed(prev => !prev);
     const handleToggleNotesList = useCallback(() => setIsNotesListHidden(prev => !prev), []);
 
-    const togglePdfViewer = useCallback((forceOpen?: boolean) => {
+     const togglePdfViewer = useCallback((forceOpen?: boolean) => {
         const turnOn = forceOpen !== undefined ? forceOpen : !showPdfViewer;
         if (turnOn) {
             if (selectedNote?.type === 'pdf' && selectedNote.sourceUrl) {
+                if(isSideBySideNoteChatVisible) setIsSideBySideNoteChatVisible(false);
                 setShowPdfViewer(true);
                 setCurrentPage(1);
                 setPdfPageInput('1');
@@ -1035,7 +1047,6 @@ const handlePodcastToggle = () => {
             } else {
                 showToast('Cannot view PDF: Note type is not PDF or source is missing.', 'error');
                 if (showPdfViewer) setShowPdfViewer(false);
-                if (!isMobile && isNotesListHidden) setIsNotesListHidden(false);
             }
         } else {
             setShowPdfViewer(false);
@@ -1044,9 +1055,8 @@ const handlePodcastToggle = () => {
             setIsScreenshotModeActive(false);
             targetPdfPageElementRef.current = null;
             window.getSelection()?.removeAllRanges();
-            if (!isMobile) setIsNotesListHidden(false);
         }
-    }, [selectedNote, showPdfViewer, isChatOverlayVisible, chatNoteForOverlay?.id, isMobile, isNotesListHidden, showToast, activePodcast, handlePodcastStop]);
+    }, [selectedNote, showPdfViewer, isChatOverlayVisible, chatNoteForOverlay?.id, isMobile, isNotesListHidden, showToast, activePodcast, handlePodcastStop, isSideBySideNoteChatVisible]);
 
     const switchToEditMode = useCallback((noteToEdit: Note | null) => {
         if (!noteToEdit) return;
@@ -1058,14 +1068,56 @@ const handlePodcastToggle = () => {
         setNewTag('');
         setIsEditing(true);
         setSelectedNote(noteToEdit);
+        if (isSideBySideNoteChatVisible) setIsSideBySideNoteChatVisible(false);
         if (isChatOverlayVisible) setIsChatOverlayVisible(false);
         setChatNoteForOverlay(null);
         if (showPdfViewer) togglePdfViewer(false);
         if (activePodcast) handlePodcastStop();
         if (showSplitView) setShowSplitView(false);
         if (isMobile) setShowNotesListOnMobile(false);
-        if (!isMobile) setIsNotesListHidden(false);
-    }, [isChatOverlayVisible, showPdfViewer, togglePdfViewer, activePodcast, showSplitView, isMobile, handlePodcastStop]);
+    }, [isChatOverlayVisible, showPdfViewer, togglePdfViewer, activePodcast, showSplitView, isMobile, handlePodcastStop, isSideBySideNoteChatVisible]);
+
+      const handleNoteChatResizeMouseMove = useCallback((e: MouseEvent) => {
+        if (!isResizingNoteChatSplit || !mainContentAreaRef.current) return;
+
+        const bounds = mainContentAreaRef.current.getBoundingClientRect();
+        const resizerWidth = 6;
+
+        let newNotePixelWidth = e.clientX - bounds.left;
+        const minPanelWidth = 250; 
+
+        newNotePixelWidth = Math.max(minPanelWidth, newNotePixelWidth);
+        newNotePixelWidth = Math.min(bounds.width - resizerWidth - minPanelWidth, newNotePixelWidth);
+
+        let newRatio = (newNotePixelWidth / (bounds.width - resizerWidth)) * 100;
+        newRatio = Math.max(20, Math.min(80, newRatio));
+
+        setNoteChatSplitRatio(newRatio);
+    }, [isResizingNoteChatSplit]);
+
+    const handleNoteChatResizeMouseUp = useCallback(() => {
+         if (isResizingNoteChatSplit) {
+             setIsResizingNoteChatSplit(false);
+             document.removeEventListener('mousemove', handleNoteChatResizeMouseMove);
+             document.removeEventListener('mouseup', handleNoteChatResizeMouseUp);
+             document.body.style.cursor = 'default';
+             document.body.style.userSelect = 'auto';
+         }
+    }, [isResizingNoteChatSplit, handleNoteChatResizeMouseMove]);
+
+    const handleNoteChatResizeMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        setIsResizingNoteChatSplit(true);
+        document.addEventListener('mousemove', handleNoteChatResizeMouseMove);
+        document.addEventListener('mouseup', handleNoteChatResizeMouseUp);
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+    }, [handleNoteChatResizeMouseMove, handleNoteChatResizeMouseUp]);
+
+    const handleCloseSideBySideNoteChat = () => {
+        setIsSideBySideNoteChatVisible(false);
+        setIsNotesListHidden(false); // Explicitly show the list when closing the chat view
+    };
 
     const handleSplitViewSelect = useCallback((note: Note) => {
         if (!splitViewNotes.left) {
@@ -1086,10 +1138,12 @@ const handlePodcastToggle = () => {
         }
     }, [splitViewNotes, isMobile, showPdfViewer, togglePdfViewer, activePodcast, user, userProfile, userName, showToast, handlePodcastStop]);
 
-    const handleSelectNote = useCallback((note: Note) => {
+        const handleSelectNote = useCallback((note: Note) => {
         if (selectedNote?.id === note.id && !isEditing && !showSplitView) return;
 
         setIsEditing(false);
+        if (isSideBySideNoteChatVisible) setIsSideBySideNoteChatVisible(false); // Close side-by-side chat
+        if (!isMobile && isNotesListHidden && !showPdfViewer) setIsNotesListHidden(false); // Show notes list again
         setIsChatOverlayVisible(false);
         setChatNoteForOverlay(null);
         setQuestionAnswers({});
@@ -1109,18 +1163,19 @@ const handlePodcastToggle = () => {
                 setShowNotesListOnMobile(false);
             }
         }
-    }, [selectedNote?.id, showSplitView, isMobile, showPdfViewer, togglePdfViewer, isEditing, handleSplitViewSelect, activePodcast, handlePodcastStop]);
+    }, [selectedNote?.id, showSplitView, isMobile, showPdfViewer, togglePdfViewer, isEditing, handleSplitViewSelect, activePodcast, handlePodcastStop, isSideBySideNoteChatVisible, isNotesListHidden]);
 
     const startSplitView = useCallback(() => {
         setShowSplitView(true);
         setSelectedNote(null);
+        if (isSideBySideNoteChatVisible) setIsSideBySideNoteChatVisible(false);
         if (showPdfViewer) togglePdfViewer(false);
         if (activePodcast) handlePodcastStop();
         if (isChatOverlayVisible) setIsChatOverlayVisible(false);
         setSplitViewNotes({ left: null, right: null });
         if (isMobile) setShowNotesListOnMobile(true);
         if (!isMobile) setIsNotesListHidden(false);
-    }, [showPdfViewer, isChatOverlayVisible, isMobile, togglePdfViewer, activePodcast, handlePodcastStop]);
+     }, [showPdfViewer, isChatOverlayVisible, isMobile, togglePdfViewer, activePodcast, handlePodcastStop, isSideBySideNoteChatVisible]);
 
     const closeSplitView = useCallback(() => {
         setShowSplitView(false);
@@ -1134,7 +1189,7 @@ const handlePodcastToggle = () => {
         if (!isMobile) setIsNotesListHidden(false);
     }, [notes, isMobile, handleSelectNote]);
 
-    const handleChatWithNote = useCallback((note: Note | null, keepPdfOpen: boolean = false) => {
+       const handleChatWithNote = useCallback((note: Note | null, keepPdfOpen: boolean = false) => {
         if (!note || !geminiApiKey) {
              showToast('Chat requires API key setup.', 'error');
              return;
@@ -1145,13 +1200,21 @@ const handlePodcastToggle = () => {
         }
         if (activePodcast) handlePodcastStop();
 
-        const isSideBySideChatShouldBeActive = note.type === 'pdf' && showPdfViewer && !!note.sourceUrl && !!user && !!geminiApiKey && !isMobile;
-
-        if (isSideBySideChatShouldBeActive && keepPdfOpen) {
+        const isPdfSideBySide = note.type === 'pdf' && showPdfViewer && !!note.sourceUrl && !isMobile;
+        
+        if (isPdfSideBySide && keepPdfOpen) {
             setIsChatOverlayVisible(false);
             setChatNoteForOverlay(null);
             noteChatRef.current?.focusInput?.();
-        } else {
+        } else if (!isMobile) {
+            // --- FIX IS HERE: Enable the new side-by-side view for notes ---
+            setIsSideBySideNoteChatVisible(true);
+            setIsNotesListHidden(true); // Hide note list to make space
+            setIsChatOverlayVisible(false); // Disable old overlay
+            setChatNoteForOverlay(null);
+        }
+        else {
+            // Mobile devices will still use the overlay
             setChatNoteForOverlay(note);
             setIsChatOverlayVisible(true);
             if (showPdfViewer) {
@@ -1162,6 +1225,7 @@ const handlePodcastToggle = () => {
             }
             setTimeout(() => noteChatRef.current?.focusInput?.(), 150);
         }
+
         if (user && userProfile && !(userProfile.badges || []).includes('firstChatWithNote')) {
             incrementUserProfileCounter(user.uid, 'noteChatsStartedCount');
             addUserBadge(user.uid, 'firstChatWithNote', { email: user.email!, displayName: userName });
@@ -1320,6 +1384,8 @@ const handlePodcastToggle = () => {
             throw error;
         }
     };
+
+
 
    const handleCreateAINote = async (text: string, onProgress: (progress: number) => void) => {
     const currentApiKey = geminiApiKey;
@@ -1480,29 +1546,29 @@ const handleYoutubeLink = async (url: string, onProgress: (progress: number) => 
     };
 
     const handleStartAIPodcast = async () => {
-        if (!selectedNote || !geminiApiKey) {
-            showToast('Please select a note.', 'error'); return;
-        }
-        if (userTier !== 'premium') {
-            setShowUpgradeModal(true); return;
-        }
+    if (!selectedNote || !geminiApiKey) {
+        showToast('Please select a note.', 'error'); return;
+    }
+    if (userTier !== 'premium') {
+        setShowUpgradeModal(true); return;
+    }
 
-        setShowPodcastConfigModal(false);
-        setIsPodcastProcessing(true);
-        if (activePodcast) handlePodcastStop();
+    setShowPodcastConfigModal(false);
+    setIsPodcastProcessing(true);
+    if (activePodcast) handlePodcastStop();
 
+    try {
         const { title, contentHtml, keyPoints } = podcastTextObjects;
 
- try {
-    const speaker1Profile = PREDEFINED_PODCAST_SPEAKERS.find(s => s.id === podcastPlaybackSettings.speaker1Id);
-    const speaker2Profile = podcastPlaybackSettings.speaker2Id ? PREDEFINED_PODCAST_SPEAKERS.find(s => s.id === podcastPlaybackSettings.speaker2Id) : null;
+        const speaker1Profile = PREDEFINED_PODCAST_SPEAKERS.find(s => s.id === podcastPlaybackSettings.speaker1Id);
+        const speaker2Profile = podcastPlaybackSettings.speaker2Id ? PREDEFINED_PODCAST_SPEAKERS.find(s => s.id === podcastPlaybackSettings.speaker2Id) : null;
 
-    let speakerInstructions = `There is one speaker: [SPEAKER_1].
+        let speakerInstructions = `There is one speaker: [SPEAKER_1].
 - **Name**: ${speaker1Profile?.name}
 - **Persona**: "${speaker1Profile?.description}"
 - **Role**: They are the sole narrator and host. They must embody their persona fully, making the script sound like a captivating monologue or story, not a dry reading.`;
-    if (speaker2Profile) {
-        speakerInstructions = `There are two speakers. Their interaction is the heart of the podcast. It must be a living, breathing conversation.
+        if (speaker2Profile) {
+            speakerInstructions = `There are two speakers. Their interaction is the heart of the podcast. It must be a living, breathing conversation.
 - **[SPEAKER_1] (The Host)**:
   - **Name**: ${speaker1Profile?.name}
   - **Persona**: "${speaker1Profile?.description}"
@@ -1512,13 +1578,13 @@ const handleYoutubeLink = async (url: string, onProgress: (progress: number) => 
   - **Name**: ${speaker2Profile.name}
   - **Persona**: "${speaker2Profile.description}"
   - **Role**: To be the voice of the listener. They must actively interject with clarifying questions ("So, what you're saying is..."), provide real-world examples, challenge assumptions ("But does that always hold true?"), and offer alternative viewpoints to create a rich, multi-faceted dialogue.`;
-    }
+        }
 
-    const lengthInstruction = {
-        short: "The target length is 'short' (approx. 5-25 minutes). Every line must serve a purpose. Be ruthless in cutting fluff. The goal is maximum impact in minimum time.",
-    }[podcastPlaybackSettings.length || 'short'];
+        const lengthInstruction = {
+            short: "The target length is 'short' (approx. 5-15 minutes). Every line must serve a purpose. Be ruthless in cutting fluff. The goal is maximum impact in minimum time.",
+        }[podcastPlaybackSettings.length || 'short'];
 
-    const scriptGenPrompt = `You are a world-class podcast scriptwriter and narrative designer. Your job is not to summarize text, but to transmute it into a deeply engaging and authentic audio experience. You will adhere to every single rule in this prompt with absolute fidelity.
+        const scriptGenPrompt = `You are a world-class podcast scriptwriter and narrative designer. Your job is not to summarize text, but to transmute it into a deeply engaging and authentic audio experience. You will adhere to every single rule in this prompt with absolute fidelity.
 
 **Your Secret Raw Material (Source Note Content):**
 """
@@ -1566,70 +1632,49 @@ ${contentHtml.replace(/<[^>]+>/g, '\n')}
 
 **FINAL MANDATE:** Review all directives. Your mission is to produce a flawless script. The formatting must be perfect. The conversation must be authentic. The illusion must not be broken. Generate only the script. Begin now.
 `;
-            
-            const scriptGenApiUrl = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${geminiApiKey}`;
-            const scriptGenBody = {
-                contents: [{ role: "user", parts: [{ text: scriptGenPrompt }] }],
-                generationConfig: { temperature: 0.75, maxOutputTokens: 8192, topP: 0.95 }
-            };
+        
+        const scriptGenApiUrl = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${geminiApiKey}`;
+        const scriptGenBody = {
+            contents: [{ role: "user", parts: [{ text: scriptGenPrompt }] }],
+            generationConfig: { temperature: 0.75, maxOutputTokens: 8192, topP: 0.95 }
+        };
 
-            const scriptResponse = await fetchWithRetry(scriptGenApiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(scriptGenBody)
-            });
-            const scriptResponseText = await scriptResponse.text();
-            const parsedScriptResult = parseGeminiResponse(scriptResponseText);
+        const scriptResponse = await fetchWithRetry(scriptGenApiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(scriptGenBody)
+        });
+        const scriptResponseText = await scriptResponse.text();
+        const parsedScriptResult = parseGeminiResponse(scriptResponseText);
 
-            if (parsedScriptResult.error || !parsedScriptResult.text) {
-                throw new Error(parsedScriptResult.error || "Failed to generate podcast script from note.");
-            }
-            
-            const podcastScript = parsedScriptResult.text;
-
-            const textProcessingResult: PodcastTextProcessResult = await processTextForPodcast(
-                title, podcastScript, [], podcastPlaybackSettings, PREDEFINED_PODCAST_SPEAKERS
-            );
-
-            if (textProcessingResult.error || !textProcessingResult.processedSegments || textProcessingResult.processedSegments.length === 0) {
-                throw new Error(textProcessingResult.error || 'No valid segments were processed from the script.');
-            }
-
-            const result: HttpsCallableResult<GeneratePodcastResponse> = await generateElevenLabsPodcastAudioFn({
-                segments: textProcessingResult.processedSegments,
-            });
-            const audioResult = result.data;
-
-            if (audioResult.error || !audioResult.audioSegmentUrls || !audioResult.combinedUrl) {
-                throw new Error(audioResult.error || 'The audio generation service returned incomplete data.');
-            }
-
-            const newPodcastData: Omit<Podcast, 'id' | 'createdAt'> = {
-                settings: podcastPlaybackSettings,
-                segments: audioResult.audioSegmentUrls,
-                combinedUrl: audioResult.combinedUrl,
-                totalDuration: audioResult.totalDuration || 0,
-            };
-
-            const newPodcastId = await addPodcastToNote(selectedNote.id, newPodcastData);
-            
-            const updatedNote = await getNoteById(selectedNote.id);
-            if (updatedNote && updatedNote.podcasts) {
-                const justCreatedPodcast = updatedNote.podcasts.find(p => p.id === newPodcastId);
-                if (justCreatedPodcast) {
-                    handlePlayPodcast(justCreatedPodcast);
-                    setShowPodcastSection(true);
-                }
-            }
-
-        } catch (error: any) {
-            console.error("Error generating podcast:", error);
-            showToast(error.message || 'Failed to generate podcast.', 'error', AlertTriangle);
-        } finally {
-            setIsPodcastProcessing(false);
+        if (parsedScriptResult.error || !parsedScriptResult.text) {
+            throw new Error(parsedScriptResult.error || "Failed to generate podcast script from note.");
         }
-    };
+        
+        const podcastScript = parsedScriptResult.text;
 
+        const textProcessingResult: PodcastTextProcessResult = await processTextForPodcast(
+            title, podcastScript, [], podcastPlaybackSettings, PREDEFINED_PODCAST_SPEAKERS
+        );
+
+        if (textProcessingResult.error || !textProcessingResult.processedSegments || textProcessingResult.processedSegments.length === 0) {
+            throw new Error(textProcessingResult.error || 'No valid segments were processed from the script.');
+        }
+
+await triggerPodcastGenerationFn(
+    {
+        noteId: selectedNote.id,
+        segments: textProcessingResult.processedSegments,
+    },
+    { timeout: 300000 } // Add this options object
+);
+
+    } catch (error: any) {
+        console.error("Error triggering podcast generation:", error);
+        showToast(error.message || 'Failed to start podcast generation.', 'error', AlertTriangle);
+        setIsPodcastProcessing(false);
+    }
+};
 const [playingSpeakerSampleId, setPlayingSpeakerSampleId] = useState<string | null>(null);
 const [isSamplePlaying, setIsSamplePlaying] = useState(false);
 const sampleAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -2000,16 +2045,7 @@ useEffect(() => {
 
             <main className={`flex-1 flex overflow-hidden transition-all duration-300 ${ isSidebarCollapsed ? 'ml-16 md:ml-20' : 'ml-0 md:ml-64' }`}>
 
-                <div ref={mainContentAreaRef} className={`flex-1 bg-[#F7F8FA] dark:bg-[#0C0E1A] relative ${showSideBySideChat || isScreenshotModeActive ? 'overflow-hidden' : 'overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent'}`}>
-                    {!isMobile && isNotesListHidden && !showPdfViewer && (
-                         <button
-                            onClick={handleToggleNotesList}
-                            className="absolute top-3 left-3 z-20 p-2 rounded-full bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 shadow-md border border-gray-200 dark:border-gray-700/50 transition-colors"
-                            title="Show Notes List"
-                        >
-                            <PanelRightClose className="w-5 h-5" />
-                        </button>
-                    )}
+<div ref={mainContentAreaRef} className={`flex-1 bg-[#F7F8FA] dark:bg-[#0C0E1A] relative ${showSideBySideChat || isSideBySideNoteChatVisible || isScreenshotModeActive ? 'overflow-hidden' : 'overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent'}`}>
 
 
                      {isMobile && !showNotesListOnMobile && !showSideBySideChat && (
@@ -2023,12 +2059,20 @@ useEffect(() => {
                          </div>
                     )}
 
-                     {showSplitView && splitViewNotes.left && splitViewNotes.right ? (
-                         <SplitView key={`${splitViewNotes.left.id}-${splitViewNotes.right.id}`} leftNote={splitViewNotes.left} rightNote={splitViewNotes.right} onClose={closeSplitView} onTogglePublic={handleTogglePublic} onDelete={handleDeleteNote} onChat={(note) => handleChatWithNote(note)}
-                          isIlluminateEnabled={!isDarkMode} isBlackoutEnabled={false} />
-
-                     ) : showSideBySideChat ? (
-                         <div className="flex flex-row h-full overflow-hidden">
+                    {showSplitView && splitViewNotes.left && splitViewNotes.right ? (
+                        <SplitView
+                            key={`${splitViewNotes.left.id}-${splitViewNotes.right.id}`}
+                            leftNote={splitViewNotes.left}
+                            rightNote={splitViewNotes.right}
+                            onClose={closeSplitView}
+                            onTogglePublic={handleTogglePublic}
+                            onDelete={handleDeleteNote}
+                            onChat={(note) => handleChatWithNote(note)}
+                            isIlluminateEnabled={!isDarkMode}
+                            isBlackoutEnabled={false}
+                        />
+                    ) : showSideBySideChat ? (
+                        <div className="flex flex-row h-full overflow-hidden">
                              <div
                                 className="flex flex-col overflow-hidden relative border-r border-gray-200 dark:border-gray-700/50"
                                 style={{ width: `${pdfChatSplitRatio}%` }}
@@ -2110,47 +2154,124 @@ useEffect(() => {
                              <div className="h-full flex flex-col overflow-hidden" style={{ width: `${100 - pdfChatSplitRatio}%` }}>
                                  {selectedNote && geminiApiKey && user && ( <NoteChat ref={noteChatRef} key={`chat-inline-${selectedNote.id}`} note={selectedNote} onClose={() => togglePdfViewer(false)} geminiApiKey={geminiApiKey} userName={userName} isIlluminateEnabled={!isDarkMode} isBlackoutEnabled={false} isVisible={true} onUpdateNoteContent={handleUpdateNoteContentFromChat} onAddImageToNoteRequest={handleAddImageToNoteRequest} displayMode="inline" userTier={userTier} /> )}
                              </div>
-                         </div>
-                     ) : (
-                         <div className={`h-full ${showSideBySideChat ? 'hidden': ''}`}>
-                            {showSplitView && (!splitViewNotes.left || !splitViewNotes.right) ? ( <div className={`flex flex-col items-center justify-center bg-white dark:bg-[#0C0E1A] h-full text-center p-6`}> <SplitSquareVertical className={`w-12 h-12 text-gray-400 dark:text-gray-500 mb-4`} /> <h2 className={`text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2`}>Compare Notes</h2> <p className={`text-gray-600 dark:text-gray-400 text-sm mb-4`}>Select {splitViewNotes.left ? 'one more note' : 'two notes'} from the list.</p> <p className={`text-xs text-gray-500 dark:text-gray-400 mb-4`}>Selected: {splitViewNotes.left ? 1 : 0}/2</p> <button onClick={closeSplitView} className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-md text-sm`}>Cancel Comparison</button> </div>
+                        </div>
+                    ) : isSideBySideNoteChatVisible && selectedNote && !isMobile ? (
+                        <div className="flex flex-row h-full overflow-hidden">
+                            <div className="flex flex-col overflow-hidden h-full" style={{ width: `${noteChatSplitRatio}%` }}>
+                                <div key={`view-split-${selectedNote.id}`} className={`bg-white dark:bg-[#0C0E1A] flex flex-col overflow-hidden h-full`}>
+                                    <div className={`p-4 md:p-6 flex flex-col sm:flex-row sm:items-start sm:justify-between mb-0 gap-3 flex-shrink-0`}>
+                                        <h1 className={`text-2xl md:text-2xl font-semibold text-gray-800 dark:text-gray-100 break-words mr-auto pr-4`}>{selectedNote.title || "Untitled"}</h1>
+<div className={`flex items-center gap-1 flex-shrink-0 border rounded-full p-0.5 border-gray-200 dark:border-gray-700/50 bg-gray-50 dark:bg-[#1A1D29]/50`}>
+    {!isMobile && isNotesListHidden && (
+        <>
+            <button 
+                onClick={handleToggleNotesList} 
+                className={`p-1.5 rounded-full text-indigo-600 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-700/30 hover:bg-indigo-200 dark:hover:bg-indigo-700/50`} 
+                title="Show Notes List"
+            >
+                <PanelRightOpen className="w-4 h-4" />
+            </button>
+            <div className={`w-px h-4 bg-gray-300 dark:bg-gray-700/50 mx-0.5`}></div>
+        </>
+    )}
+    <button onClick={handleEditNote} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60`} title="Edit"><Edit2 className="w-4 h-4" /></button>
+    {geminiApiKey && <button onClick={() => handleChatWithNote(selectedNote)} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60`} title="Chat with AI"><MessageCircle className="w-4 h-4" /></button>}
+    {selectedNote.type === 'pdf' && selectedNote.sourceUrl && !isMobile && (
+        <button
+            onClick={() => togglePdfViewer(true)}
+            className={`p-1.5 rounded-full flex items-center gap-1 text-xs text-sky-600 dark:text-sky-300 bg-sky-100 dark:bg-sky-700/30 hover:bg-sky-200 dark:hover:bg-sky-700/50 focus:ring-1 focus:ring-sky-300 dark:focus:ring-sky-600`}
+            title="View PDF Side-by-Side"
+        >
+            <Eye className="w-4 h-4" />
+            <span className="hidden sm:inline">View PDF</span>
+        </button>
+    )}
+    <button onClick={() => handleTogglePublic(selectedNote.id, selectedNote.isPublic)} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60 ${selectedNote.isPublic ? 'hover:bg-cyan-100/50 dark:hover:bg-cyan-900/30' : ''}`} title={selectedNote.isPublic ? 'Make private' : 'Make public'}>{selectedNote.isPublic ? <Globe className={`w-4 h-4 text-cyan-600 dark:text-cyan-400`} /> : <Lock className="w-4 h-4" />}</button>
+    {selectedNote.isPublic && ( <button onClick={() => handleGetShareLink(selectedNote.id)} className={`p-1.5 rounded-full relative text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60 ${linkCopied ? 'hover:bg-green-100/50 dark:hover:bg-green-900/30' : ''}`} title="Copy share link">{linkCopied ? <ClipboardCopy className={`w-4 h-4 text-green-500`} /> : <Share2 className="w-4 h-4" />}</button> )}
+    <div className={`w-px h-4 bg-gray-300 dark:bg-gray-700/50 mx-0.5`}></div>
+    <button onClick={() => handleDeleteNote(selectedNote.id)} className={`p-1.5 rounded-full text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-700/30`} title="Delete"><Trash2 className="w-4 h-4" /></button>
+</div>
+                                    </div>
+                                    <div ref={noteContentRef} className={`flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 px-4 md:px-6 bg-white dark:bg-[#0C0E1A]`}>
+                                        <div className="py-1">
+                                            <SunEditorWrapper readOnly={true} initialContent={selectedNote.content} />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div
+                                className={`w-1.5 cursor-col-resize flex items-center justify-center flex-shrink-0 bg-gray-300 dark:bg-gray-700 hover:bg-gray-400 dark:hover:bg-gray-600 ${isResizingNoteChatSplit ? '!bg-indigo-500' : ''}`}
+                                onMouseDown={handleNoteChatResizeMouseDown}
+                                title="Drag to resize panels"
+                            >
+                                <GripVertical className={`w-4 h-4 pointer-events-none text-gray-600 dark:text-gray-400`} />
+                            </div>
+                            <div className="h-full flex flex-col overflow-hidden border-l border-gray-200 dark:border-gray-700/50" style={{ width: `${100 - noteChatSplitRatio}%` }}>
+                                {geminiApiKey && user && (
+                                    <NoteChat
+                                        ref={noteChatRef}
+                                        key={`chat-inline-note-${selectedNote.id}`}
+                                        note={selectedNote}
+                                        onClose={handleCloseSideBySideNoteChat}
+                                        geminiApiKey={geminiApiKey}
+                                        userName={userName}
+                                        isIlluminateEnabled={!isDarkMode}
+                                        isBlackoutEnabled={false}
+                                        isVisible={true}
+                                        onUpdateNoteContent={handleUpdateNoteContentFromChat}
+                                        onAddImageToNoteRequest={handleAddImageToNoteRequest}
+                                        displayMode="inline"
+                                        userTier={userTier}
+                                    />
+                                )}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className={`h-full`}>
+                            {showSplitView && (!splitViewNotes.left || !splitViewNotes.right) ? (
+                                <div className={`flex flex-col items-center justify-center bg-white dark:bg-[#0C0E1A] h-full text-center p-6`}>
+                                    <SplitSquareVertical className={`w-12 h-12 text-gray-400 dark:text-gray-500 mb-4`} />
+                                    <h2 className={`text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2`}>Compare Notes</h2>
+                                    <p className={`text-gray-600 dark:text-gray-400 text-sm mb-4`}>Select {splitViewNotes.left ? 'one more note' : 'two notes'} from the list.</p>
+                                    <p className={`text-xs text-gray-500 dark:text-gray-400 mb-4`}>Selected: {splitViewNotes.left ? 1 : 0}/2</p>
+                                    <button onClick={closeSplitView} className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-md text-sm`}>Cancel Comparison</button>
+                                </div>
                             ) : selectedNote ? (
-isEditing ? (
-    <div key={`edit-${selectedNote.id}`} className={`bg-white dark:bg-[#0C0E1A] flex flex-col h-full`}>
-        
-        <div className="p-4 pt-5 md:p-6 flex-shrink-0 border-b border-gray-200 dark:border-gray-700">
-            <input 
-                type="text" 
-                value={editTitle} 
-                onChange={(e) => setEditTitle(e.target.value)} 
-                className={`w-full bg-transparent text-gray-800 dark:text-gray-100 text-2xl font-semibold focus:outline-none placeholder-gray-400 dark:placeholder-gray-500 border-none ring-0 focus:ring-0 p-0`} 
-                placeholder="Note title..." 
-            />
-            <div className="flex flex-wrap items-center gap-2 mt-3">
-                {editTags.map((tag) => (
-                    <span key={tag} className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${(tagColors as any)[tag] || tagColors.custom}`}>
-                        {tag}
-                        <button onClick={() => handleRemoveTag(tag)} className={`hover:opacity-70 rounded-full hover:bg-black/10 dark:hover:bg-white/10 p-0.5`} title={`Remove tag "${tag}"`}>
-                            <X className="w-2.5 h-2.5" />
-                        </button>
-                    </span>
-                ))}
-                {editTags.length < 5 && (
-                    <div className="flex items-center gap-1">
-                        <input type="text" value={newTag} onChange={(e) => setNewTag(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleAddTag()} placeholder="Add tag..." className={`bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 rounded-full px-2.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 w-24`} />
-                        <button onClick={handleAddTag} className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-2 py-0.5 rounded-full text-xs`}>Add</button>
-                    </div>
-                )}
-            </div>
-        </div>
-        <div className="flex-grow flex flex-col min-h-0 overflow-y-auto">
-            <div className="flex-grow" data-color-mode={isDarkMode ? 'dark' : 'light'}>
-                <SunEditorWrapper
-                    onChange={setEditContent}
-                    initialContent={editContent}
-                />
-            </div>
-            <div className="flex-shrink-0 p-4">
+                                isEditing ? (
+                                    <div key={`edit-${selectedNote.id}`} className={`bg-white dark:bg-[#0C0E1A] flex flex-col h-full`}>
+                                        <div className="p-4 pt-5 md:p-6 flex-shrink-0 border-b border-gray-200 dark:border-gray-700">
+                                            <input
+                                                type="text"
+                                                value={editTitle}
+                                                onChange={(e) => setEditTitle(e.target.value)}
+                                                className={`w-full bg-transparent text-gray-800 dark:text-gray-100 text-2xl font-semibold focus:outline-none placeholder-gray-400 dark:placeholder-gray-500 border-none ring-0 focus:ring-0 p-0`}
+                                                placeholder="Note title..."
+                                            />
+                                            <div className="flex flex-wrap items-center gap-2 mt-3">
+                                                {editTags.map((tag) => (
+                                                    <span key={tag} className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${(tagColors as any)[tag] || tagColors.custom}`}>
+                                                        {tag}
+                                                        <button onClick={() => handleRemoveTag(tag)} className={`hover:opacity-70 rounded-full hover:bg-black/10 dark:hover:bg-white/10 p-0.5`} title={`Remove tag "${tag}"`}>
+                                                            <X className="w-2.5 h-2.5" />
+                                                        </button>
+                                                    </span>
+                                                ))}
+                                                {editTags.length < 5 && (
+                                                    <div className="flex items-center gap-1">
+                                                        <input type="text" value={newTag} onChange={(e) => setNewTag(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleAddTag()} placeholder="Add tag..." className={`bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 rounded-full px-2.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 w-24`} />
+                                                        <button onClick={handleAddTag} className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-2 py-0.5 rounded-full text-xs`}>Add</button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="flex-grow flex flex-col min-h-0 overflow-y-auto">
+                                            <div className="flex-grow" data-color-mode={isDarkMode ? 'dark' : 'light'}>
+                                                <SunEditorWrapper
+                                                    onChange={setEditContent}
+                                                    initialContent={editContent}
+                                                />
+                                            </div>
+                                            <div className="flex-shrink-0 p-4">
                                                 <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700/50">
                                                     <h3 className="text-base font-semibold mb-3 flex items-center gap-1.5 text-gray-800 dark:text-gray-100">
                                                         <Sparkles className="w-4 h-4 text-yellow-500 dark:text-yellow-400" />
@@ -2246,38 +2367,50 @@ isEditing ? (
                                                     </button>
                                                 </div>
                                             </div>
-        </div>
-        <div className={`flex justify-end items-center gap-2 p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0 bg-white dark:bg-[#0C0E1A]`}>
-            <button onClick={handleCancelEdit} className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-4 py-1.5 rounded-md text-sm`}>Cancel</button>
-            <button onClick={handleSaveEdit} disabled={isSaving || !editTitle.trim()} className={`bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-1.5 rounded-md text-sm flex items-center gap-1.5 ${isSaving || !editTitle.trim() ? 'opacity-50 cursor-not-allowed' : ''}`}> {isSaving ? (<> <Loader2 className="w-4 h-4 animate-spin" /> Saving... </>) : (<> <Save className="w-4 h-4" /> Save </>)} </button>
-        </div>
-    </div>
-) : (
+                                        </div>
+                                        <div className={`flex justify-end items-center gap-2 p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0 bg-white dark:bg-[#0C0E1A]`}>
+                                            <button onClick={handleCancelEdit} className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-4 py-1.5 rounded-md text-sm`}>Cancel</button>
+                                            <button onClick={handleSaveEdit} disabled={isSaving || !editTitle.trim()} className={`bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-1.5 rounded-md text-sm flex items-center gap-1.5 ${isSaving || !editTitle.trim() ? 'opacity-50 cursor-not-allowed' : ''}`}> {isSaving ? (<> <Loader2 className="w-4 h-4 animate-spin" /> Saving... </>) : (<> <Save className="w-4 h-4" /> Save </>)} </button>
+                                        </div>
+                                    </div>
+                                ) : (
                                     <div key={`view-${selectedNote.id}`} className={`bg-white dark:bg-[#0C0E1A] flex flex-col overflow-hidden h-full animate-fadeIn`}>
                                         <div className={`p-4 md:p-6 flex flex-col sm:flex-row sm:items-start sm:justify-between mb-0 gap-3 flex-shrink-0`}>
                                             <h1 className={`text-2xl md:text-2xl font-semibold text-gray-800 dark:text-gray-100 break-words mr-auto pr-4`}>{selectedNote.title || "Untitled"}</h1>
-                                            <div className={`flex items-center gap-1 flex-shrink-0 border rounded-full p-0.5 border-gray-200 dark:border-gray-700/50 bg-gray-50 dark:bg-[#1A1D29]/50`}>
-                                                <button onClick={handleEditNote} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60`} title="Edit"><Edit2 className="w-4 h-4" /></button>
-                                                {geminiApiKey && <button onClick={() => handleChatWithNote(selectedNote)} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60`} title="Chat with AI"><MessageCircle className="w-4 h-4" /></button>}
-                                                {selectedNote.type === 'pdf' && selectedNote.sourceUrl && !isMobile && (
-                                                    <button
-                                                        onClick={() => togglePdfViewer(true)}
-                                                        className={`p-1.5 rounded-full flex items-center gap-1 text-xs text-sky-600 dark:text-sky-300 bg-sky-100 dark:bg-sky-700/30 hover:bg-sky-200 dark:hover:bg-sky-700/50 focus:ring-1 focus:ring-sky-300 dark:focus:ring-sky-600`}
-                                                        title="View PDF Side-by-Side"
-                                                    >
-                                                        <Eye className="w-4 h-4" />
-                                                        <span className="hidden sm:inline">View PDF</span>
-                                                    </button>
-                                                )}
-                                                <button onClick={() => handleTogglePublic(selectedNote.id, selectedNote.isPublic)} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60 ${selectedNote.isPublic ? 'hover:bg-cyan-100/50 dark:hover:bg-cyan-900/30' : ''}`} title={selectedNote.isPublic ? 'Make private' : 'Make public'}>{selectedNote.isPublic ? <Globe className={`w-4 h-4 text-cyan-600 dark:text-cyan-400`} /> : <Lock className="w-4 h-4" />}</button>
-                                                {selectedNote.isPublic && ( <button onClick={() => handleGetShareLink(selectedNote.id)} className={`p-1.5 rounded-full relative text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60 ${linkCopied ? 'hover:bg-green-100/50 dark:hover:bg-green-900/30' : ''}`} title="Copy share link">{linkCopied ? <ClipboardCopy className={`w-4 h-4 text-green-500`} /> : <Share2 className="w-4 h-4" />}</button> )}
-                                                <div className={`w-px h-4 bg-gray-300 dark:bg-gray-700/50 mx-0.5`}></div>
-                                                <button onClick={() => handleDeleteNote(selectedNote.id)} className={`p-1.5 rounded-full text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-700/30`} title="Delete"><Trash2 className="w-4 h-4" /></button>
-                                            </div>
+<div className={`flex items-center gap-1 flex-shrink-0 border rounded-full p-0.5 border-gray-200 dark:border-gray-700/50 bg-gray-50 dark:bg-[#1A1D29]/50`}>
+    {!isMobile && isNotesListHidden && (
+        <>
+            <button 
+                onClick={handleToggleNotesList} 
+                className={`p-1.5 rounded-full text-indigo-600 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-700/30 hover:bg-indigo-200 dark:hover:bg-indigo-700/50`} 
+                title="Show Notes List"
+            >
+                <PanelRightOpen className="w-4 h-4" />
+            </button>
+            <div className={`w-px h-4 bg-gray-300 dark:bg-gray-700/50 mx-0.5`}></div>
+        </>
+    )}
+    <button onClick={handleEditNote} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60`} title="Edit"><Edit2 className="w-4 h-4" /></button>
+    {geminiApiKey && <button onClick={() => handleChatWithNote(selectedNote)} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60`} title="Chat with AI"><MessageCircle className="w-4 h-4" /></button>}
+    {selectedNote.type === 'pdf' && selectedNote.sourceUrl && !isMobile && (
+        <button
+            onClick={() => togglePdfViewer(true)}
+            className={`p-1.5 rounded-full flex items-center gap-1 text-xs text-sky-600 dark:text-sky-300 bg-sky-100 dark:bg-sky-700/30 hover:bg-sky-200 dark:hover:bg-sky-700/50 focus:ring-1 focus:ring-sky-300 dark:focus:ring-sky-600`}
+            title="View PDF Side-by-Side"
+        >
+            <Eye className="w-4 h-4" />
+            <span className="hidden sm:inline">View PDF</span>
+        </button>
+    )}
+    <button onClick={() => handleTogglePublic(selectedNote.id, selectedNote.isPublic)} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60 ${selectedNote.isPublic ? 'hover:bg-cyan-100/50 dark:hover:bg-cyan-900/30' : ''}`} title={selectedNote.isPublic ? 'Make private' : 'Make public'}>{selectedNote.isPublic ? <Globe className={`w-4 h-4 text-cyan-600 dark:text-cyan-400`} /> : <Lock className="w-4 h-4" />}</button>
+    {selectedNote.isPublic && ( <button onClick={() => handleGetShareLink(selectedNote.id)} className={`p-1.5 rounded-full relative text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60 ${linkCopied ? 'hover:bg-green-100/50 dark:hover:bg-green-900/30' : ''}`} title="Copy share link">{linkCopied ? <ClipboardCopy className={`w-4 h-4 text-green-500`} /> : <Share2 className="w-4 h-4" />}</button> )}
+    <div className={`w-px h-4 bg-gray-300 dark:bg-gray-700/50 mx-0.5`}></div>
+    <button onClick={() => handleDeleteNote(selectedNote.id)} className={`p-1.5 rounded-full text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-700/30`} title="Delete"><Trash2 className="w-4 h-4" /></button>
+</div>
                                         </div>
-
-                                        {((selectedNote.tags?.length ?? 0) > 0) && ( <div className={`px-4 md:px-6 flex flex-wrap gap-1.5 mb-4 flex-shrink-0`}> {selectedNote.tags!.map((tag) => (<span key={tag} className={`px-2 py-0.5 rounded-full text-xs border ${(tagColors as any)[tag] || tagColors.custom}`}>#{tag}</span>))} </div> )}
-
+                                        <div className={`px-4 md:px-6 flex flex-wrap gap-1.5 mb-4 flex-shrink-0`}>
+                                            {selectedNote.tags!.map((tag) => (<span key={tag} className={`px-2 py-0.5 rounded-full text-xs border ${(tagColors as any)[tag] || tagColors.custom}`}>#{tag}</span>))}
+                                        </div>
                                         <div className={`px-4 md:px-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4 flex-shrink-0`}>
                                             {(selectedNote.questions && selectedNote.questions.length > 0) && (
                                                 <button onClick={() => document.getElementById('study-questions-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 bg-purple-50 dark:bg-purple-700/20 hover:bg-purple-100 dark:hover:bg-purple-700/30 shadow-sm `} >
@@ -2286,324 +2419,319 @@ isEditing ? (
                                                 </button>
                                             )}
                                             {(selectedNote.flashcards && selectedNote.flashcards.length > 0) && (
-                                                 <button onClick={() => document.getElementById('flashcards-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 bg-indigo-50 dark:bg-indigo-700/20 hover:bg-indigo-100 dark:hover:bg-indigo-700/30 shadow-sm `} >
+                                                <button onClick={() => document.getElementById('flashcards-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 bg-indigo-50 dark:bg-indigo-700/20 hover:bg-indigo-100 dark:hover:bg-indigo-700/30 shadow-sm `} >
                                                     <div className={`p-2 rounded-full bg-indigo-100 dark:bg-indigo-700/30 text-indigo-600 dark:text-indigo-300`}> <Layers className="w-5 h-5" /> </div>
                                                     <div> <span className={`block font-semibold text-sm text-gray-800 dark:text-gray-100`}>Flashcards</span> <span className={`block text-xs text-gray-600 dark:text-gray-400`}>Review key terms</span> </div>
                                                 </button>
                                             )}
-<button
-    onClick={handlePodcastToggle}
-    className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 bg-teal-50 dark:bg-teal-700/20 hover:bg-teal-100 dark:hover:bg-teal-700/30 shadow-sm  ${
-        userTier !== 'premium' ? 'opacity-70' : ''
-    }`}
->
-    <div className={`p-2 rounded-full bg-teal-100 dark:bg-teal-700/30 text-teal-600 dark:text-teal-300`}>
-        <Mic className="w-5 h-5" />
-    </div>
+                                            <button
+                                                onClick={handlePodcastToggle}
+                                                className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 bg-teal-50 dark:bg-teal-700/20 hover:bg-teal-100 dark:hover:bg-teal-700/30 shadow-sm  ${userTier !== 'premium' ? 'opacity-70' : ''}`}
+                                            >
+                                                <div className={`p-2 rounded-full bg-teal-100 dark:bg-teal-700/30 text-teal-600 dark:text-teal-300`}>
+                                                    <Mic className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="font-semibold text-sm text-gray-800 dark:text-gray-100">Podcast</span>
+                                                        {userTier !== 'premium' && (<Lock className="w-4 h-4 text-gray-500 dark:text-gray-500 relative translate-y-[-0.5px]" />)}
+                                                    </div>
+                                                    <span className="block text-xs text-gray-600 dark:text-gray-400">{showPodcastSection ? 'Close Player' : 'Listen to your notes'}</span>
+                                                </div>
+                                            </button>
+                                        </div>
+<div ref={noteContentRef} className={`flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 px-4 md:px-6 bg-white dark:bg-[#0C0E1A]`}>
+    <AnimatePresence>
+    {showPodcastSection && (
+        <motion.div
+                id="podcast-section-wrapper"
+           initial={{ opacity: 0, height: 0 }}
+           animate={{ opacity: 1, height: 'auto' }}
+           exit={{ opacity: 0, height: 0 }}
+           transition={{ duration: 0.3, ease: "easeInOut" }}
+           className="overflow-hidden"
+        >
+        {isPodcastProcessing && (
+            <div className="my-6 p-4 rounded-lg bg-gray-100 dark:bg-gray-800/50 text-center">
+                <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mx-auto mb-2" />
+                <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Crafting your podcast...</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">This may take 5-10 min. Please wait.</p>
+            </div>
+        )}
+        
+        {activePodcast && (
+            <div id="podcast-player-section" className="my-6 p-4 rounded-lg shadow-lg bg-gradient-to-br from-indigo-500 to-purple-600 dark:from-indigo-700 dark:to-purple-800 text-white">
+                <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center">
+                        <Speaker size={24} className="mr-3 opacity-80" />
+                        <h3 className="text-lg font-semibold truncate">{selectedNote.title} - Podcast</h3>
+                    </div>
+                    <button onClick={handlePodcastStop} className="p-1 text-white/70 hover:text-white rounded-full hover:bg-white/10"><X size={18}/></button>
+                </div>
 
-    <div>
-        {/* --- FIX IS HERE --- */}
-        {/* 1. Use a flex container with `items-center` and `gap` for spacing */}
-        <div className="flex items-center gap-1.5">
-            <span className="font-semibold text-sm text-gray-800 dark:text-gray-100">
-                Podcast
-            </span>
-            
-            {userTier !== 'premium' && (
-                // 2. Add a tiny relative upward shift to the icon for perfect visual centering
-                // You can adjust or remove this if `items-center` is sufficient.
-                // Common values are `translate-y-[-0.5px]` or `translate-y-[-1px]`
-                <Lock className="w-4 h-4 text-gray-500 dark:text-gray-500 relative translate-y-[-0.5px]" />
+                <audio ref={audioPlayerRef} className="hidden" controls={false} />
+
+                <>
+                    <div className="w-full space-y-2 mb-3">
+                        <input
+                            type="range"
+                            min="0"
+                            max={podcastDuration || 100}
+                            value={podcastCurrentTime}
+                            onChange={handlePodcastSeek}
+                            className="w-full h-2 bg-white/30 rounded-lg appearance-none cursor-pointer accent-white"
+                        />
+                        <div className="flex justify-between text-xs opacity-80">
+                            <span>{formatPodcastTime(podcastCurrentTime)}</span>
+                            <span>{formatPodcastTime(podcastDuration)}</span>
+                        </div>
+                    </div>
+                    <div className="flex items-center justify-center space-x-4 mb-4">
+                       <button onClick={handleSkipBackSegment} className="p-2 opacity-80 hover:opacity-100 transition-opacity" disabled={!activePodcast || (audioPlayerRef.current?.currentTime || 0) < 1} >
+                            <SkipBack size={20} />
+                        </button>
+                        <button onClick={handlePodcastPlayPause} className="p-3 bg-white/20 rounded-full hover:bg-white/30 transition-colors transform hover:scale-105" >
+                            {isPodcastPlaying ? <Pause size={24} /> : <Play size={24} />}
+                        </button>
+                        <button onClick={handleSkipForwardSegment} className="p-2 opacity-80 hover:opacity-100 transition-opacity" disabled={!activePodcast || (audioPlayerRef.current?.currentTime || 0) >= activePodcast.totalDuration - 1} >
+                            <SkipForward size={20} />
+                        </button>
+                    </div>
+                    <div className="flex items-center justify-between text-xs opacity-90">
+                        <div className="flex items-center space-x-2">
+                            {podcastVolume > 0 ? <Volume2 size={18} /> : <VolumeX size={18} />}
+                            <input
+                                type="range" min="0" max="1" step="0.05" value={podcastVolume}
+                                onChange={(e) => setPodcastVolume(Number(e.target.value))}
+                                className="w-20 h-1.5 bg-white/30 rounded-lg appearance-none cursor-pointer accent-white"
+                            />
+                        </div>
+                        <div className="flex items-center space-x-2 relative group">
+                            <span className="px-2 py-0.5 bg-white/20 rounded-md focus:ring-2 focus:ring-white/50">{podcastPlaybackRate}x</span>
+                            <select value={podcastPlaybackRate} onChange={(e) => setPodcastPlaybackRate(Number(e.target.value))}
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            >
+                                {[0.5, 0.75, 1, 1.25, 1.5, 2].map(rate => (
+                                    <option key={rate} value={rate}>{rate}x</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+                </>
+            </div>
+        )}
+
+        <div id="podcast-list-section" className="mt-1 pt-6 mb-6 border-t border-gray-200 dark:border-gray-700/50">
+            <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100">
+                    <Mic className="w-5 h-5 text-teal-500 dark:text-teal-400" /> Podcasts
+                </h3>
+                <button onClick={() => { if (userTier === 'premium') setShowPodcastConfigModal(true); else setShowUpgradeModal(true); }}
+                    className="bg-teal-50 dark:bg-teal-700/20 hover:bg-teal-100 dark:hover:bg-teal-700/30 text-teal-600 dark:text-teal-300 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
+                >
+                    <PlusCircle className="w-3.5 h-3.5" /> New Podcast {userTier !== 'premium' && <Crown className="w-3 h-3 ml-1" />}
+                </button>
+            </div>
+            {(selectedNote.podcasts?.length ?? 0) > 0 ? (
+                <div className="space-y-2">
+                    {selectedNote.podcasts!.sort((a, b) => toDateSafe(b.createdAt)!.getTime() - toDateSafe(a.createdAt)!.getTime()).map(p => (
+                        <div key={p.id} className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700/50 flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                                <button onClick={() => handlePlayPodcast(p)} className="p-2 rounded-full bg-teal-100 dark:bg-teal-700/30 text-teal-600 dark:text-teal-300 hover:bg-teal-200 dark:hover:bg-teal-700/50">
+                                    {activePodcast?.id === p.id && isPodcastPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+                                </button>
+                                <div>
+                                    <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                                        Podcast from {toDateSafe(p.createdAt)?.toLocaleString()}
+                                    </p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                        {p.settings.speaker2Id ? `${PREDEFINED_PODCAST_SPEAKERS.find(s=>s.id===p.settings.speaker1Id)?.name} & ${PREDEFINED_PODCAST_SPEAKERS.find(s=>s.id===p.settings.speaker2Id)?.name}` : PREDEFINED_PODCAST_SPEAKERS.find(s=>s.id===p.settings.speaker1Id)?.name}
+                                    </p>
+                                </div>
+                            </div>
+                            <button onClick={() => handleDeletePodcast(p.id)} className="p-1.5 text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30">
+                                <Trash2 className="w-4 h-4" />
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <p className="text-center text-xs text-gray-500 dark:text-gray-400 py-1">No podcasts generated for this note yet.</p>
             )}
         </div>
+        </motion.div>
+    )}
+    </AnimatePresence>
 
-        <span className="block text-xs text-gray-600 dark:text-gray-400">
-            {showPodcastSection ? 'Close Player' : 'Listen to your notes'}
-        </span>
+    <div className="py-1">
+        <SunEditorWrapper
+            readOnly={true}
+            initialContent={selectedNote.content}
+        />
     </div>
-</button>
-                                        </div>
-
-                                        <div ref={noteContentRef} className={`flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 px-4 md:px-6 bg-white dark:bg-[#0C0E1A]`}>
-                                            <AnimatePresence>
-                                            {showPodcastSection && (
-                                                <motion.div
-                                                        id="podcast-section-wrapper"
-                                                   initial={{ opacity: 0, height: 0 }}
-                                                   animate={{ opacity: 1, height: 'auto' }}
-                                                   exit={{ opacity: 0, height: 0 }}
-                                                   transition={{ duration: 0.3, ease: "easeInOut" }}
-                                                   className="overflow-hidden"
-                                                >
-                                                {isPodcastProcessing && (
-                                                    <div className="my-6 p-4 rounded-lg bg-gray-100 dark:bg-gray-800/50 text-center">
-                                                        <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mx-auto mb-2" />
-                                                        <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Crafting your podcast...</p>
-                                                        <p className="text-xs text-gray-500 dark:text-gray-400">This may take 5-10 min. Please wait.</p>
-                                                    </div>
-                                                )}
-                                                
-                                                {activePodcast && (
-                                                    <div id="podcast-player-section" className="my-6 p-4 rounded-lg shadow-lg bg-gradient-to-br from-indigo-500 to-purple-600 dark:from-indigo-700 dark:to-purple-800 text-white">
-                                                        <div className="flex items-center justify-between mb-3">
-                                                            <div className="flex items-center">
-                                                                <Speaker size={24} className="mr-3 opacity-80" />
-                                                                <h3 className="text-lg font-semibold truncate">{selectedNote.title} - Podcast</h3>
-                                                            </div>
-                                                            <button onClick={handlePodcastStop} className="p-1 text-white/70 hover:text-white rounded-full hover:bg-white/10"><X size={18}/></button>
-                                                        </div>
-
-                                                        <audio ref={audioPlayerRef} className="hidden" controls={false} />
-
-                                                        <>
-                                                            <div className="w-full space-y-2 mb-3">
-                                                                <input
-                                                                    type="range"
-                                                                    min="0"
-                                                                    max={podcastDuration || 100}
-                                                                    value={podcastCurrentTime}
-                                                                    onChange={handlePodcastSeek}
-                                                                    className="w-full h-2 bg-white/30 rounded-lg appearance-none cursor-pointer accent-white"
-                                                                />
-                                                                <div className="flex justify-between text-xs opacity-80">
-                                                                    <span>{formatPodcastTime(podcastCurrentTime)}</span>
-                                                                    <span>{formatPodcastTime(podcastDuration)}</span>
-                                                                </div>
-                                                            </div>
-                                                            <div className="flex items-center justify-center space-x-4 mb-4">
-                                                               <button onClick={handleSkipBackSegment} className="p-2 opacity-80 hover:opacity-100 transition-opacity" disabled={!activePodcast || (audioPlayerRef.current?.currentTime || 0) < 1} >
-                                                                    <SkipBack size={20} />
-                                                                </button>
-                                                                <button onClick={handlePodcastPlayPause} className="p-3 bg-white/20 rounded-full hover:bg-white/30 transition-colors transform hover:scale-105" >
-                                                                    {isPodcastPlaying ? <Pause size={24} /> : <Play size={24} />}
-                                                                </button>
-                                                                <button onClick={handleSkipForwardSegment} className="p-2 opacity-80 hover:opacity-100 transition-opacity" disabled={!activePodcast || (audioPlayerRef.current?.currentTime || 0) >= activePodcast.totalDuration - 1} >
-                                                                    <SkipForward size={20} />
-                                                                </button>
-                                                            </div>
-                                                            <div className="flex items-center justify-between text-xs opacity-90">
-                                                                <div className="flex items-center space-x-2">
-                                                                    {podcastVolume > 0 ? <Volume2 size={18} /> : <VolumeX size={18} />}
-                                                                    <input
-                                                                        type="range" min="0" max="1" step="0.05" value={podcastVolume}
-                                                                        onChange={(e) => setPodcastVolume(Number(e.target.value))}
-                                                                        className="w-20 h-1.5 bg-white/30 rounded-lg appearance-none cursor-pointer accent-white"
-                                                                    />
-                                                                </div>
-                                                                <div className="flex items-center space-x-2 relative group">
-                                                                    <span className="px-2 py-0.5 bg-white/20 rounded-md focus:ring-2 focus:ring-white/50">{podcastPlaybackRate}x</span>
-                                                                    <select value={podcastPlaybackRate} onChange={(e) => setPodcastPlaybackRate(Number(e.target.value))}
-                                                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                                                    >
-                                                                        {[0.5, 0.75, 1, 1.25, 1.5, 2].map(rate => (
-                                                                            <option key={rate} value={rate}>{rate}x</option>
-                                                                        ))}
-                                                                    </select>
-                                                                </div>
-                                                            </div>
-                                                        </>
-                                                    </div>
-                                                )}
-
-                                                <div id="podcast-list-section" className="mt-1 pt-6 mb-6 border-t border-gray-200 dark:border-gray-700/50">
-                                                    <div className="flex items-center justify-between mb-4">
-                                                        <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100">
-                                                            <Mic className="w-5 h-5 text-teal-500 dark:text-teal-400" /> Podcasts
-                                                        </h3>
-                                                        <button onClick={() => { if (userTier === 'premium') setShowPodcastConfigModal(true); else setShowUpgradeModal(true); }}
-                                                            className="bg-teal-50 dark:bg-teal-700/20 hover:bg-teal-100 dark:hover:bg-teal-700/30 text-teal-600 dark:text-teal-300 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
-                                                        >
-                                                            <PlusCircle className="w-3.5 h-3.5" /> New Podcast {userTier !== 'premium' && <Crown className="w-3 h-3 ml-1" />}
-                                                        </button>
-                                                    </div>
-                                                    {(selectedNote.podcasts?.length ?? 0) > 0 ? (
-                                                        <div className="space-y-2">
-                                                            {selectedNote.podcasts!.sort((a, b) => toDateSafe(b.createdAt)!.getTime() - toDateSafe(a.createdAt)!.getTime()).map(p => (
-                                                                <div key={p.id} className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700/50 flex items-center justify-between gap-3">
-                                                                    <div className="flex items-center gap-3">
-                                                                        <button onClick={() => handlePlayPodcast(p)} className="p-2 rounded-full bg-teal-100 dark:bg-teal-700/30 text-teal-600 dark:text-teal-300 hover:bg-teal-200 dark:hover:bg-teal-700/50">
-                                                                            {activePodcast?.id === p.id && isPodcastPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
-                                                                        </button>
-                                                                        <div>
-                                                                            <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
-                                                                                Podcast from {toDateSafe(p.createdAt)?.toLocaleString()}
-                                                                            </p>
-                                                                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                                                {p.settings.speaker2Id ? `${PREDEFINED_PODCAST_SPEAKERS.find(s=>s.id===p.settings.speaker1Id)?.name} & ${PREDEFINED_PODCAST_SPEAKERS.find(s=>s.id===p.settings.speaker2Id)?.name}` : PREDEFINED_PODCAST_SPEAKERS.find(s=>s.id===p.settings.speaker1Id)?.name}
-                                                                            </p>
-                                                                        </div>
-                                                                    </div>
-                                                                    <button onClick={() => handleDeletePodcast(p.id)} className="p-1.5 text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30">
-                                                                        <Trash2 className="w-4 h-4" />
-                                                                    </button>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    ) : (
-                                                        <p className="text-center text-xs text-gray-500 dark:text-gray-400 py-1">No podcasts generated for this note yet.</p>
-                                                    )}
-                                                </div>
-                                                </motion.div>
-                                            )}
-                                            </AnimatePresence>
-
-                                            <div className="py-1">
-                                                <SunEditorWrapper
-                                                    readOnly={true}
-                                                    initialContent={selectedNote.content}
-                                                />
-                                            </div>
 
 
-                                            {selectedNote.keyPoints && selectedNote.keyPoints.length > 0 && (
-                                            <div className={`mt-8 pt-6 border-t border-gray-200 dark:border-gray-700/50`}>
-                                                <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 text-gray-800 dark:text-gray-100`}> <Sparkles className={`w-5 h-5 text-yellow-500 dark:text-yellow-400`} /> Key Points </h3>
-                                                <div className={`space-y-3`}> {selectedNote.keyPoints.map((point, index) => (
-                                                    <div key={index} className="flex items-start p-3 rounded-lg bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700/50">
-                                                        <div className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-700/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center text-xs font-semibold mr-3 mt-0.5">{index + 1}</div>
-                                                        <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{point}</p>
-                                                    </div>
-                                                ))} </div>
-                                            </div>
-                                            )}
-
-                                            {selectedNote.flashcards && selectedNote.flashcards.length > 0 && (
-                                                <div id="flashcards-section" className="my-8 pt-6 border-t border-gray-200 dark:border-gray-700/50">
-                                                    <div className="flex justify-between items-center mb-4">
-                                                        <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100">
-                                                            <Layers className="w-5 h-5 text-indigo-500 dark:text-indigo-400" /> Flashcards
-                                                        </h3>
-                                                    </div>
-                                                    <AnimatePresence mode="wait">
-                                                        <motion.div
-                                                            key={currentFlashcardIndex}
-                                                            initial={{ opacity: 0, y: isFlashcardFlipped ? -10: 10 }}
-                                                            animate={{ opacity: 1, y:0 }}
-                                                            exit={{ opacity: 0, y: isFlashcardFlipped ? 10: -10}}
-                                                            transition={{ duration: 0.2 }}
-                                                        >
-                                                            <motion.div
-                                                                className="relative min-h-[280px] cursor-pointer [perspective:1000px]"
-                                                                onClick={() => setIsFlashcardFlipped(!isFlashcardFlipped)}
-                                                            >
-                                                                <motion.div
-                                                                    className="absolute inset-0 p-6 rounded-lg shadow-lg flex flex-col justify-center items-center text-center bg-indigo-500 dark:bg-indigo-700 text-white [backface-visibility:hidden]"
-                                                                    animate={{ rotateX: isFlashcardFlipped ? -180 : 0 }}
-                                                                    transition={{ type: "spring", stiffness: 200, damping: 20, duration: 0.5 }}
-                                                                >
-                                                                    <p className="text-xs uppercase tracking-wider mb-2 opacity-80">Term</p>
-                                                                    <p className="text-xl font-medium leading-tight">
-                                                                        {selectedNote.flashcards[currentFlashcardIndex].front}
-                                                                    </p>
-                                                                </motion.div>
-                                                                <motion.div
-                                                                    className="absolute inset-0 p-6 rounded-lg shadow-lg flex flex-col justify-center items-center text-center bg-purple-500 dark:bg-purple-700 text-white [backface-visibility:hidden] [transform:rotateX(180deg)]"
-                                                                    animate={{ rotateX: isFlashcardFlipped ? 0 : 180 }}
-                                                                    transition={{ type: "spring", stiffness: 200, damping: 20, duration: 0.5 }}
-                                                                >
-                                                                    <p className="text-xs uppercase tracking-wider mb-2 opacity-80">Definition</p>
-                                                                    <p className="text-xl font-medium leading-tight">
-                                                                        {selectedNote.flashcards[currentFlashcardIndex].back}
-                                                                    </p>
-                                                                </motion.div>
-                                                            </motion.div>
-                                                        </motion.div>
-                                                    </AnimatePresence>
-                                                    <div className="flex items-center justify-between mt-4">
-                                                        <button
-                                                            onClick={() => { setCurrentFlashcardIndex(prev => Math.max(0, prev - 1)); setIsFlashcardFlipped(false); }}
-                                                            disabled={currentFlashcardIndex === 0}
-                                                            className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-gray-600 dark:text-gray-300"
-                                                        > <ChevronLeft className="w-5 h-5" /> </button>
-                                                        <span className="text-sm text-gray-600 dark:text-gray-400"> {currentFlashcardIndex + 1} / {selectedNote.flashcards.length} </span>
-                                                        <button
-                                                            onClick={() => { setCurrentFlashcardIndex(prev => Math.min(selectedNote.flashcards!.length - 1, prev + 1)); setIsFlashcardFlipped(false); }}
-                                                            disabled={currentFlashcardIndex === selectedNote.flashcards.length - 1}
-                                                            className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-gray-600 dark:text-gray-300"
-                                                        > <ChevronRight className="w-5 h-5" /> </button>
-                                                    </div>
-                                                    <button onClick={() => setIsFlashcardFlipped(!isFlashcardFlipped)} className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200">
-                                                        <FlipIcon className="w-4 h-4" /> Flip Card
-                                                    </button>
-                                                </div>
-                                            )}
-
-
-                                            {selectedNote.questions && selectedNote.questions.length > 0 && (
-                                            <div id="study-questions-section" className={`mt-8 pt-6 border-t border-gray-200 dark:border-gray-700/50`}>
-                                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
-                                                    <h3 className={`text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100`}><BookOpen className={`w-5 h-5 text-purple-500 dark:text-purple-400`} />Study Questions</h3>
-                                                    {geminiApiKey && <button onClick={handleRegenerateQuestions} disabled={isRegeneratingQuestions || !geminiApiKey} className={`bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-md text-xs flex items-center gap-1.5 ${isRegeneratingQuestions || !geminiApiKey ? 'opacity-50 cursor-not-allowed' : ''}`} title={!geminiApiKey ? "API Key required" : "Regenerate"}> {isRegeneratingQuestions ? (<> <Loader2 className="w-3.5 h-3.5 animate-spin" /> Regenerating... </>) : (<> <RefreshCw className="w-3.5 h-3.5" /> Regenerate </>)} </button>}
-                                                </div>
-{/* Replace the original study questions section with this redesigned one */}
-<div className="space-y-5">
-    {selectedNote.questions.map((q, index) => {
-        const key = `${selectedNote?.id}-${index}`;
-        const answer = questionAnswers[key];
-        const answered = answer != null;
-        const isCorrect = answered && answer === q.correctAnswer;
-        return (
-            <div key={key} className={`p-4 md:p-5 rounded-xl transition-colors duration-300 ${answered ? (isCorrect ? 'bg-green-500/10' : 'bg-red-500/10') : 'bg-gray-50 dark:bg-[#1A1D29]'}`}>
-                <p className={`text-gray-800 dark:text-gray-200 font-medium mb-4 leading-relaxed`}>
-                    <span className="text-indigo-500 dark:text-indigo-400 font-bold mr-2">{index + 1}.</span>
-                    {q.question}
-                </p>
-                <div className="space-y-3">
-                    {q.options.map((opt, idx) => {
-                        const sel = answer === idx;
-                        const cor = idx === q.correctAnswer;
-
-                        let stateClasses = '';
-                        if (answered) {
-                            if (sel) { // The one the user selected
-                                stateClasses = cor
-                                    ? `bg-green-100 dark:bg-green-500/20 text-green-800 dark:text-white font-semibold border-green-300 dark:border-green-500/50 cursor-default`
-                                    : `bg-red-100 dark:bg-red-500/20 text-red-800 dark:text-white font-semibold border-red-300 dark:border-red-500/50 cursor-default`;
-                            } else if (cor) { // The correct answer, if user selected wrong
-                                stateClasses = `bg-green-100 dark:bg-green-500/20 text-green-800 dark:text-white border-green-300 dark:border-green-500/50 cursor-default`;
-                            } else { // Other incorrect answers
-                                stateClasses = `bg-gray-100 dark:bg-gray-700/40 text-gray-500 dark:text-gray-400 border-transparent cursor-default opacity-70`;
-                            }
-                        } else { // Not answered yet
-                            stateClasses = `bg-white dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 focus:ring-2 focus:ring-indigo-400 focus:outline-none text-gray-700 dark:text-gray-300`;
-                        }
-
-                        return (
-                            <button
-                                key={idx}
-                                onClick={() => !answered && handleAnswerSelect(key, idx)}
-                                disabled={answered}
-                                className={`w-full text-left p-3 rounded-lg transition-all duration-200 text-sm flex items-center justify-between group border ${stateClasses}`}
-                            >
-                                <span>{opt}</span>
-                                <div className={`flex-shrink-0 ml-4 w-6 h-6 flex items-center justify-center rounded-full transition-colors
-                                    ${answered && (sel || cor) ? (cor ? 'bg-green-500/20 border-green-500/30' : 'bg-red-500/20 border-red-500/30') : 'bg-gray-200/50 dark:bg-gray-700/50 border-gray-300 dark:border-gray-600'}
-                                `}>
-                                    {answered && sel && (cor ? <Check className="w-4 h-4 text-green-600" /> : <X className="w-4 h-4 text-red-600" />)}
-                                    {answered && !sel && cor && <Check className="w-4 h-4 text-green-600" />}
-                                </div>
-                            </button>
-                        );
-                    })}
-                </div>
-                {answered && q.explanation && (
-                    <div className={`mt-4 p-3 rounded-lg text-sm leading-relaxed ${isCorrect ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'}`}>
-                        <strong className="font-semibold">Explanation: </strong>{q.explanation}
-                    </div>
-                )}
+    {selectedNote.keyPoints && selectedNote.keyPoints.length > 0 && (
+    <div className={`mt-8 pt-6 border-t border-gray-200 dark:border-gray-700/50`}>
+        <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 text-gray-800 dark:text-gray-100`}> <Sparkles className={`w-5 h-5 text-yellow-500 dark:text-yellow-400`} /> Key Points </h3>
+        <div className={`space-y-3`}> {selectedNote.keyPoints.map((point, index) => (
+            <div key={index} className="flex items-start p-3 rounded-lg bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700/50">
+                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-700/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center text-xs font-semibold mr-3 mt-0.5">{index + 1}</div>
+                <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{point}</p>
             </div>
-        );
-    })}
-</div>
-                                            </div>
-                                            )}
+        ))} </div>
+    </div>
+    )}
+
+    {selectedNote.flashcards && selectedNote.flashcards.length > 0 && (
+        <div id="flashcards-section" className="my-8 pt-6 border-t border-gray-200 dark:border-gray-700/50">
+            <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100">
+                    <Layers className="w-5 h-5 text-indigo-500 dark:text-indigo-400" /> Flashcards
+                </h3>
+            </div>
+            <AnimatePresence mode="wait">
+                <motion.div
+                    key={currentFlashcardIndex}
+                    initial={{ opacity: 0, y: isFlashcardFlipped ? -10: 10 }}
+                    animate={{ opacity: 1, y:0 }}
+                    exit={{ opacity: 0, y: isFlashcardFlipped ? 10: -10}}
+                    transition={{ duration: 0.2 }}
+                >
+                    <motion.div
+                        className="relative min-h-[280px] cursor-pointer [perspective:1000px]"
+                        onClick={() => setIsFlashcardFlipped(!isFlashcardFlipped)}
+                    >
+                        <motion.div
+                            className="absolute inset-0 p-6 rounded-lg shadow-lg flex flex-col justify-center items-center text-center bg-indigo-500 dark:bg-indigo-700 text-white [backface-visibility:hidden]"
+                            animate={{ rotateX: isFlashcardFlipped ? -180 : 0 }}
+                            transition={{ type: "spring", stiffness: 200, damping: 20, duration: 0.5 }}
+                        >
+                            <p className="text-xs uppercase tracking-wider mb-2 opacity-80">Term</p>
+                            <p className="text-xl font-medium leading-tight">
+                                {selectedNote.flashcards[currentFlashcardIndex].front}
+                            </p>
+                        </motion.div>
+                        <motion.div
+                            className="absolute inset-0 p-6 rounded-lg shadow-lg flex flex-col justify-center items-center text-center bg-purple-500 dark:bg-purple-700 text-white [backface-visibility:hidden] [transform:rotateX(180deg)]"
+                            animate={{ rotateX: isFlashcardFlipped ? 0 : 180 }}
+                            transition={{ type: "spring", stiffness: 200, damping: 20, duration: 0.5 }}
+                        >
+                            <p className="text-xs uppercase tracking-wider mb-2 opacity-80">Definition</p>
+                            <p className="text-xl font-medium leading-tight">
+                                {selectedNote.flashcards[currentFlashcardIndex].back}
+                            </p>
+                        </motion.div>
+                    </motion.div>
+                </motion.div>
+            </AnimatePresence>
+            <div className="flex items-center justify-between mt-4">
+                <button
+                    onClick={() => { setCurrentFlashcardIndex(prev => Math.max(0, prev - 1)); setIsFlashcardFlipped(false); }}
+                    disabled={currentFlashcardIndex === 0}
+                    className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-gray-600 dark:text-gray-300"
+                > <ChevronLeft className="w-5 h-5" /> </button>
+                <span className="text-sm text-gray-600 dark:text-gray-400"> {currentFlashcardIndex + 1} / {selectedNote.flashcards.length} </span>
+                <button
+                    onClick={() => { setCurrentFlashcardIndex(prev => Math.min(selectedNote.flashcards!.length - 1, prev + 1)); setIsFlashcardFlipped(false); }}
+                    disabled={currentFlashcardIndex === selectedNote.flashcards.length - 1}
+                    className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-gray-600 dark:text-gray-300"
+                > <ChevronRight className="w-5 h-5" /> </button>
+            </div>
+            <button onClick={() => setIsFlashcardFlipped(!isFlashcardFlipped)} className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200">
+                <FlipIcon className="w-4 h-4" /> Flip Card
+            </button>
+        </div>
+    )}
+
+
+    {selectedNote.questions && selectedNote.questions.length > 0 && (
+    <div id="study-questions-section" className={`mt-8 pt-6 border-t border-gray-200 dark:border-gray-700/50`}>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
+            <h3 className={`text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100`}><BookOpen className={`w-5 h-5 text-purple-500 dark:text-purple-400`} />Study Questions</h3>
+            {geminiApiKey && <button onClick={handleRegenerateQuestions} disabled={isRegeneratingQuestions || !geminiApiKey} className={`bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-md text-xs flex items-center gap-1.5 ${isRegeneratingQuestions || !geminiApiKey ? 'opacity-50 cursor-not-allowed' : ''}`} title={!geminiApiKey ? "API Key required" : "Regenerate"}> {isRegeneratingQuestions ? (<> <Loader2 className="w-3.5 h-3.5 animate-spin" /> Regenerating... </>) : (<> <RefreshCw className="w-3.5 h-3.5" /> Regenerate </>)} </button>}
+        </div>
+        <div className="space-y-5">
+            {selectedNote.questions.map((q, index) => {
+                const key = `${selectedNote?.id}-${index}`;
+                const answer = questionAnswers[key];
+                const answered = answer != null;
+                const isCorrect = answered && answer === q.correctAnswer;
+                return (
+                    <div key={key} className={`p-4 md:p-5 rounded-xl transition-colors duration-300 ${answered ? (isCorrect ? 'bg-green-500/10' : 'bg-red-500/10') : 'bg-gray-50 dark:bg-[#1A1D29]'}`}>
+                        <p className={`text-gray-800 dark:text-gray-200 font-medium mb-4 leading-relaxed`}>
+                            <span className="text-indigo-500 dark:text-indigo-400 font-bold mr-2">{index + 1}.</span>
+                            {q.question}
+                        </p>
+                        <div className="space-y-3">
+                            {q.options.map((opt, idx) => {
+                                const sel = answer === idx;
+                                const cor = idx === q.correctAnswer;
+
+                                let stateClasses = '';
+                                if (answered) {
+                                    if (sel) {
+                                        stateClasses = cor
+                                            ? `bg-green-100 dark:bg-green-500/20 text-green-800 dark:text-white font-semibold border-green-300 dark:border-green-500/50 cursor-default`
+                                            : `bg-red-100 dark:bg-red-500/20 text-red-800 dark:text-white font-semibold border-red-300 dark:border-red-500/50 cursor-default`;
+                                    } else if (cor) {
+                                        stateClasses = `bg-green-100 dark:bg-green-500/20 text-green-800 dark:text-white border-green-300 dark:border-green-500/50 cursor-default`;
+                                    } else {
+                                        stateClasses = `bg-gray-100 dark:bg-gray-700/40 text-gray-500 dark:text-gray-400 border-transparent cursor-default opacity-70`;
+                                    }
+                                } else {
+                                    stateClasses = `bg-white dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 focus:ring-2 focus:ring-indigo-400 focus:outline-none text-gray-700 dark:text-gray-300`;
+                                }
+
+                                return (
+                                    <button
+                                        key={idx}
+                                        onClick={() => !answered && handleAnswerSelect(key, idx)}
+                                        disabled={answered}
+                                        className={`w-full text-left p-3 rounded-lg transition-all duration-200 text-sm flex items-center justify-between group border ${stateClasses}`}
+                                    >
+                                        <span>{opt}</span>
+                                        <div className={`flex-shrink-0 ml-4 w-6 h-6 flex items-center justify-center rounded-full transition-colors
+                                            ${answered && (sel || cor) ? (cor ? 'bg-green-500/20 border-green-500/30' : 'bg-red-500/20 border-red-500/30') : 'bg-gray-200/50 dark:bg-gray-700/50 border-gray-300 dark:border-gray-600'}
+                                        `}>
+                                            {answered && sel && (cor ? <Check className="w-4 h-4 text-green-600" /> : <X className="w-4 h-4 text-red-600" />)}
+                                            {answered && !sel && cor && <Check className="w-4 h-4 text-green-600" />}
                                         </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        {answered && q.explanation && (
+                            <div className={`mt-4 p-3 rounded-lg text-sm leading-relaxed ${isCorrect ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'}`}>
+                                <strong className="font-semibold">Explanation: </strong>{q.explanation}
+                            </div>
+                        )}
+                    </div>
+                );
+            })}
+        </div>
+    </div>
+    )}
+</div>
                                     </div>
                                 )
-                            ) : ( <div className={`flex flex-col items-center justify-center bg-white dark:bg-[#0C0E1A] h-full text-center p-6`}> <FileQuestion className={`w-12 h-12 text-gray-400 dark:text-gray-500 mb-4`} /> <h2 className={`text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2`}>No Note Selected</h2> <p className={`text-gray-600 dark:text-gray-400 text-sm mb-4 max-w-xs whitespace-nowrap`}>Select a note from the list, or create a new one.</p> <button onClick={() => setShowNewNoteModal(true)} className={`bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 mb-2`}> <Plus className="w-4 h-4" /> Create Note </button> {!isMobile && notes.length >= 2 && !showSplitView && ( <button onClick={startSplitView} className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5`}> <SplitSquareVertical className="w-4 h-4" /> Compare Notes </button> )} </div>
+                            ) : (
+                                <div className={`flex flex-col items-center justify-center bg-white dark:bg-[#0C0E1A] h-full text-center p-6`}>
+                                    <FileQuestion className={`w-12 h-12 text-gray-400 dark:text-gray-500 mb-4`} />
+                                    <h2 className={`text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2`}>No Note Selected</h2>
+                                    <p className={`text-gray-600 dark:text-gray-400 text-sm mb-4 max-w-xs whitespace-nowrap`}>Select a note from the list, or create a new one.</p>
+                                    <button onClick={() => setShowNewNoteModal(true)} className={`bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 mb-2`}>
+                                        <Plus className="w-4 h-4" /> Create Note
+                                    </button>
+                                    {!isMobile && notes.length >= 2 && !showSplitView && (
+                                        <button onClick={startSplitView} className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5`}>
+                                            <SplitSquareVertical className="w-4 h-4" /> Compare Notes
+                                        </button>
+                                    )}
+                                </div>
                             )}
-                         </div>
-                     )}
+                        </div>
+                    )}
                 </div>
 
                  <div className={` ${!isMobile && !isNotesListHidden ? 'w-full md:w-72 lg:w-80 xl:w-96 border-l' : 'w-0 hidden'} border-gray-200 dark:border-gray-700/50 flex-shrink-0 flex flex-col bg-white dark:bg-[#161922] transition-all duration-300 ease-in-out relative h-full z-10 order-last `}>
