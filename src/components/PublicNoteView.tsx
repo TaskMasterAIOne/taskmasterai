@@ -145,77 +145,98 @@ export function PublicNoteView() {
     html2pdf().from(element).set(opt).save();
   };
   
-  // CSS styles for rendered note content and scrollbar
+  // Comprehensive CSS styles derived from the provided SCSS file for accurate rendering.
   const globalStyles = `
     /* --- Scrollbar Styles --- */
     ::-webkit-scrollbar { width: 12px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb {
-        background-color: #e5e7eb;
+        background-color: #d1d5db;
         border-radius: 10px;
         border: 3px solid transparent;
         background-clip: content-box;
     }
-    .dark ::-webkit-scrollbar-thumb { background-color: #374151; }
-    ::-webkit-scrollbar-thumb:hover { background-color: #d1d5db; }
-    .dark ::-webkit-scrollbar-thumb:hover { background-color: #4b5563; }
+    .dark ::-webkit-scrollbar-thumb { background-color: #4b5563; }
+    ::-webkit-scrollbar-thumb:hover { background-color: #9ca3af; }
+    .dark ::-webkit-scrollbar-thumb:hover { background-color: #6b7280; }
 
-    /* --- Note Content Styles --- */
-    .note-content-area h1, .note-content-area h2, .note-content-area h3, .note-content-area h4 {
-        font-weight: 600;
+    /* --- Note Content Area Styles --- */
+    .note-content-area {
+        font-family: 'Poppins', sans-serif;
+        font-size: 16px;
+        line-height: 1.8;
         color: #111827;
     }
-    .dark .note-content-area h1, .dark .note-content-area h2, .dark .note-content-area h3, .dark .note-content-area h4 { color: #f9fafb; }
-    .note-content-area h1 { font-size: 1.875rem; margin-top: 2rem; margin-bottom: 1rem; }
-    .note-content-area h2 { font-size: 1.5rem; margin-top: 2rem; margin-bottom: 0.75rem; }
-    .note-content-area h3 { font-size: 1.25rem; margin-top: 1.75rem; margin-bottom: 0.5rem; }
-    
-    .note-content-area p { font-size: 1rem; line-height: 1.8; margin-bottom: 1.25rem; color: #374151; }
-    .dark .note-content-area p { color: #d1d5db; }
-    
-    .note-content-area a { color: #4f46e5; text-decoration: none; font-weight: 500; }
-    .dark .note-content-area a { color: #818cf8; }
-    .note-content-area a:hover { text-decoration: underline; }
-    
-    .note-content-area ul, .note-content-area ol { margin-bottom: 1.25rem; padding-left: 1.75rem; }
+    .dark .note-content-area { color: #D1D5DB; }
+
+    .note-content-area h1, .note-content-area h2, .note-content-area h3, .note-content-area h4, .note-content-area h5, .note-content-area h6 {
+        font-weight: 600;
+        font-family: 'Poppins', sans-serif;
+    }
+
+    .note-content-area p { margin-bottom: 1.25rem; }
+
+    .note-content-area ul, .note-content-area ol {
+        margin-left: 1.25em;
+        margin-top: 1em;
+        margin-bottom: 1em;
+        list-style-position: outside;
+        padding-left: 0.5em;
+    }
     .note-content-area ul { list-style-type: disc; }
     .note-content-area ol { list-style-type: decimal; }
-    .note-content-area li { margin-bottom: 0.75rem; line-height: 1.8; color: #374151; }
-    .dark .note-content-area li { color: #d1d5db; }
-    .note-content-area li::marker { color: #9ca3af; }
-    .dark .note-content-area li::marker { color: #6b7280; }
-    
-    .note-content-area blockquote { border-left: 4px solid #d1d5db; padding-left: 1rem; margin: 1.5rem 0; font-style: italic; color: #6b7280; }
-    .dark .note-content-area blockquote { border-left-color: #4b5563; color: #9ca3af; }
-    
-    .note-content-area pre { background-color: #f3f4f6; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; font-family: monospace; }
-    .dark .note-content-area pre { background-color: #111827; }
 
-    .note-content-area code { font-family: monospace; }
-    .note-content-area :not(pre) > code {
-        background-color: #e5e7eb;
-        color: #be123c;
-        padding: 0.2rem 0.4rem;
-        border-radius: 0.25rem;
-        font-size: 0.9em;
+    .note-content-area li {
+        margin-bottom: 0.75em;
     }
-    .dark .note-content-area :not(pre) > code { background-color: #374151; color: #fb7185; }
     
-    .note-content-area img { max-width: 100%; height: auto; border-radius: 0.5rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); margin: 2rem 0; }
-    .dark .note-content-area img { box-shadow: 0 4px 6px -1px rgb(255 255 255 / 0.05), 0 2px 4px -2px rgb(255 255 255 / 0.05); }
+    .note-content-area a {
+        color: #4f46e5;
+        text-decoration: underline;
+    }
+    .dark .note-content-area a { color: #818cf8; }
 
-    .note-content-area table { width: 100%; border-collapse: collapse; margin: 2rem 0; font-size: 0.9rem; }
-    .note-content-area th, .note-content-area td { border: 1px solid #d1d5db; padding: 0.75rem; text-align: left; }
-    .dark .note-content-area th, .dark .note-content-area td { border-color: #4b5563; }
-    .note-content-area th { background-color: #f9fafb; font-weight: 600; }
-    .dark .note-content-area th { background-color: #1f2937; }
+    .note-content-area table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1.5em 0;
+        font-size: 15px;
+    }
+
+    .note-content-area th, .note-content-area td {
+        padding: 12px 16px;
+        text-align: left;
+        line-height: 1.6;
+    }
+    
+    .note-content-area tr { border-bottom: 1px solid #E5E7EB; }
+    .dark .note-content-area tr { border-bottom: 1px solid #374151; }
+    .note-content-area tr:last-child { border-bottom: none; }
+
+    .note-content-area th {
+        background-color: #F9FAFB;
+        color: #111827;
+        font-weight: 600;
+    }
+    .dark .note-content-area th {
+        background-color: #1F2937;
+        color: #F9FAFB;
+    }
+
+    .note-content-area td { color: #374151; }
+    .dark .note-content-area td { color: #D1D5DB; }
+
+    .note-content-area img, .note-content-area iframe {
+        border-radius: 12px;
+        overflow: hidden;
+    }
   `;
 
   return (
     <>
     <style>{globalStyles}</style>
     <div className={`min-h-screen font-poppins bg-[#F7F8FA] dark:bg-[#0C0E1A] text-gray-900 dark:text-gray-100 transition-colors duration-300`}>
-      <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 md:px-8 py-8 md:py-12">
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-8 md:py-12">
         {loading ? (
           <div className="flex justify-center items-center h-96">
             <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
