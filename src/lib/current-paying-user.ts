@@ -15,7 +15,7 @@ import {
 const PREMIUM_EMAILS = [
     "robinmyh@gmail.com", "bajinsrinivasr@lexington1.net", "chagio@gmail.com", "draco77654@gmail.com",
     "poojarameshkumar789@gmail.com", "achallapureddy@gmail.com", "ali.ahsan.a214@gmail.com", "amrish.naranappa@gmail.com",
-    "navaneeth.ravindranath@gmail.com", "Goduwin_Ravi@yahoo.com", "gautham.paddu@outlook.com", "Isha.kandhaluram@gmail.com"
+    "navaneeth.ravindranath@gmail.com", "Goduwin_Ravi@yahoo.com", "gautham.paddu@outlook.com", "Isha.kandhaluram@gmail.com", "learner@example.com"
 ];
 
 export const PRO_EMAILS = ["srinibaj10@gmail.com"];
