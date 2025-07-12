@@ -177,6 +177,33 @@ const KatexRenderer: React.FC<{ htmlContent: string | undefined }> = ({ htmlCont
     return <div className="sun-editor-editable" dangerouslySetInnerHTML={{ __html: renderedContent }} />;
 };
 
+// A component to render strings containing LaTeX, wrapped in a <span>.
+const RenderWithLatex: React.FC<{ text: string | undefined }> = ({ text }) => {
+    const renderedHtml = useMemo(() => {
+        if (!text) return '';
+        // This regex finds $...$ and $$...$$ patterns
+        const regex = /\$\$\s*([\s\S]*?)\s*\$\$|\$(.*?)\$/g;
+        // We replace the found patterns with the HTML rendered by KaTeX
+        return text.replace(regex, (match, displayMath, inlineMath) => {
+            const contentToRender = displayMath || inlineMath;
+            // Use displayMode for $$...$$
+            const isDisplayMode = !!displayMath;
+            try {
+                return katex.renderToString(contentToRender, {
+                    throwOnError: false,
+                    displayMode: isDisplayMode,
+                });
+            } catch (e) {
+                console.error("KaTeX rendering error:", e);
+                // In case of an error, return the original string
+                return match;
+            }
+        });
+    }, [text]);
+
+    return <span dangerouslySetInnerHTML={{ __html: renderedHtml }} />;
+};
+
 async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delayMs = 1000): Promise<Response> {
     for (let attempt = 0; attempt < retries; attempt++) {
         try {
@@ -2606,7 +2633,7 @@ useEffect(() => {
         <div className={`space-y-3`}> {selectedNote.keyPoints.map((point, index) => (
             <div key={index} className="flex items-start p-3 rounded-lg bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700/50">
                 <div className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-700/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center text-xs font-semibold mr-3 mt-0.5">{index + 1}</div>
-                <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{point}</p>
+                <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed"><RenderWithLatex text={point} /></p>
             </div>
         ))} </div>
     </div>
@@ -2637,9 +2664,9 @@ useEffect(() => {
                             transition={{ type: "spring", stiffness: 200, damping: 20, duration: 0.5 }}
                         >
                             <p className="text-xs uppercase tracking-wider mb-2 opacity-80">Term</p>
-                            <p className="text-xl font-medium leading-tight">
-                                {selectedNote.flashcards[currentFlashcardIndex].front}
-                            </p>
+<p className="text-xl font-medium leading-tight">
+    <RenderWithLatex text={selectedNote.flashcards[currentFlashcardIndex].front} />
+</p>
                         </motion.div>
                         <motion.div
                             className="absolute inset-0 p-6 rounded-lg shadow-lg flex flex-col justify-center items-center text-center bg-purple-500 dark:bg-purple-700 text-white [backface-visibility:hidden] [transform:rotateX(180deg)]"
@@ -2647,9 +2674,9 @@ useEffect(() => {
                             transition={{ type: "spring", stiffness: 200, damping: 20, duration: 0.5 }}
                         >
                             <p className="text-xs uppercase tracking-wider mb-2 opacity-80">Definition</p>
-                            <p className="text-xl font-medium leading-tight">
-                                {selectedNote.flashcards[currentFlashcardIndex].back}
-                            </p>
+<p className="text-xl font-medium leading-tight">
+    <RenderWithLatex text={selectedNote.flashcards[currentFlashcardIndex].back} />
+</p>
                         </motion.div>
                     </motion.div>
                 </motion.div>
@@ -2688,10 +2715,10 @@ useEffect(() => {
                 const isCorrect = answered && answer === q.correctAnswer;
                 return (
                     <div key={key} className={`p-4 md:p-5 rounded-xl transition-colors duration-300 ${answered ? (isCorrect ? 'bg-green-500/10' : 'bg-red-500/10') : 'bg-gray-50 dark:bg-[#1A1D29]'}`}>
-                        <p className={`text-gray-800 dark:text-gray-200 font-medium mb-4 leading-relaxed`}>
-                            <span className="text-indigo-500 dark:text-indigo-400 font-bold mr-2">{index + 1}.</span>
-                            {q.question}
-                        </p>
+<p className={`text-gray-800 dark:text-gray-200 font-medium mb-4 leading-relaxed`}>
+    <span className="text-indigo-500 dark:text-indigo-400 font-bold mr-2">{index + 1}.</span>
+    <RenderWithLatex text={q.question} />
+</p>
                         <div className="space-y-3">
                             {q.options.map((opt, idx) => {
                                 const sel = answer === idx;
@@ -2719,7 +2746,7 @@ useEffect(() => {
                                         disabled={answered}
                                         className={`w-full text-left p-3 rounded-lg transition-all duration-200 text-sm flex items-center justify-between group border ${stateClasses}`}
                                     >
-                                        <span>{opt}</span>
+                                        <span><RenderWithLatex text={opt} /></span>
                                         <div className={`flex-shrink-0 ml-4 w-6 h-6 flex items-center justify-center rounded-full transition-colors
                                             ${answered && (sel || cor) ? (cor ? 'bg-green-500/20 border-green-500/30' : 'bg-red-500/20 border-red-500/30') : 'bg-gray-200/50 dark:bg-gray-700/50 border-gray-300 dark:border-gray-600'}
                                         `}>
@@ -2731,9 +2758,9 @@ useEffect(() => {
                             })}
                         </div>
                         {answered && q.explanation && (
-                            <div className={`mt-4 p-3 rounded-lg text-sm leading-relaxed ${isCorrect ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'}`}>
-                                <strong className="font-semibold">Explanation: </strong>{q.explanation}
-                            </div>
+<div className={`mt-4 p-3 rounded-lg text-sm leading-relaxed ${isCorrect ? '...' : '...'}`}>
+    <strong className="font-semibold">Explanation: </strong><RenderWithLatex text={q.explanation} />
+</div>
                         )}
                     </div>
                 );
