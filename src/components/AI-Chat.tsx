@@ -1203,7 +1203,7 @@ MAJOR CRITICAL INSTRUCTION: YOU SHOULD DECIDE WHEN TO SAVE OR UPDATE A MEMORY BA
     *   For **any** response where the user is asking for summaries, breakdowns, explanations, lists, instructions, or informational outputs:
         - **IMMEDIATELY start the response with content** — DO NOT include any intro commentary like "Sure!" or "Absolutely, here’s a breakdown...".
         - Use **proper markdown formatting consistently**, including:
-            - ##, ### for section headers
+            - #, ##, ### for section headers
             - - or numbered 1., 2. lists for organized points
             - **Bold** for key terms, *italics* for emphasis, inline code for code/data
             - Tables (| Col | Col |) if applicable
