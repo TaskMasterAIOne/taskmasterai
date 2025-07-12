@@ -149,6 +149,33 @@ const SunEditorWrapper: React.FC<SunEditorWrapperProps> = ({ initialContent = ''
     return <textarea ref={textAreaRef} style={{ visibility: 'hidden', display: 'block', width: '100%', height: '100%' }} />;
 };
 
+const KatexRenderer: React.FC<{ htmlContent: string | undefined }> = ({ htmlContent }) => {
+    const renderedContent = useMemo(() => {
+        if (!htmlContent) return '';
+
+        // Regex to find $$...$$ (for display math) and $...$ (for inline math)
+        // It properly handles multiline content in display math
+        const regex = /\$\$\s*([\s\S]*?)\s*\$\$|\$(.*?)\$/g;
+
+        return htmlContent.replace(regex, (match, displayMath, inlineMath) => {
+            const contentToRender = displayMath || inlineMath;
+            // If it was a $$...$$ match, use display mode, otherwise use inline mode.
+            const isDisplayMode = !!displayMath;
+            try {
+                return katex.renderToString(contentToRender, {
+                    throwOnError: false, // Prevents crashing on a syntax error
+                    displayMode: isDisplayMode,
+                });
+            } catch (e) {
+                console.error("KaTeX rendering error:", e);
+                return match; // If there's an error, just return the original text
+            }
+        });
+    }, [htmlContent]);
+
+    // Use the same class as the editor for consistent styling
+    return <div className="sun-editor-editable" dangerouslySetInnerHTML={{ __html: renderedContent }} />;
+};
 
 async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delayMs = 1000): Promise<Response> {
     for (let attempt = 0; attempt < retries; attempt++) {
@@ -2199,7 +2226,7 @@ useEffect(() => {
                                     </div>
                                     <div ref={noteContentRef} className={`flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 px-4 md:px-6 bg-white dark:bg-[#0C0E1A]`}>
                                         <div className="py-1">
-                                            <SunEditorWrapper readOnly={true} initialContent={selectedNote.content} />
+                                            <KatexRenderer htmlContent={selectedNote.content} />
                                         </div>
                                     </div>
                                 </div>
@@ -2569,10 +2596,7 @@ useEffect(() => {
     </AnimatePresence>
 
     <div className="py-1">
-        <SunEditorWrapper
-            readOnly={true}
-            initialContent={selectedNote.content}
-        />
+        <KatexRenderer htmlContent={selectedNote.content} />
     </div>
 
 
