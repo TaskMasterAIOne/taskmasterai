@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../lib/firebase';
 import { doc, getDoc, Timestamp } from 'firebase/firestore';
 import { Loader2, Lock, Share2, Download, Sun, Moon, User } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 
 interface Note {
   id: string;
@@ -20,6 +22,36 @@ interface Note {
 interface Author {
     displayName: string;
 }
+
+// This component will find and render LaTeX expressions within the note's HTML content.
+const KatexRenderer: React.FC<{ htmlContent: string | undefined }> = ({ htmlContent }) => {
+    const renderedContent = useMemo(() => {
+        if (!htmlContent) return '';
+        // Regex to find $$...$$ (for display math) and $...$ (for inline math)
+        // This handles multiline content and avoids being too greedy.
+        const regex = /\$\$\s*([\s\S]*?)\s*\$\$|\$(.*?)\$/g;
+        return htmlContent.replace(regex, (match, displayMath, inlineMath) => {
+            const contentToRender = displayMath || inlineMath;
+            // If the first capture group (displayMath) exists, use display mode.
+            const isDisplayMode = !!displayMath;
+            try {
+                // Render the LaTeX string to an HTML string.
+                return katex.renderToString(contentToRender, {
+                    throwOnError: false, // Prevents crashing if the LaTeX is invalid
+                    displayMode: isDisplayMode,
+                });
+            } catch (e) {
+                console.error("KaTeX rendering error:", e);
+                // In case of an error, return the original, unrendered text.
+                return match;
+            }
+        });
+    }, [htmlContent]);
+    
+    // The parent element has the styling, so we just render the processed HTML.
+    return <div dangerouslySetInnerHTML={{ __html: renderedContent }} />;
+};
+
 
 export function PublicNoteView() {
   const { noteId } = useParams<{ noteId: string }>();
@@ -137,6 +169,7 @@ export function PublicNoteView() {
   };
   
   const globalStyles = `
+    /* ... (Your existing globalStyles remain here, unchanged) ... */
     ::-webkit-scrollbar { width: 12px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb {
@@ -291,11 +324,11 @@ export function PublicNoteView() {
                             </div>
                             <div className="w-full h-px bg-gray-200 dark:bg-gray-800 mt-8"></div>
                         </header>
-
-                        <main 
-                            className="note-content-area"
-                            dangerouslySetInnerHTML={{ __html: note.content || '' }}
-                        />
+                        
+                        {/* --- FIX IS HERE: Use the new KatexRenderer component --- */}
+                        <main className="note-content-area">
+                            <KatexRenderer htmlContent={note.content} />
+                        </main>
                     </div>
                 </div>
             ) : null}
