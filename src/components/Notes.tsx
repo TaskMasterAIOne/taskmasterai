@@ -2104,8 +2104,7 @@ useEffect(() => {
 
             <main className={`flex-1 flex overflow-hidden transition-all duration-300 ${ isSidebarCollapsed ? 'ml-16 md:ml-20' : 'ml-0 md:ml-64' }`}>
 
-<div ref={mainContentAreaRef} className={`flex-1 bg-[#F7F8FA] dark:bg-[#0C0E1A] relative ${showSideBySideChat || isSideBySideNoteChatVisible || isScreenshotModeActive ? 'overflow-hidden' : 'overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent'}`}>
-
+<div ref={mainContentAreaRef} className={`flex-1 bg-[#F7F8FA] dark:bg-[#0C0E1A] relative overflow-hidden`}>
 
                      {isMobile && !showNotesListOnMobile && !showSideBySideChat && (
                          <div className={`sticky top-0 z-30 p-2 border-b border-gray-200 dark:border-gray-700/50 bg-white/80 dark:bg-[#0C0E1A]/80 backdrop-blur-sm flex items-center justify-between`}>
