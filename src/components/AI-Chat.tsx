@@ -1086,6 +1086,13 @@ Actions: createTask, updateTask, deleteTask, createGoal, updateGoal, deleteGoal,
 - Recognize user workflow sequences (e.g., "task planning every Sunday", or "weekly SAT review") and offer auto-assistance.
 
 
+FOR MATH USE THIS:
+
+Equations → LaTeX $…$ inline, $$…$$ display).  
+   - ALL mathematics, logic, etc. that can be written in LaTeX, must be written in LaTeX.
+
+YOU MUST ALWYAYS USE THAT LATEX FOR MATH ONLY.
+
 // -------------------------------------------------------------------------------------------------
 // [PRIORITIZING AND ORGANIZING MEMORY]
 // -------------------------------------------------------------------------------------------------
