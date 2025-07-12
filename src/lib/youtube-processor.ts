@@ -125,6 +125,13 @@ MANDATORY FORMATTING RULES:
 4.  EMOJIS: Use emojis strategically and sparingly for visual structure. Vary them.
 5.  NO META-COMMENTARY: Present information directly. Do not refer to the speaker or video. Start immediately with an HTML tag.
 
+    FOR MATH USE THIS:
+
+Equations → LaTeX $…$ inline, $$…$$ display).  
+   - ALL mathematics, logic, etc. that can be written in LaTeX, must be written in LaTeX.
+
+YOU MUST ALWYAYS USE THAT LATEX FOR MATH ONLY.
+
 Transcript from "${videoInfo.title}":
 ---
 ${baseTranscriptContent}
@@ -143,6 +150,13 @@ RULES:
 2.  Every point MUST begin with \`* \`.
 3.  One point per line, under 25 words.
 4.  No extra text. Start with the first asterisk.
+
+    FOR MATH USE THIS:
+
+Equations → LaTeX $…$ inline, $$…$$ display).  
+   - ALL mathematics, logic, etc. that can be written in LaTeX, must be written in LaTeX.
+
+YOU MUST ALWYAYS USE THAT LATEX FOR MATH ONLY.
 
 Source Text:
 ---
@@ -164,6 +178,14 @@ RULES:
     Back: [Back text]
 2.  Separate each block with a line containing only: \`---FLASHCARD_DIVIDER---\`
 3.  No extra text. Start with "Front:".
+
+
+    FOR MATH USE THIS:
+
+Equations → LaTeX $…$ inline, $$…$$ display).  
+   - ALL mathematics, logic, etc. that can be written in LaTeX, must be written in LaTeX.
+
+YOU MUST ALWYAYS USE THAT LATEX FOR MATH ONLY.
 
 Transcript:
 ---
@@ -198,6 +220,13 @@ RULES:
     Explanation: [Explanation]
 2.  Separate each block with a line containing only: \`---DIVIDER---\`
 3.  No extra text. Start with "Question:".
+
+    FOR MATH USE THIS:
+
+Equations → LaTeX $…$ inline, $$…$$ display).  
+   - ALL mathematics, logic, etc. that can be written in LaTeX, must be written in LaTeX.
+
+YOU MUST ALWYAYS USE THAT LATEX FOR MATH ONLY.
 
 Transcript:
 ---
