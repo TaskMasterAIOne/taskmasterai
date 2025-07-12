@@ -1023,7 +1023,7 @@ useEffect(() => {
     const handleToggleSidebar = () => setIsSidebarCollapsed(prev => !prev);
     const handleToggleNotesList = useCallback(() => setIsNotesListHidden(prev => !prev), []);
 
-     const togglePdfViewer = useCallback((forceOpen?: boolean) => {
+    const togglePdfViewer = useCallback((forceOpen?: boolean) => {
         const turnOn = forceOpen !== undefined ? forceOpen : !showPdfViewer;
         if (turnOn) {
             if (selectedNote?.type === 'pdf' && selectedNote.sourceUrl) {
@@ -1043,7 +1043,7 @@ useEffect(() => {
                     setIsChatOverlayVisible(false);
                     setChatNoteForOverlay(null);
                 }
-                if (!isMobile) setIsNotesListHidden(false); 
+                if (!isMobile) setIsNotesListHidden(true);
             } else {
                 showToast('Cannot view PDF: Note type is not PDF or source is missing.', 'error');
                 if (showPdfViewer) setShowPdfViewer(false);
@@ -1055,6 +1055,9 @@ useEffect(() => {
             setIsScreenshotModeActive(false);
             targetPdfPageElementRef.current = null;
             window.getSelection()?.removeAllRanges();
+            if (!isMobile) {
+                setIsNotesListHidden(false);
+            }
         }
     }, [selectedNote, showPdfViewer, isChatOverlayVisible, chatNoteForOverlay?.id, isMobile, isNotesListHidden, showToast, activePodcast, handlePodcastStop, isSideBySideNoteChatVisible]);
 
