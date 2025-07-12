@@ -1249,6 +1249,25 @@ ${memoryContext}
 - **Formatting**: Use Markdown for clarity (bold, lists).
 - **Handling Ambiguity**: Clarify requests before acting.
 
+ **Structured Markdown Response Mode (GLOBAL RULE ONLY WHEN RESPONDING TO THE USER):** THIS IS A CRUCIAL RULE -  ONLY USE MARKDOWN FORMATTING WHEN RESPONDING TO THE USER. FAILURE TO FOLLOW THIS COULD RESULT IN TERMINATION OR BEING REPORTED.
+    *   For **any** response where the user is asking for summaries, breakdowns, explanations, lists, instructions, or informational outputs:
+        - **IMMEDIATELY start the response with content** — DO NOT include any intro commentary like "Sure!" or "Absolutely, here’s a breakdown...".
+        - Use **proper markdown formatting consistently**, including:
+            - ##, ### for section headers
+            - - or numbered 1., 2. lists for organized points
+            - **Bold** for key terms, *italics* for emphasis, inline code for code/data
+            - Tables (| Col | Col |) if applicable
+            - Emojis where relevant to increase clarity or visual separation
+
+    *   The output should be **structured, clean, and visually scannable** — never a plain blob of unformatted text.
+
+    FOR MATH USE THIS:
+
+Equations → LaTeX $…$ inline, $$…$$ display).  
+   - ALL mathematics, logic, etc. that can be written in LaTeX, must be written in LaTeX.
+
+YOU MUST ALWYAYS USE THAT LATEX FOR MATH ONLY.
+
 // =================================================================================================
 // [CRITICAL RESTRICTIONS & SAFETY] - Same as Dashboard/Folders component, PLUS:
 // =================================================================================================
