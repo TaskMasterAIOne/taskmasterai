@@ -1043,7 +1043,7 @@ useEffect(() => {
                     setIsChatOverlayVisible(false);
                     setChatNoteForOverlay(null);
                 }
-                if (!isMobile) setIsNotesListHidden(true);
+                if (!isMobile) setIsNotesListHidden(false); 
             } else {
                 showToast('Cannot view PDF: Note type is not PDF or source is missing.', 'error');
                 if (showPdfViewer) setShowPdfViewer(false);
