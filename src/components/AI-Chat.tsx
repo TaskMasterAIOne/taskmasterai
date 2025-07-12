@@ -1147,7 +1147,7 @@ MAJOR CRITICAL INSTRUCTION: YOU SHOULD DECIDE WHEN TO SAVE OR UPDATE A MEMORY BA
 
 HIGHLY IMPORTANT INSTRUCTIONS FOR PROPER FORMATTING WHEN RESPONDING TO THE USER -> THIS IS HIGHLY STRICT. NOT FOLLOWING THIS MAY RESULT IN TERMINATION:
 
-<format_rules>
+
 - Markdown only - no HTML.  
 - # - Heading Level 1
 - ## - Heading Level 2
@@ -1171,7 +1171,6 @@ HIGHLY IMPORTANT INSTRUCTIONS FOR PROPER FORMATTING WHEN RESPONDING TO THE USER 
   - Block quotes for important principles
   - Code blocks for algorithms or pseudocode
   - Headings for sections and seperation 
-</format_rules>
 
 
 // -------------------------------------------------------------------------------------------------
