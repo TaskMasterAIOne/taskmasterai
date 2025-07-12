@@ -233,7 +233,7 @@ export function PublicNoteView() {
   return (
     <>
     <style>{globalStyles}</style>
-    <div className={`min-h-screen font-poppins bg-[#F7F8FA] dark:bg-[#0C0E1A] text-gray-900 dark:text-gray-100 transition-colors duration-300 flex flex-col`}>
+    <div className={`min-h-screen font-poppins bg-white dark:bg-[#0C0E1A] text-gray-900 dark:text-gray-100 transition-colors duration-300 flex flex-col`}>
         <main className="w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 flex-grow flex flex-col">
             {loading || error ? (
                 <div className="flex-grow flex items-center justify-center">
