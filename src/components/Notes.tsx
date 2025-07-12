@@ -2214,77 +2214,218 @@ useEffect(() => {
                                  {selectedNote && geminiApiKey && user && ( <NoteChat ref={noteChatRef} key={`chat-inline-${selectedNote.id}`} note={selectedNote} onClose={() => togglePdfViewer(false)} geminiApiKey={geminiApiKey} userName={userName} isIlluminateEnabled={!isDarkMode} isBlackoutEnabled={false} isVisible={true} onUpdateNoteContent={handleUpdateNoteContentFromChat} onAddImageToNoteRequest={handleAddImageToNoteRequest} displayMode="inline" userTier={userTier} /> )}
                              </div>
                         </div>
-                    ) : isSideBySideNoteChatVisible && selectedNote && !isMobile ? (
-                        <div className="flex flex-row h-full overflow-hidden">
-                            <div className="flex flex-col overflow-hidden h-full" style={{ width: `${noteChatSplitRatio}%` }}>
-                                <div key={`view-split-${selectedNote.id}`} className={`bg-white dark:bg-[#0C0E1A] flex flex-col overflow-hidden h-full`}>
-                                    <div className={`p-4 md:p-6 flex flex-col sm:flex-row sm:items-start sm:justify-between mb-0 gap-3 flex-shrink-0`}>
-                                        <h1 className={`text-2xl md:text-2xl font-semibold text-gray-800 dark:text-gray-100 break-words mr-auto pr-4`}>{selectedNote.title || "Untitled"}</h1>
-<div className={`flex items-center gap-1 flex-shrink-0 border rounded-full p-0.5 border-gray-200 dark:border-gray-700/50 bg-gray-50 dark:bg-[#1A1D29]/50`}>
-    {!isMobile && isNotesListHidden && (
-        <>
-            <button 
-                onClick={handleToggleNotesList} 
-                className={`p-1.5 rounded-full text-indigo-600 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-700/30 hover:bg-indigo-200 dark:hover:bg-indigo-700/50`} 
-                title="Show Notes List"
-            >
-                <PanelRightOpen className="w-4 h-4" />
-            </button>
-            <div className={`w-px h-4 bg-gray-300 dark:bg-gray-700/50 mx-0.5`}></div>
-        </>
-    )}
-    <button onClick={handleEditNote} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60`} title="Edit"><Edit2 className="w-4 h-4" /></button>
-    {geminiApiKey && <button onClick={() => handleChatWithNote(selectedNote)} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60`} title="Chat with AI"><MessageCircle className="w-4 h-4" /></button>}
-    {selectedNote.type === 'pdf' && selectedNote.sourceUrl && !isMobile && (
-        <button
-            onClick={() => togglePdfViewer(true)}
-            className={`p-1.5 rounded-full flex items-center gap-1 text-xs text-sky-600 dark:text-sky-300 bg-sky-100 dark:bg-sky-700/30 hover:bg-sky-200 dark:hover:bg-sky-700/50 focus:ring-1 focus:ring-sky-300 dark:focus:ring-sky-600`}
-            title="View PDF Side-by-Side"
-        >
-            <Eye className="w-4 h-4" />
-            <span className="hidden sm:inline">View PDF</span>
-        </button>
-    )}
-    <button onClick={() => handleTogglePublic(selectedNote.id, selectedNote.isPublic)} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60 ${selectedNote.isPublic ? 'hover:bg-cyan-100/50 dark:hover:bg-cyan-900/30' : ''}`} title={selectedNote.isPublic ? 'Make private' : 'Make public'}>{selectedNote.isPublic ? <Globe className={`w-4 h-4 text-cyan-600 dark:text-cyan-400`} /> : <Lock className="w-4 h-4" />}</button>
-    {selectedNote.isPublic && ( <button onClick={() => handleGetShareLink(selectedNote.id)} className={`p-1.5 rounded-full relative text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60 ${linkCopied ? 'hover:bg-green-100/50 dark:hover:bg-green-900/30' : ''}`} title="Copy share link">{linkCopied ? <ClipboardCopy className={`w-4 h-4 text-green-500`} /> : <Share2 className="w-4 h-4" />}</button> )}
-    <div className={`w-px h-4 bg-gray-300 dark:bg-gray-700/50 mx-0.5`}></div>
-    <button onClick={() => handleDeleteNote(selectedNote.id)} className={`p-1.5 rounded-full text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-700/30`} title="Delete"><Trash2 className="w-4 h-4" /></button>
-</div>
-                                    </div>
-                                    <div ref={noteContentRef} className={`flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 px-4 md:px-6 bg-white dark:bg-[#0C0E1A]`}>
-                                        <div className="py-1">
-                                            <KatexRenderer htmlContent={selectedNote.content} />
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div
-                                className={`w-1.5 cursor-col-resize flex items-center justify-center flex-shrink-0 bg-gray-300 dark:bg-gray-700 hover:bg-gray-400 dark:hover:bg-gray-600 ${isResizingNoteChatSplit ? '!bg-indigo-500' : ''}`}
-                                onMouseDown={handleNoteChatResizeMouseDown}
-                                title="Drag to resize panels"
+) : isSideBySideNoteChatVisible && selectedNote && !isMobile ? (
+    <div className="flex flex-row h-full overflow-hidden">
+        <div className="flex flex-col overflow-hidden h-full" style={{ width: `${noteChatSplitRatio}%` }}>
+            <div key={`view-split-${selectedNote.id}`} className={`bg-white dark:bg-[#0C0E1A] flex flex-col overflow-hidden h-full`}>
+                <div className={`p-4 md:p-6 flex flex-col sm:flex-row sm:items-start sm:justify-between mb-0 gap-3 flex-shrink-0`}>
+                    <h1 className={`text-2xl md:text-2xl font-semibold text-gray-800 dark:text-gray-100 break-words mr-auto pr-4`}>{selectedNote.title || "Untitled"}</h1>
+                    <div className={`flex items-center gap-1 flex-shrink-0 border rounded-full p-0.5 border-gray-200 dark:border-gray-700/50 bg-gray-50 dark:bg-[#1A1D29]/50`}>
+                        {!isMobile && isNotesListHidden && (
+                            <>
+                                <button
+                                    onClick={handleToggleNotesList}
+                                    className={`p-1.5 rounded-full text-indigo-600 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-700/30 hover:bg-indigo-200 dark:hover:bg-indigo-700/50`}
+                                    title="Show Notes List"
+                                >
+                                    <PanelRightOpen className="w-4 h-4" />
+                                </button>
+                                <div className={`w-px h-4 bg-gray-300 dark:bg-gray-700/50 mx-0.5`}></div>
+                            </>
+                        )}
+                        <button onClick={handleEditNote} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60`} title="Edit"><Edit2 className="w-4 h-4" /></button>
+                        {geminiApiKey && <button onClick={() => handleChatWithNote(selectedNote)} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60`} title="Chat with AI"><MessageCircle className="w-4 h-4" /></button>}
+                        {selectedNote.type === 'pdf' && selectedNote.sourceUrl && !isMobile && (
+                            <button
+                                onClick={() => togglePdfViewer(true)}
+                                className={`p-1.5 rounded-full flex items-center gap-1 text-xs text-sky-600 dark:text-sky-300 bg-sky-100 dark:bg-sky-700/30 hover:bg-sky-200 dark:hover:bg-sky-700/50 focus:ring-1 focus:ring-sky-300 dark:focus:ring-sky-600`}
+                                title="View PDF Side-by-Side"
                             >
-                                <GripVertical className={`w-4 h-4 pointer-events-none text-gray-600 dark:text-gray-400`} />
+                                <Eye className="w-4 h-4" />
+                                <span className="hidden sm:inline">View PDF</span>
+                            </button>
+                        )}
+                        <button onClick={() => handleTogglePublic(selectedNote.id, selectedNote.isPublic)} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60 ${selectedNote.isPublic ? 'hover:bg-cyan-100/50 dark:hover:bg-cyan-900/30' : ''}`} title={selectedNote.isPublic ? 'Make private' : 'Make public'}>{selectedNote.isPublic ? <Globe className={`w-4 h-4 text-cyan-600 dark:text-cyan-400`} /> : <Lock className="w-4 h-4" />}</button>
+                        {selectedNote.isPublic && ( <button onClick={() => handleGetShareLink(selectedNote.id)} className={`p-1.5 rounded-full relative text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60 ${linkCopied ? 'hover:bg-green-100/50 dark:hover:bg-green-900/30' : ''}`} title="Copy share link">{linkCopied ? <ClipboardCopy className={`w-4 h-4 text-green-500`} /> : <Share2 className="w-4 h-4" />}</button> )}
+                        <div className={`w-px h-4 bg-gray-300 dark:bg-gray-700/50 mx-0.5`}></div>
+                        <button onClick={() => handleDeleteNote(selectedNote.id)} className={`p-1.5 rounded-full text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-700/30`} title="Delete"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                </div>
+                <div ref={noteContentRef} className={`flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 px-4 md:px-6 bg-white dark:bg-[#0C0E1A]`}>
+                    <div className="py-1">
+                        <KatexRenderer htmlContent={selectedNote.content} />
+                    </div>
+
+                    {selectedNote.keyPoints && selectedNote.keyPoints.length > 0 && (
+                        <div className={`mt-8 pt-6 border-t border-gray-200 dark:border-gray-700/50`}>
+                            <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 text-gray-800 dark:text-gray-100`}> <Sparkles className={`w-5 h-5 text-yellow-500 dark:text-yellow-400`} /> Key Points </h3>
+                            <div className={`space-y-3`}> {selectedNote.keyPoints.map((point, index) => (
+                                <div key={index} className="flex items-start p-3 rounded-lg bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700/50">
+                                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-700/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center text-xs font-semibold mr-3 mt-0.5">{index + 1}</div>
+                                    <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed"><RenderWithLatex text={point} /></p>
+                                </div>
+                            ))} </div>
+                        </div>
+                    )}
+
+                    {selectedNote.flashcards && selectedNote.flashcards.length > 0 && (
+                        <div id="flashcards-section" className="my-8 pt-6 border-t border-gray-200 dark:border-gray-700/50">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100">
+                                    <Layers className="w-5 h-5 text-indigo-500 dark:text-indigo-400" /> Flashcards
+                                </h3>
                             </div>
-                            <div className="h-full flex flex-col overflow-hidden border-l border-gray-200 dark:border-gray-700/50" style={{ width: `${100 - noteChatSplitRatio}%` }}>
-                                {geminiApiKey && user && (
-                                    <NoteChat
-                                        ref={noteChatRef}
-                                        key={`chat-inline-note-${selectedNote.id}`}
-                                        note={selectedNote}
-                                        onClose={handleCloseSideBySideNoteChat}
-                                        geminiApiKey={geminiApiKey}
-                                        userName={userName}
-                                        isIlluminateEnabled={!isDarkMode}
-                                        isBlackoutEnabled={false}
-                                        isVisible={true}
-                                        onUpdateNoteContent={handleUpdateNoteContentFromChat}
-                                        onAddImageToNoteRequest={handleAddImageToNoteRequest}
-                                        displayMode="inline"
-                                        userTier={userTier}
-                                    />
-                                )}
+                            <AnimatePresence mode="wait">
+                                <motion.div
+                                    key={currentFlashcardIndex}
+                                    initial={{ opacity: 0, y: isFlashcardFlipped ? -10: 10 }}
+                                    animate={{ opacity: 1, y:0 }}
+                                    exit={{ opacity: 0, y: isFlashcardFlipped ? 10: -10}}
+                                    transition={{ duration: 0.2 }}
+                                >
+                                    <motion.div
+                                        className="relative min-h-[280px] cursor-pointer [perspective:1000px]"
+                                        onClick={() => setIsFlashcardFlipped(!isFlashcardFlipped)}
+                                    >
+                                        <motion.div
+                                            className="absolute inset-0 p-6 rounded-lg shadow-lg flex flex-col justify-center items-center text-center bg-indigo-500 dark:bg-indigo-700 text-white [backface-visibility:hidden]"
+                                            animate={{ rotateX: isFlashcardFlipped ? -180 : 0 }}
+                                            transition={{ type: "spring", stiffness: 200, damping: 20, duration: 0.5 }}
+                                        >
+                                            <p className="text-xs uppercase tracking-wider mb-2 opacity-80">Term</p>
+                                            <p className="text-xl font-medium leading-tight">
+                                                <RenderWithLatex text={selectedNote.flashcards[currentFlashcardIndex].front} />
+                                            </p>
+                                        </motion.div>
+                                        <motion.div
+                                            className="absolute inset-0 p-6 rounded-lg shadow-lg flex flex-col justify-center items-center text-center bg-purple-500 dark:bg-purple-700 text-white [backface-visibility:hidden] [transform:rotateX(180deg)]"
+                                            animate={{ rotateX: isFlashcardFlipped ? 0 : 180 }}
+                                            transition={{ type: "spring", stiffness: 200, damping: 20, duration: 0.5 }}
+                                        >
+                                            <p className="text-xs uppercase tracking-wider mb-2 opacity-80">Definition</p>
+                                            <p className="text-xl font-medium leading-tight">
+                                                <RenderWithLatex text={selectedNote.flashcards[currentFlashcardIndex].back} />
+                                            </p>
+                                        </motion.div>
+                                    </motion.div>
+                                </motion.div>
+                            </AnimatePresence>
+                            <div className="flex items-center justify-between mt-4">
+                                <button
+                                    onClick={() => { setCurrentFlashcardIndex(prev => Math.max(0, prev - 1)); setIsFlashcardFlipped(false); }}
+                                    disabled={currentFlashcardIndex === 0}
+                                    className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-gray-600 dark:text-gray-300"
+                                > <ChevronLeft className="w-5 h-5" /> </button>
+                                <span className="text-sm text-gray-600 dark:text-gray-400"> {currentFlashcardIndex + 1} / {selectedNote.flashcards.length} </span>
+                                <button
+                                    onClick={() => { setCurrentFlashcardIndex(prev => Math.min(selectedNote.flashcards!.length - 1, prev + 1)); setIsFlashcardFlipped(false); }}
+                                    disabled={currentFlashcardIndex === selectedNote.flashcards.length - 1}
+                                    className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-gray-600 dark:text-gray-300"
+                                > <ChevronRight className="w-5 h-5" /> </button>
+                            </div>
+                            <button onClick={() => setIsFlashcardFlipped(!isFlashcardFlipped)} className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200">
+                                <FlipIcon className="w-4 h-4" /> Flip Card
+                            </button>
+                        </div>
+                    )}
+
+                    {selectedNote.questions && selectedNote.questions.length > 0 && (
+                        <div id="study-questions-section" className={`mt-8 pt-6 border-t border-gray-200 dark:border-gray-700/50`}>
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
+                                <h3 className={`text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100`}><BookOpen className={`w-5 h-5 text-purple-500 dark:text-purple-400`} />Study Questions</h3>
+                                {geminiApiKey && <button onClick={handleRegenerateQuestions} disabled={isRegeneratingQuestions || !geminiApiKey} className={`bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-md text-xs flex items-center gap-1.5 ${isRegeneratingQuestions || !geminiApiKey ? 'opacity-50 cursor-not-allowed' : ''}`} title={!geminiApiKey ? "API Key required" : "Regenerate"}> {isRegeneratingQuestions ? (<> <Loader2 className="w-3.5 h-3.5 animate-spin" /> Regenerating... </>) : (<> <RefreshCw className="w-3.5 h-3.5" /> Regenerate </>)} </button>}
+                            </div>
+                            <div className="space-y-5">
+                                {selectedNote.questions.map((q, index) => {
+                                    const key = `${selectedNote?.id}-${index}`;
+                                    const answer = questionAnswers[key];
+                                    const answered = answer != null;
+                                    const isCorrect = answered && answer === q.correctAnswer;
+                                    return (
+                                        <div key={key} className={`p-4 md:p-5 rounded-xl transition-colors duration-300 ${answered ? (isCorrect ? 'bg-green-500/10' : 'bg-red-500/10') : 'bg-gray-50 dark:bg-[#1A1D29]'}`}>
+                                            <p className={`text-gray-800 dark:text-gray-200 font-medium mb-4 leading-relaxed`}>
+                                                <span className="text-indigo-500 dark:text-indigo-400 font-bold mr-2">{index + 1}.</span>
+                                                <RenderWithLatex text={q.question} />
+                                            </p>
+                                            <div className="space-y-3">
+                                                {q.options.map((opt, idx) => {
+                                                    const sel = answer === idx;
+                                                    const cor = idx === q.correctAnswer;
+
+                                                    let stateClasses = '';
+                                                    if (answered) {
+                                                        if (sel) {
+                                                            stateClasses = cor
+                                                                ? `bg-green-100 dark:bg-green-500/20 text-green-800 dark:text-white font-semibold border-green-300 dark:border-green-500/50 cursor-default`
+                                                                : `bg-red-100 dark:bg-red-500/20 text-red-800 dark:text-white font-semibold border-red-300 dark:border-red-500/50 cursor-default`;
+                                                        } else if (cor) {
+                                                            stateClasses = `bg-green-100 dark:bg-green-500/20 text-green-800 dark:text-white border-green-300 dark:border-green-500/50 cursor-default`;
+                                                        } else {
+                                                            stateClasses = `bg-gray-100 dark:bg-gray-700/40 text-gray-500 dark:text-gray-400 border-transparent cursor-default opacity-70`;
+                                                        }
+                                                    } else {
+                                                        stateClasses = `bg-white dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 focus:ring-2 focus:ring-indigo-400 focus:outline-none text-gray-700 dark:text-gray-300`;
+                                                    }
+
+                                                    return (
+                                                        <button
+                                                            key={idx}
+                                                            onClick={() => !answered && handleAnswerSelect(key, idx)}
+                                                            disabled={answered}
+                                                            className={`w-full text-left p-3 rounded-lg transition-all duration-200 text-sm flex items-center justify-between group border ${stateClasses}`}
+                                                        >
+                                                            <span><RenderWithLatex text={opt} /></span>
+                                                            <div className={`flex-shrink-0 ml-4 w-6 h-6 flex items-center justify-center rounded-full transition-colors
+                                                                ${answered && (sel || cor) ? (cor ? 'bg-green-500/20 border-green-500/30' : 'bg-red-500/20 border-red-500/30') : 'bg-gray-200/50 dark:bg-gray-700/50 border-gray-300 dark:border-gray-600'}
+                                                            `}>
+                                                                {answered && sel && (cor ? <Check className="w-4 h-4 text-green-600" /> : <X className="w-4 h-4 text-red-600" />)}
+                                                                {answered && !sel && cor && <Check className="w-4 h-4 text-green-600" />}
+                                                            </div>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                            {answered && q.explanation && (
+                                                <div className={`mt-4 p-3 rounded-lg text-sm leading-relaxed ${isCorrect ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'}`}>
+                                                    <strong className="font-semibold">Explanation: </strong><RenderWithLatex text={q.explanation} />
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
+                    )}
+                </div>
+            </div>
+        </div>
+        <div
+            className={`w-1.5 cursor-col-resize flex items-center justify-center flex-shrink-0 bg-gray-300 dark:bg-gray-700 hover:bg-gray-400 dark:hover:bg-gray-600 ${isResizingNoteChatSplit ? '!bg-indigo-500' : ''}`}
+            onMouseDown={handleNoteChatResizeMouseDown}
+            title="Drag to resize panels"
+        >
+            <GripVertical className={`w-4 h-4 pointer-events-none text-gray-600 dark:text-gray-400`} />
+        </div>
+        <div className="h-full flex flex-col overflow-hidden border-l border-gray-200 dark:border-gray-700/50" style={{ width: `${100 - noteChatSplitRatio}%` }}>
+            {geminiApiKey && user && (
+                <NoteChat
+                    ref={noteChatRef}
+                    key={`chat-inline-note-${selectedNote.id}`}
+                    note={selectedNote}
+                    onClose={handleCloseSideBySideNoteChat}
+                    geminiApiKey={geminiApiKey}
+                    userName={userName}
+                    isIlluminateEnabled={!isDarkMode}
+                    isBlackoutEnabled={false}
+                    isVisible={true}
+                    onUpdateNoteContent={handleUpdateNoteContentFromChat}
+                    onAddImageToNoteRequest={handleAddImageToNoteRequest}
+                    displayMode="inline"
+                    userTier={userTier}
+                />
+            )}
+        </div>
+    </div>
                     ) : (
                         <div className={`h-full`}>
                             {showSplitView && (!splitViewNotes.left || !splitViewNotes.right) ? (
@@ -2758,7 +2899,7 @@ useEffect(() => {
                             })}
                         </div>
                         {answered && q.explanation && (
-<div className={`mt-4 p-3 rounded-lg text-sm leading-relaxed ${isCorrect ? '...' : '...'}`}>
+<div className={`mt-4 p-3 rounded-lg text-sm leading-relaxed ${isCorrect ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'}`}>
     <strong className="font-semibold">Explanation: </strong><RenderWithLatex text={q.explanation} />
 </div>
                         )}
