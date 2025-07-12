@@ -17,6 +17,7 @@ import { auth, db, app } from '../lib/firebase';
 import { User as FirebaseUser } from 'firebase/auth';
 import { collection, query, where, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
 import 'katex/dist/katex.min.css';
+import katex from 'katex';
 import { processPDF, ProcessedPDF } from '../lib/pdf-processor';
 import { processYouTube } from '../lib/youtube-processor';
 import {
@@ -83,6 +84,7 @@ const SunEditorWrapper: React.FC<SunEditorWrapperProps> = ({ initialContent = ''
       if (textAreaRef.current) {
         const editor = suneditor.create(textAreaRef.current, {
             plugins: plugins,
+            katex: katex, // This enables KaTeX rendering
             lang: en,
             width: '100%',
             height: '100%',
@@ -94,7 +96,7 @@ const SunEditorWrapper: React.FC<SunEditorWrapperProps> = ({ initialContent = ''
                 ['fontColor', 'hiliteColor'],
                 ['outdent', 'indent', 'align'],
                 ['horizontalRule', 'list', 'lineHeight'],
-                ['table', 'link', 'image', 'video'],
+                ['table', 'link', 'image', 'video', 'math'], // Added 'math' button to toolbar
                 ['removeFormat'],
                 ['fullScreen']
             ],
