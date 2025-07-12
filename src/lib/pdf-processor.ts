@@ -152,6 +152,12 @@ MANDATORY FORMATTING RULES:
 5.  STRUCTURE & CONTENT: Create a logical hierarchy. Write full, explanatory paragraphs. Use lists for sequential data and tables to compare concepts. Define key terms.
 6.  NO META-COMMENTARY: Do not refer to yourself. Start immediately with the first HTML tag.
 
+    FOR MATH USE THIS:
+
+Equations → LaTeX $…$ inline, $$…$$ display).  
+   - ALL mathematics, logic, etc. that can be written in LaTeX, must be written in LaTeX.
+
+YOU MUST ALWYAYS USE THAT LATEX FOR MATH ONLY.
 Source Text from "${file.name}":
 ---
 ${extractedTextFromPdf}
@@ -171,6 +177,14 @@ MANDATORY FORMATTING RULES:
 3.  ONE POINT PER LINE: Each key point must be on its own line.
 4.  CONCISE AND POWERFUL: Each point must be a single, clear sentence under 25 words.
 5.  NO EXTRA TEXT: Do not include any titles, introductions, or summaries. Start immediately with the first asterisk.
+
+
+    FOR MATH USE THIS:
+
+Equations → LaTeX $…$ inline, $$…$$ display).  
+   - ALL mathematics, logic, etc. that can be written in LaTeX, must be written in LaTeX.
+
+YOU MUST ALWYAYS USE THAT LATEX FOR MATH ONLY.
 
 Source Text:
 ---
@@ -192,6 +206,13 @@ MANDATORY FORMATTING (NO DEVIATIONS):
     Front: [Text for the front of the card]
     Back: [Text for the back of the card]
 3.  NO EXTRA TEXT: Your response must begin directly with "Front:".
+
+    FOR MATH USE THIS:
+
+Equations → LaTeX $…$ inline, $$…$$ display).  
+   - ALL mathematics, logic, etc. that can be written in LaTeX, must be written in LaTeX.
+
+YOU MUST ALWYAYS USE THAT LATEX FOR MATH ONLY.
 
 Source Text:
 ---
@@ -226,6 +247,13 @@ CRITICAL FORMATTING RULES (NO DEVIATIONS):
     Correct: [A, B, C, or D]
     Explanation: [Explanation of the correct answer]
 3.  NO EXTRA TEXT: Do not number questions. Start immediately with \`Question:\`.
+
+    FOR MATH USE THIS:
+
+Equations → LaTeX $…$ inline, $$…$$ display).  
+   - ALL mathematics, logic, etc. that can be written in LaTeX, must be written in LaTeX.
+
+YOU MUST ALWYAYS USE THAT LATEX FOR MATH ONLY.
 
 Source Text:
 ---
