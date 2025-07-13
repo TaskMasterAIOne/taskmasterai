@@ -672,6 +672,27 @@ const handleSkipForwardSegment = () => {
         return `${minutes}:${secs < 10 ? '0' : ''}${secs}`;
     };
 
+    const handleScrollToSection = (sectionId: string) => {
+    const scrollContainer = noteContentRef.current;
+    if (scrollContainer) {
+        const targetElement = scrollContainer.querySelector(`#${sectionId}`) as HTMLElement;
+        if (targetElement) {
+            // Calculate position relative to the scroll container's viewport
+            const topPosition = targetElement.getBoundingClientRect().top;
+            const containerTop = scrollContainer.getBoundingClientRect().top;
+            const positionInContainer = topPosition - containerTop;
+
+            // Add the current scroll position and subtract a small offset (e.g., 20px)
+            const y = scrollContainer.scrollTop + positionInContainer - 20;
+
+            scrollContainer.scrollTo({
+                top: y,
+                behavior: 'smooth'
+            });
+        }
+    }
+};
+
 const handlePodcastToggle = () => {
     if (userTier !== 'premium') {
         setShowUpgradeModal(true);
@@ -2102,15 +2123,16 @@ useEffect(() => {
                 userName={userName}
             />
 
-            <main className={`flex-1 flex overflow-hidden transition-all duration-300 ${ isSidebarCollapsed ? 'ml-16 md:ml-20' : 'ml-0 md:ml-64' }`}>
+            {/* --- START OF FIX --- */}
+            <main className={`pt-14 md:pt-0 flex-1 flex overflow-hidden transition-all duration-300 ${ isSidebarCollapsed ? 'ml-16 md:ml-20' : 'ml-0 md:ml-64' }`}>
+{/* --- END OF FIX --- */}
 
 <div ref={mainContentAreaRef} className={`flex-1 bg-[#F7F8FA] dark:bg-[#0C0E1A] relative overflow-hidden`}>
 
                      {isMobile && !showNotesListOnMobile && !showSideBySideChat && (
                          <div className={`sticky top-0 z-30 p-2 border-b border-gray-200 dark:border-gray-700/50 bg-white/80 dark:bg-[#0C0E1A]/80 backdrop-blur-sm flex items-center justify-between`}>
-                             <button onClick={() => setShowNotesListOnMobile(true)} className={`p-1.5 rounded-md bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400`} title="Show Notes"> <List className="w-4 h-4" /> </button>
-                             <span className={`text-sm font-medium truncate px-2 text-gray-800 dark:text-gray-100`}> {isEditing ? 'Editing Note' : selectedNote?.title || 'Note'} </span>
-                             <div className="w-8 h-8 flex items-center justify-center">
+                             <span className={`text-sm font-medium truncate px-2 text-gray-800 dark:text-gray-100`}> {isEditing ? 'Editing Note' : ''} </span>
+                          <div className="w-8 h-8 flex items-center justify-center">
                                  {selectedNote && !isEditing && !showPdfViewer && !showSplitView && ( <button onClick={handleEditNote} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60`} title="Edit note"> <Edit2 className="w-4 h-4" /> </button> )}
                                  {isEditing && ( <button onClick={handleSaveEdit} disabled={isSaving || !editTitle.trim()} className={`p-1.5 rounded-full bg-indigo-500 hover:bg-indigo-600 text-white ${isSaving || !editTitle.trim() ? 'opacity-50 cursor-not-allowed' : ''}`} title="Save Changes"> {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} </button> )}
                              </div>
@@ -2607,38 +2629,64 @@ useEffect(() => {
     <button onClick={() => handleDeleteNote(selectedNote.id)} className={`p-1.5 rounded-full text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-700/30`} title="Delete"><Trash2 className="w-4 h-4" /></button>
 </div>
                                         </div>
-                                        <div className={`px-4 md:px-6 flex flex-wrap gap-1.5 mb-4 flex-shrink-0`}>
-                                            {selectedNote.tags!.map((tag) => (<span key={tag} className={`px-2 py-0.5 rounded-full text-xs border ${(tagColors as any)[tag] || tagColors.custom}`}>#{tag}</span>))}
-                                        </div>
-                                        <div className={`px-4 md:px-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4 flex-shrink-0`}>
-                                            {(selectedNote.questions && selectedNote.questions.length > 0) && (
-                                                <button onClick={() => document.getElementById('study-questions-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 bg-purple-50 dark:bg-purple-700/20 hover:bg-purple-100 dark:hover:bg-purple-700/30 shadow-sm `} >
-                                                    <div className={`p-2 rounded-full bg-purple-100 dark:bg-purple-700/30 text-purple-600 dark:text-purple-300`}> <BookOpen className="w-5 h-5" /> </div>
-                                                    <div> <span className={`block font-semibold text-sm text-gray-800 dark:text-gray-100`}>Quiz</span> <span className={`block text-xs text-gray-600 dark:text-gray-400`}>Test your knowledge</span> </div>
-                                                </button>
-                                            )}
-                                            {(selectedNote.flashcards && selectedNote.flashcards.length > 0) && (
-                                                <button onClick={() => document.getElementById('flashcards-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 bg-indigo-50 dark:bg-indigo-700/20 hover:bg-indigo-100 dark:hover:bg-indigo-700/30 shadow-sm `} >
-                                                    <div className={`p-2 rounded-full bg-indigo-100 dark:bg-indigo-700/30 text-indigo-600 dark:text-indigo-300`}> <Layers className="w-5 h-5" /> </div>
-                                                    <div> <span className={`block font-semibold text-sm text-gray-800 dark:text-gray-100`}>Flashcards</span> <span className={`block text-xs text-gray-600 dark:text-gray-400`}>Review key terms</span> </div>
-                                                </button>
-                                            )}
-                                            <button
-                                                onClick={handlePodcastToggle}
-                                                className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 bg-teal-50 dark:bg-teal-700/20 hover:bg-teal-100 dark:hover:bg-teal-700/30 shadow-sm  ${userTier !== 'premium' ? 'opacity-70' : ''}`}
-                                            >
-                                                <div className={`p-2 rounded-full bg-teal-100 dark:bg-teal-700/30 text-teal-600 dark:text-teal-300`}>
-                                                    <Mic className="w-5 h-5" />
-                                                </div>
-                                                <div>
-                                                    <div className="flex items-center gap-1.5">
-                                                        <span className="font-semibold text-sm text-gray-800 dark:text-gray-100">Podcast</span>
-                                                        {userTier !== 'premium' && (<Lock className="w-4 h-4 text-gray-500 dark:text-gray-500 relative translate-y-[-0.5px]" />)}
-                                                    </div>
-                                                    <span className="block text-xs text-gray-600 dark:text-gray-400">{showPodcastSection ? 'Close Player' : 'Listen to your notes'}</span>
-                                                </div>
-                                            </button>
-                                        </div>
+ {/* --- START OF FIX --- */}
+<div className={`px-4 md:px-6 mb-4 flex-shrink-0`}>
+    {/* Desktop View: Full-width buttons */}
+    <div className={`hidden sm:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3`}>
+        {(selectedNote.questions && selectedNote.questions.length > 0) && (
+            <button onClick={() => handleScrollToSection('study-questions-section')} className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 bg-purple-50 dark:bg-purple-700/20 hover:bg-purple-100 dark:hover:bg-purple-700/30 shadow-sm `} >
+                <div className={`p-2 rounded-full bg-purple-100 dark:bg-purple-700/30 text-purple-600 dark:text-purple-300`}> <BookOpen className="w-5 h-5" /> </div>
+                <div> <span className={`block font-semibold text-sm text-gray-800 dark:text-gray-100`}>Quiz</span> <span className={`block text-xs text-gray-600 dark:text-gray-400`}>Test your knowledge</span> </div>
+            </button>
+        )}
+        {(selectedNote.flashcards && selectedNote.flashcards.length > 0) && (
+            <button onClick={() => handleScrollToSection('flashcards-section')} className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 bg-indigo-50 dark:bg-indigo-700/20 hover:bg-indigo-100 dark:hover:bg-indigo-700/30 shadow-sm `} >
+                <div className={`p-2 rounded-full bg-indigo-100 dark:bg-indigo-700/30 text-indigo-600 dark:text-indigo-300`}> <Layers className="w-5 h-5" /> </div>
+                <div> <span className={`block font-semibold text-sm text-gray-800 dark:text-gray-100`}>Flashcards</span> <span className={`block text-xs text-gray-600 dark:text-gray-400`}>Review key terms</span> </div>
+            </button>
+        )}
+        <button
+            onClick={handlePodcastToggle}
+            className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 bg-teal-50 dark:bg-teal-700/20 hover:bg-teal-100 dark:hover:bg-teal-700/30 shadow-sm  ${userTier !== 'premium' ? 'opacity-70' : ''}`}
+        >
+            <div className={`p-2 rounded-full bg-teal-100 dark:bg-teal-700/30 text-teal-600 dark:text-teal-300`}>
+                <Mic className="w-5 h-5" />
+            </div>
+            <div>
+                <div className="flex items-center gap-1.5">
+                    <span className="font-semibold text-sm text-gray-800 dark:text-gray-100">Podcast</span>
+                    {userTier !== 'premium' && (<Lock className="w-4 h-4 text-gray-500 dark:text-gray-500 relative translate-y-[-0.5px]" />)}
+                </div>
+                <span className="block text-xs text-gray-600 dark:text-gray-400">{showPodcastSection ? 'Close Player' : 'Listen to your notes'}</span>
+            </div>
+        </button>
+    </div>
+
+    {/* Mobile View: Icon-only buttons */}
+    <div className={`flex sm:hidden items-center justify-center gap-4`}>
+        {(selectedNote.questions && selectedNote.questions.length > 0) && (
+            <button onClick={() => handleScrollToSection('study-questions-section')} className={`p-3 rounded-full transition-all duration-150 flex items-center justify-center bg-purple-50 dark:bg-purple-700/20 hover:bg-purple-100 dark:hover:bg-purple-700/30 shadow-sm`} title="Quiz">
+                <BookOpen className="w-5 h-5 text-purple-600 dark:text-purple-300" />
+            </button>
+        )}
+        {(selectedNote.flashcards && selectedNote.flashcards.length > 0) && (
+            <button onClick={() => handleScrollToSection('flashcards-section')} className={`p-3 rounded-full transition-all duration-150 flex items-center justify-center bg-indigo-50 dark:bg-indigo-700/20 hover:bg-indigo-100 dark:hover:bg-indigo-700/30 shadow-sm`} title="Flashcards">
+                <Layers className="w-5 h-5 text-indigo-600 dark:text-indigo-300" />
+            </button>
+        )}
+        <button
+            onClick={handlePodcastToggle}
+            className={`relative p-3 rounded-full transition-all duration-150 flex items-center justify-center bg-teal-50 dark:bg-teal-700/20 hover:bg-teal-100 dark:hover:bg-teal-700/30 shadow-sm ${userTier !== 'premium' ? 'opacity-70' : ''}`}
+            title="Podcast"
+        >
+            <Mic className="w-5 h-5 text-teal-600 dark:text-teal-300" />
+            {userTier !== 'premium' && (
+                <Lock className="w-3 h-3 absolute bottom-1 right-1 bg-white dark:bg-gray-800 rounded-full p-0.5 text-gray-500" />
+            )}
+        </button>
+    </div>
+</div>
+{/* --- END OF FIX --- */}
 <div ref={noteContentRef} className={`flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 px-4 md:px-6 bg-white dark:bg-[#0C0E1A]`}>
     <AnimatePresence>
     {showPodcastSection && (
