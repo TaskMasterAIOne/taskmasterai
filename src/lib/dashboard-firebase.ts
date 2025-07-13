@@ -1,6 +1,10 @@
 import { auth, db } from "./firebase"
-import { getFunctions, httpsCallable } from "firebase/functions";
+
+
+export const geminiApiKey = "AIzaSyB9S9_b2-U3lvGtMhvallAxIbwNgaOphuA" // Ensure this is not committed if sensitive
+
 import { type User, onAuthStateChanged, createUserWithEmailAndPassword, updateProfile } from "firebase/auth"
+
 import {
   doc,
   setDoc,
@@ -18,48 +22,6 @@ import {
   type DocumentData,
   getDocs,
 } from "firebase/firestore"
-
-// This is the core of the solution: A self-invoking async function that creates a promise.
-// This promise is created only ONCE when this module is first imported.
-const geminiApiKeyPromise: Promise<string | null> = (async () => {
-    if (!auth.currentUser) {
-        // Wait for auth state to be ready if it's not already.
-        await new Promise<void>(resolve => {
-            const unsubscribe = onAuthStateChanged(auth, (user) => {
-                if (user) {
-                    resolve();
-                    unsubscribe();
-                }
-            });
-        });
-    }
-
-    if (!auth.currentUser) {
-        console.error("Cannot fetch Gemini API key without a logged-in user.");
-        return null;
-    }
-
-    try {
-        const functions = getFunctions();
-        const getGeminiApiKeyCallable = httpsCallable(functions, 'getGeminiApiKey');
-        const result = await getGeminiApiKeyCallable();
-        const key = (result.data as { apiKey: string }).apiKey;
-
-        if (key) {
-            return key;
-        } else {
-            console.error("Backend returned an empty API key.");
-            return null;
-        }
-    } catch (error) {
-        console.error("Error fetching Gemini API key from backend:", error);
-        return null;
-    }
-})();
-
-// Export the promise directly. Consuming files will `await` this promise.
-export const geminiApiKey = geminiApiKeyPromise;
-
 
 // Define EventData interface
 export interface EventData {
@@ -82,6 +44,10 @@ export interface DailyBriefStatus {
     lastRefreshDate: string; // YYYY-MM-DD format
 }
 
+/**
+ * Fetches the user's daily brief refresh status from Firestore.
+ * If the last refresh was not today, it automatically returns a reset count.
+ */
 export async function getDailyBriefRefreshStatus(userId: string): Promise<DailyBriefStatus> {
     if (!userId) return { count: 0, lastRefreshDate: '' };
     try {
@@ -91,23 +57,30 @@ export async function getDailyBriefRefreshStatus(userId: string): Promise<DailyB
             const data = docSnap.data();
             const todayStr = new Date().toISOString().split('T')[0];
             
+            // If the last refresh date stored in the DB is not today, the count is effectively 0 for today.
             if (data.dailyBriefStatus?.lastRefreshDate !== todayStr) {
                 return { count: 0, lastRefreshDate: todayStr };
             }
             return data.dailyBriefStatus || { count: 0, lastRefreshDate: '' };
         }
+        // If no document or status exists, return a fresh start.
         return { count: 0, lastRefreshDate: '' };
     } catch (error) {
         console.error("Error fetching daily brief status:", error);
+        // Return a default, non-blocking value on error to avoid breaking the UI.
         return { count: 0, lastRefreshDate: '' };
     }
 }
 
+/**
+ * Updates the user's daily brief refresh count in Firestore for the current day.
+ */
 export async function updateDailyBriefRefreshStatus(userId: string, newCount: number): Promise<void> {
     if (!userId) return;
     try {
         const userRef = doc(db, "users", userId);
         const todayStr = new Date().toISOString().split('T')[0];
+        // Use setDoc with merge to create or update the dailyBriefStatus object safely.
         await setDoc(userRef, {
             dailyBriefStatus: {
                 count: newCount,
@@ -255,7 +228,7 @@ export async function createGoal(userId: string, goalText: string, targetDate?: 
   await addDoc(collection(db, "goals"), {
     goal: goalText.trim(),
     userId,
-    targetDate: targetDate instanceof Date ? Timestamp.fromDate(targetDate) : null,
+    targetDate: targetDate instanceof Date ? Timestamp.fromDate(targetDate) : null, // Use targetDate field
     priority,
     createdAt: serverTimestamp(),
     completed: false,
@@ -275,7 +248,7 @@ export async function createEvent(userId: string, eventDetails: { name: string; 
     startDate: Timestamp.fromDate(eventDetails.startDate),
     endDate: Timestamp.fromDate(eventDetails.endDate),
     description: eventDetails.description?.trim() || "",
-    color: eventDetails.color || '#3B82F6',
+    color: eventDetails.color || '#3B82F6', // Default blue e.g.
     linkedTaskIds: eventDetails.linkedTaskIds || [],
     linkedGoalIds: eventDetails.linkedGoalIds || [],
     createdAt: serverTimestamp(),
@@ -298,15 +271,20 @@ export async function updateItem(collectionName: 'tasks' | 'goals' | 'customTime
     if ('userId' in updates || 'createdAt' in updates) { throw new Error("Cannot update userId or createdAt fields."); }
     
     const itemRef = doc(db, collectionName, itemId);
+
+    // Convert Date objects to Timestamps for specified fields
     const dateFieldsToConvert = ['dueDate', 'targetDate', 'startDate', 'endDate', 'recurrenceEndDate'];
     dateFieldsToConvert.forEach(field => {
         if (field in updates) {
             if (updates[field] instanceof Date && !isNaN(updates[field].getTime())) {
                 updates[field] = Timestamp.fromDate(updates[field]);
             } else if (updates[field] === null || updates[field] === undefined || (typeof updates[field] === 'string' && updates[field].trim() === '')) {
+                // If the UI sends null, undefined, or an empty string for a date, store it as null in Firestore
                 updates[field] = null;
             } else if (!(updates[field] instanceof Timestamp)) {
-                console.warn(`Invalid date value for ${field} in update for item ${itemId}.`, updates[field]);
+                // If it's not a Date, not null/undefined/empty, and not already a Timestamp, it's an invalid date format for update.
+                // It's safer to remove it or handle it as an error, rather than letting Firestore potentially fail.
+                console.warn(`Invalid date value provided for ${field} in update for item ${itemId}. Value: `, updates[field], `Type: ${typeof updates[field]}. Field removed from update.`);
                 delete updates[field];
             }
         }
@@ -359,6 +337,7 @@ export async function findItemByName(
         );
         const querySnapshot = await getDocs(q);
         if (!querySnapshot.empty) {
+            // Return the first match. You might want to handle multiple matches if they can exist.
             return querySnapshot.docs[0].id;
         }
         return null;
