@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import SplitPane from 'split-pane-react';
 import 'split-pane-react/esm/themes/default.css';
 import {
     MessageCircle, Globe, Lock, Trash2, Sparkles, BookOpen, X, SplitSquareVertical, Check
 } from 'lucide-react';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
+
 
 interface Note {
     id: string;
@@ -28,6 +31,53 @@ interface SplitViewProps {
     isBlackoutEnabled: boolean;
 }
 
+// Reusable component to render plain text strings that may contain LaTeX
+const RenderWithLatex: React.FC<{ text: string | undefined }> = ({ text }) => {
+    const renderedHtml = useMemo(() => {
+        if (!text) return '';
+        const regex = /\$\$\s*([\s\S]*?)\s*\$\$|\$(.*?)\$/g;
+        return text.replace(regex, (match, displayMath, inlineMath) => {
+            const contentToRender = displayMath || inlineMath;
+            const isDisplayMode = !!displayMath;
+            try {
+                return katex.renderToString(contentToRender, {
+                    throwOnError: false,
+                    displayMode: isDisplayMode,
+                });
+            } catch (e) {
+                console.error("KaTeX rendering error:", e);
+                return match;
+            }
+        });
+    }, [text]);
+
+    return <span dangerouslySetInnerHTML={{ __html: renderedHtml }} />;
+};
+
+// Reusable component to render larger HTML blocks that may contain LaTeX
+const KatexRenderer: React.FC<{ htmlContent: string | undefined }> = ({ htmlContent }) => {
+    const renderedContent = useMemo(() => {
+        if (!htmlContent) return '';
+        const regex = /\$\$\s*([\s\S]*?)\s*\$\$|\$(.*?)\$/g;
+        return htmlContent.replace(regex, (match, displayMath, inlineMath) => {
+            const contentToRender = displayMath || inlineMath;
+            const isDisplayMode = !!displayMath;
+            try {
+                return katex.renderToString(contentToRender, {
+                    throwOnError: false,
+                    displayMode: isDisplayMode,
+                });
+            } catch (e) {
+                console.error("KaTeX rendering error:", e);
+                return match;
+            }
+        });
+    }, [htmlContent]);
+    
+    return <div dangerouslySetInnerHTML={{ __html: renderedContent }} />;
+};
+
+
 export function SplitView({
     leftNote, rightNote, onClose, onTogglePublic, onDelete, onChat, isIlluminateEnabled
 }: SplitViewProps) {
@@ -43,7 +93,6 @@ export function SplitView({
             );
         }
 
-        // This class applies Tailwind's typography styles to the rendered HTML
         const proseClass = `prose prose-sm max-w-none 
             ${isDarkMode ? 'prose-invert' : ''} 
             prose-h2:text-xl prose-h3:text-lg prose-h4:text-base 
@@ -70,11 +119,10 @@ export function SplitView({
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-3 md:p-4 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
-                    {/* Main Content Rendered via dangerouslySetInnerHTML */}
-                    <div
-                        className={proseClass}
-                        dangerouslySetInnerHTML={{ __html: note.content || '' }}
-                    />
+                    {/* --- FIX: Main Content Rendered via KatexRenderer --- */}
+                    <div className={proseClass}>
+                        <KatexRenderer htmlContent={note.content} />
+                    </div>
 
                     {note.keyPoints && note.keyPoints.length > 0 && (
                         <div className={`mt-6 border-t pt-4 border-gray-200 dark:border-gray-700/50`}>
@@ -83,7 +131,8 @@ export function SplitView({
                                 {note.keyPoints.map((point, index) => (
                                     <li key={index} className={`flex items-start gap-2 text-gray-700 dark:text-gray-300`}>
                                         <span className={`flex-shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full bg-indigo-500`}></span>
-                                        {point}
+                                        {/* --- FIX: Render Key Points with LaTeX --- */}
+                                        <RenderWithLatex text={point} />
                                     </li>
                                 ))}
                             </ul>
@@ -95,17 +144,20 @@ export function SplitView({
                             <div className="space-y-3">
                                 {note.questions.map((q, index) => (
                                     <div key={`${note.id}-q-${index}`} className={`p-3 rounded-lg bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700/50 text-sm`}>
-                                        <p className={`text-gray-800 dark:text-gray-200 mb-2`}><span className="font-semibold">{index + 1}.</span> {q.question}</p>
+                                        {/* --- FIX: Render Question with LaTeX --- */}
+                                        <p className={`text-gray-800 dark:text-gray-200 mb-2`}><span className="font-semibold">{index + 1}.</span> <RenderWithLatex text={q.question} /></p>
                                         <div className="space-y-1">
                                             {q.options.map((option, optIndex) => (
                                                 <div key={optIndex} className={`px-2 py-1 rounded text-xs flex items-center gap-2 ${optIndex === q.correctAnswer ? 'bg-green-100 dark:bg-green-700/30 text-green-800 dark:text-green-200 font-medium' : 'bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300'}`}>
                                                     {optIndex === q.correctAnswer && <Check className="w-3.5 h-3.5 flex-shrink-0" />}
-                                                    {option}
+                                                    {/* --- FIX: Render Options with LaTeX --- */}
+                                                    <RenderWithLatex text={option} />
                                                 </div>
                                             ))}
                                         </div>
                                         {q.explanation && (
-                                            <div className={`mt-2 pt-2 border-t text-xs border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400`}><strong className="font-semibold">Explanation: </strong>{q.explanation}</div>
+                                            /* --- FIX: Render Explanation with LaTeX --- */
+                                            <div className={`mt-2 pt-2 border-t text-xs border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400`}><strong className="font-semibold">Explanation: </strong><RenderWithLatex text={q.explanation} /></div>
                                         )}
                                     </div>
                                 ))}
