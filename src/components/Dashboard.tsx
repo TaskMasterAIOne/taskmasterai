@@ -1847,7 +1847,7 @@ Assistant:`;
           }
       }
 
-      if (actionTakenDetails && !cleanedText.trim()) {
+         if (actionTakenDetails && !cleanedText.trim()) {
           assistantTextForDisplay = ""; 
       } else if (educationalContent && !cleanedText.trim()) {
           assistantTextForDisplay = educationalContent.type === 'flashcard' ? "Here are some flashcards, verified for accuracy:" : "Here's a quiz, verified for accuracy:";
