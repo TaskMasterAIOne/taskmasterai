@@ -1199,7 +1199,7 @@ YOU MUST ALWYAYS USE THAT LATEX FOR MATH ONLY.
                 const requestBody: any = {
                     generationConfig: {
                         temperature: isUsingImageGenModel ? 0.8 : 0.7,
-                        maxOutputTokens: isUsingImageGenModel ? 2048 : 8192,
+                       maxOutputTokens: isUsingImageGenModel ? 2048 : 65536,
                     },
                 };
                 
