@@ -137,7 +137,7 @@ export async function processPDF(
         }
 
         const titlePrompt = `Analyze the following text extracted from a document. Your single task is to generate a concise, descriptive, and relevant title for this document. The title should be no more than 10 words. Do not add any extra text, explanation, or quotation marks. Output only the title itself. TEXT: """${extractedTextFromPdf.slice(0, 4000)}""" TITLE:`;
-        const titleOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: titlePrompt }] }], generationConfig: { temperature: 0.3, maxOutputTokens: 8192 } }) };
+        const titleOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: titlePrompt }] }], generationConfig: { temperature: 0.3, maxOutputTokens: 65536 } }) };
         const titleResponse = await fetchWithRetry(GEMINI_ENDPOINT, titleOptions);
         let title = extractCandidateText(await titleResponse.text()).replace(/["']/g, "").trim() || file.name.replace(/\.pdf$/i, '');
         safeProgress(65);
@@ -163,7 +163,7 @@ Source Text from "${file.name}":
 ${extractedTextFromPdf}
 ---
 Your Response (Must be only the raw, clean HTML content):`;
-        const noteOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: notePrompt }] }], generationConfig: { temperature: 0.6, maxOutputTokens: 8192 } }) };
+        const noteOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: notePrompt }] }], generationConfig: { temperature: 0.6, maxOutputTokens: 65536 } }) };
         const noteResponse = await fetchWithRetry(GEMINI_ENDPOINT, noteOptions);
         let content = extractCandidateText(await noteResponse.text());
         if (content.startsWith("Error:")) { content = `<p><strong>Error generating note:</strong> ${content}</p>`; }
@@ -192,7 +192,7 @@ ${extractedTextFromPdf}
 ---
 Your Response (Must be only a list of points starting with '* '):
 * `;
-        const kpOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: keyPointsPrompt }] }], generationConfig: { temperature: 0.4, maxOutputTokens: 8192 } }) };
+        const kpOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: keyPointsPrompt }] }], generationConfig: { temperature: 0.4, maxOutputTokens: 65536 } }) };
         const kpResponse = await fetchWithRetry(GEMINI_ENDPOINT, kpOptions);
         let keyPoints = (extractCandidateText(await kpResponse.text())).split('\n').map(l => l.trim().replace(/^(\*|-|\d+\.)\s*/, '')).filter(p => p.length > 5 && !p.toLowerCase().includes("primary task"));
         if (keyPoints.length === 0) { keyPoints.push("Key point generation failed or returned no valid points."); }
@@ -220,13 +220,15 @@ ${extractedTextFromPdf}
 ---
 Your Response (Must follow the strict "Front/Back/Divider" format):
 Front:`;
-        const fcOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: flashcardsPrompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 8192 } }) };
+        const fcOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: flashcardsPrompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 65536 } }) };
         const fcResponse = await fetchWithRetry(GEMINI_ENDPOINT, fcOptions);
-        const fcRawText = extractCandidateText(await fcResponse.text());
+        // FIX: Prepend "Front: " to the raw text to ensure the first card is parsed correctly.
+        const fcRawText = "Front: " + extractCandidateText(await fcResponse.text());
         let flashcards: ProcessedPDF['flashcards'] = [];
         if (!fcRawText.startsWith("Error:")) {
             fcRawText.split(/---FLASHCARD_DIVIDER---/i).forEach(block => {
-                const match = block.trim().match(/^(?:Front:\s*)?([\s\S]*?)\s*\nBack:\s*([\s\S]*)$/is);
+                // FIX: Use a more robust regex that assumes the "Front: ... Back: ..." structure.
+                const match = block.trim().match(/^Front:\s*([\s\S]+?)\s*Back:\s*([\s\S]+)$/is);
                 if (match && match[1] && match[2] && match[1].trim() && match[2].trim()) {
                     flashcards.push({ front: match[1].trim(), back: match[2].trim() });
                 }
@@ -261,21 +263,29 @@ ${extractedTextFromPdf}
 ---
 Your Response (Must be 10 blocks in the strict 7-line format):
 Question:`;
-        const qOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: questionsPrompt }] }], generationConfig: { temperature: 0.6, maxOutputTokens: 8192 } }) };
+        const qOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: questionsPrompt }] }], generationConfig: { temperature: 0.6, maxOutputTokens: 65536 } }) };
         const qResponse = await fetchWithRetry(GEMINI_ENDPOINT, qOptions);
         const qRawText = extractCandidateText(await qResponse.text());
         let questions: ProcessedPDF['questions'] = [];
         if (!qRawText.startsWith("Error:")) {
             qRawText.split(/---DIVIDER---/i).forEach(block => {
-                const qM = block.match(/Question:\s*([\s\S]*?)\s*A\)/i);
-                const oM = block.match(/A\)\s*([\s\S]*?)\s*B\)\s*([\s\S]*?)\s*C\)\s*([\s\S]*?)\s*D\)\s*([\s\S]*?)\s*Correct:/is);
-                const cM = block.match(/Correct:\s*([A-D])/i);
-                const eM = block.match(/Explanation:\s*([\s\S]*)$/i);
-                if (qM && oM && cM && eM) {
-                    const oL = [oM[1], oM[2], oM[3], oM[4]].map(o => o.trim());
-                    const cL = cM[1].toUpperCase();
-                    if (oL.every(o => o) && ['A', 'B', 'C', 'D'].includes(cL)) {
-                        questions.push({ question: qM[1].trim(), options: oL, correctAnswer: ['A', 'B', 'C', 'D'].indexOf(cL), explanation: eM[1].trim() });
+                // FIX: Use a single, more robust regex to parse the entire question block at once.
+                const pattern = /Question:\s*([\s\S]+?)\s*A\)\s*([\s\S]+?)\s*B\)\s*([\s\S]+?)\s*C\)\s*([\s\S]+?)\s*D\)\s*([\s\S]+?)\s*Correct:\s*([A-D])\s*Explanation:\s*([\s\S]+)/is;
+                const match = block.trim().match(pattern);
+
+                if (match) {
+                    const questionText = match[1].trim();
+                    const options = [match[2].trim(), match[3].trim(), match[4].trim(), match[5].trim()];
+                    const correctLetter = match[6].trim().toUpperCase();
+                    const explanationText = match[7].trim();
+
+                    if (questionText && explanationText && options.every(o => o)) {
+                        questions.push({
+                            question: questionText,
+                            options: options,
+                            correctAnswer: ['A', 'B', 'C', 'D'].indexOf(correctLetter),
+                            explanation: explanationText
+                        });
                     }
                 }
             });
