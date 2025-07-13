@@ -83,7 +83,7 @@ export async function processTextToAINoteData( text: string, userId: string, api
   
   try {
     safeProgress(10);
-    const titlePrompt = `Analyze the following text. Your single task is to generate a concise, descriptive, and relevant title for this document. The title should be no more than 8 words. Do not add any extra text, explanation, or quotation marks. Output only the title itself. TEXT: """${text.slice(0, 4000)}""" TITLE:`;
+    const titlePrompt = `Analyze the following text. Your single task is to generate a concise, descriptive, and relevant title for this document. The title should be no more than 5 words. Do not add any extra text, explanation, or quotation marks. Output only the title itself. TEXT: """${text.slice(0, 4000)}""" TITLE:`;
     const titleOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: titlePrompt }] }], generationConfig: { temperature: 0.3, maxOutputTokens: 8192 } }) };
     const titleResponse = await fetchWithRetry(currentGeminiEndpoint, titleOptions);
     let title = extractCandidateText(await titleResponse.text()).replace(/["']/g, "").trim() || 'AI Generated Note';
@@ -174,7 +174,7 @@ This is not summarization. This is **intelligent expansion and transformation** 
 ${text}
 ---
 Your Response (Must be only the raw, clean HTML content):`;
-    const noteOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: notePrompt }] }], generationConfig: { temperature: 0.6, maxOutputTokens: 8192 } }) };
+    const noteOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: notePrompt }] }], generationConfig: { temperature: 0.6, maxOutputTokens: 65536 } }) };
     const noteResponse = await fetchWithRetry(currentGeminiEndpoint, noteOptions);
     let content = extractCandidateText(await noteResponse.text());
     if (content.startsWith("Error:")) { content = `<p><strong>Error generating note:</strong> ${content}</p>`; }
@@ -208,7 +208,7 @@ ${content.slice(0, 30000)}
 ---
 Your Response (Must be only a list of points starting with '* '):
 * `;
-    const kpOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: keyPointsPrompt }] }], generationConfig: { temperature: 0.4, maxOutputTokens: 8192 } }) };
+    const kpOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: keyPointsPrompt }] }], generationConfig: { temperature: 0.4, maxOutputTokens: 65536 } }) };
     const kpResponse = await fetchWithRetry(currentGeminiEndpoint, kpOptions);
     let keyPoints = (extractCandidateText(await kpResponse.text())).split('\n').map(l => l.trim().replace(/^(\*|-|\d+\.)\s*/, '')).filter(p => p.length > 5 && !p.toLowerCase().includes("primary task"));
     if (keyPoints.length === 0) { keyPoints.push("Key point generation failed or returned no valid points."); }
@@ -241,7 +241,7 @@ ${content.slice(0, 30000)}
 ---
 Your Response (Must follow the strict "Front/Back/Divider" format):
 Front:`;
-    const fcOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: flashcardsPrompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 8192 } }) };
+    const fcOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: flashcardsPrompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 65536 } }) };
     const fcResponse = await fetchWithRetry(currentGeminiEndpoint, fcOptions);
     const fcRawText = extractCandidateText(await fcResponse.text());
     let flashcards: Flashcard[] = [];
@@ -288,7 +288,7 @@ ${content.slice(0, 30000)}
 ---
 Your Response (Must be 10 blocks in the strict 7-line format):
 Question:`;
-    const qOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: questionsPrompt }] }], generationConfig: { temperature: 0.6, maxOutputTokens: 8192 } }) };
+    const qOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: questionsPrompt }] }], generationConfig: { temperature: 0.6, maxOutputTokens: 65536 } }) };
     const qResponse = await fetchWithRetry(currentGeminiEndpoint, qOptions);
     const qRawText = extractCandidateText(await qResponse.text());
     let questions: NoteData['questions'] = [];
@@ -350,7 +350,7 @@ ${content.slice(0, 30000)}
 Your Response (Must be 10 blocks in the strict 7-line format):
 Question:`;
 
-    const qOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: questionsPrompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 8192 } }) };
+    const qOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: questionsPrompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 65536 } }) };
     const qResponse = await fetchWithRetry(currentGeminiEndpoint, qOptions);
     const qText = extractCandidateText(await qResponse.text());
 
