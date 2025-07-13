@@ -170,8 +170,8 @@ This is not summarization. This is **intelligent expansion and transformation** 
 
 3. ✨ VISUAL STRUCTURE & ENGAGEMENT:
    - Use clean, hierarchical formatting.
-   - **<h2>** for major sections (main concepts/themes).
-   - **<h3>** and **<h4>** for subtopics, examples, methods, or related ideas.
+   - **<h1>** for major sections (main concepts/themes).
+   - **<h2>** and **<h3>** for subtopics, examples, methods, or related ideas.
    - Use <p> for full paragraphs of explanation.
    - Use <ul>/<ol> for steps, lists, or key points.
    - Use <blockquote> for important insights or definitions.
@@ -203,13 +203,14 @@ This is not summarization. This is **intelligent expansion and transformation** 
 
 7. 🧼 FORMATTING RULES (STRICT):
    ✅ ALLOWED TAGS ONLY:
-     - <h2>, <h3>, <h4>, <p>, <strong>, <em>, <ul>, <ol>, <li>, <blockquote>, <table>, <thead>, <tbody>, <tr>, <th>, <td>
+     - <h1>, <h2>, <h3>, <h4>, <p>, <strong>, <em>, <ul>, <ol>, <li>, <blockquote>, <table>, <thead>, <tbody>, <tr>, <th>, <td> 
 
    🚫 DO NOT USE:
      - <html>, <head>, <body>, <div>, <span>, <style>, <script>, or any inline styles like style="..." or class="..."
      - No markdown formatting. HTML only.
      - No links unless they are part of academic citation, which is rare and discouraged.
      - No embedded media — the result must be copy-pasteable into a rich text editor.
+     - No <h5> or higher tags. MAX is <h4>. 
 
 8. ❗ ABSOLUTELY PROHIBITED:
    - Do NOT refer to yourself, your process, or the original source.
@@ -218,7 +219,7 @@ This is not summarization. This is **intelligent expansion and transformation** 
    - Do NOT wrap your output in triple backticks or any markdown syntax.
 
 9. 📄 FINAL OUTPUT:
-   - Output ONLY the HTML content. It should begin immediately with a valid HTML tag such as <h2> or <p>.
+   - Output ONLY the HTML content. It should begin immediately with a valid HTML tag such as <h1> or <p>.
    - The entire response must be a single, continuous HTML document — clean, readable, structured, and content-rich.
 
 🧾 SOURCE TEXT from "${file.name}":
