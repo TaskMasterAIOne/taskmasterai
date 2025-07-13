@@ -100,7 +100,7 @@ export function Sidebar({
   const menuItems = [
     { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
     { label: "Folders", icon: Folders, path: "/folders" },
-    { label: "Notes", icon: FileText, path: "/notes", isBeta: true },
+    { label: "Notes", icon: FileText, path: "/notes" },
     { label: "Focus", icon: ZapOff, path: "/focus" },
     { label: "AI Chat", icon: MessageCircle, path: "/ai" },
     { label: "Settings", icon: Settings, path: "/settings" },
