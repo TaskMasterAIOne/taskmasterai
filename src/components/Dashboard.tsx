@@ -252,8 +252,7 @@ const parseGeminiApiResponse = (responseText: string, isImageGenCall: boolean): 
 };
 
 const verifyEducationalContent = async (content: FlashcardMessage | QuestionMessage): Promise<FlashcardMessage | QuestionMessage> => {
-    const currentApiKey = await geminiApiKey;
-    if (!currentApiKey || currentApiKey === 'FETCH_FAILED_INVALID_KEY') {
+    if (!geminiApiKey) {
         console.warn("Gemini API key not available for verification.");
         return content; // Return original content if no key
     }
@@ -280,7 +279,7 @@ const verifyEducationalContent = async (content: FlashcardMessage | QuestionMess
     `;
 
     try {
-        const verificationEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${currentApiKey}`;
+        const verificationEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${geminiApiKey}`;
         const geminiOptions = {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1114,13 +1113,11 @@ const [aiActionStatus, setAiActionStatus] = useState<string | null>(null);
 
 
 const generateChatName = async (convId: string, history: ChatMessageData[], currentUser: FirebaseUser | null) => {
-    const currentApiKey = await geminiApiKey;
-    if (!currentUser || !currentUser.uid || history.length < 2 || !currentApiKey || currentApiKey === 'FETCH_FAILED_INVALID_KEY') return;
+    if (!currentUser || !currentUser.uid || history.length < 2 || !geminiApiKey) return;
     const relevantHistory = history.slice(0, Math.min(history.length, 4)).map(m => `${m.role}: ${m.content?.substring(0,100) || ""}`).join("\n");
     const prompt = `Please provide a short 3-5 word title summarizing the conversation so far:\n${relevantHistory}\nReturn ONLY the title, with no extra commentary. USE THE SAME LANGUAGE AS PRESENTED IN THE CONVERSATION!`;
     try {
-        // Inside the try block of the same function
-const nameGenEndpoint = `${GEMINI_API_BASE}${GEMINI_MINI_MODEL}:generateContent?key=${currentApiKey}`;
+        const nameGenEndpoint = `${GEMINI_API_BASE}${GEMINI_MINI_MODEL}:generateContent?key=${geminiApiKey}`;
         const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 60 }})};
         const response = await fetchWithTimeout(nameGenEndpoint, geminiOptions, 10000);
         if (!response.ok) { console.warn(`Name gen API failed: ${response.status}`); return; }
@@ -2309,9 +2306,10 @@ Assistant:`;
   }, [user, userTier]);
 
 
- const generateSmartDailyBrief = useCallback(async () => {
-    const currentApiKey = await geminiApiKey;
-    if (!user || !user.uid || !currentApiKey || currentApiKey === 'FETCH_FAILED_INVALID_KEY' || (userTier !== 'pro' && userTier !== 'premium') || smartBriefLoading || (tasks.length === 0 && goals.length === 0 && events.length === 0) ) {
+  const generateSmartDailyBrief = useCallback(async () => {
+    // Basic guards: ensure user, tier, and content exist before proceeding.
+    if (!user || !user.uid || !geminiApiKey || (userTier !== 'pro' && userTier !== 'premium') || smartBriefLoading || (tasks.length === 0 && goals.length === 0 && events.length === 0) ) {
+        if (tasks.length === 0 && goals.length === 0 && events.length === 0) {
             setSmartDailyBrief(prev => ({
                 ...(prev || { summaryText: "", pendingTasksCount: 0, suggestedActions: [] }),
                 summaryText: "Add tasks, goals, or events to get your AI brief.",
@@ -2433,8 +2431,7 @@ Assistant:`;
     `;
 
     try {
-        // Inside the try block of the same function
-const briefEndpoint = `${GEMINI_API_BASE}${GEMINI_MINI_MODEL}:generateContent?key=${currentApiKey}`;
+        const briefEndpoint = `${GEMINI_API_BASE}${GEMINI_MINI_MODEL}:generateContent?key=${geminiApiKey}`;
         const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.7 } })};
         const response = await fetchWithTimeout(briefEndpoint, geminiOptions, 25000);
         if (!response.ok) throw new Error(`API error (${response.status})`);
@@ -3156,13 +3153,11 @@ const briefEndpoint = `${GEMINI_API_BASE}${GEMINI_MINI_MODEL}:generateContent?ke
     };
 
     const fetchTaskCoachTip = async (taskId: string, taskText: string) => {
-    const currentApiKey = await geminiApiKey;
-    if (!user || !currentApiKey || currentApiKey === 'FETCH_FAILED_INVALID_KEY' || taskCoachLoading[taskId]) return;
+        if (!user || !geminiApiKey || taskCoachLoading[taskId]) return;
         setTaskCoachLoading(prev => ({...prev, [taskId]: true}));
         const prompt = `User's task: "${taskText}". Provide 1-2 very short, actionable coaching tips (as a single string, max 150 chars) to help complete this. Be encouraging and use simple language. Example: "Focus on the first step. You've got this! 💪" or "Set a timer for 25 minutes and dive in. Small wins matter! ⏳"`;
         try {
-            // Inside the try block of each function
-const coachEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${currentApiKey}`;
+            const coachEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${geminiApiKey}`;
             const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }]})};
             const response = await fetchWithTimeout(coachEndpoint, geminiOptions, 15000);
             if (!response.ok) throw new Error(`API error (${response.status})`);
@@ -3327,8 +3322,7 @@ const coachEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?ke
     };
 
     const generateProductivityAnalysis = async () => {
-    const currentApiKey = await geminiApiKey;
-    if (!user || !user.uid || isProductivityAnalysisLoading || !currentApiKey || currentApiKey === 'FETCH_FAILED_INVALID_KEY') return;
+        if (!user || !user.uid || isProductivityAnalysisLoading || !geminiApiKey) return;
         setIsProductivityAnalysisLoading(true);
         setProductivityAnalysisResult(null);
 
@@ -3372,8 +3366,7 @@ const coachEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?ke
         `;
 
         try {
-           // Inside the try block of the same function
-const analysisEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${currentApiKey}`;
+            const analysisEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${geminiApiKey}`;
             const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.6 } })};
             const response = await fetchWithTimeout(analysisEndpoint, geminiOptions, 30000);
             if (!response.ok) throw new Error(`API error (${response.status})`);
