@@ -39,7 +39,6 @@ export async function ensureUserDocument(user: User): Promise<void> {
         lastLoginAt: Timestamp.fromDate(new Date()),
         // Add any other default fields for new users
       });
-      console.log("New user document created for:", user.uid);
     } else {
       // Document exists, update last login time and potentially name/photoURL
       await updateDoc(userDocRef, {
@@ -47,7 +46,6 @@ export async function ensureUserDocument(user: User): Promise<void> {
         ...(user.photoURL && user.photoURL !== docSnap.data()?.photoURL && { photoURL: user.photoURL }),
         ...(user.displayName && user.displayName !== docSnap.data()?.name && { name: user.displayName }),
       });
-      console.log("User document updated for:", user.uid);
     }
   } catch (error) {
     console.error("Error ensuring user document:", error);
@@ -67,7 +65,6 @@ export const saveUserData = async (user: User) => { // Use User type
       displayName: user.displayName || "Anonymous",
       photoURL: user.photoURL || ""
     });
-    console.log("User data saved successfully (via saveUserData)");
   } catch (error) {
     console.error("Error saving user data (via saveUserData):", error);
   }
@@ -82,7 +79,6 @@ export const googleSignIn = async (): Promise<User | null> => {
     if (user) {
       await ensureUserDocument(user); // Ensure Firestore document is up-to-date
     }
-    console.log("Google Sign-In successful:", user?.email);
     return user;
   } catch (error) {
     console.error("Error with Google Sign-In:", error);
@@ -104,7 +100,6 @@ export const emailSignIn = async (email: string, password: string): Promise<User
     if (user) {
       await ensureUserDocument(user); // Ensure Firestore document is up-to-date
     }
-    console.log("Sign-In successful:", user?.email);
     return user;
   } catch (error) {
     console.error("Error signing in:", error);
@@ -121,7 +116,6 @@ export const sendPasswordResetEmail = async (email: string): Promise<void> => {
       url: `${window.location.origin}/login?resetPasswordSuccess=true`, // Example
       handleCodeInApp: false // If true, you'd handle the oobCode yourself in the app
     });
-    console.log("Password reset email sent successfully to:", email);
   } catch (error) {
     console.error("Error sending password reset email:", error);
     throw error; // Re-throw for the calling component to handle
