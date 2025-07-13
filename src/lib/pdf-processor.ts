@@ -142,27 +142,100 @@ export async function processPDF(
         let title = extractCandidateText(await titleResponse.text()).replace(/["']/g, "").trim() || file.name.replace(/\.pdf$/i, '');
         safeProgress(65);
 
-        const notePrompt = `You are a world-class academic content creator. Your task is to transform raw text into a comprehensive, deeply informative, and aesthetically pleasing set of study notes formatted in clean HTML, ready for a rich-text editor. You MUST go far beyond the source text, using it only as a starting point to identify the core subject, then generate a complete, university-level study guide. Your own knowledge is the primary resource. The notes must be exhaustive and accurate.
+const notePrompt = `🧠 ROLE:
+You are a world-class academic note-writer and subject matter expert across multiple disciplines. Your job is to generate extraordinarily high-quality, university-level study notes based on the given source. These notes must be richly informative, pedagogically structured, and visually engaging — the kind of content students rely on to **truly understand** and **retain** complex material.
 
-MANDATORY FORMATTING RULES:
-1.  HTML ONLY: The entire response must be a single stream of HTML. Do not wrap it in markdown.
-2.  ALLOWED TAGS: \`<h2>\`, \`<h3>\`, \`<h4>\`, \`<p>\`, \`<strong>\`, \`<em>\`, \`<ul>\`, \`<ol>\`, \`<li>\`, \`<blockquote>\`, \`<table>\`, \`<thead>\`, \`<tbody>\`, \`<tr>\`, \`<th>\`, \`<td>\`.
-3.  NO FORBIDDEN ELEMENTS: No \`<html>\`, \`<body>\`, inline \`style="..."\`, or \`class="..."\` attributes.
-4.  EMOJIS FOR CLARITY: Use emojis strategically and sparingly to introduce concepts and add visual structure. Vary them for engagement.
-5.  STRUCTURE & CONTENT: Create a logical hierarchy. Write full, explanatory paragraphs. Use lists for sequential data and tables to compare concepts. Define key terms.
-6.  NO META-COMMENTARY: Do not refer to yourself. Start immediately with the first HTML tag.
+🏆 OUTPUT GOAL:
+Produce an exhaustive, highly structured, and visually appealing set of study notes. These notes should:
+- Provide complete conceptual clarity.
+- Feel like premium textbook content, but better organized and more digestible.
+- Be optimized for fast learning and deep understanding.
+- Include visuals (emojis), structure (headings, lists, tables), and clarity-enhancing elements.
 
-    FOR MATH USE THIS:
+This is not summarization. This is **intelligent expansion and transformation** of the topic into gold-standard academic material.
 
-Equations → LaTeX $…$ inline, $$…$$ display).  
-   - ALL mathematics, logic, etc. that can be written in LaTeX, must be written in LaTeX.
+📌 CORE RULES FOR CONTENT CREATION:
 
-YOU MUST ALWYAYS USE THAT LATEX FOR MATH ONLY.
-Source Text from "${file.name}":
+1. 🧠 USE OF SOURCE:
+   - Use the input text **only** to identify the topic and subtopics.
+   - Then **draw on your own extensive academic knowledge** to build comprehensive notes.
+   - Do **not repeat or rephrase** the raw text. Instead, generate rich, fresh content based on the topic.
+   - Assume your reader is a student looking to master the topic at a high level.
+
+2. 💡 TONE AND STYLE:
+   - Clear, confident, instructional tone.
+   - Never vague or generic — always detailed, specific, and content-dense.
+   - Use academic language, but make it engaging.
+   - Do NOT include any meta-commentary, process explanation, or references to yourself, the AI, or the user.
+
+3. ✨ VISUAL STRUCTURE & ENGAGEMENT:
+   - Use clean, hierarchical formatting.
+   - **<h2>** for major sections (main concepts/themes).
+   - **<h3>** and **<h4>** for subtopics, examples, methods, or related ideas.
+   - Use <p> for full paragraphs of explanation.
+   - Use <ul>/<ol> for steps, lists, or key points.
+   - Use <blockquote> for important insights or definitions.
+   - Use <table> for comparisons, categorizations, or structured data.
+   - Add **bold** and *italic* formatting for emphasis and clarity.
+   - Use spacing and indentation naturally to guide the eye.
+
+4. 🌟 EMOJI USAGE:
+   - Use emojis strategically and sparingly to:
+     - Highlight or introduce new sections 💡
+     - Mark warnings or key ideas ⚠️
+     - Show processes or steps 🔁➡️
+     - Represent topics visually 🧬🔢📊🌍🧪
+   - DO NOT overuse emojis. They must aid reading, not distract from it.
+   - DO NOT repeat the same emoji repeatedly in one section.
+
+5. 📚 CONTENT QUALITY EXPECTATIONS:
+   - Define all important terms clearly and completely.
+   - Explain each concept thoroughly, including background, usage, and implications.
+   - Provide examples, analogies, or applications where useful.
+   - Connect ideas across the topic to show relationships and frameworks.
+   - If the topic is mathematical or logical, include formulas and walk through their meaning.
+
+6. 🔣 MATH FORMAT — LaTeX ONLY:
+   - Any math expressions, logic, chemistry, physics, etc. must use proper LaTeX syntax.
+   - Inline math → wrap in single dollar signs: $...$
+   - Block equations → wrap in double dollar signs: $$...$$
+   - Do not describe math — express it cleanly in LaTeX for clarity and rendering.
+
+7. 🧼 FORMATTING RULES (STRICT):
+   ✅ ALLOWED TAGS ONLY:
+     - <h2>, <h3>, <h4>, <p>, <strong>, <em>, <ul>, <ol>, <li>, <blockquote>, <table>, <thead>, <tbody>, <tr>, <th>, <td>
+
+   🚫 DO NOT USE:
+     - <html>, <head>, <body>, <div>, <span>, <style>, <script>, or any inline styles like style="..." or class="..."
+     - No markdown formatting. HTML only.
+     - No links unless they are part of academic citation, which is rare and discouraged.
+     - No embedded media — the result must be copy-pasteable into a rich text editor.
+
+8. ❗ ABSOLUTELY PROHIBITED:
+   - Do NOT refer to yourself, your process, or the original source.
+   - Do NOT include commentary like “Here’s what we can learn…” or “Let’s break this down…”
+   - Do NOT explain what you’re doing — just do it.
+   - Do NOT wrap your output in triple backticks or any markdown syntax.
+
+9. 📄 FINAL OUTPUT:
+   - Output ONLY the HTML content. It should begin immediately with a valid HTML tag such as <h2> or <p>.
+   - The entire response must be a single, continuous HTML document — clean, readable, structured, and content-rich.
+
+🧾 SOURCE TEXT from "${file.name}":
 ---
 ${extractedTextFromPdf}
 ---
-Your Response (Must be only the raw, clean HTML content):`;
+
+🔽 YOUR TASK:
+Use the source text ONLY to identify the subject. Then generate a complete, exhaustive, beautifully formatted HTML study guide, entirely from your own knowledge, following all the rules above.
+
+🚫 DO NOT EXPLAIN ANYTHING.
+🚫 DO NOT PROVIDE ANY META-COMMENTARY.
+🚫 OUTPUT ONLY THE RAW HTML.
+🚫 NO MARKDOWN.
+
+✅ START NOW. FIRST OUTPUT ELEMENT MUST BE AN HTML TAG (e.g. <h2>):`;
+
         const noteOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: notePrompt }] }], generationConfig: { temperature: 0.6, maxOutputTokens: 65536 } }) };
         const noteResponse = await fetchWithRetry(GEMINI_ENDPOINT, noteOptions);
         let content = extractCandidateText(await noteResponse.text());
