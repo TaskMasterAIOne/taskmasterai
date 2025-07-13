@@ -252,7 +252,8 @@ const parseGeminiApiResponse = (responseText: string, isImageGenCall: boolean): 
 };
 
 const verifyEducationalContent = async (content: FlashcardMessage | QuestionMessage): Promise<FlashcardMessage | QuestionMessage> => {
-    if (!geminiApiKey) {
+    const currentApiKey = await geminiApiKey;
+    if (!currentApiKey || currentApiKey === 'FETCH_FAILED_INVALID_KEY') {
         console.warn("Gemini API key not available for verification.");
         return content; // Return original content if no key
     }
@@ -279,7 +280,7 @@ const verifyEducationalContent = async (content: FlashcardMessage | QuestionMess
     `;
 
     try {
-        const verificationEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${geminiApiKey}`;
+        const verificationEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${currentApiKey}`;
         const geminiOptions = {
             method: "POST",
             headers: { "Content-Type": "application/json" },
