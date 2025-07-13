@@ -1114,11 +1114,12 @@ const [aiActionStatus, setAiActionStatus] = useState<string | null>(null);
 
 
 const generateChatName = async (convId: string, history: ChatMessageData[], currentUser: FirebaseUser | null) => {
-    if (!currentUser || !currentUser.uid || history.length < 2 || !geminiApiKey) return;
+    const currentApiKey = await geminiApiKey;
+    if (!currentUser || !currentUser.uid || history.length < 2 || !currentApiKey || currentApiKey === 'FETCH_FAILED_INVALID_KEY') return;
     const relevantHistory = history.slice(0, Math.min(history.length, 4)).map(m => `${m.role}: ${m.content?.substring(0,100) || ""}`).join("\n");
     const prompt = `Please provide a short 3-5 word title summarizing the conversation so far:\n${relevantHistory}\nReturn ONLY the title, with no extra commentary. USE THE SAME LANGUAGE AS PRESENTED IN THE CONVERSATION!`;
     try {
-        const nameGenEndpoint = `${GEMINI_API_BASE}${GEMINI_MINI_MODEL}:generateContent?key=${geminiApiKey}`;
+        const nameGenEndpoint = `${GEMINI_API_BASE}${GEMINI_MINI_MODEL}:generateContent?key=${currentApiKey}`;
         const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 60 }})};
         const response = await fetchWithTimeout(nameGenEndpoint, geminiOptions, 10000);
         if (!response.ok) { console.warn(`Name gen API failed: ${response.status}`); return; }
@@ -1586,9 +1587,15 @@ YOU MUST ALWYAYS USE THAT LATEX FOR MATH ONLY.
 Your ultimate goal is to be a world-class productivity partner for ${truncatedName}. Adhere strictly to these protocols to provide a seamless and effective experience.
 Assistant:`;
 
-  const currentTargetModel = imageGenModeOn ? GEMINI_IMAGE_GEN_MODEL : GEMINI_TEXT_MODEL;
-    const fullApiUrl = `${GEMINI_API_BASE}${currentTargetModel}:generateContent?key=${geminiApiKey}`;
-    let apiRequestBody: any;
+    try {
+      const currentApiKey = await geminiApiKey;
+      if (!currentApiKey || currentApiKey === 'FETCH_FAILED_INVALID_KEY') {
+        throw new Error("Gemini API Key is not available.");
+      }
+      
+      const currentTargetModel = imageGenModeOn ? GEMINI_IMAGE_GEN_MODEL : GEMINI_TEXT_MODEL;
+      const fullApiUrl = `${GEMINI_API_BASE}${currentTargetModel}:generateContent?key=${currentApiKey}`;
+      let apiRequestBody: any;
 
     if (imageGenModeOn) {
         const imageGenPrompt = `[IMAGE GENERATION TASK] You are TaskMaster AI. The user wants to generate an image based on the following description: "${userMsgContent}". Your primary goal is to generate this image. You MUST also provide a creative, descriptive, or fun text caption. Your response MUST include both image data AND a text part. Do NOT output JSON. If the user is just chatting, respond normally without generating an image unless asked.`;
@@ -2307,9 +2314,9 @@ Assistant:`;
   }, [user, userTier]);
 
 
-  const generateSmartDailyBrief = useCallback(async () => {
-    // Basic guards: ensure user, tier, and content exist before proceeding.
-    if (!user || !user.uid || !geminiApiKey || (userTier !== 'pro' && userTier !== 'premium') || smartBriefLoading || (tasks.length === 0 && goals.length === 0 && events.length === 0) ) {
+const generateSmartDailyBrief = useCallback(async () => {
+    const currentApiKey = await geminiApiKey;
+    if (!user || !user.uid || !currentApiKey || currentApiKey === 'FETCH_FAILED_INVALID_KEY' || (userTier !== 'pro' && userTier !== 'premium') || smartBriefLoading || (tasks.length === 0 && goals.length === 0 && events.length === 0) ) {
         if (tasks.length === 0 && goals.length === 0 && events.length === 0) {
             setSmartDailyBrief(prev => ({
                 ...(prev || { summaryText: "", pendingTasksCount: 0, suggestedActions: [] }),
@@ -2322,9 +2329,6 @@ Assistant:`;
 
     setSmartBriefLoading(true);
 
-    // --- THE CRUCIAL FIX: READ-THEN-WRITE ---
-    // Fetch the absolute latest status from Firestore right before we do anything.
-    // This eliminates any possibility of using stale React state from a previous render cycle.
     const currentStatus = await getDailyBriefRefreshStatus(user.uid);
 
     if (userTier === 'pro') {
@@ -2431,8 +2435,8 @@ Assistant:`;
 
     `;
 
-    try {
-        const briefEndpoint = `${GEMINI_API_BASE}${GEMINI_MINI_MODEL}:generateContent?key=${geminiApiKey}`;
+  try {
+        const briefEndpoint = `${GEMINI_API_BASE}${GEMINI_MINI_MODEL}:generateContent?key=${currentApiKey}`;
         const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.7 } })};
         const response = await fetchWithTimeout(briefEndpoint, geminiOptions, 25000);
         if (!response.ok) throw new Error(`API error (${response.status})`);
@@ -3129,53 +3133,55 @@ Assistant:`;
     const [goalCoachTip, setGoalCoachTip] = useState<{[key: string]: string | null}>({});
     const [goalCoachLoading, setGoalCoachLoading] = useState<{[key: string]: boolean}>({});
 
-    const fetchGoalCoachTip = async (goalId: string, goalText: string) => {
-        if (!user || !geminiApiKey || goalCoachLoading[goalId]) return;
-        setGoalCoachLoading(prev => ({...prev, [goalId]: true}));
-        const prompt = `User's learning goal: "${goalText}". Provide 1-2 very short, actionable coaching tips (as a single string, max 150 chars) to help achieve this. Be encouraging and use simple language. Example: "Break it into daily mini-tasks! You can do it! ✨" or "Schedule 20 mins each day for this. Consistent effort is key! 👍"`;
-        try {
-            const coachEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${geminiApiKey}`;
-            const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }]})};
-            const response = await fetchWithTimeout(coachEndpoint, geminiOptions, 15000);
-            if (!response.ok) throw new Error(`API error (${response.status})`);
-            const responseText = await response.text();
-            const parsedResponse = parseGeminiApiResponse(responseText, false);
-            if (parsedResponse.error || !parsedResponse.text) {
-                 setGoalCoachTip(prev => ({...prev, [goalId]: "Keep breaking it down and track your progress!"}));
-            } else {
-                setGoalCoachTip(prev => ({...prev, [goalId]: parsedResponse.text!.trim()}));
-            }
-        } catch (error: any) {
-            console.error("Error fetching goal coach tip:", error);
-            setGoalCoachTip(prev => ({...prev, [goalId]: "Focus on consistent effort. Every step counts!"}));
-        } finally {
-            setGoalCoachLoading(prev => ({...prev, [goalId]: false}));
+const fetchGoalCoachTip = async (goalId: string, goalText: string) => {
+    const currentApiKey = await geminiApiKey;
+    if (!user || !currentApiKey || currentApiKey === 'FETCH_FAILED_INVALID_KEY' || goalCoachLoading[goalId]) return;
+    setGoalCoachLoading(prev => ({...prev, [goalId]: true}));
+    const prompt = `User's learning goal: "${goalText}". Provide 1-2 very short, actionable coaching tips (as a single string, max 150 chars) to help achieve this. Be encouraging and use simple language. Example: "Break it into daily mini-tasks! You can do it! ✨" or "Schedule 20 mins each day for this. Consistent effort is key! 👍"`;
+    try {
+        const coachEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${currentApiKey}`;
+        const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }]})};
+        const response = await fetchWithTimeout(coachEndpoint, geminiOptions, 15000);
+        if (!response.ok) throw new Error(`API error (${response.status})`);
+        const responseText = await response.text();
+        const parsedResponse = parseGeminiApiResponse(responseText, false);
+        if (parsedResponse.error || !parsedResponse.text) {
+             setGoalCoachTip(prev => ({...prev, [goalId]: "Keep breaking it down and track your progress!"}));
+        } else {
+            setGoalCoachTip(prev => ({...prev, [goalId]: parsedResponse.text!.trim()}));
         }
-    };
+    } catch (error: any) {
+        console.error("Error fetching goal coach tip:", error);
+        setGoalCoachTip(prev => ({...prev, [goalId]: "Focus on consistent effort. Every step counts!"}));
+    } finally {
+        setGoalCoachLoading(prev => ({...prev, [goalId]: false}));
+    }
+};
 
-    const fetchTaskCoachTip = async (taskId: string, taskText: string) => {
-        if (!user || !geminiApiKey || taskCoachLoading[taskId]) return;
-        setTaskCoachLoading(prev => ({...prev, [taskId]: true}));
-        const prompt = `User's task: "${taskText}". Provide 1-2 very short, actionable coaching tips (as a single string, max 150 chars) to help complete this. Be encouraging and use simple language. Example: "Focus on the first step. You've got this! 💪" or "Set a timer for 25 minutes and dive in. Small wins matter! ⏳"`;
-        try {
-            const coachEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${geminiApiKey}`;
-            const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }]})};
-            const response = await fetchWithTimeout(coachEndpoint, geminiOptions, 15000);
-            if (!response.ok) throw new Error(`API error (${response.status})`);
-            const responseText = await response.text();
-            const parsedResponse = parseGeminiApiResponse(responseText, false);
-            if (parsedResponse.error || !parsedResponse.text) {
-                 setTaskCoachTip(prev => ({...prev, [taskId]: "One step at a time. You can do this!"}));
-            } else {
-                setTaskCoachTip(prev => ({...prev, [taskId]: parsedResponse.text!.trim()}));
-            }
-        } catch (error: any) {
-            console.error("Error fetching task coach tip:", error);
-            setTaskCoachTip(prev => ({...prev, [taskId]: "Remember your 'why' for this task. Stay focused!"}));
-        } finally {
-            setTaskCoachLoading(prev => ({...prev, [taskId]: false}));
+const fetchTaskCoachTip = async (taskId: string, taskText: string) => {
+    const currentApiKey = await geminiApiKey;
+    if (!user || !currentApiKey || currentApiKey === 'FETCH_FAILED_INVALID_KEY' || taskCoachLoading[taskId]) return;
+    setTaskCoachLoading(prev => ({...prev, [taskId]: true}));
+    const prompt = `User's task: "${taskText}". Provide 1-2 very short, actionable coaching tips (as a single string, max 150 chars) to help complete this. Be encouraging and use simple language. Example: "Focus on the first step. You've got this! 💪" or "Set a timer for 25 minutes and dive in. Small wins matter! ⏳"`;
+    try {
+        const coachEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${currentApiKey}`;
+        const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }]})};
+        const response = await fetchWithTimeout(coachEndpoint, geminiOptions, 15000);
+        if (!response.ok) throw new Error(`API error (${response.status})`);
+        const responseText = await response.text();
+        const parsedResponse = parseGeminiApiResponse(responseText, false);
+        if (parsedResponse.error || !parsedResponse.text) {
+             setTaskCoachTip(prev => ({...prev, [taskId]: "One step at a time. You can do this!"}));
+        } else {
+            setTaskCoachTip(prev => ({...prev, [taskId]: parsedResponse.text!.trim()}));
         }
-    };
+    } catch (error: any) {
+        console.error("Error fetching task coach tip:", error);
+        setTaskCoachTip(prev => ({...prev, [taskId]: "Remember your 'why' for this task. Stay focused!"}));
+    } finally {
+        setTaskCoachLoading(prev => ({...prev, [taskId]: false}));
+    }
+};
 
     const toggleGoalExpansion = (goalId: string, goalText: string) => {
         if (expandedGoalId === goalId) {
@@ -3322,15 +3328,16 @@ Assistant:`;
         });
     };
 
-    const generateProductivityAnalysis = async () => {
-        if (!user || !user.uid || isProductivityAnalysisLoading || !geminiApiKey) return;
-        setIsProductivityAnalysisLoading(true);
-        setProductivityAnalysisResult(null);
+  const generateProductivityAnalysis = async () => {
+    const currentApiKey = await geminiApiKey;
+    if (!user || !user.uid || isProductivityAnalysisLoading || !currentApiKey || currentApiKey === 'FETCH_FAILED_INVALID_KEY') return;
+    setIsProductivityAnalysisLoading(true);
+    setProductivityAnalysisResult(null);
 
-        const tasksContext = tasks.map(t => `Task: ${t.data.task}, Completed: ${t.data.completed}, Due: ${(t.data.dueDate?.toDate().toLocaleDateString() || 'N/A')}, Priority: ${calculatePriority(t)}`).join('\n');
-        const goalsContext = goals.map(g => `Goal: ${g.data.goal}, Completed: ${g.data.completed}, Target: ${(g.data.targetDate?.toDate().toLocaleDateString() || 'N/A')}, Priority: ${calculatePriority(g)}`).join('\n');
-        const eventsContext = events.filter(e => e.data.endDate && e.data.endDate >= new Date() && !e.data.completed).map(e => `Event: ${e.data.name}, Starts: ${e.data.startDate?.toLocaleDateString()}, Ends: ${e.data.endDate?.toLocaleDateString()}`).join('\n');
-        const userProfileContext = userProfile ? `User's Progress:\n- Level: ${userProfile.level}\n- Points: ${userProfile.points}\n- Streak: ${userProfile.overallStreakCount} days\n- Badges Earned: ${(userProfile.badges || []).length}` : "User progress not available.";
+    const tasksContext = tasks.map(t => `Task: ${t.data.task}, Completed: ${t.data.completed}, Due: ${(t.data.dueDate?.toDate().toLocaleDateString() || 'N/A')}, Priority: ${calculatePriority(t)}`).join('\n');
+    const goalsContext = goals.map(g => `Goal: ${g.data.goal}, Completed: ${g.data.completed}, Target: ${(g.data.targetDate?.toDate().toLocaleDateString() || 'N/A')}, Priority: ${calculatePriority(g)}`).join('\n');
+    const eventsContext = events.filter(e => e.data.endDate && e.data.endDate >= new Date() && !e.data.completed).map(e => `Event: ${e.data.name}, Starts: ${e.data.startDate?.toLocaleDateString()}, Ends: ${e.data.endDate?.toLocaleDateString()}`).join('\n');
+    const userProfileContext = userProfile ? `User's Progress:\n- Level: ${userProfile.level}\n- Points: ${userProfile.points}\n- Streak: ${userProfile.overallStreakCount} days\n- Badges Earned: ${(userProfile.badges || []).length}` : "User progress not available.";
 
         const prompt = `
         Analyze ${userName}'s productivity based on the following data:
@@ -3366,13 +3373,14 @@ Assistant:`;
         }
         `;
 
-        try {
-            const analysisEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${geminiApiKey}`;
-            const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.6 } })};
-            const response = await fetchWithTimeout(analysisEndpoint, geminiOptions, 30000);
-            if (!response.ok) throw new Error(`API error (${response.status})`);
-            const responseText = await response.text();
-            const parsedResponse = parseGeminiApiResponse(responseText, false);
+    try {
+        const analysisEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${currentApiKey}`;
+        const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.6 } })};
+        const response = await fetchWithTimeout(analysisEndpoint, geminiOptions, 30000);
+        if (!response.ok) throw new Error(`API error (${response.status})`);
+        const responseText = await response.text();
+        const parsedResponse = parseGeminiApiResponse(responseText, false);
+
 
             if (parsedResponse.error || !parsedResponse.text) {
                 throw new Error(parsedResponse.error || "Empty AI response for analysis.");
