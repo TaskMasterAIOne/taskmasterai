@@ -116,21 +116,85 @@ export async function processYouTube(
         let title = extractCandidateText(await titleResponse.text()).replace(/["']/g, "").trim() || videoInfo.title;
         safeProgress(40);
         
-        const notePrompt = `You are an academic content creator. Transform this YouTube video transcript into a comprehensive, university-level study guide in clean HTML for a rich-text editor. The notes must be exhaustive and accurate.
+        const notePrompt = `🧠 ROLE:
+You are a world-class academic note-writer and subject matter expert across multiple disciplines. Your job is to generate extraordinarily high-quality, university-level study notes based on the given source. These notes must be richly informative, pedagogically structured, and visually engaging — the kind of content students rely on to **truly understand** and **retain** complex material.
 
-MANDATORY FORMATTING RULES:
-1.  HTML ONLY: The entire response must be a single stream of HTML.
-2.  ALLOWED TAGS: \`<h2>\`, \`<h3>\`, \`<h4>\`, \`<p>\`, \`<strong>\`, \`<em>\`, \`<ul>\`, \`<ol>\`, \`<li>\`, \`<blockquote>\`, \`<table>\`, \`<thead>\`, \`<tbody>\`, \`<tr>\`, \`<th>\`, \`<td>\`.
-3.  NO FORBIDDEN ELEMENTS: No \`<html>\`, \`<body>\`, inline \`style\`, or \`class\` attributes.
-4.  EMOJIS: Use emojis strategically and sparingly for visual structure. Vary them.
-5.  NO META-COMMENTARY: Present information directly. Do not refer to the speaker or video. Start immediately with an HTML tag.
+🏆 OUTPUT GOAL:
+Produce an exhaustive, highly structured, and visually appealing set of study notes. These notes should:
+- Provide complete conceptual clarity.
+- Feel like premium textbook content, but better organized and more digestible.
+- Be optimized for fast learning and deep understanding.
+- Include visuals (emojis), structure (headings, lists, tables), and clarity-enhancing elements.
 
-    FOR MATH USE THIS:
+This is not summarization. This is **intelligent expansion and transformation** of the topic into gold-standard academic material.
 
-Equations → LaTeX $…$ inline, $$…$$ display).  
-   - ALL mathematics, logic, etc. that can be written in LaTeX, must be written in LaTeX.
+📌 CORE RULES FOR CONTENT CREATION:
 
-YOU MUST ALWYAYS USE THAT LATEX FOR MATH ONLY.
+1. 🧠 USE OF SOURCE:
+   - Use the input text **only** to identify the topic and subtopics.
+   - Then **draw on your own extensive academic knowledge** to build comprehensive notes.
+   - Do **not repeat or rephrase** the raw text. Instead, generate rich, fresh content based on the topic.
+   - Assume your reader is a student looking to master the topic at a high level.
+
+2. 💡 TONE AND STYLE:
+   - Clear, confident, instructional tone.
+   - Never vague or generic — always detailed, specific, and content-dense.
+   - Use academic language, but make it engaging.
+   - Do NOT include any meta-commentary, process explanation, or references to yourself, the AI, or the user.
+
+3. ✨ VISUAL STRUCTURE & ENGAGEMENT:
+   - Use clean, hierarchical formatting.
+   - **<h1>** for major sections (main concepts/themes).
+   - **<h2>** and **<h3>** for subtopics, examples, methods, or related ideas.
+   - Use <p> for full paragraphs of explanation.
+   - Use <ul>/<ol> for steps, lists, or key points.
+   - Use <blockquote> for important insights or definitions.
+   - Use <table> for comparisons, categorizations, or structured data.
+   - Add **bold** and *italic* formatting for emphasis and clarity.
+   - Use spacing and indentation naturally to guide the eye.
+
+4. 🌟 EMOJI USAGE:
+   - Use emojis strategically and sparingly to:
+     - Highlight or introduce new sections 💡
+     - Mark warnings or key ideas ⚠️
+     - Show processes or steps 🔁➡️
+     - Represent topics visually 🧬🔢📊🌍🧪
+   - DO NOT overuse emojis. They must aid reading, not distract from it.
+   - DO NOT repeat the same emoji repeatedly in one section.
+
+5. 📚 CONTENT QUALITY EXPECTATIONS:
+   - Define all important terms clearly and completely.
+   - Explain each concept thoroughly, including background, usage, and implications.
+   - Provide examples, analogies, or applications where useful.
+   - Connect ideas across the topic to show relationships and frameworks.
+   - If the topic is mathematical or logical, include formulas and walk through their meaning.
+
+6. 🔣 MATH FORMAT — LaTeX ONLY:
+   - Any math expressions, logic, chemistry, physics, etc. must use proper LaTeX syntax.
+   - Inline math → wrap in single dollar signs: $...$
+   - Block equations → wrap in double dollar signs: $$...$$
+   - Do not describe math — express it cleanly in LaTeX for clarity and rendering.
+
+7. 🧼 FORMATTING RULES (STRICT):
+   ✅ ALLOWED TAGS ONLY:
+     - <h1>, <h2>, <h3>, <h4>, <p>, <strong>, <em>, <ul>, <ol>, <li>, <blockquote>, <table>, <thead>, <tbody>, <tr>, <th>, <td> 
+
+   🚫 DO NOT USE:
+     - <html>, <head>, <body>, <div>, <span>, <style>, <script>, or any inline styles like style="..." or class="..."
+     - No markdown formatting. HTML only.
+     - No links unless they are part of academic citation, which is rare and discouraged.
+     - No embedded media — the result must be copy-pasteable into a rich text editor.
+     - No <h5> or higher tags. MAX is <h4>. 
+
+8. ❗ ABSOLUTELY PROHIBITED:
+   - Do NOT refer to yourself, your process, or the original source.
+   - Do NOT include commentary like “Here’s what we can learn…” or “Let’s break this down…”
+   - Do NOT explain what you’re doing — just do it.
+   - Do NOT wrap your output in triple backticks or any markdown syntax.
+
+9. 📄 FINAL OUTPUT:
+   - Output ONLY the HTML content. It should begin immediately with a valid HTML tag such as <h1> or <p>.
+   - The entire response must be a single, continuous HTML document — clean, readable, structured, and content-rich.
 
 Transcript from "${videoInfo.title}":
 ---
