@@ -1,7 +1,6 @@
 import { auth, db } from "./firebase"
 
-export const weatherApiKey = "e3f77d4d29e24862b4f190231241611" // Ensure this is not committed if sensitive
-export const hfApiKey = "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" // Ensure this is not committed if sensitive
+
 export const geminiApiKey = "AIzaSyB9S9_b2-U3lvGtMhvallAxIbwNgaOphuA" // Ensure this is not committed if sensitive
 
 import { type User, onAuthStateChanged, createUserWithEmailAndPassword, updateProfile } from "firebase/auth"
