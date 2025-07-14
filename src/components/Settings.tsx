@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
-  // Original Icons
   User as UserProfileIcon, Settings as SettingsIcon, Mail, Key, LogOut,
   Trash2, Save, X, AlertCircle, Crown as CrownIcon, Upload, Camera, Moon, Sun, Laptop,
   Loader2, Info, BrainCircuit, Star, CreditCard, Activity, Edit, Check,
   Sparkles, DatabaseBackup, Cable, Workflow, PanelLeftDashed,
-  // Icons for Progress Section (from ProfileModal)
   TrendingUp, Award, Flame, Trophy, Lock, Pencil, FileText, Youtube, Layers,
   Briefcase, MessageCircle, Share2, SplitSquareVertical, FolderPlus,
   Folders as FoldersIcon, FolderTree, PackagePlus, ListTodo, Play,
@@ -26,8 +24,8 @@ import {
   getUserTier, UserTier,
   getChatLimitForTier, getNoteLimitsForTier,
   getCurrentMonthUserChatUsage, getUserNoteUsage,
-  ChatUsageData, NoteUsageData,   onUserProfileSnapshot, 
-  UserProfileData,   
+  ChatUsageData, NoteUsageData, onUserProfileSnapshot,
+  UserProfileData,
 } from '../lib/current-paying-user';
 import {
   getMemories, updateMemory, deleteMemory, type Memory,
@@ -35,6 +33,7 @@ import {
 import { createPortalSession } from '../lib/stripe-client';
 import { User } from 'firebase/auth';
 import { Timestamp } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 export interface UserProfileData {
     uid: string;
@@ -47,6 +46,7 @@ export interface UserProfileData {
     badges: string[];
     premiumAwardedUntil?: Timestamp | Date | string | null;
     stripeCustomerId?: string | null;
+    notionAccessData?: any;
 }
 
 const toDateSafe = (value: any): Date | null => {
@@ -123,7 +123,7 @@ const GoogleDriveIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <g>
       <path d="M19.3542312,196.033928 L30.644172,215.534816 C32.9900287,219.64014 36.3622164,222.86588 40.3210929,225.211737 C51.6602421,210.818376 59.5534225,199.772864 64.000634,192.075201 C68.5137119,184.263529 74.0609657,172.045039 80.6423954,155.41973 C62.9064315,153.085282 49.4659974,151.918058 40.3210929,151.918058 C31.545465,151.918058 18.1051007,153.085282 0,155.41973 C0,159.964996 1.17298825,164.510261 3.51893479,168.615586 L19.3542312,196.033928 Z" fill="#0066DA" />
       <path d="M215.681443,225.211737 C219.64032,222.86588 223.012507,219.64014 225.358364,215.534816 L230.050377,207.470615 L252.483511,168.615586 C254.829368,164.510261 256.002446,159.964996 256.002446,155.41973 C237.79254,153.085282 224.376613,151.918058 215.754667,151.918058 C206.488712,151.918058 193.072785,153.085282 175.506888,155.41973 C182.010479,172.136093 187.484394,184.354584 191.928633,192.075201 C196.412073,199.863919 204.329677,210.909431 215.681443,225.211737 Z" fill="#EA4335" />
-      <path d="M128.001268,73.3111515 C141.121182,57.4655263 150.162898,45.2470011 155.126415,36.6555757 C159.123121,29.7376196 163.521739,18.6920726 168.322271,3.51893479 C164.363395,1.1729583 159.818129,0 155.126415,0 L100.876121,0 C96.1841079,0 91.638842,1.31958557 87.6799655,3.51893479 C93.7861943,20.9210065 98.9675428,33.3058067 103.224011,40.6733354 C107.927832,48.8151881 116.186918,59.6944602 128.001268,73.3111515 Z" fill="#00832D" />
+      <path d="M128.001268,73.3111515 C141.121182,57.4655263 150.162898,45.2470011 155.126415,36.6555757 C159.123121,29.7376196 163.521739,18.6920726 168.322271,3.51893479 C164.363395,1.1729583 159.818129,0 155.126415,0 L100.876121,0 C96.1841079,0 91.638842,1.31958557 87.6799655,3.51893479 C93.7861943,20.9210065 98.9675428,33.3058067 103.224011,40.673354 C107.927832,48.8151881 116.186918,59.6944602 128.001268,73.3111515 Z" fill="#00832D" />
       <path d="M175.360141,155.41973 L80.6420959,155.41973 L40.3210929,225.211737 C44.2799694,227.557893 48.8252352,228.730672 53.5172481,228.730672 L202.485288,228.730672 C207.177301,228.730672 211.722567,227.411146 215.681443,225.211737 L175.360141,155.41973 Z" fill="#2684FC" />
       <path d="M128.001268,73.3111515 L87.680265,3.51893479 C83.7213885,5.86488134 80.3489013,9.09044179 78.0030446,13.1960654 L3.51893479,142.223575 C1.17298825,146.329198 0,150.874464 0,155.41973 L80.6423954,155.41973 L128.001268,73.3111515 Z" fill="#00AC47" />
       <path d="M215.241501,77.7099697 L177.999492,13.1960654 C175.653635,9.09044179 172.281148,5.86488134 168.322271,3.51893479 L128.001268,73.3111515 L175.360141,155.41973 L255.855999,155.41973 C255.855999,150.874464 254.682921,146.329198 252.337064,142.223575 L215.241501,77.7099697 Z" fill="#FFBA00" />
@@ -303,6 +303,9 @@ export function Settings() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [userProfileData, setUserProfileData] = useState<UserProfileData | null>(null);
   const [learningProfile, setLearningProfile] = useState<LearningProfile | null>(null);
+  const [isNotionConnected, setIsNotionConnected] = useState(false);
+  const [isNotionConnecting, setIsNotionConnecting] = useState(false);
+  const functions = getFunctions();
 
   useEffect(() => {
     const root = document.documentElement;
@@ -350,8 +353,39 @@ export function Settings() {
       navigate('/login');
       return;
     }
-
     setUser(currentUser);
+
+    const checkNotionConnection = async () => {
+        if (currentUser) {
+            const fetchedUserData = await getUserData(currentUser.uid);
+            if (fetchedUserData && fetchedUserData.notionAccessData) {
+                setIsNotionConnected(true);
+            }
+        }
+    };
+    checkNotionConnection();
+
+    const handleNotionRedirect = async () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        if (code && currentUser) {
+            setIsNotionConnecting(true);
+            try {
+                const notionConnect = httpsCallable(functions, 'notionOAuthCallback');
+                await notionConnect({ code: code });
+                setIsNotionConnected(true);
+                navigate('/settings', { replace: true });
+            } catch (error) {
+                console.error("Error connecting to Notion:", error);
+                setError("Failed to connect to Notion.");
+            } finally {
+                setIsNotionConnecting(false);
+            }
+        }
+    };
+
+    handleNotionRedirect();
+    
     const googleFlag = currentUser.providerData?.some((p) => p.providerId === 'google.com');
     setIsGoogleUser(!!googleFlag);
 
@@ -418,7 +452,7 @@ export function Settings() {
     return () => {
       unsubscribeProfile();
     };
-  }, [navigate]);
+  }, [navigate, functions, user]);
 
   useEffect(() => {
     localStorage.setItem('isSidebarCollapsed', JSON.stringify(isSidebarCollapsed));
@@ -592,6 +626,26 @@ export function Settings() {
   const getNextMonthResetDate = () => {
     const now = new Date(); const firstDayNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     return firstDayNextMonth.toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
+  };
+  
+  const handleNotionConnect = () => {
+    setIsNotionConnecting(true);
+    const notionAuthUrl = 'https://api.notion.com/v1/oauth/authorize?client_id=230d872b-594c-80bd-b9f0-00373ca942fd&response_type=code&owner=user&redirect_uri=https%3A%2F%2Fwww.taskmaster.one%2Fsettings';
+    window.location.href = notionAuthUrl;
+  };
+
+  const handleNotionDisconnect = async () => {
+      if (!user) return;
+      if (!window.confirm("Are you sure you want to disconnect from Notion?")) return;
+
+      try {
+          const disconnectNotion = httpsCallable(functions, 'disconnectNotion');
+          await disconnectNotion();
+          setIsNotionConnected(false);
+      } catch (error) {
+          console.error("Error disconnecting from Notion:", error);
+          setError("Failed to disconnect from Notion.");
+      }
   };
   
   const ProgressBar = ({ current, total, label }: { current: number; total: number; label: string }) => {
@@ -1024,8 +1078,23 @@ export function Settings() {
                     </h2>
                     <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1 mb-4">Connect your favorite apps to supercharge your learning.</p>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-[#1A1D29] border border-gray-100 dark:border-gray-700/70">
+                            <div className="flex items-center gap-3">
+                                <NotionIcon className="w-8 h-8"/>
+                                <span className="font-medium text-gray-700 dark:text-gray-200">Notion</span>
+                            </div>
+                            {isNotionConnected ? (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-semibold px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400">Connected</span>
+                                    <button onClick={handleNotionDisconnect} className="text-xs font-medium px-2 py-1 rounded-full bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400">Disconnect</button>
+                                </div>
+                            ) : (
+                                <button onClick={handleNotionConnect} disabled={isNotionConnecting} className="text-xs font-semibold px-3 py-1.5 rounded-full bg-[#635BFF] text-white hover:opacity-90 disabled:opacity-50">
+                                    {isNotionConnecting ? 'Connecting...' : 'Connect'}
+                                </button>
+                            )}
+                        </div>
                         {[
-                            { name: 'Notion', icon: NotionIcon },
                             { name: 'Google Drive', icon: GoogleDriveIcon },
                             { name: 'Google Calendar', icon: GoogleCalendarIcon },
                         ].map(integration => (
