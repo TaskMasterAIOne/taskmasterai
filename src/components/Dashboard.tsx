@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
+import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import {
   Menu, Search, Bell, Moon, Sun, PlusCircle, Edit, Trash, CheckCircle, MessageCircle, Crown, RotateCcw, X, TimerIcon, Send, ChevronLeft, ChevronRight, Calendar, Clock, MoreHorizontal, ArrowUpRight, Bookmark, BookOpen, Lightbulb, Award, TrendingUp, Target as GoalIcon, Layers, Clipboard as ClipboardIcon, AlertCircle, ThumbsUp, ThumbsDown, BrainCircuit, ArrowRight, Flag, Filter, Tag, BarChart3, PieChart, ChevronDown, Folder, ListChecks, Paperclip, ImageIcon, Settings, FileText, Users, Columns, Eye, AlignLeft, UserCheck, Hourglass, Notebook, Wand, SortAsc, CalendarCheck, Bot, Loader2, Check, Info, Download, User as UserIcon, Link as LinkIcon, Zap, SlidersHorizontal, BookCopy, ListTodo, Maximize, Minimize, CalendarDays, Brain, Mic, Video, FileQuestion, Sparkles, Play, CalendarRange,
@@ -89,6 +90,7 @@ import {
 } from '../lib/ai-memories-firebase';
 import { ProfileModal } from './ProfileModal';
 
+
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
 const GEMINI_TEXT_MODEL = 'gemini-2.5-flash';
 const GEMINI_MINI_MODEL = 'gemini-2.0-flash';
@@ -140,7 +142,6 @@ interface EventDisplayData extends FirebaseEventData {
 }
 
 // @ts-ignore
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 const SUPPORTED_FILE_TYPES = "image/jpeg,image/png,image/webp,image/gif,image/svg+xml,application/pdf,text/plain,.md,.txt,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.rtf";
 const MAX_FILE_SIZE_MB = 20;
@@ -720,6 +721,8 @@ const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessage
     );
 };
 
+
+
 export function Dashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -731,6 +734,7 @@ export function Dashboard() {
 
   const [previousStreak, setPreviousStreak] = useState<number | null>(null);
   const [streakIncreased, setStreakIncreased] = useState(false);
+const [isDraggingOver, setIsDraggingOver] = useState(false);
 
   const [userTier, setUserTier] = useState<UserTier>('loading');
   const [chatUsageCount, setChatUsageCount] = useState(0);
@@ -814,10 +818,7 @@ useEffect(() => {
   const [currentChatLimitDisplay, setCurrentChatLimitDisplay] = useState<number | string>(BASIC_CHAT_LIMIT);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  
-  const [isRecording, setIsRecording] = useState(false);
-  const [isAudioSupported, setIsAudioSupported] = useState(false);
-  const recognitionRef = useRef<any>(null);
+
 
 
   const [productivityAnalysisResult, setProductivityAnalysisResult] = useState<any | null>(null);
@@ -866,6 +867,11 @@ useEffect(() => {
   const [editingEventLinkedGoals, setEditingEventLinkedGoals] = useState<string[]>([]);
   const [showEventForm, setShowEventForm] = useState(false);
 
+
+
+
+
+
   // Add this state variable inside your Dashboard component
 const [aiActionStatus, setAiActionStatus] = useState<string | null>(null);
 
@@ -901,52 +907,6 @@ const [aiActionStatus, setAiActionStatus] = useState<string | null>(null);
     localStorage.setItem('isSidebarCollapsed', JSON.stringify(isSidebarCollapsed));
   }, [isSidebarCollapsed]);
 
-  useEffect(() => {
-    if (SpeechRecognition) {
-      setIsAudioSupported(true);
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
-
-      recognition.onresult = (event: any) => {
-        let interimTranscript = '';
-        let finalTranscript = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
-          } else {
-            interimTranscript += event.results[i][0].transcript;
-          }
-        }
-        setChatMessage(finalTranscript + interimTranscript);
-      };
-
-      recognition.onend = () => {
-        setIsRecording(false);
-      };
-      
-      recognition.onerror = (event: any) => {
-        console.error("Speech recognition error:", event.error, event.message);
-        if (event.error === 'network') {
-          console.error("Network error in SpeechRecognition: This is often a client-side issue, like a lost connection or a timeout to the speech service.");
-          const errorMsg: ChatMessageData = {
-              id: `speech-err-${Date.now()}`,
-              role: 'system',
-              content: '🎤 Speech recognition failed due to a network issue. Please check your connection and try again.',
-              error: true,
-              createdAt: new Date(),
-          };
-          setChatHistory(prev => [...prev, errorMsg]);
-        }
-        setIsRecording(false);
-      };
-
-      recognitionRef.current = recognition;
-    } else {
-      setIsAudioSupported(false);
-    }
-  }, []);
 
 
   useEffect(() => {
@@ -973,6 +933,163 @@ const [aiActionStatus, setAiActionStatus] = useState<string | null>(null);
     await saveUserContext(user.uid, context);
     setIsContextDialogOpen(false);
   };
+
+
+const handleFileDrop = async (files: FileList) => {
+    if (!files || files.length === 0 || isImageGenModeActive || isSearchModeActive || isChatLoading || isChatDisabledByLimit || !conversationId) return;
+
+    const filesArray = Array.from(files);
+    const newSelectedFiles: SelectedFile[] = [];
+
+    for (const file of filesArray) {
+        if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+            alert(`File ${file.name} is too large (max ${MAX_FILE_SIZE_MB}MB).`);
+            continue;
+        }
+
+        // --- CORRECTED VALIDATION LOGIC ---
+        const isSupported = SUPPORTED_FILE_TYPES.split(',').some(supportedType => {
+            const trimmedType = supportedType.trim();
+            // If the supported type starts with a '.', it's an extension (e.g., ".docx")
+            if (trimmedType.startsWith('.')) {
+                return file.name.toLowerCase().endsWith(trimmedType);
+            }
+            // Otherwise, it's a MIME type (e.g., "image/png")
+            return file.type === trimmedType;
+        });
+
+        if (!isSupported) {
+            // Added the detected file type to the alert for easier debugging
+            alert(`File type for ${file.name} (${file.type}) is not supported.`);
+            continue;
+        }
+        // --- END OF CORRECTION ---
+
+        try {
+            const selectedFileData = await readFileAsSelectedFile(file);
+            newSelectedFiles.push(selectedFileData);
+        } catch (error) {
+            console.error("Error reading file:", file.name, error);
+            alert(`Error reading file ${file.name}.`);
+        }
+    }
+
+    if (newSelectedFiles.length > 0) {
+      setSelectedFiles(prev => [...prev, ...newSelectedFiles].slice(0, 5));
+    }
+};
+
+const handleDragEvents = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+};
+
+const handleDragEnter = (e: React.DragEvent) => {
+    handleDragEvents(e);
+    if (!isImageGenModeActive && !isSearchModeActive && !isChatLoading && !isChatDisabledByLimit && conversationId) {
+        setIsDraggingOver(true);
+    }
+};
+
+const handleDragLeave = (e: React.DragEvent) => {
+    handleDragEvents(e);
+    setIsDraggingOver(false);
+};
+
+const urlToSelectedFile = async (url: string): Promise<SelectedFile | null> => {
+    // Handle base64 data URLs directly
+    if (url.startsWith('data:')) {
+        try {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            const fileName = `pasted-image-${Date.now()}.${blob.type.split('/')[1] || 'png'}`;
+            const file = new File([blob], fileName, { type: blob.type });
+            return await readFileAsSelectedFile(file);
+        } catch (error) {
+            console.error("Error converting data URL to file:", error);
+            alert("Could not process the dragged image data.");
+            return null;
+        }
+    }
+
+    // Handle regular http/https URLs
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch image. Status: ${response.status}`);
+        }
+        const blob = await response.blob();
+
+        let fileName = `dragged-image-${Date.now()}`;
+        try {
+            const urlPath = new URL(url).pathname;
+            const lastSegment = urlPath.substring(urlPath.lastIndexOf('/') + 1);
+            if (lastSegment) {
+                fileName = lastSegment.split('?')[0];
+            }
+        } catch (e) { /* Ignore invalid URL for naming */ }
+        
+        const extension = blob.type.split('/')[1];
+        if (extension && !fileName.toLowerCase().endsWith(`.${extension}`)) {
+            fileName += `.${extension}`;
+        }
+
+        const file = new File([blob], fileName, { type: blob.type });
+
+        return await readFileAsSelectedFile(file);
+    } catch (error) {
+        console.error("Error converting URL to file:", error);
+        alert("Could not fetch the dragged image. This may be due to security restrictions (CORS) on the source website.");
+        return null;
+    }
+};
+
+const handleDrop = async (e: React.DragEvent) => {
+    handleDragEvents(e);
+    setIsDraggingOver(false);
+
+    // 1. Prioritize actual files dropped from the local system
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        handleFileDrop(e.dataTransfer.files);
+        return;
+    }
+
+    // 2. Fallback for images dragged from other browser tabs (checks for HTML content)
+    const html = e.dataTransfer.getData('text/html');
+    if (html) {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
+        const img = tempDiv.querySelector('img');
+        
+        if (img && img.src) {
+            const newSelectedFile = await urlToSelectedFile(img.src);
+            if (newSelectedFile) {
+                 if (newSelectedFile.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+                    alert(`File ${newSelectedFile.name} is too large (max ${MAX_FILE_SIZE_MB}MB).`);
+                    return;
+                }
+                setSelectedFiles(prev => [...prev, newSelectedFile].slice(0, 5));
+            }
+            return;
+        }
+    }
+
+    // 3. Last resort fallback for plain text URLs that might be images
+    const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
+    if (url && (url.startsWith('http') || url.startsWith('data:image'))) {
+        const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
+        if (imageExtensions.some(ext => url.toLowerCase().includes(ext)) || url.startsWith('data:image')) {
+            const newSelectedFile = await urlToSelectedFile(url);
+            if (newSelectedFile) {
+                if (newSelectedFile.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+                    alert(`File ${newSelectedFile.name} is too large (max ${MAX_FILE_SIZE_MB}MB).`);
+                    return;
+                }
+                setSelectedFiles(prev => [...prev, newSelectedFile].slice(0, 5));
+            }
+        }
+    }
+};
 
   const [currentDateCal, setCurrentDateCal] = useState(new Date());
   const [calendarViewMode, setCalendarViewMode] = useState<'week' | 'month'>('week');
@@ -1145,14 +1262,19 @@ const generateChatName = async (convId: string, history: ChatMessageData[], curr
 
 const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, incomingFiles?: SelectedFile[]) => {
     e?.preventDefault();
+
+       // ---- THIS IS THE CORE FIX ----
+    // If the microphone is running when we submit, stop it and reset its state.
+    if (listening) {
+        SpeechRecognition.stopListening();
+        resetTranscript();
+    }
+    // ---- END OF FIX ----
     let currentMessage = incomingMessage !== undefined ? incomingMessage : chatMessage;
     const currentFiles = incomingFiles !== undefined ? incomingFiles : selectedFiles;
 
     if ((!currentMessage.trim() && currentFiles.length === 0 && !isImageGenModeActive) || (isImageGenModeActive && !currentMessage.trim()) || !user || !user.uid) return;
     
-    if (isRecording) {
-      recognitionRef.current?.stop();
-    }
 
     let currentConvId = conversationId;
     if (!currentConvId) {
@@ -3534,15 +3656,51 @@ Assistant:`;
         });
     };
     
-    const handleToggleRecording = () => {
-        if (!isAudioSupported || !recognitionRef.current) return;
-        if (isRecording) {
-            recognitionRef.current.stop();
-        } else {
-            recognitionRef.current.start();
-        }
-        setIsRecording(!isRecording);
-    };
+
+      // --- START: FINAL SPEECH RECOGNITION LOGIC ---
+
+
+
+ const {
+    transcript,
+    listening,
+    resetTranscript,
+    browserSupportsSpeechRecognition,
+    isMicrophoneAvailable
+  } = useSpeechRecognition();
+
+  
+
+
+
+
+  const handleToggleRecording = () => {
+    if (!browserSupportsSpeechRecognition) {
+      alert("This browser does not support speech recognition. Please try Google Chrome.");
+      return;
+    }
+    if (!isMicrophoneAvailable) {
+        alert("Microphone is not available. Please check your hardware and browser permissions.");
+        return;
+    }
+
+    if (listening) {
+      // ---- When user clicks "Stop" ----
+      SpeechRecognition.stopListening();
+      // The transcript is now final. We check if it has content and submit it.
+      const finalTranscriptText = transcript.trim();
+      if (finalTranscriptText) {
+        handleChatSubmit(undefined, finalTranscriptText);
+      }
+      // Always reset after stopping to clear the library's state.
+      resetTranscript();
+    } else {
+      // ---- When user clicks "Start" ----
+      resetTranscript(); // Clear any previous text.
+      SpeechRecognition.startListening({ continuous: true, language: 'en-US' });
+    }
+};
+
 
     const handleToggleSearchMode = () => {
         setIsSearchModeActive(prev => {
@@ -4496,8 +4654,31 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                             ))}
                         </div>
                     )}
+
 <form onSubmit={handleChatSubmit}>
-    <div className="bg-white dark:bg-[#161922] border border-gray-300 dark:border-gray-700/50 rounded-2xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-400 dark:focus-within:ring-indigo-600 transition-all duration-200 flex flex-col">
+    <div 
+        onDrop={handleDrop}
+        onDragOver={handleDragEvents}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        className={`relative bg-white dark:bg-[#161922] border border-gray-300 dark:border-gray-700/50 rounded-2xl shadow-sm transition-all duration-200 flex flex-col ${isDraggingOver ? 'ring-2 ring-indigo-400 dark:ring-indigo-600 ring-offset-2 ring-offset-white dark:ring-offset-[#12141D]' : 'focus-within:ring-2 focus-within:ring-indigo-400 dark:focus-within:ring-indigo-600'}`}
+    >
+        <AnimatePresence>
+        {isDraggingOver && (
+            <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-indigo-50/90 dark:bg-indigo-900/90 z-10 flex items-center justify-center rounded-2xl pointer-events-none border-2 border-dashed border-indigo-400"
+            >
+                <div className="text-center">
+                    <ImageIcon className="w-8 h-8 text-indigo-500 dark:text-indigo-400 mx-auto mb-2"/>
+                    <p className="font-semibold text-indigo-600 dark:text-indigo-300">Drop files to attach</p>
+                </div>
+            </motion.div>
+        )}
+        </AnimatePresence>
+
         <AnimatePresence>
             {aiActionStatus && (
                 <motion.div
@@ -4510,19 +4691,19 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                 </motion.div>
             )}
         </AnimatePresence>
-        <textarea
-            ref={textareaRef}
-            rows={1}
-            value={chatMessage}
-            onChange={(e) => setChatMessage(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSubmit(); } }}
-            onPaste={handlePaste}
-            placeholder={
-                isRecording ? "Listening..." :
-                isImageGenModeActive ? "Describe the image to generate..." :
-                !conversationId ? "Start a new chat to begin..." :
-                "Ask anything..."
-            }
+  <textarea
+      ref={textareaRef}
+      rows={1}
+      value={chatMessage}
+      onChange={(e) => setChatMessage(e.target.value)}
+      onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSubmit(); } }}
+      onPaste={handlePaste}
+      placeholder={
+          listening ? "Listening..." : // UPDATED
+          isImageGenModeActive ? "Describe the image to generate..." :
+          !conversationId ? "Start a new chat to begin..." :
+          "Ask anything..."
+      }
             className="w-full bg-transparent text-gray-800 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 p-3.5 text-sm focus:ring-0 focus:outline-none border-0 resize-none overflow-y-auto max-h-44 leading-relaxed"
             disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading' || !conversationId}
         />
@@ -4560,10 +4741,16 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                             <button type="submit" disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading' || !conversationId} className="p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-indigo-500 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20" title="Send" aria-label="Send chat message">
                                 {isChatLoading ? <Loader2 className="w-5 h-5 animate-spin"/> : <Send className="w-5 h-5" />}
                             </button>
-                        ) : (isAudioSupported &&
-                            <button type="button" onClick={handleToggleRecording} disabled={isChatLoading || isChatDisabledByLimit || !conversationId} className={`p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isRecording ? 'text-red-500 bg-red-100 dark:bg-red-500/20 animate-pulse' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/70'}`} title={isRecording ? "Stop Recording" : "Start Recording"}>
-                                {isRecording ? <StopCircle className="w-5 h-5"/> : <Mic className="w-5 h-5" />}
-                            </button>
+                        ) : (
+      <button 
+          type="button" 
+          onClick={handleToggleRecording} 
+          disabled={isChatLoading || isChatDisabledByLimit || !conversationId || !browserSupportsSpeechRecognition} 
+          className={`p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${listening ? 'text-red-500 bg-red-100 dark:bg-red-500/20 animate-pulse' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/70'}`} 
+          title={!browserSupportsSpeechRecognition ? "Browser not supported" : listening ? "Stop Recording" : "Start Recording"}
+      >
+          {listening ? <StopCircle className="w-5 h-5"/> : <Mic className="w-5 h-5" />}
+      </button>
                         )}
                     </motion.div>
                 </AnimatePresence>
