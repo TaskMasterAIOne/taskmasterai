@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react';
 import { MessageCircle, Send, Timer as TimerIcon, Paperclip, Bot, X, AlertTriangle, Loader2, ImageIcon, ChevronDown, Maximize, Minimize, Edit, Check, RefreshCcw, Crown, Download, Trash2, CornerDownRight, CheckSquare, Square, StopCircle, Mic, Plus, Globe, Palette, ArrowUpRight, CheckCircle, AlertCircle, LayoutDashboard, FileText, Lightbulb, ShieldCheck } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition'; // <-- ADD THIS
 import { Link } from "react-router-dom";
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
@@ -164,6 +165,55 @@ const combineDateAndTime = (dateStr: string | undefined | null, timeStr: string 
       return null;
     }
   };
+
+  const urlToSelectedFile = async (url: string): Promise<SelectedFile | null> => {
+    // Handle base64 data URLs directly
+    if (url.startsWith('data:')) {
+        try {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            const fileName = `pasted-image-${Date.now()}.${blob.type.split('/')[1] || 'png'}`;
+            const file = new File([blob], fileName, { type: blob.type });
+            return await readFileAsSelectedFile(file);
+        } catch (error) {
+            console.error("Error converting data URL to file:", error);
+            // Using alert here as there's no chat history to write to directly from this helper
+            alert("Could not process the dragged image data.");
+            return null;
+        }
+    }
+
+    // Handle regular http/https URLs
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch image. Status: ${response.status}`);
+        }
+        const blob = await response.blob();
+
+        let fileName = `dragged-image-${Date.now()}`;
+        try {
+            const urlPath = new URL(url).pathname;
+            const lastSegment = urlPath.substring(urlPath.lastIndexOf('/') + 1);
+            if (lastSegment) {
+                fileName = lastSegment.split('?')[0];
+            }
+        } catch (e) { /* Ignore invalid URL for naming */ }
+        
+        const extension = blob.type.split('/')[1];
+        if (extension && !fileName.toLowerCase().endsWith(`.${extension}`)) {
+            fileName += `.${extension}`;
+        }
+
+        const file = new File([blob], fileName, { type: blob.type });
+
+        return await readFileAsSelectedFile(file);
+    } catch (error) {
+        console.error("Error converting URL to file:", error);
+        alert("Could not fetch the dragged image. This may be due to security restrictions (CORS) on the source website.");
+        return null;
+    }
+};
 
 const readFileAsSelectedFile = (file: File): Promise<SelectedFile> => {
   return new Promise((resolve, reject) => {
@@ -589,6 +639,142 @@ const NoteChatComponent: React.ForwardRefRenderFunction<NoteChatHandle, NoteChat
     const [events, setEvents] = useState<Array<{ id: string; data: any }>>([]);
     const [memories, setMemories] = useState<Memory[]>([]);
     const truncatedName = useMemo(() => userName.split(' ')[0] || userName, [userName]);
+    const [isDraggingOver, setIsDraggingOver] = useState(false); // <-- ADD THIS
+
+
+    // --- START: SPEECH RECOGNITION HOOKS AND LOGIC ---
+    const {
+        transcript,
+        listening,
+        resetTranscript,
+        browserSupportsSpeechRecognition,
+        isMicrophoneAvailable
+    } = useSpeechRecognition();
+
+
+    // --- END: SPEECH RECOGNITION HOOKS AND LOGIC ---
+
+
+    // --- START: DRAG & DROP AND SPEECH HANDLERS ---
+    const handleFileDrop = async (files: FileList) => {
+        if (!files || files.length === 0 || isImageGenModeActive || isSearchModeActive || isChatLoading) return;
+    
+        const filesArray = Array.from(files);
+        const newSelectedFiles: SelectedFile[] = [];
+    
+        for (const file of filesArray) {
+            if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
+                setChatHistory(prev => [...prev, { id: `file-err-type-${Date.now()}`, role: 'assistant', content: `❌ File type for "${file.name}" is not supported (only images and PDFs).`, error: true }]);
+                continue;
+            }
+    
+            try {
+                const selectedFileData = await readFileAsSelectedFile(file);
+                newSelectedFiles.push(selectedFileData);
+            } catch (error) {
+                console.error("Error reading file:", file.name, error);
+                setChatHistory(prev => [...prev, { id: `file-err-read-${Date.now()}`, role: 'assistant', content: `❌ Error processing selected file(s). Please try again.`, error: true }]);
+            }
+        }
+    
+        if (newSelectedFiles.length > 0) {
+          setSelectedFiles(prev => [...prev, ...newSelectedFiles].slice(0, 5));
+        }
+    };
+    
+    const handleDragEvents = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+    };
+    
+    const handleDragEnter = (e: React.DragEvent) => {
+        handleDragEvents(e);
+        if (!isImageGenModeActive && !isSearchModeActive && !isChatLoading) {
+            setIsDraggingOver(true);
+        }
+    };
+    
+    const handleDragLeave = (e: React.DragEvent) => {
+        handleDragEvents(e);
+        setIsDraggingOver(false);
+    };
+    
+       const handleDrop = async (e: React.DragEvent) => {
+        handleDragEvents(e);
+        setIsDraggingOver(false);
+    
+        // 1. Prioritize actual files dropped from the local system
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            handleFileDrop(e.dataTransfer.files);
+            return;
+        }
+    
+        // 2. Fallback for images dragged from other browser tabs (checks for HTML content)
+        const html = e.dataTransfer.getData('text/html');
+        if (html) {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+            const img = tempDiv.querySelector('img');
+            
+            if (img && img.src) {
+                const newSelectedFile = await urlToSelectedFile(img.src);
+                if (newSelectedFile) {
+                    // Re-validate type for NoteChat context
+                    if (!newSelectedFile.type.startsWith('image/')) {
+                         setChatHistory(prev => [...prev, { id: `file-err-type-${Date.now()}`, role: 'assistant', content: `❌ Dragged file type for "${newSelectedFile.name}" is not supported (only images and PDFs).`, error: true }]);
+                         return;
+                    }
+                    setSelectedFiles(prev => [...prev, newSelectedFile].slice(0, 5));
+                }
+                return;
+            }
+        }
+    
+        // 3. Last resort fallback for plain text URLs that might be images
+        const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
+        if (url && (url.startsWith('http') || url.startsWith('data:image'))) {
+            const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
+            if (imageExtensions.some(ext => url.toLowerCase().includes(ext)) || url.startsWith('data:image')) {
+                const newSelectedFile = await urlToSelectedFile(url);
+                 if (newSelectedFile) {
+                    if (!newSelectedFile.type.startsWith('image/')) {
+                         setChatHistory(prev => [...prev, { id: `file-err-type-${Date.now()}`, role: 'assistant', content: `❌ Dragged file type for "${newSelectedFile.name}" is not supported (only images and PDFs).`, error: true }]);
+                         return;
+                    }
+                    setSelectedFiles(prev => [...prev, newSelectedFile].slice(0, 5));
+                }
+            }
+        }
+    };
+
+    const handleToggleRecording = () => {
+        if (!browserSupportsSpeechRecognition) {
+          alert("This browser does not support speech recognition. Please try Google Chrome.");
+          return;
+        }
+        if (!isMicrophoneAvailable) {
+            alert("Microphone is not available. Please check your hardware and browser permissions.");
+            return;
+        }
+    
+        if (listening) {
+          // When user clicks "Stop"
+          SpeechRecognition.stopListening();
+          // The transcript is now final. We submit it via the main handler.
+          const finalTranscriptText = transcript.trim();
+          if (finalTranscriptText) {
+            handleChatSubmit(undefined, finalTranscriptText);
+          }
+          // Always reset after stopping to clear the library's state.
+          resetTranscript();
+        } else {
+          // When user clicks "Start"
+          resetTranscript(); // Clear any previous text.
+          SpeechRecognition.startListening({ continuous: true, language: 'en-US' });
+        }
+    };
+    // --- END: DRAG & DROP AND SPEECH HANDLERS ---
+
 
     const [isResizing, setIsResizing] = useState(false);
     const [dimensions, setDimensions] = useState({
@@ -1340,8 +1526,33 @@ YOU MUST ALWAYS USE THAT LATEX FOR MATH ONLY.
         };
 
         const validateSequentialEdits = (editsJson: any[]): { valid: boolean, edits: EditStep[] } => { const validEdits: EditStep[] = []; let sequenceIsValid = true; for (let i = 0; i < editsJson.length; i++) { const step = editsJson[i]; if (typeof step.edit_type === 'string' && typeof step.content_fragment === 'string' && (typeof step.target_context === 'string' || step.target_context === null) && ['insert_after_context', 'replace_context', 'delete_context', 'insert_at_start', 'append_at_end'].includes(step.edit_type) && (step.edit_type === 'insert_at_start' || step.edit_type === 'append_at_end' || step.target_context !== null) && !(step.edit_type === 'delete_context' && typeof step.target_context !== 'string') ) { validEdits.push({ editType: step.edit_type as EditStep['editType'], targetContext: step.target_context, contentFragment: step.content_fragment }); } else { sequenceIsValid = false; break; } } return { valid: sequenceIsValid, edits: validEdits }; };
-        const handleChatSubmit = async (e?: React.FormEvent) => { e?.preventDefault(); const currentMessage = chatMessage.trim(); if ((!currentMessage && selectedFiles.length === 0 && !isImageGenModeActive && !isSearchModeActive && pdfContextSegments.length === 0) || (!currentMessage && (isImageGenModeActive || isSearchModeActive))) { if(isImageGenModeActive && !currentMessage) { setChatHistory(prev => [...prev, { id: `img-prompt-err-${Date.now()}`, role: 'assistant', content: `ℹ️ Please describe the image you want to generate.`, error: false }]); } if(isSearchModeActive && !currentMessage) { setChatHistory(prev => [...prev, { id: `search-prompt-err-${Date.now()}`, role: 'assistant', content: `ℹ️ Please enter what you want to search for.`, error: false }]); } return; } const filesToSubmit = [...selectedFiles]; const currentPdfContextSegmentsForSubmit = [...pdfContextSegments]; setChatMessage(''); setSelectedFiles([]); setPdfContextSegments([]); await submitMessageToAI(currentMessage, filesToSubmit, isImageGenModeActive, isSearchModeActive, currentPdfContextSegmentsForSubmit); if (textareaRef.current) { textareaRef.current.style.height = 'auto'; } };
-        const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSubmit(); } };
+const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string) => {
+            e?.preventDefault();
+        
+        if (listening) {
+            SpeechRecognition.stopListening();
+            resetTranscript();
+        }
+
+            const currentMessage = incomingMessage !== undefined ? incomingMessage : chatMessage.trim();
+            
+            if ((!currentMessage && selectedFiles.length === 0 && !isImageGenModeActive && !isSearchModeActive && pdfContextSegments.length === 0) || (!currentMessage && (isImageGenModeActive || isSearchModeActive))) {
+                if(isImageGenModeActive && !currentMessage) { setChatHistory(prev => [...prev, { id: `img-prompt-err-${Date.now()}`, role: 'assistant', content: `ℹ️ Please describe the image you want to generate.`, error: false }]); }
+                if(isSearchModeActive && !currentMessage) { setChatHistory(prev => [...prev, { id: `search-prompt-err-${Date.now()}`, role: 'assistant', content: `ℹ️ Please enter what you want to search for.`, error: false }]); }
+                return;
+            }
+
+            const filesToSubmit = [...selectedFiles];
+            const currentPdfContextSegmentsForSubmit = [...pdfContextSegments];
+            setChatMessage('');
+            setSelectedFiles([]);
+            setPdfContextSegments([]);
+            await submitMessageToAI(currentMessage, filesToSubmit, isImageGenModeActive, isSearchModeActive, currentPdfContextSegmentsForSubmit);
+            if (textareaRef.current) {
+                textareaRef.current.style.height = 'auto';
+            }
+        };
+            const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSubmit(); } };
         const handleTextareaInput = (e: React.FormEvent<HTMLTextAreaElement>) => { const ta = e.currentTarget; ta.style.height = 'auto'; ta.style.height = `${Math.min(ta.scrollHeight, 128)}px`; setChatMessage(ta.value); };
         const handleSuggestionClick = (suggestion: string) => { if (isImageGenModeActive) setIsImageGenModeActive(false); if (isSearchModeActive) setIsSearchModeActive(false); setChatMessage(''); setSelectedFiles([]); setPdfContextSegments([]); submitMessageToAI(suggestion, [], false, false, []); };
         const removePdfContextSegment = (idToRemove: string) => setPdfContextSegments(prev => prev.filter(segment => segment.id !== idToRemove));
@@ -1398,7 +1609,7 @@ YOU MUST ALWAYS USE THAT LATEX FOR MATH ONLY.
 
                 {(!isMinimized || displayMode === 'inline') && (
                     <>
-                        <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
+                        <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 bg-white dark:bg-[#0C0E1A]"> {/* <--- BG COLOR FIX */}
                         {chatHistory.map((message, index) => {
                                 const isCurrentLoadingMsg = message.role === 'assistant' && isChatLoading && message.id === loadingMsgId;
                                 const isPdfContextDisplayMsg = message.isPdfContextDisplay === true;
@@ -1449,9 +1660,47 @@ YOU MUST ALWAYS USE THAT LATEX FOR MATH ONLY.
                             {pdfContextSegments.length > 0 && !isImageGenModeActive && !isSearchModeActive && (<div className="mb-2 px-1 max-h-24 overflow-y-auto scrollbar-thin"><div className="flex flex-col gap-1.5">{pdfContextSegments.map(segment => (<div key={segment.id} className={`flex items-center p-2 rounded-lg shadow-sm bg-gray-200 dark:bg-gray-700/60`}><CornerDownRight className={`w-4 h-4 mr-2 shrink-0 text-gray-500 dark:text-gray-400`}/><span className={`flex-1 text-xs truncate text-gray-700 dark:text-gray-200`} title={segment.text}>{segment.text}</span><button type="button" onClick={() => removePdfContextSegment(segment.id)} className={`ml-2 p-1 rounded-full hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors`} title="Remove context segment"><X className="w-3 h-3"/></button></div>))}</div></div>)}
                             {selectedFiles.length > 0 && !isImageGenModeActive && !isSearchModeActive && (<div className="mb-2 flex flex-wrap gap-1.5 p-1.5 max-h-20 overflow-y-auto scrollbar-thin border border-dashed rounded-lg border-gray-300 dark:border-gray-600">{selectedFiles.map(file => (<div key={file.name} className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg border bg-indigo-100 dark:bg-indigo-600/20 border-indigo-200 dark:border-indigo-600/40 text-indigo-700 dark:text-indigo-300">{file.type.startsWith("image/") && file.localPreviewUrl && (<img src={file.localPreviewUrl} alt={file.name} className="w-4 h-4 rounded-sm object-cover"/>)}{!file.type.startsWith("image/") && <Paperclip className="w-3 h-3 flex-shrink-0"/>}<span className="truncate max-w-[80px]">{file.name}</span><button type="button" onClick={() => handleRemoveFile(file.name)} className="ml-1 p-0.5 rounded-full hover:bg-indigo-200 dark:hover:bg-indigo-600/40" title="Remove"><X className="w-2.5 h-2.5"/></button></div>))}</div>)}
                              <form onSubmit={handleChatSubmit}>
-                                 <div className="bg-white dark:bg-[#161922] border border-gray-300 dark:border-gray-700/50 rounded-2xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-400 dark:focus-within:ring-indigo-600 transition-all duration-200 flex flex-col">
+                                 <div 
+                                    onDrop={handleDrop}
+                                    onDragOver={handleDragEvents}
+                                    onDragEnter={handleDragEnter}
+                                    onDragLeave={handleDragLeave}
+                                    className="relative bg-white dark:bg-[#161922] border border-gray-300 dark:border-gray-700/50 rounded-2xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-400 dark:focus-within:ring-indigo-600 transition-all duration-200 flex flex-col"
+                                >
+                                    <AnimatePresence>
+                                    {isDraggingOver && (
+                                        <motion.div 
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            exit={{ opacity: 0 }}
+                                            className="absolute inset-0 bg-indigo-50/90 dark:bg-indigo-900/90 z-10 flex items-center justify-center rounded-2xl pointer-events-none border-2 border-dashed border-indigo-400"
+                                        >
+                                            <div className="text-center">
+                                                <ImageIcon className="w-8 h-8 text-indigo-500 dark:text-indigo-400 mx-auto mb-2"/>
+                                                <p className="font-semibold text-indigo-600 dark:text-indigo-300">Drop files to attach</p>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                    </AnimatePresence>
+
                                     <AnimatePresence>{aiActionStatus && (<motion.div initial={{opacity:0,height:0}} animate={{opacity:1,height:'auto'}} exit={{opacity:0,height:0}} className="text-center text-sm p-2 text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600/50">{aiActionStatus}</motion.div>)}</AnimatePresence>
-                                    <textarea ref={textareaRef} rows={1} value={chatMessage} onChange={handleTextareaInput} onKeyDown={handleKeyDown} onPaste={handlePaste} placeholder={isChatLimitReached ? "Monthly chat limit reached" : isImageGenModeActive ? "Describe an image to generate..." : isSearchModeActive ? "Search the web for..." : "Ask anything..."} className="w-full bg-transparent text-gray-800 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 p-3.5 text-sm focus:ring-0 focus:outline-none border-0 resize-none overflow-y-auto max-h-32 leading-relaxed" disabled={isChatLoading || isChatLimitReached || isLoadingUsage} />
+                                    <textarea 
+                                        ref={textareaRef} 
+                                        rows={1} 
+                                        value={chatMessage} 
+                                        onChange={handleTextareaInput} 
+                                        onKeyDown={handleKeyDown} 
+                                        onPaste={handlePaste} 
+                                        placeholder={
+                                            listening ? "Listening..." : 
+                                            isChatLimitReached ? "Monthly chat limit reached" : 
+                                            isImageGenModeActive ? "Describe an image to generate..." : 
+                                            isSearchModeActive ? "Search the web for..." : 
+                                            "Ask anything..."
+                                        } 
+                                        className="w-full bg-transparent text-gray-800 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 p-3.5 text-sm focus:ring-0 focus:outline-none border-0 resize-none overflow-y-auto max-h-32 leading-relaxed" 
+                                        disabled={isChatLoading || isChatLimitReached || isLoadingUsage} 
+                                    />
                                      <div className="flex justify-between items-center px-2 py-1.5 mt-1">
                                          <div className="flex items-center gap-1">
                                              <input type="file" ref={fileInputRef} onChange={handleFileSelect} multiple accept="image/*,application/pdf" className="hidden" disabled={isImageGenModeActive || isSearchModeActive || isChatLoading || isChatLimitReached} />
@@ -1462,8 +1711,30 @@ YOU MUST ALWAYS USE THAT LATEX FOR MATH ONLY.
                                          </div>
                                          <div className="flex items-center">
                                             <AnimatePresence mode="wait" initial={false}>
-                                                <motion.div key={chatMessage.trim() || selectedFiles.length > 0 || pdfContextSegments.length > 0 || (isImageGenModeActive && chatMessage.trim()) || (isSearchModeActive && chatMessage.trim()) ? 'send' : 'mic-disabled'} initial={{opacity:0,y:5}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-5}} transition={{duration:0.15}}>
-                                                    <button type="submit" disabled={isChatLoading || isChatLimitReached || (!chatMessage.trim() && selectedFiles.length === 0 && pdfContextSegments.length === 0 && !isImageGenModeActive && !isSearchModeActive) || (!chatMessage.trim() && (isImageGenModeActive || isSearchModeActive))} className="p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-indigo-500 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20" title="Send" aria-label="Send chat message">{isChatLoading ? <Loader2 className="w-5 h-5 animate-spin"/> : <Send className="w-5 h-5"/>}</button>
+                                                <motion.div 
+                                                    key={
+                                                        (chatMessage.trim() || selectedFiles.length > 0 || pdfContextSegments.length > 0 || (isImageGenModeActive && chatMessage.trim()) || (isSearchModeActive && chatMessage.trim())) 
+                                                        ? 'send' 
+                                                        : 'mic'
+                                                    } 
+                                                    initial={{opacity:0,y:5}} 
+                                                    animate={{opacity:1,y:0}} 
+                                                    exit={{opacity:0,y:-5}} 
+                                                    transition={{duration:0.15}}
+                                                >
+                                                    {(chatMessage.trim() || selectedFiles.length > 0 || pdfContextSegments.length > 0 || (isImageGenModeActive && chatMessage.trim()) || (isSearchModeActive && chatMessage.trim())) ? (
+                                                        <button type="submit" disabled={isChatLoading || isChatLimitReached} className="p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-indigo-500 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20" title="Send" aria-label="Send chat message">{isChatLoading ? <Loader2 className="w-5 h-5 animate-spin"/> : <Send className="w-5 h-5"/>}</button>
+                                                    ) : (
+                                                        <button 
+                                                            type="button" 
+                                                            onClick={handleToggleRecording} 
+                                                            disabled={isChatLoading || isChatLimitReached || !browserSupportsSpeechRecognition} 
+                                                            className={`p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${listening ? 'text-red-500 bg-red-100 dark:bg-red-500/20 animate-pulse' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/70'}`} 
+                                                            title={!browserSupportsSpeechRecognition ? "Browser not supported" : listening ? "Stop Recording" : "Start Recording"}
+                                                        >
+                                                            {listening ? <StopCircle className="w-5 h-5"/> : <Mic className="w-5 h-5" />}
+                                                        </button>
+                                                    )}
                                                 </motion.div>
                                             </AnimatePresence>
                                          </div>
