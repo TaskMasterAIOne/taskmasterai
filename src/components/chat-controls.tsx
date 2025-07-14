@@ -272,12 +272,12 @@ export function ChatControls({
             <span className="hidden sm:inline">Style</span>
           </button>
         </PopoverTrigger>
-        <PopoverContent 
-          className="w-72 p-0 bg-white dark:bg-[#161922] shadow-xl rounded-lg border border-gray-200/80 dark:border-gray-700/60 font-poppins"
-          align="start"
-          side="top"
-          sideOffset={8}
-        >
+<PopoverContent 
+  className="w-72 p-0 bg-white dark:bg-[#161922] shadow-xl rounded-lg border border-gray-200/80 dark:border-gray-700/60 font-poppins z-[99]" // <-- ADD THIS CLASS
+  align="start"
+  side="top"
+  sideOffset={8}
+>
           <div className="flex flex-col max-h-[400px]">
             <div className="p-3 border-b border-gray-200 dark:border-gray-700/50">
               <div className="flex items-center justify-between">
@@ -317,14 +317,14 @@ export function ChatControls({
                 ))}
               </div>
 
-              {customStyles.length > 0 && (
+{customStyles.length > 0 && (
                 <div>
                   <h5 className="text-xs font-semibold uppercase text-gray-400 dark:text-gray-500 px-2.5 pt-2 pb-1.5">Custom Styles</h5>
                   <div className="space-y-1">
                     {customStyles.map((style) => (
-                      <button
+                      <div // <-- CHANGED from <button> to <div>
                         key={style.id}
-                        className={`w-full text-left px-2.5 py-2 rounded-md transition-all duration-200 group ${
+                        className={`w-full text-left px-2.5 py-2 rounded-md transition-all duration-200 group cursor-pointer ${ // <-- ADDED cursor-pointer
                           activeStyle === style.name
                             ? `${style.color || DEFAULT_CUSTOM_COLOR_PROPS.color} text-white font-semibold`
                             : `text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/60`
@@ -342,7 +342,7 @@ export function ChatControls({
                           </div>
                         </div>
                         <p className={`text-xs mt-0.5 font-normal text-left ${activeStyle === style.name ? 'text-white/80' : 'text-gray-500 dark:text-gray-400'}`}>{style.description}</p>
-                      </button>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -353,8 +353,7 @@ export function ChatControls({
       </Popover>
 
       <Dialog open={isStyleDialogOpen} onOpenChange={setIsStyleDialogOpen}>
-        <DialogContent className="sm:max-w-xl bg-white dark:bg-[#161922] border border-gray-200/80 dark:border-gray-700/60 p-6 rounded-lg shadow-xl font-poppins">
-          <DialogHeader>
+<DialogContent className="sm:max-w-xl bg-white dark:bg-[#161922] border border-gray-200/80 dark:border-gray-700/60 p-6 rounded-lg shadow-xl font-poppins z-[100]">          <DialogHeader>
             <DialogTitle className="text-lg font-semibold text-gray-900 dark:text-gray-100">
               {editingStyle ? 'Edit Custom Style' : 'Create Custom Style'}
             </DialogTitle>
