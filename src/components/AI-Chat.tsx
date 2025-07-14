@@ -1055,26 +1055,44 @@ ${memoryContext}
     -> Proceed to the **[GENERAL CONVERSATIONAL PROTOCOL]**.
 
 
+
 // -------------------------------------------------------------------------------------------------
-// [PROTOCOL NOTION: NOTION ACTION PROTOCOL]
-// Use this for interacting with the user's Notion workspace. ONLY available if Notion Integration is "Connected".
-// FORMAT: Conversational Confirmation (e.g., "Searching your Notion...") + Newline + JSON block.
+// [PROTOCOL 1: NOTION ACTION PROTOCOL]
+// This is a strict workflow for interacting with the user's Notion workspace.
+// You MUST follow these steps in order.
 // -------------------------------------------------------------------------------------------------
-  - **Actions**: searchNotion, createNotionPage, appendToNotionPage, updateNotionPage.
-   - **JSON Structure**: {"action": "actionName", "payload": {...}}.
-   - **Payloads**:
-     - \`searchNotion\`: \`{"query": string}\` (Searches for pages or databases).
-     - \`createNotionPage\`: \`{"title": string, "content"?: string, "parent_page_id"?: string, "parent_database_id"?: string}\`.
-     - \`appendToNotionPage\`: \`{"page_id": string, "content": string}\`.
-     - \`updateNotionPage\`: \`{"page_id": string, "properties": object}\` (Properties must match Notion API, e.g., \`{"title": {"title": [{"text": {"content": "New Title"}}]}}\`).
-   - **CRITICAL PARENT RULE**: To use \`createNotionPage\`, you MUST provide either a \`parent_page_id\` or a \`parent_database_id\`. If the user does not specify where to create the page, you MUST first use \`searchNotion\` to find a relevant page or database to use as the parent. If you can't find one, ASK the user where they'd like to put the new page.
-   - **Example Workflow**:
-     1. User: "save a note about my meeting with marketing to Notion"
-     2. AI (thinks): I need a parent for this note. I'll search for "marketing" to see if a relevant page exists.
-     3. AI (responds): "Searching your Notion for 'marketing'..." \`\`\`json\n{ "action": "searchNotion", "payload": { "query": "Marketing" } }\n\`\`\`
-     4. System returns a page with id "abc-123".
-     5. AI (thinks): Great, I'll use that page as the parent.
-     6. AI (responds): "Found it. Creating your note inside the 'Marketing' page." \`\`\`json\n{ "action": "createNotionPage", "payload": { "title": "Meeting Note", "content": "...", "parent_page_id": "abc-123" } }\n\`\`\`
+   - **Step 1: Understand the Goal.** Determine if the user wants to FIND, READ, CREATE, APPEND, or UPDATE something in Notion.
+
+   - **Step 2: Get a \`page_id\`.** Almost all actions require a \`page_id\`. To get one, you MUST use the \`searchNotion\` action first.
+     - **Exception**: If the user provides a page ID directly, you can skip the search.
+     - **Example**: If the user says "Read my 'Meeting Notes' page", you MUST first search for it.
+     - **JSON**: {"action": "searchNotion", "payload": {"query": "Meeting Notes"}}
+     - The system will return a list of results. Each result will have a title, an ID, and a URL. Use the ID for the next steps.
+
+   - **Step 3: Execute the Primary Action.** Once you have a \`page_id\`, you can perform the main task.
+
+   - **AVAILABLE ACTIONS & PAYLOADS:**
+     - \`searchNotion\`: \`{"query": string}\` -> Use this to find pages/databases and get their IDs.
+     - \`readNotionPageContent\`: \`{"page_id": string}\` -> Use this after a search to get the text content of a specific page.
+     - \`createNotionPage\`: \`{"title": string, "content"?: string, "parent_page_id"?: string}\` -> Use this to make a new page. If \`parent_page_id\` is omitted, a default will be used.
+     - \`appendToNotionPage\`: \`{"page_id": string, "content": string}\` -> Use this to ADD new text to the END of an existing page.
+     - \`updateNotionPage\`: \`{"page_id": string, "properties": object}\` -> Use this to change properties, like the title. To change a title, the properties object MUST be \`{"title": {"title": [{"text": {"content": "New Page Title"}}]}}\`.
+
+   - **WORKFLOW EXAMPLES:**
+     - **User wants to READ:**
+       1.  **Search**: {"action": "searchNotion", "payload": {"query": "Page Title"}}
+       2.  System returns a list, you identify the correct \`page_id\`.
+       3.  **Read**: {"action": "readNotionPageContent", "payload": {"page_id": "the-id-from-search"}}
+     - **User wants to UPDATE:**
+       1.  **Search**: {"action": "searchNotion", "payload": {"query": "Old Title"}}
+       2.  System returns the \`page_id\`.
+       3.  **Update**: {"action": "updateNotionPage", "payload": {"page_id": "the-id-from-search", "properties": {"title": {"title": [{"text": {"content": "New Title"}}]}}}}
+     - **User wants to APPEND:**
+        1. **Search**: {"action": "searchNotion", "payload": {"query": "Page to Append To"}}
+        2. System returns the \`page_id\`.
+        3. **Append**: {"action": "appendToNotionPage", "payload": {"page_id": "the-id-from-search", "content": "This is the new content."}}
+
+   - **CRITICAL RULE**: Do not try to append content to a block that is not a page. Always append to the \`page_id\` itself. The error "Block does not support children" means you chose the wrong ID. You must use the ID for the top-level page.
 
 // -------------------------------------------------------------------------------------------------
 // [PROTOCOL 1: JSON ACTION PROTOCOL]
@@ -1361,20 +1379,30 @@ Assistant:`;
             const result = await notionAction({ action: notionBlock.action, payload: notionBlock.payload });
             
             const actionResult = result.data as any;
-            if (actionResult.error) throw new Error(actionResult.error);
-            
             let resultMessage = `Notion action '${notionBlock.action}' completed.`;
             if (notionBlock.action === 'searchNotion' && actionResult.results?.length > 0) {
-                const pageLinks = actionResult.results.map((page: any) => {
-                    const title = page.properties.title?.title?.[0]?.plain_text || 'Untitled';
-                    return `- [${title}](${page.url})`;
+                const pageLinks = actionResult.results.map((item: any) => {
+                    let title = "Untitled";
+                    let type = "";
+                    // Check if it's a database object
+                    if (item.object === 'database' && item.title?.[0]?.plain_text) {
+                        title = item.title[0].plain_text;
+                        type = '[DB]';
+                    // Check if it's a page object
+                    } else if (item.object === 'page' && item.properties?.title?.title?.[0]?.plain_text) {
+                        title = item.properties.title.title[0].plain_text;
+                        type = '[Page]';
+                    }
+                    return `- ${type} [${title}](${item.url}) - \`ID: ${item.id}\``;
                 }).join('\n');
-                resultMessage = `I found these pages in your Notion:\n${pageLinks}`;
+                resultMessage = `I found these pages/databases in your Notion:\n${pageLinks}`;
             } else if (notionBlock.action === 'searchNotion') {
                 resultMessage = `I couldn't find any pages matching your query in Notion.`;
-            } else if (notionBlock.action === 'createNotionPage') {
-                const title = actionResult.properties.title?.title?.[0]?.plain_text || 'Untitled';
-                resultMessage = `Successfully created page "[${title}](${actionResult.url})" in Notion.`;
+            } else if (notionBlock.action === 'readNotionPageContent') {
+                resultMessage = `Here is the content of the page:\n\n---\n\n${actionResult.markdownContent}`;
+            } else if (notionBlock.action === 'createNotionPage' || notionBlock.action === 'updateNotionPage') {
+                 const title = actionResult.properties.title?.title?.[0]?.plain_text || 'Untitled';
+                resultMessage = `Successfully performed action on page "[${title}](${actionResult.url})" in Notion.`;
             }
 
             assistantTextForDisplay = resultMessage;
