@@ -1568,13 +1568,13 @@ Actions: createTask, updateTask, deleteTask, createGoal, updateGoal, deleteGoal,
     *   For **any** response where the user is asking for summaries, breakdowns, explanations, lists, instructions, or informational outputs:
         - **IMMEDIATELY start the response with content** — DO NOT include any intro commentary like "Sure!" or "Absolutely, here’s a breakdown...".
         - Use **proper markdown formatting consistently**, including:
-            - #, ##, ### for section headers
+            - ##, ### for section headers
             - - or numbered 1., 2. lists for organized points
             - **Bold** for key terms, *italics* for emphasis, inline code for code/data
             - Tables (| Col | Col |) if applicable
             - Emojis where relevant to increase clarity or visual separation
 
-    *   The output should be **structured, clean, and visually scannable** — never a plain blob of unformatted text.
+    *   The output should be **structured, clean, and visually scannable** — never a plain blob of unformatted text. 
 
     FOR MATH USE THIS:
 
@@ -4407,11 +4407,11 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
             </div>
             {aiChatSidebarTab === 'chat' && (
             <>
-                <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent">
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent bg-white dark:bg-[#0C0E1A]">
                    {!conversationId && ( <div className="text-center py-8 flex flex-col items-center"><MessageCircle className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-3" /><p className="text-gray-500 dark:text-gray-400 text-sm mb-4">Start a new chat or select one from history.</p><button onClick={() => handleNewConversation()} className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 text-sm font-semibold rounded-lg hover:shadow-md transition-all duration-200 flex items-center gap-1.5 transform hover:scale-105 active:scale-100"><Plus className="w-4 h-4" /> New Chat</button></div>)}
                     {conversationId && chatHistory.map((message, index) => (
                         <div key={message.id || `${message.role}-${index}`} className={`flex ${message.role === 'user' || message.role === 'system' ? 'justify-end' : 'justify-start'} animate-fadeIn`} style={{ animationDelay: `${index * 20}ms`, animationDuration: '250ms' }}>
-                            <div className={`max-w-[85%] rounded-xl px-3.5 py-2.5 ${message.role === 'user' ? 'text-sm' : 'text-xs'} shadow-md break-words ${message.role === 'user' ? 'bg-indigo-500 text-white' : message.error ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200 border border-red-200 dark:border-red-700/60' : message.role === 'system' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-100 border border-yellow-200 dark:border-yellow-700/60 text-center mx-auto' : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700/70'}`}>
+                            <div className={`max-w-[85%] rounded-xl px-3.5 py-2.5 ${message.role === 'user' ? 'text-sm' : 'text-xs'} shadow-md break-words ${message.role === 'user' ? 'bg-indigo-500 text-white' : message.error ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200 border border-red-200 dark:border-red-700/60' : message.role === 'system' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-100 border border-yellow-200 dark:border-yellow-700/60 text-center mx-auto' : 'bg-gray-100 dark:bg-[#161922] text-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700/70'}`}>
                                 {message.isLoading && (
                                     <div className="flex flex-col items-center gap-1.5 text-gray-500 dark:text-gray-400 p-1">
                                         {message.isVerifyingContent ? (
@@ -4576,11 +4576,11 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
             </>
         )}
          {aiChatSidebarTab === 'history' && (
-           <div className="flex-1 overflow-y-auto p-3 space-y-1.5 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent">
+           <div className="flex-1 overflow-y-auto p-3 space-y-1.5 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent bg-[#0C0E1A]">
              <button onClick={() => handleNewConversation()} className="mb-2 w-full flex items-center justify-center gap-2 p-2.5 rounded-lg transition-all duration-200 text-sm font-medium shadow-sm bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 transform hover:scale-[1.02] active:scale-[0.98]"><Plus className="w-4 h-4" /> New Chat</button>
              {conversationList.length === 0 && <p className="text-gray-500 dark:text-gray-400 text-center text-sm py-4 italic">No chat history.</p>}
              {conversationList.sort((a,b) => (b.updatedAt?.toDate?.() || 0) - (a.updatedAt?.toDate?.() || 0)).map((conv) => (
-               <div key={conv.id} className={`flex items-center justify-between cursor-pointer p-2.5 rounded-lg transition-all duration-150 text-sm border ${conversationId === conv.id ? 'bg-indigo-50 dark:bg-indigo-700/30 text-indigo-700 dark:text-white border-indigo-200 dark:border-indigo-600/50' : 'bg-gray-50 dark:bg-gray-800/60 hover:bg-gray-100 dark:hover:bg-gray-700/80 text-gray-700 dark:text-gray-200 border-gray-100 dark:border-gray-700/70'}`} onClick={() => handleSelectConversation(conv.id)} >
+               <div key={conv.id} className={`flex items-center justify-between cursor-pointer p-2.5 rounded-lg transition-all duration-150 text-sm ${conversationId === conv.id ? 'bg-indigo-50 dark:bg-indigo-700/30 text-indigo-700 dark:text-white' : 'bg-gray-50 dark:bg-[#161922] hover:bg-gray-100 dark:hover:bg-gray-700/80 text-gray-700 dark:text-gray-200'}`} onClick={() => handleSelectConversation(conv.id)} >
                  <div className="flex items-center gap-2 flex-1 min-w-0"> <MessageCircle className="w-4 h-4 flex-shrink-0" /> <span className="truncate font-medium">{conv.chatName}</span> </div>
                  <div className="relative flex-shrink-0">
                    <button onClick={(e) => { e.stopPropagation(); setOpenDropdownId(openDropdownId === conv.id ? null : conv.id); }} className="p-1.5 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"> <MoreHorizontal className="w-4 h-4" /> </button>
@@ -4605,7 +4605,7 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
              ))}
            </div>
          )}
-        {aiChatSidebarTab === 'analytics' && ( <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent">
+        {aiChatSidebarTab === 'analytics' && ( <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent bg-[#0C0E1A]">
             <button onClick={generateProductivityAnalysis} disabled={isProductivityAnalysisLoading || !user || !geminiApiKey} className="w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 shadow-sm bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 disabled:opacity-70 transform hover:scale-[1.02] active:scale-[0.98]">
                 <BarChart3 className="w-4 h-4" />
                 {isProductivityAnalysisLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : "Get Insights"}
