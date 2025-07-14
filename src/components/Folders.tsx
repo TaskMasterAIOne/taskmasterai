@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
+import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition'; // <-- ADD THIS IMPORT
 import { useNavigate, Link } from 'react-router-dom';
 import {
-  Folder as FolderIconLucide, Folders as FoldersIcon, FolderPlus, Edit, Bot, Trash, Search, X, MessageSquare, ChevronRight, ChevronDown,
+  Folder as FolderIconLucide, Folders as FoldersIcon, FolderPlus, MessageCircle, Edit, Bot, Trash, Search, X, MessageSquare, ChevronRight, ChevronDown,
   FileText, Star, MoreHorizontal, Plus, Clock, CalendarCheck, AlertCircle, Sparkles, MessageCircleIcon, Play, BookOpen,
   Tag, Download, Upload, Copy, Printer, Share2, Settings, Filter, SortAsc, Bookmark, Layers, LayoutGrid, List, Zap, Award,
   Repeat, Shuffle, ArrowLeft, ArrowRightIcon as ArrowRightIconLucide, Eye, EyeOff, RefreshCw, Lightbulb, Flame, Target, PenTool, Gamepad2, CheckSquare, Square,
@@ -17,6 +18,7 @@ import { getTimeBasedGreeting } from '../lib/greetings';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
+import { ChatControls } from './chat-controls';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 
@@ -145,8 +147,6 @@ export interface ChatMessageData {
 
 interface SelectedFile { name: string; type: string; size: number; base64Data: string; fileObject: File; localPreviewUrl: string; }
 
-// @ts-ignore
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 const SUPPORTED_FILE_TYPES = "image/jpeg,image/png,image/webp,image/gif,image/svg+xml,application/pdf,text/plain,.md,.txt,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.rtf";
 const MAX_FILE_SIZE_MB = 20;
@@ -377,70 +377,51 @@ interface CurrentLearnActivityType {
   questionPrompt?: string;
 }
 
-const AssistantMessageContent = ({ message }: { message: ChatMessageData }) => {
+const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessageData, isDarkMode: boolean }) => {
+    const proseClassFolders = `prose prose-sm max-w-none prose-p:mb-3 prose-p:last:mb-0 prose-p:leading-relaxed prose-ul:my-3 prose-ul:space-y-2 prose-ol:my-3 prose-ol:space-y-2 prose-li:pl-1 prose-code:text-xs prose-code:px-1 prose-code:py-0.5 prose-pre:text-xs prose-pre:my-2 prose-pre:p-2 prose-pre:leading-relaxed
+    ${isDarkMode
+        ? 'prose-invert prose-a:text-[#8A85FF] hover:prose-a:text-indigo-300 prose-code:bg-gray-700/70 prose-code:text-pink-400 prose-pre:bg-black/60'
+        : 'prose-a:text-[#635BFF] hover:prose-a:text-indigo-700 prose-code:bg-gray-200/70 prose-code:text-pink-600 prose-pre:bg-gray-800/80 prose-pre:text-white/90'
+    }`;
+
     return (
         <>
             {message.content && (
                 <ReactMarkdown
                     remarkPlugins={[remarkMath, remarkGfm]}
                     rehypePlugins={[rehypeKatex]}
+                    className={proseClassFolders}
                     components={{
-                        p: ({ node, ...props }) => <p className="mb-1 last:mb-0 leading-normal text-xs" {...props} />,
-                        ul: ({ node, ...props }) => <ul className="list-disc list-outside ml-3.5 mb-1 text-[11px]" {...props} />,
-                        ol: ({ node, ...props }) => <ol className="list-decimal list-outside ml-3.5 mb-1 text-[11px]" {...props} />,
-                        li: ({ node, children, ...props }) => {
-                            const isTaskListItem = typeof node?.checked === 'boolean';
-                            if (isTaskListItem) {
-                                const filteredChildren = React.Children.toArray(children).map(child => {
-                                    if (React.isValidElement(child) && child.type === 'input' && (child.props as any).type === 'checkbox') {
-                                        return null;
-                                    }
-                                    return child;
-                                }).filter(Boolean);
-
-                                return (
-                                    <li className="flex items-start mb-0.5 text-[11px] list-none -ml-3.5" {...props}>
-                                        <span className="mr-1.5 mt-0.5 flex-shrink-0">
-                                            {node.checked ? <CheckSquare className="w-3 h-3 text-green-500" /> : <Square className="w-3 h-3 text-gray-400" />}
-                                        </span>
-                                        <div className="flex-grow">{filteredChildren}</div>
-                                    </li>
-                                );
-                            }
-                            return <li className="mb-0.5 text-[11px]" {...props}>{children}</li>;
-                        },
                         a: ({ node, ...props }) => {
                             const textContent = node.children[0]?.type === 'text' ? node.children[0].value : '';
                             const citationMatch = textContent.match(/^\[(\d+)\]$/);
                             if (citationMatch && props.href) {
-                                return (
-                                    <sup className="inline-block mx-0.5 align-super">
-                                        <a href={props.href} target="_blank" rel="noopener noreferrer" className="text-indigo-500 dark:text-indigo-400 no-underline hover:underline font-medium" title={`Source: ${props.href}`}>[{citationMatch[1]}]</a>
-                                    </sup>
-                                );
+                              return (
+                                <sup className="inline-block mx-0.5 align-super">
+                                  <a href={props.href} target="_blank" rel="noopener noreferrer" className="text-[#635BFF] dark:text-[#8A85FF] no-underline hover:underline font-medium" title={`Source: ${props.href}`}>
+                                    [{citationMatch[1]}]
+                                  </a>
+                                </sup>
+                              );
                             }
-                            return <a className="text-indigo-500 dark:text-indigo-400 hover:underline" target="_blank" rel="noopener noreferrer" {...props} />;
+                            return <a target="_blank" rel="noopener noreferrer" {...props} />;
                         },
-                        code: ({ node, inline, className, children, ...props }) => {
-                            const match = /language-(\w+)/.exec(className || '');
-                            return !inline ? (
-                                <pre className="!bg-gray-800/80 dark:!bg-black/60 p-1.5 rounded-md overflow-x-auto my-1 text-[10px] leading-snug text-white/90 scrollbar-thin scrollbar-thumb-gray-600 dark:scrollbar-thumb-gray-500" {...props}>
-                                    <code className={`language-${match ? match[1] : 'plaintext'}`}>{String(children).replace(/\n$/, '')}</code>
-                                </pre>
-                            ) : (
-                                <code className="!bg-gray-200 dark:!bg-gray-700/70 px-1 py-0.5 rounded text-[10px] text-pink-600 dark:text-pink-400" {...props}>{children}</code>
-                            );
+                        li: ({ node, children, ...props }) => {
+                            const isTaskListItem = typeof (node?.children?.[0] as any)?.checked === 'boolean';
+                            if (isTaskListItem) {
+                              const checked = (node!.children[0] as any).checked;
+                              const restOfChildren = React.Children.toArray(children).slice(1);
+                              return (
+                                <li className="flex items-start my-1 list-none -ml-4" {...props}>
+                                  <span className="mr-1.5 mt-[2px] flex-shrink-0">
+                                    {checked ? <CheckSquare className="w-3.5 h-3.5 text-current" /> : <Square className="w-3.5 h-3.5 text-current opacity-60" />}
+                                  </span>
+                                  <div className="flex-grow">{restOfChildren}</div>
+                                </li>
+                              );
+                            }
+                            return <li {...props}>{children}</li>;
                         },
-                        table: ({ node, ...props }) => <table className="w-full border-collapse border border-gray-300 dark:border-gray-600 my-2 text-[11px] shadow-sm rounded-md overflow-hidden" {...props} />,
-                        thead: ({ node, ...props }) => <thead className="bg-gray-100 dark:bg-gray-700/80" {...props} />,
-                        th: ({ node, ...props }) => <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-semibold text-gray-700 dark:text-gray-200" {...props} />,
-                        td: ({ node, ...props }) => <td className="border border-gray-200 dark:border-gray-500 px-2 py-1 text-gray-600 dark:text-gray-300" {...props} />,
-                        blockquote: ({ node, ...props }) => <blockquote className="border-l-4 border-indigo-500 dark:border-indigo-400 pl-3 py-1 my-1.5 text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/70 rounded-r-md italic text-xs" {...props} />,
-                        h1: ({ node, ...props }) => <h1 className="text-lg font-semibold my-2 text-gray-800 dark:text-gray-100" {...props} />,
-                        h2: ({ node, ...props }) => <h2 className="text-base font-semibold my-1.5 text-gray-700 dark:text-gray-200" {...props} />,
-                        h3: ({ node, ...props }) => <h3 className="text-sm font-semibold my-1 text-gray-700 dark:text-gray-200" {...props} />,
-                        h4: ({ node, ...props }) => <h4 className="text-xs font-semibold my-1 text-gray-700 dark:text-gray-200" {...props} />,
-                        hr: ({ node, ...props }) => <hr className="my-2 border-gray-200 dark:border-gray-700" {...props} />,
                     }}
                 >
                     {message.content}
@@ -449,8 +430,8 @@ const AssistantMessageContent = ({ message }: { message: ChatMessageData }) => {
 
             {message.sources && message.sources.length > 0 && (
                  <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700/70">
-                    <h4 className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">{message.sources.length} sources found</h4>
-                    <div className="grid grid-cols-2 gap-2">
+                    <h4 className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">{message.sources.length} sources found</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {message.sources.sort((a,b) => a.number - b.number).map(source => {
                             let hostname = "source.com";
                             try { hostname = new URL(source.url).hostname.replace('www.', ''); } catch (e) { hostname = source.url.split('/')[2] || source.url; }
@@ -459,11 +440,11 @@ const AssistantMessageContent = ({ message }: { message: ChatMessageData }) => {
                                 <div className="flex items-center justify-between gap-2 mb-1">
                                     <div className="flex items-center gap-1.5 min-w-0">
                                         <img src={`https://www.google.com/s2/favicons?domain=${hostname}&sz=32`} alt="" className="w-4 h-4 rounded-full bg-white flex-shrink-0" />
-                                        <span className="text-[11px] font-semibold text-gray-800 dark:text-gray-200 truncate">{hostname}</span>
+                                        <span className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate">{hostname}</span>
                                     </div>
                                     <ArrowUpRight className="w-3 h-3 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                                 </div>
-                                <p className="text-[10px] text-gray-600 dark:text-gray-400 line-clamp-3 leading-snug">{source.title}</p>
+                                <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-3 leading-snug">{source.title}</p>
                             </a>
                         )})}
                     </div>
@@ -485,6 +466,137 @@ export function Folders() {
   const [chatUsageCount, setChatUsageCount] = useState(0);
   const [chatLimit, setChatLimit] = useState(BASIC_CHAT_LIMIT);
   const [isChatDisabledByLimit, setIsChatDisabledByLimit] = useState(true);
+
+    const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  // --- ADD THESE NEW STATES AND HOOKS ---
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const {
+    transcript,
+    listening,
+    resetTranscript,
+    browserSupportsSpeechRecognition,
+    isMicrophoneAvailable
+  } = useSpeechRecognition();
+  // --- END OF NEW STATES AND HOOKS ---
+
+
+  // --- ADD THESE NEW HANDLERS ---
+    const handleFileDrop = async (files: FileList) => {
+        if (!files || files.length === 0 || isImageGenModeActive || isSearchModeActive || isChatLoading) return;
+    
+        const filesArray = Array.from(files);
+        const newSelectedFiles: SelectedFile[] = [];
+    
+        for (const file of filesArray) {
+            if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+                showToast(`File ${file.name} too large (max ${MAX_FILE_SIZE_MB}MB).`, "error");
+                continue;
+            }
+            if (!SUPPORTED_FILE_TYPES.split(',').some(type => type.trim() === file.type || file.name.endsWith(type.trim()))) {
+                showToast(`File type for "${file.name}" is not supported.`, "error");
+                continue;
+            }
+    
+            try {
+                const selectedFileData = await readFileAsSelectedFile(file);
+                newSelectedFiles.push(selectedFileData);
+            } catch (error) {
+                console.error("Error reading file:", file.name, error);
+                showToast(`Error reading file ${file.name}.`, "error");
+            }
+        }
+    
+        if (newSelectedFiles.length > 0) {
+          setSelectedFiles(prev => [...prev, ...newSelectedFiles].slice(0, 5));
+        }
+    };
+    
+    const handleDragEvents = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+    };
+    
+    const handleDragEnter = (e: React.DragEvent) => {
+        handleDragEvents(e);
+        if (!isImageGenModeActive && !isSearchModeActive && !isChatLoading) {
+            setIsDraggingOver(true);
+        }
+    };
+    
+    const handleDragLeave = (e: React.DragEvent) => {
+        handleDragEvents(e);
+        setIsDraggingOver(false);
+    };
+
+    const handleDrop = async (e: React.DragEvent) => {
+        handleDragEvents(e);
+        setIsDraggingOver(false);
+    
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            handleFileDrop(e.dataTransfer.files);
+            return;
+        }
+    
+        const html = e.dataTransfer.getData('text/html');
+        if (html) {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+            const img = tempDiv.querySelector('img');
+            if (img && img.src) {
+                const newSelectedFile = await urlToSelectedFile(img.src);
+                if (newSelectedFile) {
+                    if (newSelectedFile.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+                        showToast(`File ${newSelectedFile.name} is too large (max ${MAX_FILE_SIZE_MB}MB).`, 'error');
+                        return;
+                    }
+                    setSelectedFiles(prev => [...prev, newSelectedFile].slice(0, 5));
+                }
+                return;
+            }
+        }
+    
+        const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
+        if (url && (url.startsWith('http') || url.startsWith('data:image'))) {
+            const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
+            if (imageExtensions.some(ext => url.toLowerCase().includes(ext)) || url.startsWith('data:image')) {
+                const newSelectedFile = await urlToSelectedFile(url);
+                if (newSelectedFile) {
+                    if (newSelectedFile.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+                        showToast(`File ${newSelectedFile.name} is too large (max ${MAX_FILE_SIZE_MB}MB).`, 'error');
+                        return;
+                    }
+                    setSelectedFiles(prev => [...prev, newSelectedFile].slice(0, 5));
+                }
+            }
+        }
+    };
+
+    const handleToggleRecording = () => {
+        if (!browserSupportsSpeechRecognition) {
+          alert("This browser does not support speech recognition. Please try Google Chrome.");
+          return;
+        }
+        if (!isMicrophoneAvailable) {
+            alert("Microphone is not available. Please check your hardware and browser permissions.");
+            return;
+        }
+    
+        if (listening) {
+          SpeechRecognition.stopListening();
+          const finalTranscriptText = transcript.trim();
+          if (finalTranscriptText) {
+            handleChatSubmit(undefined, finalTranscriptText);
+          }
+          resetTranscript();
+        } else {
+          resetTranscript();
+          setChatMessage(''); 
+          SpeechRecognition.startListening({ continuous: true, language: 'en-US' });
+        }
+    };
+
 
   // --- FIX 1: UNIFIED SIDEBAR STATE ---
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
@@ -582,7 +694,8 @@ export function Folders() {
   const [studyItems, setStudyItems] = useState<FolderItem[]>([]);
   const [currentStudyIndex, setCurrentStudyIndex] = useState(0);
   const [isCardFlipped, setIsCardFlipped] = useState(false);
-
+    const [activeStyle, setActiveStyle] = useState<string | null>(null);
+  const [activePrompt, setActivePrompt] = useState<string>('');
   const [learnQueue, setLearnQueue] = useState<FolderItem[]>([]);
   const learnInputRef = useRef<HTMLInputElement>(null);
   const [currentLearnActivity, setCurrentLearnActivity] = useState<CurrentLearnActivityType | null>(null);
@@ -624,10 +737,7 @@ export function Folders() {
   const [isAiSearching, setIsAiSearching] = useState(false);
   const [assistantLoadingPlaceholderId, setAssistantLoadingPlaceholderId] = useState<string | null>(null);
   const [currentChatLimitDisplay, setCurrentChatLimitDisplay] = useState<number | string>(BASIC_CHAT_LIMIT);
-  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const [isAudioSupported, setIsAudioSupported] = useState(false);
+
 
   const [isContextDialogOpen, setIsContextDialogOpen] = useState(false);
   const [userContext, setUserContext] = useState<UserContext | null>(null);
@@ -665,7 +775,6 @@ export function Folders() {
   }, []);
 
 const recognitionRef = useRef<any>(null);
-const recognitionStoppedManually = useRef(false); // Add this ref
 
   useEffect(() => {
     const applyTheme = () => {
@@ -701,66 +810,7 @@ const recognitionStoppedManually = useRef(false); // Add this ref
   
   useEffect(() => { const timer = setTimeout(() => setCardVisible(true), 100); return () => clearTimeout(timer); }, []);
 
- useEffect(() => {
-    if (SpeechRecognition) {
-      setIsAudioSupported(true);
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
-
-      recognition.onresult = (event: any) => {
-        let interimTranscript = '';
-        let finalTranscript = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
-          } else {
-            interimTranscript += event.results[i][0].transcript;
-          }
-        }
-        // Append final transcript to existing message
-        setChatMessage(prev => prev + finalTranscript + interimTranscript);
-      };
-
-      // --- Modified Error and End Handlers ---
-      recognition.onerror = (event: any) => {
-        console.error("Speech recognition error:", event.error, event.message);
-        let errorMessage = "Speech recognition error.";
-        if (event.error === 'network') {
-            errorMessage = "Network error with speech service. Please check your connection.";
-        } else if (event.error === 'no-speech') {
-            errorMessage = "No speech detected. Please try again.";
-        } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-            errorMessage = "Microphone access denied. Please enable it in your browser settings.";
-        }
-        showToast(errorMessage, "error", Mic);
-        setIsRecording(false);
-      };
-
-      recognition.onend = () => {
-        // Only stop recording in the state if it was a manual stop.
-        // If it stopped on its own, the toggle function will handle restarting.
-        if (recognitionStoppedManually.current) {
-          setIsRecording(false);
-        } else if (isRecording) {
-           // If it stopped unexpectedly while we are still in recording state, restart it.
-           try {
-             recognition.start();
-           } catch(e) {
-             console.error("Could not restart recognition:", e);
-             setIsRecording(false);
-           }
-        } else {
-          setIsRecording(false);
-        }
-      };
-      // --- End of Modifications ---
-
-      recognitionRef.current = recognition;
-    } else { setIsAudioSupported(false); }
-}, [isRecording, showToast]); // Add isRecording and showToast to dependency array
-
+ 
     useEffect(() => {
     if (textareaRef.current) {
       // Reset height to auto to shrink it if text is deleted
@@ -1212,6 +1262,11 @@ const addPoints = useCallback(async (
     return [...formattedHistory, { role: 'user', parts: userMessageParts }];
 }, []);
 
+ const handleStyleSelect = (style: string, prompt: string) => {
+    setActiveStyle(style);
+    setActivePrompt(prompt);
+  };
+  
 const generateChatName = useCallback(async (convId: string, history: ChatMessageData[], currentUser: FirebaseUser | null) => {
     if (!currentUser || !currentUser.uid || history.length < 2 || !geminiApiKey || !selectedFolder) return;
     const relevantHistory = history.slice(0, Math.min(history.length, 4)).map(m => `${m.role}: ${m.content?.substring(0,100) || ""}`).join("\n");
@@ -1252,6 +1307,43 @@ const calculatePriority = (itemInput: any): 'high' | 'medium' | 'low' => {
   if (diffDays <= 3) return 'medium';
   return 'low';
 };
+
+
+const urlToSelectedFile = async (url: string): Promise<SelectedFile | null> => {
+    if (url.startsWith('data:')) {
+        try {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            const fileName = `pasted-image-${Date.now()}.${blob.type.split('/')[1] || 'png'}`;
+            const file = new File([blob], fileName, { type: blob.type });
+            return await readFileAsSelectedFile(file);
+        } catch (error) {
+            console.error("Error converting data URL to file:", error);
+            alert("Could not process the dragged image data.");
+            return null;
+        }
+    }
+    try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Failed to fetch image. Status: ${response.status}`);
+        const blob = await response.blob();
+        let fileName = `dragged-image-${Date.now()}`;
+        try {
+            const urlPath = new URL(url).pathname;
+            const lastSegment = urlPath.substring(urlPath.lastIndexOf('/') + 1);
+            if (lastSegment) fileName = lastSegment.split('?')[0];
+        } catch (e) { /* Ignore invalid URL for naming */ }
+        const extension = blob.type.split('/')[1];
+        if (extension && !fileName.toLowerCase().endsWith(`.${extension}`)) fileName += `.${extension}`;
+        const file = new File([blob], fileName, { type: blob.type });
+        return await readFileAsSelectedFile(file);
+    } catch (error) {
+        console.error("Error converting URL to file:", error);
+        alert("Could not fetch the dragged image. This may be due to security restrictions (CORS) on the source website.");
+        return null;
+    }
+};
+
 
 const combineDateAndTime = (dateStr: string | undefined | null, timeStr: string | undefined | null): Date | null => {
     if (!dateStr || dateStr.trim() === "") return null;
@@ -1312,21 +1404,23 @@ const combineDateAndTime = (dateStr: string | undefined | null, timeStr: string 
     return lines.join('\n');
   }, [tasks, goals, events, user]);
 
-const handleChatSubmit = useCallback(async (e?: React.FormEvent, incomingMessage?: string, incomingFiles?: SelectedFile[]) => {
+const handleChatSubmit = useCallback(async (e?: React.FormEvent, incomingMessage?: string) => {
     e?.preventDefault();
-    let currentMessage = incomingMessage !== undefined ? incomingMessage : chatMessage;
-    const currentFiles = incomingFiles !== undefined ? incomingFiles : selectedFiles;
 
-    if (isRecording) {
-      recognitionRef.current?.stop();
+    // Stop speech recognition if it's active
+    if (listening) {
+        SpeechRecognition.stopListening();
+        resetTranscript();
     }
 
-    // --- Start of Integrated Tool-Switching UI Logic ---
+    const currentMessage = incomingMessage !== undefined ? incomingMessage : chatMessage;
+    const currentFiles = selectedFiles; // Use state directly
+
     let imageGenModeOn = isImageGenModeActive;
     let searchModeOn = isSearchModeActive;
     let actionStatusMessage: string | null = null;
     const lowerCaseMessage = currentMessage.toLowerCase();
-
+    
     // This check prevents auto-switching if the user asks to "make" or "create" something.
     const isExplicitActionCommand = ['create', 'make', 'add a', 'generate a quiz', 'generate flashcards', 'remind me to'].some(keyword => lowerCaseMessage.includes(keyword));
 
@@ -1345,7 +1439,6 @@ const handleChatSubmit = useCallback(async (e?: React.FormEvent, incomingMessage
             setIsImageGenModeActive(false);
         }
     }
-    // --- End of Integrated Logic ---
     
     if ((!currentMessage.trim() && currentFiles.length === 0 && !isImageGenModeActive) || (isImageGenModeActive && !currentMessage.trim()) || !user || !user.uid) {
         return;
@@ -1374,11 +1467,10 @@ const handleChatSubmit = useCallback(async (e?: React.FormEvent, incomingMessage
         const limitMsgForState: ChatMessageData = { id: `error-limit-${Date.now()}`, role: 'system', content: `You've reached your ${currentChatLimitDisplay} message limit for this month. Upgrade for more! 🚀`, error: true, createdAt: new Date() };
         setChatHistory(prev => [...prev, limitMsgForState ]);
         if(currentConvId) await saveChatMessage(user.uid, currentConvId, {role: 'system', content: limitMsgForState.content, error: true});
-        if (!incomingMessage) setChatMessage('');
+        setChatMessage('');
         return;
     }
 
-    // --- This block sets the UI status message if a switch occurred ---
     if (actionStatusMessage) {
         setAiActionStatus(actionStatusMessage);
         setTimeout(() => setAiActionStatus(null), 2500);
@@ -1390,11 +1482,12 @@ const handleChatSubmit = useCallback(async (e?: React.FormEvent, incomingMessage
 
     const userMsgContent = currentMessage;
     const filesForThisMessageSubmission = [...currentFiles];
-    if(!incomingFiles) {
-        filesForThisMessageSubmission.forEach(sf => { if (sf.localPreviewUrl) URL.revokeObjectURL(sf.localPreviewUrl); });
-        setSelectedFiles([]);
-    }
-
+    
+    // This logic runs because it's a new submission from the user, not programmatic
+    filesForThisMessageSubmission.forEach(sf => { if (sf.localPreviewUrl) URL.revokeObjectURL(sf.localPreviewUrl); });
+    setSelectedFiles([]);
+    setChatMessage('');
+    
     const localUserMessageId = `user-local-${Date.now()}`;
     const attachedFilesMetaDataForUi: ChatMessageData['attachedFilesMeta'] = filesForThisMessageSubmission.map(sf => ({ name: sf.name, type: sf.type, size: sf.size, localPreviewUrl: sf.localPreviewUrl, base64Data: sf.base64Data }));
     const userMessageForState: ChatMessageData = { id: localUserMessageId, role: 'user', content: userMsgContent, attachedFilesMeta: attachedFilesMetaDataForUi.length > 0 ? attachedFilesMetaDataForUi : undefined, createdAt: new Date() };
@@ -1403,7 +1496,7 @@ const handleChatSubmit = useCallback(async (e?: React.FormEvent, incomingMessage
     const uploadedFilesMetaDataToSave: FirebaseAttachedFileMeta[] = [];
     if (!imageGenModeOn && filesForThisMessageSubmission.length > 0 && user && user.uid && currentConvId) {
         setIsChatLoading(true);
-         setChatHistory(prev => prev.map(msg => msg.id === localUserMessageId ? {...msg, content: `${msg.content}${msg.content ? '\n' : ''}(Uploading ${filesForThisMessageSubmission.length} attachment(s)...)`} : msg));
+        setChatHistory(prev => prev.map(msg => msg.id === localUserMessageId ? {...msg, content: `${msg.content}${msg.content ? '\n' : ''}(Uploading ${filesForThisMessageSubmission.length} attachment(s)...)`} : msg));
         for (const sf of filesForThisMessageSubmission) {
             try {
                 const { downloadURL, storagePath, name, type, size } = await uploadFileToStorage(user.uid, currentConvId, sf.fileObject);
@@ -1411,16 +1504,16 @@ const handleChatSubmit = useCallback(async (e?: React.FormEvent, incomingMessage
             } catch (uploadError) {
                 console.error(`Failed to upload ${sf.name}:`, uploadError);
                 uploadedFilesMetaDataToSave.push({ name: sf.name, type: sf.type, size: sf.size });
-                 setChatHistory(prev => [...prev, {id: `upload-err-${sf.name}-${Date.now()}`, role: 'system', content: `❌ Failed to upload file: ${sf.name}. It won't be available to the AI.`, error: true, createdAt: new Date()}]);
+                setChatHistory(prev => [...prev, {id: `upload-err-${sf.name}-${Date.now()}`, role: 'system', content: `❌ Failed to upload file: ${sf.name}. It won't be available to the AI.`, error: true, createdAt: new Date()}]);
             }
         }
-         setChatHistory(prev => prev.map(msg => msg.id === localUserMessageId ? { ...msg, content: userMsgContent, attachedFilesMeta: uploadedFilesMetaDataToSave.map(meta => ({ ...meta, localPreviewUrl: filesForThisMessageSubmission.find(sf => sf.name === meta.name)?.localPreviewUrl, base64Data: filesForThisMessageSubmission.find(sf => sf.name === meta.name)?.base64Data })) } : msg));
+        setChatHistory(prev => prev.map(msg => msg.id === localUserMessageId ? { ...msg, content: userMsgContent, attachedFilesMeta: uploadedFilesMetaDataToSave.map(meta => ({ ...meta, localPreviewUrl: filesForThisMessageSubmission.find(sf => sf.name === meta.name)?.localPreviewUrl, base64Data: filesForThisMessageSubmission.find(sf => sf.name === meta.name)?.base64Data })) } : msg));
     }
 
     const userMessageToSave: Partial<FirebaseChatMessage> = { role: 'user', content: userMsgContent };
     if (uploadedFilesMetaDataToSave.length > 0) { userMessageToSave.attachedFilesMeta = uploadedFilesMetaDataToSave; }
     if (currentConvId) await saveChatMessage(user.uid, currentConvId, userMessageToSave);
-    if (!incomingMessage) setChatMessage('');
+    
 
     if (userTier !== 'premium' && userTier !== 'loading') {
       try { await incrementUserChatUsage(user.uid); setChatUsageCount(prev => prev + 1); }
@@ -1432,7 +1525,6 @@ const handleChatSubmit = useCallback(async (e?: React.FormEvent, incomingMessage
     const newAssistantLPHId = `assistant-ph-${Date.now()}`;
     setAssistantLoadingPlaceholderId(newAssistantLPHId);
     
-    // --- This placeholder creation is updated to pass the search query to the UI ---
     const assistantResponsePlaceholder: ChatMessageData = { 
         id: newAssistantLPHId, 
         role: 'assistant', 
@@ -1445,6 +1537,7 @@ const handleChatSubmit = useCallback(async (e?: React.FormEvent, incomingMessage
     };
     setChatHistory(prev => [...prev, assistantResponsePlaceholder]);
 
+
     const systemInstructionText = `// =================================================================================================
 // [CORE IDENTITY & MISSION]
 // =================================================================================================
@@ -1455,6 +1548,9 @@ Your mission is to be encouraging, knowledgeable, precise, and highly efficient.
 // [CONTEXTUAL AWARENESS]
 // This is the information you have about the user's current session.
 // =================================================================================================
+
+${activePrompt || 'Respond in a standard, helpful manner.'}
+
 
 // [A. USER & SESSION CONTEXT]
 - User's Name: ${truncatedName}
@@ -1896,7 +1992,14 @@ Assistant:`;
       setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? errorMsgForState : msg ));
       if (currentConvId) await saveChatMessage(user.uid, currentConvId, { role: 'assistant', content: errorMsgContent, error: true });
     } finally { setIsChatLoading(false); setIsAiSearching(false); setAssistantLoadingPlaceholderId(null); }
-}, [user, selectedFolder, conversationId, isChatDisabledByLimit, currentChatLimitDisplay, chatMessage, selectedFiles, isImageGenModeActive, isSearchModeActive, userTier, truncatedName, userContext, formatFolderContentForChatContext, createChatPromptContents, chatHistory, conversationList, hasGeneratedChatName, generateChatName, addPoints, showToast, userProfile, formatDashboardItemsForChatContext, tasks, goals, events, memories, isRecording]);
+}, [
+    user, selectedFolder, conversationId, isChatDisabledByLimit, currentChatLimitDisplay, 
+    chatMessage, selectedFiles, isImageGenModeActive, isSearchModeActive, userTier, 
+    truncatedName, userContext, formatFolderContentForChatContext, createChatPromptContents, 
+    chatHistory, conversationList, hasGeneratedChatName, generateChatName, addPoints, 
+    showToast, userProfile, formatDashboardItemsForChatContext, tasks, goals, events, memories,
+    listening, resetTranscript
+]);
 
   const handleToggleFolderExpansion = useCallback((folderId: string) => {
     setExpandedFolders(prev => {
@@ -2545,27 +2648,7 @@ const handleSubmitTest = useCallback(async () => {
     });
   }, [selectedFiles]);
 
-const handleToggleRecording = () => {
-    if (!isAudioSupported || !recognitionRef.current) return;
-    
-    const currentlyRecording = isRecording;
-    setIsRecording(!currentlyRecording); // Toggle state immediately for UI feedback
 
-    if (currentlyRecording) {
-        recognitionStoppedManually.current = true; // Mark as a manual stop
-        recognitionRef.current.stop();
-    } else {
-        recognitionStoppedManually.current = false; // Mark as an automatic/programmatic start
-        setChatMessage(''); // Clear previous message on new recording
-        try {
-          recognitionRef.current.start();
-        } catch(e) {
-          console.error("Speech recognition could not start:", e);
-          showToast("Could not start microphone. Please check permissions.", "error");
-          setIsRecording(false); // Revert state if start fails
-        }
-    }
-};
 
   const handleNewConversation = useCallback(async (): Promise<string | null> => {
     if (!user || !user.uid || !selectedFolder) { showToast("Please select a folder to start a chat.", "info"); return null; }
@@ -3518,7 +3601,7 @@ return (
                 <div className="flex border-b border-gray-200 dark:border-gray-700/80 flex-shrink-0">
                     {(['chat', 'history', 'analytics'] as const).map(tab => (
                         <button key={tab} onClick={() => setAiChatSidebarTab(tab)}
-                            className={`flex-1 py-2 px-2.5 text-xs font-medium transition-all duration-150
+                            className={`flex-1 py-2 px-2.5 text-sm font-medium transition-all duration-150
                             ${aiChatSidebarTab === tab
                                 ? 'text-indigo-500 dark:text-indigo-400 border-b-2 border-indigo-500 dark:border-indigo-400 bg-indigo-50 dark:bg-[#1A1D29]'
                                 : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/70 hover:text-gray-700 dark:hover:text-gray-200'}`}>
@@ -3528,7 +3611,7 @@ return (
                 </div>
                 {aiChatSidebarTab === 'chat' && (
                 <>
-                <div className="px-3 py-1.5 text-xs text-center bg-gray-100 dark:bg-gray-800/70 border-b border-gray-200 dark:border-gray-700/80 flex-shrink-0">
+                <div className="px-3 py-1.5 text-xs text-center bg-gray-100 dark:bg-[#161922] flex-shrink-0">
                     {selectedFolder ? (
                         <span className="text-gray-600 dark:text-gray-300">
                             <FolderIconLucide className="w-3 h-3 inline mr-1 align-[-0.1em]" style={{ color: selectedFolder.color || 'currentColor' }} />
@@ -3538,79 +3621,76 @@ return (
                         <span className="text-gray-500 dark:text-gray-400 italic">Please select a folder to begin.</span>
                     )}
                 </div>
-                <div className="flex-1 overflow-y-auto p-3 space-y-2.5 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent">
-                   {(!conversationId && !selectedFolder) && ( <div className="text-center py-8 flex flex-col items-center"><MessageCircleIcon className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-2.5" /><p className="text-gray-500 dark:text-gray-400 text-sm mb-4">Select a folder to start a new chat or choose one from history.</p></div>)}
-                   {(!conversationId && selectedFolder) && ( <div className="text-center py-8 flex flex-col items-center"><MessageCircleIcon className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-2.5" /><p className="text-gray-500 dark:text-gray-400 text-sm mb-4">Start a new chat for "{selectedFolder.name}" or select one from history.</p><button onClick={() => handleNewConversation()} className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 text-xs font-semibold rounded-lg hover:shadow-md transition-all duration-200 flex items-center gap-1.5 transform hover:scale-105 active:scale-100"><Plus className="w-3.5 h-3.5" /> New Chat</button></div>)}
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent bg-white dark:bg-[#0C0E1A]">
+                   {(!conversationId && !selectedFolder) && ( <div className="text-center py-8 flex flex-col items-center"><MessageCircle className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-2.5" /><p className="text-gray-500 dark:text-gray-400 text-sm mb-4">Select a folder to start a new chat or choose one from history.</p></div>)}
+                   {(!conversationId && selectedFolder) && ( <div className="text-center py-8 flex flex-col items-center"><MessageCircle className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-2.5" /><p className="text-gray-500 dark:text-gray-400 text-sm mb-4">Start a new chat for "{selectedFolder.name}" or select one from history.</p><button onClick={() => handleNewConversation()} className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 text-sm font-semibold rounded-lg hover:shadow-md transition-all duration-200 flex items-center gap-1.5 transform hover:scale-105 active:scale-100"><Plus className="w-4 h-4" /> New Chat</button></div>)}
                     {conversationId && chatHistory.map((message, index) => (
                         <div key={message.id || `${message.role}-${index}`} className={`flex ${message.role === 'user' || message.role === 'system' ? 'justify-end' : 'justify-start'} animate-fadeIn`} style={{ animationDelay: `${index * 20}ms`, animationDuration: '250ms' }}>
-                            <div className={`max-w-[85%] rounded-xl px-3 py-2 text-xs shadow-sm break-words ${message.role === 'user' ? 'bg-indigo-500 text-white' : message.error ? 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-300 border border-red-200 dark:border-red-700/60' : message.role === 'system' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-700/60 text-center mx-auto' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700/70'}`}>
-{message.isLoading && (
-    <div className="flex flex-col items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 p-1">
-        {/* --- Modified Logic --- */}
-        {message.isSearching && message.searchQueryDetail ? (
-             <div className="text-left w-full">
-                <div className="flex items-center gap-1.5 font-medium">
-                    <Globe className="w-4 h-4 animate-spin" />
-                    <span>Searching the web</span>
-                </div>
-                <div className="mt-1.5 p-1.5 bg-gray-200 dark:bg-gray-700/60 rounded-md text-gray-600 dark:text-gray-300">
-                    <Search className="w-3 h-3 inline-block mr-1"/>
-                    <span className="italic">"{message.searchQueryDetail}"</span>
-                </div>
-             </div>
-        ) : message.isGeneratingImage ? (
-            <div className="flex items-center gap-1.5"><Palette className="w-3.5 h-3.5 animate-pulse text-purple-500" /><span>Creating image...</span></div>
-        ) : (
-            <div className="flex space-x-0.5 p-0.5"><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce"></div><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div></div>
-        )}
-        {/* --- End of Modified Logic --- */}
-    </div>
-)}
+                            <div className={`max-w-[85%] rounded-xl px-3.5 py-2.5 ${message.role === 'user' ? 'text-sm' : 'text-xs'} shadow-md break-words ${message.role === 'user' ? 'bg-indigo-500 text-white' : message.error ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200 border border-red-200 dark:border-red-700/60' : message.role === 'system' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-100 border border-yellow-200 dark:border-yellow-700/60 text-center mx-auto' : 'bg-gray-100 dark:bg-[#161922] text-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700/70'}`}>
+                                {message.isLoading && (
+                                    <div className="flex flex-col items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 p-1">
+                                        {message.isSearching && message.searchQueryDetail ? (
+                                            <div className="text-left w-full">
+                                                <div className="flex items-center gap-1.5 font-medium">
+                                                    <Globe className="w-4 h-4 animate-spin" />
+                                                    <span>Searching the web</span>
+                                                </div>
+                                                <div className="mt-1.5 p-1.5 bg-gray-200 dark:bg-gray-700/60 rounded-md text-gray-600 dark:text-gray-300">
+                                                    <Search className="w-3 h-3 inline-block mr-1"/>
+                                                    <span className="italic">"{message.searchQueryDetail}"</span>
+                                                </div>
+                                            </div>
+                                        ) : message.isGeneratingImage ? (
+                                            <div className="flex items-center gap-1.5"><Palette className="w-3.5 h-3.5 animate-pulse text-purple-500" /><span>Creating image...</span></div>
+                                        ) : (
+                                            <div className="flex space-x-0.5 p-0.5"><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce"></div><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div></div>
+                                        )}
+                                    </div>
+                                )}
                                 {message.role === 'user' && (
                                     <>
                                         {message.attachedFilesMeta && message.attachedFilesMeta.length > 0 && (
-                                    <div className="space-y-1.5 mb-1.5">
-                                        {message.attachedFilesMeta.map((file, fileIndex) => (
-                                            <div key={`${message.id}-file-${file.name}-${fileIndex}`} className="mt-1">
-                                                {file.type.startsWith('image/') ? (
-                                                    <img src={file.base64Data ? `data:${file.type};base64,${file.base64Data}` : file.url || file.localPreviewUrl || ''} alt={file.name} className="max-w-full h-auto max-h-40 object-contain rounded-md border border-indigo-200 dark:border-indigo-500/50 cursor-pointer" onClick={() => window.open(file.url || file.localPreviewUrl || `data:${file.type};base64,${file.base64Data}` || '', '_blank')} title={`View ${file.name}`}/>
-                                                ) : (
-                                                    <div className="flex items-center gap-1.5 p-1.5 rounded-md border bg-indigo-400/20 dark:bg-indigo-600/20 border-indigo-300 dark:border-indigo-600/40 text-indigo-100 dark:text-indigo-300 text-[10px] max-w-xs">
-                                                        <FileText className="w-3 h-3 flex-shrink-0" /> <span className="truncate flex-1" title={file.name}>{file.name} ({formatBytes(file.size)})</span>
-                                                        {file.url && (<a href={file.url} target="_blank" rel="noopener noreferrer" title="Download file" className="p-0.5 rounded-full hover:bg-indigo-300/30 dark:hover:bg-indigo-500/30"><Download className="w-2.5 h-2.5" /></a>)}
+                                            <div className="space-y-1.5 mb-1.5">
+                                                {message.attachedFilesMeta.map((file, fileIndex) => (
+                                                    <div key={`${message.id}-file-${file.name}-${fileIndex}`} className="mt-1">
+                                                        {file.type.startsWith('image/') ? (
+                                                            <img src={file.base64Data ? `data:${file.type};base64,${file.base64Data}` : file.url || file.localPreviewUrl || ''} alt={file.name} className="max-w-full h-auto max-h-40 object-contain rounded-md border border-indigo-200 dark:border-indigo-500/50 cursor-pointer" onClick={() => window.open(file.url || file.localPreviewUrl || `data:${file.type};base64,${file.base64Data}` || '', '_blank')} title={`View ${file.name}`}/>
+                                                        ) : (
+                                                            <div className="flex items-center gap-1.5 p-1.5 rounded-md border bg-indigo-400/20 dark:bg-indigo-600/20 border-indigo-300 dark:border-indigo-600/40 text-indigo-100 dark:text-indigo-300 text-[10px] max-w-xs">
+                                                                <FileText className="w-3 h-3 flex-shrink-0" /> <span className="truncate flex-1" title={file.name}>{file.name} ({formatBytes(file.size)})</span>
+                                                                {file.url && (<a href={file.url} target="_blank" rel="noopener noreferrer" title="Download file" className="p-0.5 rounded-full hover:bg-indigo-300/30 dark:hover:bg-indigo-500/30"><Download className="w-2.5 h-2.5" /></a>)}
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                )}
+                                                ))}
                                             </div>
-                                        ))}
-                                    </div>
+                                        )}
+                                        <div className="whitespace-pre-wrap text-sm">{message.content}</div>
+                                    </>
                                 )}
-                                <div className="whitespace-pre-wrap">{message.content}</div>
-                            </>
-                        )}
-                        {message.role === 'assistant' && !message.isLoading && (
-                            <>
-                                <AssistantMessageContent message={message} />
-                                {message.imageUrl && message.wasImageGenerated && (
-                                    <div className="relative group mt-1.5">
-                                        <img src={message.imageUrl} alt={message.imageMeta?.name || "Generated"} className="max-w-full h-auto max-h-48 object-contain rounded-lg border border-gray-300 dark:border-gray-600 cursor-pointer" onClick={() => window.open(message.imageUrl, '_blank')} title="View full"/>
-                                        <button onClick={() => handleDownloadImageFromUrl(message.imageUrl!, message.imageMeta?.name)} className="absolute top-1 right-1 p-1 rounded-full opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-200 bg-gray-200/70 dark:bg-gray-900/70 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300" title="Download"><Download className="w-3 h-3" /></button>
-                                    </div>
+                                {message.role === 'assistant' && !message.isLoading && (
+                                    <>
+                                        <AssistantMessageContent message={message} isDarkMode={isDarkMode} />
+                                        {message.imageUrl && message.wasImageGenerated && (
+                                            <div className="relative group mt-1.5">
+                                                <img src={message.imageUrl} alt={message.imageMeta?.name || "Generated"} className="max-w-full h-auto max-h-48 object-contain rounded-lg border border-gray-300 dark:border-gray-600 cursor-pointer" onClick={() => window.open(message.imageUrl, '_blank')} title="View full"/>
+                                                <button onClick={() => handleDownloadImageFromUrl(message.imageUrl!, message.imageMeta?.name)} className="absolute top-1 right-1 p-1 rounded-full opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-200 bg-gray-200/70 dark:bg-gray-900/70 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300" title="Download"><Download className="w-3 h-3" /></button>
+                                            </div>
+                                        )}
+                                        {message.flashcard && <FlashcardsQuestions type="flashcard" data={message.flashcard.data.map(fc => ({...fc, question: fc.term, answer: fc.definition}))} onComplete={() => {}} />}
+                                        {message.question && <FlashcardsQuestions type="question" data={message.question.data} onComplete={() => {}} />}
+                                        {message.actionDetails && (<div className={`mt-1.5 pt-1.5 border-t border-dashed ${message.actionDetails.status === 'success' ? 'border-green-300 dark:border-green-700/60' : 'border-red-300 dark:border-red-700/60'} text-[11px] font-medium ${message.actionDetails.status === 'success' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}><CheckCircle className="w-3 h-3 inline mr-1" />{message.actionDetails.message}</div> )}
+                                    </>
                                 )}
-                                {message.flashcard && <FlashcardsQuestions type="flashcard" data={message.flashcard.data.map(fc => ({...fc, question: fc.term, answer: fc.definition}))} onComplete={() => {}} />}
-                                {message.question && <FlashcardsQuestions type="question" data={message.question.data} onComplete={() => {}} />}
-                                {message.actionDetails && (<div className={`mt-1.5 pt-1.5 border-t border-dashed ${message.actionDetails.status === 'success' ? 'border-green-300 dark:border-green-700/60' : 'border-red-300 dark:border-red-700/60'} text-[11px] font-medium ${message.actionDetails.status === 'success' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}><CheckCircle className="w-3 h-3 inline mr-1" />{message.actionDetails.message}</div> )}
-                            </>
-                        )}
-                        {message.role === 'system' && !message.isLoading && (
-                            <div className="whitespace-pre-wrap text-center">{message.content}</div>
-                        )}
+                                {message.role === 'system' && !message.isLoading && (
+                                    <div className="whitespace-pre-wrap text-center">{message.content}</div>
+                                )}
                             </div>
                         </div>
                     ))}
-                    {/* This div is the anchor for auto-scrolling */}
                     <div ref={chatEndRef} />
                 </div>
-                <div className="p-3 border-t border-gray-200 dark:border-gray-700/80 bg-gray-50 dark:bg-[#1A1D29] flex-shrink-0">
+                <div className="p-3 border-t border-gray-200 dark:border-gray-700/80 bg-gray-50 dark:bg-[#0C0E1A] flex-shrink-0">
                     {selectedFiles.length > 0 && !isImageGenModeActive && !isSearchModeActive && (
                         <div className="mb-2 flex flex-wrap gap-1 px-1 py-1 max-h-14 overflow-y-auto scrollbar-thin border border-dashed rounded-lg border-gray-300 dark:border-gray-600">
                             {selectedFiles.map(file => (
@@ -3624,55 +3704,67 @@ return (
                         </div>
                     )}
                     <form onSubmit={handleChatSubmit}>
-                        <div className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-2xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-400 dark:focus-within:ring-indigo-600 transition-all duration-200 flex flex-col">
-                                    {/* --- Add this new block --- */}
-        <AnimatePresence>
-            {aiActionStatus && (
-                <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="text-center text-xs p-1.5 text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600/50"
-                >
-                    {aiActionStatus}
-                </motion.div>
-            )}
-        </AnimatePresence>
-        {/* --- End of new block --- */}
+                        <div 
+                            onDrop={handleDrop}
+                            onDragOver={handleDragEvents}
+                            onDragEnter={handleDragEnter}
+                            onDragLeave={handleDragLeave}
+                            className="relative bg-white dark:bg-[#161922] border border-gray-300 dark:border-gray-800 rounded-2xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-400 dark:focus-within:ring-indigo-600 transition-all duration-200 flex flex-col"
+                        >
+                            <AnimatePresence>
+                                {isDraggingOver && (
+                                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-indigo-50/90 dark:bg-indigo-900/90 z-10 flex items-center justify-center rounded-2xl pointer-events-none border-2 border-dashed border-indigo-400">
+                                        <div className="text-center">
+                                            <ImageIcon className="w-8 h-8 text-indigo-500 dark:text-indigo-400 mx-auto mb-2"/>
+                                            <p className="font-semibold text-indigo-600 dark:text-indigo-300">Drop files to attach</p>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                            <AnimatePresence>
+                                {aiActionStatus && (
+                                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="text-center text-xs p-1.5 text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600/50">
+                                        {aiActionStatus}
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                             <textarea
                                 ref={textareaRef}
                                 rows={1}
                                 value={chatMessage}
-                                onChange={(e) => {
-                                    setChatMessage(e.target.value)
-                                    // Auto-grow logic is now handled by the useEffect hook below
-                                }}
+                                onChange={(e) => setChatMessage(e.target.value)}
                                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSubmit(); } }}
                                 onPaste={handlePaste}
                                 placeholder={
-                                    isRecording ? "Listening..." :
+                                    listening ? "Listening..." :
                                     isImageGenModeActive ? "Describe the image to generate..." :
                                     !selectedFolder ? "Select a folder to begin..." :
                                     !conversationId ? "Start a new chat..." :
                                     "Ask anything..."
                                 }
-                                className="w-full bg-transparent text-gray-800 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 p-3 text-sm focus:ring-0 focus:outline-none border-0 resize-none overflow-y-auto max-h-40 leading-snug"
-                                disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading' || !conversationId}
+                                className="w-full bg-transparent text-gray-800 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 p-3.5 text-sm focus:ring-0 focus:outline-none border-0 resize-none overflow-y-auto max-h-40 leading-relaxed"
+                                disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading' || (!conversationId && !!selectedFolder)}
                             />
-                            <div className="flex justify-between items-center px-2 py-1 mt-1">
+                            <div className="flex justify-between items-center px-2 py-1.5 mt-1">
                                 <div className="flex items-center gap-1">
                                     <input type="file" ref={fileInputRef} onChange={handleFileSelect} multiple accept={SUPPORTED_FILE_TYPES} className="hidden" disabled={isImageGenModeActive || isSearchModeActive || isChatLoading || isChatDisabledByLimit || !conversationId || !selectedFolder} />
                                     <button type="button" onClick={triggerFileSelect} disabled={isImageGenModeActive || isSearchModeActive || isChatLoading || isChatDisabledByLimit || !conversationId || !selectedFolder} className="p-2 rounded-lg transition-colors duration-150 text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600 disabled:cursor-not-allowed" title="Attach Files">
                                         <Plus className="w-4 h-4" />
                                     </button>
-                                    <button type="button" onClick={handleToggleSearchMode} disabled={isChatLoading || isChatDisabledByLimit || !conversationId || !selectedFolder} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isSearchModeActive ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'}`} title={isSearchModeActive ? "Disable Search" : "Enable Search"}>
+                                    <button type="button" onClick={handleToggleSearchMode} disabled={isChatLoading || isChatDisabledByLimit || !conversationId || !selectedFolder} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isSearchModeActive ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'}`} title={isSearchModeActive ? "Disable Search" : "Enable Search"}>
                                         <Globe className="w-4 h-4" />
                                         <span className="hidden sm:inline">Search</span>
                                     </button>
-                                    <button type="button" onClick={handleToggleImageGenMode} disabled={isChatLoading || isChatDisabledByLimit || !conversationId || !selectedFolder} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isImageGenModeActive ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'}`} title={isImageGenModeActive ? "Switch to Normal" : "Generate Image"}>
+                                    <button type="button" onClick={handleToggleImageGenMode} disabled={isChatLoading || isChatDisabledByLimit || !conversationId || !selectedFolder} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isImageGenModeActive ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'}`} title={isImageGenModeActive ? "Switch to Normal" : "Generate Image"}>
                                         <ImageIcon className="w-4 h-4" />
                                         <span className="hidden sm:inline">Image</span>
                                     </button>
+                      <ChatControls
+                    onStyleSelect={handleStyleSelect}
+                    activeStyle={activeStyle}
+                    isIlluminateEnabled={!isDarkMode}
+                    isBlackoutEnabled={false} 
+                />
                                 </div>
                                 <div className="flex items-center">
                                     <AnimatePresence mode="wait" initial={false}>
@@ -3684,12 +3776,18 @@ return (
                                             transition={{ duration: 0.15 }}
                                         >
                                             {(chatMessage.trim() || selectedFiles.length > 0 || (isImageGenModeActive && chatMessage.trim())) ? (
-                                                <button type="submit" disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading' || !conversationId} className="p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-indigo-500 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20" title="Send" aria-label="Send chat message">
+                                                <button type="submit" disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading' || !conversationId} className="p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-indigo-500 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20" title="Send" aria-label="Send chat message">
                                                     {isChatLoading ? <Loader2 className="w-5 h-5 animate-spin"/> : <Send className="w-5 h-5" />}
                                                 </button>
-                                            ) : (isAudioSupported &&
-                                                <button type="button" onClick={handleToggleRecording} disabled={isChatLoading || isChatDisabledByLimit || !conversationId || !selectedFolder} className={`p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isRecording ? 'text-red-500 bg-red-100 dark:bg-red-500/20 animate-pulse' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/70'}`} title={isRecording ? "Stop Recording" : "Start Recording"}>
-                                                    {isRecording ? <StopCircle className="w-5 h-5"/> : <Mic className="w-5 h-5" />}
+                                            ) : (
+                                                <button 
+                                                    type="button" 
+                                                    onClick={handleToggleRecording} 
+                                                    disabled={isChatLoading || isChatDisabledByLimit || !conversationId || !selectedFolder || !browserSupportsSpeechRecognition} 
+                                                    className={`p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${listening ? 'text-red-500 bg-red-100 dark:bg-red-500/20 animate-pulse' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/70'}`} 
+                                                    title={listening ? "Stop Recording" : "Start Recording"}
+                                                >
+                                                    {listening ? <StopCircle className="w-5 h-5"/> : <Mic className="w-5 h-5" />}
                                                 </button>
                                             )}
                                         </motion.div>
@@ -3698,23 +3796,63 @@ return (
                             </div>
                         </div>
                     </form>
-                     {userTier !== 'premium' && userTier !== 'loading' && (<div className="pt-2 text-[10px] text-center"> <span className="text-gray-500 dark:text-gray-400">Usage: {chatUsageCount} / {currentChatLimitDisplay}</span> {isChatDisabledByLimit && <span className="text-red-500 dark:text-red-400 ml-1 font-medium">(Limit Reached)</span>} {!isChatDisabledByLimit && userTier === 'basic' && <Link to="/pricing" className="ml-1 font-medium text-indigo-500 dark:text-indigo-400 hover:underline"><Crown className="w-2.5 h-2.5 inline mr-0.5"/>Upgrade</Link>}</div>)}
+                    {userTier !== 'premium' && userTier !== 'loading' && (<div className="pt-2 text-[10px] text-center"> <span className="text-gray-500 dark:text-gray-400">Usage: {chatUsageCount} / {currentChatLimitDisplay}</span> {isChatDisabledByLimit && <span className="text-red-500 dark:text-red-400 ml-1 font-medium">(Limit Reached)</span>} {!isChatDisabledByLimit && userTier === 'basic' && <Link to="/pricing" className="ml-1 font-medium text-indigo-500 dark:text-indigo-400 hover:underline"><Crown className="w-2.5 h-2.5 inline mr-0.5"/>Upgrade</Link>}</div>)}
                 </div>
                 </>
             )}
-             {aiChatSidebarTab === 'history' && ( <div className="flex-1 overflow-y-auto p-3 space-y-1.5 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent">
-                <button onClick={() => handleNewConversation()} disabled={!selectedFolder} className="mb-2 w-full flex items-center justify-center gap-2 p-2 rounded-lg transition-all duration-200 text-xs font-medium shadow-sm bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"><Plus className="w-3.5 h-3.5" /> New Chat for "{selectedFolder?.name || 'Selected Folder'}"</button>
-                {conversationList.length === 0 && <p className="text-gray-500 dark:text-gray-400 text-center text-xs py-3 italic">No chat history for this folder.</p>}
-                {conversationList.sort((a,b) => ((b.updatedAt ? toDateSafe(b.updatedAt)!.getTime() : 0)) - ((a.updatedAt ? toDateSafe(a.updatedAt)!.getTime() : 0))).map((conv) => (
-                 <div key={conv.id} className={`flex items-center justify-between cursor-pointer p-2 rounded-lg transition-all duration-150 text-xs border ${conversationId === conv.id ? 'bg-indigo-50 dark:bg-indigo-700/30 text-indigo-600 dark:text-white border-indigo-200 dark:border-indigo-600/50' : 'bg-gray-50 dark:bg-gray-800/60 hover:bg-gray-100 dark:hover:bg-gray-700/80 text-gray-600 dark:text-gray-300 border-gray-100 dark:border-gray-700/70'}`} onClick={() => handleSelectConversation(conv.id)} >
-                    <div className="flex items-center gap-1.5 flex-1 min-w-0"> <MessageSquare className="w-3 h-3 flex-shrink-0" /> <span className="truncate fontmedium">{conv.chatName}</span> </div><div className="relative flex-shrink-0"><button onClick={(e) => { e.stopPropagation(); setOpenDropdownId(openDropdownId === conv.id ? null : conv.id); }} className="p-1 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"> <MoreHorizontal className="w-3 h-3" /> </button>{openDropdownId === conv.id && (<div ref={dropdownRef} className="absolute top-6 right-0 rounded-lg shadow-xl z-50 text-[10px] bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700/80 overflow-hidden" style={{ minWidth: '110px' }} onClick={(e) => e.stopPropagation()}>{[{ label: 'Rename', icon: Edit, action: () => handleRenameConversation(conv) }, { label: 'Delete', icon: Trash, action: () => confirmDeleteConversation(conv), colorClass: 'text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-800/50' }].map(item => (<button key={item.label} className={`flex items-center w-full text-left px-2.5 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700/80 ${item.colorClass || ''} transition-colors`} onClick={() => {item.action(); setOpenDropdownId(null);}}> <item.icon className="w-2.5 h-2.5 mr-1.5" /> {item.label} </button>))}</div>)}</div>
-                </div>))}
+             {aiChatSidebarTab === 'history' && ( 
+                <div className="flex-1 overflow-y-auto p-3 space-y-1.5 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent bg-white dark:bg-[#0C0E1A]">
+                    <button onClick={() => handleNewConversation()} disabled={!selectedFolder} className="mb-2 w-full flex items-center justify-center gap-2 p-2.5 rounded-lg transition-all duration-200 text-sm font-medium shadow-sm bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"><Plus className="w-4 h-4" /> New Chat</button>
+                    {conversationList.length === 0 && <p className="text-gray-500 dark:text-gray-400 text-center text-sm py-4 italic">No chat history.</p>}
+                    {conversationList.sort((a,b) => ((b.updatedAt ? toDateSafe(b.updatedAt)!.getTime() : 0)) - ((a.updatedAt ? toDateSafe(a.updatedAt)!.getTime() : 0))).map((conv) => (
+                    <div key={conv.id} className={`flex items-center justify-between cursor-pointer p-2.5 rounded-lg transition-all duration-150 text-sm ${conversationId === conv.id ? 'bg-indigo-50 dark:bg-indigo-700/30 text-indigo-700 dark:text-white' : 'bg-gray-50 dark:bg-[#161922] hover:bg-gray-100 dark:hover:bg-gray-700/80 text-gray-700 dark:text-gray-200'}`} onClick={() => handleSelectConversation(conv.id)} >
+                        <div className="flex items-center gap-2 flex-1 min-w-0"> <MessageCircle className="w-4 h-4 flex-shrink-0" /> <span className="truncate font-medium">{conv.chatName}</span> </div>
+                        <div className="relative flex-shrink-0">
+                            <button onClick={(e) => { e.stopPropagation(); setOpenDropdownId(openDropdownId === conv.id ? null : conv.id); }} className="p-1.5 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"> <MoreHorizontal className="w-4 h-4" /> </button>
+                            {openDropdownId === conv.id && (
+                                <div ref={dropdownRef} className="absolute top-7 right-0 rounded-lg shadow-xl z-50 text-xs bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700/80 overflow-hidden" style={{ minWidth: '120px' }} onClick={(e) => e.stopPropagation()}>
+                                    {[
+                                    { label: 'Rename', icon: Edit, action: () => handleRenameConversation(conv) },
+                                    { label: 'Delete', icon: Trash, action: () => confirmDeleteConversation(conv), colorClass: 'text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-800/50' }
+                                    ].map(item => (
+                                    <button key={item.label} className={`flex items-center w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700/80 ${item.colorClass || ''} transition-colors`} onClick={() => {item.action(); setOpenDropdownId(null);}}> <item.icon className="w-3.5 h-3.5 mr-2" /> {item.label} </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                 ))}
                 </div>
             )}
-            {aiChatSidebarTab === 'analytics' && ( <div className="flex-1 overflow-y-auto p-3 space-y-2.5 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent"><button onClick={generateFolderStats} disabled={isFolderStatsLoading || !user || !geminiApiKey || !selectedFolder} className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium rounded-lg transition-all duration-200 shadow-sm bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 disabled:opacity-70 transform hover:scale-[1.02] active:scale-[0.98]"><BarChart3 className="w-3.5 h-3.5" />{isFolderStatsLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : "Get Folder Analytics"}</button>{folderStats && (<div className="p-2.5 rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700/70 animate-fadeIn shadow-sm"><h4 className="text-sm font-semibold mb-1.5 text-indigo-500 dark:text-indigo-400">Readiness Score: {folderStats.readiness_score}%</h4><div className="w-full h-2 rounded-full mb-2.5 bg-gray-200 dark:bg-gray-700/80 overflow-hidden"><div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-green-500" style={{width: `${folderStats.readiness_score}%`}}></div></div><h5 className="text-[11px] font-semibold mt-2 mb-1 text-gray-700 dark:text-gray-100">Analysis:</h5><p className="text-[10px] mb-2.5 text-gray-600 dark:text-gray-300 leading-normal">{folderStats.text_analysis}</p>{folderStats.study_suggestions && folderStats.study_suggestions.length > 0 && (<><h5 className="text-[11px] font-semibold mt-2 mb-1 text-gray-700 dark:text-gray-100">Study Suggestions:</h5><ul className="space-y-1">{folderStats.study_suggestions.map((sugg: any) => (<li key={sugg.id} className="p-1.5 rounded-md text-[10px] flex items-center justify-between gap-1.5 bg-indigo-50 dark:bg-indigo-700/20 border border-indigo-100 dark:border-indigo-700/40 text-gray-700 dark:text-gray-200"><span className="truncate" title={sugg.description}>{sugg.description}</span>{(sugg.action_type) && (<button onClick={() => handleAcceptFolderStatSuggestion(sugg)} className="px-1.5 py-0.5 rounded text-white text-[9px] flex items-center gap-1 bg-green-500 hover:bg-green-600 font-medium transition-colors duration-150 transform hover:scale-105 active:scale-100"><Check className="w-2 h-2"/> Act</button>)}</li>))}</ul></>)}
-            {folderStats.smart_folder_suggestion && <p className="text-[10px] mt-2 italic text-purple-600 dark:text-purple-400">Smart Suggestion: {folderStats.smart_folder_suggestion}</p>}
-            {folderStats.review_pack_suggestion && <button onClick={() => handleAcceptFolderStatSuggestion({action_type: 'generate_review_pack'})} className="text-[10px] mt-2 text-blue-500 hover:underline">{folderStats.review_pack_suggestion}</button>}
-            </div>)}{!isFolderStatsLoading && !folderStats && (<div className="text-center py-6 text-gray-500 dark:text-gray-400 text-xs italic"><InfoIcon className="w-8 h-8 mx-auto mb-2 text-gray-400 dark:text-gray-600" />Click to get insights about the selected folder.</div>)}</div>)}
+            {aiChatSidebarTab === 'analytics' && ( 
+                <div className="flex-1 overflow-y-auto p-3 space-y-2.5 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent bg-white dark:bg-[#0C0E1A]">
+                    <button onClick={generateFolderStats} disabled={isFolderStatsLoading || !user || !geminiApiKey || !selectedFolder} className="w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 shadow-sm bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 disabled:opacity-70 transform hover:scale-[1.02] active:scale-[0.98]"><BarChart3 className="w-4 h-4" />{isFolderStatsLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : "Get Folder Analytics"}</button>
+                    {folderStats && (
+                        <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700/70 animate-fadeIn shadow-sm">
+                            <h4 className="text-md font-semibold mb-2 text-indigo-500 dark:text-indigo-400">Readiness Score: {folderStats.readiness_score}%</h4>
+                            <div className="w-full h-2 rounded-full mb-3 bg-gray-200 dark:bg-gray-700/80 overflow-hidden"><div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-green-500" style={{width: `${folderStats.readiness_score}%`}}></div></div>
+                            <h5 className="text-xs font-semibold mt-3 mb-1 text-gray-700 dark:text-gray-100">Analysis:</h5>
+                            <p className="text-xs mb-3 text-gray-600 dark:text-gray-300 leading-relaxed">{folderStats.text_analysis}</p>
+                            {folderStats.study_suggestions && folderStats.study_suggestions.length > 0 && (
+                            <>
+                                <h5 className="text-xs font-semibold mt-3 mb-1.5 text-gray-700 dark:text-gray-100">Suggestions:</h5>
+                                <ul className="space-y-1.5">
+                                    {folderStats.study_suggestions.map((sugg: any) => (
+                                        <li key={sugg.id} className="p-2 rounded-md text-xs flex items-center justify-between gap-2 bg-indigo-50 dark:bg-indigo-700/20 border border-indigo-100 dark:border-indigo-700/40 text-gray-700 dark:text-gray-200">
+                                            <span className="truncate" title={sugg.description}>{sugg.description}</span>
+                                            {(sugg.action_type) && (<button onClick={() => handleAcceptFolderStatSuggestion(sugg)} className="px-2 py-1 rounded text-white text-xs flex items-center gap-1 bg-green-500 hover:bg-green-600 font-medium transition-colors duration-150 transform hover:scale-105 active:scale-100"><Check className="w-3 h-3"/> Act</button>)}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </>
+                            )}
+                            {folderStats.smart_folder_suggestion && <p className="text-xs mt-2 italic text-purple-600 dark:text-purple-400">Smart Suggestion: {folderStats.smart_folder_suggestion}</p>}
+                            {folderStats.review_pack_suggestion && <button onClick={() => handleAcceptFolderStatSuggestion({action_type: 'generate_review_pack'})} className="text-xs mt-2 text-blue-500 hover:underline">{folderStats.review_pack_suggestion}</button>}
+                        </div>
+                    )}
+                    {!isFolderStatsLoading && !folderStats && (<div className="text-center py-6 text-gray-500 dark:text-gray-400 text-sm italic"><InfoIcon className="w-10 h-10 mx-auto mb-2 text-gray-400 dark:text-gray-600" />Click to get insights about the selected folder.</div>)}
+                </div>
+            )}
         </motion.div>
       </motion.div>
       </AnimatePresence>
