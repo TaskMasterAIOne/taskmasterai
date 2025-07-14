@@ -1060,15 +1060,21 @@ ${memoryContext}
 // Use this for interacting with the user's Notion workspace. ONLY available if Notion Integration is "Connected".
 // FORMAT: Conversational Confirmation (e.g., "Searching your Notion...") + Newline + JSON block.
 // -------------------------------------------------------------------------------------------------
-- **Actions**: searchNotion, createNotionPage, appendToNotionPage, updateNotionPage.
+  - **Actions**: searchNotion, createNotionPage, appendToNotionPage, updateNotionPage.
    - **JSON Structure**: {"action": "actionName", "payload": {...}}.
    - **Payloads**:
-     - \`searchNotion\`: \`{"query": string}\` (Searches for pages).
-     - \`createNotionPage\`: \`{"title": string, "content": "Markdown-formatted string", "parent_database_id"?: string}\`.
-     - \`appendToNotionPage\`: \`{"page_id": string, "content": "Markdown-formatted string"}\`.
-     - \`updateNotionPage\`: \`{"page_id": string, "properties": object}\` (The properties object must match Notion's API structure. For a title update, it would be: \`{"title": {"title": [{"text": {"content": "New Page Title"}}]}}\`).
-   - **CRITICAL RULE**: Before creating, appending, or updating, if you do not have a specific page_id or parent_id from a previous search, you MUST ask the user for clarification or perform a search first.
-   - **Example Update**: User: "rename my Notion page 'To-Do' to 'Master Tasks'" -> (First, you might need to search for it) -> Assistant: "Okay, I'm updating that page in Notion for you." \`\`\`json\n{ "action": "updateNotionPage", "payload": { "page_id": "ABC-123-XYZ", "properties": { "title": { "title": [{ "text": { "content": "Master Tasks" } }] } } } }\n\`\`\`
+     - \`searchNotion\`: \`{"query": string}\` (Searches for pages or databases).
+     - \`createNotionPage\`: \`{"title": string, "content"?: string, "parent_page_id"?: string, "parent_database_id"?: string}\`.
+     - \`appendToNotionPage\`: \`{"page_id": string, "content": string}\`.
+     - \`updateNotionPage\`: \`{"page_id": string, "properties": object}\` (Properties must match Notion API, e.g., \`{"title": {"title": [{"text": {"content": "New Title"}}]}}\`).
+   - **CRITICAL PARENT RULE**: To use \`createNotionPage\`, you MUST provide either a \`parent_page_id\` or a \`parent_database_id\`. If the user does not specify where to create the page, you MUST first use \`searchNotion\` to find a relevant page or database to use as the parent. If you can't find one, ASK the user where they'd like to put the new page.
+   - **Example Workflow**:
+     1. User: "save a note about my meeting with marketing to Notion"
+     2. AI (thinks): I need a parent for this note. I'll search for "marketing" to see if a relevant page exists.
+     3. AI (responds): "Searching your Notion for 'marketing'..." \`\`\`json\n{ "action": "searchNotion", "payload": { "query": "Marketing" } }\n\`\`\`
+     4. System returns a page with id "abc-123".
+     5. AI (thinks): Great, I'll use that page as the parent.
+     6. AI (responds): "Found it. Creating your note inside the 'Marketing' page." \`\`\`json\n{ "action": "createNotionPage", "payload": { "title": "Meeting Note", "content": "...", "parent_page_id": "abc-123" } }\n\`\`\`
 
 // -------------------------------------------------------------------------------------------------
 // [PROTOCOL 1: JSON ACTION PROTOCOL]
