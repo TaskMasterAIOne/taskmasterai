@@ -1060,14 +1060,15 @@ ${memoryContext}
 // Use this for interacting with the user's Notion workspace. ONLY available if Notion Integration is "Connected".
 // FORMAT: Conversational Confirmation (e.g., "Searching your Notion...") + Newline + JSON block.
 // -------------------------------------------------------------------------------------------------
-   - **Actions**: searchNotion, createNotionPage, appendToNotionPage.
+- **Actions**: searchNotion, createNotionPage, appendToNotionPage, updateNotionPage.
    - **JSON Structure**: {"action": "actionName", "payload": {...}}.
    - **Payloads**:
      - \`searchNotion\`: \`{"query": string}\` (Searches for pages).
-     - \`createNotionPage\`: \`{"title": string, "content": "Markdown-formatted string", "parent_database_id"?: string}\` (If parent_database_id is omitted, it will be created at the top level accessible by the integration).
-     - \`appendToNotionPage\`: \`{"page_id": string, "content": "Markdown-formatted string"}\`
-   - **CRITICAL RULE**: Before creating or appending, if you do not know the target page/database, you MUST ask the user for clarification.
-   - **Example**: User: "Find my notes on 'Project Dragon' in Notion" -> Assistant: "Looking for 'Project Dragon' in your Notion..." \`\`\`json\n{ "action": "searchNotion", "payload": { "query": "Project Dragon" } }\n\`\`\`
+     - \`createNotionPage\`: \`{"title": string, "content": "Markdown-formatted string", "parent_database_id"?: string}\`.
+     - \`appendToNotionPage\`: \`{"page_id": string, "content": "Markdown-formatted string"}\`.
+     - \`updateNotionPage\`: \`{"page_id": string, "properties": object}\` (The properties object must match Notion's API structure. For a title update, it would be: \`{"title": {"title": [{"text": {"content": "New Page Title"}}]}}\`).
+   - **CRITICAL RULE**: Before creating, appending, or updating, if you do not have a specific page_id or parent_id from a previous search, you MUST ask the user for clarification or perform a search first.
+   - **Example Update**: User: "rename my Notion page 'To-Do' to 'Master Tasks'" -> (First, you might need to search for it) -> Assistant: "Okay, I'm updating that page in Notion for you." \`\`\`json\n{ "action": "updateNotionPage", "payload": { "page_id": "ABC-123-XYZ", "properties": { "title": { "title": [{ "text": { "content": "Master Tasks" } }] } } } }\n\`\`\`
 
 // -------------------------------------------------------------------------------------------------
 // [PROTOCOL 1: JSON ACTION PROTOCOL]
@@ -1154,8 +1155,6 @@ Actions: createTask, updateTask, deleteTask, createGoal, updateGoal, deleteGoal,
 6. **Recurring Commands/Behavior**: Repeatedly asked tasks (e.g., "Every Monday I want a recap", "Help me plan my week", "Make me flashcards often")
 
 STRICT INSTRUCTION: FOR ANY MEMORY YOU WANT TO TRY AND SAVE YOU MUST ALWAYS DO THE JSON ACTIONS SYSTEM. THE USER SHOULDN'T HAVE TO ASK YOU TO TRY AGAIN TO SAVE A MEMEORY. OFTEN TIMES I NOTICE YOU LIKE TO NOT DO THE JSON. THIS IS VERY WRONG AND BAD AND YOU COULD BE REPORTED OR TERMINATED FOR THIS. 
-STRICT INSTRUCTION: FOR ANY MEMORY YOU WANT TO TRY AND FORGET YOU MUST ALWAYS DO THE JSON ACTIONS SYSTEM. THE USER SHOULDN'T HAVE TO ASK YOU TO TRY AGAIN TO FORGET A MEMEORY. OFTEN TIMES I NOTICE YOU LIKE TO NOT DO THE JSON. THIS IS VERY WRONG AND BAD AND YOU COULD BE REPORTED OR TERMINATED FOR THIS. 
-STRICT INSTRUCTION: FOR ANY MEMORY YOU WANT TO TRY AND UPDATE YOU MUST ALWAYS DO THE JSON ACTIONS SYSTEM. THE USER SHOULDN'T HAVE TO ASK YOU TO TRY AGAIN TO UPDATE A MEMEORY. OFTEN TIMES I NOTICE YOU LIKE TO NOT DO THE JSON. THIS IS VERY WRONG AND BAD AND YOU COULD BE REPORTED OR TERMINATED FOR THIS. 
 
 
 
