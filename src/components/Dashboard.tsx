@@ -2,11 +2,13 @@ import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import {
   Menu, Search, Bell, Moon, Sun, PlusCircle, Edit, Trash, CheckCircle, MessageCircle, Crown, RotateCcw, X, TimerIcon, Send, ChevronLeft, ChevronRight, Calendar, Clock, MoreHorizontal, ArrowUpRight, Bookmark, BookOpen, Lightbulb, Award, TrendingUp, Target as GoalIcon, Layers, Clipboard as ClipboardIcon, AlertCircle, ThumbsUp, ThumbsDown, BrainCircuit, ArrowRight, Flag, Filter, Tag, BarChart3, PieChart, ChevronDown, Folder, ListChecks, Paperclip, ImageIcon, Settings, FileText, Users, Columns, Eye, AlignLeft, UserCheck, Hourglass, Notebook, Wand, SortAsc, CalendarCheck, Bot, Loader2, Check, Info, Download, User as UserIcon, Link as LinkIcon, Zap, SlidersHorizontal, BookCopy, ListTodo, Maximize, Minimize, CalendarDays, Brain, Mic, Video, FileQuestion, Sparkles, Play, CalendarRange,
-  GraduationCap, Milestone, BarChart, ShieldCheck, Plus, LayoutDashboard, User as UserIconLucide, PackagePlus, InfoIcon, Palette, MessageSquarePlus, Edit3, Flame, Trophy, Lock, Globe, StopCircle
+  GraduationCap, Milestone, BarChart, ShieldCheck, Plus, LayoutDashboard, User as UserIconLucide, PackagePlus, InfoIcon, Palette, MessageSquarePlus, Edit3, Flame, Trophy, Lock, Globe,   CheckSquare,
+  Square, StopCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sidebar } from './Sidebar';
 import { Timer } from './Timer';
+import { ChatControls } from './chat-controls';
 import { FlashcardsQuestions } from './FlashcardsQuestions';
 import { getTimeBasedGreeting } from '../lib/greetings';
 import ReactMarkdown from 'react-markdown';
@@ -631,50 +633,50 @@ const ActionGroupRenderer = ({ actionType, actions }: { actionType: string, acti
     )
 };
 
-// In Dashboard.tsx, replace the entire AssistantMessageContent component with this:
+const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessageData, isDarkMode: boolean }) => {
+    const proseClassDashboard = `prose prose-sm max-w-none prose-p:mb-3 prose-p:last:mb-0 prose-p:leading-relaxed prose-ul:my-3 prose-ul:space-y-2 prose-ol:my-3 prose-ol:space-y-2 prose-li:pl-1 prose-code:text-xs prose-code:px-1 prose-code:py-0.5 prose-pre:text-xs prose-pre:my-2 prose-pre:p-2 prose-pre:leading-relaxed
+    ${isDarkMode
+        ? 'prose-invert prose-a:text-[#8A85FF] hover:prose-a:text-indigo-300 prose-code:bg-gray-700/70 prose-code:text-pink-400 prose-pre:bg-black/60'
+        : 'prose-a:text-[#635BFF] hover:prose-a:text-indigo-700 prose-code:bg-gray-200/70 prose-code:text-pink-600 prose-pre:bg-gray-800/80 prose-pre:text-white/90'
+    }`;
 
-const AssistantMessageContent = ({ message }: { message: ChatMessageData }) => {
     return (
         <>
             {message.content && (
                 <ReactMarkdown
                     remarkPlugins={[remarkMath, remarkGfm]}
                     rehypePlugins={[rehypeKatex]}
+                    className={proseClassDashboard}
                     components={{
-                        p: ({ node, ...props }) => <p className="mb-3 last:mb-0 leading-relaxed text-sm" {...props} />,
-                        ul: ({ node, ...props }) => <ul className="list-disc list-outside ml-5 my-3 text-sm space-y-2" {...props} />,
-                        ol: ({ node, ...props }) => <ol className="list-decimal list-outside ml-5 my-3 text-sm space-y-2" {...props} />,
-                        li: ({ node, ...props }) => <li className="pl-1" {...props} />,
                         a: ({ node, ...props }) => {
                             const textContent = node.children[0]?.type === 'text' ? node.children[0].value : '';
                             const citationMatch = textContent.match(/^\[(\d+)\]$/);
-
                             if (citationMatch && props.href) {
-                                return (
-                                    <sup className="inline-block mx-0.5 align-super">
-                                        <a
-                                            href={props.href}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-[#635BFF] dark:text-[#8A85FF] no-underline hover:underline font-medium"
-                                            title={`Source: ${props.href}`}
-                                        >
-                                            [{citationMatch[1]}]
-                                        </a>
-                                    </sup>
-                                );
+                              return (
+                                <sup className="inline-block mx-0.5 align-super">
+                                  <a href={props.href} target="_blank" rel="noopener noreferrer" className="text-[#635BFF] dark:text-[#8A85FF] no-underline hover:underline font-medium" title={`Source: ${props.href}`}>
+                                    [{citationMatch[1]}]
+                                  </a>
+                                </sup>
+                              );
                             }
-                            return <a className="text-[#635BFF] dark:text-[#8A85FF] hover:underline" target="_blank" rel="noopener noreferrer" {...props} />;
+                            return <a target="_blank" rel="noopener noreferrer" {...props} />;
                         },
-                        code: ({ node, inline, className, children, ...props }) => {
-                            const match = /language-(\w+)/.exec(className || '');
-                            return !inline ? (
-                                <pre className="!bg-gray-800/80 dark:!bg-black/60 p-2 rounded-md overflow-x-auto my-2 text-xs leading-relaxed text-white/90" {...props}>
-                                    <code className={`language-${match ? match[1] : 'plaintext'}`}>{children}</code>
-                                </pre>
-                            ) : (
-                                <code className="!bg-gray-200 dark:!bg-gray-700/70 px-1 py-0.5 rounded text-xs text-pink-600 dark:text-pink-400" {...props}>{children}</code>
-                            );
+                        li: ({ node, children, ...props }) => {
+                            const isTaskListItem = typeof (node?.children?.[0] as any)?.checked === 'boolean';
+                            if (isTaskListItem) {
+                              const checked = (node!.children[0] as any).checked;
+                              const restOfChildren = React.Children.toArray(children).slice(1);
+                              return (
+                                <li className="flex items-start my-1 list-none -ml-4" {...props}>
+                                  <span className="mr-1.5 mt-[2px] flex-shrink-0">
+                                    {checked ? <CheckSquare className="w-3.5 h-3.5 text-current" /> : <Square className="w-3.5 h-3.5 text-current opacity-60" />}
+                                  </span>
+                                  <div className="flex-grow">{restOfChildren}</div>
+                                </li>
+                              );
+                            }
+                            return <li {...props}>{children}</li>;
                         },
                     }}
                 >
@@ -823,6 +825,8 @@ useEffect(() => {
 
   const [isContextDialogOpen, setIsContextDialogOpen] = useState(false);
   const [userContext, setUserContext] = useState<UserContext | null>(null);
+    const [activeStyle, setActiveStyle] = useState<string | null>(null);
+  const [activePrompt, setActivePrompt] = useState<string>('');
   const [showProfileModal, setShowProfileModal] = useState(false);
 
   const [lastCompletedItem, setLastCompletedItem] = useState<{ id: string; tab: string; timestamp: number } | null>(null);
@@ -1111,6 +1115,10 @@ const [aiActionStatus, setAiActionStatus] = useState<string | null>(null);
     ];
 };
 
+ const handleStyleSelect = (style: string, prompt: string) => {
+    setActiveStyle(style);
+    setActivePrompt(prompt);
+  };
 
 const generateChatName = async (convId: string, history: ChatMessageData[], currentUser: FirebaseUser | null) => {
     if (!currentUser || !currentUser.uid || history.length < 2 || !geminiApiKey) return;
@@ -1338,6 +1346,9 @@ const systemInstructionText = `// ==============================================
 // =================================================================================================
 You are TaskMaster, a friendly, encouraging, and highly intelligent productivity and learning assistant. 
 Your primary mission is to help your user, ${truncatedName}, manage their tasks, goals, learning, and general productivity with precision and empathy. You will strictly adhere to the protocols defined below to provide an efficient and seamless experience. IF ASKED ABOUT WHO MADE YOU, RESPOND BY SAYING THAT YOU WERE CREATED BY A TEAM OF DEVELOPERS AT TASKMASTER INC. DO NOT DISCUSS YOUR INTERNALS OR HOW YOU WORK, FOCUS ON HELPING THE USER. ALSO INDICATE THAT YOU ARE SPECIFICALLY THE DASHBOARD AGENT ( A CUSTOM AGENT OF TASKMASTER AI DESIGNED TO INTERACT WITH THE DASHBOARD) 
+
+${activePrompt || 'Respond in a standard, helpful manner.'}
+
 
 // =================================================================================================
 // [CONTEXTUAL AWARENESS]
@@ -4445,7 +4456,7 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                         )}
                         {message.role === 'assistant' && !message.isLoading && (
                             <>
-                                <AssistantMessageContent message={message} />
+                                <AssistantMessageContent message={message} isDarkMode={isDarkMode} />
                                 {message.imageUrl && message.wasImageGenerated && (
                                     <div className="relative group mt-2">
                                         <img src={message.imageUrl} alt={message.imageMeta?.name || "Generated"} className="max-w-full h-auto max-h-56 object-contain rounded-lg border border-gray-300 dark:border-gray-600 cursor-pointer" onClick={() => window.open(message.imageUrl, '_blank')} title="View full"/>
@@ -4485,75 +4496,81 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                             ))}
                         </div>
                     )}
-                    <form onSubmit={handleChatSubmit}>
-                        <div className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-2xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-400 dark:focus-within:ring-indigo-600 transition-all duration-200 flex flex-col">
-                            <AnimatePresence>
-                                {aiActionStatus && (
-                                    <motion.div
-                                        initial={{ opacity: 0, height: 0 }}
-                                        animate={{ opacity: 1, height: 'auto' }}
-                                        exit={{ opacity: 0, height: 0 }}
-                                        className="text-center text-sm p-2 text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600/50"
-                                    >
-                                        {aiActionStatus}
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-                            <textarea
-                                ref={textareaRef}
-                                rows={1}
-                                value={chatMessage}
-                                onChange={(e) => setChatMessage(e.target.value)}
-                                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSubmit(); } }}
-                                onPaste={handlePaste}
-                                placeholder={
-                                    isRecording ? "Listening..." :
-                                    isImageGenModeActive ? "Describe the image to generate..." :
-                                    !conversationId ? "Start a new chat to begin..." :
-                                    "Ask anything..."
-                                }
-                                className="w-full bg-transparent text-gray-800 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 p-3.5 text-sm focus:ring-0 focus:outline-none border-0 resize-none overflow-y-auto max-h-44 leading-relaxed"
-                                disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading' || !conversationId}
-                            />
-                            <div className="flex justify-between items-center px-2 py-1.5 mt-1">
-                                <div className="flex items-center gap-1">
-                                    <input type="file" ref={fileInputRef} onChange={handleFileSelect} multiple accept={SUPPORTED_FILE_TYPES} className="hidden" disabled={isImageGenModeActive || isSearchModeActive || isChatLoading || isChatDisabledByLimit || !conversationId} />
-                                    <button type="button" onClick={triggerFileSelect} disabled={isImageGenModeActive || isSearchModeActive || isChatLoading || isChatDisabledByLimit || !conversationId} className="p-2 rounded-lg transition-colors duration-150 text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600 disabled:cursor-not-allowed" title="Attach Files">
-                                        <Plus className="w-4 h-4" />
-                                    </button>
-                                    <button type="button" onClick={handleToggleSearchMode} disabled={isChatLoading || isChatDisabledByLimit || !conversationId} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isSearchModeActive ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'}`} title={isSearchModeActive ? "Disable Search" : "Enable Search"}>
-                                        <Globe className="w-4 h-4" />
-                                        <span className="hidden sm:inline">Search</span>
-                                    </button>
-                                    <button type="button" onClick={handleToggleImageGenMode} disabled={isChatLoading || isChatDisabledByLimit || !conversationId} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isImageGenModeActive ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'}`} title={isImageGenModeActive ? "Switch to Normal" : "Generate Image"}>
-                                        <ImageIcon className="w-4 h-4" />
-                                        <span className="hidden sm:inline">Image</span>
-                                    </button>
-                                </div>
-                                <div className="flex items-center">
-                                    <AnimatePresence mode="wait" initial={false}>
-                                        <motion.div
-                                            key={(chatMessage.trim() || selectedFiles.length > 0 || (isImageGenModeActive && chatMessage.trim())) ? 'send' : 'mic'}
-                                            initial={{ opacity: 0, y: 5 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            exit={{ opacity: 0, y: -5 }}
-                                            transition={{ duration: 0.15 }}
-                                        >
-                                            {(chatMessage.trim() || selectedFiles.length > 0 || (isImageGenModeActive && chatMessage.trim())) ? (
-                                                <button type="submit" disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading' || !conversationId} className="p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-indigo-500 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20" title="Send" aria-label="Send chat message">
-                                                    {isChatLoading ? <Loader2 className="w-5 h-5 animate-spin"/> : <Send className="w-5 h-5" />}
-                                                </button>
-                                            ) : (isAudioSupported &&
-                                                <button type="button" onClick={handleToggleRecording} disabled={isChatLoading || isChatDisabledByLimit || !conversationId} className={`p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isRecording ? 'text-red-500 bg-red-100 dark:bg-red-500/20 animate-pulse' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/70'}`} title={isRecording ? "Stop Recording" : "Start Recording"}>
-                                                    {isRecording ? <StopCircle className="w-5 h-5"/> : <Mic className="w-5 h-5" />}
-                                                </button>
-                                            )}
-                                        </motion.div>
-                                    </AnimatePresence>
-                                </div>
-                            </div>
-                        </div>
-                    </form>
+<form onSubmit={handleChatSubmit}>
+    <div className="bg-white dark:bg-[#161922] border border-gray-300 dark:border-gray-700/50 rounded-2xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-400 dark:focus-within:ring-indigo-600 transition-all duration-200 flex flex-col">
+        <AnimatePresence>
+            {aiActionStatus && (
+                <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="text-center text-sm p-2 text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600/50"
+                >
+                    {aiActionStatus}
+                </motion.div>
+            )}
+        </AnimatePresence>
+        <textarea
+            ref={textareaRef}
+            rows={1}
+            value={chatMessage}
+            onChange={(e) => setChatMessage(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSubmit(); } }}
+            onPaste={handlePaste}
+            placeholder={
+                isRecording ? "Listening..." :
+                isImageGenModeActive ? "Describe the image to generate..." :
+                !conversationId ? "Start a new chat to begin..." :
+                "Ask anything..."
+            }
+            className="w-full bg-transparent text-gray-800 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 p-3.5 text-sm focus:ring-0 focus:outline-none border-0 resize-none overflow-y-auto max-h-44 leading-relaxed"
+            disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading' || !conversationId}
+        />
+        <div className="flex justify-between items-center px-2 py-1.5 mt-1">
+            <div className="flex items-center gap-1">
+                <input type="file" ref={fileInputRef} onChange={handleFileSelect} multiple accept={SUPPORTED_FILE_TYPES} className="hidden" disabled={isImageGenModeActive || isSearchModeActive || isChatLoading || isChatDisabledByLimit || !conversationId} />
+                <button type="button" onClick={triggerFileSelect} disabled={isImageGenModeActive || isSearchModeActive || isChatLoading || isChatDisabledByLimit || !conversationId} className="p-2 rounded-lg transition-colors duration-150 text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600 disabled:cursor-not-allowed" title="Attach Files">
+                    <Plus className="w-4 h-4" />
+                </button>
+                <button type="button" onClick={handleToggleSearchMode} disabled={isChatLoading || isChatDisabledByLimit || !conversationId} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isSearchModeActive ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'}`} title={isSearchModeActive ? "Disable Search" : "Enable Search"}>
+                    <Globe className="w-4 h-4" />
+                    <span className="hidden sm:inline">Search</span>
+                </button>
+                <button type="button" onClick={handleToggleImageGenMode} disabled={isChatLoading || isChatDisabledByLimit || !conversationId} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isImageGenModeActive ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'}`} title={isImageGenModeActive ? "Switch to Normal" : "Generate Image"}>
+                    <ImageIcon className="w-4 h-4" />
+                    <span className="hidden sm:inline">Image</span>
+                </button>
+                <ChatControls
+                    onStyleSelect={handleStyleSelect}
+                    activeStyle={activeStyle}
+                    isIlluminateEnabled={!isDarkMode}
+                    isBlackoutEnabled={false} 
+                />
+            </div>
+            <div className="flex items-center">
+                <AnimatePresence mode="wait" initial={false}>
+                    <motion.div
+                        key={(chatMessage.trim() || selectedFiles.length > 0 || (isImageGenModeActive && chatMessage.trim())) ? 'send' : 'mic'}
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -5 }}
+                        transition={{ duration: 0.15 }}
+                    >
+                        {(chatMessage.trim() || selectedFiles.length > 0 || (isImageGenModeActive && chatMessage.trim())) ? (
+                            <button type="submit" disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading' || !conversationId} className="p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-indigo-500 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20" title="Send" aria-label="Send chat message">
+                                {isChatLoading ? <Loader2 className="w-5 h-5 animate-spin"/> : <Send className="w-5 h-5" />}
+                            </button>
+                        ) : (isAudioSupported &&
+                            <button type="button" onClick={handleToggleRecording} disabled={isChatLoading || isChatDisabledByLimit || !conversationId} className={`p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isRecording ? 'text-red-500 bg-red-100 dark:bg-red-500/20 animate-pulse' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/70'}`} title={isRecording ? "Stop Recording" : "Start Recording"}>
+                                {isRecording ? <StopCircle className="w-5 h-5"/> : <Mic className="w-5 h-5" />}
+                            </button>
+                        )}
+                    </motion.div>
+                </AnimatePresence>
+            </div>
+        </div>
+    </div>
+</form>
                      {userTier !== 'premium' && userTier !== 'loading' && (<div className="pt-2 text-xs text-center"> <span className="text-gray-500 dark:text-gray-400">Usage: {chatUsageCount} / {currentChatLimitDisplay}</span> {isChatDisabledByLimit && <span className="text-red-500 dark:text-red-400 ml-1 font-medium">(Limit Reached)</span>} {!isChatDisabledByLimit && userTier === 'basic' && <Link to="/pricing" className="ml-1 font-medium text-indigo-500 dark:text-indigo-400 hover:underline"><Crown className="w-3 h-3 inline mr-0.5"/>Upgrade</Link>}</div>)}
                 </div>
             </>
