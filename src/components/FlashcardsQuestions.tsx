@@ -171,7 +171,7 @@ export const FlashcardsQuestions: React.FC<FlashcardsQuestionsProps> = ({
                 animate="center"
                 exit="exit"
                 transition={{ type: 'tween', ease: 'circOut', duration: 0.3 }}
-                className="p-4 rounded-xl shadow-md bg-gray-100 dark:bg-[#161922]"
+                className="p-4 rounded-xl shadow-md bg-gray-100 dark:bg-gray-700/80 border border-gray-200 dark:border-gray-600/50"
             >
                 <p className="text-sm font-medium text-gray-800 dark:text-gray-100 mb-4">{quiz.question}</p>
 
