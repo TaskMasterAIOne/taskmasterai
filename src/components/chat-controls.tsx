@@ -146,6 +146,11 @@ const CUSTOM_STYLE_COLORS = [
   { name: 'Lime', color: 'bg-lime-600', hoverColor: 'hover:bg-lime-700', lightBg: 'bg-lime-100 dark:bg-lime-500/20', textColor: 'text-lime-700 dark:text-lime-300' },
   { name: 'Orange', color: 'bg-orange-600', hoverColor: 'hover:bg-orange-700', lightBg: 'bg-orange-100 dark:bg-orange-500/20', textColor: 'text-orange-700 dark:text-orange-300' },
   { name: 'Pink', color: 'bg-pink-600', hoverColor: 'hover:bg-pink-700', lightBg: 'bg-pink-100 dark:bg-pink-500/20', textColor: 'text-pink-700 dark:text-pink-300' },
+  { name: 'Stone', color: 'bg-stone-600', hoverColor: 'hover:bg-stone-700', lightBg: 'bg-stone-100 dark:bg-stone-500/20', textColor: 'text-stone-700 dark:text-stone-300' },
+  { name: 'Red', color: 'bg-red-600', hoverColor: 'hover:bg-red-700', lightBg: 'bg-red-100 dark:bg-red-500/20', textColor: 'text-red-700 dark:text-red-300' },
+  { name: 'Yellow', color: 'bg-yellow-500', hoverColor: 'hover:bg-yellow-600', lightBg: 'bg-yellow-100 dark:bg-yellow-500/20', textColor: 'text-yellow-700 dark:text-yellow-300' },
+  { name: 'Green', color: 'bg-green-600', hoverColor: 'hover:bg-green-700', lightBg: 'bg-green-100 dark:bg-green-500/20', textColor: 'text-green-700 dark:text-green-300' },
+  { name: 'Blue', color: 'bg-blue-600', hoverColor: 'hover:bg-blue-700', lightBg: 'bg-blue-100 dark:bg-blue-500/20', textColor: 'text-blue-700 dark:text-blue-300' },
 ];
 
 const { name: _name, ...defaultColorProps } = CUSTOM_STYLE_COLORS[0];
