@@ -19,12 +19,14 @@ import {
   getDocs,
 } from "firebase/firestore";
 
+// THIS IS THE FIX. The key MUST start as null.
 export let geminiApiKey: string | null = null;
 let isKeyInitialized = false;
 
+// This function fetches the key from your backend and sets the variable above.
 export const initializeGeminiKey = async () => {
     if (isKeyInitialized) return;
-    isKeyInitialized = true;
+    isKeyInitialized = true; // Prevents re-running
 
     try {
         const functions = getFunctions();
@@ -33,15 +35,17 @@ export const initializeGeminiKey = async () => {
         const key = (result.data as { apiKey: string }).apiKey;
 
         if (key) {
-            geminiApiKey = key;
+            geminiApiKey = key; // The variable is now set with the NEW key
         } else {
-            console.error("Fetched Gemini API key from backend is invalid.");
+            console.error("Fetched Gemini API key from backend is invalid or missing.");
         }
     } catch (error) {
         console.error("Failed to fetch Gemini API key from backend:", error);
-        isKeyInitialized = false;
+        isKeyInitialized = false; // Allow retrying if it failed
     }
 };
+
+// --- ALL OTHER FUNCTIONS IN THIS FILE REMAIN THE SAME ---
 
 export interface EventData {
   name: string;
