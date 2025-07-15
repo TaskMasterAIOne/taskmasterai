@@ -1,21 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Palette, Plus, Check, Trash2, Edit2 } from 'lucide-react';
 import { Button } from './ui/button';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogDescription, 
-  DialogFooter 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter
 } from './ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { createCustomStyle, deleteCustomStyle, updateCustomStyle, onCustomStylesSnapshot, type CustomStyle } from '../lib/chat-controls-firebase';
 import { auth } from '../lib/firebase';
 
-// --- Color Definitions ---
-
-// Updated chatStyles with new prompts and descriptions
 const chatStyles = {
   'Normal': {
     description: 'Default conversation',
@@ -139,7 +136,6 @@ CRITICAL: While maintaining casualness, you must still be professional and helpf
   }
 };
 
-// Refactored for consistent property names (`color`, `hoverColor`, etc.)
 const CUSTOM_STYLE_COLORS = [
   { name: 'Rose', color: 'bg-rose-600', hoverColor: 'hover:bg-rose-700', lightBg: 'bg-rose-100 dark:bg-rose-500/20', textColor: 'text-rose-700 dark:text-rose-300' },
   { name: 'Sky', color: 'bg-sky-600', hoverColor: 'hover:bg-sky-700', lightBg: 'bg-sky-100 dark:bg-sky-500/20', textColor: 'text-sky-700 dark:text-sky-300' },
@@ -147,12 +143,13 @@ const CUSTOM_STYLE_COLORS = [
   { name: 'Teal', color: 'bg-teal-600', hoverColor: 'hover:bg-teal-700', lightBg: 'bg-teal-100 dark:bg-teal-500/20', textColor: 'text-teal-700 dark:text-teal-300' },
   { name: 'Fuchsia', color: 'bg-fuchsia-600', hoverColor: 'hover:bg-fuchsia-700', lightBg: 'bg-fuchsia-100 dark:bg-fuchsia-500/20', textColor: 'text-fuchsia-700 dark:text-fuchsia-300' },
   { name: 'Cyan', color: 'bg-cyan-600', hoverColor: 'hover:bg-cyan-700', lightBg: 'bg-cyan-100 dark:bg-cyan-500/20', textColor: 'text-cyan-700 dark:text-cyan-300' },
+  { name: 'Lime', color: 'bg-lime-600', hoverColor: 'hover:bg-lime-700', lightBg: 'bg-lime-100 dark:bg-lime-500/20', textColor: 'text-lime-700 dark:text-lime-300' },
+  { name: 'Orange', color: 'bg-orange-600', hoverColor: 'hover:bg-orange-700', lightBg: 'bg-orange-100 dark:bg-orange-500/20', textColor: 'text-orange-700 dark:text-orange-300' },
+  { name: 'Pink', color: 'bg-pink-600', hoverColor: 'hover:bg-pink-700', lightBg: 'bg-pink-100 dark:bg-pink-500/20', textColor: 'text-pink-700 dark:text-pink-300' },
 ];
 
 const { name: _name, ...defaultColorProps } = CUSTOM_STYLE_COLORS[0];
 const DEFAULT_CUSTOM_COLOR_PROPS = defaultColorProps;
-
-// --- Component ---
 
 interface ChatControlsProps {
   onStyleSelect: (style: string, prompt: string) => void;
@@ -184,7 +181,7 @@ export function ChatControls({
     const unsubscribe = auth.onAuthStateChanged((newUser) => {
       setUser(newUser);
       if (!newUser) {
-        setCustomStyles([]); // Clear styles on logout
+        setCustomStyles([]);
       }
     });
     return () => unsubscribe();
@@ -210,11 +207,13 @@ export function ChatControls({
       });
     } else {
       setEditingStyle(null);
+      const randomColorIndex = Math.floor(Math.random() * CUSTOM_STYLE_COLORS.length);
+      const { name: _name, ...randomColorProps } = CUSTOM_STYLE_COLORS[randomColorIndex];
       setStyleFormData({
         name: '',
         description: '',
         prompt: '',
-        ...DEFAULT_CUSTOM_COLOR_PROPS,
+        ...randomColorProps,
       });
     }
     setIsStyleDialogOpen(true);
@@ -272,12 +271,12 @@ export function ChatControls({
             <span className="hidden sm:inline">Style</span>
           </button>
         </PopoverTrigger>
-<PopoverContent 
-  className="w-72 p-0 bg-white dark:bg-[#161922] shadow-xl rounded-lg border border-gray-200/80 dark:border-gray-700/60 font-poppins z-[99]" // <-- ADD THIS CLASS
-  align="start"
-  side="top"
-  sideOffset={8}
->
+        <PopoverContent
+          className="w-72 p-0 bg-white dark:bg-[#161922] shadow-xl rounded-lg border border-gray-200/80 dark:border-gray-700/60 font-poppins z-[99]"
+          align="start"
+          side="top"
+          sideOffset={8}
+        >
           <div className="flex flex-col max-h-[400px]">
             <div className="p-3 border-b border-gray-200 dark:border-gray-700/50">
               <div className="flex items-center justify-between">
@@ -317,14 +316,14 @@ export function ChatControls({
                 ))}
               </div>
 
-{customStyles.length > 0 && (
+              {customStyles.length > 0 && (
                 <div>
                   <h5 className="text-xs font-semibold uppercase text-gray-400 dark:text-gray-500 px-2.5 pt-2 pb-1.5">Custom Styles</h5>
                   <div className="space-y-1">
                     {customStyles.map((style) => (
-                      <div // <-- CHANGED from <button> to <div>
+                      <div
                         key={style.id}
-                        className={`w-full text-left px-2.5 py-2 rounded-md transition-all duration-200 group cursor-pointer ${ // <-- ADDED cursor-pointer
+                        className={`w-full text-left px-2.5 py-2 rounded-md transition-all duration-200 group cursor-pointer ${
                           activeStyle === style.name
                             ? `${style.color || DEFAULT_CUSTOM_COLOR_PROPS.color} text-white font-semibold`
                             : `text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/60`
@@ -353,7 +352,8 @@ export function ChatControls({
       </Popover>
 
       <Dialog open={isStyleDialogOpen} onOpenChange={setIsStyleDialogOpen}>
-<DialogContent className="sm:max-w-xl bg-white dark:bg-[#161922] border border-gray-200/80 dark:border-gray-700/60 p-6 rounded-lg shadow-xl font-poppins z-[100]">          <DialogHeader>
+        <DialogContent className="sm:max-w-xl bg-white dark:bg-[#161922] border border-gray-200/80 dark:border-gray-700/60 p-6 rounded-lg shadow-xl font-poppins z-[100]">
+          <DialogHeader>
             <DialogTitle className="text-lg font-semibold text-gray-900 dark:text-gray-100">
               {editingStyle ? 'Edit Custom Style' : 'Create Custom Style'}
             </DialogTitle>
@@ -379,8 +379,8 @@ export function ChatControls({
                             type="button"
                             onClick={() => setStyleFormData(prev => ({ ...prev, ...colorData }))}
                             className={`w-8 h-8 rounded-full transition-all duration-150 flex items-center justify-center ${color.color} ${
-                            styleFormData.color === color.color 
-                                ? '' 
+                            styleFormData.color === color.color
+                                ? ''
                                 : 'hover:opacity-80'
                             }`}
                             title={name}
@@ -405,7 +405,7 @@ export function ChatControls({
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={handleCloseStyleDialog} className="px-4 py-2 text-sm rounded-md bg-transparent dark:bg-transparent border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200">Cancel</Button>
-            <Button 
+            <Button
               type="button"
               onClick={handleSaveStyle}
               className={`px-4 py-2 text-sm rounded-md text-white disabled:opacity-60 disabled:cursor-not-allowed transition-colors ${styleFormData.color} ${styleFormData.hoverColor}`}
