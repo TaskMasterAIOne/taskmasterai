@@ -27,7 +27,6 @@ import {
   updateItem,
   deleteItem,
   geminiApiKey,
-  initializeGeminiKey,
   findItemByName,
   type EventData as FirebaseEventData,
   getDailyBriefRefreshStatus, // <-- ADD THIS
@@ -869,8 +868,7 @@ useEffect(() => {
   const [showEventForm, setShowEventForm] = useState(false);
 
 
-// In Dashboard.tsx, with your other useState hooks
-const [isApiKeyReady, setIsApiKeyReady] = useState(false);
+
 
 
 
@@ -2211,12 +2209,6 @@ Assistant:`;
 
       if (firebaseUser) {
         setUser(firebaseUser);
-         // CALL THE INITIALIZER HERE
-initializeGeminiKey().then(() => {
-            if (geminiApiKey) {
-                setIsApiKeyReady(true);
-            }
-        });
         // THE FIX: Set userName immediately from the auth object, just like in Folders.tsx
         setUserName(firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "Learner");
         setUserEmail(firebaseUser.email);
@@ -2270,7 +2262,6 @@ initializeGeminiKey().then(() => {
 
       } else {
         // Reset all state on sign out
-        setIsApiKeyReady(false);
         navigate('/login');
         setUser(null);
         setUserName("Learner");
@@ -2655,8 +2646,7 @@ initializeGeminiKey().then(() => {
   }, [user, userTier, geminiApiKey, smartBriefLoading, tasks, goals, events, userProfile, userContext, smartBriefItemsSignature]);
 
     useEffect(() => {
-    // The condition now includes `isApiKeyReady`
-    if (user && (userTier === 'pro' || userTier === 'premium') && !smartBriefLoading && isApiKeyReady) { // <-- ADD THIS
+    if (user && (userTier === 'pro' || userTier === 'premium') && !smartBriefLoading) {
         // This is the crucial guard. Do not proceed if we're a Pro user and still loading the status.
         if (userTier === 'pro' && isBriefStatusLoading) {
             return; 
@@ -2704,7 +2694,7 @@ initializeGeminiKey().then(() => {
         setSmartDailyBrief(null);
         if (hasFetchedBriefForSignature !== null) setHasFetchedBriefForSignature(null);
     }
-  }, [smartBriefItemsSignature, user, userTier, smartBriefLoading, generateSmartDailyBrief, tasks, goals, events, hasFetchedBriefForSignature, briefRefreshCount, briefLastRefreshDate, isBriefStatusLoading, isApiKeyReady]); // <-- ADD THIS
+  }, [smartBriefItemsSignature, user, userTier, smartBriefLoading, generateSmartDailyBrief, tasks, goals, events, hasFetchedBriefForSignature, briefRefreshCount, briefLastRefreshDate, isBriefStatusLoading]);
 
   const handleAcceptBriefAction = async (action: OverviewAction) => {
     if (!user || !user.uid || ( (action.action_type === 'create_task' || action.action_type === 'create_goal') && !action.details?.name) ) {
