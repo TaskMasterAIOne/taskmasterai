@@ -368,7 +368,7 @@ export function ChatControls({
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <label htmlFor="style-name" className="text-sm font-medium text-gray-700 dark:text-gray-300">Style Name</label>
-              <input id="style-name" value={styleFormData.name} onChange={(e) => setStyleFormData(prev => ({ ...prev, name: e.target.value }))} className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800/60 border border-gray-300 dark:border-gray-700/80 rounded-lg text-sm text-gray-900 dark:text-gray-200 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition" placeholder="e.g., Socratic Tutor"/>
+              <input id="style-name" value={styleFormData.name} onChange={(e) => setStyleFormData(prev => ({ ...prev, name: e.target.value }))} className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800/60 border border-gray-300 dark:border-gray-700/80 rounded-lg text-sm text-gray-900 dark:text-gray-200 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition" placeholder="e.g., Chem Tutor"/>
             </div>
 
             <div className="space-y-2">
@@ -401,8 +401,8 @@ export function ChatControls({
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="style-prompt" className="text-sm font-medium text-gray-700 dark:text-gray-300">AI Prompt (System Instructions)</label>
-              <textarea id="style-prompt" value={styleFormData.prompt} onChange={(e) => setStyleFormData(prev => ({ ...prev, prompt: e.target.value }))} className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800/60 border border-gray-300 dark:border-gray-700/80 rounded-lg text-sm text-gray-900 dark:text-gray-200 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition min-h-[120px] resize-none" placeholder="Instruct the AI on how to behave. For example: 'You are a helpful pirate who says Arrr!'" rows={5}/>
+              <label htmlFor="style-prompt" className="text-sm font-medium text-gray-700 dark:text-gray-300">AI's Instructions</label>
+              <textarea id="style-prompt" value={styleFormData.prompt} onChange={(e) => setStyleFormData(prev => ({ ...prev, prompt: e.target.value }))} className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800/60 border border-gray-300 dark:border-gray-700/80 rounded-lg text-sm text-gray-900 dark:text-gray-200 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition min-h-[120px] resize-none" placeholder="Instruct TaskMaster on how to behave. For example: ‘You are a focused academic coach who explains concepts clearly and encourages smart study habits.’" rows={5}/>
             </div>
           </div>
 
