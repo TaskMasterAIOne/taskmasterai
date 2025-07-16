@@ -1,10 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { useAuth as useGlobalAuth } from '../contexts/AuthContext'; // Adjusted to useGlobalAuth
-import { Loader2, CheckCircle, ArrowRight, ArrowLeft, AlertCircle } from 'lucide-react'; // Added AlertCircle
-import { subscribeToAuthState } from '../lib/pricing-firebase'; // Adjust path if needed
-import { Logo } from './Logo'; // Adjust path if needed
-import { saveContactMessage } from '../lib/contact-firebase'; // Adjust path if needed
+import { useAuth as useGlobalAuth } from '../contexts/AuthContext';
+import { Loader2, CheckCircle, ArrowRight, ArrowLeft, AlertCircle } from 'lucide-react';
+import { subscribeToAuthState } from '../lib/pricing-firebase';
+import { Logo } from './Logo';
 import { motion, AnimatePresence } from 'framer-motion';
+import emailjs from '@emailjs/browser';
+
+const EMAILJS_SERVICE_ID = 'service_92n9n5w';
+const EMAILJS_TEMPLATE_ID = 'template_ra8alpk';
+const EMAILJS_PUBLIC_KEY = 'uE6sEAu0ykEIf36_V';
 
 interface FormData {
   step: number;
@@ -32,7 +36,6 @@ const initialFormData: FormData = {
   message: ''
 };
 
-// Copied from Pricing.tsx for the background effect
 const AnimatedBackground = () => {
   return (
     <>
@@ -76,13 +79,12 @@ const AnimatedBackground = () => {
 };
 
 function Contact() {
-  const { user: authUser, loading: authLoading } = useGlobalAuth(); // Use authUser from global context for nav
-  const [localUser, setLocalUser] = useState<any>(null); // For form pre-fill and submission ID
+  const { user: authUser, loading: authLoading } = useGlobalAuth();
+  const [localUser, setLocalUser] = useState<any>(null);
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-
 
   useEffect(() => {
     const unsubscribe = subscribeToAuthState((firebaseUser) => {
@@ -98,7 +100,7 @@ function Contact() {
     });
     return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // formData dependency removed to avoid re-triggering prefill unnecessarily
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormData(prev => ({
@@ -135,12 +137,46 @@ function Contact() {
     setIsSubmitting(true);
     setIsSuccess(false);
 
+    let message_html = `
+        A new contact form submission has been received.<br><br>
+        <strong>From:</strong> ${formData.name}<br>
+        <strong>Email:</strong> ${formData.email}<br>
+        <strong>User ID:</strong> ${localUser?.uid || 'Not logged in'}<br>
+        <strong>Inquiry Type:</strong> ${formData.inquiryType}<br><br>
+        <hr><br>
+    `;
+
+    if (formData.inquiryType === 'subscription') {
+        message_html += `
+            <strong>Subscription Details:</strong><br>
+            <ul>
+                <li><strong>Plan:</strong> ${formData.subscriptionPlan || 'Not specified'}</li>
+                <li><strong>Plan Question:</strong> ${formData.planQuestion || 'N/A'}</li>
+                <li><strong>Cancellation Issue:</strong> ${formData.cancellationIssue || 'N/A'}</li>
+                <li><strong>Billing Issue:</strong> ${formData.billingIssue || 'N/A'}</li>
+                <li><strong>Plan Change Request:</strong> ${formData.planChange || 'N/A'}</li>
+            </ul><br>
+        `;
+    }
+
+    message_html += `<strong>Message:</strong><br><p>${formData.message.replace(/\n/g, '<br />')}</p>`;
+
+    const templateParams = {
+        name: formData.name,
+        sender_email: formData.email,
+        message_html: message_html,
+    };
+
     try {
-      await saveContactMessage({
-        ...formData,
-        userId: localUser?.uid || null,
-        timestamp: new Date()
-      });
+        if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY) {
+            throw new Error("EmailJS configuration is missing.");
+        }
+      await emailjs.send(
+        EMAILJS_SERVICE_ID,
+        EMAILJS_TEMPLATE_ID,
+        templateParams,
+        EMAILJS_PUBLIC_KEY
+      );
       setIsSuccess(true);
     } catch (error) {
       console.error('Error submitting form:', error);
@@ -162,13 +198,12 @@ function Contact() {
     }
   };
 
-  // --- Framer Motion Variants ---
-  const headerMotionVariants = { // Matched with Pricing.tsx
+  const headerMotionVariants = {
     hidden: { opacity: 0, y: -30 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } }
   };
 
-  const mainContentVariants = { // Kept from original contact, slightly adjusted
+  const mainContentVariants = {
     hidden: { opacity: 0, y: 20 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.5, delay: 0.2, ease: 'easeOut' } }
   };
@@ -180,22 +215,19 @@ function Contact() {
   };
 
   const stepVariants = {
-     hidden: (direction: number) => ({ opacity: 0, x: direction > 0 ? 30 : -30 }), // Slightly reduced x
+     hidden: (direction: number) => ({ opacity: 0, x: direction > 0 ? 30 : -30 }),
      visible: { opacity: 1, x: 0, transition: { duration: 0.3, ease: 'easeInOut' } },
      exit: (direction: number) => ({ opacity: 0, x: direction < 0 ? 30 : -30, transition: { duration: 0.3, ease: 'easeInOut' } })
    };
 
-  // --- Input Styles (Inspired by Pricing.tsx aesthetic) ---
   const inputBaseClasses = "w-full bg-[#1F2328] border border-gray-700 rounded-lg px-4 py-3 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors";
-  const textareaClasses = "w-full bg-[#1F2328] border border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"; // rounded-xl
+  const textareaClasses = "w-full bg-[#1F2328] border border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors";
   const selectClasses = inputBaseClasses;
   const labelClasses = "block text-sm font-medium text-gray-300 mb-1.5";
 
-  // Button Styles (Inspired by Pricing.tsx)
-  const buttonBaseStyle = "px-6 py-3 rounded-full font-semibold text-sm transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#16181D]"; // Adjusted from Pricing for slightly larger buttons
+  const buttonBaseStyle = "px-6 py-3 rounded-full font-semibold text-sm transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#16181D]";
   const primaryButtonStyle = `${buttonBaseStyle} bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-[0_0_15px_2px_rgba(99,102,241,0.6)] focus:ring-indigo-500`;
   const secondaryButtonStyle = `${buttonBaseStyle} bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white focus:ring-gray-500`;
-
 
   const renderStep1 = () => (
      <motion.div
@@ -206,7 +238,7 @@ function Contact() {
        animate="visible"
        exit="exit"
      >
-      <div className="space-y-5"> {/* Slightly increased spacing */}
+      <div className="space-y-5">
           <div>
             <label htmlFor="name" className={labelClasses}>Name <span className="text-red-500">*</span></label>
             <input type="text" id="name" value={formData.name} onChange={handleChange} className={inputBaseClasses} placeholder="Your Name" required disabled={isSubmitting}/>
@@ -239,7 +271,7 @@ function Contact() {
        animate="visible"
        exit="exit"
      >
-       <div className="space-y-5"> {/* Slightly increased spacing */}
+       <div className="space-y-5">
           {formData.inquiryType === 'subscription' && (
             <>
               <div>
@@ -297,15 +329,14 @@ function Contact() {
      </motion.div>
   );
 
-  if (authLoading) { // Optional: Add a full page loader if global auth is loading
+  if (authLoading) {
     return <div className="min-h-screen bg-[#0C0E1A] flex items-center justify-center"><Loader2 className="w-12 h-12 text-indigo-500 animate-spin" /></div>;
   }
 
   return (
     <div className="flex flex-col min-h-screen bg-[#0C0E1A] text-gray-200 font-poppins selection:bg-purple-600 selection:text-white relative overflow-hidden">
       <AnimatedBackground />
-      {/* --- NAV (Copied from Pricing.tsx) --- */}
-<motion.header className="w-full py-5 sm:py-6 bg-transparent z-10" variants={headerMotionVariants} initial="hidden" animate="visible">
+      <motion.header className="w-full py-5 sm:py-6 bg-transparent z-10" variants={headerMotionVariants} initial="hidden" animate="visible">
         <div className="container mx-auto px-5 sm:px-6">
           <nav className="flex items-center justify-between">
             <a href="/" aria-label="TaskMaster AI Home"><Logo /></a>
@@ -317,16 +348,14 @@ function Contact() {
           </nav>
         </div>
       </motion.header>
-      {/* --- END: NAV --- */}
 
-      {/* --- Main Content --- */}
       <motion.main
         className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 w-full max-w-screen-2xl z-10"
         variants={mainContentVariants}
         initial="hidden"
         animate="visible"
       >
-        <div className="max-w-2xl mx-auto"> {/* Adjusted max-width for form content */}
+        <div className="max-w-2xl mx-auto">
           <div className="text-center mb-12 sm:mb-16">
             <h1 className="text-3xl sm:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-400 to-pink-400 mb-3">
               Contact Us
@@ -351,7 +380,7 @@ function Contact() {
                 <p className="text-gray-400 mb-6">We'll get back to you as soon as possible.</p>
                 <button
                   onClick={resetForm}
-                  className={primaryButtonStyle} // Use new primary button style
+                  className={primaryButtonStyle}
                 >
                   Send Another Message
                 </button>
@@ -360,7 +389,7 @@ function Contact() {
               <motion.form
                 key="form"
                 onSubmit={handleSubmit}
-                className="bg-[#16181D]/80 backdrop-blur-sm rounded-2xl p-6 sm:p-8 border border-gray-700/50" // Styled like Pricing cards
+                className="bg-[#16181D]/80 backdrop-blur-sm rounded-2xl p-6 sm:p-8 border border-gray-700/50"
                 initial={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
               >
@@ -373,7 +402,7 @@ function Contact() {
                      initial={{ opacity: 0, y: 10 }}
                      animate={{ opacity: 1, y: 0 }}
                      exit={{ opacity: 0, y: 10 }}
-                     className="mt-6 p-3 bg-red-900/50 backdrop-blur-sm border border-red-500/30 rounded-lg text-red-300 text-sm flex items-center justify-center gap-2.5" // Styled like Pricing error
+                     className="mt-6 p-3 bg-red-900/50 backdrop-blur-sm border border-red-500/30 rounded-lg text-red-300 text-sm flex items-center justify-center gap-2.5"
                    >
                      <AlertCircle className="w-5 h-5 shrink-0 text-red-400" />
                      <span>{submitError}</span>
@@ -386,7 +415,7 @@ function Contact() {
                         <button
                           type="button"
                           onClick={prevStep}
-                          className={`${secondaryButtonStyle} flex items-center justify-center`} // Use new secondary button style
+                          className={`${secondaryButtonStyle} flex items-center justify-center`}
                           disabled={isSubmitting}
                         >
                           <ArrowLeft className="w-4 h-4 mr-2" />
@@ -400,8 +429,8 @@ function Contact() {
                        <button
                          type="button"
                          onClick={nextStep}
-                         className={`${primaryButtonStyle} flex items-center justify-center`} // Use new primary button style
-                         disabled={isSubmitting} // Validation handled in nextStep
+                         className={`${primaryButtonStyle} flex items-center justify-center`}
+                         disabled={isSubmitting}
                        >
                          Next
                          <ArrowRight className="w-4 h-4 ml-2" />
@@ -409,7 +438,7 @@ function Contact() {
                      ) : (
                        <button
                          type="submit"
-                         className={`${primaryButtonStyle} flex items-center justify-center min-w-[170px]`} // min-width to prevent jump
+                         className={`${primaryButtonStyle} flex items-center justify-center min-w-[170px]`}
                          disabled={isSubmitting || (formData.step === 2 && !formData.message && formData.inquiryType !== 'subscription') || (formData.step === 2 && formData.inquiryType === 'subscription' && !formData.subscriptionPlan)}
                        >
                          {isSubmitting ? (
@@ -430,7 +459,6 @@ function Contact() {
         </div>
       </motion.main>
 
-      {/* --- FOOTER (Copied from Pricing.tsx) --- */}
       <footer className="bg-transparent  z-10 mt-auto">
         <div className="container mx-auto px-5 sm:px-6 py-10">
           <div className="flex flex-col md:flex-row items-center justify-between gap-5">
