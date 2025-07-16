@@ -2227,8 +2227,30 @@ useEffect(() => {
                                      {isScreenshotModeActive && selectionRect && (
                                         <div style={{ position: 'absolute', border: '2px dashed #6366f1', backgroundColor: 'rgba(99,102,241,0.1)', left: selectionRect.x + (pdfViewerContainerRef.current?.scrollLeft || 0), top: selectionRect.y + (pdfViewerContainerRef.current?.scrollTop || 0), width: selectionRect.width, height: selectionRect.height, zIndex: 100, pointerEvents: 'none' }} />
                                      )}
-                                     {showHighlightButtons && highlightButtonPosition && ( <div className={`highlight-buttons-container absolute z-20 flex items-center gap-1 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 p-1 rounded-md shadow-lg`} style={{ top: `${highlightButtonPosition.top}px`, left: `${highlightButtonPosition.left}px`, transform: 'translateX(-50%)' }} onMouseDown={(e) => e.stopPropagation()} > <button onClick={handleExplainHighlight} className={`text-xs px-2 py-1 rounded transition-colors bg-indigo-500 text-white hover:bg-indigo-600`}>Explain</button> <button onClick={handleChatAboutHighlight} className={`text-xs px-2 py-1 rounded transition-colors bg-green-500 text-white hover:bg-green-600`}>Chat</button> </div> )}
-                                 </div>
+{showHighlightButtons && highlightButtonPosition && (
+  <div
+    className={`highlight-buttons-container absolute z-20 flex items-center gap-1 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 p-1 rounded-md shadow-lg`}
+    style={{
+      top: `${highlightButtonPosition.top}px`,
+      left: `${highlightButtonPosition.left}px`,
+      transform: 'translateX(-50%)'
+    }}
+    onMouseDown={(e) => e.stopPropagation()}
+  >
+    <button
+      onClick={handleExplainHighlight}
+      className={`text-xs px-2 py-1 rounded transition-colors border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800`}
+    >
+      Explain
+    </button>
+    <button
+      onClick={handleChatAboutHighlight}
+      className={`text-xs px-2 py-1 rounded transition-colors border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800`}
+    >
+      Chat
+    </button>
+  </div>
+)}                                 </div>
                              </div>
                              <div className={`w-1.5 cursor-col-resize flex items-center justify-center flex-shrink-0 bg-gray-300 dark:bg-gray-700 hover:bg-gray-400 dark:hover:bg-gray-600 ${isResizingPdfChatSplit ? '!bg-indigo-500' : ''}`} onMouseDown={handleResizeMouseDown} title="Drag to resize panels"><GripVertical className={`w-4 h-4 pointer-events-none text-gray-600 dark:text-gray-400`} /></div>
                              <div className="h-full flex flex-col overflow-hidden" style={{ width: `${100 - pdfChatSplitRatio}%` }}>
