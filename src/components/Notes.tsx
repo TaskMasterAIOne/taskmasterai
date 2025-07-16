@@ -2229,7 +2229,7 @@ useEffect(() => {
                                      )}
 {showHighlightButtons && highlightButtonPosition && (
   <div
-    className={`highlight-buttons-container absolute z-20 flex items-center gap-1 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 p-1 rounded-md shadow-lg`}
+    className={`highlight-buttons-container absolute z-20 flex items-center bg-white dark:bg-[#0C0E1A] text-gray-900 dark:text-white rounded-xl shadow-lg overflow-hidden`}
     style={{
       top: `${highlightButtonPosition.top}px`,
       left: `${highlightButtonPosition.left}px`,
@@ -2239,18 +2239,19 @@ useEffect(() => {
   >
     <button
       onClick={handleExplainHighlight}
-      className={`text-xs px-2 py-1 rounded transition-colors border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800`}
+      className={`text-sm px-4 py-2 transition-colors hover:bg-black/5 dark:hover:bg-white/10`}
     >
       Explain
     </button>
+    <div className="w-px self-stretch bg-gray-200 dark:bg-gray-500/30"></div>
     <button
       onClick={handleChatAboutHighlight}
-      className={`text-xs px-2 py-1 rounded transition-colors border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800`}
+      className={`text-sm px-4 py-2 transition-colors hover:bg-black/5 dark:hover:bg-white/10`}
     >
       Chat
     </button>
   </div>
-)}                                 </div>
+)}                               </div>
                              </div>
                              <div className={`w-1.5 cursor-col-resize flex items-center justify-center flex-shrink-0 bg-gray-300 dark:bg-gray-700 hover:bg-gray-400 dark:hover:bg-gray-600 ${isResizingPdfChatSplit ? '!bg-indigo-500' : ''}`} onMouseDown={handleResizeMouseDown} title="Drag to resize panels"><GripVertical className={`w-4 h-4 pointer-events-none text-gray-600 dark:text-gray-400`} /></div>
                              <div className="h-full flex flex-col overflow-hidden" style={{ width: `${100 - pdfChatSplitRatio}%` }}>
