@@ -2063,7 +2063,7 @@ useEffect(() => {
 
             if (noteChatRef.current?.addPdfScreenshot) {
                  noteChatRef.current.addPdfScreenshot({
-                    name: `${pageNumber}_${Date.now()}.png`,
+                    name: `pdf_snippet_p${pageNumber}_${Date.now()}.png`,
                     type: 'image/png',
                     size: blob.size,
                     base64Data: base64Image.split(',')[1],
