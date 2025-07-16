@@ -136,7 +136,7 @@ export async function processPDF(
             throw new Error('No usable text could be extracted from the PDF.');
         }
 
-        const titlePrompt = `Analyze the following text extracted from a document. Your single task is to generate a concise, descriptive, and relevant title for this document. The title should be no more than 5 words. Do not add any extra text, explanation, or quotation marks. Output only the title itself. TEXT: """${extractedTextFromPdf.slice(0, 4000)}""" TITLE:`;
+        const titlePrompt = `Analyze the following text extracted from a document. Your single task is to generate a concise, descriptive, and relevant title for this document. The title should be no more than 5 words. Do not add any extra text, explanation, or quotation marks. Output only the title itself. THE title cannot be "Copyright and Terms of Use" or anything like that. IT MUST BE BASED ON THE TEXT. IT MUST BE A USEFUL TITLE. NOT JUST A BUNCH OF WORDS. TEXT: """${extractedTextFromPdf.slice(0, 4000)}""" TITLE:`;
         const titleOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: titlePrompt }] }], generationConfig: { temperature: 0.3, maxOutputTokens: 65536 } }) };
         const titleResponse = await fetchWithRetry(GEMINI_ENDPOINT, titleOptions);
         let title = extractCandidateText(await titleResponse.text()).replace(/["']/g, "").trim() || file.name.replace(/\.pdf$/i, '');
