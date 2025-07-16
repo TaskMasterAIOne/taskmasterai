@@ -7,7 +7,7 @@ import {
     Lock, Trash2, Copy, RefreshCw, SplitSquareVertical, Menu, List, Briefcase,
     Share2, ClipboardCopy, Eye, ZoomIn, ZoomOut, RotateCcw, Crown, Info,
     PanelRightClose, PanelLeftClose, GripVertical, PlusCircle,
-    Image as ImageIconLucide, Layers, Download, Camera, Trash, CheckSquare,
+    Image as ImageIconLucide, Layers, Download, Camera, Trash, CheckSquare, ArrowLeft,
     Award, TrendingUp, Flame, User as UserIconLucide, PanelRightOpen,
     Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Speaker, ChevronDown, ChevronUp, RotateCw as FlipIcon, Gift
 } from 'lucide-react';
@@ -2063,7 +2063,7 @@ useEffect(() => {
 
             if (noteChatRef.current?.addPdfScreenshot) {
                  noteChatRef.current.addPdfScreenshot({
-                    name: `pdf_snippet_p${pageNumber}_${Date.now()}.png`,
+                    name: `${pageNumber}_${Date.now()}.png`,
                     type: 'image/png',
                     size: blob.size,
                     base64Data: base64Image.split(',')[1],
@@ -2162,24 +2162,25 @@ useEffect(() => {
                              >
                                   <div className={`flex-shrink-0 p-1.5 border-b border-gray-200 dark:border-gray-700/50 bg-gray-50 dark:bg-[#1A1D29] flex items-center justify-between gap-1 sticky top-0 z-20`}>
                                       <div className="flex items-center gap-1">
-                                        <button
-                                            onClick={() => togglePdfViewer(false)}
-                                            className={`p-1.5 rounded-md flex items-center gap-1 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300`}
-                                            title="Show Note Only"
-                                        >
-                                            <FileText className="w-4 h-4" />
-                                            <span className="hidden sm:inline">Note</span>
-                                        </button>
-                                        <button
-                                            onClick={() => setIsScreenshotModeActive(!isScreenshotModeActive)}
-                                            className={`p-1.5 rounded-md flex items-center gap-1 text-xs shadow-sm hover:shadow-md transition-all ${isScreenshotModeActive
-                                                ? 'bg-indigo-500 text-white hover:bg-indigo-600'
-                                                : 'bg-green-500 text-white hover:bg-green-600'}`}
-                                            title={isScreenshotModeActive ? "Cancel Screenshot Mode" : "Capture PDF Area"}
-                                        >
-                                            <Camera className="w-4 h-4" />
-                                            <span className="hidden sm:inline">{isScreenshotModeActive ? 'Cancel' : 'Snip'}</span>
-                                        </button>
+<button
+    onClick={() => togglePdfViewer(false)}
+    className={`p-1.5 rounded-md flex items-center gap-1 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300`}
+    title="Go Back"
+>
+    <ArrowLeft className="w-4 h-4" />
+    <span className="hidden sm:inline">Back</span>
+</button>
+<button
+    onClick={() => setIsScreenshotModeActive(!isScreenshotModeActive)}
+    className={`p-1.5 rounded-md flex items-center gap-1 text-xs text-white shadow-sm hover:shadow-md transition-colors ${isScreenshotModeActive
+        ? 'bg-[#cc2f2f] hover:bg-[#b32929]'   // Cancel button color
+        : 'bg-[#4E46DC] hover:bg-[#4038c5]'   // Snip button color
+    }`}
+    title={isScreenshotModeActive ? "Cancel Screenshot Mode" : "Capture PDF Area"}
+>
+    <Camera className="w-4 h-4" />
+    <span className="hidden sm:inline">{isScreenshotModeActive ? 'Cancel' : 'Snip'}</span>
+</button>
                                       </div>
                                       
                                       <div className="flex items-center gap-1 text-xs font-medium">
