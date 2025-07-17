@@ -24,7 +24,7 @@ interface Note {
   tags: string[];
   keyPoints?: string[];
   questions?: { question: string; options: string[]; correctAnswer: number; explanation?: string; }[];
-  flashcards?: { front: string; back: string; }[];
+  flashcards?: { front: string; back:string; }[];
   podcasts?: Podcast[];
 }
 
@@ -519,9 +519,9 @@ export function PublicNoteView() {
         line-height: 1.6;
     }
     
-    .note-content-area tr { border-bottom: 1px solid #E5E7EB; }
-    .dark .note-content-area tr { border-bottom: 1px solid #374151; }
-    .note-content-area tr:last-child { border-bottom: none; }
+    .note-content-area tr { border: 0; }
+    .dark .note-content-area tr { border: 0; }
+    .note-content-area tr:last-child { border: 0; }
 
     .note-content-area th {
         background-color: #F9FAFB;
@@ -541,8 +541,8 @@ export function PublicNoteView() {
         overflow: hidden;
         max-width: 100%;
         height: auto;
-        display: inline-block; /* Changed from 'block' to 'inline-block' */
-        margin: 1.5em 0; /* Removed 'auto' to prevent centering */
+        display: inline-block;
+        margin: 1.5em 0;
     }
     .note-content-area iframe {
         border-radius: 12px;
@@ -553,84 +553,6 @@ export function PublicNoteView() {
         margin: 1.5em 0;
         min-height: 200px;
         aspect-ratio: 16 / 9;
-    }
-
-    .public-note-quick-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px;
-        margin-top: 24px;
-        margin-bottom: 24px;
-        padding-bottom: 16px;
-        border-bottom: 0px; /* Removed border */
-    }
-
-    .public-note-quick-actions button {
-        flex: 1;
-        min-width: 120px;
-        padding: 12px 16px;
-        border-radius: 8px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        font-weight: 500;
-        transition: background-color 0.15s ease-in-out;
-        cursor: pointer;
-        background-color: #F3F4F6; /* Default light background */
-        color: #1F2937; /* Default light text */
-    }
-    .dark .public-note-quick-actions button {
-        background-color: #1A202C; /* Default dark background */
-        color: #E5E7EB; /* Default dark text */
-    }
-    .public-note-quick-actions button:hover {
-        background-color: #E5E7EB; /* Hover light background */
-    }
-    .dark .public-note-quick-actions button:hover {
-        background-color: #2D3748; /* Hover dark background */
-    }
-    .public-note-quick-actions button svg {
-        flex-shrink: 0;
-    }
-
-    /* Override for specific section styling */
-    .section-container {
-        padding-top: 24px;
-        margin-top: 32px;
-        border-top: 0px; /* Removed border */
-    }
-    .flashcard-card-view {
-        background-color: #ffffff; /* Light mode card background */
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        border-radius: 12px;
-        padding: 24px;
-        min-height: 280px;
-        perspective: 1000px;
-        cursor: pointer;
-    }
-    .dark .flashcard-card-view {
-        background-color: #1A1D29; /* Dark mode card background */
-    }
-    .flashcard-card-face {
-        position: absolute;
-        width: 100%;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        text-align: center;
-        backface-visibility: hidden;
-        transition: transform 0.5s;
-    }
-    .flashcard-front {
-        background-color: #6366f1; /* Indigo */
-        color: white;
-    }
-    .flashcard-back {
-        background-color: #8B5CF6; /* Purple */
-        color: white;
-        transform: rotateX(180deg);
     }
   `;
 
@@ -655,7 +577,7 @@ export function PublicNoteView() {
             ) : note ? (
                 <div className="py-8 md:py-12">
                     <div ref={pdfContentRef}>
-                        <header className="mb-10 md:mb-14">
+                        <header className="mb-6">
                             <div className="flex justify-between items-start gap-4">
                                 <div>
                                     <h1 className="text-3xl md:text-5xl font-semibold text-gray-900 dark:text-white tracking-tight">
@@ -694,31 +616,30 @@ export function PublicNoteView() {
                                     </span>
                                 ))}
                             </div>
-                            <div className="w-full h-px bg-gray-200 dark:bg-gray-800 mt-8"></div>
+                            <div className="my-8"></div>
                         </header>
                         
-                        {/* Quick Actions Buttons */}
-                        <div className="public-note-quick-actions">
-                            {note.keyPoints && note.keyPoints.length > 0 && (
-                                <button onClick={() => handleScrollToSection('key-points-section')} className="bg-yellow-50 dark:bg-yellow-700/20 hover:bg-yellow-100 dark:hover:bg-yellow-700/30">
-                                    <Sparkles className="w-5 h-5 text-yellow-600 dark:text-yellow-300" />
-                                    Key Points
-                                </button>
-                            )}
-                            {note.flashcards && note.flashcards.length > 0 && (
-                                <button onClick={() => handleScrollToSection('flashcards-section')} className="bg-indigo-50 dark:bg-indigo-700/20 hover:bg-indigo-100 dark:hover:bg-indigo-700/30">
-                                    <Layers className="w-5 h-5 text-indigo-600 dark:text-indigo-300" />
-                                    Flashcards
-                                </button>
-                            )}
+                        <div className="flex flex-wrap gap-3 my-8">
                             {note.questions && note.questions.length > 0 && (
-                                <button onClick={() => handleScrollToSection('study-questions-section')} className="bg-purple-50 dark:bg-purple-700/20 hover:bg-purple-100 dark:hover:bg-purple-700/30">
+                                <button onClick={() => handleScrollToSection('study-questions-section')} className="flex-1 min-w-[120px] p-3 rounded-lg flex items-center gap-3 font-medium bg-purple-50 dark:bg-purple-900/40 hover:bg-purple-100 dark:hover:bg-purple-900/60 transition">
                                     <BookOpen className="w-5 h-5 text-purple-600 dark:text-purple-300" />
                                     Quiz
                                 </button>
                             )}
+                            {note.flashcards && note.flashcards.length > 0 && (
+                                <button onClick={() => handleScrollToSection('flashcards-section')} className="flex-1 min-w-[120px] p-3 rounded-lg flex items-center gap-3 font-medium bg-indigo-50 dark:bg-indigo-900/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition">
+                                    <Layers className="w-5 h-5 text-indigo-600 dark:text-indigo-300" />
+                                    Flashcards
+                                </button>
+                            )}
+                            {note.keyPoints && note.keyPoints.length > 0 && (
+                                <button onClick={() => handleScrollToSection('key-points-section')} className="flex-1 min-w-[120px] p-3 rounded-lg flex items-center gap-3 font-medium bg-yellow-50 dark:bg-yellow-900/40 hover:bg-yellow-100 dark:hover:bg-yellow-900/60 transition">
+                                    <Sparkles className="w-5 h-5 text-yellow-600 dark:text-yellow-300" />
+                                    Key Points
+                                </button>
+                            )}
                             {note.podcasts && note.podcasts.length > 0 && (
-                                <button onClick={() => handleScrollToSection('podcast-section-wrapper')} className="bg-teal-50 dark:bg-teal-700/20 hover:bg-teal-100 dark:hover:bg-teal-700/30">
+                                <button onClick={() => handleScrollToSection('podcast-section-wrapper')} className="flex-1 min-w-[120px] p-3 rounded-lg flex items-center gap-3 font-medium bg-teal-50 dark:bg-teal-900/40 hover:bg-teal-100 dark:hover:bg-teal-900/60 transition">
                                     <Mic className="w-5 h-5 text-teal-600 dark:text-teal-300" />
                                     Podcast
                                 </button>
@@ -729,21 +650,21 @@ export function PublicNoteView() {
                             <KatexRenderer htmlContent={note.content} />
 
                             {note.keyPoints && note.keyPoints.length > 0 && (
-                                <div id="key-points-section" className={`section-container`}>
-                                    <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 text-gray-800 dark:text-gray-100`}> <Sparkles className={`w-5 h-5 text-yellow-500 dark:text-yellow-400`} /> Key Points </h3>
-                                    <div className={`space-y-3`}> {note.keyPoints.map((point, index) => (
-                                        <div key={index} className="flex items-start p-3 rounded-lg bg-gray-50 dark:bg-gray-800/40">
-                                            <div className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-700/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center text-xs font-semibold mr-3 mt-0.5">{index + 1}</div>
-                                            <p className="text-base text-gray-700 dark:text-gray-300 leading-relaxed"><RenderWithLatex text={point} /></p>
+                                <div id="key-points-section" className={`pt-12`}>
+                                    <h3 className={`text-2xl font-semibold mb-6 flex items-center gap-3 text-gray-800 dark:text-gray-100`}> <Sparkles className={`w-6 h-6 text-yellow-500 dark:text-yellow-400`} /> Key Points </h3>
+                                    <div className={`space-y-4`}> {note.keyPoints.map((point, index) => (
+                                        <div key={index} className="flex items-center text-center p-4 rounded-lg bg-gray-50 dark:bg-gray-800/40">
+                                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-700/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center text-sm font-semibold mr-4">{index + 1}</div>
+                                            <p className="text-lg text-gray-700 dark:text-gray-300 leading-relaxed text-left"><RenderWithLatex text={point} /></p>
                                         </div>
                                     ))} </div>
                                 </div>
                             )}
 
                             {note.flashcards && note.flashcards.length > 0 && (
-                                <div id="flashcards-section" className="section-container">
-                                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-gray-800 dark:text-gray-100">
-                                        <Layers className="w-5 h-5 text-indigo-500 dark:text-indigo-400" /> Flashcards
+                                <div id="flashcards-section" className="pt-12">
+                                    <h3 className="text-2xl font-semibold mb-6 flex items-center gap-3 text-gray-800 dark:text-gray-100">
+                                        <Layers className="w-6 h-6 text-indigo-500 dark:text-indigo-400" /> Flashcards
                                     </h3>
                                     <AnimatePresence mode="wait">
                                         <motion.div
@@ -754,26 +675,26 @@ export function PublicNoteView() {
                                             transition={{ duration: 0.2 }}
                                         >
                                             <motion.div
-                                                className="relative flashcard-card-view [perspective:1000px]"
+                                                className="relative h-[280px] rounded-lg shadow-lg [perspective:1000px] cursor-pointer"
                                                 onClick={handleFlipFlashcard}
                                             >
                                                 <motion.div
-                                                    className="absolute inset-0 p-6 rounded-lg shadow-lg flex flex-col justify-center items-center text-center flashcard-front [backface-visibility:hidden]"
+                                                    className="absolute inset-0 p-6 rounded-lg flex flex-col justify-center items-center text-center text-white bg-indigo-500 dark:bg-indigo-700 [backface-visibility:hidden]"
                                                     animate={{ rotateX: isFlashcardFlipped ? -180 : 0 }}
                                                     transition={{ type: "spring", stiffness: 200, damping: 20, duration: 0.5 }}
                                                 >
-                                                    <p className="text-xs uppercase tracking-wider mb-2 opacity-80">Term</p>
-                                                    <p className="text-xl font-medium leading-tight">
+                                                    <p className="text-sm uppercase tracking-wider mb-2 opacity-80">Term</p>
+                                                    <p className="text-2xl font-medium leading-tight">
                                                         <RenderWithLatex text={note.flashcards[currentFlashcardIndex].front} />
                                                     </p>
                                                 </motion.div>
                                                 <motion.div
-                                                    className="absolute inset-0 p-6 rounded-lg shadow-lg flex flex-col justify-center items-center text-center flashcard-back [backface-visibility:hidden] [transform:rotateX(180deg)]"
+                                                    className="absolute inset-0 p-6 rounded-lg flex flex-col justify-center items-center text-center text-white bg-purple-500 dark:bg-purple-700 [backface-visibility:hidden] [transform:rotateX(180deg)]"
                                                     animate={{ rotateX: isFlashcardFlipped ? 0 : 180 }}
                                                     transition={{ type: "spring", stiffness: 200, damping: 20, duration: 0.5 }}
                                                 >
-                                                    <p className="text-xs uppercase tracking-wider mb-2 opacity-80">Definition</p>
-                                                    <p className="text-xl font-medium leading-tight">
+                                                    <p className="text-sm uppercase tracking-wider mb-2 opacity-80">Definition</p>
+                                                    <p className="text-2xl font-medium leading-tight">
                                                         <RenderWithLatex text={note.flashcards[currentFlashcardIndex].back} />
                                                     </p>
                                                 </motion.div>
@@ -781,31 +702,36 @@ export function PublicNoteView() {
                                         </motion.div>
                                     </AnimatePresence>
                                     <div className="flex items-center justify-between mt-4">
-                                        <button
-                                            onClick={handlePrevFlashcard}
-                                            disabled={currentFlashcardIndex === 0}
-                                            className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-gray-600 dark:text-gray-300"
-                                        > <ChevronLeft className="w-5 h-5" /> </button>
+                                        <button onClick={handlePrevFlashcard} disabled={currentFlashcardIndex === 0} className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-gray-600 dark:text-gray-300"> <ChevronLeft className="w-5 h-5" /> </button>
                                         <span className="text-sm text-gray-600 dark:text-gray-400"> {currentFlashcardIndex + 1} / {note.flashcards.length} </span>
-                                        <button
-                                            onClick={handleNextFlashcard}
-                                            disabled={currentFlashcardIndex === note.flashcards.length - 1}
-                                            className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-gray-600 dark:text-gray-300"
-                                        > <ChevronRight className="w-5 h-5" /> </button>
+                                        <button onClick={handleNextFlashcard} disabled={currentFlashcardIndex === note.flashcards.length - 1} className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-gray-600 dark:text-gray-300"> <ChevronRight className="w-5 h-5" /> </button>
                                     </div>
                                     <button onClick={handleFlipFlashcard} className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200">
                                         <FlipIcon className="w-4 h-4" /> Flip Card
                                     </button>
+
+                                    <div className="space-y-4 mt-8">
+                                        {note.flashcards.map((card, index) => (
+                                            <div key={index} className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800/40 flex flex-col md:flex-row gap-4 md:gap-6">
+                                                <div className="flex-1 min-w-0">
+                                                    <RenderWithLatex text={card.front} />
+                                                </div>
+                                                <div className="w-full md:w-px bg-gray-200 dark:bg-gray-700/50 h-px md:h-auto"></div>
+                                                <div className="flex-1 min-w-0 text-gray-600 dark:text-gray-400">
+                                                    <RenderWithLatex text={card.back} />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
 
                             {note.questions && note.questions.length > 0 && (
-                                <div id="study-questions-section" className={`section-container`}>
-                                    <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 text-gray-800 dark:text-gray-100`}><BookOpen className={`w-5 h-5 text-purple-500 dark:text-purple-400`} />Study Questions</h3>
+                                <div id="study-questions-section" className={`pt-12`}>
+                                    <h3 className={`text-2xl font-semibold mb-6 flex items-center gap-3 text-gray-800 dark:text-gray-100`}><BookOpen className={`w-6 h-6 text-purple-500 dark:text-purple-400`} />Study Questions</h3>
                                     <div className="space-y-5">
                                         {note.questions.map((q, index) => {
                                             const key = `q-${index}`;
-                                            const isCorrect = true; // Always show correct answer in public view for explanation
                                             return (
                                                 <div key={key} className={`p-4 md:p-5 rounded-xl bg-gray-50 dark:bg-[#1A1D29]`}>
                                                     <p className={`text-gray-800 dark:text-gray-200 font-medium mb-4 leading-relaxed`}>
@@ -816,18 +742,9 @@ export function PublicNoteView() {
                                                         {q.options.map((opt, idx) => {
                                                             const isAnswer = idx === q.correctAnswer;
                                                             return (
-                                                                <div
-                                                                    key={idx}
-                                                                    className={`w-full text-left p-3 rounded-lg text-sm flex items-center justify-between group cursor-default
-                                                                        ${isAnswer
-                                                                            ? `bg-green-100 dark:bg-green-500/20 text-green-800 dark:text-white font-semibold`
-                                                                            : `bg-gray-100 dark:bg-gray-700/40 text-gray-500 dark:text-gray-400 opacity-70`
-                                                                        }`}
-                                                                >
+                                                                <div key={idx} className={`w-full text-left p-3 rounded-lg text-sm flex items-center justify-between group cursor-default ${isAnswer ? `bg-green-100 dark:bg-green-500/20 text-green-800 dark:text-white font-semibold` : `bg-gray-100 dark:bg-gray-700/40 text-gray-500 dark:text-gray-400 opacity-70`}`}>
                                                                     <span><RenderWithLatex text={opt} /></span>
-                                                                    <div className={`flex-shrink-0 ml-4 w-6 h-6 flex items-center justify-center rounded-full
-                                                                        ${isAnswer ? 'bg-green-500/20' : 'bg-gray-200/50 dark:bg-gray-700/50'}
-                                                                    `}>
+                                                                    <div className={`flex-shrink-0 ml-4 w-6 h-6 flex items-center justify-center rounded-full ${isAnswer ? 'bg-green-500/20' : 'bg-gray-200/50 dark:bg-gray-700/50'}`}>
                                                                         {isAnswer && <Check className="w-4 h-4 text-green-600" />}
                                                                     </div>
                                                                 </div>
@@ -847,9 +764,9 @@ export function PublicNoteView() {
                             )}
 
                             {note.podcasts && note.podcasts.length > 0 && (
-                                <div id="podcast-section-wrapper" className="section-container">
-                                    <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100">
-                                        <Mic className="w-5 h-5 text-teal-500 dark:text-teal-400" /> Podcasts
+                                <div id="podcast-section-wrapper" className="pt-12">
+                                    <h3 className="text-2xl font-semibold flex items-center gap-3 text-gray-800 dark:text-gray-100">
+                                        <Mic className="w-6 h-6 text-teal-500 dark:text-teal-400" /> Podcasts
                                     </h3>
                                     {activePodcast && (
                                         <div id="podcast-player-section" className="my-6 p-4 rounded-lg shadow-lg bg-gradient-to-br from-indigo-500 to-purple-600 dark:from-indigo-700 dark:to-purple-800 text-white">
@@ -865,14 +782,7 @@ export function PublicNoteView() {
 
                                             <>
                                                 <div className="w-full space-y-2 mb-3">
-                                                    <input
-                                                        type="range"
-                                                        min="0"
-                                                        max={podcastDuration || 100}
-                                                        value={podcastCurrentTime}
-                                                        onChange={handlePodcastSeek}
-                                                        className="w-full h-2 bg-white/30 rounded-lg appearance-none cursor-pointer accent-white"
-                                                    />
+                                                    <input type="range" min="0" max={podcastDuration || 100} value={podcastCurrentTime} onChange={handlePodcastSeek} className="w-full h-2 bg-white/30 rounded-lg appearance-none cursor-pointer accent-white" />
                                                     <div className="flex justify-between text-xs opacity-80">
                                                         <span>{formatPodcastTime(podcastCurrentTime)}</span>
                                                         <span>{formatPodcastTime(podcastDuration)}</span>
@@ -892,20 +802,12 @@ export function PublicNoteView() {
                                                 <div className="flex items-center justify-between text-xs opacity-90">
                                                     <div className="flex items-center space-x-2">
                                                         {podcastVolume > 0 ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-                                                        <input
-                                                            type="range" min="0" max="1" step="0.05" value={podcastVolume}
-                                                            onChange={(e) => setPodcastVolume(Number(e.target.value))}
-                                                            className="w-20 h-1.5 bg-white/30 rounded-lg appearance-none cursor-pointer accent-white"
-                                                        />
+                                                        <input type="range" min="0" max="1" step="0.05" value={podcastVolume} onChange={(e) => setPodcastVolume(Number(e.target.value))} className="w-20 h-1.5 bg-white/30 rounded-lg appearance-none cursor-pointer accent-white" />
                                                     </div>
                                                     <div className="flex items-center space-x-2 relative group">
                                                         <span className="px-2 py-0.5 bg-white/20 rounded-md focus:ring-2 focus:ring-white/50">{podcastPlaybackRate}x</span>
-                                                        <select value={podcastPlaybackRate} onChange={(e) => setPodcastPlaybackRate(Number(e.target.value))}
-                                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                                        >
-                                                            {[0.5, 0.75, 1, 1.25, 1.5, 2].map(rate => (
-                                                                <option key={rate} value={rate}>{rate}x</option>
-                                                            ))}
+                                                        <select value={podcastPlaybackRate} onChange={(e) => setPodcastPlaybackRate(Number(e.target.value))} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                                                            {[0.5, 0.75, 1, 1.25, 1.5, 2].map(rate => (<option key={rate} value={rate}>{rate}x</option>))}
                                                         </select>
                                                     </div>
                                                 </div>
@@ -913,8 +815,8 @@ export function PublicNoteView() {
                                         </div>
                                     )}
 
-                                    <div id="podcast-list-section" className="mt-1">
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Generated Podcasts for this Note:</p>
+                                    <div id="podcast-list-section" className="mt-6">
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">Generated Podcasts for this Note:</p>
                                         <div className="space-y-2">
                                             {note.podcasts!.sort((a, b) => toDateSafe(b.createdAt)!.getTime() - toDateSafe(a.createdAt)!.getTime()).map(p => (
                                                 <div key={p.id} className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/40 flex items-center justify-between gap-3">
