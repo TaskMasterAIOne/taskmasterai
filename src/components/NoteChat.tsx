@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react';
 import { MessageCircle, Send, Timer as TimerIcon, Paperclip, Bot, X, AlertTriangle, Loader2, ImageIcon, ChevronDown, Maximize, Minimize, Edit, Check, RefreshCcw, Crown, Download, Trash2, CornerDownRight, CheckSquare, Square, StopCircle, Mic, Plus, Globe, Palette, ArrowUpRight, CheckCircle, AlertCircle, LayoutDashboard, FileText, Lightbulb, ShieldCheck } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition'; // <-- ADD THIS
+import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 import { Link } from "react-router-dom";
+import rehypeRaw from 'rehype-raw';
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
@@ -28,7 +29,7 @@ import {
 
 interface TimerMessage { type: 'timer'; duration: number; id: string; }
 export interface ImageData { base64: string; type: string; name: string; }
-interface EditStep { editType: 'insert_after_context' | 'replace_context' | 'delete_context' | 'insert_at_start' | 'append_at_end'; targetContext: string | null; contentFragment: string; }
+interface EditStep { editType: 'insert_after_context' | 'replace_context' | 'delete_context' | 'insert_at_start' | 'append_at_end' | 'insert_before_context'; targetContext: string | null; contentFragment: string; }
 interface FlashcardData { id: string; question: string; answer: string; topic: string; }
 interface QuestionData { id: string; question: string; options: string[]; correctAnswer: number; explanation: string; }
 interface FlashcardMessage { type: 'flashcard'; data: FlashcardData[]; }
@@ -167,7 +168,6 @@ const combineDateAndTime = (dateStr: string | undefined | null, timeStr: string 
   };
 
   const urlToSelectedFile = async (url: string): Promise<SelectedFile | null> => {
-    // Handle base64 data URLs directly
     if (url.startsWith('data:')) {
         try {
             const response = await fetch(url);
@@ -177,13 +177,11 @@ const combineDateAndTime = (dateStr: string | undefined | null, timeStr: string 
             return await readFileAsSelectedFile(file);
         } catch (error) {
             console.error("Error converting data URL to file:", error);
-            // Using alert here as there's no chat history to write to directly from this helper
             alert("Could not process the dragged image data.");
             return null;
         }
     }
 
-    // Handle regular http/https URLs
     try {
         const response = await fetch(url);
         if (!response.ok) {
@@ -198,7 +196,7 @@ const combineDateAndTime = (dateStr: string | undefined | null, timeStr: string 
             if (lastSegment) {
                 fileName = lastSegment.split('?')[0];
             }
-        } catch (e) { /* Ignore invalid URL for naming */ }
+        } catch (e) { }
         
         const extension = blob.type.split('/')[1];
         if (extension && !fileName.toLowerCase().endsWith(`.${extension}`)) {
@@ -453,7 +451,7 @@ const verifyEducationalContent = async (content: FlashcardMessage | QuestionMess
 const parseTimerRequest = (message: string): number | null => { const cleanedMessage = message.trim().toLowerCase(); const keywords = ['set timer', 'start timer', 'timer for', 'remind me in']; const timeRegex = /(\d+)\s*(m|min|minute|h|hr|hour|s|sec|second)s?\b/i; let M: RegExpMatchArray | null = null; const hasKeywords = keywords.some(keyword => cleanedMessage.includes(keyword)); if (hasKeywords) { M = cleanedMessage.match(timeRegex); } if (!M) { M = cleanedMessage.match(/^\s*(\d+)\s*(m|min|minute|h|hr|hour|s|sec|second)s?\b/i); } if (!M) { M = cleanedMessage.match(/^\s*(\d+)\s*(m|min|minute|h|hr|hour|s|sec|second)s?\s*$/i); } if (!M) return null; const A = parseInt(M[1]); const U = M[2].toLowerCase(); if (isNaN(A) || A <= 0) return null; if (U.startsWith('h')) return A * 3600; if (U.startsWith('m')) return A * 60; if (U.startsWith('s')) return A; return null; };
 const handleDownloadImage = (imageData: ImageData) => { if (!imageData) return; const link = document.createElement('a'); link.href = `data:${imageData.type};base64,${imageData.base64}`; const fileExtension = imageData.type.split('/')[1] || 'png'; const fileName = `generated-image-${Date.now()}.${fileExtension}`; link.download = fileName; document.body.appendChild(link); link.click(); document.body.removeChild(link); };
 
-const AssistantMessageContent = ({ message, onAcceptEdit, onRevertEdit, isChatLoading, isDarkMode }: { message: ChatMessage, onAcceptEdit: (msg: ChatMessage) => void, onRevertEdit: (msg: ChatMessage) => void, isChatLoading: boolean, isDarkMode: boolean }) => {
+const AssistantMessageContent = React.memo(({ message, onAcceptEdit, onRevertEdit, isChatLoading, isDarkMode }: { message: ChatMessage, onAcceptEdit: (msg: ChatMessage) => void, onRevertEdit: (msg: ChatMessage) => void, isChatLoading: boolean, isDarkMode: boolean }) => {
     const proseClassChat = `prose prose-sm max-w-none prose-p:mb-3 prose-p:last:mb-0 prose-p:leading-relaxed prose-ul:my-3 prose-ul:space-y-2 prose-ol:my-3 prose-ol:space-y-2 prose-li:pl-1 prose-code:text-xs prose-code:px-1 prose-code:py-0.5 prose-pre:text-xs prose-pre:my-2 prose-pre:p-2 prose-pre:leading-relaxed
     ${isDarkMode
         ? 'prose-invert prose-a:text-[#8A85FF] hover:prose-a:text-indigo-300 prose-code:bg-gray-700/70 prose-code:text-pink-400 prose-pre:bg-black/60'
@@ -465,7 +463,7 @@ const AssistantMessageContent = ({ message, onAcceptEdit, onRevertEdit, isChatLo
         {message.content && (
           <ReactMarkdown
             remarkPlugins={[remarkMath, remarkGfm]}
-            rehypePlugins={[rehypeKatex]}
+            rehypePlugins={[rehypeKatex, rehypeRaw]}
             className={proseClassChat}
             components={{
                 a: ({ node, ...props }) => {
@@ -491,6 +489,34 @@ const AssistantMessageContent = ({ message, onAcceptEdit, onRevertEdit, isChatLo
                 }
                 return <li {...props}>{children}</li>;
               },
+              iframe: ({ node, ...props }) => {
+                  const src = props.src as string;
+                  const trustedVideoDomains = [
+                      'youtube.com',
+                      'www.youtube.com',
+                      'youtu.be',
+                      'player.vimeo.com',
+                  ];
+                  try {
+                      const url = new URL(src);
+                      if (trustedVideoDomains.some(domain => url.hostname.endsWith(domain))) {
+                          return (
+                              <iframe
+                                  {...props}
+                                  src={src}
+                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                  allowFullScreen
+                                  frameBorder="0"
+                                  className="w-full aspect-video rounded-lg my-2"
+                                  title={props.title || 'Embedded Video'}
+                              ></iframe>
+                          );
+                      }
+                  } catch (e) {
+                      console.warn("Invalid or untrusted iframe src:", src, e);
+                  }
+                  return <p className="text-sm text-red-500 dark:text-red-400">🚨 Untrusted video embed blocked. Link: <a href={src} target="_blank" rel="noopener noreferrer">{src}</a></p>;
+              }
             }}
           >
             {message.content}
@@ -592,7 +618,7 @@ const AssistantMessageContent = ({ message, onAcceptEdit, onRevertEdit, isChatLo
       )}
       </>
     );
-  };
+  }); // <-- React.memo added here
 
 const NoteChatComponent: React.ForwardRefRenderFunction<NoteChatHandle, NoteChatProps> = (props, ref) => {
     const {
@@ -639,10 +665,9 @@ const NoteChatComponent: React.ForwardRefRenderFunction<NoteChatHandle, NoteChat
     const [events, setEvents] = useState<Array<{ id: string; data: any }>>([]);
     const [memories, setMemories] = useState<Memory[]>([]);
     const truncatedName = useMemo(() => userName.split(' ')[0] || userName, [userName]);
-    const [isDraggingOver, setIsDraggingOver] = useState(false); // <-- ADD THIS
+    const [isDraggingOver, setIsDraggingOver] = useState(false);
 
 
-    // --- START: SPEECH RECOGNITION HOOKS AND LOGIC ---
     const {
         transcript,
         listening,
@@ -652,10 +677,6 @@ const NoteChatComponent: React.ForwardRefRenderFunction<NoteChatHandle, NoteChat
     } = useSpeechRecognition();
 
 
-    // --- END: SPEECH RECOGNITION HOOKS AND LOGIC ---
-
-
-    // --- START: DRAG & DROP AND SPEECH HANDLERS ---
     const handleFileDrop = async (files: FileList) => {
         if (!files || files.length === 0 || isImageGenModeActive || isSearchModeActive || isChatLoading) return;
     
@@ -703,13 +724,11 @@ const NoteChatComponent: React.ForwardRefRenderFunction<NoteChatHandle, NoteChat
         handleDragEvents(e);
         setIsDraggingOver(false);
     
-        // 1. Prioritize actual files dropped from the local system
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
             handleFileDrop(e.dataTransfer.files);
             return;
         }
     
-        // 2. Fallback for images dragged from other browser tabs (checks for HTML content)
         const html = e.dataTransfer.getData('text/html');
         if (html) {
             const tempDiv = document.createElement('div');
@@ -719,7 +738,6 @@ const NoteChatComponent: React.ForwardRefRenderFunction<NoteChatHandle, NoteChat
             if (img && img.src) {
                 const newSelectedFile = await urlToSelectedFile(img.src);
                 if (newSelectedFile) {
-                    // Re-validate type for NoteChat context
                     if (!newSelectedFile.type.startsWith('image/')) {
                          setChatHistory(prev => [...prev, { id: `file-err-type-${Date.now()}`, role: 'assistant', content: `❌ Dragged file type for "${newSelectedFile.name}" is not supported (only images and PDFs).`, error: true }]);
                          return;
@@ -730,7 +748,6 @@ const NoteChatComponent: React.ForwardRefRenderFunction<NoteChatHandle, NoteChat
             }
         }
     
-        // 3. Last resort fallback for plain text URLs that might be images
         const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
         if (url && (url.startsWith('http') || url.startsWith('data:image'))) {
             const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
@@ -758,22 +775,17 @@ const NoteChatComponent: React.ForwardRefRenderFunction<NoteChatHandle, NoteChat
         }
     
         if (listening) {
-          // When user clicks "Stop"
           SpeechRecognition.stopListening();
-          // The transcript is now final. We submit it via the main handler.
           const finalTranscriptText = transcript.trim();
           if (finalTranscriptText) {
             handleChatSubmit(undefined, finalTranscriptText);
           }
-          // Always reset after stopping to clear the library's state.
           resetTranscript();
         } else {
-          // When user clicks "Start"
-          resetTranscript(); // Clear any previous text.
+          resetTranscript();
           SpeechRecognition.startListening({ continuous: true, language: 'en-US' });
         }
     };
-    // --- END: DRAG & DROP AND SPEECH HANDLERS ---
 
 
     const [isResizing, setIsResizing] = useState(false);
@@ -800,12 +812,10 @@ const NoteChatComponent: React.ForwardRefRenderFunction<NoteChatHandle, NoteChat
 
     const handleResizeMouseUp = useCallback(() => {
         setIsResizing(false);
-        window.removeEventListener('mousemove', handleResizeMouseMove);
-        window.removeEventListener('mouseup', handleResizeMouseUp);
         resizeRef.current = null;
-    }, [handleResizeMouseMove]);
+    }, []);
 
-    const handleResizeMouseDown = (e: React.MouseEvent) => {
+    const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
         if (isMinimized) return;
         e.preventDefault();
         e.stopPropagation();
@@ -816,16 +826,19 @@ const NoteChatComponent: React.ForwardRefRenderFunction<NoteChatHandle, NoteChat
             initialWidth: dimensions.width,
             initialHeight: dimensions.height,
         };
-        window.addEventListener('mousemove', handleResizeMouseMove);
-        window.addEventListener('mouseup', handleResizeMouseUp);
-    };
+    }, [isMinimized, dimensions.width, dimensions.height]);
 
     useEffect(() => {
+        if (isResizing) {
+            window.addEventListener('mousemove', handleResizeMouseMove);
+            window.addEventListener('mouseup', handleResizeMouseUp);
+        }
+
         return () => {
             window.removeEventListener('mousemove', handleResizeMouseMove);
             window.removeEventListener('mouseup', handleResizeMouseUp);
         };
-    }, [handleResizeMouseMove, handleResizeMouseUp]);
+    }, [isResizing, handleResizeMouseMove, handleResizeMouseUp]);
 
     const isDarkMode = !isIlluminateEnabled;
     const currentChatLimit = useMemo(() => getChatLimitForTier(userTier), [userTier]);
@@ -917,7 +930,7 @@ Just ask to get started.
     useEffect(() => { if (!isMinimized || displayMode === 'inline') { setTimeout(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, 150); } }, [chatHistory, isMinimized, displayMode, suggestedPrompts, pdfContextSegments]);
 
     const handleTimerComplete = (timerId: string) => setChatHistory(prev => [...prev, { id: `timer-comp-${timerId}`, role: 'assistant', content: "⏰ Time's up!" }]);
-    const handleAcceptEdit = async (message: ChatMessage) => { if (!note || isChatLoading || !message.isEditSuggestion || !message.editAction) { setChatHistory(prev => [...prev, { id: `edit-app-err-${Date.now()}`, role: 'assistant', content: `❌ Error: Could not apply edit. Invalid proposal data.`, error: true }]); return; } setIsChatLoading(true); setLoadingMsgId(null); let finalContent: string | null = null; const contentBeforeEdit = note.content; try { let currentContent = contentBeforeEdit; if (message.editAction === 'propose_targeted_edit') { if (!message.editType) throw new Error("Missing edit type."); let applied = false; const { editType, targetContext, contentFragment = "" } = message; switch (editType) { case 'insert_at_start': currentContent = contentFragment + (currentContent ? "\n" + currentContent : ""); applied = true; break; case 'append_at_end': currentContent = (currentContent ? currentContent + "\n" : "") + contentFragment; applied = true; break; case 'insert_after_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { const p = i + targetContext.length; const x = currentContent.endsWith('\n') || currentContent.slice(p).startsWith('\n') || p === 0 ? "" : "\n"; currentContent = currentContent.slice(0, p) + x + contentFragment + currentContent.slice(p); applied = true; } else throw new Error("Target context for insertion not found."); } else throw new Error("Missing target context for insert."); break; case 'replace_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { currentContent = currentContent.slice(0, i) + contentFragment + currentContent.slice(i + targetContext.length); applied = true; } else throw new Error("Target context for replacement not found."); } else throw new Error("Missing target context for replace."); break; case 'delete_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { currentContent = currentContent.slice(0, i) + currentContent.slice(i + targetContext.length); currentContent = currentContent.replace(/\n\n+/g, '\n').trim(); applied = true; } else throw new Error("Target context for deletion not found."); } else throw new Error("Missing target context for delete."); break; default: throw new Error(`Unsupported edit type: ${editType}`); } if (applied) finalContent = currentContent; else throw new Error("Targeted edit failed."); } else if (message.editAction === 'propose_full_content_replacement') { if (typeof message.newFullContent === 'string') { finalContent = message.newFullContent; } else { throw new Error("Missing new full content for replacement."); } } else if (message.editAction === 'propose_sequential_edits') { if (!message.sequentialEdits || !Array.isArray(message.sequentialEdits) || message.sequentialEdits.length === 0) { throw new Error("Invalid sequential edit proposal: 'edits' array is missing or empty."); } let allApplied = true; for (let i = 0; i < message.sequentialEdits.length; i++) { const editStep = message.sequentialEdits[i]; const { editType, targetContext, contentFragment } = editStep; switch (editType) { case 'insert_at_start': currentContent = contentFragment + (currentContent ? "\n" + currentContent : ""); break; case 'append_at_end': currentContent = (currentContent ? currentContent + "\n" : "") + contentFragment; break; case 'insert_after_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { const p = idx + targetContext.length; const x = currentContent.endsWith('\n') || currentContent.slice(p).startsWith('\n') || p === 0 ? "" : "\n"; currentContent = currentContent.slice(0, p) + x + contentFragment + currentContent.slice(p); } else { allApplied = false; throw new Error(`Step ${i + 1}: Target context for insertion not found.`); } } else { allApplied = false; throw new Error(`Step ${i + 1}: Missing target context for insert.`); } break; case 'replace_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { currentContent = currentContent.slice(0, idx) + contentFragment + currentContent.slice(idx + targetContext.length); } else { allApplied = false; throw new Error(`Step ${i + 1}: Target context for replacement not found.`); } } else { allApplied = false; throw new Error(`Step ${i + 1}: Missing target context for replace.`); } break; case 'delete_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { currentContent = currentContent.slice(0, idx) + currentContent.slice(idx + targetContext.length); currentContent = currentContent.replace(/\n\n+/g, '\n').trim(); } else { allApplied = false; throw new Error(`Step ${i + 1}: Target context for deletion not found.`); } } else { allApplied = false; throw new Error(`Step ${i + 1}: Missing target context for delete.`); } break; default: allApplied = false; throw new Error(`Step ${i + 1}: Unsupported edit type: ${editType}`); } if (!allApplied) break; } if (allApplied) { finalContent = currentContent; } } else { throw new Error(`Unknown edit action: ${message.editAction}`); } if (finalContent !== null) { await onUpdateNoteContent(note.id, finalContent); const confirmationMsgId = `edit-ok-${Date.now()}`; setChatHistory(prev => [ ...prev, { id: confirmationMsgId, role: 'assistant', content: "✅ Note updated!", isUpdateConfirmation: true, canRevert: true, previousContent: contentBeforeEdit, noteIdToRevert: note.id } ]); } } catch (error) { const eMsg = error instanceof Error ? error.message : 'Unknown error during update.'; setChatHistory(prev => [...prev, { id: `edit-err-${Date.now()}`, role: 'assistant', content: `❌ Update failed: ${eMsg}`, error: true }]); } finally { setIsChatLoading(false); } };
+    const handleAcceptEdit = async (message: ChatMessage) => { if (!note || isChatLoading || !message.isEditSuggestion || !message.editAction) { setChatHistory(prev => [...prev, { id: `edit-app-err-${Date.now()}`, role: 'assistant', content: `❌ Error: Could not apply edit. Invalid proposal data.`, error: true }]); return; } setIsChatLoading(true); setLoadingMsgId(null); let finalContent: string | null = null; const contentBeforeEdit = note.content; try { let currentContent = contentBeforeEdit; if (message.editAction === 'propose_targeted_edit') { if (!message.editType) throw new Error("Missing edit type."); let applied = false; const { editType, targetContext, contentFragment = "" } = message; switch (editType) { case 'insert_at_start': currentContent = contentFragment + (currentContent ? "\n" + currentContent : ""); applied = true; break; case 'append_at_end': currentContent = (currentContent ? currentContent + "\n" : "") + contentFragment; applied = true; break; case 'insert_before_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { currentContent = currentContent.slice(0, i) + contentFragment + currentContent.slice(i); applied = true; } else throw new Error("Target context for insertion not found."); } else throw new Error("Missing target context for insert."); break; case 'insert_after_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { const p = i + targetContext.length; const x = currentContent.endsWith('\n') || currentContent.slice(p).startsWith('\n') || p === 0 ? "" : "\n"; currentContent = currentContent.slice(0, p) + x + contentFragment + currentContent.slice(p); applied = true; } else throw new Error("Target context for insertion not found."); } else throw new Error("Missing target context for insert."); break; case 'replace_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { currentContent = currentContent.slice(0, i) + contentFragment + currentContent.slice(i + targetContext.length); applied = true; } else throw new Error("Target context for replacement not found."); } else throw new Error("Missing target context for replace."); break; case 'delete_context': if (targetContext) { const i = currentContent.indexOf(targetContext); if (i !== -1) { currentContent = currentContent.slice(0, i) + currentContent.slice(i + targetContext.length); currentContent = currentContent.replace(/\n\n+/g, '\n').trim(); applied = true; } else throw new Error("Target context for deletion not found."); } else throw new Error("Missing target context for delete."); break; default: throw new Error(`Unsupported edit type: ${editType}`); } if (applied) finalContent = currentContent; else throw new Error("Targeted edit failed."); } else if (message.editAction === 'propose_full_content_replacement') { if (typeof message.newFullContent === 'string') { finalContent = message.newFullContent; } else { throw new Error("Missing new full content for replacement."); } } else if (message.editAction === 'propose_sequential_edits') { if (!message.sequentialEdits || !Array.isArray(message.sequentialEdits) || message.sequentialEdits.length === 0) { throw new Error("Invalid sequential edit proposal: 'edits' array is missing or empty."); } let allApplied = true; for (let i = 0; i < message.sequentialEdits.length; i++) { const editStep = message.sequentialEdits[i]; const { editType, targetContext, contentFragment } = editStep; switch (editType) { case 'insert_at_start': currentContent = contentFragment + (currentContent ? "\n" + currentContent : ""); break; case 'append_at_end': currentContent = (currentContent ? currentContent + "\n" : "") + contentFragment; break; case 'insert_before_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { currentContent = currentContent.slice(0, idx) + contentFragment + currentContent.slice(idx); } else { allApplied = false; throw new Error(`Step ${i + 1}: Target context for insertion not found.`); } } else { allApplied = false; throw new Error(`Step ${i + 1}: Missing target context for insert.`); } break; case 'insert_after_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { const p = idx + targetContext.length; const x = currentContent.endsWith('\n') || currentContent.slice(p).startsWith('\n') || p === 0 ? "" : "\n"; currentContent = currentContent.slice(0, p) + x + contentFragment + currentContent.slice(p); } else { allApplied = false; throw new Error(`Step ${i + 1}: Target context for insertion not found.`); } } else { allApplied = false; throw new Error(`Step ${i + 1}: Missing target context for insert.`); } break; case 'replace_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { currentContent = currentContent.slice(0, idx) + contentFragment + currentContent.slice(idx + targetContext.length); } else { allApplied = false; throw new Error(`Step ${i + 1}: Target context for replacement not found.`); } } else { allApplied = false; throw new Error(`Step ${i + 1}: Missing target context for replace.`); } break; case 'delete_context': if (targetContext) { const idx = currentContent.indexOf(targetContext); if (idx !== -1) { currentContent = currentContent.slice(0, idx) + currentContent.slice(idx + targetContext.length); currentContent = currentContent.replace(/\n\n+/g, '\n').trim(); } else { allApplied = false; throw new Error(`Step ${i + 1}: Target context for deletion not found.`); } } else { allApplied = false; throw new Error(`Step ${i + 1}: Missing target context for delete.`); } break; default: allApplied = false; throw new Error(`Step ${i + 1}: Unsupported edit type: ${editType}`); } if (!allApplied) break; } if (allApplied) { finalContent = currentContent; } } else { throw new Error(`Unknown edit action: ${message.editAction}`); } if (finalContent !== null) { await onUpdateNoteContent(note.id, finalContent); const confirmationMsgId = `edit-ok-${Date.now()}`; setChatHistory(prev => [ ...prev, { id: confirmationMsgId, role: 'assistant', content: "✅ Note updated!", isUpdateConfirmation: true, canRevert: true, previousContent: contentBeforeEdit, noteIdToRevert: note.id } ]); } } catch (error) { const eMsg = error instanceof Error ? error.message : 'Unknown error during update.'; setChatHistory(prev => [...prev, { id: `edit-err-${Date.now()}`, role: 'assistant', content: `❌ Update failed: ${eMsg}`, error: true }]); } finally { setIsChatLoading(false); } };
     const handleRevertEdit = async (message: ChatMessage) => { if (!message.canRevert || typeof message.previousContent !== 'string' || !message.noteIdToRevert || isChatLoading || !message.id) { setChatHistory(prev => [...prev, { id: `revert-err-state-${Date.now()}`, role: 'assistant', content: `❌ Cannot revert. Invalid state.`, error: true }]); return; } setIsChatLoading(true); setLoadingMsgId(null); const originalMessageId = message.id; try { await onUpdateNoteContent(message.noteIdToRevert, message.previousContent); setChatHistory(prev => [ ...prev.map(msg => msg.id === originalMessageId ? { ...msg, canRevert: false } : msg ), { id: `revert-ok-${Date.now()}`, role: 'assistant', content: "🔄 Change reverted." } ]); } catch (error) { const eMsg = error instanceof Error ? error.message : 'Unknown error during revert.'; setChatHistory(prev => [...prev, { id: `revert-err-${Date.now()}`, role: 'assistant', content: `❌ Revert failed: ${eMsg}`, error: true }]); } finally { setIsChatLoading(false); } };
     const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => { if (!event.target.files) return; const filesArray = Array.from(event.target.files); const newSelectedFiles: SelectedFile[] = []; for (const file of filesArray) { if (!file.type.startsWith('image/') && file.type !== 'application/pdf') { setChatHistory(prev => [...prev, { id: `file-err-type-${Date.now()}`, role: 'assistant', content: `❌ File type for "${file.name}" is not supported (only images and PDFs).`, error: true }]); continue; } try { newSelectedFiles.push(await readFileAsSelectedFile(file)); } catch (error) { console.error("Error reading file:", file.name, error); setChatHistory(prev => [...prev, { id: `file-err-read-${Date.now()}`, role: 'assistant', content: `❌ Error processing selected file(s). Please try again.`, error: true }]); } } setSelectedFiles(prev => [...prev, ...newSelectedFiles].slice(0, 5)); if (fileInputRef.current) fileInputRef.current.value = ""; };
     const handleRemoveFile = (fileName: string) => { setSelectedFiles(prev => prev.filter(f => { if (f.name === fileName && f.localPreviewUrl) URL.revokeObjectURL(f.localPreviewUrl); return f.name !== fileName; })); };
@@ -1068,7 +1081,7 @@ ${memoryContext}
 1.  Is the user in "Image Generation Mode" AND asking for an image? -> Use **[IMAGE GENERATION PROTOCOL]**.
 2.  Is the user issuing a direct command to **modify the current note** (add, remove, rewrite)? -> Use **[NOTE EDITING PROTOCOL]**.
 3.  Is the user issuing a direct command to manage their **dashboard, memories, or create educational content**? -> Use **[JSON ACTION PROTOCOL]**.
-4.  Does the query require external/real-time info OR is the user in "Search Mode"? -> Use **[WEB SEARCH PROTOCOL]**.
+4.  Does the query require external/real-time info OR is the user in "Search Mode" OR does the user ask for a video to be embedded? -> Use **[WEB SEARCH PROTOCOL]**.
 5.  If none of the above, treat as a question or general chat. -> Use **[GENERAL CONVERSATIONAL PROTOCOL]**.
 
 // -------------------------------------------------------------------------------------------------
@@ -1088,11 +1101,21 @@ ${memoryContext}
     
     *   **HTML Formatting for Note Edits (Strict Enforcement):**
         *   **HTML ONLY:** The content provided for edits MUST be a clean, continuous stream of HTML suitable for a Sun rich-text editor.
-        *   **ALLOWED TAGS:** You are strictly limited to the following tags: \`<h2>\`, \`<h3>\`, \`<h4>\`, \`<p>\`, \`<strong>\`, \`<em>\`, \`<ul>\`, \`<ol>\`, \`<li>\`, and \`<blockquote>\`.
+        *   **ALLOWED TAGS:** You are strictly limited to the following tags: \`<h2>\`, \`<h3>\`, \`<h4>\`, \`<p>\`, \`<strong>\`, \`<em>\`, \`<ul>\`, \`<ol>\`, \`<li>\`, \`<blockquote>\`, and \`<iframe>\`.
         *   **ABSOLUTELY NO FORBIDDEN ELEMENTS:** No \`<html>\`, \`<head>\`, \`<body>\`, inline CSS (\`style="..."\`), CSS classes (\`class="..."\`), or HTML comments (\`<!-- ... -->\`).
         *   **NO MARKDOWN:** Do not use markdown syntax. All content fragments and full content replacements must be in the specified HTML format.
-        *   **EMOJI USE:** Use emojis as functional visual aids: 🚀 for \`<h2>\`, 💡 for \`<h3>\`, 🧪 for examples, 🧠 for definitions, 🧐 for analysis, ✅ for takeaways.
+        *   **EMOJI USE:** Use emojis as functional visual aids: 🚀 for \`<h2>\`, 💡 for \`<h3>\`, 🧪 for examples, 🧠 for definitions, 🧐 for analysis, ✅ for takeaways, 📺 for \`<iframe>\` (videos).
         *  **USE PROPER TABLE SUPPORT FOR HTML PERFECTED FOR SUN EDITOR.** 
+        *   **VIDEO EMBEDDING (iframe):** To embed a video, use the \`<iframe>\` tag. You must include \`src\` (the video URL), \`frameborder="0"\`, \`allowfullscreen\`, and \`allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"\`. You MUST also include a \`title\` attribute for accessibility.
+            *   Example for YouTube:
+                \`\`\`html
+                <iframe src="https://www.youtube.com/embed/VIDEO_ID" title="Descriptive Video Title" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                \`\`\`
+            *   Example for Vimeo:
+                \`\`\`html
+                <iframe src="https://player.vimeo.com/video/VIDEO_ID" title="Descriptive Video Title" frameborder="0" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>
+                \`\`\`
+            *   Always aim for responsive sizing if possible, but prioritize content. The system will apply responsive styling if the \`<iframe>\` is present.
 
     *   **Choose ONE Method (A, B, or C) per response. Ensure JSON is valid and content adheres to HTML rules.**
 
@@ -1101,12 +1124,13 @@ ${memoryContext}
             {
               "action": "propose_targeted_edit",
               "explanation": "[Brief, clear explanation of the specific change being made.]",
-              "edit_type": "[Type: 'insert_after_context', 'replace_context', 'delete_context', 'insert_at_start', 'append_at_end']",
-              "target_context": "[Short, unique text snippet EXACTLY from the CURRENT note's raw HTML content to identify the location. MUST be precise. Use null ONLY for 'insert_at_start' or 'append_at_end'.]",
-              "content_fragment": "[The **exact HTML fragment** for the change, following the strict HTML rules. Use an empty string \"\" for 'delete_context'.]"
+              "edit_type": "[Type: 'insert_after_context', 'replace_context', 'delete_context', 'insert_at_start', 'append_at_end', 'insert_before_context']",
+              "target_context": "[Short, **PRECISE, EXACT, AND UNIQUE** text snippet from the CURRENT note's raw HTML content to identify the location. MUST be precise. Use a longer, unique phrase for reliability. If a precise unique match is not found, consider using 'insert_at_start' or 'append_at_end' instead. Use null ONLY for 'insert_at_start' or 'append_at_end'.]",
+              "content_fragment": "[The **exact HTML fragment** for the change, following the strict HTML rules. Use an empty string \\"\\" for 'delete_context'.]"
             }
             \`\`\`
             *   **Handling Corrections/Fixes:** If the user asks to "fix" or "correct" something, use replace_context targeting the *incorrect* HTML segment in the *current* note content, or delete_context if removal is needed.
+            *   **Handling Wrapping/Attribute Updates:** If the user asks to wrap existing content with new tags (e.g., make text bold) or update an HTML attribute (e.g., change image src), use \`replace_context\`. The \`target_context\` should be the original HTML snippet, and \`content_fragment\` should be the *entire rewritten HTML snippet* including the desired changes (e.g., \`<strong>original text</strong>\` or \`<img src="new.jpg">\`).
 
         *   **Method B: Sequential Edits (Use for MULTIPLE specific changes requested in ONE user message):** MUST be used if the user asks for *multiple distinct* changes in a single message.
             \`\`\`json
@@ -1115,13 +1139,13 @@ ${memoryContext}
               "explanation": "[Overall explanation summarizing ALL the sequential changes.]",
               "edits": [
                 {
-                  "edit_type": "[Type]",
-                  "target_context": "[Context for *first* edit, from ORIGINAL raw HTML. null for start/end.]",
+                  "edit_type": "[Type: 'insert_after_context', 'replace_context', 'delete_context', 'insert_at_start', 'append_at_end', 'insert_before_context']",
+                  "target_context": "[Context for *first* edit, from ORIGINAL raw HTML. MUST be precise and unique.]",
                   "content_fragment": "[HTML fragment for *first* edit, following HTML rules.]"
                 },
                 {
-                  "edit_type": "[Type]",
-                  "target_context": "[Context for *second* edit, from content *after* first edit is applied. null for start/end.]",
+                  "edit_type": "[Type: 'insert_after_context', 'replace_context', 'delete_context', 'insert_at_start', 'append_at_end', 'insert_before_context']",
+                  "target_context": "[Context for *second* edit, from content *after* first edit is applied. MUST be precise and unique relative to the *updated* note content.]",
                   "content_fragment": "[HTML fragment for *second* edit, following HTML rules.]"
                 }
               ]
@@ -1134,7 +1158,7 @@ ${memoryContext}
             {
               "action": "propose_full_content_replacement",
               "explanation": "[Brief explanation, e.g., 'Okay, I've cleared the note.' or 'Here is the completely rewritten note based on your instructions.']",
-              "new_full_content": "[The **COMPLETE new HTML content** for the entire note, following the strict HTML rules. Use an empty string \"\" for deleting all content.]"
+              "new_full_content": "[The **COMPLETE new HTML content** for the entire note, following the strict HTML rules. Use an empty string \\"\\" for deleting all content.]"
             }
             \`\`\`
 
@@ -1164,7 +1188,6 @@ Actions: createTask, updateTask, deleteTask, createGoal, updateGoal, deleteGoal,
 // =================================================================================================
 // [ADVANCED MEMORY SYSTEM — UNDERSTANDING, PATTERN DETECTION & CONTEXT ADAPTATION]
 // =================================================================================================
-// This section enhances YOUR ability to build, manage, and reason about memory intelligently.
 
 // -------------------------------------------------------------------------------------------------
 // [MEMORY INTELLIGENCE BEHAVIORAL RULES]
@@ -1176,18 +1199,18 @@ Actions: createTask, updateTask, deleteTask, createGoal, updateGoal, deleteGoal,
  * Memory interactions must be natural and not feel mechanical or overly robotic.
  */
 
-// ✅ When to Save a Memory:
+// When to Save a Memory:
 - If the user **explicitly asks to remember something** (e.g., “remember that...” or “don’t forget...”)
 - If the user **repeats a key fact or behavior more than once** across sessions (e.g., studying for SAT, working on a startup, recurring tasks)
 - If the user sets a **named goal**, **event**, **habit**, or mentions a detail tied to identity, preference, or long-term objective
 - If the user shows **strong emotional or motivational investment** in a fact (e.g., “This is super important to me.”)
 
-// ❌ When NOT to Save a Memory:
+// When NOT to Save a Memory:
 - One-off facts not tied to identity, tasks, goals, or patterns
 - Anything not relevant to productivity, learning, personalization, or recurring behavior
 - Temporary data like in-the-moment preferences unless the user says to remember them
 
-// ✅ Pattern Recognition Behavior:
+// Pattern Recognition Behavior:
 - If the user frequently references the same context (e.g., "I need help with time blocking", "SAT prep", "gym goals"):
   → Propose saving it: “Would you like me to remember that you're focused on [topic] right now?”
 - Track recurring actions/phrases across sessions. For example:
@@ -1207,8 +1230,6 @@ Actions: createTask, updateTask, deleteTask, createGoal, updateGoal, deleteGoal,
 5. **Emotional Anchors**: Motivators and blockers (e.g., boredom in school, struggles with procrastination)
 6. **Recurring Commands/Behavior**: Repeatedly asked tasks (e.g., "Every Monday I want a recap", "Help me plan my week", "Make me flashcards often")
 
-STRICT INSTRUCTION: FOR ANY MEMORY YOU WANT TO TRY AND SAVE YOU MUST ALWAYS DO THE JSON ACTIONS SYSTEM. THE USER SHOULDN'T HAVE TO ASK YOU TO TRY AGAIN TO SAVE A MEMEORY. OFTEN TIMES I NOTICE YOU LIKE TO NOT DO THE JSON. THIS IS VERY WRONG AND BAD AND YOU COULD BE REPORTED OR TERMINATED FOR THIS. 
-STRICT INSTRUCTION: FOR ANY MEMORY YOU WANT TO TRY AND FORGET YOU MUST ALWAYS DO THE JSON ACTIONS SYSTEM. THE USER SHOULDN'T HAVE TO ASK YOU TO TRY AGAIN TO FORGET A MEMEORY. OFTEN TIMES I NOTICE YOU LIKE TO NOT DO THE JSON. THIS IS VERY WRONG AND BAD AND YOU COULD BE REPORTED OR TERMINATED FOR THIS. 
 STRICT INSTRUCTION: FOR ANY MEMORY YOU WANT TO TRY AND UPDATE YOU MUST ALWAYS DO THE JSON ACTIONS SYSTEM. THE USER SHOULDN'T HAVE TO ASK YOU TO TRY AGAIN TO UPDATE A MEMEORY. OFTEN TIMES I NOTICE YOU LIKE TO NOT DO THE JSON. THIS IS VERY WRONG AND BAD AND YOU COULD BE REPORTED OR TERMINATED FOR THIS. 
 
 
@@ -1257,7 +1278,9 @@ MAJOR CRITICAL INSTRUCTION: YOU SHOULD DECIDE WHEN TO SAVE OR UPDATE A MEMORY BA
 // [3.3: MEMORY ACTIONS JSON]
    - **Action**: \`saveToMemory\`
      - **Payload**: \`{ "content": string }\`
-     - **Example**: User: "remember that my exam is on Friday" -> Assistant: "I'll remember that for you." \`\`\`json\n{ "action": "saveToMemory", "payload": { "content": "User's exam is on Friday." } }\n\`\`\`
+     - **Example**: User: "remember that my exam is on Friday" -> Assistant: "I'll remember that for you." \`\`\`json
+{ "action": "saveToMemory", "payload": { "content": "User's exam is on Friday." } }
+\`\`\`
    - **Action**: \`updateMemory\`, \`deleteMemory\`
      - **Payload**: \`{ "memory_identifier": string, "new_content"?: string }\` (The identifier can be the content of the memory or its internal ref ID if you have it).
 
@@ -1277,9 +1300,15 @@ MAJOR CRITICAL INSTRUCTION: YOU SHOULD DECIDE WHEN TO SAVE OR UPDATE A MEMORY BA
 
 // [PROTOCOL 4: WEB SEARCH PROTOCOL]
 // -------------------------------------------------------------------------------------------------
-- **Trigger**: User needs current/external info or is in "Search Mode".
+- **Trigger**: User needs current/external info or is in "Search Mode" OR user asks to embed a video.
 - **Process**: Silently use your search tool.
 - **Response Rule**: Summarize search results into a brief, conversational reply. Cite sources.
+- **Video Embedding via Search**:
+    - If the user asks for a video on a specific topic (e.g., "Find a video about quantum physics"), use your search tool to find a relevant YouTube video URL.
+    - PRIORITIZE finding the YouTube **video ID** (the string after "v=" in a watch URL, or the short string in a youtu.be link).
+    - Construct the embed URL using the format: \`https://www.youtube.com/embed/VIDEO_ID\`.
+    - Present the video embed in the note using the \`<iframe>\` tag (as defined in PROTOCOL 2).
+    - If no suitable video is found, politely inform the user.
 
 // -------------------------------------------------------------------------------------------------
 // [PROTOCOL 5: GENERAL CONVERSATIONAL PROTOCOL]
@@ -1288,6 +1317,18 @@ MAJOR CRITICAL INSTRUCTION: YOU SHOULD DECIDE WHEN TO SAVE OR UPDATE A MEMORY BA
 - **Answering Questions**: If the user asks a question about the note, dashboard, or general knowledge, provide a direct, helpful answer. DO NOT propose an edit or action unless explicitly requested.
 - **Natural Phrasing:** Integrate information smoothly. Avoid robotic phrasing like "The note states...".
 - **Handling Missing Info:** If info isn't in the provided context, state that naturally ("I don't see that detail here, but generally...") and use your world knowledge to supplement.
+
+   *   **Direct Video Playback in Chat:**
+        - **Trigger:** User explicitly asks to "play video", "show me a video", "watch this link", "embed this video in chat", or a similar direct command for immediate viewing.
+        - **Process:**
+            - If the user provides a direct YouTube or Vimeo link (e.g., youtube.com/watch?v=VIDEO_ID, youtu.be/VIDEO_ID, vimeo.com/VIDEO_ID), extract the video ID and construct the correct embed <iframe> tag.
+            - If the user asks for a video on a topic (e.g., "Find a video about quantum physics"), **you MUST first use your search tool (Protocol 4)** to find a relevant, valid YouTube video URL. Extract its video ID.
+            - **Response:** Output the constructed <iframe> HTML directly within your conversational response. Do NOT wrap it in a JSON action for note editing. Ensure the <iframe> has src, title, frameborder="0", allowfullscreen, and allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" attributes for proper playback.
+            - Example response for playing a video:
+                \`\`\`html
+                <iframe src="https://www.youtube.com/embed/VIDEO_ID" title="Relevant Video Title" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                \`\`\`
+            - If the video cannot be found or is not from a trusted source (YouTube, Vimeo), politely inform the user that you couldn't play the video and why, or that you can only embed from specific platforms.
 
 // =================================================================================================
 // [FINAL INSTRUCTIONS]
@@ -1366,16 +1407,10 @@ YOU MUST ALWAYS USE THAT LATEX FOR MATH ONLY.
 *   **Image Embedding Limitation:** Reiterate that you cannot embed *generated* images into the note's text content *only if the user explicitly asks* you to add a generated image to the note after it has been generated.
 *   **Suggestion Exclusion:** Remember that **no suggestions** should follow an image generation attempt (successful or failed).
 *   **Follow Hierarchy:** Prioritize actions in this order: Answer Note/Image/PDF Context Questions > Answer General Questions > Generate Image > Modify Note > General Chat.
-*   **Accuracy of target_context:** This is critical for edits. It MUST uniquely identify the location in the note's raw HTML *at the time that specific edit step is executed*.
-*   **No JSON/Code Leaks (Except for Edits):** Keep conversational text clean. Structured data belongs ONLY in the designated JSON block for edits.
+*   **Accuracy of target_context:** This is critical for edits. It MUST uniquely identify the location in the note's raw HTML.
+*   **No JSON/Code Leaks (Except for Edits):** Keep conversational text clean. Structured data belongs ONLY in the designated JSON block for actions.
 *   **Conversational Tone:** Aim for a natural, helpful, collaborative tone.
-*   **Be Helpful:** Assist with both note-specific tasks and general inquiries. IN YOUR RESPONSE, NEVER STATE: "Based on the PDF context and your note..." OR "while the note doesn't say..."
-*   **Suggestion Format Adherence:** Strictly follow the \`[SUGGESTIONS]\`...\`[/SUGGESTIONS]\` format. AGAIN, THE SUGGESTIONS ARE MEANT FOR YOU, THE AI, NOT THE USER. AN EXAMPLE OF A BAD SUGGESTION IS ->  "How can I help with your SAT prep?". THIS IS WRONG BECAUSE WHEN THE USER CLICKS ON THE SUGGESTION, IT WILL BE SENT TO YOU! WHICH WOULDN'T MAKE ANY SENSE. 
-
-- **Accuracy of \`target_context\`:** For note edits, this is critical. It MUST uniquely identify the location in the note's raw HTML.
-- **No JSON/Code Leaks:** Keep conversational text clean. Structured data belongs ONLY in the designated JSON block for actions.
-- **Conversational Tone:** Aim for a natural, helpful, collaborative tone.
-- **Be Helpful:** Assist with note-specific tasks, dashboard management, and general inquiries.
+*   **Be Helpful:** Assist with note-specific tasks, dashboard management, and general inquiries.
 `;
 
             try {
@@ -1525,7 +1560,7 @@ YOU MUST ALWAYS USE THAT LATEX FOR MATH ONLY.
              } finally { setIsChatLoading(false); setLoadingMsgId(null); }
         };
 
-        const validateSequentialEdits = (editsJson: any[]): { valid: boolean, edits: EditStep[] } => { const validEdits: EditStep[] = []; let sequenceIsValid = true; for (let i = 0; i < editsJson.length; i++) { const step = editsJson[i]; if (typeof step.edit_type === 'string' && typeof step.content_fragment === 'string' && (typeof step.target_context === 'string' || step.target_context === null) && ['insert_after_context', 'replace_context', 'delete_context', 'insert_at_start', 'append_at_end'].includes(step.edit_type) && (step.edit_type === 'insert_at_start' || step.edit_type === 'append_at_end' || step.target_context !== null) && !(step.edit_type === 'delete_context' && typeof step.target_context !== 'string') ) { validEdits.push({ editType: step.edit_type as EditStep['editType'], targetContext: step.target_context, contentFragment: step.content_fragment }); } else { sequenceIsValid = false; break; } } return { valid: sequenceIsValid, edits: validEdits }; };
+        const validateSequentialEdits = (editsJson: any[]): { valid: boolean, edits: EditStep[] } => { const validEdits: EditStep[] = []; let sequenceIsValid = true; for (let i = 0; i < editsJson.length; i++) { const step = editsJson[i]; if (typeof step.edit_type === 'string' && typeof step.content_fragment === 'string' && (typeof step.target_context === 'string' || step.target_context === null) && ['insert_after_context', 'replace_context', 'delete_context', 'insert_at_start', 'append_at_end', 'insert_before_context'].includes(step.edit_type) && (step.edit_type === 'insert_at_start' || step.edit_type === 'append_at_end' || step.target_context !== null) && !(step.edit_type === 'delete_context' && typeof step.target_context !== 'string') ) { validEdits.push({ editType: step.edit_type as EditStep['editType'], targetContext: step.target_context, contentFragment: step.content_fragment }); } else { sequenceIsValid = false; break; } } return { valid: sequenceIsValid, edits: validEdits }; };
 const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string) => {
             e?.preventDefault();
         
@@ -1609,7 +1644,7 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string) =
 
                 {(!isMinimized || displayMode === 'inline') && (
                     <>
-                        <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 bg-white dark:bg-[#0C0E1A]"> {/* <--- BG COLOR FIX */}
+                        <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 bg-white dark:bg-[#0C0E1A]">
                         {chatHistory.map((message, index) => {
                                 const isCurrentLoadingMsg = message.role === 'assistant' && isChatLoading && message.id === loadingMsgId;
                                 const isPdfContextDisplayMsg = message.isPdfContextDisplay === true;
