@@ -1,8 +1,11 @@
- import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../lib/firebase';
-import { doc, getDoc, Timestamp } from 'firebase/firestore'; // Changed from onSnapshot back to getDoc
-import { Loader2, Lock, Share2, Download, Sun, Moon, User } from 'lucide-react';
+import { doc, getDoc, Timestamp } from 'firebase/firestore';
+import { 
+    Loader2, Lock, Share2, Download, Sun, Moon, User,
+    Sparkles, BookOpen, Layers, Mic, Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Speaker, Check, X
+} from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
@@ -17,39 +20,117 @@ interface Note {
   userId: string;
   isPublic: boolean;
   tags: string[];
+  keyPoints?: string[];
+  questions?: { question: string; options: string[]; correctAnswer: number; explanation?: string; }[];
+  flashcards?: { front: string; back: string; }[];
+  podcasts?: Podcast[];
 }
 
 interface Author {
     displayName: string;
 }
 
+interface Podcast {
+    id: string;
+    combinedUrl: string;
+    totalDuration: number;
+    segments: PodcastSegment[];
+    createdAt: Timestamp;
+    settings: {
+        language: string;
+        speaker1Id: string | null;
+        speaker2Id: string | null;
+        length: 'short' | 'medium' | 'long' | null;
+        instructions: string;
+    };
+}
+
+interface PodcastSegment {
+    text: string;
+    speakerId: string;
+    startTime: number;
+    endTime: number;
+    audioUrl: string;
+}
+
+interface PodcastSpeakerProfile {
+    id: string; name: string; description: string;
+    avatarUrl: string;
+    elevenLabsVoiceId: string;
+    sampleAudioUrl: string;
+}
+
+const PREDEFINED_PODCAST_SPEAKERS: PodcastSpeakerProfile[] = [
+    {
+        id: 'felicity', name: 'Felicity', description: 'Polished, articulate, and easy on the ears.',
+        avatarUrl: 'https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/girl%20-%20felicity.jpg?alt=media&token=2515318d-1917-4561-9abb-400285733ef4',
+        elevenLabsVoiceId: 'aTbnroHRGIomiKpqAQR8',
+        sampleAudioUrl: 'https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/felicity_sample_voice.mp3?alt=media&token=d7c5bef0-cb45-491e-8e36-e792e63133e0'
+    },
+    {
+        id: 'christopher', name: 'Christopher', description: 'Lifelike, expressive, and professionally tuned.',
+        avatarUrl: 'https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/boy%20-%20christopher.jpg?alt=media&token=92d53b92-48a7-4b04-826e-bca0a8f0507f',
+        elevenLabsVoiceId: 'G17SuINrv2H9FC6nvetn',
+        sampleAudioUrl: 'https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/christopher_sample_voice.mp3?alt=media&token=fd0d094a-dbbb-40b3-8019-b8bd1b6c17aa'
+    },
+];
+
+const toDateSafe = (value: any): Date | null => {
+    if (!value) return null;
+    if (value instanceof Date) return value;
+    if (value instanceof Timestamp) return value.toDate();
+    if (typeof value === 'object' && 'seconds' in value && 'nanoseconds' in value &&
+        typeof value.seconds === 'number' && typeof value.nanoseconds === 'number') {
+        try {
+            return new Timestamp(value.seconds, value.nanoseconds).toDate();
+        } catch (e) { console.warn("toDateSafe error converting object:", e); return null; }
+    }
+    return null;
+};
+
+const RenderWithLatex: React.FC<{ text: string | undefined }> = ({ text }) => {
+    const renderedHtml = useMemo(() => {
+        if (!text) return '';
+        const regex = /\$\$\s*([\s\S]*?)\s*\$\$|\$(.*?)\$/g;
+        return text.replace(regex, (match, displayMath, inlineMath) => {
+            const contentToRender = displayMath || inlineMath;
+            const isDisplayMode = !!displayMath;
+            try {
+                return katex.renderToString(contentToRender, {
+                    throwOnError: false,
+                    displayMode: isDisplayMode,
+                });
+            } catch (e) {
+                console.error("KaTeX rendering error:", e);
+                return match;
+            }
+        });
+    }, [text]);
+
+    return <span dangerouslySetInnerHTML={{ __html: renderedHtml }} />;
+};
+
 const KatexRenderer: React.FC<{ htmlContent: string | undefined }> = ({ htmlContent }) => {
     const renderedContent = useMemo(() => {
         if (!htmlContent) return '';
 
-        // Regex to find $$...$$ (for display math) and $...$ (for inline math)
-        // This handles multiline content and avoids being too greedy.
         const regex = /\$\$\s*([\s\S]*?)\s*\$\$|\$(.*?)\$/g;
-
-        // Replace matched LaTeX with KaTeX rendered HTML.
-        // Also ensure any video iframes are preserved (they would be part of the htmlContent).
         const processedHtml = htmlContent.replace(regex, (match, displayMath, inlineMath) => {
             const contentToRender = displayMath || inlineMath;
             const isDisplayMode = !!displayMath;
             try {
                 return katex.renderToString(contentToRender, {
-                    throwOnError: false, // Prevents crashing if the LaTeX is invalid
+                    throwOnError: false,
                     displayMode: isDisplayMode,
                 });
             } catch (e) {
                 console.error("KaTeX rendering error:", e);
-                return match; // In case of an error, return the original, unrendered text.
+                return match;
             }
         });
         return processedHtml;
     }, [htmlContent]);
     
-    // Using dangerouslySetInnerHTML to render both the processed LaTeX and any other HTML, including iframes for videos.
     return <div dangerouslySetInnerHTML={{ __html: renderedContent }} />;
 };
 
@@ -63,6 +144,29 @@ export function PublicNoteView() {
   const [error, setError] = useState<string | null>(null);
   const pdfContentRef = useRef<HTMLDivElement>(null);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
+
+  const [activePodcast, setActivePodcast] = useState<Podcast | null>(null);
+  const [isPodcastPlaying, setIsPodcastPlaying] = useState(false);
+  const [podcastPlaybackRate, setPodcastPlaybackRate] = useState(1);
+  const [podcastVolume, setPodcastVolume] = useState(0.75);
+  const [podcastCurrentTime, setPodcastCurrentTime] = useState(0);
+  const [podcastDuration, setPodcastDuration] = useState(0);
+  const audioPlayerRef = useRef<HTMLAudioElement>(null);
+  const [currentSegmentIndex, setCurrentSegmentIndex] = useState(-1);
+
+  const handlePodcastStop = useCallback(() => {
+    const audioEl = audioPlayerRef.current;
+    if (audioEl) {
+        audioEl.pause();
+        audioEl.currentTime = 0;
+        audioEl.src = "";
+    }
+    setIsPodcastPlaying(false);
+    setActivePodcast(null);
+    setCurrentSegmentIndex(-1);
+    setPodcastCurrentTime(0);
+    setPodcastDuration(0);
+}, []);
 
   useEffect(() => {
     const applyTheme = () => {
@@ -97,7 +201,7 @@ export function PublicNoteView() {
       setError(null);
       try {
         const noteRef = doc(db, 'notes', noteId);
-        const docSnap = await getDoc(noteRef); // Changed from onSnapshot back to getDoc
+        const docSnap = await getDoc(noteRef);
 
         if (docSnap.exists()) {
           const fetchedData = { id: docSnap.id, ...docSnap.data() } as Note;
@@ -120,12 +224,12 @@ export function PublicNoteView() {
           } else {
             setError("This note is private and cannot be viewed.");
             document.title = `Private Note`;
-            setNote(null); // Clear note if it's private
+            setNote(null);
           }
         } else {
           setError("Note not found.");
           document.title = `Note Not Found`;
-          setNote(null); // Clear note if not found
+          setNote(null);
         }
       } catch (err) {
         console.error("Error fetching public note:", err);
@@ -137,8 +241,78 @@ export function PublicNoteView() {
     };
 
     fetchNoteAndAuthor();
-    return () => { document.title = 'TaskMaster AI'; };
-  }, [noteId]);
+    return () => { 
+        document.title = 'TaskMaster AI'; 
+        handlePodcastStop();
+    };
+  }, [noteId, handlePodcastStop]);
+
+  useEffect(() => {
+    const audioEl = audioPlayerRef.current;
+    if (!audioEl || !activePodcast) {
+        if (audioEl && !audioEl.paused) audioEl.pause();
+        return;
+    }
+
+    let playPromise: Promise<void> | undefined;
+
+    if (audioEl.src !== activePodcast.combinedUrl) {
+        audioEl.src = activePodcast.combinedUrl;
+        setPodcastDuration(activePodcast.totalDuration);
+        audioEl.load();
+        if (isPodcastPlaying) {
+            playPromise = audioEl.play();
+        }
+    } else if (isPodcastPlaying && audioEl.paused) {
+        playPromise = audioEl.play();
+    }
+
+    if (playPromise) {
+        playPromise.catch(e => {
+            console.error("Error playing combined audio:", e);
+            setIsPodcastPlaying(false);
+        });
+    }
+
+    const handleTimeUpdate = () => {
+        const currentTime = audioEl.currentTime;
+        setPodcastCurrentTime(currentTime);
+
+        const activeIndex = activePodcast.segments.findIndex(
+            seg => currentTime >= seg.startTime && currentTime < seg.endTime
+        );
+        
+        if (activeIndex !== -1 && activeIndex !== currentSegmentIndex) {
+             setCurrentSegmentIndex(activeIndex);
+        }
+    };
+
+    const handlePlay = () => setIsPodcastPlaying(true);
+    const handlePause = () => setIsPodcastPlaying(false);
+    const handleEnded = () => {
+        setIsPodcastPlaying(false);
+        setCurrentSegmentIndex(-1);
+        setPodcastCurrentTime(audioEl.duration || activePodcast.totalDuration);
+    };
+    const handleError = () => {
+        setIsPodcastPlaying(false);
+        handlePodcastStop();
+    };
+
+    audioEl.addEventListener('timeupdate', handleTimeUpdate);
+    audioEl.addEventListener('play', handlePlay);
+    audioEl.addEventListener('pause', handlePause);
+    audioEl.addEventListener('ended', handleEnded);
+    audioEl.addEventListener('error', handleError);
+
+    return () => {
+        audioEl.removeEventListener('timeupdate', handleTimeUpdate);
+        audioEl.removeEventListener('play', handlePlay);
+        audioEl.removeEventListener('pause', handlePause);
+        audioEl.removeEventListener('ended', handleEnded);
+        audioEl.removeEventListener('error', handleError);
+    };
+}, [activePodcast, isPodcastPlaying, handlePodcastStop, currentSegmentIndex]);
 
   const toggleDarkMode = useCallback(() => {
       setIsDarkMode(prev => {
@@ -170,7 +344,81 @@ export function PublicNoteView() {
 
     html2pdf().from(element).set(opt).save();
   }, [note]);
-  
+
+  const handlePodcastPlayPause = useCallback(() => {
+    const audioEl = audioPlayerRef.current;
+    if (!audioEl || !activePodcast) return;
+
+    if (audioEl.paused) {
+        if (audioEl.currentTime >= activePodcast.totalDuration - 0.1) {
+            audioEl.currentTime = 0;
+        }
+        audioEl.play().catch(e => setIsPodcastPlaying(false));
+        setIsPodcastPlaying(true);
+    } else {
+        audioEl.pause();
+        setIsPodcastPlaying(false);
+    }
+  }, [activePodcast]);
+
+  const handlePodcastSeek = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const audioEl = audioPlayerRef.current;
+    if (audioEl && activePodcast && activePodcast.segments.length > 0) {
+        const newTime = Number(event.target.value);
+        audioEl.currentTime = newTime;
+        setPodcastCurrentTime(newTime);
+    }
+  }, [activePodcast]);
+
+  const handleSkipForwardSegment = useCallback(() => {
+    if (activePodcast && audioPlayerRef.current) {
+        const nextIndex = currentSegmentIndex + 1;
+        if (nextIndex < activePodcast.segments.length) {
+            audioPlayerRef.current.currentTime = activePodcast.segments[nextIndex].startTime;
+            if (!isPodcastPlaying) audioPlayerRef.current.play();
+        } else {
+            audioPlayerRef.current.currentTime = activePodcast.totalDuration;
+        }
+    }
+  }, [activePodcast, currentSegmentIndex, isPodcastPlaying]);
+
+  const handleSkipBackSegment = useCallback(() => {
+    if (activePodcast && audioPlayerRef.current) {
+        const currentTime = audioPlayerRef.current.currentTime;
+        const currentSegment = activePodcast.segments[currentSegmentIndex];
+        if (currentSegment && currentTime > currentSegment.startTime + 2) {
+             audioPlayerRef.current.currentTime = currentSegment.startTime;
+        } else {
+            const prevIndex = currentSegmentIndex - 1;
+            if (prevIndex >= 0) {
+                audioPlayerRef.current.currentTime = activePodcast.segments[prevIndex].startTime;
+            } else {
+                audioPlayerRef.current.currentTime = 0;
+            }
+        }
+        if (!isPodcastPlaying) audioPlayerRef.current.play();
+    }
+  }, [activePodcast, currentSegmentIndex, isPodcastPlaying]);
+
+  const formatPodcastTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${minutes}:${secs < 10 ? '0' : ''}${secs}`;
+  };
+
+  useEffect(() => {
+    if (audioPlayerRef.current) {
+        audioPlayerRef.current.volume = podcastVolume;
+    }
+  }, [podcastVolume]);
+
+  useEffect(() => {
+    if (audioPlayerRef.current) {
+        audioPlayerRef.current.playbackRate = podcastPlaybackRate;
+    }
+  }, [podcastPlaybackRate]);
+
+
   const globalStyles = `
     ::-webkit-scrollbar { width: 12px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -259,20 +507,23 @@ export function PublicNoteView() {
     .note-content-area td { color: #374151; }
     .dark .note-content-area td { color: #D1D5DB; }
 
-    .note-content-area img, .note-content-area iframe {
+    .note-content-area img {
         border-radius: 12px;
         overflow: hidden;
         max-width: 100%;
-        height: auto; /* Allow height to adjust naturally */
-        display: block;
-        margin: 1.5em auto;
+        height: auto;
+        display: inline-block;
+        margin: 1.5em 0;
     }
-
-    /* Specific styling for iframes (e.g., YouTube embeds) to maintain aspect ratio */
     .note-content-area iframe {
-        width: 100%;
-        min-height: 200px; /* Minimum height for smaller screens */
-        aspect-ratio: 16 / 9; /* Standard aspect ratio for videos */
+        border-radius: 12px;
+        overflow: hidden;
+        max-width: 100%;
+        height: auto;
+        display: block;
+        margin: 1.5em 0;
+        min-height: 200px;
+        aspect-ratio: 16 / 9;
     }
   `;
 
@@ -311,8 +562,7 @@ export function PublicNoteView() {
                                             </div>
                                         )}
                                         <span className="hidden sm:inline">•</span>
-                                        <span>Last updated: {note.updatedAt?.toDate().toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</span>
-                                        {/* "Public Note" tag moved here, right after "Last updated" */}
+                                        <span>Last updated: {toDateSafe(note.updatedAt)?.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</span>
                                         <span className="hidden sm:inline">•</span>
                                         <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-cyan-100 text-cyan-800 dark:bg-cyan-500/10 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-500/20">
                                             <Share2 className="w-3.5 h-3.5"/>
@@ -342,6 +592,188 @@ export function PublicNoteView() {
                         
                         <main className="note-content-area">
                             <KatexRenderer htmlContent={note.content} />
+
+                            {note.keyPoints && note.keyPoints.length > 0 && (
+                                <div className={`mt-8 pt-6 border-t border-gray-200 dark:border-gray-700/50`}>
+                                    <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 text-gray-800 dark:text-gray-100`}> <Sparkles className={`w-5 h-5 text-yellow-500 dark:text-yellow-400`} /> Key Points </h3>
+                                    <div className={`space-y-3`}> {note.keyPoints.map((point, index) => (
+                                        <div key={index} className="flex items-start p-3 rounded-lg bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700/50">
+                                            <div className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-700/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center text-xs font-semibold mr-3 mt-0.5">{index + 1}</div>
+                                            <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed"><RenderWithLatex text={point} /></p>
+                                        </div>
+                                    ))} </div>
+                                </div>
+                            )}
+
+                            {note.flashcards && note.flashcards.length > 0 && (
+                                <div className="my-8 pt-6 border-t border-gray-200 dark:border-gray-700/50">
+                                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-gray-800 dark:text-gray-100">
+                                        <Layers className="w-5 h-5 text-indigo-500 dark:text-indigo-400" /> Flashcards
+                                    </h3>
+                                    <div className="space-y-4">
+                                        {note.flashcards.map((card, index) => (
+                                            <div key={index} className="group relative p-4 rounded-lg shadow-sm bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700/50">
+                                                <span className="absolute top-2 left-2.5 px-2 py-0.5 text-[10px] font-semibold bg-purple-100 dark:bg-purple-700/40 text-purple-700 dark:text-purple-200 rounded-full">
+                                                    Card {index + 1}
+                                                </span>
+                                                <div className="space-y-3 mt-4">
+                                                    <div>
+                                                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Front:</label>
+                                                        <div className="p-2 rounded-md bg-white dark:bg-gray-700/60 border border-gray-200 dark:border-gray-600/70 text-gray-700 dark:text-gray-200 text-sm leading-relaxed">
+                                                            <RenderWithLatex text={card.front} />
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Back:</label>
+                                                        <div className="p-2 rounded-md bg-white dark:bg-gray-700/60 border border-gray-200 dark:border-gray-600/70 text-gray-700 dark:text-gray-200 text-sm leading-relaxed">
+                                                            <RenderWithLatex text={card.back} />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {note.questions && note.questions.length > 0 && (
+                                <div className={`mt-8 pt-6 border-t border-gray-200 dark:border-gray-700/50`}>
+                                    <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 text-gray-800 dark:text-gray-100`}><BookOpen className={`w-5 h-5 text-purple-500 dark:text-purple-400`} />Study Questions</h3>
+                                    <div className="space-y-5">
+                                        {note.questions.map((q, index) => {
+                                            const key = `q-${index}`;
+                                            return (
+                                                <div key={key} className={`p-4 md:p-5 rounded-xl bg-gray-50 dark:bg-[#1A1D29]`}>
+                                                    <p className={`text-gray-800 dark:text-gray-200 font-medium mb-4 leading-relaxed`}>
+                                                        <span className="text-indigo-500 dark:text-indigo-400 font-bold mr-2">{index + 1}.</span>
+                                                        <RenderWithLatex text={q.question} />
+                                                    </p>
+                                                    <div className="space-y-3">
+                                                        {q.options.map((opt, idx) => {
+                                                            const isCorrect = idx === q.correctAnswer;
+                                                            return (
+                                                                <div
+                                                                    key={idx}
+                                                                    className={`w-full text-left p-3 rounded-lg text-sm flex items-center justify-between group border cursor-default
+                                                                        ${isCorrect
+                                                                            ? `bg-green-100 dark:bg-green-500/20 text-green-800 dark:text-white font-semibold border-green-300 dark:border-green-500/50`
+                                                                            : `bg-gray-100 dark:bg-gray-700/40 text-gray-500 dark:text-gray-400 border-transparent opacity-70`
+                                                                        }`}
+                                                                >
+                                                                    <span><RenderWithLatex text={opt} /></span>
+                                                                    <div className={`flex-shrink-0 ml-4 w-6 h-6 flex items-center justify-center rounded-full
+                                                                        ${isCorrect ? 'bg-green-500/20 border-green-500/30' : 'bg-gray-200/50 dark:bg-gray-700/50 border-gray-300 dark:border-gray-600'}
+                                                                    `}>
+                                                                        {isCorrect && <Check className="w-4 h-4 text-green-600" />}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                    {q.explanation && (
+                                                        <div className={`mt-4 p-3 rounded-lg text-sm leading-relaxed bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200`}>
+                                                            <strong className="font-semibold">Explanation: </strong><RenderWithLatex text={q.explanation} />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {note.podcasts && note.podcasts.length > 0 && (
+                                <div id="podcast-section-wrapper" className="mt-8 pt-6 mb-6 border-t border-gray-200 dark:border-gray-700/50">
+                                    <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100">
+                                        <Mic className="w-5 h-5 text-teal-500 dark:text-teal-400" /> Podcasts
+                                    </h3>
+                                    {activePodcast && (
+                                        <div id="podcast-player-section" className="my-6 p-4 rounded-lg shadow-lg bg-gradient-to-br from-indigo-500 to-purple-600 dark:from-indigo-700 dark:to-purple-800 text-white">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <div className="flex items-center">
+                                                    <Speaker size={24} className="mr-3 opacity-80" />
+                                                    <h3 className="text-lg font-semibold truncate">{note.title} - Podcast</h3>
+                                                </div>
+                                                <button onClick={handlePodcastStop} className="p-1 text-white/70 hover:text-white rounded-full hover:bg-white/10"><X size={18}/></button>
+                                            </div>
+
+                                            <audio ref={audioPlayerRef} className="hidden" controls={false} />
+
+                                            <>
+                                                <div className="w-full space-y-2 mb-3">
+                                                    <input
+                                                        type="range"
+                                                        min="0"
+                                                        max={podcastDuration || 100}
+                                                        value={podcastCurrentTime}
+                                                        onChange={handlePodcastSeek}
+                                                        className="w-full h-2 bg-white/30 rounded-lg appearance-none cursor-pointer accent-white"
+                                                    />
+                                                    <div className="flex justify-between text-xs opacity-80">
+                                                        <span>{formatPodcastTime(podcastCurrentTime)}</span>
+                                                        <span>{formatPodcastTime(podcastDuration)}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center justify-center space-x-4 mb-4">
+                                                   <button onClick={handleSkipBackSegment} className="p-2 opacity-80 hover:opacity-100 transition-opacity" disabled={!activePodcast || (audioPlayerRef.current?.currentTime || 0) < 1} >
+                                                        <SkipBack className="w-5 h-5" />
+                                                    </button>
+                                                    <button onClick={handlePodcastPlayPause} className="p-3 bg-white/20 rounded-full hover:bg-white/30 transition-colors transform hover:scale-105" >
+                                                        {isPodcastPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
+                                                    </button>
+                                                    <button onClick={handleSkipForwardSegment} className="p-2 opacity-80 hover:opacity-100 transition-opacity" disabled={!activePodcast || (audioPlayerRef.current?.currentTime || 0) >= activePodcast.totalDuration - 1} >
+                                                        <SkipForward className="w-5 h-5" />
+                                                    </button>
+                                                </div>
+                                                <div className="flex items-center justify-between text-xs opacity-90">
+                                                    <div className="flex items-center space-x-2">
+                                                        {podcastVolume > 0 ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                                                        <input
+                                                            type="range" min="0" max="1" step="0.05" value={podcastVolume}
+                                                            onChange={(e) => setPodcastVolume(Number(e.target.value))}
+                                                            className="w-20 h-1.5 bg-white/30 rounded-lg appearance-none cursor-pointer accent-white"
+                                                        />
+                                                    </div>
+                                                    <div className="flex items-center space-x-2 relative group">
+                                                        <span className="px-2 py-0.5 bg-white/20 rounded-md focus:ring-2 focus:ring-white/50">{podcastPlaybackRate}x</span>
+                                                        <select value={podcastPlaybackRate} onChange={(e) => setPodcastPlaybackRate(Number(e.target.value))}
+                                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                                        >
+                                                            {[0.5, 0.75, 1, 1.25, 1.5, 2].map(rate => (
+                                                                <option key={rate} value={rate}>{rate}x</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        </div>
+                                    )}
+
+                                    <div id="podcast-list-section" className="mt-1">
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Generated Podcasts for this Note:</p>
+                                        <div className="space-y-2">
+                                            {note.podcasts!.sort((a, b) => toDateSafe(b.createdAt)!.getTime() - toDateSafe(a.createdAt)!.getTime()).map(p => (
+                                                <div key={p.id} className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700/50 flex items-center justify-between gap-3">
+                                                    <div className="flex items-center gap-3">
+                                                        <button onClick={() => { activePodcast?.id === p.id ? handlePodcastPlayPause() : setActivePodcast(p) }} className="p-2 rounded-full bg-teal-100 dark:bg-teal-700/30 text-teal-600 dark:text-teal-300 hover:bg-teal-200 dark:hover:bg-teal-700/50">
+                                                            {activePodcast?.id === p.id && isPodcastPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+                                                        </button>
+                                                        <div>
+                                                            <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                                                                Podcast from {toDateSafe(p.createdAt)?.toLocaleString()}
+                                                            </p>
+                                                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                                {p.settings.speaker2Id ? `${PREDEFINED_PODCAST_SPEAKERS.find(s=>s.id===p.settings.speaker1Id)?.name} & ${PREDEFINED_PODCAST_SPEAKERS.find(s=>s.id===p.settings.speaker2Id)?.name}` : PREDEFINED_PODCAST_SPEAKERS.find(s=>s.id===p.settings.speaker1Id)?.name}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                         </main>
                     </div>
                 </div>
