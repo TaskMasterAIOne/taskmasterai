@@ -4,11 +4,13 @@ import { db } from '../lib/firebase';
 import { doc, getDoc, Timestamp } from 'firebase/firestore';
 import { 
     Loader2, Lock, Share2, Download, Sun, Moon, User,
-    Sparkles, BookOpen, Layers, Mic, Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Speaker, Check, X
+    Sparkles, BookOpen, Layers, Mic, Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Speaker, Check, X,
+    ChevronRight, ChevronLeft, RotateCw as FlipIcon
 } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Note {
   id: string;
@@ -154,6 +156,9 @@ export function PublicNoteView() {
   const audioPlayerRef = useRef<HTMLAudioElement>(null);
   const [currentSegmentIndex, setCurrentSegmentIndex] = useState(-1);
 
+  const [currentFlashcardIndex, setCurrentFlashcardIndex] = useState(0);
+  const [isFlashcardFlipped, setIsFlashcardFlipped] = useState(false);
+
   const handlePodcastStop = useCallback(() => {
     const audioEl = audioPlayerRef.current;
     if (audioEl) {
@@ -177,7 +182,7 @@ export function PublicNoteView() {
             setIsDarkMode(true);
         } else {
             document.documentElement.classList.remove('dark');
-            setIsDarkMode(false);
+            localStorage.setItem('theme', 'light');
         }
     };
     applyTheme();
@@ -418,6 +423,30 @@ export function PublicNoteView() {
     }
   }, [podcastPlaybackRate]);
 
+  const handleNextFlashcard = useCallback(() => {
+    if (note && note.flashcards && currentFlashcardIndex < note.flashcards.length - 1) {
+        setCurrentFlashcardIndex(prev => prev + 1);
+        setIsFlashcardFlipped(false);
+    }
+  }, [note, currentFlashcardIndex]);
+
+  const handlePrevFlashcard = useCallback(() => {
+    if (currentFlashcardIndex > 0) {
+        setCurrentFlashcardIndex(prev => prev - 1);
+        setIsFlashcardFlipped(false);
+    }
+  }, [currentFlashcardIndex]);
+
+  const handleFlipFlashcard = useCallback(() => {
+      setIsFlashcardFlipped(prev => !prev);
+  }, []);
+
+  const handleScrollToSection = useCallback((sectionId: string) => {
+    const element = document.getElementById(sectionId);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
 
   const globalStyles = `
     ::-webkit-scrollbar { width: 12px; }
@@ -512,8 +541,8 @@ export function PublicNoteView() {
         overflow: hidden;
         max-width: 100%;
         height: auto;
-        display: inline-block;
-        margin: 1.5em 0;
+        display: inline-block; /* Changed from 'block' to 'inline-block' */
+        margin: 1.5em 0; /* Removed 'auto' to prevent centering */
     }
     .note-content-area iframe {
         border-radius: 12px;
@@ -524,6 +553,84 @@ export function PublicNoteView() {
         margin: 1.5em 0;
         min-height: 200px;
         aspect-ratio: 16 / 9;
+    }
+
+    .public-note-quick-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 24px;
+        margin-bottom: 24px;
+        padding-bottom: 16px;
+        border-bottom: 0px; /* Removed border */
+    }
+
+    .public-note-quick-actions button {
+        flex: 1;
+        min-width: 120px;
+        padding: 12px 16px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 500;
+        transition: background-color 0.15s ease-in-out;
+        cursor: pointer;
+        background-color: #F3F4F6; /* Default light background */
+        color: #1F2937; /* Default light text */
+    }
+    .dark .public-note-quick-actions button {
+        background-color: #1A202C; /* Default dark background */
+        color: #E5E7EB; /* Default dark text */
+    }
+    .public-note-quick-actions button:hover {
+        background-color: #E5E7EB; /* Hover light background */
+    }
+    .dark .public-note-quick-actions button:hover {
+        background-color: #2D3748; /* Hover dark background */
+    }
+    .public-note-quick-actions button svg {
+        flex-shrink: 0;
+    }
+
+    /* Override for specific section styling */
+    .section-container {
+        padding-top: 24px;
+        margin-top: 32px;
+        border-top: 0px; /* Removed border */
+    }
+    .flashcard-card-view {
+        background-color: #ffffff; /* Light mode card background */
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        border-radius: 12px;
+        padding: 24px;
+        min-height: 280px;
+        perspective: 1000px;
+        cursor: pointer;
+    }
+    .dark .flashcard-card-view {
+        background-color: #1A1D29; /* Dark mode card background */
+    }
+    .flashcard-card-face {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        backface-visibility: hidden;
+        transition: transform 0.5s;
+    }
+    .flashcard-front {
+        background-color: #6366f1; /* Indigo */
+        color: white;
+    }
+    .flashcard-back {
+        background-color: #8B5CF6; /* Purple */
+        color: white;
+        transform: rotateX(180deg);
     }
   `;
 
@@ -564,7 +671,7 @@ export function PublicNoteView() {
                                         <span className="hidden sm:inline">•</span>
                                         <span>Last updated: {toDateSafe(note.updatedAt)?.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</span>
                                         <span className="hidden sm:inline">•</span>
-                                        <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-cyan-100 text-cyan-800 dark:bg-cyan-500/10 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-500/20">
+                                        <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-cyan-100 text-cyan-800 dark:bg-cyan-500/10 dark:text-cyan-300">
                                             <Share2 className="w-3.5 h-3.5"/>
                                             Public Note
                                         </span>
@@ -582,7 +689,7 @@ export function PublicNoteView() {
 
                             <div className="flex flex-wrap items-center gap-2 mt-6">
                                 {note.tags?.map((tag) => (
-                                    <span key={tag} className="px-3 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-500/10 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/20">
+                                    <span key={tag} className="px-3 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-500/10 dark:text-indigo-300">
                                         #{tag}
                                     </span>
                                 ))}
@@ -590,58 +697,115 @@ export function PublicNoteView() {
                             <div className="w-full h-px bg-gray-200 dark:bg-gray-800 mt-8"></div>
                         </header>
                         
+                        {/* Quick Actions Buttons */}
+                        <div className="public-note-quick-actions">
+                            {note.keyPoints && note.keyPoints.length > 0 && (
+                                <button onClick={() => handleScrollToSection('key-points-section')} className="bg-yellow-50 dark:bg-yellow-700/20 hover:bg-yellow-100 dark:hover:bg-yellow-700/30">
+                                    <Sparkles className="w-5 h-5 text-yellow-600 dark:text-yellow-300" />
+                                    Key Points
+                                </button>
+                            )}
+                            {note.flashcards && note.flashcards.length > 0 && (
+                                <button onClick={() => handleScrollToSection('flashcards-section')} className="bg-indigo-50 dark:bg-indigo-700/20 hover:bg-indigo-100 dark:hover:bg-indigo-700/30">
+                                    <Layers className="w-5 h-5 text-indigo-600 dark:text-indigo-300" />
+                                    Flashcards
+                                </button>
+                            )}
+                            {note.questions && note.questions.length > 0 && (
+                                <button onClick={() => handleScrollToSection('study-questions-section')} className="bg-purple-50 dark:bg-purple-700/20 hover:bg-purple-100 dark:hover:bg-purple-700/30">
+                                    <BookOpen className="w-5 h-5 text-purple-600 dark:text-purple-300" />
+                                    Quiz
+                                </button>
+                            )}
+                            {note.podcasts && note.podcasts.length > 0 && (
+                                <button onClick={() => handleScrollToSection('podcast-section-wrapper')} className="bg-teal-50 dark:bg-teal-700/20 hover:bg-teal-100 dark:hover:bg-teal-700/30">
+                                    <Mic className="w-5 h-5 text-teal-600 dark:text-teal-300" />
+                                    Podcast
+                                </button>
+                            )}
+                        </div>
+
                         <main className="note-content-area">
                             <KatexRenderer htmlContent={note.content} />
 
                             {note.keyPoints && note.keyPoints.length > 0 && (
-                                <div className={`mt-8 pt-6 border-t border-gray-200 dark:border-gray-700/50`}>
+                                <div id="key-points-section" className={`section-container`}>
                                     <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 text-gray-800 dark:text-gray-100`}> <Sparkles className={`w-5 h-5 text-yellow-500 dark:text-yellow-400`} /> Key Points </h3>
                                     <div className={`space-y-3`}> {note.keyPoints.map((point, index) => (
-                                        <div key={index} className="flex items-start p-3 rounded-lg bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700/50">
+                                        <div key={index} className="flex items-start p-3 rounded-lg bg-gray-50 dark:bg-gray-800/40">
                                             <div className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-700/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center text-xs font-semibold mr-3 mt-0.5">{index + 1}</div>
-                                            <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed"><RenderWithLatex text={point} /></p>
+                                            <p className="text-base text-gray-700 dark:text-gray-300 leading-relaxed"><RenderWithLatex text={point} /></p>
                                         </div>
                                     ))} </div>
                                 </div>
                             )}
 
                             {note.flashcards && note.flashcards.length > 0 && (
-                                <div className="my-8 pt-6 border-t border-gray-200 dark:border-gray-700/50">
+                                <div id="flashcards-section" className="section-container">
                                     <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-gray-800 dark:text-gray-100">
                                         <Layers className="w-5 h-5 text-indigo-500 dark:text-indigo-400" /> Flashcards
                                     </h3>
-                                    <div className="space-y-4">
-                                        {note.flashcards.map((card, index) => (
-                                            <div key={index} className="group relative p-4 rounded-lg shadow-sm bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700/50">
-                                                <span className="absolute top-2 left-2.5 px-2 py-0.5 text-[10px] font-semibold bg-purple-100 dark:bg-purple-700/40 text-purple-700 dark:text-purple-200 rounded-full">
-                                                    Card {index + 1}
-                                                </span>
-                                                <div className="space-y-3 mt-4">
-                                                    <div>
-                                                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Front:</label>
-                                                        <div className="p-2 rounded-md bg-white dark:bg-gray-700/60 border border-gray-200 dark:border-gray-600/70 text-gray-700 dark:text-gray-200 text-sm leading-relaxed">
-                                                            <RenderWithLatex text={card.front} />
-                                                        </div>
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Back:</label>
-                                                        <div className="p-2 rounded-md bg-white dark:bg-gray-700/60 border border-gray-200 dark:border-gray-600/70 text-gray-700 dark:text-gray-200 text-sm leading-relaxed">
-                                                            <RenderWithLatex text={card.back} />
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
+                                    <AnimatePresence mode="wait">
+                                        <motion.div
+                                            key={currentFlashcardIndex}
+                                            initial={{ opacity: 0, y: isFlashcardFlipped ? -10: 10 }}
+                                            animate={{ opacity: 1, y:0 }}
+                                            exit={{ opacity: 0, y: isFlashcardFlipped ? 10: -10}}
+                                            transition={{ duration: 0.2 }}
+                                        >
+                                            <motion.div
+                                                className="relative flashcard-card-view [perspective:1000px]"
+                                                onClick={handleFlipFlashcard}
+                                            >
+                                                <motion.div
+                                                    className="absolute inset-0 p-6 rounded-lg shadow-lg flex flex-col justify-center items-center text-center flashcard-front [backface-visibility:hidden]"
+                                                    animate={{ rotateX: isFlashcardFlipped ? -180 : 0 }}
+                                                    transition={{ type: "spring", stiffness: 200, damping: 20, duration: 0.5 }}
+                                                >
+                                                    <p className="text-xs uppercase tracking-wider mb-2 opacity-80">Term</p>
+                                                    <p className="text-xl font-medium leading-tight">
+                                                        <RenderWithLatex text={note.flashcards[currentFlashcardIndex].front} />
+                                                    </p>
+                                                </motion.div>
+                                                <motion.div
+                                                    className="absolute inset-0 p-6 rounded-lg shadow-lg flex flex-col justify-center items-center text-center flashcard-back [backface-visibility:hidden] [transform:rotateX(180deg)]"
+                                                    animate={{ rotateX: isFlashcardFlipped ? 0 : 180 }}
+                                                    transition={{ type: "spring", stiffness: 200, damping: 20, duration: 0.5 }}
+                                                >
+                                                    <p className="text-xs uppercase tracking-wider mb-2 opacity-80">Definition</p>
+                                                    <p className="text-xl font-medium leading-tight">
+                                                        <RenderWithLatex text={note.flashcards[currentFlashcardIndex].back} />
+                                                    </p>
+                                                </motion.div>
+                                            </motion.div>
+                                        </motion.div>
+                                    </AnimatePresence>
+                                    <div className="flex items-center justify-between mt-4">
+                                        <button
+                                            onClick={handlePrevFlashcard}
+                                            disabled={currentFlashcardIndex === 0}
+                                            className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-gray-600 dark:text-gray-300"
+                                        > <ChevronLeft className="w-5 h-5" /> </button>
+                                        <span className="text-sm text-gray-600 dark:text-gray-400"> {currentFlashcardIndex + 1} / {note.flashcards.length} </span>
+                                        <button
+                                            onClick={handleNextFlashcard}
+                                            disabled={currentFlashcardIndex === note.flashcards.length - 1}
+                                            className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-gray-600 dark:text-gray-300"
+                                        > <ChevronRight className="w-5 h-5" /> </button>
                                     </div>
+                                    <button onClick={handleFlipFlashcard} className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200">
+                                        <FlipIcon className="w-4 h-4" /> Flip Card
+                                    </button>
                                 </div>
                             )}
 
                             {note.questions && note.questions.length > 0 && (
-                                <div className={`mt-8 pt-6 border-t border-gray-200 dark:border-gray-700/50`}>
+                                <div id="study-questions-section" className={`section-container`}>
                                     <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 text-gray-800 dark:text-gray-100`}><BookOpen className={`w-5 h-5 text-purple-500 dark:text-purple-400`} />Study Questions</h3>
                                     <div className="space-y-5">
                                         {note.questions.map((q, index) => {
                                             const key = `q-${index}`;
+                                            const isCorrect = true; // Always show correct answer in public view for explanation
                                             return (
                                                 <div key={key} className={`p-4 md:p-5 rounded-xl bg-gray-50 dark:bg-[#1A1D29]`}>
                                                     <p className={`text-gray-800 dark:text-gray-200 font-medium mb-4 leading-relaxed`}>
@@ -650,21 +814,21 @@ export function PublicNoteView() {
                                                     </p>
                                                     <div className="space-y-3">
                                                         {q.options.map((opt, idx) => {
-                                                            const isCorrect = idx === q.correctAnswer;
+                                                            const isAnswer = idx === q.correctAnswer;
                                                             return (
                                                                 <div
                                                                     key={idx}
-                                                                    className={`w-full text-left p-3 rounded-lg text-sm flex items-center justify-between group border cursor-default
-                                                                        ${isCorrect
-                                                                            ? `bg-green-100 dark:bg-green-500/20 text-green-800 dark:text-white font-semibold border-green-300 dark:border-green-500/50`
-                                                                            : `bg-gray-100 dark:bg-gray-700/40 text-gray-500 dark:text-gray-400 border-transparent opacity-70`
+                                                                    className={`w-full text-left p-3 rounded-lg text-sm flex items-center justify-between group cursor-default
+                                                                        ${isAnswer
+                                                                            ? `bg-green-100 dark:bg-green-500/20 text-green-800 dark:text-white font-semibold`
+                                                                            : `bg-gray-100 dark:bg-gray-700/40 text-gray-500 dark:text-gray-400 opacity-70`
                                                                         }`}
                                                                 >
                                                                     <span><RenderWithLatex text={opt} /></span>
                                                                     <div className={`flex-shrink-0 ml-4 w-6 h-6 flex items-center justify-center rounded-full
-                                                                        ${isCorrect ? 'bg-green-500/20 border-green-500/30' : 'bg-gray-200/50 dark:bg-gray-700/50 border-gray-300 dark:border-gray-600'}
+                                                                        ${isAnswer ? 'bg-green-500/20' : 'bg-gray-200/50 dark:bg-gray-700/50'}
                                                                     `}>
-                                                                        {isCorrect && <Check className="w-4 h-4 text-green-600" />}
+                                                                        {isAnswer && <Check className="w-4 h-4 text-green-600" />}
                                                                     </div>
                                                                 </div>
                                                             );
@@ -683,7 +847,7 @@ export function PublicNoteView() {
                             )}
 
                             {note.podcasts && note.podcasts.length > 0 && (
-                                <div id="podcast-section-wrapper" className="mt-8 pt-6 mb-6 border-t border-gray-200 dark:border-gray-700/50">
+                                <div id="podcast-section-wrapper" className="section-container">
                                     <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100">
                                         <Mic className="w-5 h-5 text-teal-500 dark:text-teal-400" /> Podcasts
                                     </h3>
@@ -753,7 +917,7 @@ export function PublicNoteView() {
                                         <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Generated Podcasts for this Note:</p>
                                         <div className="space-y-2">
                                             {note.podcasts!.sort((a, b) => toDateSafe(b.createdAt)!.getTime() - toDateSafe(a.createdAt)!.getTime()).map(p => (
-                                                <div key={p.id} className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700/50 flex items-center justify-between gap-3">
+                                                <div key={p.id} className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/40 flex items-center justify-between gap-3">
                                                     <div className="flex items-center gap-3">
                                                         <button onClick={() => { activePodcast?.id === p.id ? handlePodcastPlayPause() : setActivePodcast(p) }} className="p-2 rounded-full bg-teal-100 dark:bg-teal-700/30 text-teal-600 dark:text-teal-300 hover:bg-teal-200 dark:hover:bg-teal-700/50">
                                                             {activePodcast?.id === p.id && isPodcastPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
