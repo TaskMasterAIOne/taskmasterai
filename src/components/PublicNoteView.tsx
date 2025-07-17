@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../lib/firebase';
-import { doc, getDoc, Timestamp } from 'firebase/firestore';
+import { doc, onSnapshot, Timestamp } from 'firebase/firestore';
 import { Loader2, Lock, Share2, Download, Sun, Moon, User } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 import katex from 'katex';
@@ -23,32 +23,26 @@ interface Author {
     displayName: string;
 }
 
-// This component will find and render LaTeX expressions within the note's HTML content.
 const KatexRenderer: React.FC<{ htmlContent: string | undefined }> = ({ htmlContent }) => {
     const renderedContent = useMemo(() => {
         if (!htmlContent) return '';
-        // Regex to find $$...$$ (for display math) and $...$ (for inline math)
-        // This handles multiline content and avoids being too greedy.
+
         const regex = /\$\$\s*([\s\S]*?)\s*\$\$|\$(.*?)\$/g;
         return htmlContent.replace(regex, (match, displayMath, inlineMath) => {
             const contentToRender = displayMath || inlineMath;
-            // If the first capture group (displayMath) exists, use display mode.
             const isDisplayMode = !!displayMath;
             try {
-                // Render the LaTeX string to an HTML string.
                 return katex.renderToString(contentToRender, {
-                    throwOnError: false, // Prevents crashing if the LaTeX is invalid
+                    throwOnError: false,
                     displayMode: isDisplayMode,
                 });
             } catch (e) {
                 console.error("KaTeX rendering error:", e);
-                // In case of an error, return the original, unrendered text.
                 return match;
             }
         });
     }, [htmlContent]);
     
-    // The parent element has the styling, so we just render the processed HTML.
     return <div dangerouslySetInnerHTML={{ __html: renderedContent }} />;
 };
 
@@ -91,19 +85,18 @@ export function PublicNoteView() {
       return;
     }
 
-    const fetchNoteAndAuthor = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const noteRef = doc(db, 'notes', noteId);
-        const docSnap = await getDoc(noteRef);
+    setLoading(true);
+    setError(null);
 
-        if (docSnap.exists()) {
-          const fetchedData = { id: docSnap.id, ...docSnap.data() } as Note;
-          if (fetchedData.isPublic) {
-            setNote(fetchedData);
-            document.title = `${fetchedData.title} | Public Note`;
+    const noteRef = doc(db, 'notes', noteId);
+    const unsubscribeNote = onSnapshot(noteRef, async (docSnap) => {
+      if (docSnap.exists()) {
+        const fetchedData = { id: docSnap.id, ...docSnap.data() } as Note;
+        if (fetchedData.isPublic) {
+          setNote(fetchedData);
+          document.title = `${fetchedData.title} | Public Note`;
 
+          if (!author || author.displayName === 'Anonymous User' || fetchedData.userId !== note?.userId) {
             try {
                 const userRef = doc(db, 'users', fetchedData.userId);
                 const userSnap = await getDoc(userRef);
@@ -116,28 +109,34 @@ export function PublicNoteView() {
                 console.error("Error fetching author:", userError);
                 setAuthor({ displayName: 'Anonymous User' });
             }
-          } else {
-            setError("This note is private and cannot be viewed.");
-            document.title = `Private Note`;
           }
+
         } else {
-          setError("Note not found.");
-          document.title = `Note Not Found`;
+          setError("This note is private and cannot be viewed.");
+          document.title = `Private Note`;
+          setNote(null);
         }
-      } catch (err) {
+      } else {
+        setError("Note not found.");
+        document.title = `Note Not Found`;
+        setNote(null);
+      }
+      setLoading(false);
+    }, (err) => {
         console.error("Error fetching public note:", err);
         setError("Failed to load the note. Please try again later.");
         document.title = `Error`;
-      } finally {
         setLoading(false);
-      }
+        setNote(null);
+    });
+
+    return () => {
+        unsubscribeNote();
+        document.title = 'TaskMaster AI';
     };
+  }, [noteId, author, note?.userId]);
 
-    fetchNoteAndAuthor();
-    return () => { document.title = 'TaskMaster AI'; };
-  }, [noteId]);
-
-  const toggleDarkMode = () => {
+  const toggleDarkMode = useCallback(() => {
       setIsDarkMode(prev => {
           const newIsDark = !prev;
           if (newIsDark) {
@@ -149,9 +148,9 @@ export function PublicNoteView() {
           }
           return newIsDark;
       });
-  };
+  }, []);
 
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = useCallback(() => {
     if (!note || !pdfContentRef.current) return;
     
     const element = pdfContentRef.current;
@@ -166,10 +165,9 @@ export function PublicNoteView() {
     };
 
     html2pdf().from(element).set(opt).save();
-  };
+  }, [note]);
   
   const globalStyles = `
-    /* ... (Your existing globalStyles remain here, unchanged) ... */
     ::-webkit-scrollbar { width: 12px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb {
@@ -260,6 +258,10 @@ export function PublicNoteView() {
     .note-content-area img, .note-content-area iframe {
         border-radius: 12px;
         overflow: hidden;
+        max-width: 100%;
+        height: auto;
+        display: block;
+        margin: 1.5em auto;
     }
   `;
 
@@ -299,6 +301,11 @@ export function PublicNoteView() {
                                         )}
                                         <span className="hidden sm:inline">•</span>
                                         <span>Last updated: {note.updatedAt?.toDate().toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+                                        <span className="hidden sm:inline">•</span>
+                                        <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-cyan-100 text-cyan-800 dark:bg-cyan-500/10 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-500/20">
+                                            <Share2 className="w-3.5 h-3.5"/>
+                                            Public Note
+                                        </span>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -312,10 +319,6 @@ export function PublicNoteView() {
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2 mt-6">
-                                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-cyan-100 text-cyan-800 dark:bg-cyan-500/10 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-500/20">
-                                    <Share2 className="w-3.5 h-3.5"/>
-                                    Public Note
-                                </span>
                                 {note.tags?.map((tag) => (
                                     <span key={tag} className="px-3 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-500/10 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/20">
                                         #{tag}
@@ -325,7 +328,6 @@ export function PublicNoteView() {
                             <div className="w-full h-px bg-gray-200 dark:bg-gray-800 mt-8"></div>
                         </header>
                         
-                        {/* --- FIX IS HERE: Use the new KatexRenderer component --- */}
                         <main className="note-content-area">
                             <KatexRenderer htmlContent={note.content} />
                         </main>
