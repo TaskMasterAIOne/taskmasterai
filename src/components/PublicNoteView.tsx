@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../lib/firebase';
-import { doc, onSnapshot, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, Timestamp } from 'firebase/firestore'; // Changed from onSnapshot back to getDoc
 import { Loader2, Lock, Share2, Download, Sun, Moon, User } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 import katex from 'katex';
@@ -27,22 +27,29 @@ const KatexRenderer: React.FC<{ htmlContent: string | undefined }> = ({ htmlCont
     const renderedContent = useMemo(() => {
         if (!htmlContent) return '';
 
+        // Regex to find $$...$$ (for display math) and $...$ (for inline math)
+        // This handles multiline content and avoids being too greedy.
         const regex = /\$\$\s*([\s\S]*?)\s*\$\$|\$(.*?)\$/g;
-        return htmlContent.replace(regex, (match, displayMath, inlineMath) => {
+
+        // Replace matched LaTeX with KaTeX rendered HTML.
+        // Also ensure any video iframes are preserved (they would be part of the htmlContent).
+        const processedHtml = htmlContent.replace(regex, (match, displayMath, inlineMath) => {
             const contentToRender = displayMath || inlineMath;
             const isDisplayMode = !!displayMath;
             try {
                 return katex.renderToString(contentToRender, {
-                    throwOnError: false,
+                    throwOnError: false, // Prevents crashing if the LaTeX is invalid
                     displayMode: isDisplayMode,
                 });
             } catch (e) {
                 console.error("KaTeX rendering error:", e);
-                return match;
+                return match; // In case of an error, return the original, unrendered text.
             }
         });
+        return processedHtml;
     }, [htmlContent]);
     
+    // Using dangerouslySetInnerHTML to render both the processed LaTeX and any other HTML, including iframes for videos.
     return <div dangerouslySetInnerHTML={{ __html: renderedContent }} />;
 };
 
@@ -85,18 +92,19 @@ export function PublicNoteView() {
       return;
     }
 
-    setLoading(true);
-    setError(null);
+    const fetchNoteAndAuthor = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const noteRef = doc(db, 'notes', noteId);
+        const docSnap = await getDoc(noteRef); // Changed from onSnapshot back to getDoc
 
-    const noteRef = doc(db, 'notes', noteId);
-    const unsubscribeNote = onSnapshot(noteRef, async (docSnap) => {
-      if (docSnap.exists()) {
-        const fetchedData = { id: docSnap.id, ...docSnap.data() } as Note;
-        if (fetchedData.isPublic) {
-          setNote(fetchedData);
-          document.title = `${fetchedData.title} | Public Note`;
+        if (docSnap.exists()) {
+          const fetchedData = { id: docSnap.id, ...docSnap.data() } as Note;
+          if (fetchedData.isPublic) {
+            setNote(fetchedData);
+            document.title = `${fetchedData.title} | Public Note`;
 
-          if (!author || author.displayName === 'Anonymous User' || fetchedData.userId !== note?.userId) {
             try {
                 const userRef = doc(db, 'users', fetchedData.userId);
                 const userSnap = await getDoc(userRef);
@@ -109,32 +117,28 @@ export function PublicNoteView() {
                 console.error("Error fetching author:", userError);
                 setAuthor({ displayName: 'Anonymous User' });
             }
+          } else {
+            setError("This note is private and cannot be viewed.");
+            document.title = `Private Note`;
+            setNote(null); // Clear note if it's private
           }
-
         } else {
-          setError("This note is private and cannot be viewed.");
-          document.title = `Private Note`;
-          setNote(null);
+          setError("Note not found.");
+          document.title = `Note Not Found`;
+          setNote(null); // Clear note if not found
         }
-      } else {
-        setError("Note not found.");
-        document.title = `Note Not Found`;
-        setNote(null);
-      }
-      setLoading(false);
-    }, (err) => {
+      } catch (err) {
         console.error("Error fetching public note:", err);
         setError("Failed to load the note. Please try again later.");
         document.title = `Error`;
+      } finally {
         setLoading(false);
-        setNote(null);
-    });
-
-    return () => {
-        unsubscribeNote();
-        document.title = 'TaskMaster AI';
+      }
     };
-  }, [noteId, author, note?.userId]);
+
+    fetchNoteAndAuthor();
+    return () => { document.title = 'TaskMaster AI'; };
+  }, [noteId]);
 
   const toggleDarkMode = useCallback(() => {
       setIsDarkMode(prev => {
@@ -259,9 +263,16 @@ export function PublicNoteView() {
         border-radius: 12px;
         overflow: hidden;
         max-width: 100%;
-        height: auto;
+        height: auto; /* Allow height to adjust naturally */
         display: block;
         margin: 1.5em auto;
+    }
+
+    /* Specific styling for iframes (e.g., YouTube embeds) to maintain aspect ratio */
+    .note-content-area iframe {
+        width: 100%;
+        min-height: 200px; /* Minimum height for smaller screens */
+        aspect-ratio: 16 / 9; /* Standard aspect ratio for videos */
     }
   `;
 
@@ -301,6 +312,7 @@ export function PublicNoteView() {
                                         )}
                                         <span className="hidden sm:inline">•</span>
                                         <span>Last updated: {note.updatedAt?.toDate().toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+                                        {/* "Public Note" tag moved here, right after "Last updated" */}
                                         <span className="hidden sm:inline">•</span>
                                         <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-cyan-100 text-cyan-800 dark:bg-cyan-500/10 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-500/20">
                                             <Share2 className="w-3.5 h-3.5"/>
