@@ -40,8 +40,8 @@
 
 .sun-editor-editable {
     font-family: 'Poppins', sans-serif !important;
-    font-size: 16px; /* Increased from 16px */
-    line-height: 1.8; /* Adjusted for new font size */
+    font-size: 16px; /* Reverted to 16px for paragraphs */
+    line-height: 1.8; /* Reverted to 1.8 */
     color: #111827;
 }
 
@@ -55,6 +55,14 @@
     font-weight: 600;
 }
 
+.sun-editor-editable h1 {
+    font-size: 32px;
+}
+
+.sun-editor-editable h2 {
+    font-size: 24px;
+}
+
 .sun-editor-editable ul,
 .sun-editor-editable ol {
     margin-left: 1.25em !important;
@@ -64,6 +72,7 @@
 
 .sun-editor-editable ul li,
 .sun-editor-editable ol li {
+    font-size: 18px; /* This is the new line */
     margin-bottom: 0.75em !important;
     padding-left: 0.5em !important;
 }
@@ -355,4 +364,34 @@
 
 .sun-editor-editable .katex-display {
     font-size: 1.15em !important;
+}
+
+
+/* --- Custom Bold Styling --- */
+
+/* Light Mode: Colors specific bolded text like key terms */
+.sun-editor-editable p strong,
+.sun-editor-editable li strong,
+.sun-editor-editable p b,
+.sun-editor-editable li b {
+    color: #4E46DC;
+    font-weight: 600;
+}
+
+/* Dark Mode: Applies a different color for the same key terms */
+.dark .sun-editor-editable p strong,
+.dark .sun-editor-editable li strong,
+.dark .sun-editor-editable p b,
+.dark .sun-editor-editable li b {
+    color: #DACAFA;
+}
+
+/* Prevents bolded text within headers from getting the custom color */
+.sun-editor-editable h1 strong, .sun-editor-editable h1 b,
+.sun-editor-editable h2 strong, .sun-editor-editable h2 b,
+.sun-editor-editable h3 strong, .sun-editor-editable h3 b,
+.sun-editor-editable h4 strong, .sun-editor-editable h4 b,
+.sun-editor-editable h5 strong, .sun-editor-editable h5 b,
+.sun-editor-editable h6 strong, .sun-editor-editable h6 b {
+    color: inherit;
 }
