@@ -40,8 +40,8 @@
 
 .sun-editor-editable {
     font-family: 'Poppins', sans-serif !important;
-    font-size: 16px;
-    line-height: 1.8;
+    font-size: 18px; /* Increased from 16px */
+    line-height: 1.9; /* Adjusted for new font size */
     color: #111827;
 }
 
@@ -201,7 +201,7 @@
 .dark .sun-editor .se-wrapper-inner,
 .dark .sun-editor-editable {
     background-color: #0C0E1A !important;
-    color: #D1D5DB !important;
+    color: #f3f4f6 !important; /* Changed from #D1D5DB for whiter text */
 }
 
 .dark .sun-editor-editable a {
@@ -325,4 +325,34 @@
 
 .dark .se-dialog-form-files .se_btn_file_remove:hover {
     color: #FFFFFF; /* Brightens icon on hover */
+}
+
+/* --- Blockquote Styling --- */
+.sun-editor-editable blockquote {
+    margin: 1.5em 0;
+    padding: 12px 20px;
+    border-left: 4px solid #e5e7eb;
+    background-color: #f9fafb;
+    color: #4b5563;
+    font-style: italic;
+}
+
+.sun-editor-editable blockquote p:last-child {
+    margin-bottom: 0;
+}
+
+.dark .sun-editor-editable blockquote {
+    border-left-color: #374151;
+    background-color: #161922;
+    color: #9ca3af;
+}
+
+
+/* --- KaTeX Font Size Adjustment --- */
+.sun-editor-editable .katex {
+    font-size: 1.1em !important;
+}
+
+.sun-editor-editable .katex-display {
+    font-size: 1.15em !important;
 }
