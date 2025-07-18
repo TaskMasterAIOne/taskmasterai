@@ -212,7 +212,7 @@ export function PublicNoteView() {
           const fetchedData = { id: docSnap.id, ...docSnap.data() } as Note;
           if (fetchedData.isPublic) {
             setNote(fetchedData);
-            document.title = `${fetchedData.title} | Public Note`;
+            document.title = `${fetchedData.title}`;
 
             try {
                 const userRef = doc(db, 'users', fetchedData.userId);
