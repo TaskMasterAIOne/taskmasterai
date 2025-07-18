@@ -595,7 +595,7 @@ export function PublicNoteView() {
                                         <span className="hidden sm:inline">•</span>
                                         <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-cyan-100 text-cyan-800 dark:bg-cyan-500/10 dark:text-cyan-300">
                                             <Share2 className="w-3.5 h-3.5"/>
-                                            Public Note
+                                            Public
                                         </span>
                                     </div>
                                 </div>
