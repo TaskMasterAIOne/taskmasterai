@@ -67,7 +67,7 @@ import './Editor.scss';
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
-const GEMINI_TEXT_MODEL = 'gemini-2.0-flash';
+const GEMINI_TEXT_MODEL = 'gemini-2.5-flash';
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
 
 interface SunEditorWrapperProps {
@@ -76,12 +76,22 @@ interface SunEditorWrapperProps {
   readOnly?: boolean;
 }
 
+// This is only the SunEditorWrapper component from Notes.tsx.
+// Replace the original component with this corrected version.
+
 const SunEditorWrapper: React.FC<SunEditorWrapperProps> = ({ initialContent = '', onChange, readOnly = false }) => {
     const editorRef = useRef<SunEditorCore>();
     const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
     useEffect(() => {
+      // This effect now re-runs whenever the note content changes,
+      // ensuring the editor is freshly created and parses the KaTeX correctly.
       if (textAreaRef.current) {
+        // Destroy any existing editor instance before creating a new one.
+        if (editorRef.current) {
+          editorRef.current.destroy();
+        }
+
         const editor = suneditor.create(textAreaRef.current, {
             plugins: plugins,
             katex: katex, // This enables KaTeX rendering
@@ -96,14 +106,31 @@ const SunEditorWrapper: React.FC<SunEditorWrapperProps> = ({ initialContent = ''
                 ['fontColor', 'hiliteColor'],
                 ['outdent', 'indent', 'align'],
                 ['horizontalRule', 'list', 'lineHeight'],
-                ['table', 'link', 'image', 'video', 'math'], // Added 'math' button to toolbar
+                ['table', 'link', 'image', 'video', 'math'], // 'math' button
                 ['removeFormat'],
                 ['fullScreen']
             ],
             defaultStyle: "font-family: 'Poppins', sans-serif; font-size: 16px;",
             mode: 'classic',
-            font: ['Poppins', 'Arial', 'Georgia', 'Tahoma', 'Verdana'],
+            font: [
+                'Poppins',
+                'Arial',
+                'Helvetica',
+                'Comic Sans MS',
+                'Courier New',
+                'Garamond',
+                'Georgia',
+                'Impact',
+                'Lucida Console',
+                'Tahoma',
+                'Times New Roman',
+                'Trebuchet MS',
+                'Verdana'
+            ],
         });
+
+        // Set the initial content for the new editor instance
+        editor.setContents(initialContent);
 
         editor.onChange = (contents: string) => {
           if (onChange) {
@@ -115,21 +142,16 @@ const SunEditorWrapper: React.FC<SunEditorWrapperProps> = ({ initialContent = ''
       }
 
       return () => {
+        // Cleanup function to destroy the editor when the component unmounts
         if (editorRef.current) {
           editorRef.current.destroy();
+          editorRef.current = undefined;
         }
       };
-    }, []);
+    }, [initialContent]); // <-- CRITICAL FIX: Dependency array now includes initialContent
 
     useEffect(() => {
-        if(editorRef.current && editorRef.current.core) {
-            if (editorRef.current.getContents() !== initialContent) {
-                editorRef.current.setContents(initialContent);
-            }
-        }
-    }, [initialContent])
-
-    useEffect(() => {
+        // This effect now only handles the readOnly state.
         if(editorRef.current && editorRef.current.core) {
             const editorElement = editorRef.current.core.context.element.wysiwyg;
             editorRef.current.readOnly(readOnly);
@@ -144,7 +166,7 @@ const SunEditorWrapper: React.FC<SunEditorWrapperProps> = ({ initialContent = ''
                 editorElement.style.cursor = 'text';
             }
         }
-    }, [readOnly, initialContent]);
+    }, [readOnly]);
 
     return <textarea ref={textAreaRef} style={{ visibility: 'hidden', display: 'block', width: '100%', height: '100%' }} />;
 };
