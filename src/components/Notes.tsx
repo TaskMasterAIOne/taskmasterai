@@ -1474,7 +1474,7 @@ useEffect(() => {
     
     try {
         const aiNoteData = await processTextToAINoteData(text, user.uid, currentApiKey, onProgress);
-        const newNoteId = await saveNote({ ...aiNoteData, isPublic: false, tags: ['ai-processed'] });
+        const newNoteId = await saveNote({ ...aiNoteData, isPublic: false });
         
         await incrementUsageAndCounters('pdfAi', true);
         const newNoteDoc = await getNoteById(newNoteId);
