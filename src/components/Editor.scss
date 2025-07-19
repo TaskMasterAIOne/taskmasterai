@@ -41,7 +41,7 @@
 .sun-editor-editable {
     font-family: 'Poppins', sans-serif !important;
     font-size: 16px;
-    line-height: 2.2; /* Corrected line height */
+    line-height: 2.2;
     color: #111827;
 }
 
@@ -162,7 +162,7 @@
 
 /* --- Dark Mode Styles --- */
 .dark .sun-editor-editable {
-    color: #f3f4f6 !important; /* Whiter text for dark mode */
+    color: #f3f4f6 !important;
 }
 
 .dark .sun-editor-editable a {
@@ -360,7 +360,16 @@
     color: #9ca3af;
 }
 
-/* --- KaTeX Font Size Adjustment --- */
+/* --- KaTeX Rendering Fix & Sizing --- */
+/*
+ * This resets the font-family for KaTeX elements. The global Poppins font
+ * was overriding the special math fonts needed by KaTeX to render symbols correctly.
+ */
+.sun-editor-editable .katex,
+.sun-editor-editable .katex * {
+    font-family: inherit !important;
+}
+
 .sun-editor-editable .katex {
     font-size: 1.1em !important;
 }
