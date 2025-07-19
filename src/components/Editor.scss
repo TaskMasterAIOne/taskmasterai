@@ -40,8 +40,8 @@
 
 .sun-editor-editable {
     font-family: 'Poppins', sans-serif !important;
-    font-size: 16px; /* Reverted to 16px for paragraphs */
-    line-height: 2; /* Reverted to 1.8 */
+    font-size: 16px;
+    line-height: 2;
     color: #111827;
 }
 
@@ -63,19 +63,32 @@
     font-size: 24px;
 }
 
+/* --- FIX START: Corrected List Styling --- */
 .sun-editor-editable ul,
 .sun-editor-editable ol {
-    margin-left: 1.25em !important;
+    margin-left: 0 !important;
+    padding-left: 1.75em !important; /* This now controls the main indentation */
     margin-top: 1em !important;
     margin-bottom: 1em !important;
+    list-style-position: outside !important; /* Ensures bullets are aligned to the left */
+}
+
+.sun-editor-editable ul {
+    list-style-type: disc !important; /* Ensures correct bullet points */
+}
+
+.sun-editor-editable ol {
+    list-style-type: decimal !important;
 }
 
 .sun-editor-editable ul li,
 .sun-editor-editable ol li {
-    font-size: 18px; /* This is the new line */
+    font-size: 18px;
     margin-bottom: 0.75em !important;
-    padding-left: 0.5em !important;
+    padding-left: 0.25em !important; /* Reduced padding for better alignment */
 }
+
+/* --- FIX END --- */
 
 .sun-editor-editable a {
     color: #4f46e5 !important;
@@ -99,12 +112,10 @@
     border-radius: 12px !important;
 }
 
-/* Hides the editor's bottom resizing bar completely */
 .se-resizing-bar.sun-editor-common {
     display: none !important;
 }
 
-/* Removes the shadow effect from the toolbar */
 .se-toolbar.sun-editor-common.se-toolbar-shadow {
     box-shadow: none !important;
         display: none !important;
@@ -115,13 +126,12 @@
     border: none !important;
 }
 
-/* --- Base Table Styling --- */
 .sun-editor-editable table {
     width: 100%;
     border-collapse: collapse;
     margin: 1.5em 0;
     font-size: 15px;
-    overflow: hidden;   /* Ensures the corners are clipped */
+    overflow: hidden;
 }
 
 .sun-editor-editable th,
@@ -131,267 +141,4 @@
     line-height: 1.6;
 }
 
-/* --- Light Mode Table Styles --- */
 .sun-editor-editable th {
-    background-color: #F9FAFB; /* Very light grey for the header */
-    color: #111827;            /* Dark text for header */
-    font-weight: 600;
-}
-
-.sun-editor-editable td {
-    color: #374151; /* Standard text color */
-}
-
-/* Add borders between rows */
-.sun-editor-editable tr {
-    border-bottom: 1px solid #E5E7EB;
-}
-
-/* Remove the border from the last row for a cleaner look */
-.sun-editor-editable tr:last-child {
-    border-bottom: none;
-}
-
-
-/* --- Dark Mode Table Styles --- */
-.dark .sun-editor-editable th {
-    background-color: #1F2937; /* A slightly lighter dark for the header */
-    color: #F9FAFB;            /* Light text for contrast */
-}
-
-.dark .sun-editor-editable td {
-    color: #D1D5DB; /* Main text color for dark mode */
-}
-
-/* Dark mode borders between rows */
-.dark .sun-editor-editable tr {
-    border-bottom: 1px solid #374151;
-}
-
-.dark .sun-editor-editable tr:last-child {
-    border-bottom: none;
-}
-
-.dark .sun-editor .se-toolbar {
-    background-color: #0C0E1A !important;
-}
-
-.dark .sun-editor .se-toolbar .se-btn,
-.dark .sun-editor .se-toolbar .se-btn-select {
-    background-color: transparent !important;
-    color: #D1D5DB !important;
-    border: none !important;
-    outline: none !important;
-    box-shadow: none !important;
-}
-
-.dark .sun-editor .se-toolbar .se-btn:hover,
-.dark .sun-editor .se-toolbar .se-btn:active,
-.dark .sun-editor .se-toolbar .se-btn:focus,
-.dark .sun-editor .se-toolbar .se-btn-select:hover,
-.dark .sun-editor .se-toolbar .se-btn-select:active,
-.dark .sun-editor .se-toolbar .se-btn-select:focus {
-    background-color: #374151 !important;
-    outline: none !important;
-    box-shadow: none !important;
-}
-
-.dark .sun-editor .se-toolbar .se-btn svg,
-.dark .sun-editor .se-toolbar .se-btn-select svg {
-    fill: #D1D5DB !important;
-}
-
-.dark .sun-editor .se-navigation {
-    background-color: #0C0E1A !important;
-    border-top: 1px solid #374151 !important;
-    color: #D1D5DB !important;
-}
-
-.dark .sun-editor .se-wrapper-inner,
-.dark .sun-editor-editable {
-    background-color: #0C0E1A !important;
-    color: #f3f4f6 !important; /* Changed from #D1D5DB for whiter text */
-}
-
-.dark .sun-editor-editable a {
-    color: #818cf8 !important;
-}
-
-
-
-.dark .se-dialog .se-dialog-header {
-    background-color: #1F2937 !important;
-    color: #D1D5DB !important;
-    border-bottom: 1px solid #374151 !important;
-}
-
-.dark .se-dialog .se-dialog-header .se-dialog-title {
-     color: #D1D5DB !important;
-}
-
-.dark .se-dialog .se-dialog-header .se-btn-primary {
-    color: #D1D5DB !important;
-}
-
-
-.dark .se-dialog .se-dialog-body {
-    background-color: #161922 !important;
-    color: #D1D5DB !important;
-}
-
-.dark .se-dialog label {
-    color: #D1D5DB !important;
-}
-
-.dark .se-dialog input[type="text"],
-.dark .se-dialog input[type="url"] {
-    background-color: #374151 !important;
-    color: #D1D5DB !important;
-    border: 1px solid #4B5563 !important;
-    border-radius: 4px !important;
-}
-
-.dark .se-dialog .se-dialog-footer {
-    background-color: #1F2937 !important;
-    border-top: 1px solid #374151 !important;
-}
-
-.dark .se-dialog .se-btn {
-    background-color: #374151 !important;
-    color: #D1D5DB !important;
-    border: 1px solid #4B5563 !important;
-}
-
-.dark .se-dialog .se-btn-primary {
-    background-color: #4f46e5 !important;
-    color: #FFFFFF !important;
-    border: none !important;
-}
-
-.dark .se-dialog-tabs {
-    border-bottom: 1px solid #374151 !important;
-    padding: 0 8px;
-}
-
-.dark .se-dialog-form-files {
-    border: none !important;
-}
-/* Main container for the file input component */
-.dark .se-dialog-form-files {
-    display: flex;
-    align-items: center;
-    background-color: #2D3748; /* Dark background for the entire component */
-    border: 1px solid #4A5568;
-    border-radius: 8px;
-    padding: 0; /* Remove padding to make the input fill it completely */
-    overflow: hidden; /* Crucial for containing the button's corners */
-    box-sizing: border-box;
-}
-
-/* The actual <input type="file"> element */
-.dark .se-dialog-form-files .se-input-form._se_image_file {
-    flex-grow: 1; /* Allows the text area to fill available space */
-    background-color: transparent; /* Makes the input area transparent */
-    border: none; /* Removes default border */
-    outline: none; /* Removes focus outline */
-    color: #A0AEC0; /* Sets color for the 'No file chosen' text */
-    font-size: 14px;
-    line-height: 40px; /* Aligns text vertically */
-    padding: 0 12px; /* Adds space for the text */
-    min-width: 0; /* Prevents flexbox from overflowing on small widths */
-}
-
-/* Styles the "Choose File" button part of the input */
-.dark .se-dialog-form-files .se-input-form._se_image_file::file-selector-button {
-    font-weight: 500;
-    font-size: 14px;
-    color: #FFFFFF;
-    background-color: #4f46e5;
-    height: 42px; /* Sets a fixed height */
-    padding: 0 20px;
-    margin-right: 12px; /* Creates space between the button and the text */
-    border: none;
-    border-right: 1px solid #4A5568; /* Adds a subtle separator line */
-    cursor: pointer;
-    transition: background-color 0.2s ease;
-}
-
-.dark .se-dialog-form-files .se-input-form._se_image_file::file-selector-button:hover {
-    background-color: #6366f1;
-}
-
-/* The 'x' button to remove the selected file */
-.dark .se-dialog-form-files .se_btn_file_remove {
-    background: transparent;
-    border: none;
-    color: #9CA3AF; /* Muted color for the icon */
-    cursor: pointer;
-    padding: 0 12px; /* Gives it some space */
-    height: 40px;
-    flex-shrink: 0; /* Prevents the icon from being squished */
-    transition: color 0.2s ease;
-}
-
-.dark .se-dialog-form-files .se_btn_file_remove:hover {
-    color: #FFFFFF; /* Brightens icon on hover */
-}
-
-/* --- Blockquote Styling --- */
-.sun-editor-editable blockquote {
-    margin: 1.5em 0;
-    padding: 12px 20px;
-    border-left: 4px solid #e5e7eb;
-    background-color: #f9fafb;
-    color: #4b5563;
-    font-style: italic;
-}
-
-.sun-editor-editable blockquote p:last-child {
-    margin-bottom: 0;
-}
-
-.dark .sun-editor-editable blockquote {
-    border-left-color: #374151;
-    background-color: #161922;
-    color: #9ca3af;
-}
-
-
-/* --- KaTeX Font Size Adjustment --- */
-.sun-editor-editable .katex {
-    font-size: 1.1em !important;
-}
-
-.sun-editor-editable .katex-display {
-    font-size: 1.15em !important;
-}
-
-
-/* --- Custom Bold Styling --- */
-
-/* Light Mode: Colors specific bolded text like key terms */
-.sun-editor-editable p strong,
-.sun-editor-editable li strong,
-.sun-editor-editable p b,
-.sun-editor-editable li b {
-    color: #4E46DC;
-    font-weight: 600;
-}
-
-/* Dark Mode: Applies a different color for the same key terms */
-.dark .sun-editor-editable p strong,
-.dark .sun-editor-editable li strong,
-.dark .sun-editor-editable p b,
-.dark .sun-editor-editable li b {
-    color: #DACAFA;
-}
-
-/* Prevents bolded text within headers from getting the custom color */
-.sun-editor-editable h1 strong, .sun-editor-editable h1 b,
-.sun-editor-editable h2 strong, .sun-editor-editable h2 b,
-.sun-editor-editable h3 strong, .sun-editor-editable h3 b,
-.sun-editor-editable h4 strong, .sun-editor-editable h4 b,
-.sun-editor-editable h5 strong, .sun-editor-editable h5 b,
-.sun-editor-editable h6 strong, .sun-editor-editable h6 b {
-    color: inherit;
-}
