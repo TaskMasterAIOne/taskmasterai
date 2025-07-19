@@ -41,7 +41,7 @@
 .sun-editor-editable {
     font-family: 'Poppins', sans-serif !important;
     font-size: 16px;
-    line-height: 2;
+    line-height: 1.8; /* Corrected line height */
     color: #111827;
 }
 
@@ -62,33 +62,6 @@
 .sun-editor-editable h2 {
     font-size: 24px;
 }
-
-/* --- FIX START: Corrected List Styling --- */
-.sun-editor-editable ul,
-.sun-editor-editable ol {
-    margin-left: 0 !important;
-    padding-left: 1.75em !important; /* This now controls the main indentation */
-    margin-top: 1em !important;
-    margin-bottom: 1em !important;
-    list-style-position: outside !important; /* Ensures bullets are aligned to the left */
-}
-
-.sun-editor-editable ul {
-    list-style-type: disc !important; /* Ensures correct bullet points */
-}
-
-.sun-editor-editable ol {
-    list-style-type: decimal !important;
-}
-
-.sun-editor-editable ul li,
-.sun-editor-editable ol li {
-    font-size: 18px;
-    margin-bottom: 0.75em !important;
-    padding-left: 0.25em !important; /* Reduced padding for better alignment */
-}
-
-/* --- FIX END --- */
 
 .sun-editor-editable a {
     color: #4f46e5 !important;
@@ -118,14 +91,42 @@
 
 .se-toolbar.sun-editor-common.se-toolbar-shadow {
     box-shadow: none !important;
-        display: none !important;
-
+    display: none !important;
 }
 
 .se-btn-module.se-btn-module-border {
     border: none !important;
 }
 
+/* --- List Styling Fix --- */
+.sun-editor-editable ul,
+.sun-editor-editable ol {
+    margin-left: 1.5rem !important; /* Reduced margin */
+    margin-top: 1em !important;
+    margin-bottom: 1em !important;
+    padding-left: 0 !important; /* Reset default padding */
+}
+
+.sun-editor-editable ul {
+    list-style-type: disc !important; /* Ensure disc bullets */
+}
+
+.sun-editor-editable ul li,
+.sun-editor-editable ol li {
+    font-size: 18px;
+    margin-bottom: 0.75em !important;
+    padding-left: 0.5rem !important;
+}
+
+/* Nested list indentation */
+.sun-editor-editable ul ul,
+.sun-editor-editable ol ol,
+.sun-editor-editable ul ol,
+.sun-editor-editable ol ul {
+    margin-left: 1.25rem !important;
+}
+
+/* --- Base Table Styling --- */
 .sun-editor-editable table {
     width: 100%;
     border-collapse: collapse;
@@ -142,3 +143,254 @@
 }
 
 .sun-editor-editable th {
+    background-color: #F9FAFB;
+    color: #111827;
+    font-weight: 600;
+}
+
+.sun-editor-editable td {
+    color: #374151;
+}
+
+.sun-editor-editable tr {
+    border-bottom: 1px solid #E5E7EB;
+}
+
+.sun-editor-editable tr:last-child {
+    border-bottom: none;
+}
+
+/* --- Dark Mode Styles --- */
+.dark .sun-editor-editable {
+    color: #f3f4f6 !important; /* Whiter text for dark mode */
+}
+
+.dark .sun-editor-editable a {
+    color: #818cf8 !important;
+}
+
+.dark .sun-editor-editable th {
+    background-color: #1F2937;
+    color: #F9FAFB;
+}
+
+.dark .sun-editor-editable td {
+    color: #D1D5DB;
+}
+
+.dark .sun-editor-editable tr {
+    border-bottom: 1px solid #374151;
+}
+
+.dark .sun-editor-editable tr:last-child {
+    border-bottom: none;
+}
+
+.dark .sun-editor .se-toolbar {
+    background-color: #0C0E1A !important;
+}
+
+.dark .sun-editor .se-toolbar .se-btn,
+.dark .sun-editor .se-toolbar .se-btn-select {
+    background-color: transparent !important;
+    color: #D1D5DB !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.dark .sun-editor .se-toolbar .se-btn:hover,
+.dark .sun-editor .se-toolbar .se-btn:active,
+.dark .sun-editor .se-toolbar .se-btn:focus,
+.dark .sun-editor .se-toolbar .se-btn-select:hover,
+.dark .sun-editor .se-toolbar .se-btn-select:active,
+.dark .sun-editor .se-toolbar .se-btn-select:focus {
+    background-color: #374151 !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.dark .sun-editor .se-toolbar .se-btn svg,
+.dark .sun-editor .se-toolbar .se-btn-select svg {
+    fill: #D1D5DB !important;
+}
+
+.dark .sun-editor .se-navigation {
+    background-color: #0C0E1A !important;
+    border-top: 1px solid #374151 !important;
+    color: #D1D5DB !important;
+}
+
+.dark .sun-editor .se-wrapper-inner,
+.dark .sun-editor-editable {
+    background-color: #0C0E1A !important;
+}
+
+/* --- Dialog Styles (Modals) --- */
+.dark .se-dialog .se-dialog-header {
+    background-color: #1F2937 !important;
+    color: #D1D5DB !important;
+    border-bottom: 1px solid #374151 !important;
+}
+
+.dark .se-dialog .se-dialog-header .se-dialog-title {
+     color: #D1D5DB !important;
+}
+
+.dark .se-dialog .se-dialog-header .se-btn-primary {
+    color: #D1D5DB !important;
+}
+
+.dark .se-dialog .se-dialog-body {
+    background-color: #161922 !important;
+    color: #D1D5DB !important;
+}
+
+.dark .se-dialog label {
+    color: #D1D5DB !important;
+}
+
+.dark .se-dialog input[type="text"],
+.dark .se-dialog input[type="url"] {
+    background-color: #374151 !important;
+    color: #D1D5DB !important;
+    border: 1px solid #4B5563 !important;
+    border-radius: 4px !important;
+}
+
+.dark .se-dialog .se-dialog-footer {
+    background-color: #1F2937 !important;
+    border-top: 1px solid #374151 !important;
+}
+
+.dark .se-dialog .se-btn {
+    background-color: #374151 !important;
+    color: #D1D5DB !important;
+    border: 1px solid #4B5563 !important;
+}
+
+.dark .se-dialog .se-btn-primary {
+    background-color: #4f46e5 !important;
+    color: #FFFFFF !important;
+    border: none !important;
+}
+
+.dark .se-dialog-tabs {
+    border-bottom: 1px solid #374151 !important;
+    padding: 0 8px;
+}
+
+.dark .se-dialog-form-files {
+    border: none !important;
+}
+
+.dark .se-dialog-form-files {
+    display: flex;
+    align-items: center;
+    background-color: #2D3748;
+    border: 1px solid #4A5568;
+    border-radius: 8px;
+    padding: 0;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+.dark .se-dialog-form-files .se-input-form._se_image_file {
+    flex-grow: 1;
+    background-color: transparent;
+    border: none;
+    outline: none;
+    color: #A0AEC0;
+    font-size: 14px;
+    line-height: 40px;
+    padding: 0 12px;
+    min-width: 0;
+}
+
+.dark .se-dialog-form-files .se-input-form._se_image_file::file-selector-button {
+    font-weight: 500;
+    font-size: 14px;
+    color: #FFFFFF;
+    background-color: #4f46e5;
+    height: 42px;
+    padding: 0 20px;
+    margin-right: 12px;
+    border: none;
+    border-right: 1px solid #4A5568;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.dark .se-dialog-form-files .se-input-form._se_image_file::file-selector-button:hover {
+    background-color: #6366f1;
+}
+
+.dark .se-dialog-form-files .se_btn_file_remove {
+    background: transparent;
+    border: none;
+    color: #9CA3AF;
+    cursor: pointer;
+    padding: 0 12px;
+    height: 40px;
+    flex-shrink: 0;
+    transition: color 0.2s ease;
+}
+
+.dark .se-dialog-form-files .se_btn_file_remove:hover {
+    color: #FFFFFF;
+}
+
+/* --- Blockquote Styling --- */
+.sun-editor-editable blockquote {
+    margin: 1.5em 0;
+    padding: 12px 20px;
+    border-left: 4px solid #e5e7eb;
+    background-color: #f9fafb;
+    color: #4b5563;
+    font-style: italic;
+}
+
+.sun-editor-editable blockquote p:last-child {
+    margin-bottom: 0;
+}
+
+.dark .sun-editor-editable blockquote {
+    border-left-color: #374151;
+    background-color: #161922;
+    color: #9ca3af;
+}
+
+/* --- KaTeX Font Size Adjustment --- */
+.sun-editor-editable .katex {
+    font-size: 1.1em !important;
+}
+
+.sun-editor-editable .katex-display {
+    font-size: 1.15em !important;
+}
+
+/* --- Custom Bold Styling --- */
+.sun-editor-editable p strong,
+.sun-editor-editable li strong,
+.sun-editor-editable p b,
+.sun-editor-editable li b {
+    color: #4E46DC;
+    font-weight: 600;
+}
+
+.dark .sun-editor-editable p strong,
+.dark .sun-editor-editable li strong,
+.dark .sun-editor-editable p b,
+.dark .sun-editor-editable li b {
+    color: #DACAFA;
+}
+
+/* Prevents bolded text within headers from getting the custom color */
+.sun-editor-editable h1 strong, .sun-editor-editable h1 b,
+.sun-editor-editable h2 strong, .sun-editor-editable h2 b,
+.sun-editor-editable h3 strong, .sun-editor-editable h3 b,
+.sun-editor-editable h4 strong, .sun-editor-editable h4 b,
+.sun-editor-editable h5 strong, .sun-editor-editable h5 b,
+.sun-editor-editable h6 strong, .sun-editor-editable h6 b {
+    color: inherit;
+}
