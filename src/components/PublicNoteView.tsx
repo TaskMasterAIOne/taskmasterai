@@ -467,7 +467,7 @@ export function PublicNoteView() {
         line-height: 1.8;
         color: #111827;
     }
-    .dark .note-content-area { color: #D1D5DB; }
+    .dark .note-content-area { color: #f3f4f6; }
 
     .note-content-area h1, .note-content-area h2, .note-content-area h3, .note-content-area h4, .note-content-area h5, .note-content-area h6 {
         font-weight: 600;
@@ -476,14 +476,14 @@ export function PublicNoteView() {
         margin-bottom: 0.75em;
         line-height: 1.3;
     }
-    .note-content-area h1 { font-size: 2.25em; }
-    .note-content-area h2 { font-size: 1.8em; }
+    .note-content-area h1 { font-size: 32px; }
+    .note-content-area h2 { font-size: 24px; }
     .note-content-area h3 { font-size: 1.5em; }
     .note-content-area h4 { font-size: 1.25em; }
     .note-content-area h5 { font-size: 1.1em; }
     .note-content-area h6 { font-size: 1em; font-weight: 700; }
 
-    .note-content-area p { margin-bottom: 1.5rem; }
+    .note-content-area p { margin-bottom: 1rem; }
 
     .note-content-area ul, .note-content-area ol {
         margin-left: 1.75em;
@@ -498,6 +498,7 @@ export function PublicNoteView() {
     .note-content-area li {
         margin-bottom: 1.1em;
         padding-left: 0.5em;
+        font-size: 18px;
     }
     
     .note-content-area a {
@@ -553,6 +554,52 @@ export function PublicNoteView() {
         margin: 1.5em 0;
         min-height: 200px;
         aspect-ratio: 16 / 9;
+    }
+
+    .note-content-area blockquote {
+        margin: 1.5em 0;
+        padding: 12px 20px;
+        border-left: 4px solid #e5e7eb;
+        background-color: #f9fafb;
+        color: #4b5563;
+        font-style: italic;
+    }
+    
+    .note-content-area blockquote p:last-child {
+        margin-bottom: 0;
+    }
+    
+    .dark .note-content-area blockquote {
+        border-left-color: #374151;
+        background-color: #161922;
+        color: #9ca3af;
+    }
+
+    .note-content-area .katex { font-size: 1.1em !important; }
+    .note-content-area .katex-display { font-size: 1.15em !important; }
+
+    .note-content-area p strong,
+    .note-content-area li strong,
+    .note-content-area p b,
+    .note-content-area li b {
+        color: #4E46DC;
+        font-weight: 600;
+    }
+    
+    .dark .note-content-area p strong,
+    .dark .note-content-area li strong,
+    .dark .note-content-area p b,
+    .dark .note-content-area li b {
+        color: #DACAFA;
+    }
+    
+    .note-content-area h1 strong, .note-content-area h1 b,
+    .note-content-area h2 strong, .note-content-area h2 b,
+    .note-content-area h3 strong, .note-content-area h3 b,
+    .note-content-area h4 strong, .note-content-area h4 b,
+    .note-content-area h5 strong, .note-content-area h5 b,
+    .note-content-area h6 strong, .note-content-area h6 b {
+        color: inherit;
     }
   `;
 
