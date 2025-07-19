@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Logo } from './components/Logo';
 import { useAuth } from './contexts/AuthContext';
-import { ChevronDown, Youtube, Mic, FileText as FileTextIcon, Edit, BookOpen, Brain, MessageCircle, CheckCircle, Star, Zap, Edit3, Globe, Sparkles, Image as ImageIcon, User, Palette, PenSquare, Trash2, BrainCircuit, DatabaseBackup } from 'lucide-react';
+import { ChevronDown, Youtube, Mic, FileText as FileTextIcon, Edit, Lightbulb, Check, BookOpen, Brain, MessageCircle, CheckCircle, Star, Zap, Edit3, Globe, Sparkles, Image as ImageIcon, User, Palette, PenSquare, Trash2, BrainCircuit, DatabaseBackup, FolderPlus, Layers, Bot, Pencil } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
@@ -21,27 +21,28 @@ const universityLogos = [
 
 const testimonials = [
   {
-    quote: "TaskMaster AI became my personal study coach. The way it broke down orgo, physics, and bio into manageable blocks based on how I learn was incredible. The flashcards with spaced repetition actually stuck, and the podcast-style breakdowns helped me review on the go. I went from overwhelmed to confident—and scored in the 95th percentile on the MCAT.",
+    quote: "TaskMaster broke down orgo, physics, and bio in a way that stuck. The flashcards and podcast reviews made studying easier, and I scored in the 95th percentile on the MCAT.",
     name: "Mohana Dayyam",
     role: "Premed Student, Rice University",
     avatar: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/ricelogo.png?alt=media&token=1247209e-9df6-492c-8129-1e9b6c1403c1",
     stars: 5,
   },
   {
-    quote: "The AI agent completely changed how I study. It plans my sessions, adjusts based on how I perform, and makes sure I focus on my weakest topics. The flashcards are sharp, the notes are super clean, and the study sets are way more effective than anything I’ve used before. Even the AI-generated audio recaps help me study while walking between classes.",
+    quote: "The AI agent planned my sessions, focused on my weak spots, and made my flashcards and notes way more effective. The audio recaps helped me study on the go.",
     name: "Hrishi Chintakuntla",
     role: "Premed Student, Johns Hopkins Uni",
     avatar: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/jhulogo.png?alt=media&token=f3dc5ef0-8b1c-4645-94dd-f10fdf8fe3bf",
     stars: 5,
   },
   {
-    quote: "TaskMaster feels like a tutor that actually gets me. It knows exactly what I need to review and when. I rely on the flashcards every day, and the smart note summaries keep everything organized and easy to revisit. The podcast feature is genius—I listen to entire study sets during my commute without missing a beat.",
+    quote: "TaskMaster feels like a tutor that really knows me. I use the flashcards daily, and the podcast feature lets me study during my commute without missing anything.",
     name: "Rayhan Mohammad",
     role: "Data Science Student, UT Austin",
     avatar: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/austin.png?alt=media&token=c683b003-f3a0-44d9-a111-b968ca3bb688",
     stars: 5,
   },
 ];
+
 
 
 const features = [
@@ -85,7 +86,7 @@ const features = [
     title: "Chatbot",
     description: "Chat with your uploaded content to get context-dependent answers and deepen understanding.",
     illustration: (
-        <div className="mt-5 p-3 bg-gray-800/70 rounded-xl border border-gray-700/90 shadow-inner">
+        <div className="mt-5 p-3 bg-gray-800/70 rounded-xl  shadow-inner">
             <input type="text" placeholder="Ask anything..." className="w-full bg-gray-700/80 text-gray-200 placeholder-gray-500 px-4 py-3 rounded-full text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 border-transparent transition-all" />
         </div>
     ),
@@ -205,11 +206,8 @@ function TestimonialsSection() {
           className="text-center mb-16 sm:mb-20"
         >
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-5">
-            Join <span className="text-white">2,000,000+</span> Learners
+            Join <span className="text-white">2,000,000+</span> learners.
           </h2>
-          <p className="text-base sm:text-lg text-gray-400 max-w-4xl mx-auto">
-            Discover how TaskMaster AI is transforming productivity and learning efficiency worldwide.
-          </p>
         </div>
         <div 
           className="grid md:grid-cols-2 lg:grid-cols-3 gap-8"
@@ -240,6 +238,183 @@ function TestimonialsSection() {
   );
 }
 
+function AgenticSection() {
+    // A reusable component for the alternating layout, optimized for all screen sizes.
+    const AgenticWorkflowStep = ({ icon, title, description, children, reverse = false }) => (
+        // On mobile, the gap is reduced for a tighter layout.
+        <div className={`grid lg:grid-cols-2 gap-10 lg:gap-20 items-center`}>
+            {/* The 'lg:order-last' class correctly ensures this only applies to large screens. */}
+            <motion.div
+                className={`lg:col-span-1 ${reverse ? 'lg:order-last' : ''}`}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.3 }}
+                transition={{ duration: 0.6, ease: "easeOut" }}
+            >
+                {/* Icon and title layout is adjusted for mobile with smaller icon container and text. */}
+                <div className="inline-flex items-center gap-3 sm:gap-4 mb-5">
+                    <span className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 bg-gray-800/60 rounded-xl">
+                        {icon}
+                    </span>
+                    <h3 className="text-2xl sm:text-3xl font-bold text-white">{title}</h3>
+                </div>
+                <p className="text-base md:text-lg text-gray-400 leading-relaxed">
+                    {description}
+                </p>
+            </motion.div>
+            <motion.div
+                className="lg:col-span-1"
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.3 }}
+                transition={{ duration: 0.6, ease: "easeOut", delay: 0.1 }}
+            >
+                {children}
+            </motion.div>
+        </div>
+    );
+
+    const agenticFeatures = [
+        {
+            icon: <Pencil className="w-6 h-6 sm:w-7 sm:h-7 text-yellow-400" />,
+            title: "Notes",
+            description: "Turn your ideas into clean, organized notes. Whether you're adding a thought, tweaking a paragraph, or clearing up something confusing, TaskMaster makes it easy to shape your notes the way you want.",
+            illustration: (
+                <div className="p-4 sm:p-6 bg-[#12141D] rounded-2xl shadow-2xl backdrop-blur-md relative overflow-hidden transition-all duration-300 group hover:border-yellow-500/60 hover:-translate-y-1">
+                    <div className="absolute -inset-px rounded-2xl bg-gradient-to-r from-yellow-500/10 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-40 blur-xl -z-10"></div>
+                    
+                    <div className="bg-indigo-600/20 text-indigo-200 p-3 rounded-xl text-sm mb-4 sm:mb-5 shadow-inner">
+                        <p>"Simplify the photosynthesis section and add a real-world analogy."</p>
+                    </div>
+
+                    <div className="bg-yellow-900/40 text-yellow-200 rounded-xl p-3 sm:p-4 shadow-lg transition-all duration-300 group-hover:shadow-yellow-900/40">
+                        <p className="text-sm">
+                            Okay, I can simplify that for you. I'll rewrite the section on photosynthesis for clarity and add a helpful real-world analogy.
+                        </p>
+                        <div className="mt-4 pt-3 flex justify-end">
+                            <div className="bg-yellow-100 dark:bg-yellow-800/40 hover:bg-yellow-200 dark:hover:bg-yellow-800/60 text-yellow-800 dark:text-yellow-100 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors duration-200 transform group-hover:scale-105 cursor-pointer">
+                                <Check className="w-4 h-4" />
+                                <span>Apply Update</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )
+        },
+        {
+            icon: <Layers className="w-6 h-6 sm:w-7 sm:h-7 text-sky-400" />,
+            title: "Study Materials",
+            description: "TaskMaster instantly creates flashcards and quizzes right there in the chat so you can focus on what matters and learn faster.",
+            illustration: (
+                <div className="p-4 sm:p-6 bg-[#12141D] rounded-2xl shadow-2xl backdrop-blur-md relative overflow-hidden transition-all duration-300 hover:border-sky-500/60 hover:-translate-y-1 group">
+                    <div className="absolute -inset-px rounded-2xl bg-gradient-to-l from-sky-500/10 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-40 blur-xl -z-10"></div>
+                     <div className="mb-4">
+                        <h4 className="font-semibold text-white flex items-center gap-2">
+                            <Bot className="w-4 h-4 text-sky-400" />
+                            Create Flashcards
+                        </h4>
+                        <p className="text-sm text-gray-400 mt-1">Alright! Generating flashcards...</p>
+                    </div>
+                    {/* The negative margin is adjusted for mobile to prevent excessive overlap. */}
+                    <div className="relative min-h-[160px] sm:min-h-[170px] bg-black/30 p-4 rounded-lg overflow-hidden flex items-center justify-center">
+                        <motion.div className="flex justify-center items-center h-full space-x-[-80px] sm:space-x-[-60px]" initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.6 }} variants={{ animate: { transition: { staggerChildren: 0.2, delayChildren: 0.3 } } }}>
+                            {[ { term: "Chlorophyll", def: "The green pigment that captures sunlight." }, { term: "ATP", def: "The energy currency of the cell." }, { term: "Glucose", def: "The sugar food produced by the plant." }, ].map((card, i) => (
+                                // Card size is reduced on mobile for better fit.
+                                <motion.div key={card.term} className="w-36 h-24 sm:w-44 sm:h-28 bg-sky-900/50 border border-sky-500/60 rounded-lg p-2 sm:p-3 text-center flex flex-col justify-center shadow-lg backdrop-blur-sm" style={{ rotate: i === 0 ? -8 : i === 1 ? 2 : 10 }} variants={{ initial: { opacity: 0, y: 25, scale: 0.9, rotate: i === 0 ? -15 : i === 1 ? 5 : 15 }, animate: { opacity: 1, y: 0, scale: 1, rotate: i === 0 ? -8 : i === 1 ? 2 : 10, transition: { type: 'spring', stiffness: 200, damping: 15 } }, }}>
+                                    <h4 className="font-bold text-sm text-white mb-1">{card.term}</h4>
+                                    <p className="text-xs text-sky-200 leading-snug">{card.def}</p>
+                                </motion.div>
+                            ))}
+                        </motion.div>
+                    </div>
+                </div>
+            )
+        },
+        {
+            icon: <FolderPlus className="w-6 h-6 sm:w-7 sm:h-7 text-green-400" />,
+            title: "Folders",
+            description: "TaskMaster automatically adds flashcards and quizzes straight to your folders, keeping everything organized without you having to do a thing.",
+            illustration: (
+                <div className="p-4 sm:p-6 bg-[#12141D] rounded-2xl shadow-2xl backdrop-blur-md relative overflow-hidden transition-all duration-300 hover:border-green-500/60 hover:-translate-y-1 group">
+                    <div className="absolute -inset-px rounded-2xl bg-gradient-to-r from-green-500/10 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-40 blur-xl -z-10"></div>
+                     <div className="mb-4">
+                        <h4 className="font-semibold text-white flex items-center gap-2">
+                            <Bot className="w-4 h-4 text-green-400" />
+                            Add new flashcards to my folder
+                        </h4>
+                        <p className="text-sm text-gray-400 mt-1">Sure! Let me organize those new flashcards...</p>
+                    </div>
+                    {/* This layout is naturally responsive and centers well on mobile. */}
+                    <div className="relative min-h-[160px] sm:min-h-[170px] bg-black/30 p-4 rounded-lg overflow-hidden flex items-center justify-center">
+                        <motion.div className="flex flex-col justify-center items-center h-full" initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.8 }}>
+                            <motion.div variants={{ initial: { scale: 0, opacity: 0 }, animate: { scale: 1, opacity: 1, transition: { delay: 0.3, type: 'spring' } }, }} className="flex items-center gap-2 p-3 rounded-lg bg-gray-800">
+                                <Layers className="w-5 h-5 text-sky-400" />
+                                <span className="text-sm font-semibold text-white">3 new flashcards</span>
+                            </motion.div>
+                            <motion.div className="w-1 h-8 bg-gray-600/50 my-1" variants={{ initial: { scaleY: 0, originY: 0 }, animate: { scaleY: 1, transition: { delay: 0.7, duration: 0.3 } }, }} />
+                            <motion.div className="flex items-center gap-2.5 p-3 rounded-lg bg-green-900/60" variants={{ initial: { scale: 0.8, opacity: 0 }, animate: { scale: 1, opacity: 1, transition: { delay: 1 } }, }}>
+                                <FolderPlus className="w-5 h-5 text-green-400" />
+                                <span className="text-sm font-semibold text-white">Biology Midterm</span>
+                                <motion.span className="ml-1 bg-green-400 text-green-950 text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full" variants={{ initial: { scale: 0 }, animate: { scale: [0, 1.2, 1], transition: { delay: 1.3, duration: 0.4 } }, }}>+3</motion.span>
+                            </motion.div>
+                        </motion.div>
+                    </div>
+                </div>
+            )
+        },
+    ];
+
+    return (
+        // Section padding is reduced for mobile screens.
+        <section id="agentic-ai" className="py-20 sm:py-24 bg-[#0C0E1A]">
+            <div className="container mx-auto px-5 sm:px-6">
+                <div className="text-center mb-16 sm:mb-20">
+<motion.h2
+    className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-5"
+    initial={{ opacity: 0, y: 20 }}
+    whileInView={{ opacity: 1, y: 0 }}
+    viewport={{ once: true, amount: 0.5 }}
+    transition={{ duration: 0.5 }}
+>
+    Agentic, in{' '}
+    <span className="inline-block bg-gradient-to-r from-[#635BFF] to-[#8A85FF] bg-clip-text text-transparent italic pb-5 -mb-5">
+        Every Way
+    </span>
+</motion.h2>
+<motion.p
+    className="text-base sm:text-lg text-gray-400 max-w-3xl mx-auto"
+    initial={{ opacity: 0, y: 20 }}
+    whileInView={{ opacity: 1, y: 0 }}
+    viewport={{ once: true, amount: 0.5 }}
+    transition={{ duration: 0.5, delay: 0.1 }}
+>
+    TaskMaster doesn't just respond, it{' '}
+    <span className="font-bold bg-[#8A85FF] bg-clip-text text-transparent">
+        acts
+    </span>
+    . It's your proactive partner that edits your notes, creates study materials, and organizes them for you, all from a single chat.
+</motion.p>
+                </div>
+                
+                {/* Spacing between feature sections is reduced on mobile for better flow. */}
+                <div className="space-y-16 sm:space-y-20 lg:space-y-24">
+                    {agenticFeatures.map((feature, index) => (
+                        <AgenticWorkflowStep
+                            key={index}
+                            icon={feature.icon}
+                            title={feature.title}
+                            description={feature.description}
+                            reverse={index % 2 !== 0}
+                        >
+                            {feature.illustration}
+                        </AgenticWorkflowStep>
+                    ))}
+                </div>
+            </div>
+        </section>
+    );
+}
+
 function FeaturesGridSection() {
   return (
     <section id="features" className="py-20 sm:py-28 bg-[#0C0E1A]">
@@ -258,7 +433,7 @@ function FeaturesGridSection() {
           {features.map((feature, index) => (
             <div 
               key={index} 
-              className="bg-[#12141D] p-8 rounded-2xl border border-gray-700/60 shadow-xl hover:border-purple-500/60 transition-all duration-300 group transform hover:-translate-y-1"
+              className="bg-[#12141D] p-8 rounded-2xl  shadow-xl hover:border-purple-500/60 transition-all duration-300 group transform hover:-translate-y-1"
             >
               <div className="flex items-center mb-5">
                 <div className="p-4 rounded-full bg-gray-700/70 mr-5 group-hover:bg-purple-500/25 transition-colors duration-300">
@@ -281,7 +456,7 @@ export function LearningSuperchargedSection() {
         <div className={`grid lg:grid-cols-2 gap-12 lg:gap-16 items-center`}>
             <div className={`lg:col-span-1 ${reverse ? 'lg:order-last' : ''}`}>
                 <div className="inline-flex items-center gap-3 mb-5">
-                    <span className="flex items-center justify-center w-12 h-12 bg-gray-800/60 rounded-xl border border-gray-700/80">
+                    <span className="flex items-center justify-center w-12 h-12 bg-gray-800/60 rounded-xl">
                         {icon}
                     </span>
                     <h3 className="text-2xl md:text-3xl font-bold text-white">{title}</h3>
@@ -297,9 +472,9 @@ export function LearningSuperchargedSection() {
     );
     
     const styles = [
-      { name: "Socratic Tutor", color: "bg-purple-500", prompt: "Question my assumptions and lead me to the answer." },
-      { name: "Concise Professional", color: "bg-blue-500", prompt: "Provide clear, bulleted takeaways for business use." },
-      { name: "Creative Muse", color: "bg-pink-500", prompt: "Brainstorm wild ideas and use inspiring analogies." }
+      { name: "Exam Simulator", color: "bg-purple-500", prompt: "Simulate a timed GRE verbal reasoning section." },
+      { name: "Summarizer", color: "bg-blue-500", prompt: "Always give me quick, clear, and simple summaries." },
+      { name: "Essay Editor", color: "bg-pink-500", prompt: "Act as a writing tutor and help me improve my essay structure." }
     ];
 
     return (
@@ -307,10 +482,10 @@ export function LearningSuperchargedSection() {
             <div className="container mx-auto px-5 sm:px-6">
                 <div className="text-center mb-24">
                     <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-5">
-                        Learning, <span className="bg-gradient-to-r from-indigo-400 via-purple-500 to-pink-500 bg-clip-text text-transparent">Supercharged.</span>
+                        Learning, <span className="bg-gradient-to-r from-[#635BFF] to-[#8A85FF] italic bg-clip-text text-transparent">Supercharged.</span>
                     </h2>
                     <p className="text-base sm:text-lg text-gray-400 max-w-4xl mx-auto">
-                        Go beyond simple tools. Experience an AI that truly partners in your growth, adapting to you.
+                        This isn’t just another tool — it’s your study partner, working with you every step of the way.
                     </p>
                 </div>
                 
@@ -318,25 +493,25 @@ export function LearningSuperchargedSection() {
                     <FeatureShowcase
                         icon={<BrainCircuit className="w-7 h-7 text-teal-400" />}
                         title="Universal Context"
-                        description="Provide TaskMaster with your core documents, goals, and role. It will maintain this context throughout the entire app, ensuring every response is perfectly aligned with your world, without you ever having to repeat yourself."
+                        description="TaskMaster keeps track of your context and always responds with you in mind—no need to repeat yourself."
                     >
-                        <div className="p-6 bg-[#12141D] rounded-2xl border border-gray-700/60 shadow-2xl backdrop-blur-md relative overflow-hidden">
+                        <div className="p-6 bg-[#12141D] rounded-2xl  shadow-2xl backdrop-blur-md relative overflow-hidden">
                             <div className="absolute -inset-px rounded-2xl bg-gradient-to-r from-teal-500/20 via-transparent to-transparent opacity-50 blur-xl -z-10"></div>
                             <h4 className="text-lg font-semibold text-white mb-5">Universal Context</h4>
                             <div className="space-y-4">
-                                <div className="p-4 rounded-xl bg-black/40 border border-gray-800/80">
+                                <div className="p-4 rounded-xl bg-black/40 ">
                                     <label className="text-xs font-semibold text-teal-400/80 tracking-wider uppercase">Your Role / Primary Area of Study</label>
                                     <p className="text-gray-300 mt-1">College student majoring in CS & Business.</p>
                                 </div>
-                                <div className="p-4 rounded-xl bg-black/40 border border-gray-800/80">
+                                <div className="p-4 rounded-xl bg-black/40 ">
                                     <label className="text-xs font-semibold text-teal-400/80 tracking-wider uppercase">Current Short-Term Focus</label>
                                     <p className="text-gray-300 mt-1">Preparing for upcoming SATs and final exams.</p>
                                 </div>
-                                <div className="p-4 rounded-xl bg-black/40 border border-gray-800/80">
+                                <div className="p-4 rounded-xl bg-black/40 ">
                                     <label className="text-xs font-semibold text-teal-400/80 tracking-wider uppercase">Main Long-Term Ambitions or Goals</label>
                                     <p className="text-gray-300 mt-1">Get a job at a top tech company.</p>
                                 </div>
-                                <div className="p-4 rounded-xl bg-black/40 border border-gray-800/80">
+                                <div className="p-4 rounded-xl bg-black/40 ">
                                     <label className="text-xs font-semibold text-teal-400/80 tracking-wider uppercase">Other</label>
                                     <p className="text-gray-300 mt-1">I learn best with real-world examples and analogies.</p>
                                 </div>
@@ -347,26 +522,26 @@ export function LearningSuperchargedSection() {
                     <FeatureShowcase
                         icon={<DatabaseBackup className="w-7 h-7 text-pink-400" />}
                         title="Personal Memories"
-                        description="TaskMaster dynamically learns and remembers key facts about your preferences, learning style, and important details. You remain in complete control and can view, edit, or delete these memories at any time to fine-tune your learning."
+                        description="TaskMaster dynamically learns and remembers key facts about your preferences, learning style, and other important details, tailoring its responses and suggestions for you."
                         reverse={true}
                     >
-                        <div className="p-6 bg-[#12141D] rounded-2xl border border-gray-700/60 shadow-2xl backdrop-blur-md relative overflow-hidden">
+                        <div className="p-6 bg-[#12141D] rounded-2xl  shadow-2xl backdrop-blur-md relative overflow-hidden">
                             <div className="absolute -inset-px rounded-2xl bg-gradient-to-l from-pink-500/20 via-transparent to-transparent opacity-50 blur-xl -z-10"></div>
                             <h4 className="text-lg font-semibold text-white mb-5">Memories</h4>
                             <div className="space-y-3">
-                                <div className="flex justify-between items-center bg-black/40 p-3 rounded-lg border border-gray-800/80 transition-all hover:border-pink-500/50">
+                                <div className="flex justify-between items-center bg-black/40 p-3 rounded-lg  transition-all hover:border-pink-500/50">
                                     <p className="text-sm text-gray-300">Prefers visual explanations for complex topics.</p>
                                     <div className="flex gap-3 text-gray-600"><Edit className="w-4 h-4" /> <Trash2 className="w-4 h-4" /></div>
                                 </div>
-                                 <div className="flex justify-between items-center bg-black/40 p-3 rounded-lg border border-gray-800/80 transition-all hover:border-pink-500/50">
+                                 <div className="flex justify-between items-center bg-black/40 p-3 rounded-lg  transition-all hover:border-pink-500/50">
                                     <p className="text-sm text-gray-300">Loves analogies related to video games.</p>
                                     <div className="flex gap-3 text-gray-600"><Edit className="w-4 h-4" /> <Trash2 className="w-4 h-4" /></div>
                                 </div>
-                                 <div className="flex justify-between items-center bg-black/40 p-3 rounded-lg border border-gray-800/80 transition-all hover:border-pink-500/50">
+                                 <div className="flex justify-between items-center bg-black/40 p-3 rounded-lg  transition-all hover:border-pink-500/50">
                                     <p className="text-sm text-gray-300">Has an important meeting every Friday at 10 AM.</p>
                                     <div className="flex gap-3 text-gray-600"><Edit className="w-4 h-4" /> <Trash2 className="w-4 h-4" /></div>
                                 </div>
-                                 <div className="flex justify-between items-center bg-black/40 p-3 rounded-lg border-2 border-pink-500/60 shadow-lg shadow-pink-500/10">
+                                 <div className="flex justify-between items-center bg-black/40 p-3 rounded-lg  shadow-lg shadow-pink-500/10">
                                     <p className="text-sm text-white">Wants a weekly project recap on Mondays.</p>
                                     <div className="flex gap-3 text-gray-400"><Edit className="w-4 h-4" /> <Trash2 className="w-4 h-4" /></div>
                                 </div>
@@ -377,9 +552,9 @@ export function LearningSuperchargedSection() {
                     <FeatureShowcase
                         icon={<Palette className="w-7 h-7 text-indigo-400" />}
                         title="Custom Styles"
-                        description="Why settle for a generic chatbot? Sculpt TaskMaster's personality, tone, and response format to create your ideal tutor. Choose from pre-made styles or build your own from scratch for a truly unique and effective experience."
+                        description="Why settle for a generic chatbot? Customize TaskMaster’s personality, tone, and style to build your perfect tutor."
                     >
-                         <div className="p-6 bg-[#12141D] rounded-2xl border border-gray-700/60 shadow-2xl backdrop-blur-md relative overflow-hidden">
+                         <div className="p-6 bg-[#12141D] rounded-2xl  shadow-2xl backdrop-blur-md relative overflow-hidden">
                              <div className="absolute -inset-px rounded-2xl bg-gradient-to-r from-indigo-500/20 via-transparent to-transparent opacity-50 blur-xl -z-10"></div>
                             <h4 className="text-lg font-semibold text-white mb-5">Style Selector</h4>
                             <div className="space-y-3">
@@ -480,10 +655,10 @@ export function IntegrationsSection() {
             <div className="container mx-auto px-5 sm:px-6">
                 <div className="text-center mb-16 lg:mb-24">
                     <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-5">
-                        Your Entire Knowledge Base, <span className="bg-gradient-to-r from-teal-400 via-sky-500 to-blue-500 bg-clip-text text-transparent">Unified.</span>
+                        All Your Existing Apps, <span className="bg-gradient-to-r from-[#635BFF] to-[#8A85FF] italic bg-clip-text text-transparent">Combined.</span>
                     </h2>
                     <p className="text-base sm:text-lg text-gray-400 max-w-3xl mx-auto">
-                        Connect your favorite apps and grant TaskMaster an unparalleled understanding of your world, supercharging its context and memory.
+                        Connect your apps so TaskMaster learns you better and responds smarter.
                     </p>
                 </div>
 
@@ -563,7 +738,7 @@ export function IntegrationsSection() {
                                 <h3 className="text-2xl font-bold text-white">Google Drive</h3>
                             </div>
                             <p className="text-gray-400 leading-relaxed">
-                                Grant TaskMaster secure, read-only access to your entire digital library. It can reference your documents, spreadsheets, and presentations to provide hyper-relevant answers.
+                                TaskMaster can read your files to give smarter responses and can even organize or update them for you.
                             </p>
                         </div>
                     </motion.div>
@@ -574,7 +749,7 @@ export function IntegrationsSection() {
                                 <h3 className="text-2xl font-bold text-white">Notion</h3>
                             </div>
                             <p className="text-gray-400 leading-relaxed">
-                                Connect your second brain. TaskMaster can pull context from your structured notes, project plans, and knowledge bases in Notion, seamlessly integrating with your most organized thoughts.
+                                TaskMaster can pull insights from your Notion workspace and can even update or create pages to match your needs.
                             </p>
                         </div>
                     </motion.div>
@@ -585,7 +760,7 @@ export function IntegrationsSection() {
                                 <h3 className="text-2xl font-bold text-white">Google Calendar</h3>
                             </div>
                             <p className="text-gray-400 leading-relaxed">
-                                Unlock your schedule's context. TaskMaster understands your availability and important deadlines, helping you prepare, schedule tasks, and manage your time more effectively.
+                                TaskMaster can understand your schedule and can even plan tasks or events around your day.
                             </p>
                         </div>
                     </motion.div>
@@ -706,7 +881,7 @@ function App() {
                             className="text-base sm:text-lg md:text-xl text-gray-400 max-w-xl mx-auto lg:mx-0"
                             variants={heroItemVariants}
                             >
-                              Any audio, video, or PDF → Instant notes, flashcards, quizzes, and chatbot.
+                              Any audio, video, or PDF → Instant notes, flashcards, quizzes, and agent.
                             </motion.p>
                             
                         </motion.div>
@@ -731,7 +906,7 @@ function App() {
             </section>
             
             <TestimonialsSection />
-            <FeaturesGridSection />
+            <AgenticSection />
             <LearningSuperchargedSection />
             <IntegrationsSection/>
         </main>
