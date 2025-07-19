@@ -361,13 +361,12 @@
 
 /* --- KaTeX Font Size & Rendering Fix --- */
 .sun-editor-editable .katex {
-    font-size: 1.25em !important; /* Increased from 1.1em */
-    /* This rule prevents the global font from breaking KaTeX's special math fonts */
+    font-size: 1.25em !important;
     font-family: 'KaTeX_Main', 'KaTeX_Math', 'KaTeX_AMS', 'KaTeX_Caligraphic', 'KaTeX_Fraktur', 'KaTeX_SansSerif', 'KaTeX_Script', 'KaTeX_Typewriter', 'KaTeX_Size1', 'KaTeX_Size2', 'KaTeX_Size3', 'KaTeX_Size4', serif !important;
 }
 
 .sun-editor-editable .katex-display {
-    font-size: 1.3em !important; /* Increased from 1.15em */
+    font-size: 1.3em !important;
 }
 
 /* --- Custom Bold Styling --- */
