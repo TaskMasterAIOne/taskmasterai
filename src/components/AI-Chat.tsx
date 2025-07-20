@@ -1487,42 +1487,26 @@ Assistant:`;
       <ProfileModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} userProfile={userProfile} userName={userName} />
       
       <main className={`flex-1 flex flex-col transition-all duration-300 pt-14 md:pt-0 ${isSidebarCollapsed ? 'md:ml-20' : 'md:ml-64'}`}>
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700/50 flex justify-between items-center flex-shrink-0">
-          <div className="flex items-center gap-2 flex-grow min-w-0">
-            <h1 className="text-lg sm:text-xl font-bold flex items-center gap-2">
-              {conversationId && currentConversation ? (
-                <>
-                  <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-500 dark:text-indigo-400 flex-shrink-0" />
-                  <span className="truncate" title={currentConversation.chatName}>{currentConversation.chatName}</span>
-                </>
-              ) : (
-                <>
-                  <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-500 dark:text-indigo-400" />
-                  <span>AI Chat</span>
-                </>
-              )}
-            </h1>
-          </div>
-          {userProfile && (
-            <div className="flex-shrink-0 flex flex-wrap items-center gap-2 sm:gap-3 ml-2 sm:ml-4">
-                <div className="hidden sm:flex items-center gap-2 bg-gray-100 dark:bg-[#161922] rounded-full px-3 py-1.5 text-xs sm:text-sm" title={`Points: ${userProfile.points}`}>
-                  <TrendingUp className="w-4 h-4 opacity-80" /> <span className="font-bold">{userProfile.points}</span> <span className="opacity-80 hidden lg:inline">Points</span>
-                </div>
-              <div className="relative flex items-center gap-2 bg-gray-100 dark:bg-[#161922] rounded-full px-3 py-1.5 text-xs sm:text-sm" title={`Streak: ${userProfile.overallStreakCount}`}>
-                <AnimatePresence> {streakIncreased && (<motion.div initial={{ y: 0, scale: 0, opacity: 0 }} animate={{ y: -25, scale: 1, opacity: [0, 1, 1, 0] }} exit={{ y: -30, scale: 0, opacity: 0 }} transition={{ duration: 1.5, times: [0, 0.2, 0.8, 1], ease: "easeOut" }} className="absolute -top-4 left-1/2 -translate-x-1/2 text-sm font-bold text-orange-400 flex items-center"> <Flame className="w-4 h-4 mr-0.5" /> +1 </motion.div>)} </AnimatePresence>
-                <Flame className="w-4 h-4 opacity-80" /> <span className="font-bold">{userProfile.overallStreakCount}</span>
-              </div>
-              <button onClick={() => setShowProfileModal(true)} className="flex items-center gap-2 bg-gray-100 dark:bg-[#161922] rounded-full p-1.5 sm:px-3 sm:py-1.5 text-xs sm:text-sm group" title="View Full Profile">
-                 <UserIcon className="w-4 h-4 opacity-80" /> <span className="opacity-80 hidden sm:inline group-hover:underline">Profile</span>
-              </button>
-               <button onClick={() => setIsConversationListOpen(true)} className="p-2 md:hidden">
-                <LayoutDashboard className="w-6 h-6"/>
-            </button>
-            </div>
-          )}
-        </div>
+
+
         <div className="flex-1 flex overflow-hidden">
           <div className="flex-1 flex flex-col overflow-hidden">
+                        {/* START: THIS IS THE CORRECT PLACEMENT FOR THE HEADER */}
+            {currentConversation && (
+              <div className="p-4 border-b border-gray-200 dark:border-gray-700/50 flex justify-between items-center flex-shrink-0">
+                <div className="flex items-center gap-2 flex-grow min-w-0">
+                  <h1 className="text-lg sm:text-xl font-bold flex items-center gap-2">
+                    <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-500 dark:text-indigo-400 flex-shrink-0" />
+                    <span className="truncate" title={currentConversation.chatName}>{currentConversation.chatName}</span>
+                  </h1>
+                </div>
+                {/* This button shows the conversation list on mobile */}
+                <button onClick={() => setIsConversationListOpen(true)} className="p-2 md:hidden">
+                  <LayoutDashboard className="w-6 h-6"/>
+                </button>
+              </div>
+            )}
+            {/* END: HEADER PLACEMENT */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
               {(!conversationId && chatHistory.length === 0) ? (
                 <div className="h-full flex flex-col items-center justify-center text-center p-4 md:p-6">
