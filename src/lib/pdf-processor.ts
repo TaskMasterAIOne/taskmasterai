@@ -195,6 +195,7 @@ This is not summarization. This is **intelligent expansion and transformation** 
    - Provide examples, analogies, or applications where useful.
    - Connect ideas across the topic to show relationships and frameworks.
    - If the topic is mathematical or logical, include formulas and walk through their meaning.
+   - HEADERS TITLE NAMING MUST BE SHORT, NOT VERY LONG. FAILURE TO COMPLY WILL RESULT IN TERMINATION
 
 6. 🔣 MATH FORMAT — LaTeX ONLY:
    - Any math expressions, logic, chemistry, physics, etc. must use proper LaTeX syntax.
@@ -219,6 +220,7 @@ This is not summarization. This is **intelligent expansion and transformation** 
    - Do NOT explain what you’re doing — just do it.
    - Do NOT wrap your output in triple backticks or any markdown syntax.
    - USING <h3> TAGS WILL RESULT IN TERMINATION. IF A SECTION NEEDS A HEADING, BUT ALSO HAS SUBSECTIONS, THEN YOU NEED TO USE <h1> FOR THAT MAIN SECTION HEADING, AND <h2> FOR THOSE SUBSECTIONS HEADING. BUT USING <h3> WILL GET YOU BANNED.
+   - NO EXCESSIVE COMMENTARY. DO NOT SAY SOMETHING LIKE "Welcome to this in-depth study guide...." DONT CALL IT A STUDY GUIDE. JUST START WITH THE NOTES! DO NOT GIVE A BLURB BEFORE THE NOTES CONTENT. THE USER IS NOT TALKING WITH YOU. THE USER JUST NEEDS NOTES TO STUDY, NOT YOUR EXCESSIVE COMMENTARY. DO NOT CREATE RANDOM SYMBOLS OR WORDING LIKE :  "ปัจจัย ที่ มี ผล ต่อ การ ออม".
    
 
 9. 📄 FINAL OUTPUT:
