@@ -787,6 +787,42 @@ export function IntegrationsSection() {
 function App() {
   const { user } = useAuth();
   const [showScrollIndicator, setShowScrollIndicator] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  const lightModeImage = "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/Screenshot%202025-07-19%20at%2011.49.54%E2%80%AFPM.png?alt=media&token=ab0ad6ad-e2a0-461b-be22-40dbe21bc0cc";
+  const darkModeImage = "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/Screenshot%202025-07-19%20at%2011.54.26%E2%80%AFPM.png?alt=media&token=37abe8fa-1e27-4881-b854-7164d91ca521";
+
+  useEffect(() => {
+    const applyTheme = () => {
+        const savedTheme = localStorage.getItem('appTheme') || 'system';
+        document.documentElement.classList.remove('light', 'dark');
+
+        if (savedTheme === 'dark') {
+            document.documentElement.classList.add('dark');
+            setIsDarkMode(true);
+        } else if (savedTheme === 'light') {
+            document.documentElement.classList.add('light');
+            setIsDarkMode(false);
+        } else {
+            if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                document.documentElement.classList.add('dark');
+                setIsDarkMode(true);
+            } else {
+                document.documentElement.classList.add('light');
+                setIsDarkMode(false);
+            }
+        }
+    };
+
+    applyTheme();
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    mediaQuery.addEventListener('change', applyTheme);
+    window.addEventListener('storage', (event) => { if (event.key === 'appTheme') applyTheme(); });
+    return () => {
+        mediaQuery.removeEventListener('change', applyTheme);
+        window.removeEventListener('storage', (event) => { if (event.key === 'appTheme') applyTheme(); });
+    }
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -818,7 +854,7 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0C0E1A] text-gray-200 font-poppins selection:bg-purple-600 selection:text-white">
+    <div className="min-h-screen bg-white dark:bg-[#0C0E1A] text-gray-800 dark:text-gray-200 font-poppins selection:bg-purple-600 selection:text-white">
       <Analytics />
       <SpeedInsights />
         <motion.header
@@ -846,7 +882,7 @@ function App() {
 
         <main className="overflow-x-hidden">
             {/* FIX: Changed section to a flex column, adjusted padding, and moved TrustedBySection inside */}
-            <section className="relative min-h-screen flex flex-col pt-40 sm:pt-52 bg-[#0C0E1A] overflow-hidden">
+            <section className="relative min-h-screen flex flex-col pt-40 sm:pt-52 bg-white dark:bg-[#0C0E1A] overflow-hidden">
                 <div className="flex-grow flex items-center justify-center">
                     <div className="container mx-auto px-5 sm:px-6 relative z-10">
                         <div className="grid lg:grid-cols-5 gap-x-16 gap-y-16 items-center">
@@ -878,7 +914,7 @@ function App() {
                             </motion.div>
                             
                             <motion.p 
-                            className="text-base sm:text-lg md:text-xl text-gray-400 max-w-xl mx-auto lg:mx-0"
+                            className="text-base sm:text-lg md:text-xl text-gray-500 dark:text-gray-400 max-w-xl mx-auto lg:mx-0"
                             variants={heroItemVariants}
                             >
                               Any audio, video, or PDF → Instant notes, flashcards, quizzes, and agent.
@@ -894,9 +930,9 @@ function App() {
                         >
                             <div className="absolute -inset-3 rounded-2xl bg-gradient-to-r from-indigo-600/80 via-purple-600/80 to-pink-600/80 opacity-20 blur-2xl"></div>
                             <img
-                                src="https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/Screenshot%202025-06-23%20at%201.28.08%E2%80%AFPM.png?alt=media&token=64186bbb-662d-41d4-88ef-ec1debf7739a"
+                                src={isDarkMode ? darkModeImage : lightModeImage}
                                 alt="TaskMaster AI Product Screenshot" 
-                                className="relative rounded-2xl shadow-2xl border-2 border-gray-700/70 w-full"
+                                className="relative rounded-2xl shadow-2xl border-2 border-gray-300 dark:border-gray-700/70 w-full"
                             />
                         </motion.div>
                         </div>
@@ -911,13 +947,13 @@ function App() {
             <IntegrationsSection/>
         </main>
 
-        <footer className="bg-[#0C0E1A]  mt-16">
+        <footer className="bg-white dark:bg-[#0C0E1A]  mt-16">
           <div className="container mx-auto px-5 sm:px-6 py-10">
             <div className="flex flex-col md:flex-row items-center justify-between gap-5">
               <div className="flex items-center space-x-4">
-                <a href="/privacy-policy" className="text-sm text-gray-500 hover:text-indigo-400 transition-colors">Privacy Policy</a>
-                <span className="text-gray-700 hidden sm:inline">|</span>
-                <a href="/terms" className="text-sm text-gray-500 hover:text-indigo-400 transition-colors">Terms & Conditions</a>
+                <a href="/privacy-policy" className="text-sm text-gray-500 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors">Privacy Policy</a>
+                <span className="text-gray-300 dark:text-gray-700 hidden sm:inline">|</span>
+                <a href="/terms" className="text-sm text-gray-500 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors">Terms & Conditions</a>
               </div>
               <p className="text-sm text-gray-500 text-center md:text-right">
                 © {new Date().getFullYear()} TaskMaster AI. All rights reserved.
