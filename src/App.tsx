@@ -7,16 +7,16 @@ import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 
 const universityLogos = [
-  { name: "Oxford", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/oxford.svg?alt=media&token=712ed46d-5d02-4835-8b15-85941eb5db73", alt: "University of Oxford Logo" },
-  { name: "MIT", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/mit.svg?alt=media&token=168b1ae1-e90e-46ac-bc58-feb8d46b852c", alt: "MIT Logo" },
-  { name: "Princeton", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/princeton.png?alt=media&token=593fa335-53b0-4d6f-97f0-410e54069425", alt: "Princeton University Logo" },
-  { name: "UT Austin", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/utaustin.svg?alt=media&token=988de05d-403d-47c6-9073-3da63aa3ce56", alt: "University of Texas at Austin Logo" },
-  { name: "Duke", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/duke.svg?alt=media&token=57027fc4-51ab-48c4-ad4f-534bef685311", alt: "Duke University Logo" },
-  { name: "Harvard", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/harvard%20(2).png?alt=media&token=bc675261-2d71-4b37-8a38-f9f266a1f08e", alt: "Harvard University Logo" },
-  { name: "Georgia Tech", src: "https://yunzhi.netlify.app/authors/admin/gatech-logo-cropped.png", alt: "Georgia Tech University Logo" },
-  { name: "Rice", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/ricelogo.png?alt=media&token=1247209e-9df6-492c-8129-1e9b6c1403c1", alt: "Rice University Logo" },
-  { name: "Yale", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/yale.svg?alt=media&token=b4335183-5d2b-4c7f-83fe-e9d3437b7578", alt: "Yale University Logo" },
-  { name: "Johns Hopkins", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/jhulogo.png?alt=media&token=f3dc5ef0-8b1c-4645-94dd-f10fdf8fe3bf", alt: "Johns Hopkins University Logo" },
+  { name: "Oxford", src: { light: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/oxford.svg?alt=media&token=712ed46d-5d02-4835-8b15-85941eb5db73", dark: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/oxford.svg?alt=media&token=712ed46d-5d02-4835-8b15-85941eb5db73" }, alt: "University of Oxford Logo" },
+  { name: "MIT", src: { light: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/mit.svg?alt=media&token=168b1ae1-e90e-46ac-bc58-feb8d46b852c", dark: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/mit.svg?alt=media&token=168b1ae1-e90e-46ac-bc58-feb8d46b852c" }, alt: "MIT Logo" },
+  { name: "Princeton", src: { light: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/pricinton-black-text-removebg-preview.png?alt=media&token=c3c8070e-f5bc-4d74-9fcc-0ff52a10052d", dark: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/princeton.png?alt=media&token=593fa335-53b0-4d6f-97f0-410e54069425" }, alt: "Princeton University Logo" },
+  { name: "UT Austin", src: { light: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/utaustin.svg?alt=media&token=988de05d-403d-47c6-9073-3da63aa3ce56", dark: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/utaustin.svg?alt=media&token=988de05d-403d-47c6-9073-3da63aa3ce56" }, alt: "University of Texas at Austin Logo" },
+  { name: "Duke", src: { light: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/duke.svg?alt=media&token=57027fc4-51ab-48c4-ad4f-534bef685311", dark: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/duke.svg?alt=media&token=57027fc4-51ab-48c4-ad4f-534bef685311" }, alt: "Duke University Logo" },
+  { name: "Harvard", src: { light: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/harvard.png?alt=media&token=ca63f868-d97c-42dc-a6fd-bcf6a88ca8b1", dark: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/harvard%20(2).png?alt=media&token=bc675261-2d71-4b37-8a38-f9f266a1f08e" }, alt: "Harvard University Logo" },
+  { name: "Georgia Tech", src: { light: "https://yunzhi.netlify.app/authors/admin/gatech-logo-cropped.png", dark: "https://yunzhi.netlify.app/authors/admin/gatech-logo-cropped.png" }, alt: "Georgia Tech University Logo" },
+  { name: "Rice", src: { light: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/ricelogo.png?alt=media&token=1247209e-9df6-492c-8129-1e9b6c1403c1", dark: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/ricelogo.png?alt=media&token=1247209e-9df6-492c-8129-1e9b6c1403c1" }, alt: "Rice University Logo" },
+  { name: "Yale", src: { light: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/yale.svg?alt=media&token=b4335183-5d2b-4c7f-83fe-e9d3437b7578", dark: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/yale.svg?alt=media&token=b4335183-5d2b-4c7f-83fe-e9d3437b7578" }, alt: "Yale University Logo" },
+  { name: "Johns Hopkins", src: { light: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/jhulogo.png?alt=media&token=f3dc5ef0-8b1c-4645-94dd-f10fdf8fe3bf", dark: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/jhulogo.png?alt=media&token=f3dc5ef0-8b1c-4645-94dd-f10fdf8fe3bf" }, alt: "Johns Hopkins University Logo" },
 ];
 
 const testimonials = [
@@ -126,7 +126,7 @@ const GoogleCalendarIcon = (props) => (
 );
 
 
-function TrustedBySection() {
+function TrustedBySection({ isDarkMode }) {
   const duplicatedLogos = [...universityLogos, ...universityLogos, ...universityLogos, ...universityLogos, ...universityLogos, ...universityLogos];
 
   return (
@@ -149,7 +149,7 @@ function TrustedBySection() {
           }
         `}
       </style>
-      <section id="trusted-by" className="w-full pt-12 sm:pt-16 pb-12 sm:pb-16 bg-gray-50 dark:bg-[#0C0E1A]">
+      <section id="trusted-by" className="w-full pt-12 sm:pt-16 pb-12 sm:pb-16 bg-white dark:bg-[#0C0E1A]">
         <div className="container mx-auto px-5 sm:px-6">
           <h2 className="text-center text-base sm:text-lg font-medium text-gray-500 dark:text-gray-400 mb-12">
             Trusted by students at leading institutions
@@ -162,7 +162,7 @@ function TrustedBySection() {
               {duplicatedLogos.map((logo, index) => (
                 <div key={`${logo.alt}-${index}`} className="px-10 sm:px-14 flex-shrink-0 flex justify-center items-center h-12">
                   <img
-                    src={logo.src}
+                    src={isDarkMode ? logo.src.dark : logo.src.light}
                     alt={logo.alt}
                     className="h-8 sm:h-12 max-w-none opacity-60 hover:opacity-100 transition-opacity duration-300"
                   />
@@ -178,7 +178,7 @@ function TrustedBySection() {
 
 function TestimonialsSection() {
   return (
-    <section className="py-20 sm:py-28 bg-gray-100 dark:bg-[#0C0E1A]">
+    <section className="py-20 sm:py-28 bg-white dark:bg-[#0C0E1A]">
       <div className="container mx-auto px-5 sm:px-6">
         <div className="text-center mb-16 sm:mb-20">
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 dark:text-white mb-5">
@@ -436,7 +436,7 @@ export function LearningSuperchargedSection() {
     ];
 
     return (
-        <section id="learning-supercharged" className="py-24 sm:py-32 bg-gray-50 dark:bg-[#0C0E1A]">
+        <section id="learning-supercharged" className="py-24 sm:py-32 bg-white dark:bg-[#0C0E1A]">
             <div className="container mx-auto px-5 sm:px-6">
                 <div className="text-center mb-24">
                     <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 dark:text-white mb-5">
@@ -643,18 +643,18 @@ export function IntegrationsSection() {
                             ))}
                         </motion.svg>
                         
-                        <motion.div
-                            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
-                            initial={{ scale: 0, opacity: 0 }}
-                            whileInView={{ scale: 1, opacity: 1 }}
-                            transition={{ duration: 0.4, delay: 0.3, ease: "easeOut" }}
-                            viewport={{ once: true, amount: 0.8 }}
-                        >
-                            <div className="flex items-center justify-center w-20 h-20 lg:w-24 lg:h-24 bg-white dark:bg-[#0C0E1A] border-2 border-indigo-300 dark:border-indigo-500/50 rounded-full shadow-lg">
-                                <LogoIcon className="w-10 h-10 lg:w-12 lg:h-12" />
-                            </div>
-                        </motion.div>
-
+{/* Central Logo - The centering classes are correct. The surrounding context was the issue. */}
+    <motion.div
+        className="absolute top-[35%] left-[37%] -translate-x-1/2 -translate-y-1/2"
+        initial={{ scale: 0, opacity: 0 }}
+        whileInView={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 0.4, delay: 0.3, ease: "easeOut" }}
+        viewport={{ once: true, amount: 0.8 }}
+    >
+        <div className="flex items-center justify-center w-20 h-20 lg:w-24 lg:h-24 bg-white dark:bg-[#0C0E1A] border-2 border-indigo-300 dark:border-indigo-500/50 rounded-full shadow-lg">
+            <LogoIcon className="w-10 h-10 lg:w-12 lg:h-12" />
+        </div>
+    </motion.div>
                         {integrations.map(({ name, Icon, positionClass, isComingSoon }, index) => (
                             <motion.div
                                 key={`node-${name}`}
@@ -827,6 +827,7 @@ function App() {
           </div>
         </motion.header>
 
+
         <main className="overflow-x-hidden">
             <section className="relative min-h-screen flex flex-col pt-40 sm:pt-52 bg-white dark:bg-[#0C0E1A] overflow-hidden">
                 <div className="flex-grow flex items-center justify-center">
@@ -883,17 +884,16 @@ function App() {
                     </div>
                 </div>
                 {/* TrustedBySection has its own theme-aware background */}
-                <TrustedBySection />
+                <TrustedBySection isDarkMode={isDarkMode} />
             </section>
             
             <TestimonialsSection />
             <AgenticSection />
             <LearningSuperchargedSection />
-            <FeaturesGridSection />
             <IntegrationsSection/>
         </main>
 
-        <footer className="bg-gray-50 dark:bg-[#0C0E1A] mt-16 border-t border-gray-200 dark:border-gray-800">
+        <footer className="bg-white dark:bg-[#0C0E1A] mt-16 ">
           <div className="container mx-auto px-5 sm:px-6 py-10">
             <div className="flex flex-col md:flex-row items-center justify-between gap-5">
               <div className="flex items-center space-x-4">
