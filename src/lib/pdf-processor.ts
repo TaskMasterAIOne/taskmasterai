@@ -211,13 +211,15 @@ This is not summarization. This is **intelligent expansion and transformation** 
      - No markdown formatting. HTML only.
      - No links unless they are part of academic citation, which is rare and discouraged.
      - No embedded media — the result must be copy-pasteable into a rich text editor.
-     - No <h3> or higher tags. MAX is <h2>. 
+     - No <h3> or higher tags. MAX is <h2>.  USING <h3> TAGS WILL RESULT IN TERMINATION. IF A SECTION NEEDS A HEADING, BUT ALSO HAS SUBSECTIONS, THEN YOU NEED TO USE <h1> FOR THAT MAIN SECTION HEADING, AND <h2> FOR THOSE SUBSECTIONS HEADING. BUT USING <h3> WILL GET YOU BANNED.
 
 8. ❗ ABSOLUTELY PROHIBITED:
    - Do NOT refer to yourself, your process, or the original source.
    - Do NOT include commentary like “Here’s what we can learn…” or “Let’s break this down…”
    - Do NOT explain what you’re doing — just do it.
    - Do NOT wrap your output in triple backticks or any markdown syntax.
+   - USING <h3> TAGS WILL RESULT IN TERMINATION. IF A SECTION NEEDS A HEADING, BUT ALSO HAS SUBSECTIONS, THEN YOU NEED TO USE <h1> FOR THAT MAIN SECTION HEADING, AND <h2> FOR THOSE SUBSECTIONS HEADING. BUT USING <h3> WILL GET YOU BANNED.
+   
 
 9. 📄 FINAL OUTPUT:
    - Output ONLY the HTML content. It should begin immediately with a valid HTML tag such as <h1> or <p>.
@@ -252,6 +254,7 @@ MANDATORY FORMATTING RULES:
 3.  ONE POINT PER LINE: Each key point must be on its own line.
 4.  CONCISE AND POWERFUL: Each point must be a single, clear sentence under 25 words.
 5.  NO EXTRA TEXT: Do not include any titles, introductions, or summaries. Start immediately with the first asterisk.
+6. 
 
 
     FOR MATH USE THIS:
@@ -337,9 +340,12 @@ Your entire output must consist of **exactly 10** question blocks. You must not 
 - **Relevance:** Questions MUST test the actual subject matter. AVOID "meta" questions about the document itself (e.g., "What did the author say on page 3?").
 - **Clarity:** The question and options must be clear and unambiguous. There should be only one single best answer.
 - **Plausible Distractors:** The incorrect options (distractors) should be plausible but clearly wrong based on the source material's concepts.
+- **NEVER SAY:** "According to the text...." AND FOR THE EXPLAINATION, NEVER SAY "The text states..." 
+- **BE RANDOM!:** DO NOT ALWAYS PICK C OR B AS THE CORRECT ANSWERS. THE EXAMPLE MIGHT SAY C, BUT YOU MUST NOT PICK C OR B ALL THE TIME. AGAIN, ITS VERY PREDICTIABLE FOR THE USER WHEN YOU CHOOSE B OR C AS THE ANSWER CHOICES ALL THE TIME! YOU CAN PICK B OR C, BUT YOU MUST ALSO PICK A AND D AS WELL. WHEN CHOOSING THE CORRECT ANSWER CHOICE FOR THE QUESTION, ESNURE THAT ITS IN RANDOM SPOTS, LIKE WHEN CREATING THE QUESTIONS, DONT ALWAYS PUT THE CORERCT ANSWER IN THE SAME "C" OR "B" SPOT, PUT IT IN "A" OR "D" AS WELL. IT NEEDS TO BE RANDOM.
+- **HARD QUESTIONS:** MAKE THE QUESTIONS HARD AND NOT BASIC OR TOO EASY. ENSURE THAT YOU HAVE A MIX OF MEDIUM TO HARD QUESTIONS ONLY. NO EASY QUESTIONS. EASY QUESTIONS DONT CHALLENGE THE USER AND CAN EVEN HINDER THIER LEARNING, SO ALWAYS ENSURE THE QUESTIONS ARE MEDIUM TO HARD DIFFICULTY. 
 
 **Example of a PERFECT First Block:**
-Question: According to the text, what is the primary purpose of the legislative branch of the U.S. government?
+Question: What is the primary purpose of the legislative branch of the U.S. government?
 A) To enforce the laws of the country
 B) To interpret the constitutionality of laws
 C) To create and enact laws
