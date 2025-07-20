@@ -14,7 +14,8 @@ import { auth } from '../lib/firebase';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { Timestamp } from 'firebase/firestore';
 import { geminiApiKey, onCollectionSnapshot, findItemByName, updateItem, createEvent as createFirebaseEvent, deleteItem } from '../lib/dashboard-firebase';
-import { getCurrentUser } from '../lib/settings-firebase';
+import { getFunctions, httpsCallable } from 'firebase/functions'; 
+import { getUserData } from '../lib/settings-firebase'; // Ensure this is imported
 import { ProfileModal } from './ProfileModal';
 import { UserTier, BASIC_CHAT_LIMIT, getUserTier, getChatLimitForTier, getCurrentMonthUserChatUsage, incrementUserChatUsage, onUserProfileSnapshot, type UserProfileData, updateUserStreak } from '../lib/current-paying-user';
 import { createChatConversation, saveChatMessage, onChatMessagesSnapshot, onChatConversationsSnapshot, updateChatConversationName, deleteChatConversation, uploadBase64ImageToStorage, uploadFileToStorage, type ChatMessage as FirebaseChatMessage, type ImageMeta as FirebaseImageMeta, type AttachedFileMeta as FirebaseAttachedFileMeta } from '../lib/ai-chat-firebase';
@@ -497,6 +498,12 @@ const AssistantMessageContent = ({ message }: { message: ChatMessageData }) => {
   );
 };
 
+const NotionIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <path className="fill-black dark:fill-white" d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z"/>
+    </svg>
+);
+
 export function AIChat() {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
@@ -546,6 +553,11 @@ export function AIChat() {
   const [activeStyle, setActiveStyle] = useState<string | null>(null);
   const [activePrompt, setActivePrompt] = useState<string>('');
   const currentConversation = useMemo(() => conversationList.find(c => c.id === conversationId), [conversationList, conversationId]);
+
+   const [isNotionConnected, setIsNotionConnected] = useState(false);
+  const [isNotionSearchModeActive, setIsNotionSearchModeActive] = useState(false);
+  const [notionActionStatus, setNotionActionStatus] = useState<string | null>(null);
+  const functions = getFunctions();
 
   const handleStyleSelect = (style: string, prompt: string) => {
     setActiveStyle(style);
@@ -636,6 +648,14 @@ export function AIChat() {
             setChatLimit(limit); 
         });
 
+        getUserData(fbUser.uid).then(userData => {
+          if (userData && userData.notionAccessData) {
+            setIsNotionConnected(true);
+          } else {
+            setIsNotionConnected(false);
+          }
+        });
+
         if (userTier !== 'premium' && userTier !== 'loading') {
           const currentMonth = new Date().toISOString().slice(0, 7);
           getCurrentMonthUserChatUsage(fbUser.uid, currentMonth).then(usage => setChatUsageCount(usage?.count || 0));
@@ -723,6 +743,20 @@ export function AIChat() {
     }
     setSelectedFiles(prev => [...prev, ...newSelectedFiles].slice(0, 5));
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleToggleNotionSearchMode = () => {
+    if (!isNotionConnected) {
+        navigate('/settings');
+        return;
+    }
+    setIsNotionSearchModeActive(prev => {
+        if (!prev) {
+            setIsImageGenModeActive(false);
+            setIsSearchModeActive(false);
+        }
+        return !prev;
+    });
   };
 
   const handleRemoveFile = (fileName: string) => { setSelectedFiles(prev => prev.filter(f => { if (f.name === fileName && f.localPreviewUrl) { URL.revokeObjectURL(f.localPreviewUrl); } return f.name !== fileName; })); };
@@ -983,6 +1017,7 @@ ${activePrompt || 'Respond in a standard, helpful manner.'}
   - Short-term Focus: ${userContext?.shortTermFocus || 'Not specified'}
   - Long-term Learning Goals: ${userContext?.longTermGoals || 'Not specified'}
   - Additional Notes: ${userContext?.otherContext || 'Not specified'}
+  - Notion Integration: ${isNotionConnected ? 'Connected' : 'Not Connected'}
 
 // [B. DYNAMIC DATA CONTEXT] - This is the live data you are working with.
 
@@ -999,6 +1034,8 @@ ${memoryContext}
 1.  **JSON Action System**: To interact with the application's database by outputting structured JSON. This is how you create, update, or delete items.
 2.  **Image Generation Tool**: To create visual aids when you are in "Image Generation Mode".
 3.  **Web Search Tool**: To find current information, definitions, or facts not present in the provided context.
+4.  **Notion Tool**: To search, create, and update pages in the user's connected Notion workspace.
+
 
 // =================================================================================================
 // [RESPONSE PROTOCOL & ACTION GUIDELINES]
@@ -1006,14 +1043,36 @@ ${memoryContext}
 // =================================================================================================
 
 **DECISION HIERARCHY:**
-1.  **Is the user in "Image Generation Mode" AND asking for an image?**
-    -> If YES, proceed to the **[IMAGE GENERATION PROTOCOL]**.
-2.  **Is the user issuing a direct command to modify data (create, update, delete, remember, generate quiz/flashcards)?**
+1.  **Is the user in "Image Generation Mode"?** -> **[IMAGE GENERATION PROTOCOL]**.
+2.  **Does the query explicitly involve Notion (e.g., "in Notion", "find my Notion page") AND is the Notion integration "Connected"?** -> **[NOTION ACTION PROTOCOL]**.
+3.  **Is the user issuing a direct command to modify data (create, update, delete, remember, generate quiz/flashcards)?**
     -> If YES, proceed to the **[JSON ACTION PROTOCOL]**.
-3.  **Does the user's query require external, real-time, or specific information not available in the context?**
+4.  **Does the user's query require external, real-time, or specific information not available in the context?**
     -> If YES, use the **[WEB SEARCH PROTOCOL]**, then formulate a conversational response.
-4.  **If none of the above, treat it as a general conversational query.**
+5.  **If none of the above, treat it as a general conversational query.**
     -> Proceed to the **[GENERAL CONVERSATIONAL PROTOCOL]**.
+
+// -------------------------------------------------------------------------------------------------
+// [PROTOCOL 1: NOTION ACTION PROTOCOL]
+// Use this for all interactions with the user's Notion workspace.
+// -------------------------------------------------------------------------------------------------
+   - **Critical Rule**: Your response for a Notion action MUST be a single JSON object with type: "notion". Do not include any other text outside the JSON block.
+   - **Workflow**: To read, update, or append to a page, you often need its page_id. If you don't know the page_id, you MUST use the searchNotion action first to find it. The system will provide a list of results, and you can use the ID from there for subsequent actions.
+   - **JSON Format**:
+     \`\`\`json
+     {
+       "type": "notion",
+       "action": "the_action_to_perform",
+       "payload": { "parameter": "value" }
+     }
+     \`\`\`
+   - **Available Actions & Payloads**:
+     - \`searchNotion\`: Finds pages/databases. Payload: \`{"query": string}\`
+     - \`readNotionPageContent\`: Reads the text content of a page. Payload: \`{"page_id": string}\`
+     - \`createNotionPage\`: Creates a new page. Payload: \`{"title": string, "content"?: string, "parent_page_id"?: string}\` (A default parent will be used if omitted).
+     - \`appendToNotionPage\`: Adds text to the end of a page. Payload: \`{"page_id": string, "content": string}\`
+     - \`updateNotionPage\`: Updates page properties (like title). Payload: \`{"page_id": string, "properties": object}\`
+   - **Important**: If the user tries a Notion action but the integration is not connected, you MUST respond in plain text telling them to connect Notion in the settings. Do not output JSON
 
 // -------------------------------------------------------------------------------------------------
 // [PROTOCOL 1: JSON ACTION PROTOCOL]
@@ -1100,8 +1159,6 @@ Actions: createTask, updateTask, deleteTask, createGoal, updateGoal, deleteGoal,
 6. **Recurring Commands/Behavior**: Repeatedly asked tasks (e.g., "Every Monday I want a recap", "Help me plan my week", "Make me flashcards often")
 
 STRICT INSTRUCTION: FOR ANY MEMORY YOU WANT TO TRY AND SAVE YOU MUST ALWAYS DO THE JSON ACTIONS SYSTEM. THE USER SHOULDN'T HAVE TO ASK YOU TO TRY AGAIN TO SAVE A MEMEORY. OFTEN TIMES I NOTICE YOU LIKE TO NOT DO THE JSON. THIS IS VERY WRONG AND BAD AND YOU COULD BE REPORTED OR TERMINATED FOR THIS. 
-STRICT INSTRUCTION: FOR ANY MEMORY YOU WANT TO TRY AND FORGET YOU MUST ALWAYS DO THE JSON ACTIONS SYSTEM. THE USER SHOULDN'T HAVE TO ASK YOU TO TRY AGAIN TO FORGET A MEMEORY. OFTEN TIMES I NOTICE YOU LIKE TO NOT DO THE JSON. THIS IS VERY WRONG AND BAD AND YOU COULD BE REPORTED OR TERMINATED FOR THIS. 
-STRICT INSTRUCTION: FOR ANY MEMORY YOU WANT TO TRY AND UPDATE YOU MUST ALWAYS DO THE JSON ACTIONS SYSTEM. THE USER SHOULDN'T HAVE TO ASK YOU TO TRY AGAIN TO UPDATE A MEMEORY. OFTEN TIMES I NOTICE YOU LIKE TO NOT DO THE JSON. THIS IS VERY WRONG AND BAD AND YOU COULD BE REPORTED OR TERMINATED FOR THIS. 
 
 
 
@@ -1226,6 +1283,7 @@ YOU MUST ALWYAYS USE THAT LATEX FOR MATH ONLY.
 - **STRICTLY FORBIDDEN**: Do not create duplicate items. If a user asks to create a task that already seems to exist, you can ask for clarification (e.g., "It looks like you already have a task to 'Study Chapter 5'. Did you want to create another one?").
 - **IMAGE GEN MODE**: If NOT in Image Generation Mode and the user asks you to create an image, you must instruct them to enable the mode first. Do not say you cannot create images. Say, "I can definitely help with that! Please switch to Image Generation mode, and then tell me what you'd like to create."
 - **OTHER IMPORTANT INFO**: WHEN USING SEARCH NEVER SAY SOMETHING LIKE "OK I WILL DO A WEB SEARCH FOR THAT." AND THEN SAY "OK HERES WHAT I FOUND" YOU DONT HAVE TO CLARIFY THAT YOU NEED TO DO WEB SEARCH JUST USE THE TOOL CALL AND THEN PROVIDE THE RESULTS. NEVER MENTION THAT YOU USE JSON TO THE USER AND DON'T ASK THE USER TO SWITCH TO JSON MODE. 
+- **NOTION MODE**: If the user asks for a Notion action but the integration is not connected, you MUST instruct them to connect it. Say, "To do that, you'll first need to connect your Notion account in the Settings page."
 
 Your ultimate goal is to be a world-class productivity partner for ${truncatedName}. Adhere strictly to these protocols to provide a seamless and effective experience.
 Assistant:`;
@@ -1272,6 +1330,10 @@ Assistant:`;
       
       const { blocks: jsonActionBlocks, cleanedText } = extractJsonBlocks(contentToProcess);
       let assistantTextForDisplay = cleanedText;
+      // --- START OF REPLACEMENT ---
+
+      // Isolate the Notion action from other actions
+      const notionBlock = jsonActionBlocks.find(b => b.type === 'notion' && b.action);
       const geminiGeneratedImageData = parsedApiResult.localImageData;
       let finalImageUrl: string | undefined = undefined; 
       let finalImageMeta: FirebaseImageMeta | undefined = undefined;
@@ -1287,8 +1349,109 @@ Assistant:`;
         } catch (uploadError) { console.error("Error saving generated image:", uploadError); assistantTextForDisplay = (assistantTextForDisplay ? assistantTextForDisplay + "\n" : "") + "Error: Failed to save generated image."; }
       }
 
+      // Handle Notion Action
+      if (notionBlock && user?.uid && isNotionConnected) {
+        setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? { ...msg, isLoading: true, isProcessingActions: true, content: `Accessing Notion for: ${notionBlock.action}...` } : msg ));
+        setAiActionStatus(`Performing Notion action: ${notionBlock.action}...`);
+        
+        try {
+            const notionAction = httpsCallable(functions, 'notionProxy');
+            const result = await notionAction({ action: notionBlock.action, payload: notionBlock.payload });
+            const actionResult = result.data as any;
+            
+            let resultMessage = `Notion action '${notionBlock.action}' completed successfully.`; // Default message
+            
+            // Format a detailed message based on the Notion action's result
+            if (notionBlock.action === 'searchNotion') {
+                if (actionResult.results?.length > 0) {
+                    const pageLinks = actionResult.results.map((item: any) => {
+                        let title = "Untitled";
+                        let type = "";
+                        if (item.object === 'database' && item.title?.[0]?.plain_text) {
+                            title = item.title[0].plain_text;
+                            type = '[DB]';
+                        } else if (item.object === 'page' && item.properties?.title?.title?.[0]?.plain_text) {
+                            title = item.properties.title.title[0].plain_text;
+                            type = '[Page]';
+                        }
+                        return `- ${type} [${title}](${item.url})\n  *ID: \`${item.id}\`*`;
+                    }).join('\n');
+                    resultMessage = `I found these items in your Notion:\n\n${pageLinks}\n\nYou can use an item's ID for other actions like reading or appending content.`;
+                } else {
+                    resultMessage = `I couldn't find any pages matching your query in Notion.`;
+                }
+            } else if (notionBlock.action === 'readNotionPageContent') {
+                resultMessage = `Here is the content of the page:\n\n---\n\n${actionResult.markdownContent}`;
+            } else if (['createNotionPage', 'updateNotionPage', 'appendToNotionPage'].includes(notionBlock.action) && actionResult.url) {
+                const title = actionResult.properties?.title?.title?.[0]?.plain_text || 'the page';
+                resultMessage = `Successfully performed action on "[${title}](${actionResult.url})" in Notion.`;
+            }
+
+            // Prepend AI's conversational text if it exists, otherwise just use our result message
+            assistantTextForDisplay = cleanedText.trim() ? `${cleanedText}\n\n${resultMessage}` : resultMessage;
+            actionTakenDetails = { status: 'success', message: `Notion: ${notionBlock.action} succeeded.`};
+            
+        } catch (err: any) {
+            console.error("Notion action failed:", err);
+            const errorMessage = `Sorry, the Notion action failed: ${err.message || 'An unknown error occurred.'}`;
+            assistantTextForDisplay = cleanedText.trim() ? `${cleanedText}\n\n${errorMessage}` : errorMessage;
+            actionTakenDetails = { status: 'error', message: `Notion action failed.`};
+        } finally {
+            setAiActionStatus(null);
+        }
+      }
+
+
       const educationalBlock = jsonActionBlocks.find(block => block.type === "flashcard" || block.type === "question");
-      const otherActionBlocks = jsonActionBlocks.filter(b => b !== educationalBlock);
+      const otherActionBlocks = jsonActionBlocks.filter(b => b !== educationalBlock && b !== notionBlock);
+
+      if (notionBlock && user?.uid && isNotionConnected) {
+        setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? { ...msg, isLoading: true, isProcessingActions: true } : msg ));
+        setNotionActionStatus(`Performing Notion action: ${notionBlock.action}...`);
+        
+        try {
+            const notionAction = httpsCallable(functions, 'notionProxy');
+            const result = await notionAction({ action: notionBlock.action, payload: notionBlock.payload });
+            
+            const actionResult = result.data as any;
+            let resultMessage = `Notion action '${notionBlock.action}' completed.`;
+            if (notionBlock.action === 'searchNotion' && actionResult.results?.length > 0) {
+                const pageLinks = actionResult.results.map((item: any) => {
+                    let title = "Untitled";
+                    let type = "";
+                    // Check if it's a database object
+                    if (item.object === 'database' && item.title?.[0]?.plain_text) {
+                        title = item.title[0].plain_text;
+                        type = '[DB]';
+                    // Check if it's a page object
+                    } else if (item.object === 'page' && item.properties?.title?.title?.[0]?.plain_text) {
+                        title = item.properties.title.title[0].plain_text;
+                        type = '[Page]';
+                    }
+                    return `- ${type} [${title}](${item.url}) - \`ID: ${item.id}\``;
+                }).join('\n');
+                resultMessage = `I found these pages/databases in your Notion:\n${pageLinks}`;
+            } else if (notionBlock.action === 'searchNotion') {
+                resultMessage = `I couldn't find any pages matching your query in Notion.`;
+            } else if (notionBlock.action === 'readNotionPageContent') {
+                resultMessage = `Here is the content of the page:\n\n---\n\n${actionResult.markdownContent}`;
+            } else if (notionBlock.action === 'createNotionPage' || notionBlock.action === 'updateNotionPage') {
+                 const title = actionResult.properties.title?.title?.[0]?.plain_text || 'Untitled';
+                resultMessage = `Successfully performed action on page "[${title}](${actionResult.url})" in Notion.`;
+            }
+
+            assistantTextForDisplay = resultMessage;
+            actionTakenDetails = { status: 'success', message: `Notion: ${notionBlock.action} succeeded.`};
+            
+        } catch (err: any) {
+            console.error("Notion action failed:", err);
+            assistantTextForDisplay = `Sorry, the Notion action failed: ${err.message || 'An unknown error occurred.'}`;
+            actionTakenDetails = { status: 'error', message: `Notion: ${notionBlock.action} failed.`};
+        } finally {
+            setNotionActionStatus(null);
+        }
+      }
+
 
       if (educationalBlock && user?.uid) {
         let tempEducationalContent: FlashcardMessage | QuestionMessage;
@@ -1488,10 +1651,9 @@ Assistant:`;
       
       <main className={`flex-1 flex flex-col transition-all duration-300 pt-14 md:pt-0 ${isSidebarCollapsed ? 'md:ml-20' : 'md:ml-64'}`}>
 
-
         <div className="flex-1 flex overflow-hidden">
           <div className="flex-1 flex flex-col overflow-hidden">
-                        {/* START: THIS IS THE CORRECT PLACEMENT FOR THE HEADER */}
+                       {/* START: THIS IS THE CORRECT PLACEMENT FOR THE HEADER */}
             {currentConversation && (
               <div className="p-4 border-b border-gray-200 dark:border-gray-700/50 flex justify-between items-center flex-shrink-0">
                 <div className="flex items-center gap-2 flex-grow min-w-0">
@@ -1629,6 +1791,18 @@ Assistant:`;
                       <button type="button" onClick={triggerFileSelect} disabled={isImageGenModeActive || isSearchModeActive || isChatLoading || isChatDisabledByLimit} className="p-2 rounded-lg transition-colors duration-150 text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600 disabled:cursor-not-allowed" title="Attach Files"> <Plus className="w-4 h-4" /> </button>
                       <button type="button" onClick={handleToggleSearchMode} disabled={isChatLoading || isChatDisabledByLimit} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isSearchModeActive ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'}`} title={isSearchModeActive ? "Disable Search" : "Enable Search"}> <Globe className="w-4 h-4" /> <span className="hidden sm:inline">Search</span> </button>
                       <button type="button" onClick={handleToggleImageGenMode} disabled={isChatLoading || isChatDisabledByLimit} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isImageGenModeActive ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'}`} title={isImageGenModeActive ? "Switch to Normal" : "Generate Image"}> <ImageIcon className="w-4 h-4" /> <span className="hidden sm:inline">Image</span> </button>
+                      <button
+                        type="button"
+                        onClick={handleToggleNotionSearchMode}
+                        disabled={isChatLoading || isChatDisabledByLimit}
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${
+                            isNotionSearchModeActive ? 'bg-gray-800 dark:bg-gray-200 text-white dark:text-black' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'
+                        }`}
+                        title={isNotionConnected ? (isNotionSearchModeActive ? "Disable Notion Search" : "Enable Notion Search") : "Connect Notion in Settings"}
+                      >
+                        <NotionIcon className="w-4 h-4" />
+                        <span className="hidden sm:inline">Notion</span>
+                      </button>
                       <ChatControls
                         onStyleSelect={handleStyleSelect}
                         activeStyle={activeStyle}
