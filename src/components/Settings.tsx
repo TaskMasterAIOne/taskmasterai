@@ -305,6 +305,7 @@ export function Settings() {
   const [learningProfile, setLearningProfile] = useState<LearningProfile | null>(null);
   const [isNotionConnected, setIsNotionConnected] = useState(false);
   const [isNotionConnecting, setIsNotionConnecting] = useState(false);
+  const [isNotionDisconnecting, setIsNotionDisconnecting] = useState(false); // ADD THIS LINE
   const functions = getFunctions();
 
   useEffect(() => {
@@ -628,25 +629,53 @@ export function Settings() {
     return firstDayNextMonth.toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
   };
   
-  const handleNotionConnect = () => {
+// src/components/Settings.tsx
+
+// Replace the existing handleNotionConnect function with this one
+const handleNotionConnect = () => {
     setIsNotionConnecting(true);
-    const notionAuthUrl = 'https://api.notion.com/v1/oauth/authorize?client_id=230d872b-594c-80bd-b9f0-00373ca942fd&response_type=code&owner=user&redirect_uri=https%3A%2F%2Fwww.taskmaster.one%2Fsettings';
+    
+    // Dynamically determine the redirect URI based on the browser's current location
+    const isProduction = window.location.hostname === 'www.taskmaster.one';
+    const redirectUri = isProduction 
+        ? 'https://www.taskmaster.one/settings'
+        : 'http://localhost:5173/settings';
+
+    // This public client ID is fine to have in the frontend
+    const notionClientId = '230d872b-594c-80bd-b9f0-00373ca942fd';
+    
+    // Construct the URL with the correct, URL-encoded redirect URI
+    const notionAuthUrl = `https://api.notion.com/v1/oauth/authorize?client_id=${notionClientId}&response_type=code&owner=user&redirect_uri=${encodeURIComponent(redirectUri)}`;
+    
     window.location.href = notionAuthUrl;
-  };
+};
 
-  const handleNotionDisconnect = async () => {
-      if (!user) return;
-      if (!window.confirm("Are you sure you want to disconnect from Notion?")) return;
+const handleNotionDisconnect = async () => {
+    // Prevent function from running if user is not set or if it's already running
+    if (!user || isNotionDisconnecting) return;
+    
+    // Ask for user confirmation before proceeding
+    if (!window.confirm("Are you sure you want to disconnect from Notion? This will revoke access.")) return;
 
-      try {
-          const disconnectNotion = httpsCallable(functions, 'disconnectNotion');
-          await disconnectNotion();
-          setIsNotionConnected(false);
-      } catch (error) {
-          console.error("Error disconnecting from Notion:", error);
-          setError("Failed to disconnect from Notion.");
-      }
-  };
+    // Set loading state ON and clear any previous errors
+    setIsNotionDisconnecting(true); 
+    setError(null);
+
+    try {
+        // Call the backend cloud function
+        const disconnectNotion = httpsCallable(functions, 'disconnectNotion');
+        await disconnectNotion();
+        
+        // Update the UI to show that Notion is no longer connected
+        setIsNotionConnected(false); 
+    } catch (error) {
+        console.error("Error disconnecting from Notion:", error);
+        setError("Failed to disconnect from Notion. Please try again.");
+    } finally {
+        // IMPORTANT: Always set loading state OFF when the process is complete
+        setIsNotionDisconnecting(false); 
+    }
+};
   
   const ProgressBar = ({ current, total, label }: { current: number; total: number; label: string }) => {
     const displayTotal = total === Infinity ? '∞' : total;
