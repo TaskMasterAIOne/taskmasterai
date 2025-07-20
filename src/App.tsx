@@ -43,51 +43,49 @@ const testimonials = [
   },
 ];
 
-
-
 const features = [
   {
-    icon: <Edit3 className="w-8 h-8 text-indigo-400" />,
+    icon: <Edit3 className="w-8 h-8 text-indigo-500 dark:text-indigo-400" />,
     title: "Rich Notes",
     description: "Our notes include tables, diagrams, emojis, equations, and markdown formatting for clarity.",
     illustration: (
-        <div className="mt-5 p-4 bg-gray-800/70 rounded-xl border border-gray-700/90 text-sm shadow-inner">
-          <code className="text-green-400 block text-center text-base font-mono">
-            <span className="text-purple-400">∂u</span>/<span className="text-purple-400">∂t</span> + u ⋅ ∇u = -∇p + μ∇²u + f
+        <div className="mt-5 p-4 bg-gray-100 dark:bg-gray-800/70 rounded-xl border border-gray-200 dark:border-gray-700/90 text-sm shadow-inner">
+          <code className="text-green-600 dark:text-green-400 block text-center text-base font-mono">
+            <span className="text-purple-600 dark:text-purple-400">∂u</span>/<span className="text-purple-600 dark:text-purple-400">∂t</span> + u ⋅ ∇u = -∇p + μ∇²u + f
           </code>
         </div>
       ),
   },
   {
-    icon: <Zap className="w-8 h-8 text-purple-400" />,
+    icon: <Zap className="w-8 h-8 text-purple-500 dark:text-purple-400" />,
     title: "Multimodality",
     description: "Create comprehensive notes instantly from any audio, video, or PDF document.",
     illustration: (
       <div className="mt-5 flex justify-around items-center space-x-4 py-2.5">
-        <Youtube className="w-11 h-11 text-red-500/90 opacity-80 hover:opacity-100 transition-opacity duration-200 transform hover:scale-110" />
-        <Mic className="w-11 h-11 text-blue-500/90 opacity-80 hover:opacity-100 transition-opacity duration-200 transform hover:scale-110" />
-        <FileTextIcon className="w-11 h-11 text-purple-500/90 opacity-80 hover:opacity-100 transition-opacity duration-200 transform hover:scale-110" />
+        <Youtube className="w-11 h-11 text-red-600/90 dark:text-red-500/90 opacity-80 hover:opacity-100 transition-opacity duration-200 transform hover:scale-110" />
+        <Mic className="w-11 h-11 text-blue-600/90 dark:text-blue-500/90 opacity-80 hover:opacity-100 transition-opacity duration-200 transform hover:scale-110" />
+        <FileTextIcon className="w-11 h-11 text-purple-600/90 dark:text-purple-500/90 opacity-80 hover:opacity-100 transition-opacity duration-200 transform hover:scale-110" />
       </div>
     ),
   },
   {
-    icon: <Brain className="w-8 h-8 text-pink-400" />,
+    icon: <Brain className="w-8 h-8 text-pink-500 dark:text-pink-400" />,
     title: "Flashcards & Quizzes",
     description: "Reinforce your learning with AI-generated flashcards and quizzes tailored to your notes.",
     illustration: (
         <div className="mt-5 flex justify-around items-center space-x-4 py-2.5">
-            <BookOpen className="w-11 h-11 text-yellow-500/90 opacity-80 hover:opacity-100 transition-opacity duration-200 transform hover:scale-110" />
-            <CheckCircle className="w-11 h-11 text-green-500/90 opacity-80 hover:opacity-100 transition-opacity duration-200 transform hover:scale-110" />
+            <BookOpen className="w-11 h-11 text-yellow-600/90 dark:text-yellow-500/90 opacity-80 hover:opacity-100 transition-opacity duration-200 transform hover:scale-110" />
+            <CheckCircle className="w-11 h-11 text-green-600/90 dark:text-green-500/90 opacity-80 hover:opacity-100 transition-opacity duration-200 transform hover:scale-110" />
         </div>
     ),
   },
   {
-    icon: <MessageCircle className="w-8 h-8 text-teal-400" />,
+    icon: <MessageCircle className="w-8 h-8 text-teal-500 dark:text-teal-400" />,
     title: "Chatbot",
     description: "Chat with your uploaded content to get context-dependent answers and deepen understanding.",
     illustration: (
-        <div className="mt-5 p-3 bg-gray-800/70 rounded-xl  shadow-inner">
-            <input type="text" placeholder="Ask anything..." className="w-full bg-gray-700/80 text-gray-200 placeholder-gray-500 px-4 py-3 rounded-full text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 border-transparent transition-all" />
+        <div className="mt-5 p-3 bg-gray-100 dark:bg-gray-800/70 rounded-xl shadow-inner">
+            <input type="text" placeholder="Ask anything..." className="w-full bg-gray-200 dark:bg-gray-700/80 text-gray-800 dark:text-gray-200 placeholder-gray-500 px-4 py-3 rounded-full text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 border-transparent transition-all" />
         </div>
     ),
   },
@@ -95,7 +93,7 @@ const features = [
 
 const NotionIcon = (props) => (
   <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" {...props}>
-    <path className="fill-white dark:fill-white" d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z"/>
+    <path className="fill-black dark:fill-white" d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z"/>
   </svg>
 );
 
@@ -129,7 +127,6 @@ const GoogleCalendarIcon = (props) => (
 
 
 function TrustedBySection() {
-  // FIX: Duplicated the logos only ONCE. For a seamless loop, you need two identical sets of logos side-by-side.
   const duplicatedLogos = [...universityLogos, ...universityLogos, ...universityLogos, ...universityLogos, ...universityLogos, ...universityLogos];
 
   return (
@@ -141,37 +138,20 @@ function TrustedBySection() {
               transform: translateX(0);
             }
             to {
-              /* 
-                FIX: This value MUST match the duplication strategy.
-                Since we have two identical sets of logos, the total container width is 200%.
-                Translating by -50% moves the container by exactly the width of ONE set of logos.
-                When the animation loops, the start of the second set aligns perfectly with where
-                the first set used to be, creating a seamless and endless loop.
-              */
               transform: translateX(-500%);
             }
           }
-
           .animate-scrolling-logos {
-            /* FIX: Increased animation duration for a slower, more pleasant scroll. 5s was far too fast. */
             animation: scroll 80s linear infinite;
           }
-
           .scrolling-logos-container:hover .animate-scrolling-logos {
-            /* FIX: Corrected a typo here from 'paused]' to 'paused;' */
             animation-play-state: paused;
           }
         `}
       </style>
-      {/* 
-        CODE COMMENT FOR VERTICAL ADJUSTMENT: 
-        The vertical position and spacing of this logo carousel section is controlled by the padding values below. 
-        Adjust 'pt-12', 'pb-12', 'sm:pt-16', and 'sm:pb-16' to change the space around the logos
-        at the bottom of the landing page's initial view.
-      */}
-      <section id="trusted-by" className="w-full pt-12 sm:pt-16 pb-12 sm:pb-16 bg-[#0C0E1A]">
+      <section id="trusted-by" className="w-full pt-12 sm:pt-16 pb-12 sm:pb-16 bg-gray-50 dark:bg-[#0C0E1A]">
         <div className="container mx-auto px-5 sm:px-6">
-          <h2 className="text-center text-base sm:text-lg font-medium text-gray-500 mb-12">
+          <h2 className="text-center text-base sm:text-lg font-medium text-gray-500 dark:text-gray-400 mb-12">
             Trusted by students at leading institutions
           </h2>
           <div
@@ -180,12 +160,10 @@ function TrustedBySection() {
           >
             <div className="flex animate-scrolling-logos">
               {duplicatedLogos.map((logo, index) => (
-                // FIX: Added a more robust key for React list rendering.
                 <div key={`${logo.alt}-${index}`} className="px-10 sm:px-14 flex-shrink-0 flex justify-center items-center h-12">
                   <img
                     src={logo.src}
                     alt={logo.alt}
-                    // Your fix for logo size was good, I've kept it.
                     className="h-8 sm:h-12 max-w-none opacity-60 hover:opacity-100 transition-opacity duration-300"
                   />
                 </div>
@@ -200,34 +178,30 @@ function TrustedBySection() {
 
 function TestimonialsSection() {
   return (
-    <section className="py-20 sm:py-28 bg-[#0C0E1A]">
+    <section className="py-20 sm:py-28 bg-gray-100 dark:bg-[#0C0E1A]">
       <div className="container mx-auto px-5 sm:px-6">
-        <div 
-          className="text-center mb-16 sm:mb-20"
-        >
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-5">
-            Join <span className="text-white">2,000,000+</span> learners.
+        <div className="text-center mb-16 sm:mb-20">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 dark:text-white mb-5">
+            Join <span className="text-gray-900 dark:text-white">2,000,000+</span> learners.
           </h2>
         </div>
-        <div 
-          className="grid md:grid-cols-2 lg:grid-cols-3 gap-8"
-        >
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
           {testimonials.map((testimonial, index) => (
             <div 
               key={index} 
-              className="bg-[#12141D] p-7 rounded-2xl border border-gray-700/60 shadow-xl flex flex-col hover:border-purple-500/50 transition-colors duration-300 transform hover:-translate-y-1"
+              className="bg-white dark:bg-[#12141D] p-7 rounded-2xl border border-gray-200 dark:border-gray-700/60 shadow-xl flex flex-col hover:border-purple-500/50 transition-colors duration-300 transform hover:-translate-y-1"
             >
               <div className="flex mb-4">
                 {[...Array(5)].map((_, i) => (
-                  <Star key={i} className={`w-5 h-5 ${i < testimonial.stars ? 'text-yellow-400 fill-yellow-400' : 'text-gray-600'}`} />
+                  <Star key={i} className={`w-5 h-5 ${i < testimonial.stars ? 'text-yellow-400 fill-yellow-400' : 'text-gray-400 dark:text-gray-600'}`} />
                 ))}
               </div>
-              <p className="text-gray-300 italic text-base leading-relaxed mb-7 flex-grow">"{testimonial.quote}"</p>
-              <div className="flex items-center mt-auto pt-4 border-t border-gray-700/60">
+              <p className="text-gray-600 dark:text-gray-300 italic text-base leading-relaxed mb-7 flex-grow">"{testimonial.quote}"</p>
+              <div className="flex items-center mt-auto pt-4 border-t border-gray-200 dark:border-gray-700/60">
                 <img src={testimonial.avatar} alt={testimonial.name} className="w-10 h-12 mr-3 "/>
                 <div>
-                  <h3 className="font-semibold text-white text-lg">{testimonial.name}</h3>
-                  <p className="text-sm text-gray-400">{testimonial.role}</p>
+                  <h3 className="font-semibold text-gray-900 dark:text-white text-lg">{testimonial.name}</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{testimonial.role}</p>
                 </div>
               </div>
             </div>
@@ -239,11 +213,8 @@ function TestimonialsSection() {
 }
 
 function AgenticSection() {
-    // A reusable component for the alternating layout, optimized for all screen sizes.
     const AgenticWorkflowStep = ({ icon, title, description, children, reverse = false }) => (
-        // On mobile, the gap is reduced for a tighter layout.
         <div className={`grid lg:grid-cols-2 gap-10 lg:gap-20 items-center`}>
-            {/* The 'lg:order-last' class correctly ensures this only applies to large screens. */}
             <motion.div
                 className={`lg:col-span-1 ${reverse ? 'lg:order-last' : ''}`}
                 initial={{ opacity: 0, y: 30 }}
@@ -251,14 +222,13 @@ function AgenticSection() {
                 viewport={{ once: true, amount: 0.3 }}
                 transition={{ duration: 0.6, ease: "easeOut" }}
             >
-                {/* Icon and title layout is adjusted for mobile with smaller icon container and text. */}
                 <div className="inline-flex items-center gap-3 sm:gap-4 mb-5">
-                    <span className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 bg-gray-800/60 rounded-xl">
+                    <span className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 bg-gray-100 dark:bg-gray-800/60 rounded-xl">
                         {icon}
                     </span>
-                    <h3 className="text-2xl sm:text-3xl font-bold text-white">{title}</h3>
+                    <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{title}</h3>
                 </div>
-                <p className="text-base md:text-lg text-gray-400 leading-relaxed">
+                <p className="text-base md:text-lg text-gray-500 dark:text-gray-400 leading-relaxed">
                     {description}
                 </p>
             </motion.div>
@@ -276,23 +246,21 @@ function AgenticSection() {
 
     const agenticFeatures = [
         {
-            icon: <Pencil className="w-6 h-6 sm:w-7 sm:h-7 text-yellow-400" />,
+            icon: <Pencil className="w-6 h-6 sm:w-7 sm:h-7 text-yellow-500 dark:text-yellow-400" />,
             title: "Notes",
             description: "Turn your ideas into clean, organized notes. Whether you're adding a thought, tweaking a paragraph, or clearing up something confusing, TaskMaster makes it easy to shape your notes the way you want.",
             illustration: (
-                <div className="p-4 sm:p-6 bg-[#12141D] rounded-2xl shadow-2xl backdrop-blur-md relative overflow-hidden transition-all duration-300 group hover:border-yellow-500/60 hover:-translate-y-1">
+                <div className="p-4 sm:p-6 bg-white dark:bg-[#12141D] rounded-2xl shadow-2xl backdrop-blur-md relative overflow-hidden transition-all duration-300 group hover:border-yellow-500/60 hover:-translate-y-1 border border-gray-200 dark:border-transparent">
                     <div className="absolute -inset-px rounded-2xl bg-gradient-to-r from-yellow-500/10 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-40 blur-xl -z-10"></div>
-                    
-                    <div className="bg-indigo-600/20 text-indigo-200 p-3 rounded-xl text-sm mb-4 sm:mb-5 shadow-inner">
+                    <div className="bg-indigo-100 dark:bg-indigo-600/20 text-indigo-800 dark:text-indigo-200 p-3 rounded-xl text-sm mb-4 sm:mb-5 shadow-inner">
                         <p>"Simplify the photosynthesis section and add a real-world analogy."</p>
                     </div>
-
-                    <div className="bg-yellow-900/40 text-yellow-200 rounded-xl p-3 sm:p-4 shadow-lg transition-all duration-300 group-hover:shadow-yellow-900/40">
+                    <div className="bg-yellow-50 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-200 rounded-xl p-3 sm:p-4 shadow-lg transition-all duration-300 group-hover:shadow-yellow-500/20 dark:group-hover:shadow-yellow-900/40">
                         <p className="text-sm">
                             Okay, I can simplify that for you. I'll rewrite the section on photosynthesis for clarity and add a helpful real-world analogy.
                         </p>
                         <div className="mt-4 pt-3 flex justify-end">
-                            <div className="bg-yellow-100 dark:bg-yellow-800/40 hover:bg-yellow-200 dark:hover:bg-yellow-800/60 text-yellow-800 dark:text-yellow-100 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors duration-200 transform group-hover:scale-105 cursor-pointer">
+                            <div className="bg-yellow-200 dark:bg-yellow-800/40 hover:bg-yellow-300 dark:hover:bg-yellow-800/60 text-yellow-800 dark:text-yellow-100 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors duration-200 transform group-hover:scale-105 cursor-pointer">
                                 <Check className="w-4 h-4" />
                                 <span>Apply Update</span>
                             </div>
@@ -302,27 +270,25 @@ function AgenticSection() {
             )
         },
         {
-            icon: <Layers className="w-6 h-6 sm:w-7 sm:h-7 text-sky-400" />,
+            icon: <Layers className="w-6 h-6 sm:w-7 sm:h-7 text-sky-500 dark:text-sky-400" />,
             title: "Study Materials",
             description: "TaskMaster instantly creates flashcards and quizzes right there in the chat so you can focus on what matters and learn faster.",
             illustration: (
-                <div className="p-4 sm:p-6 bg-[#12141D] rounded-2xl shadow-2xl backdrop-blur-md relative overflow-hidden transition-all duration-300 hover:border-sky-500/60 hover:-translate-y-1 group">
+                <div className="p-4 sm:p-6 bg-white dark:bg-[#12141D] rounded-2xl shadow-2xl backdrop-blur-md relative overflow-hidden transition-all duration-300 hover:border-sky-500/60 hover:-translate-y-1 group border border-gray-200 dark:border-transparent">
                     <div className="absolute -inset-px rounded-2xl bg-gradient-to-l from-sky-500/10 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-40 blur-xl -z-10"></div>
                      <div className="mb-4">
-                        <h4 className="font-semibold text-white flex items-center gap-2">
-                            <Bot className="w-4 h-4 text-sky-400" />
+                        <h4 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                            <Bot className="w-4 h-4 text-sky-500 dark:text-sky-400" />
                             Create Flashcards
                         </h4>
-                        <p className="text-sm text-gray-400 mt-1">Alright! Generating flashcards...</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Alright! Generating flashcards...</p>
                     </div>
-                    {/* The negative margin is adjusted for mobile to prevent excessive overlap. */}
-                    <div className="relative min-h-[160px] sm:min-h-[170px] bg-black/30 p-4 rounded-lg overflow-hidden flex items-center justify-center">
+                    <div className="relative min-h-[160px] sm:min-h-[170px] bg-gray-100 dark:bg-black/30 p-4 rounded-lg overflow-hidden flex items-center justify-center">
                         <motion.div className="flex justify-center items-center h-full space-x-[-80px] sm:space-x-[-60px]" initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.6 }} variants={{ animate: { transition: { staggerChildren: 0.2, delayChildren: 0.3 } } }}>
                             {[ { term: "Chlorophyll", def: "The green pigment that captures sunlight." }, { term: "ATP", def: "The energy currency of the cell." }, { term: "Glucose", def: "The sugar food produced by the plant." }, ].map((card, i) => (
-                                // Card size is reduced on mobile for better fit.
-                                <motion.div key={card.term} className="w-36 h-24 sm:w-44 sm:h-28 bg-sky-900/50 border border-sky-500/60 rounded-lg p-2 sm:p-3 text-center flex flex-col justify-center shadow-lg backdrop-blur-sm" style={{ rotate: i === 0 ? -8 : i === 1 ? 2 : 10 }} variants={{ initial: { opacity: 0, y: 25, scale: 0.9, rotate: i === 0 ? -15 : i === 1 ? 5 : 15 }, animate: { opacity: 1, y: 0, scale: 1, rotate: i === 0 ? -8 : i === 1 ? 2 : 10, transition: { type: 'spring', stiffness: 200, damping: 15 } }, }}>
-                                    <h4 className="font-bold text-sm text-white mb-1">{card.term}</h4>
-                                    <p className="text-xs text-sky-200 leading-snug">{card.def}</p>
+                                <motion.div key={card.term} className="w-36 h-24 sm:w-44 sm:h-28 bg-sky-100 dark:bg-sky-900/50 border border-sky-200 dark:border-sky-500/60 rounded-lg p-2 sm:p-3 text-center flex flex-col justify-center shadow-lg backdrop-blur-sm" style={{ rotate: i === 0 ? -8 : i === 1 ? 2 : 10 }} variants={{ initial: { opacity: 0, y: 25, scale: 0.9, rotate: i === 0 ? -15 : i === 1 ? 5 : 15 }, animate: { opacity: 1, y: 0, scale: 1, rotate: i === 0 ? -8 : i === 1 ? 2 : 10, transition: { type: 'spring', stiffness: 200, damping: 15 } }, }}>
+                                    <h4 className="font-bold text-sm text-gray-900 dark:text-white mb-1">{card.term}</h4>
+                                    <p className="text-xs text-sky-700 dark:text-sky-200 leading-snug">{card.def}</p>
                                 </motion.div>
                             ))}
                         </motion.div>
@@ -331,30 +297,29 @@ function AgenticSection() {
             )
         },
         {
-            icon: <FolderPlus className="w-6 h-6 sm:w-7 sm:h-7 text-green-400" />,
+            icon: <FolderPlus className="w-6 h-6 sm:w-7 sm:h-7 text-green-500 dark:text-green-400" />,
             title: "Folders",
             description: "TaskMaster automatically adds flashcards and quizzes straight to your folders, keeping everything organized without you having to do a thing.",
             illustration: (
-                <div className="p-4 sm:p-6 bg-[#12141D] rounded-2xl shadow-2xl backdrop-blur-md relative overflow-hidden transition-all duration-300 hover:border-green-500/60 hover:-translate-y-1 group">
+                <div className="p-4 sm:p-6 bg-white dark:bg-[#12141D] rounded-2xl shadow-2xl backdrop-blur-md relative overflow-hidden transition-all duration-300 hover:border-green-500/60 hover:-translate-y-1 group border border-gray-200 dark:border-transparent">
                     <div className="absolute -inset-px rounded-2xl bg-gradient-to-r from-green-500/10 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-40 blur-xl -z-10"></div>
                      <div className="mb-4">
-                        <h4 className="font-semibold text-white flex items-center gap-2">
-                            <Bot className="w-4 h-4 text-green-400" />
+                        <h4 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                            <Bot className="w-4 h-4 text-green-500 dark:text-green-400" />
                             Add new flashcards to my folder
                         </h4>
-                        <p className="text-sm text-gray-400 mt-1">Sure! Let me organize those new flashcards...</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Sure! Let me organize those new flashcards...</p>
                     </div>
-                    {/* This layout is naturally responsive and centers well on mobile. */}
-                    <div className="relative min-h-[160px] sm:min-h-[170px] bg-black/30 p-4 rounded-lg overflow-hidden flex items-center justify-center">
+                    <div className="relative min-h-[160px] sm:min-h-[170px] bg-gray-100 dark:bg-black/30 p-4 rounded-lg overflow-hidden flex items-center justify-center">
                         <motion.div className="flex flex-col justify-center items-center h-full" initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.8 }}>
-                            <motion.div variants={{ initial: { scale: 0, opacity: 0 }, animate: { scale: 1, opacity: 1, transition: { delay: 0.3, type: 'spring' } }, }} className="flex items-center gap-2 p-3 rounded-lg bg-gray-800">
-                                <Layers className="w-5 h-5 text-sky-400" />
-                                <span className="text-sm font-semibold text-white">3 new flashcards</span>
+                            <motion.div variants={{ initial: { scale: 0, opacity: 0 }, animate: { scale: 1, opacity: 1, transition: { delay: 0.3, type: 'spring' } }, }} className="flex items-center gap-2 p-3 rounded-lg bg-gray-200 dark:bg-gray-800">
+                                <Layers className="w-5 h-5 text-sky-500 dark:text-sky-400" />
+                                <span className="text-sm font-semibold text-gray-900 dark:text-white">3 new flashcards</span>
                             </motion.div>
-                            <motion.div className="w-1 h-8 bg-gray-600/50 my-1" variants={{ initial: { scaleY: 0, originY: 0 }, animate: { scaleY: 1, transition: { delay: 0.7, duration: 0.3 } }, }} />
-                            <motion.div className="flex items-center gap-2.5 p-3 rounded-lg bg-green-900/60" variants={{ initial: { scale: 0.8, opacity: 0 }, animate: { scale: 1, opacity: 1, transition: { delay: 1 } }, }}>
-                                <FolderPlus className="w-5 h-5 text-green-400" />
-                                <span className="text-sm font-semibold text-white">Biology Midterm</span>
+                            <motion.div className="w-1 h-8 bg-gray-300 dark:bg-gray-600/50 my-1" variants={{ initial: { scaleY: 0, originY: 0 }, animate: { scaleY: 1, transition: { delay: 0.7, duration: 0.3 } }, }} />
+                            <motion.div className="flex items-center gap-2.5 p-3 rounded-lg bg-green-100 dark:bg-green-900/60" variants={{ initial: { scale: 0.8, opacity: 0 }, animate: { scale: 1, opacity: 1, transition: { delay: 1 } }, }}>
+                                <FolderPlus className="w-5 h-5 text-green-500 dark:text-green-400" />
+                                <span className="text-sm font-semibold text-gray-900 dark:text-white">Biology Midterm</span>
                                 <motion.span className="ml-1 bg-green-400 text-green-950 text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full" variants={{ initial: { scale: 0 }, animate: { scale: [0, 1.2, 1], transition: { delay: 1.3, duration: 0.4 } }, }}>+3</motion.span>
                             </motion.div>
                         </motion.div>
@@ -365,38 +330,35 @@ function AgenticSection() {
     ];
 
     return (
-        // Section padding is reduced for mobile screens.
-        <section id="agentic-ai" className="py-20 sm:py-24 bg-[#0C0E1A]">
+        <section id="agentic-ai" className="py-20 sm:py-24 bg-white dark:bg-[#0C0E1A]">
             <div className="container mx-auto px-5 sm:px-6">
                 <div className="text-center mb-16 sm:mb-20">
-<motion.h2
-    className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-5"
-    initial={{ opacity: 0, y: 20 }}
-    whileInView={{ opacity: 1, y: 0 }}
-    viewport={{ once: true, amount: 0.5 }}
-    transition={{ duration: 0.5 }}
->
-    Agentic, in{' '}
-    <span className="inline-block bg-gradient-to-r from-[#635BFF] to-[#8A85FF] bg-clip-text text-transparent italic pb-5 -mb-5">
-        Every Way
-    </span>
-</motion.h2>
-<motion.p
-    className="text-base sm:text-lg text-gray-400 max-w-3xl mx-auto"
-    initial={{ opacity: 0, y: 20 }}
-    whileInView={{ opacity: 1, y: 0 }}
-    viewport={{ once: true, amount: 0.5 }}
-    transition={{ duration: 0.5, delay: 0.1 }}
->
-    TaskMaster doesn't just respond, it{' '}
-    <span className="font-bold bg-[#8A85FF] bg-clip-text text-transparent">
-        acts
-    </span>
-    . It's your proactive partner that edits your notes, creates study materials, and organizes them for you, all from a single chat.
-</motion.p>
+                    <motion.h2
+                        className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 dark:text-white mb-5"
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true, amount: 0.5 }}
+                        transition={{ duration: 0.5 }}
+                    >
+                        Agentic, in{' '}
+                        <span className="inline-block bg-gradient-to-r from-[#635BFF] to-[#8A85FF] bg-clip-text text-transparent italic pb-5 -mb-5">
+                            Every Way
+                        </span>
+                    </motion.h2>
+                    <motion.p
+                        className="text-base sm:text-lg text-gray-500 dark:text-gray-400 max-w-3xl mx-auto"
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true, amount: 0.5 }}
+                        transition={{ duration: 0.5, delay: 0.1 }}
+                    >
+                        TaskMaster doesn't just respond, it{' '}
+                        <span className="font-bold bg-[#8A85FF] bg-clip-text text-transparent">
+                            acts
+                        </span>
+                        . It's your proactive partner that edits your notes, creates study materials, and organizes them for you, all from a single chat.
+                    </motion.p>
                 </div>
-                
-                {/* Spacing between feature sections is reduced on mobile for better flow. */}
                 <div className="space-y-16 sm:space-y-20 lg:space-y-24">
                     {agenticFeatures.map((feature, index) => (
                         <AgenticWorkflowStep
@@ -417,31 +379,27 @@ function AgenticSection() {
 
 function FeaturesGridSection() {
   return (
-    <section id="features" className="py-20 sm:py-28 bg-[#0C0E1A]">
+    <section id="features" className="py-20 sm:py-28 bg-gray-50 dark:bg-[#0C0E1A]">
       <div className="container mx-auto px-5 sm:px-6">
-        <div 
-          className="text-center mb-16 sm:mb-20"
-        >
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-5">Everything You Need to Excel</h2>
-          <p className="text-base sm:text-lg text-gray-400 max-w-5xl mx-auto">
+        <div className="text-center mb-16 sm:mb-20">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 dark:text-white mb-5">Everything You Need to Excel</h2>
+          <p className="text-base sm:text-lg text-gray-500 dark:text-gray-400 max-w-5xl mx-auto">
             A suite of powerful tools to streamline your workflow and boost your understanding.
           </p>
         </div>
-        <div 
-          className="grid md:grid-cols-2 gap-8"
-        >
+        <div className="grid md:grid-cols-2 gap-8">
           {features.map((feature, index) => (
             <div 
               key={index} 
-              className="bg-[#12141D] p-8 rounded-2xl  shadow-xl hover:border-purple-500/60 transition-all duration-300 group transform hover:-translate-y-1"
+              className="bg-white dark:bg-[#12141D] p-8 rounded-2xl border border-gray-200 dark:border-transparent shadow-xl hover:border-purple-500/60 transition-all duration-300 group transform hover:-translate-y-1"
             >
               <div className="flex items-center mb-5">
-                <div className="p-4 rounded-full bg-gray-700/70 mr-5 group-hover:bg-purple-500/25 transition-colors duration-300">
+                <div className="p-4 rounded-full bg-gray-100 dark:bg-gray-700/70 mr-5 group-hover:bg-purple-100 dark:group-hover:bg-purple-500/25 transition-colors duration-300">
                     {feature.icon}
                 </div>
-                <h3 className="text-2xl font-semibold text-white">{feature.title}</h3>
+                <h3 className="text-2xl font-semibold text-gray-900 dark:text-white">{feature.title}</h3>
               </div>
-              <p className="text-gray-400 text-base leading-relaxed mb-6">{feature.description}</p>
+              <p className="text-gray-500 dark:text-gray-400 text-base leading-relaxed mb-6">{feature.description}</p>
               {feature.illustration && <div className="min-h-[90px] flex items-center justify-center">{feature.illustration}</div>}
             </div>
           ))}
@@ -456,12 +414,12 @@ export function LearningSuperchargedSection() {
         <div className={`grid lg:grid-cols-2 gap-12 lg:gap-16 items-center`}>
             <div className={`lg:col-span-1 ${reverse ? 'lg:order-last' : ''}`}>
                 <div className="inline-flex items-center gap-3 mb-5">
-                    <span className="flex items-center justify-center w-12 h-12 bg-gray-800/60 rounded-xl">
+                    <span className="flex items-center justify-center w-12 h-12 bg-gray-100 dark:bg-gray-800/60 rounded-xl">
                         {icon}
                     </span>
-                    <h3 className="text-2xl md:text-3xl font-bold text-white">{title}</h3>
+                    <h3 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">{title}</h3>
                 </div>
-                <p className="text-base md:text-lg text-gray-400 leading-relaxed">
+                <p className="text-base md:text-lg text-gray-500 dark:text-gray-400 leading-relaxed">
                     {description}
                 </p>
             </div>
@@ -478,97 +436,97 @@ export function LearningSuperchargedSection() {
     ];
 
     return (
-        <section id="learning-supercharged" className="py-24 sm:py-32 bg-[#0C0E1A]">
+        <section id="learning-supercharged" className="py-24 sm:py-32 bg-gray-50 dark:bg-[#0C0E1A]">
             <div className="container mx-auto px-5 sm:px-6">
                 <div className="text-center mb-24">
-                    <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-5">
+                    <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 dark:text-white mb-5">
                         Learning, <span className="bg-gradient-to-r from-[#635BFF] to-[#8A85FF] italic bg-clip-text text-transparent">Supercharged.</span>
                     </h2>
-                    <p className="text-base sm:text-lg text-gray-400 max-w-4xl mx-auto">
+                    <p className="text-base sm:text-lg text-gray-500 dark:text-gray-400 max-w-4xl mx-auto">
                         This isn’t just another tool — it’s your study partner, working with you every step of the way.
                     </p>
                 </div>
                 
                 <div className="space-y-24 lg:space-y-32">
                     <FeatureShowcase
-                        icon={<BrainCircuit className="w-7 h-7 text-teal-400" />}
+                        icon={<BrainCircuit className="w-7 h-7 text-teal-500 dark:text-teal-400" />}
                         title="Universal Context"
                         description="TaskMaster keeps track of your context and always responds with you in mind—no need to repeat yourself."
                     >
-                        <div className="p-6 bg-[#12141D] rounded-2xl  shadow-2xl backdrop-blur-md relative overflow-hidden">
-                            <div className="absolute -inset-px rounded-2xl bg-gradient-to-r from-teal-500/20 via-transparent to-transparent opacity-50 blur-xl -z-10"></div>
-                            <h4 className="text-lg font-semibold text-white mb-5">Universal Context</h4>
+                        <div className="p-6 bg-white dark:bg-[#12141D] rounded-2xl shadow-2xl backdrop-blur-md relative overflow-hidden border border-gray-200 dark:border-transparent">
+                            <div className="absolute -inset-px rounded-2xl bg-gradient-to-r from-teal-500/10 dark:from-teal-500/20 via-transparent to-transparent opacity-50 blur-xl -z-10"></div>
+                            <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-5">Universal Context</h4>
                             <div className="space-y-4">
-                                <div className="p-4 rounded-xl bg-black/40 ">
-                                    <label className="text-xs font-semibold text-teal-400/80 tracking-wider uppercase">Your Role / Primary Area of Study</label>
-                                    <p className="text-gray-300 mt-1">College student majoring in CS & Business.</p>
+                                <div className="p-4 rounded-xl bg-gray-100 dark:bg-black/40 ">
+                                    <label className="text-xs font-semibold text-teal-600 dark:text-teal-400/80 tracking-wider uppercase">Your Role / Primary Area of Study</label>
+                                    <p className="text-gray-700 dark:text-gray-300 mt-1">College student majoring in CS & Business.</p>
                                 </div>
-                                <div className="p-4 rounded-xl bg-black/40 ">
-                                    <label className="text-xs font-semibold text-teal-400/80 tracking-wider uppercase">Current Short-Term Focus</label>
-                                    <p className="text-gray-300 mt-1">Preparing for upcoming SATs and final exams.</p>
+                                <div className="p-4 rounded-xl bg-gray-100 dark:bg-black/40 ">
+                                    <label className="text-xs font-semibold text-teal-600 dark:text-teal-400/80 tracking-wider uppercase">Current Short-Term Focus</label>
+                                    <p className="text-gray-700 dark:text-gray-300 mt-1">Preparing for upcoming SATs and final exams.</p>
                                 </div>
-                                <div className="p-4 rounded-xl bg-black/40 ">
-                                    <label className="text-xs font-semibold text-teal-400/80 tracking-wider uppercase">Main Long-Term Ambitions or Goals</label>
-                                    <p className="text-gray-300 mt-1">Get a job at a top tech company.</p>
+                                <div className="p-4 rounded-xl bg-gray-100 dark:bg-black/40 ">
+                                    <label className="text-xs font-semibold text-teal-600 dark:text-teal-400/80 tracking-wider uppercase">Main Long-Term Ambitions or Goals</label>
+                                    <p className="text-gray-700 dark:text-gray-300 mt-1">Get a job at a top tech company.</p>
                                 </div>
-                                <div className="p-4 rounded-xl bg-black/40 ">
-                                    <label className="text-xs font-semibold text-teal-400/80 tracking-wider uppercase">Other</label>
-                                    <p className="text-gray-300 mt-1">I learn best with real-world examples and analogies.</p>
+                                <div className="p-4 rounded-xl bg-gray-100 dark:bg-black/40 ">
+                                    <label className="text-xs font-semibold text-teal-600 dark:text-teal-400/80 tracking-wider uppercase">Other</label>
+                                    <p className="text-gray-700 dark:text-gray-300 mt-1">I learn best with real-world examples and analogies.</p>
                                 </div>
                             </div>
                         </div>
                     </FeatureShowcase>
 
                     <FeatureShowcase
-                        icon={<DatabaseBackup className="w-7 h-7 text-pink-400" />}
+                        icon={<DatabaseBackup className="w-7 h-7 text-pink-500 dark:text-pink-400" />}
                         title="Personal Memories"
                         description="TaskMaster dynamically learns and remembers key facts about your preferences, learning style, and other important details, tailoring its responses and suggestions for you."
                         reverse={true}
                     >
-                        <div className="p-6 bg-[#12141D] rounded-2xl  shadow-2xl backdrop-blur-md relative overflow-hidden">
-                            <div className="absolute -inset-px rounded-2xl bg-gradient-to-l from-pink-500/20 via-transparent to-transparent opacity-50 blur-xl -z-10"></div>
-                            <h4 className="text-lg font-semibold text-white mb-5">Memories</h4>
+                        <div className="p-6 bg-white dark:bg-[#12141D] rounded-2xl shadow-2xl backdrop-blur-md relative overflow-hidden border border-gray-200 dark:border-transparent">
+                            <div className="absolute -inset-px rounded-2xl bg-gradient-to-l from-pink-500/10 dark:from-pink-500/20 via-transparent to-transparent opacity-50 blur-xl -z-10"></div>
+                            <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-5">Memories</h4>
                             <div className="space-y-3">
-                                <div className="flex justify-between items-center bg-black/40 p-3 rounded-lg  transition-all hover:border-pink-500/50">
-                                    <p className="text-sm text-gray-300">Prefers visual explanations for complex topics.</p>
-                                    <div className="flex gap-3 text-gray-600"><Edit className="w-4 h-4" /> <Trash2 className="w-4 h-4" /></div>
+                                <div className="flex justify-between items-center bg-gray-100 dark:bg-black/40 p-3 rounded-lg border border-transparent transition-all hover:border-pink-300 dark:hover:border-pink-500/50">
+                                    <p className="text-sm text-gray-700 dark:text-gray-300">Prefers visual explanations for complex topics.</p>
+                                    <div className="flex gap-3 text-gray-400 dark:text-gray-600"><Edit className="w-4 h-4" /> <Trash2 className="w-4 h-4" /></div>
                                 </div>
-                                 <div className="flex justify-between items-center bg-black/40 p-3 rounded-lg  transition-all hover:border-pink-500/50">
-                                    <p className="text-sm text-gray-300">Loves analogies related to video games.</p>
-                                    <div className="flex gap-3 text-gray-600"><Edit className="w-4 h-4" /> <Trash2 className="w-4 h-4" /></div>
+                                 <div className="flex justify-between items-center bg-gray-100 dark:bg-black/40 p-3 rounded-lg border border-transparent transition-all hover:border-pink-300 dark:hover:border-pink-500/50">
+                                    <p className="text-sm text-gray-700 dark:text-gray-300">Loves analogies related to video games.</p>
+                                    <div className="flex gap-3 text-gray-400 dark:text-gray-600"><Edit className="w-4 h-4" /> <Trash2 className="w-4 h-4" /></div>
                                 </div>
-                                 <div className="flex justify-between items-center bg-black/40 p-3 rounded-lg  transition-all hover:border-pink-500/50">
-                                    <p className="text-sm text-gray-300">Has an important meeting every Friday at 10 AM.</p>
-                                    <div className="flex gap-3 text-gray-600"><Edit className="w-4 h-4" /> <Trash2 className="w-4 h-4" /></div>
+                                 <div className="flex justify-between items-center bg-gray-100 dark:bg-black/40 p-3 rounded-lg border border-transparent transition-all hover:border-pink-300 dark:hover:border-pink-500/50">
+                                    <p className="text-sm text-gray-700 dark:text-gray-300">Has an important meeting every Friday at 10 AM.</p>
+                                    <div className="flex gap-3 text-gray-400 dark:text-gray-600"><Edit className="w-4 h-4" /> <Trash2 className="w-4 h-4" /></div>
                                 </div>
-                                 <div className="flex justify-between items-center bg-black/40 p-3 rounded-lg  shadow-lg shadow-pink-500/10">
-                                    <p className="text-sm text-white">Wants a weekly project recap on Mondays.</p>
-                                    <div className="flex gap-3 text-gray-400"><Edit className="w-4 h-4" /> <Trash2 className="w-4 h-4" /></div>
+                                 <div className="flex justify-between items-center bg-gray-100 dark:bg-black/40 p-3 rounded-lg shadow-lg shadow-pink-500/5 dark:shadow-pink-500/10">
+                                    <p className="text-sm text-gray-800 dark:text-white">Wants a weekly project recap on Mondays.</p>
+                                    <div className="flex gap-3 text-gray-500 dark:text-gray-400"><Edit className="w-4 h-4" /> <Trash2 className="w-4 h-4" /></div>
                                 </div>
                             </div>
                         </div>
                     </FeatureShowcase>
                     
                     <FeatureShowcase
-                        icon={<Palette className="w-7 h-7 text-indigo-400" />}
+                        icon={<Palette className="w-7 h-7 text-indigo-500 dark:text-indigo-400" />}
                         title="Custom Styles"
                         description="Why settle for a generic chatbot? Customize TaskMaster’s personality, tone, and style to build your perfect tutor."
                     >
-                         <div className="p-6 bg-[#12141D] rounded-2xl  shadow-2xl backdrop-blur-md relative overflow-hidden">
-                             <div className="absolute -inset-px rounded-2xl bg-gradient-to-r from-indigo-500/20 via-transparent to-transparent opacity-50 blur-xl -z-10"></div>
-                            <h4 className="text-lg font-semibold text-white mb-5">Style Selector</h4>
+                         <div className="p-6 bg-white dark:bg-[#12141D] rounded-2xl shadow-2xl backdrop-blur-md relative overflow-hidden border border-gray-200 dark:border-transparent">
+                             <div className="absolute -inset-px rounded-2xl bg-gradient-to-r from-indigo-500/10 dark:from-indigo-500/20 via-transparent to-transparent opacity-50 blur-xl -z-10"></div>
+                            <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-5">Style Selector</h4>
                             <div className="space-y-3">
                                 {styles.map((style, i) => (
-                                    <div key={i} className={`p-4 rounded-xl border transition-all duration-300 ${i === 0 ? 'border-indigo-500/80 bg-black/50' : 'border-gray-800/80 bg-black/30 hover:bg-black/40'}`}>
+                                    <div key={i} className={`p-4 rounded-xl border transition-all duration-300 ${i === 0 ? 'border-indigo-500/80 bg-gray-50 dark:bg-black/50' : 'border-gray-200 dark:border-gray-800/80 bg-transparent dark:bg-black/30 hover:bg-gray-50 dark:hover:bg-black/40'}`}>
                                         <div className="flex items-center">
                                             <span className={`w-3 h-3 rounded-full mr-3 ${style.color}`}></span>
-                                            <h5 className={`font-semibold ${i === 0 ? 'text-white' : 'text-gray-300'}`}>{style.name}</h5>
+                                            <h5 className={`font-semibold ${i === 0 ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>{style.name}</h5>
                                         </div>
-                                        <p className="text-sm text-gray-500 pl-6 mt-1">{style.prompt}</p>
+                                        <p className="text-sm text-gray-500 dark:text-gray-500 pl-6 mt-1">{style.prompt}</p>
                                     </div>
                                 ))}
                             </div>
-                            <button className="w-full mt-5 py-3 text-sm font-semibold text-indigo-300 bg-indigo-900/40 hover:bg-indigo-900/60 border border-indigo-800/80 rounded-lg transition-colors">
+                            <button className="w-full mt-5 py-3 text-sm font-semibold bg-gray-100 hover:bg-gray-200 text-indigo-600 border border-gray-300 dark:bg-indigo-900/40 dark:hover:bg-indigo-900/60 dark:text-indigo-300 dark:border-indigo-800/80 rounded-lg transition-colors">
                                 + Create New Style
                             </button>
                         </div>
@@ -636,36 +594,25 @@ const integrations = [
 export function IntegrationsSection() {
     const cardVariants = {
         offscreen: { y: 50, opacity: 0 },
-        onscreen: {
-            y: 0,
-            opacity: 1,
-            transition: {
-                type: "spring",
-                bounce: 0.4,
-                duration: 0.8
-            }
-        }
+        onscreen: { y: 0, opacity: 1, transition: { type: "spring", bounce: 0.4, duration: 0.8 } }
     };
-    
-    const nodeBaseClass = "absolute flex items-center justify-center w-16 h-16 lg:w-20 lg:h-20 bg-[#12141D]/80 backdrop-blur-lg border border-gray-700/80 rounded-full";
-    const iconBaseClass = "w-8 h-8 lg:w-10 lg:h-10";
 
     return (
-        <section className="py-24 sm:py-32 bg-[#0C0E1A] overflow-hidden">
+        <section className="py-24 sm:py-32 bg-white dark:bg-[#0C0E1A] overflow-hidden">
             <div className="container mx-auto px-5 sm:px-6">
                 <div className="text-center mb-16 lg:mb-24">
-                    <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-5">
+                    <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 dark:text-white mb-5">
                         All Your Existing Apps, <span className="bg-gradient-to-r from-[#635BFF] to-[#8A85FF] italic bg-clip-text text-transparent">Combined.</span>
                     </h2>
-                    <p className="text-base sm:text-lg text-gray-400 max-w-3xl mx-auto">
+                    <p className="text-base sm:text-lg text-gray-500 dark:text-gray-400 max-w-3xl mx-auto">
                         Connect your apps so TaskMaster learns you better and responds smarter.
                     </p>
                 </div>
 
                 <div className="relative h-[350px] lg:h-[400px] w-full flex items-center justify-center mb-24">
-                    <div className="absolute w-[350px] h-[350px] lg:w-[400px] lg:h-[400px] bg-indigo-900/40 rounded-full blur-3xl"></div>
+                    <div className="absolute w-[350px] h-[350px] lg:w-[400px] lg:h-[400px] bg-indigo-200 dark:bg-indigo-900/40 rounded-full blur-3xl"></div>
                     <motion.div
-                        className="relative w-[320px] h-[320px] lg:w-[380px] lg:h-[380px] bg-[#12141D]/50 backdrop-blur-xl border border-white/10 rounded-full"
+                        className="relative w-[320px] h-[320px] lg:w-[380px] lg:h-[380px] bg-white/50 dark:bg-[#12141D]/50 backdrop-blur-xl border border-gray-200 dark:border-white/10 rounded-full"
                         initial={{ opacity: 0, scale: 0.8 }}
                         whileInView={{ opacity: 1, scale: 1 }}
                         transition={{ duration: 0.7, ease: "easeOut" }}
@@ -685,7 +632,8 @@ export function IntegrationsSection() {
                                     y1="50%"
                                     x2={lineEnd.x}
                                     y2={lineEnd.y}
-                                    stroke="rgba(100, 116, 139, 0.3)"
+                                    stroke="rgba(156, 163, 175, 0.3)"
+                                    className="dark:stroke-slate-500/30"
                                     strokeWidth="1.5"
                                     initial={{ pathLength: 0 }}
                                     whileInView={{ pathLength: 1 }}
@@ -695,18 +643,17 @@ export function IntegrationsSection() {
                             ))}
                         </motion.svg>
                         
-{/* Central Logo - The centering classes are correct. The surrounding context was the issue. */}
-    <motion.div
-        className="absolute top-[35%] left-[37%] -translate-x-1/2 -translate-y-1/2"
-        initial={{ scale: 0, opacity: 0 }}
-        whileInView={{ scale: 1, opacity: 1 }}
-        transition={{ duration: 0.4, delay: 0.3, ease: "easeOut" }}
-        viewport={{ once: true, amount: 0.8 }}
-    >
-        <div className="flex items-center justify-center w-20 h-20 lg:w-24 lg:h-24 bg-[#0C0E1A] border-2 border-indigo-500/50 rounded-full shadow-lg">
-            <LogoIcon className="w-10 h-10 lg:w-12 lg:h-12" />
-        </div>
-    </motion.div>
+                        <motion.div
+                            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+                            initial={{ scale: 0, opacity: 0 }}
+                            whileInView={{ scale: 1, opacity: 1 }}
+                            transition={{ duration: 0.4, delay: 0.3, ease: "easeOut" }}
+                            viewport={{ once: true, amount: 0.8 }}
+                        >
+                            <div className="flex items-center justify-center w-20 h-20 lg:w-24 lg:h-24 bg-white dark:bg-[#0C0E1A] border-2 border-indigo-300 dark:border-indigo-500/50 rounded-full shadow-lg">
+                                <LogoIcon className="w-10 h-10 lg:w-12 lg:h-12" />
+                            </div>
+                        </motion.div>
 
                         {integrations.map(({ name, Icon, positionClass, isComingSoon }, index) => (
                             <motion.div
@@ -717,11 +664,11 @@ export function IntegrationsSection() {
                                 transition={{ duration: 0.4, delay: 0.6 + index * 0.1, ease: "easeOut" }}
                                 viewport={{ once: true, amount: 0.8 }}
                             >
-                                <div className={`flex items-center justify-center w-16 h-16 lg:w-20 lg:h-20 bg-[#12141D]/80 backdrop-blur-lg border border-gray-700/80 rounded-full transition-all duration-300 ${isComingSoon ? 'grayscale hover:grayscale-0' : ''}`}>
+                                <div className={`flex items-center justify-center w-16 h-16 lg:w-20 lg:h-20 bg-white/80 dark:bg-[#12141D]/80 backdrop-blur-lg border border-gray-200 dark:border-gray-700/80 rounded-full transition-all duration-300 ${isComingSoon ? 'grayscale hover:grayscale-0' : ''}`}>
                                     <Icon className="w-8 h-8 lg:w-10 lg:h-10" />
                                 </div>
                                 {isComingSoon && (
-                                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-max px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-md shadow-lg opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200 ease-in-out pointer-events-none">
+                                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-max px-3 py-1.5 bg-gray-800 text-white dark:bg-gray-900 dark:text-white text-sm font-medium rounded-md shadow-lg opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200 ease-in-out pointer-events-none">
                                         Coming Soon
                                     </div>
                                 )}
@@ -732,49 +679,49 @@ export function IntegrationsSection() {
 
                 <div className="grid md:grid-cols-2 lg:grid-cols-2 gap-8">
                     <motion.div variants={cardVariants} initial="offscreen" whileInView="onscreen" viewport={{ once: true, amount: 0.5 }}>
-                        <div className="h-full bg-[#12141D] p-8 rounded-2xl border border-gray-700/60 shadow-xl hover:border-blue-500/60 transition-colors duration-300 transform hover:-translate-y-1">
+                        <div className="h-full bg-gray-50 dark:bg-[#12141D] p-8 rounded-2xl border border-gray-200 dark:border-gray-700/60 shadow-xl hover:border-blue-400 dark:hover:border-blue-500/60 transition-colors duration-300 transform hover:-translate-y-1">
                             <div className="flex items-center gap-4 mb-5">
                                 <GoogleDriveIcon className="w-10 h-10" />
-                                <h3 className="text-2xl font-bold text-white">Google Drive</h3>
+                                <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Google Drive</h3>
                             </div>
-                            <p className="text-gray-400 leading-relaxed">
+                            <p className="text-gray-500 dark:text-gray-400 leading-relaxed">
                                 TaskMaster can read your files to give smarter responses and can even organize or update them for you.
                             </p>
                         </div>
                     </motion.div>
                     <motion.div variants={cardVariants} initial="offscreen" whileInView="onscreen" viewport={{ once: true, amount: 0.5 }}>
-                       <div className="h-full bg-[#12141D] p-8 rounded-2xl border border-gray-700/60 shadow-xl hover:border-gray-400/60 transition-colors duration-300 transform hover:-translate-y-1">
+                       <div className="h-full bg-gray-50 dark:bg-[#12141D] p-8 rounded-2xl border border-gray-200 dark:border-gray-700/60 shadow-xl hover:border-gray-400 dark:hover:border-gray-400/60 transition-colors duration-300 transform hover:-translate-y-1">
                             <div className="flex items-center gap-4 mb-5">
                                 <NotionIcon className="w-10 h-10" />
-                                <h3 className="text-2xl font-bold text-white">Notion</h3>
+                                <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Notion</h3>
                             </div>
-                            <p className="text-gray-400 leading-relaxed">
+                            <p className="text-gray-500 dark:text-gray-400 leading-relaxed">
                                 TaskMaster can pull insights from your Notion workspace and can even update or create pages to match your needs.
                             </p>
                         </div>
                     </motion.div>
                     <motion.div variants={cardVariants} initial="offscreen" whileInView="onscreen" viewport={{ once: true, amount: 0.5 }}>
-                       <div className="h-full bg-[#12141D] p-8 rounded-2xl border border-gray-700/60 shadow-xl hover:border-green-500/60 transition-colors duration-300 transform hover:-translate-y-1">
+                       <div className="h-full bg-gray-50 dark:bg-[#12141D] p-8 rounded-2xl border border-gray-200 dark:border-gray-700/60 shadow-xl hover:border-green-400 dark:hover:border-green-500/60 transition-colors duration-300 transform hover:-translate-y-1">
                             <div className="flex items-center gap-4 mb-5">
                                 <GoogleCalendarIcon className="w-10 h-10" />
-                                <h3 className="text-2xl font-bold text-white">Google Calendar</h3>
+                                <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Google Calendar</h3>
                             </div>
-                            <p className="text-gray-400 leading-relaxed">
+                            <p className="text-gray-500 dark:text-gray-400 leading-relaxed">
                                 TaskMaster can understand your schedule and can even plan tasks or events around your day.
                             </p>
                         </div>
                     </motion.div>
                     <motion.div variants={cardVariants} initial="offscreen" whileInView="onscreen" viewport={{ once: true, amount: 0.5 }}>
-                       <div className="h-full bg-[#12141D] p-8 rounded-2xl border-2 border-dashed border-gray-700/80 flex flex-col justify-center items-center text-center shadow-xl transform hover:-translate-y-1 transition-transform duration-300">
-                            <h3 className="text-2xl font-bold text-white mb-4">And Many More...</h3>
-                            <p className="text-gray-400 leading-relaxed mb-6">
+                       <div className="h-full bg-gray-50 dark:bg-[#12141D] p-8 rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-700/80 flex flex-col justify-center items-center text-center shadow-xl transform hover:-translate-y-1 transition-transform duration-300">
+                            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">And Many More...</h3>
+                            <p className="text-gray-500 dark:text-gray-400 leading-relaxed mb-6">
                                 We're constantly expanding our ecosystem. Integrations for leading educational and creative platforms are coming soon.
                             </p>
                             <div className="flex items-center justify-center gap-4">
-                                <CanvasIcon className="w-8 h-8 text-gray-500" />
-                                <DesmosIcon className="w-8 h-8 text-gray-500" />
-                                <KhanAcademyIcon className="w-8 h-8 text-gray-500" />
-                                <GoogleClassroomIcon className="w-8 h-8 text-gray-500" />
+                                <CanvasIcon className="w-8 h-8 text-gray-400 dark:text-gray-500" />
+                                <DesmosIcon className="w-8 h-8 text-gray-400 dark:text-gray-500" />
+                                <KhanAcademyIcon className="w-8 h-8 text-gray-400 dark:text-gray-500" />
+                                <GoogleClassroomIcon className="w-8 h-8 text-gray-400 dark:text-gray-500" />
                             </div>
                         </div>
                     </motion.div>
@@ -881,7 +828,6 @@ function App() {
         </motion.header>
 
         <main className="overflow-x-hidden">
-            {/* FIX: Changed section to a flex column, adjusted padding, and moved TrustedBySection inside */}
             <section className="relative min-h-screen flex flex-col pt-40 sm:pt-52 bg-white dark:bg-[#0C0E1A] overflow-hidden">
                 <div className="flex-grow flex items-center justify-center">
                     <div className="container mx-auto px-5 sm:px-6 relative z-10">
@@ -892,17 +838,15 @@ function App() {
                             initial="hidden"
                             animate="visible"
                         >
-    <motion.h1 
-        className="text-5xl md:text-1xl lg:text-[3.8rem]  font-extrabold mb-9 leading-snug tracking-tight"
-        variants={heroItemVariants}
-    >
-        <span className="block bg-gradient-to-r from-[#635BFF] to-[#8A85FF] bg-clip-text text-transparent">Not just a tool,</span>
-        <span className="block bg-gradient-to-r from-[#635BFF] to-[#8A85FF] bg-clip-text text-transparent whitespace-nowrap ">
-            but a partner.
-        </span>
-    </motion.h1>
-
-
+                            <motion.h1 
+                                className="text-5xl md:text-1xl lg:text-[3.8rem] font-extrabold mb-9 leading-snug tracking-tight text-gray-900 dark:text-white"
+                                variants={heroItemVariants}
+                            >
+                                <span className="block bg-gradient-to-r from-[#635BFF] to-[#8A85FF] bg-clip-text text-transparent">Not just a tool,</span>
+                                <span className="block bg-gradient-to-r from-[#635BFF] to-[#8A85FF] bg-clip-text text-transparent whitespace-nowrap ">
+                                    but a partner.
+                                </span>
+                            </motion.h1>
 
                             <motion.div variants={heroItemVariants} className="flex justify-center lg:justify-start mb-10">
                                 <a 
@@ -932,28 +876,30 @@ function App() {
                             <img
                                 src={isDarkMode ? darkModeImage : lightModeImage}
                                 alt="TaskMaster AI Product Screenshot" 
-                                className="relative rounded-2xl shadow-2xl border-2 border-gray-300 dark:border-gray-700/70 w-full"
+                                className="relative rounded-2xl shadow-2xl border-2 border-gray-200 dark:border-gray-700/70 w-full"
                             />
                         </motion.div>
                         </div>
                     </div>
                 </div>
+                {/* TrustedBySection has its own theme-aware background */}
                 <TrustedBySection />
             </section>
             
             <TestimonialsSection />
             <AgenticSection />
             <LearningSuperchargedSection />
+            <FeaturesGridSection />
             <IntegrationsSection/>
         </main>
 
-        <footer className="bg-white dark:bg-[#0C0E1A]  mt-16">
+        <footer className="bg-gray-50 dark:bg-[#0C0E1A] mt-16 border-t border-gray-200 dark:border-gray-800">
           <div className="container mx-auto px-5 sm:px-6 py-10">
             <div className="flex flex-col md:flex-row items-center justify-between gap-5">
               <div className="flex items-center space-x-4">
-                <a href="/privacy-policy" className="text-sm text-gray-500 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors">Privacy Policy</a>
+                <a href="/privacy-policy" className="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Privacy Policy</a>
                 <span className="text-gray-300 dark:text-gray-700 hidden sm:inline">|</span>
-                <a href="/terms" className="text-sm text-gray-500 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors">Terms & Conditions</a>
+                <a href="/terms" className="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Terms & Conditions</a>
               </div>
               <p className="text-sm text-gray-500 text-center md:text-right">
                 © {new Date().getFullYear()} TaskMaster AI. All rights reserved.
