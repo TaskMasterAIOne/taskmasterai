@@ -13,7 +13,7 @@ import {
 } from "firebase/firestore";
 
 const PREMIUM_EMAILS = [
-    "bajinsrinivasr@lexington1.net",  "1cosmic20@gmail.com", "enable73@gmail.com", "williansugiyama@gmail.com", "amlitha@gmail.com",
+    "bajinsrinivasr@lexington1.net",  "1cosmic20@gmail.com", "enable73@gmail.com", "williansugiyama@gmail.com", "amlitha@gmail.com", "paulkoh4@gmail.com", "richard@openhaul.com",
     "poojarameshkumar789@gmail.com", "achallapureddy@gmail.com", "ali.ahsan.a214@gmail.com", "amrish.naranappa@gmail.com",
     "navaneeth.ravindranath@gmail.com", "Goduwin_Ravi@yahoo.com", "gautham.paddu@outlook.com", "Isha.kandhaluram@gmail.com", "learner@example.com", "benjamin.schreiber3@gmail.com"
 ];
