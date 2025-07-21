@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Menu, Search, Bell, Moon, Sun, PlusCircle, Edit, Trash, CheckCircle, MessageCircle, Crown, RotateCcw, X, TimerIcon, Send, ChevronLeft, ChevronRight, Calendar, Clock, MoreHorizontal, ArrowUpRight, Bookmark, BookOpen, Lightbulb, Award, TrendingUp, Target as GoalIcon, Layers, Clipboard as ClipboardIcon, AlertCircle, ThumbsUp, ThumbsDown, BrainCircuit, ArrowRight, Flag, Filter, Tag, BarChart3, PieChart, ChevronDown, Folder, ListChecks, Paperclip, ImageIcon, Settings, FileText, Users, Columns, Eye, AlignLeft, UserCheck, Hourglass, Notebook, Wand, SortAsc, CalendarCheck, Bot, Loader2, Check, Info, Download, User as UserIcon, Link as LinkIcon, Zap, SlidersHorizontal, BookCopy, ListTodo, Maximize, Minimize, CalendarDays, Brain, Mic, Video, FileQuestion, Sparkles, Play, CalendarRange,
@@ -387,115 +388,114 @@ const combineDateAndTime = (dateStr: string | undefined | null, timeStr: string 
   }
 };
 
-const AssistantMessageContent = ({ message }: { message: ChatMessageData }) => {
-  const navigate = useNavigate();
+// In AI-Chat.tsx, replace the entire AssistantMessageContent component:
 
-  const hasDashboardActions = useMemo(() => {
-    return !!message.actionDetails;
-  }, [message.actionDetails]);
+const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessageData, isDarkMode: boolean }) => {
+    const proseClass = `prose prose-sm max-w-none text-gray-800 dark:text-gray-100 prose-p:mb-3 prose-p:last:mb-0 prose-p:leading-relaxed prose-ul:my-3 prose-ul:space-y-2 prose-ol:my-3 prose-ol:space-y-2 prose-li:pl-1 prose-code:text-xs prose-code:px-1 prose-code:py-0.5 prose-pre:text-xs prose-pre:my-2 prose-pre:p-2 prose-pre:leading-relaxed
+    ${isDarkMode
+        ? 'prose-invert prose-a:text-[#8A85FF] hover:prose-a:text-indigo-300 prose-code:bg-gray-700/70 prose-code:text-pink-400 prose-pre:bg-black/60'
+        : 'prose-a:text-[#635BFF] hover:prose-a:text-indigo-700 prose-code:bg-gray-200/70 prose-code:text-pink-600 prose-pre:bg-gray-800/80 prose-pre:text-white/90'
+    }`;
 
-  return (
-    <>
-      {message.content && (
-        <ReactMarkdown
-          remarkPlugins={[remarkMath, remarkGfm]}
-          rehypePlugins={[rehypeKatex]}
-          components={{
-            p: ({ node, ...props }) => <p className="mb-3 last:mb-0 leading-relaxed text-sm" {...props} />,
-            ul: ({ node, ...props }) => <ul className="list-disc list-outside ml-5 my-3 text-sm space-y-2" {...props} />,
-            ol: ({ node, ...props }) => <ol className="list-decimal list-outside ml-5 my-3 text-sm space-y-2" {...props} />,
-            li: ({ node, ...props }) => <li className="pl-1" {...props} />,
-            a: ({ node, ...props }) => {
-              const textContent = node.children[0]?.type === 'text' ? node.children[0].value : '';
-              const citationMatch = textContent.match(/^\[(\d+)\]$/);
-              if (citationMatch && props.href) {
-                return (
-                  <sup className="inline-block mx-0.5 align-super">
-                    <a href={props.href} target="_blank" rel="noopener noreferrer" className="text-[#635BFF] dark:text-[#8A85FF] no-underline hover:underline font-medium" title={`Source: ${props.href}`}>
-                      [{citationMatch[1]}]
-                    </a>
-                  </sup>
-                );
-              }
-              return <a className="text-[#635BFF] dark:text-[#8A85FF] hover:underline" target="_blank" rel="noopener noreferrer" {...props} />;
-            },
-            code: ({ node, inline, className, children, ...props }) => {
-              const match = /language-(\w+)/.exec(className || '');
-              return !inline ? (
-                <pre className="!bg-gray-800/80 dark:!bg-black/60 p-2 rounded-md overflow-x-auto my-2 text-xs leading-relaxed text-white/90" {...props}>
-                  <code className={`language-${match ? match[1] : 'plaintext'}`}>{children}</code>
-                </pre>
-              ) : (
-                <code className="!bg-gray-200 dark:!bg-gray-700/70 px-1 py-0.5 rounded text-xs text-pink-600 dark:text-pink-400" {...props}>{children}</code>
-              );
-            },
-          }}
-        >
-          {message.content}
-        </ReactMarkdown>
-      )}
-
-      {message.imageUrl && message.wasImageGenerated && (
-        <div className="relative group mt-2">
-          <img src={message.imageUrl} alt={message.imageMeta?.name || "Generated"} className="max-w-full h-auto max-h-56 object-contain rounded-lg border border-gray-300 dark:border-gray-600 cursor-pointer" onClick={() => window.open(message.imageUrl, '_blank')} title="View full" />
-          <button onClick={() => handleDownloadImageFromUrl(message.imageUrl!, message.imageMeta?.name)} className="absolute top-1.5 right-1.5 p-1.5 rounded-full opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-200 bg-gray-200/70 dark:bg-gray-900/70 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300" title="Download">
-            <Download className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
-
-      {message.flashcard && <FlashcardsQuestions type="flashcard" data={message.flashcard.data} onComplete={() => { }} />}
-      {message.question && <FlashcardsQuestions type="question" data={message.question.data} onComplete={() => { }} />}
-
-      {message.actionDetails && (
-        <div className={`mt-2 pt-2 border-t border-dashed ${message.actionDetails.status === 'success' ? 'border-green-300 dark:border-green-700/60' : 'border-red-300 dark:border-red-700/60'}`}>
-            <div className={`flex items-center gap-1.5 text-xs font-medium ${message.actionDetails.status === 'success' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                {message.actionDetails.status === 'success' ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
-                <span className="whitespace-pre-wrap">{message.actionDetails.message}</span>
-            </div>
-        </div>
-      )}
-
-      {hasDashboardActions && (
-          <div className="mt-3 pt-3 border-t border-dashed border-gray-200 dark:border-gray-700/60">
-              <div className="pl-3.5 mt-1">
-                <button
-                  onClick={() => navigate('/dashboard')}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30 px-2.5 py-1.5 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-colors"
+    return (
+        <>
+            {message.content && (
+                <ReactMarkdown
+                    remarkPlugins={[remarkMath, remarkGfm]}
+                    rehypePlugins={[rehypeKatex]}
+                    className={proseClass}
+                    components={{
+                        a: ({ node, ...props }) => {
+                            const textContent = node?.children[0]?.type === 'text' ? node.children[0].value : '';
+                            const citationMatch = textContent.match(/^\[(\d+)\]$/);
+                            if (citationMatch && props.href) {
+                              return (
+                                <sup className="inline-block mx-0.5 align-super">
+                                  <a href={props.href} target="_blank" rel="noopener noreferrer" className="text-[#635BFF] dark:text-[#8A85FF] no-underline hover:underline font-medium" title={`Source: ${props.href}`}>
+                                    [{citationMatch[1]}]
+                                  </a>
+                                </sup>
+                              );
+                            }
+                            return <a target="_blank" rel="noopener noreferrer" {...props} />;
+                        },
+                        li: ({ node, children, ...props }) => {
+                            const isTaskListItem = typeof (node?.children?.[0] as any)?.checked === 'boolean';
+                            if (isTaskListItem) {
+                              const checked = (node!.children[0] as any).checked;
+                              const restOfChildren = React.Children.toArray(children).slice(1);
+                              return (
+                                <li className="flex items-start my-1 list-none -ml-4" {...props}>
+                                  <span className="mr-1.5 mt-[2px] flex-shrink-0">
+                                    {checked ? <CheckSquare className="w-3.5 h-3.5 text-current" /> : <Square className="w-3.5 h-3.5 text-current opacity-60" />}
+                                  </span>
+                                  <div className="flex-grow">{restOfChildren}</div>
+                                </li>
+                              );
+                            }
+                            return <li {...props}>{children}</li>;
+                        },
+                    }}
                 >
-                  View in Dashboard
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-          </div>
-      )}
+                    {message.content}
+                </ReactMarkdown>
+            )}
 
-      {message.sources && message.sources.length > 0 && (
-        <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700/70">
-          <h4 className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">{message.sources.length} sources found</h4>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {message.sources.sort((a, b) => a.number - b.number).map(source => {
-              let hostname = "source.com";
-              try { hostname = new URL(source.url).hostname.replace('www.', ''); }
-              catch (e) { hostname = source.url.split('/')[2] || source.url; }
-              return (
-                <a href={source.url} key={source.number} target="_blank" rel="noopener noreferrer" className="block bg-gray-100/70 dark:bg-[#1A1D29] p-2 rounded-lg border border-gray-200 dark:border-gray-700/80 hover:bg-gray-200/70 dark:hover:bg-gray-700/60 transition-colors duration-150">
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <img src={`https://www.google.com/s2/favicons?domain=${hostname}&sz=32`} alt="" className="w-4 h-4 rounded-full bg-white flex-shrink-0" />
-                      <span className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate">{hostname}</span>
+            {message.imageUrl && message.wasImageGenerated && (
+                <div className="relative group mt-2">
+                    <img src={message.imageUrl} alt={message.imageMeta?.name || "Generated"} className="max-w-full h-auto max-h-56 object-contain rounded-lg border border-gray-300 dark:border-gray-600 cursor-pointer" onClick={() => window.open(message.imageUrl, '_blank')} title="View full"/>
+                    <button onClick={() => handleDownloadImageFromUrl(message.imageUrl!, message.imageMeta?.name)} className="absolute top-1.5 right-1.5 p-1.5 rounded-full opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-200 bg-gray-200/70 dark:bg-gray-900/70 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300" title="Download">
+                        <Download className="w-3.5 h-3.5" />
+                    </button>
+                </div>
+            )}
+
+            {message.flashcard && <FlashcardsQuestions type="flashcard" data={message.flashcard.data} onComplete={() => {}} />}
+            {message.question && <FlashcardsQuestions type="question" data={message.question.data} onComplete={() => {}} />}
+
+            {message.actionDetails && (
+                <div className={`mt-2 pt-2 border-t border-dashed ${message.actionDetails.status === 'success' ? 'border-green-300 dark:border-green-700/60' : 'border-red-300 dark:border-red-700/60'}`}>
+                    <div className={`flex items-center gap-1.5 text-xs font-medium ${message.actionDetails.status === 'success' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                        {message.actionDetails.status === 'success' ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+                        <span className="whitespace-pre-wrap">{message.actionDetails.message}</span>
                     </div>
-                    <ArrowUpRight className="w-3 h-3 text-gray-400 dark:text-gray-500 flex-shrink-0" />
-                  </div>
-                  <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-3 leading-snug">{source.title}</p>
-                </a>
-              )
-            })}
-          </div>
-        </div>
-      )}
-    </>
-  );
+                </div>
+            )}
+            
+            {message.sources && message.sources.length > 0 && (
+                 <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700/70">
+                    <h4 className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">{message.sources.length} sources found</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {message.sources.sort((a,b) => a.number - b.number).map(source => {
+                            let hostname = "source.com";
+                            try {
+                                hostname = new URL(source.url).hostname.replace('www.', '');
+                            } catch (e) {
+                                hostname = source.url.split('/')[2] || source.url;
+                            }
+                           return (
+                            <a
+                                href={source.url}
+                                key={source.number}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block bg-gray-100/70 dark:bg-[#1A1D29] p-2 rounded-lg border border-gray-200 dark:border-gray-700/80 hover:bg-gray-200/70 dark:hover:bg-gray-700/60 transition-colors duration-150"
+                            >
+                                <div className="flex items-center justify-between gap-2 mb-1">
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                        <img src={`https://www.google.com/s2/favicons?domain=${hostname}&sz=32`} alt="" className="w-4 h-4 rounded-full bg-white flex-shrink-0" />
+                                        <span className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate">{hostname}</span>
+                                    </div>
+                                    <ArrowUpRight className="w-3 h-3 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                                </div>
+                                <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-3 leading-snug">{source.title}</p>
+                            </a>
+                        )})}
+                    </div>
+                </div>
+            )}
+        </>
+    );
 };
 
 const NotionIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -503,6 +503,84 @@ const NotionIcon = (props: React.SVGProps<SVGSVGElement>) => (
       <path className="fill-black dark:fill-white" d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z"/>
     </svg>
 );
+
+
+const urlToSelectedFile = async (url: string): Promise<SelectedFile | null> => {
+    // Handle base64 data URLs directly
+    if (url.startsWith('data:')) {
+        try {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            const fileName = `pasted-image-${Date.now()}.${blob.type.split('/')[1] || 'png'}`;
+            const file = new File([blob], fileName, { type: blob.type });
+            return await readFileAsSelectedFile(file);
+        } catch (error) {
+            console.error("Error converting data URL to file:", error);
+            alert("Could not process the dragged image data.");
+            return null;
+        }
+    }
+
+    // Handle regular http/https URLs
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch image. Status: ${response.status}`);
+        }
+        const blob = await response.blob();
+
+        let fileName = `dragged-image-${Date.now()}`;
+        try {
+            const urlPath = new URL(url).pathname;
+            const lastSegment = urlPath.substring(urlPath.lastIndexOf('/') + 1);
+            if (lastSegment) {
+                fileName = lastSegment.split('?')[0];
+            }
+        } catch (e) { /* Ignore invalid URL for naming */ }
+        
+        const extension = blob.type.split('/')[1];
+        if (extension && !fileName.toLowerCase().endsWith(`.${extension}`)) {
+            fileName += `.${extension}`;
+        }
+
+        const file = new File([blob], fileName, { type: blob.type });
+
+        return await readFileAsSelectedFile(file);
+    } catch (error) {
+        console.error("Error converting URL to file:", error);
+        alert("Could not fetch the dragged image. This may be due to security restrictions (CORS) on the source website.");
+        return null;
+    }
+};
+
+
+const getFileContentAsBase64 = async (fileMeta: { url?: string; type: string; }): Promise<string | null> => {
+    if (!fileMeta.url) return null;
+    try {
+        const response = await fetch(fileMeta.url);
+        if (!response.ok) {
+            console.error(`Failed to fetch file from URL: ${fileMeta.url} with status ${response.status}`);
+            return null;
+        }
+        const blob = await response.blob();
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const base64String = (reader.result as string)?.split(',')[1];
+                resolve(base64String || null);
+            };
+            reader.onerror = (error) => {
+                console.error("FileReader error:", error);
+                reject(error);
+            };
+            reader.readAsDataURL(blob);
+        });
+    } catch (error) {
+        console.error("Error fetching or reading file for AI context:", error);
+        return null;
+    }
+};
+
 
 export function AIChat() {
   const navigate = useNavigate();
@@ -546,8 +624,15 @@ export function AIChat() {
   const [isSearchModeActive, setIsSearchModeActive] = useState(false);
   const [assistantLoadingPlaceholderId, setAssistantLoadingPlaceholderId] = useState<string | null>(null);
   const [aiActionStatus, setAiActionStatus] = useState<string | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const [isAudioSupported, setIsAudioSupported] = useState(false);
+const [isDraggingOver, setIsDraggingOver] = useState(false);
+  
+  const {
+    transcript,
+    listening,
+    resetTranscript,
+    browserSupportsSpeechRecognition,
+    isMicrophoneAvailable
+  } = useSpeechRecognition();
   const recognitionRef = useRef<any>(null);
   const [memories, setMemories] = useState<Memory[]>([]);
   const [activeStyle, setActiveStyle] = useState<string | null>(null);
@@ -614,6 +699,113 @@ export function AIChat() {
     } else { setIsAudioSupported(false); }
   }, []);
 
+
+  const handleFileDrop = async (files: FileList) => {
+    if (!files || files.length === 0 || isImageGenModeActive || isSearchModeActive || isChatLoading || isChatDisabledByLimit) return;
+    
+    const filesArray = Array.from(files);
+    const newSelectedFiles: SelectedFile[] = [];
+
+    for (const file of filesArray) {
+        if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+            alert(`File ${file.name} is too large (max ${MAX_FILE_SIZE_MB}MB).`);
+            continue;
+        }
+
+        const isSupported = SUPPORTED_FILE_TYPES.split(',').some(supportedType => {
+            const trimmedType = supportedType.trim();
+            if (trimmedType.startsWith('.')) {
+                return file.name.toLowerCase().endsWith(trimmedType);
+            }
+            return file.type === trimmedType;
+        });
+
+        if (!isSupported) {
+            alert(`File type for ${file.name} (${file.type || 'unknown'}) is not supported.`);
+            continue;
+        }
+
+        try {
+            newSelectedFiles.push(await readFileAsSelectedFile(file));
+        } catch (error) {
+            console.error("Error reading file:", file.name, error);
+        }
+    }
+    if (newSelectedFiles.length > 0) {
+      setSelectedFiles(prev => [...prev, ...newSelectedFiles].slice(0, 5));
+    }
+  };
+
+  const handleDragEvents = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    handleDragEvents(e);
+    if (!isImageGenModeActive && !isSearchModeActive && !isChatLoading && !isChatDisabledByLimit) {
+        setIsDraggingOver(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    handleDragEvents(e);
+    setIsDraggingOver(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    handleDragEvents(e);
+    setIsDraggingOver(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        handleFileDrop(e.dataTransfer.files);
+        return;
+    }
+    const html = e.dataTransfer.getData('text/html');
+    if (html) {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
+        const img = tempDiv.querySelector('img');
+        if (img && img.src) {
+            const newSelectedFile = await urlToSelectedFile(img.src);
+            if (newSelectedFile) setSelectedFiles(prev => [...prev, newSelectedFile].slice(0, 5));
+            return;
+        }
+    }
+    const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
+    if (url && (url.startsWith('http') || url.startsWith('data:image'))) {
+        const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
+        if (imageExtensions.some(ext => url.toLowerCase().includes(ext)) || url.startsWith('data:image')) {
+            const newSelectedFile = await urlToSelectedFile(url);
+            if (newSelectedFile) setSelectedFiles(prev => [...prev, newSelectedFile].slice(0, 5));
+        }
+    }
+  };
+
+  const handleToggleRecording = () => {
+    if (!browserSupportsSpeechRecognition) {
+      alert("This browser does not support speech recognition. Please try Google Chrome.");
+      return;
+    }
+    if (!isMicrophoneAvailable) {
+        alert("Microphone is not available. Please check your hardware and browser permissions.");
+        return;
+    }
+
+    if (listening) {
+      SpeechRecognition.stopListening();
+      const finalTranscriptText = transcript.trim();
+      if (finalTranscriptText) {
+        handleChatSubmit(undefined, finalTranscriptText);
+      }
+      resetTranscript();
+    } else {
+      resetTranscript();
+      SpeechRecognition.startListening({ continuous: true, language: 'en-US' });
+    }
+  };
+
+
+  
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (fbUser) => {
       let unsubProfile = () => {};
@@ -860,10 +1052,17 @@ export function AIChat() {
     } catch (error) { console.error("Error in generateChatName:", error); }
   };
 
-  const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, incomingFiles?: SelectedFile[]) => {
+const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, incomingFiles?: SelectedFile[]) => {
     e?.preventDefault();
+    // ---- THIS IS THE CORE AUDIO FIX ----
+    if (listening) {
+        SpeechRecognition.stopListening();
+        resetTranscript();
+    }
+    // ---- END OF FIX ----
+
     let currentMessage = incomingMessage !== undefined ? incomingMessage : chatMessage;
-    const currentFiles = incomingFiles !== undefined ? incomingFiles : selectedFiles;
+  const currentFiles = incomingFiles !== undefined ? incomingFiles : selectedFiles;
 
     if ((!currentMessage.trim() && currentFiles.length === 0 && !isImageGenModeActive) || (isImageGenModeActive && !currentMessage.trim()) || !user || !user.uid) return;
     if (isRecording) { recognitionRef.current?.stop(); }
@@ -1305,8 +1504,40 @@ Assistant:`;
               };
           } else {
               let unfilteredHistory = chatHistory.filter(m => m.id !== newAssistantLPHId && m.role !== 'system');
-              let historyForPrompt = unfilteredHistory.slice(-CHAT_HISTORY_LENGTH_FOR_PROMPT);
-              const geminiFormattedContents = createChatPromptContents(userMsgContent, filesForThisMessageSubmission, historyForPrompt);
+     // 1. Get the recent history from the current state.
+      const historySliceForContext = chatHistory
+          .filter(m => m.id !== newAssistantLPHId && m.role !== 'system')
+          .slice(-CHAT_HISTORY_LENGTH_FOR_PROMPT);
+
+      // 2. Asynchronously "hydrate" the history slice with file content if it's missing.
+      const hydratedHistoryPromises = historySliceForContext.map(async (message) => {
+          if (message.role !== 'user' || !message.attachedFilesMeta || message.attachedFilesMeta.length === 0) {
+              return message; // No files to process for this message.
+          }
+
+          const hydratedFilesPromises = message.attachedFilesMeta.map(async (fileMeta) => {
+              // If base64 data already exists, don't re-fetch.
+              if (fileMeta.base64Data) {
+                  return fileMeta;
+              }
+
+              const isSupportedForContext = fileMeta.type.startsWith('image/') || fileMeta.type === 'application/pdf' || fileMeta.type === 'text/plain' || (fileMeta.name && fileMeta.name.endsWith('.md'));
+              if (fileMeta.url && isSupportedForContext) {
+                  const base64Content = await getFileContentAsBase64(fileMeta);
+                  // Return a new object that includes the fetched base64 content.
+                  return { ...fileMeta, base64Data: base64Content || undefined };
+              }
+              return fileMeta;
+          });
+
+          const fullyHydratedFiles = await Promise.all(hydratedFilesPromises);
+          return { ...message, attachedFilesMeta: fullyHydratedFiles };
+      });
+      
+      // 3. Wait for all messages to be processed. The result is the complete context.
+      const historyForPrompt = await Promise.all(hydratedHistoryPromises);
+
+            const geminiFormattedContents = createChatPromptContents(userMsgContent, filesForThisMessageSubmission, historyForPrompt);
               
               apiRequestBody = {
                   contents: geminiFormattedContents,
@@ -1781,46 +2012,122 @@ Assistant:`;
                   ))}
                 </div>
               )}
-              <form onSubmit={handleChatSubmit}>
-                <div className="bg-white dark:bg-[#161922] border border-gray-300 dark:border-gray-700/50 rounded-2xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-400 dark:focus-within:ring-indigo-600 transition-all duration-200 flex flex-col">
-                  <AnimatePresence> {aiActionStatus && (<motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="text-center text-sm p-2 text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600/50"> {aiActionStatus} </motion.div>)} </AnimatePresence>
-                  <textarea ref={textareaRef} rows={1} value={chatMessage} onChange={(e) => setChatMessage(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSubmit(); } }} onPaste={handlePaste} placeholder={isRecording ? "Listening..." : isImageGenModeActive ? "Describe the image to generate..." : "Ask anything..."} className="w-full bg-transparent text-gray-800 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 p-3.5 text-sm focus:ring-0 focus:outline-none border-0 resize-none overflow-y-auto max-h-44 leading-relaxed" disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading'} />
-                  <div className="flex justify-between items-center px-2 py-1.5 mt-1">
-                    <div className="flex items-center gap-1">
-                      <input type="file" ref={fileInputRef} onChange={handleFileSelect} multiple accept={SUPPORTED_FILE_TYPES} className="hidden" disabled={isImageGenModeActive || isSearchModeActive || isChatLoading || isChatDisabledByLimit} />
-                      <button type="button" onClick={triggerFileSelect} disabled={isImageGenModeActive || isSearchModeActive || isChatLoading || isChatDisabledByLimit} className="p-2 rounded-lg transition-colors duration-150 text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600 disabled:cursor-not-allowed" title="Attach Files"> <Plus className="w-4 h-4" /> </button>
-                      <button type="button" onClick={handleToggleSearchMode} disabled={isChatLoading || isChatDisabledByLimit} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isSearchModeActive ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'}`} title={isSearchModeActive ? "Disable Search" : "Enable Search"}> <Globe className="w-4 h-4" /> <span className="hidden sm:inline">Search</span> </button>
-                      <button type="button" onClick={handleToggleImageGenMode} disabled={isChatLoading || isChatDisabledByLimit} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isImageGenModeActive ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'}`} title={isImageGenModeActive ? "Switch to Normal" : "Generate Image"}> <ImageIcon className="w-4 h-4" /> <span className="hidden sm:inline">Image</span> </button>
-                      <button
-                        type="button"
-                        onClick={handleToggleNotionSearchMode}
-                        disabled={isChatLoading || isChatDisabledByLimit}
-                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${
-                            isNotionSearchModeActive ? 'bg-gray-800 dark:bg-gray-200 text-white dark:text-black' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'
-                        }`}
-                        title={isNotionConnected ? (isNotionSearchModeActive ? "Disable Notion Search" : "Enable Notion Search") : "Connect Notion in Settings"}
-                      >
-                        <NotionIcon className="w-4 h-4" />
-                        <span className="hidden sm:inline">Notion</span>
-                      </button>
-                      <ChatControls
-                        onStyleSelect={handleStyleSelect}
-                        activeStyle={activeStyle}
-                        isIlluminateEnabled={isIlluminateEnabled}
-                        isBlackoutEnabled={isDarkMode && !isIlluminateEnabled}
-                      />
-                    </div>
-                    <div className="flex items-center">
-                      <AnimatePresence mode="wait" initial={false}>
-                        <motion.div key={(chatMessage.trim() || selectedFiles.length > 0 || (isImageGenModeActive && chatMessage.trim())) ? 'send' : 'mic'} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} transition={{ duration: 0.15 }} >
-                          {(chatMessage.trim() || selectedFiles.length > 0 || (isImageGenModeActive && chatMessage.trim())) ? (<button type="submit" disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading'} className="p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-indigo-500 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20" title="Send" aria-label="Send chat message"> {isChatLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />} </button>)
-                            : (isAudioSupported && <button type="button" onClick={handleToggleRecording} disabled={isChatLoading || isChatDisabledByLimit} className={`p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isRecording ? 'text-red-500 bg-red-100 dark:bg-red-500/20 animate-pulse' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/70'}`} title={isRecording ? "Stop Recording" : "Start Recording"}> {isRecording ? <StopCircle className="w-5 h-5" /> : <Mic className="w-5 h-5" />} </button>)}
-                        </motion.div>
-                      </AnimatePresence>
-                    </div>
-                  </div>
+<form onSubmit={handleChatSubmit}>
+    <div 
+        onDrop={handleDrop}
+        onDragOver={handleDragEvents}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        className={`relative bg-white dark:bg-[#161922] border border-gray-300 dark:border-gray-700/50 rounded-2xl shadow-sm transition-all duration-200 flex flex-col ${isDraggingOver ? 'ring-2 ring-indigo-400 dark:ring-indigo-600 ring-offset-2 ring-offset-white dark:ring-offset-[#12141D]' : 'focus-within:ring-2 focus-within:ring-indigo-400 dark:focus-within:ring-indigo-600'}`}
+    >
+        <AnimatePresence>
+        {isDraggingOver && (
+            <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-indigo-50/90 dark:bg-indigo-900/90 z-10 flex items-center justify-center rounded-2xl pointer-events-none border-2 border-dashed border-indigo-400"
+            >
+                <div className="text-center">
+                    <ImageIcon className="w-8 h-8 text-indigo-500 dark:text-indigo-400 mx-auto mb-2"/>
+                    <p className="font-semibold text-indigo-600 dark:text-indigo-300">Drop files to attach</p>
                 </div>
-              </form>
+            </motion.div>
+        )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+            {aiActionStatus && (
+                <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="text-center text-sm p-2 text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600/50"
+                >
+                    {aiActionStatus}
+                </motion.div>
+            )}
+        </AnimatePresence>
+
+        <textarea
+            ref={textareaRef}
+            rows={1}
+            value={chatMessage}
+            onChange={(e) => setChatMessage(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSubmit(); } }}
+            onPaste={handlePaste}
+            placeholder={
+                listening ? "Listening..." :
+                isImageGenModeActive ? "Describe the image to generate..." :
+                isNotionSearchModeActive ? "Search your Notion..." :
+                "Ask anything, or drop a file..."
+            }
+            className="w-full bg-transparent text-gray-800 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 p-3.5 text-sm focus:ring-0 focus:outline-none border-0 resize-none overflow-y-auto max-h-44 leading-relaxed"
+            disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading'}
+        />
+        <div className="flex justify-between items-center px-2 py-1.5 mt-1">
+            <div className="flex items-center gap-1">
+                <input type="file" ref={fileInputRef} onChange={handleFileSelect} multiple accept={SUPPORTED_FILE_TYPES} className="hidden" disabled={isImageGenModeActive || isSearchModeActive || isNotionSearchModeActive || isChatLoading || isChatDisabledByLimit} />
+                <button type="button" onClick={triggerFileSelect} disabled={isImageGenModeActive || isSearchModeActive || isNotionSearchModeActive || isChatLoading || isChatDisabledByLimit} className="p-2 rounded-lg transition-colors duration-150 text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600 disabled:cursor-not-allowed" title="Attach Files">
+                    <Plus className="w-4 h-4" />
+                </button>
+                <button type="button" onClick={handleToggleSearchMode} disabled={isChatLoading || isChatDisabledByLimit || isNotionSearchModeActive} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isSearchModeActive ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'}`} title={isSearchModeActive ? "Disable Search" : "Enable Search"}>
+                    <Globe className="w-4 h-4" />
+                    <span className="hidden sm:inline">Search</span>
+                </button>
+                <button type="button" onClick={handleToggleImageGenMode} disabled={isChatLoading || isChatDisabledByLimit || isNotionSearchModeActive} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isImageGenModeActive ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'}`} title={isImageGenModeActive ? "Switch to Normal" : "Generate Image"}>
+                    <ImageIcon className="w-4 h-4" />
+                    <span className="hidden sm:inline">Image</span>
+                </button>
+                 <button
+                    type="button"
+                    onClick={handleToggleNotionSearchMode}
+                    disabled={isChatLoading || isChatDisabledByLimit}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${
+                        isNotionSearchModeActive ? 'bg-gray-800 dark:bg-gray-200 text-white dark:text-black' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'
+                    }`}
+                    title={isNotionConnected ? (isNotionSearchModeActive ? "Disable Notion Search" : "Enable Notion Search") : "Connect Notion in Settings"}
+                    >
+                    <NotionIcon className="w-4 h-4" />
+                    <span className="hidden sm:inline">Notion</span>
+                </button>
+                <ChatControls
+                    onStyleSelect={handleStyleSelect}
+                    activeStyle={activeStyle}
+                    isIlluminateEnabled={isIlluminateEnabled}
+                    isBlackoutEnabled={isDarkMode && !isIlluminateEnabled}
+                />
+            </div>
+            <div className="flex items-center">
+                <AnimatePresence mode="wait" initial={false}>
+                    <motion.div
+                        key={(chatMessage.trim() || selectedFiles.length > 0 || (isImageGenModeActive && chatMessage.trim())) ? 'send' : 'mic'}
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -5 }}
+                        transition={{ duration: 0.15 }}
+                    >
+                        {(chatMessage.trim() || selectedFiles.length > 0 || (isImageGenModeActive && chatMessage.trim())) ? (
+                            <button type="submit" disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading'} className="p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-indigo-500 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20" title="Send" aria-label="Send chat message">
+                                {isChatLoading ? <Loader2 className="w-5 h-5 animate-spin"/> : <Send className="w-5 h-5" />}
+                            </button>
+                        ) : (
+                            <button 
+                                type="button" 
+                                onClick={handleToggleRecording} 
+                                disabled={isChatLoading || isChatDisabledByLimit || !browserSupportsSpeechRecognition} 
+                                className={`p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${listening ? 'text-red-500 bg-red-100 dark:bg-red-500/20 animate-pulse' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/70'}`} 
+                                title={!browserSupportsSpeechRecognition ? "Browser not supported" : listening ? "Stop Recording" : "Start Recording"}
+                            >
+                                {listening ? <StopCircle className="w-5 h-5"/> : <Mic className="w-5 h-5" />}
+                            </button>
+                        )}
+                    </motion.div>
+                </AnimatePresence>
+            </div>
+        </div>
+    </div>
+</form>
               {userTier !== 'premium' && userTier !== 'loading' && (<div className="pt-2 text-xs text-center"> <span className="text-gray-500 dark:text-gray-400">Usage: {chatUsageCount} / {currentChatLimitDisplay}</span> {isChatDisabledByLimit && <span className="text-red-500 dark:text-red-400 ml-1 font-medium">(Limit Reached)</span>} {!isChatDisabledByLimit && userTier === 'basic' && <Link to="/pricing" className="ml-1 font-medium text-indigo-500 dark:text-indigo-400 hover:underline"><Crown className="w-3 h-3 inline mr-0.5" />Upgrade</Link>}</div>)}
             </div>
           </div>
