@@ -177,7 +177,7 @@ function Pricing() {
     setIsCheckingOut(priceId);
     setCheckoutError(null);
     try {
-      const { sessionId } = await createCheckoutSession(priceId, localUser.uid);
+      const { sessionId } = await createCheckoutSession(priceId);
       const stripe = await getStripe();
       if (!stripe) throw new Error('Stripe.js failed to load.');
       const { error } = await stripe.redirectToCheckout({ sessionId });
