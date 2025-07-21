@@ -678,26 +678,7 @@ const [isDraggingOver, setIsDraggingOver] = useState(false);
 
   useEffect(() => { localStorage.setItem('isSidebarCollapsed', JSON.stringify(isSidebarCollapsed)); }, [isSidebarCollapsed]);
 
-  useEffect(() => {
-    if (SpeechRecognition) {
-      setIsAudioSupported(true);
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
-      recognition.onresult = (event: any) => {
-        let interimTranscript = ''; let finalTranscript = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) { finalTranscript += event.results[i][0].transcript; }
-          else { interimTranscript += event.results[i][0].transcript; }
-        }
-        setChatMessage(finalTranscript + interimTranscript);
-      };
-      recognition.onend = () => { setIsRecording(false); };
-      recognition.onerror = (event: any) => { console.error("Speech recognition error:", event.error, event.message); setIsRecording(false); };
-      recognitionRef.current = recognition;
-    } else { setIsAudioSupported(false); }
-  }, []);
+
 
 
   const handleFileDrop = async (files: FileList) => {
@@ -977,8 +958,6 @@ const [isDraggingOver, setIsDraggingOver] = useState(false);
   const handleToggleImageGenMode = () => { setIsImageGenModeActive(prev => { if (!prev) { setIsSearchModeActive(false); if (selectedFiles.length > 0) { selectedFiles.forEach(sf => { if (sf.localPreviewUrl) URL.revokeObjectURL(sf.localPreviewUrl); }); setSelectedFiles([]); } } return !prev; }); };
 
   const handleToggleSearchMode = () => { setIsSearchModeActive(prev => { if (!prev) { setIsImageGenModeActive(false); if (selectedFiles.length > 0) { selectedFiles.forEach(sf => { if (sf.localPreviewUrl) URL.revokeObjectURL(sf.localPreviewUrl); }); setSelectedFiles([]); } } return !prev; }); };
-
-  const handleToggleRecording = () => { if (!isAudioSupported || !recognitionRef.current) return; if (isRecording) { recognitionRef.current.stop(); } else { recognitionRef.current.start(); } setIsRecording(!isRecording); };
 
   const formatItemsForChatContext = (): string => {
     if (!user) return "User data not available.";
@@ -1990,7 +1969,7 @@ Assistant:`;
                             )}
                           </>
                         )}
-                        {message.role === 'assistant' && !message.isLoading && (<AssistantMessageContent message={message} />)}
+                        {message.role === 'assistant' && !message.isLoading && (<AssistantMessageContent message={message} isDarkMode={isDarkMode} />)}
                         {message.role === 'system' && !message.isLoading && (<div className="whitespace-pre-wrap text-center text-xs">{message.content}</div>)}
                       </div>
                     </div>
