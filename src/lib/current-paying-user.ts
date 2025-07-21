@@ -280,12 +280,31 @@ export const updateUserNoteUsage = async (userId: string, typeToIncrement: 'pdfA
         await runTransaction(db, async (transaction) => {
             const profileSnap = await transaction.get(userProfileRef);
             if (!profileSnap.exists()) {
-                const initialData = prepareInitialProfileData(userId);
-                initialData.noteUsageByMonth = {
+                // --- START: CORRECTED PROFILE CREATION ---
+                const userRef = doc(db, 'users', userId);
+                const userSnap = await transaction.get(userRef);
+                const topLevelData = userSnap.exists() ? userSnap.data() : {};
+                
+                const initialData = prepareInitialProfileData(
+                    userId,
+                    topLevelData.email,
+                    topLevelData.displayName,
+                    topLevelData.photoURL
+                );
+
+                const finalData = {
+                    ...initialData,
+                    ...topLevelData,
+                    activeTier: topLevelData.activeTier || initialData.activeTier,
+                    subscriptionStatus: topLevelData.subscriptionStatus || initialData.subscriptionStatus,
+                };
+
+                finalData.noteUsageByMonth = {
                     [currentMonth]: { pdfAi: 0, youtube: 0, lastUpdated: Timestamp.now() }
                 };
-                (initialData.noteUsageByMonth[currentMonth] as any)[typeToIncrement] = 1;
-                transaction.set(userProfileRef, initialData);
+                (finalData.noteUsageByMonth[currentMonth] as any)[typeToIncrement] = 1;
+                transaction.set(userProfileRef, finalData);
+                // --- END: CORRECTED PROFILE CREATION ---
             } else {
                 const currentData = profileSnap.data() as UserProfileData;
                 let noteUsageByMonth = currentData.noteUsageByMonth || {};
@@ -352,17 +371,31 @@ export const updateUserPointsAndLevel = async (
     let newTierAwarded: UserTier | undefined = undefined;
 
     if (!profileSnap.exists()) {
+        // --- START: CORRECTED PROFILE CREATION ---
+        const userRef = doc(db, 'users', userId);
+        const userSnap = await transaction.get(userRef);
+        const topLevelData = userSnap.exists() ? userSnap.data() : {};
+
         const initialData = prepareInitialProfileData(
             userId,
-            userDetailsForCreation?.email,
-            userDetailsForCreation?.displayName,
-            userDetailsForCreation?.photoURL
+            userDetailsForCreation?.email || topLevelData.email,
+            userDetailsForCreation?.displayName || topLevelData.displayName,
+            userDetailsForCreation?.photoURL || topLevelData.photoURL
         );
+        
+        const finalData = {
+            ...initialData,
+            ...topLevelData,
+            activeTier: topLevelData.activeTier || initialData.activeTier,
+            subscriptionStatus: topLevelData.subscriptionStatus || initialData.subscriptionStatus,
+        };
+
         const newPoints = pointsToAdd;
-        initialData.points = newPoints;
-        initialData.level = calculateLevel(newPoints);
-        transaction.set(profileRef, initialData);
-        return { newPoints: initialData.points, newLevel: initialData.level, newTier: undefined };
+        finalData.points = newPoints;
+        finalData.level = calculateLevel(newPoints);
+        transaction.set(profileRef, finalData);
+        return { newPoints: finalData.points, newLevel: finalData.level, newTier: undefined };
+        // --- END: CORRECTED PROFILE CREATION ---
     } else {
         const currentProfileData = profileSnap.data() as UserProfileData;
         const currentPoints = currentProfileData.points || 0;
@@ -402,22 +435,36 @@ export const updateUserStreak = async (
     const profileSnap = await transaction.get(profileRef);
 
     if (!profileSnap.exists()) {
+        // --- START: CORRECTED PROFILE CREATION ---
+        const userRef = doc(db, 'users', userId);
+        const userSnap = await transaction.get(userRef);
+        const topLevelData = userSnap.exists() ? userSnap.data() : {};
+
         const initialData = prepareInitialProfileData(
             userId,
-            userDetailsForCreation?.email,
-            userDetailsForCreation?.displayName,
-            userDetailsForCreation?.photoURL
+            userDetailsForCreation?.email || topLevelData.email,
+            userDetailsForCreation?.displayName || topLevelData.displayName,
+            userDetailsForCreation?.photoURL || topLevelData.photoURL
         );
+
+        const finalData = {
+            ...initialData,
+            ...topLevelData,
+            activeTier: topLevelData.activeTier || initialData.activeTier,
+            subscriptionStatus: topLevelData.subscriptionStatus || initialData.subscriptionStatus,
+        };
+
         const now = Timestamp.now();
         if (streakType === 'overall') {
-            initialData.overallStreakCount = 1;
-            initialData.lastOverallStreakUpdate = now;
+            finalData.overallStreakCount = 1;
+            finalData.lastOverallStreakUpdate = now;
         } else {
-            initialData.notesStreakCount = 1;
-            initialData.lastNotesStreakUpdate = now;
+            finalData.notesStreakCount = 1;
+            finalData.lastNotesStreakUpdate = now;
         }
-        transaction.set(profileRef, initialData);
+        transaction.set(profileRef, finalData);
         return { newStreakCount: 1, streakBroken: false };
+        // --- END: CORRECTED PROFILE CREATION ---
     } else {
         const currentProfileData = profileSnap.data() as UserProfileData;
         let currentStreak: number;
@@ -480,14 +527,28 @@ export const addUserBadge = async (
   await runTransaction(db, async (transaction) => {
     const profileSnap = await transaction.get(profileRef);
     if (!profileSnap.exists()) {
+        // --- START: CORRECTED PROFILE CREATION ---
+        const userRef = doc(db, 'users', userId);
+        const userSnap = await transaction.get(userRef);
+        const topLevelData = userSnap.exists() ? userSnap.data() : {};
+
         const initialData = prepareInitialProfileData(
             userId,
-            userDetailsForCreation?.email,
-            userDetailsForCreation?.displayName,
+            userDetailsForCreation?.email || topLevelData.email,
+            userDetailsForCreation?.displayName || topLevelData.displayName,
             userDetailsForCreation?.photoURL,
         );
-        initialData.badges = [badgeId];
-        transaction.set(profileRef, initialData);
+        
+        const finalData = {
+            ...initialData,
+            ...topLevelData,
+            activeTier: topLevelData.activeTier || initialData.activeTier,
+            subscriptionStatus: topLevelData.subscriptionStatus || initialData.subscriptionStatus,
+        };
+
+        finalData.badges = [badgeId];
+        transaction.set(profileRef, finalData);
+        // --- END: CORRECTED PROFILE CREATION ---
     } else {
         const currentProfileData = profileSnap.data() as UserProfileData;
         const badges = currentProfileData.badges || [];
@@ -511,14 +572,28 @@ export const incrementUserProfileCounter = async (
     await runTransaction(db, async (transaction) => {
         const profileSnap = await transaction.get(profileRef);
         if (!profileSnap.exists()) {
+            // --- START: CORRECTED PROFILE CREATION ---
+            const userRef = doc(db, 'users', userId);
+            const userSnap = await transaction.get(userRef);
+            const topLevelData = userSnap.exists() ? userSnap.data() : {};
+            
             const initialData = prepareInitialProfileData(
                 userId,
-                userDetailsForCreation?.email,
-                userDetailsForCreation?.displayName,
+                userDetailsForCreation?.email || topLevelData.email,
+                userDetailsForCreation?.displayName || topLevelData.displayName,
                 userDetailsForCreation?.photoURL,
             );
-            (initialData as any)[counterField] = incrementValue;
-            transaction.set(profileRef, initialData);
+
+            const finalData = {
+                ...initialData,
+                ...topLevelData,
+                activeTier: topLevelData.activeTier || initialData.activeTier,
+                subscriptionStatus: topLevelData.subscriptionStatus || initialData.subscriptionStatus,
+            };
+
+            (finalData as any)[counterField] = incrementValue;
+            transaction.set(profileRef, finalData);
+            // --- END: CORRECTED PROFILE CREATION ---
         } else {
             transaction.update(profileRef, {
                 [counterField]: increment(incrementValue),
@@ -549,7 +624,7 @@ export const createUserProfileDocument = async (
     email?: string | null,
     displayName?: string | null,
     photoURL?: string | null,
-    transaction?: FirestoreTransaction
+    transaction?: any // FirestoreTransaction is not exported, using any
 ): Promise<UserProfileData> => {
   const profileRef = doc(db, 'users', userId, 'profile', 'data');
   const initialData = prepareInitialProfileData(userId, email, displayName, photoURL);
@@ -566,4 +641,3 @@ export const createUserProfileDocument = async (
       activeTier: initialData.activeTier,
   };
 };
-
