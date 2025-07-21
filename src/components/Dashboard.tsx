@@ -1254,6 +1254,39 @@ const generateChatName = async (convId: string, history: ChatMessageData[], curr
     } catch (error) { console.error("Error in generateChatName:", error); }
 };
 
+
+  // In Dashboard.tsx
+
+// ADD THIS NEW HELPER FUNCTION
+const getFileContentAsBase64 = async (fileMeta: { url?: string; type: string; }): Promise<string | null> => {
+    if (!fileMeta.url) return null;
+    try {
+        // Use a proxy to bypass potential CORS issues if needed, but direct fetch is often fine for Firebase Storage.
+        const response = await fetch(fileMeta.url);
+        if (!response.ok) {
+            console.error(`Failed to fetch file from URL: ${fileMeta.url} with status ${response.status}`);
+            return null;
+        }
+        const blob = await response.blob();
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                // The result is a data URL: "data:mime/type;base64,the_base_64_string"
+                // We only need the part after the comma.
+                const base64String = (reader.result as string)?.split(',')[1];
+                resolve(base64String || null);
+            };
+            reader.onerror = (error) => {
+                console.error("FileReader error:", error);
+                reject(error);
+            };
+            reader.readAsDataURL(blob);
+        });
+    } catch (error) {
+        console.error("Error fetching or reading file for AI context:", error);
+        return null;
+    }
+};
 // Replace your entire handleChatSubmit function with this one.
 
 // Replace the entire handleChatSubmit function in Dashboard.tsx with this corrected version.
@@ -1736,6 +1769,45 @@ Assistant:`;
     } else {
         let unfilteredHistory = chatHistory.filter(m => m.id !== newAssistantLPHId && m.role !== 'system');
         let historyForPrompt = unfilteredHistory.slice(-CHAT_HISTORY_LENGTH_FOR_PROMPT);
+
+      // =================================================================
+    // ========= START OF CONTEXT HYDRATION FIX ========================
+    // =================================================================
+
+    // 1. Get the recent history from the current state.
+    let historySliceForContext = chatHistory
+        .filter(m => m.id !== newAssistantLPHId && m.role !== 'system')
+        .slice(-CHAT_HISTORY_LENGTH_FOR_PROMPT);
+
+    // 2. Asynchronously "hydrate" the history slice with file content if it's missing.
+    const hydratedHistoryPromises = historySliceForContext.map(async (message) => {
+        if (message.role !== 'user' || !message.attachedFilesMeta || message.attachedFilesMeta.length === 0) {
+            return message; // No files to process for this message.
+        }
+
+        const hydratedFilesPromises = message.attachedFilesMeta.map(async (fileMeta) => {
+            // If base64 data already exists, don't re-fetch.
+            if (fileMeta.base64Data) {
+                return fileMeta;
+            }
+
+            const isSupportedForContext = fileMeta.type.startsWith('image/') || fileMeta.type === 'application/pdf' || fileMeta.type === 'text/plain' || (fileMeta.name && fileMeta.name.endsWith('.md'));
+            if (fileMeta.url && isSupportedForContext) {
+                const base64Content = await getFileContentAsBase64(fileMeta);
+                // Return a new object that includes the fetched base64 content.
+                return { ...fileMeta, base64Data: base64Content || undefined };
+            }
+            return fileMeta;
+        });
+
+        const fullyHydratedFiles = await Promise.all(hydratedFilesPromises);
+        return { ...message, attachedFilesMeta: fullyHydratedFiles };
+    });
+
+    // 3. Wait for all messages to be processed. The result is the complete context.
+    const historyForPrompt = await Promise.all(hydratedHistoryPromises);
+
+      
         const geminiFormattedContents = createChatPromptContents(userMsgContent, filesForThisMessageSubmission, historyForPrompt);
         
         apiRequestBody = {
