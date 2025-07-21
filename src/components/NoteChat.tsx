@@ -38,7 +38,8 @@ interface ChatMessage {
     id?: string;
     role: 'user' | 'assistant';
     content: string;
-    imageData?: ImageData;
+    // REPLACE THIS LINE
+    attachedFiles?: { base64: string; type: string; name: string; wasGenerated?: boolean }[];
     timer?: TimerMessage;
     error?: boolean;
     isEditSuggestion?: boolean;
@@ -1007,12 +1008,16 @@ Just ask to get started.
             const messagesToDisplayInChat: ChatMessage[] = [];
             if (collectedPdfContextText && !isUsingImageGenModel && !isUsingSearch) messagesToDisplayInChat.push({ id: `pdf-ctx-disp-${Date.now()}`, role: 'user', content: collectedPdfContextText, isPdfContextDisplay: true });
 
-            let userMsgImageData: ImageData | undefined = undefined;
+            let filesForMessage: SelectedFile[] = [];
             if (!isUsingImageGenModel && !isUsingSearch) {
-                const imageFiles = currentFiles.filter(f => f.type.startsWith('image/'));
-                if (imageFiles.length > 0) userMsgImageData = { base64: imageFiles[0].base64Data, type: imageFiles[0].type, name: imageFiles[0].name };
+                filesForMessage = currentFiles;
             }
-            messagesToDisplayInChat.push({ id: `user-${Date.now()}`, role: 'user', content: messageContent, imageData: userMsgImageData });
+            messagesToDisplayInChat.push({
+                id: `user-${Date.now()}`,
+                role: 'user',
+                content: messageContent,
+                attachedFiles: filesForMessage.length > 0 ? filesForMessage.map(f => ({ base64: f.base64Data, type: f.type, name: f.name })) : undefined
+            });
             setSuggestedPrompts([]);
             setChatHistory(prev => [...prev, ...messagesToDisplayInChat]);
             let contentForAI = messageContent;
@@ -1433,9 +1438,19 @@ YOU MUST ALWAYS USE THAT LATEX FOR MATH ONLY.
                     requestBody.systemInstruction = { parts: [{ text: systemInstruction }] };
                     requestBody.tools = isUsingSearch ? [{ "google_search": {} }] : [];
                     const apiContent: any[] = [];
-                    recentHistory.forEach(msg => {
+recentHistory.forEach(msg => {
                         if (msg.timer || msg.isUpdateConfirmation || msg.content === '...' || msg.isGeneratingImage || msg.isPdfContextDisplay) return;
-                        if (msg.role === 'user') { const userParts: any[] = [{ text: msg.content.replace(/\[(?:Image )?Attached:.*?\]/g, '').trim() }]; if (msg.imageData && !isUsingSearch) userParts.push({ inline_data: { mime_type: msg.imageData.type, data: msg.imageData.base64 } }); if (userParts[0].text || userParts.length > 1) apiContent.push({ role: "user", parts: userParts }); }
+                        if (msg.role === 'user') {
+                            const userParts: any[] = [{ text: msg.content }];
+                            if (msg.attachedFiles && !isUsingSearch) {
+                                msg.attachedFiles.forEach(file => {
+                                    if (file.type.startsWith('image/') || file.type === 'application/pdf') {
+                                        userParts.push({ inline_data: { mime_type: file.type, data: file.base64 } });
+                                    }
+                                });
+                            }
+                            if (userParts[0].text || userParts.length > 1) apiContent.push({ role: "user", parts: userParts });
+                        }
                         else if (msg.role === 'assistant') { let assistantHistoryContent = msg.content?.replace(/```json[\s\S]*?```/g, msg.isEditSuggestion ? `(I proposed an edit: ${msg.editExplanation || 'Details omitted'})` : '(I provided a response)'); if (msg.wasImageGenerated) assistantHistoryContent += " [I generated an image]"; if (assistantHistoryContent?.trim()) apiContent.push({ role: "model", parts: [{ text: assistantHistoryContent.trim() }] }); }
                     });
                     const currentUserParts: any[] = [{ text: contentForAI }];
@@ -1462,7 +1477,7 @@ YOU MUST ALWAYS USE THAT LATEX FOR MATH ONLY.
                 const { blocks: jsonActionBlocks, cleanedText } = extractJsonBlocks(contentToProcess);
                 let assistantTextForDisplay = cleanedText;
 
-                let assistantFinalMessage: ChatMessage = { id: newLoadingMsgId, role: 'assistant', content: assistantTextForDisplay, imageData: parsedResult.imageData, error: !!parsedResult.error, isEditSuggestion: false, wasImageGenerated: isUsingImageGenModel && !!parsedResult.imageData && !parsedResult.error, sources: parsedResult.sources };
+                let assistantFinalMessage: ChatMessage = { id: newLoadingMsgId, role: 'assistant', content: assistantTextForDisplay, attachedFiles: parsedResult.imageData ? [{ ...parsedResult.imageData, wasGenerated: true }] : undefined, error: !!parsedResult.error, isEditSuggestion: false, wasImageGenerated: isUsingImageGenModel && !!parsedResult.imageData && !parsedResult.error, sources: parsedResult.sources };
 
                 const noteEditBlock = jsonActionBlocks.find(b => b.action && b.action.startsWith('propose_'));
                 const educationalBlock = jsonActionBlocks.find(b => b.type === "flashcard" || b.type === "question");
@@ -1673,7 +1688,13 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string) =
         </div>
     ) : message.role === 'user' ? (
         <>
-            {message.imageData && <div className="mb-2"><img src={`data:${message.imageData.type};base64,${message.imageData.base64}`} alt={message.imageData.name} className="max-w-full h-auto max-h-48 object-contain rounded-lg border border-indigo-200 dark:border-indigo-500/50"/></div>}
+            {message.attachedFiles && message.attachedFiles.length > 0 && (
+                <div className="space-y-2 mb-2">
+                    {message.attachedFiles.map((file, idx) => (
+                        <img key={idx} src={`data:${file.type};base64,${file.base64}`} alt={file.name} className="max-w-full h-auto max-h-48 object-contain rounded-lg border border-indigo-200 dark:border-indigo-500/50"/>
+                    ))}
+                </div>
+            )}
             {message.content && <div className="whitespace-pre-wrap text-sm">{message.content}</div>}
         </>
     ) : <AssistantMessageContent message={message} onAcceptEdit={handleAcceptEdit} onRevertEdit={handleRevertEdit} isChatLoading={isChatLoading} isDarkMode={!isIlluminateEnabled} />}
