@@ -55,6 +55,7 @@ import {
   PRO_CHAT_LIMIT,
   UserProfileData,
   onUserProfileSnapshot,
+  createUserProfileDocument,
   updateUserPointsAndLevel,
   updateUserStreak,
   addUserBadge,
@@ -843,9 +844,8 @@ const recognitionRef = useRef<any>(null);
     };
   }, [user]);
 
-useEffect(() => {
+  useEffect(() => {
     if (!user) {
-      // Clear all user-specific state on logout
       setUserName("Learner");
       setUserProfile(null);
       setUserContext(null);
@@ -863,39 +863,37 @@ useEffect(() => {
       return;
     }
 
-    // --- START OF FIX ---
-    // The logic is now much simpler. It just listens to the main user document.
-    // The createUserProfileDocument call is removed.
-
     setUserName(user.displayName || user.email?.split('@')[0] || "Learner");
     updateDashboardLastSeen(user.uid).catch(err => console.warn("Failed to update last seen:", err));
 
     const unsubProfile = onUserProfileSnapshot(user.uid, async (profileData) => {
       if (profileData) {
-        setUserProfile(profileData); // Directly set the profile from the single document
-        
-        // Tier and chat usage logic remains the same but now relies on the unified profile
-        const currentTier = await getUserTier(user.uid, profileData);
+        setUserProfile(currentProfile => JSON.stringify(currentProfile) !== JSON.stringify(profileData) ? profileData : currentProfile);
+        const currentTier = await getUserTier(user.uid, profileData.email!, profileData);
         setUserTier(currentTier);
         const limitForTier = getChatLimitForTier(currentTier);
         setChatLimit(limitForTier);
         setCurrentChatLimitDisplay(limitForTier === Infinity ? '∞' : limitForTier);
-        
-        if (currentTier !== 'premium') {
+        if (currentTier !== 'premium' && currentTier !== 'loading') {
           const currentMonthYear = new Date().toISOString().slice(0, 7);
-          const usageData = await getCurrentMonthUserChatUsage(user.uid, currentMonthYear);
-          setChatUsageCount(usageData?.count || 0);
+          try {
+            const usageData = await getCurrentMonthUserChatUsage(user.uid, currentMonthYear);
+            setChatUsageCount(usageData?.count || 0);
+          } catch (err) { console.error("Error loading chat usage data:", err); setChatUsageCount(0); }
         } else {
           setChatUsageCount(0);
         }
       } else {
-        // This case should ideally not happen for a logged-in user if signup is correct.
-        // You could navigate to an error page or try to recreate the doc here as a fallback.
-        console.error("User is authenticated, but user document was not found!");
-        navigate('/login');
+        const newProfile = await createUserProfileDocument(user.uid, user.email, user.displayName, user.photoURL);
+        setUserProfile(newProfile);
+        const currentTier = await getUserTier(user.uid, newProfile.email!, newProfile);
+        setUserTier(currentTier);
+        const limitForTier = getChatLimitForTier(currentTier);
+        setChatLimit(limitForTier);
+        setCurrentChatLimitDisplay(limitForTier === Infinity ? '∞' : limitForTier);
+        setChatUsageCount(0);
       }
     });
-    // --- END OF FIX ---
 
     const unsubContext = onUserContextChange(user.uid, setUserContext);
 
@@ -914,7 +912,7 @@ useEffect(() => {
       unsubUserTags();
       unsubConversations();
     };
-  }, [user, selectedFolder?.id, navigate]); // Added navigate to dependency array
+  }, [user, selectedFolder?.id]);
 
 
   useEffect(() => {
