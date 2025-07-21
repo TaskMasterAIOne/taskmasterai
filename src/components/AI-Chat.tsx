@@ -2038,7 +2038,7 @@ Assistant:`;
                 listening ? "Listening..." :
                 isImageGenModeActive ? "Describe the image to generate..." :
                 isNotionSearchModeActive ? "Search your Notion..." :
-                "Ask anything, or drop a file..."
+                "Ask anything..."
             }
             className="w-full bg-transparent text-gray-800 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 p-3.5 text-sm focus:ring-0 focus:outline-none border-0 resize-none overflow-y-auto max-h-44 leading-relaxed"
             disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading'}
