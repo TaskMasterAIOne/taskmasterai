@@ -1768,8 +1768,6 @@ Assistant:`;
         };
     } else {
         let unfilteredHistory = chatHistory.filter(m => m.id !== newAssistantLPHId && m.role !== 'system');
-        let historyForPrompt = unfilteredHistory.slice(-CHAT_HISTORY_LENGTH_FOR_PROMPT);
-
       // =================================================================
     // ========= START OF CONTEXT HYDRATION FIX ========================
     // =================================================================
