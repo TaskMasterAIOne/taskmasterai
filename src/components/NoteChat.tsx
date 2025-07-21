@@ -39,7 +39,7 @@ interface ChatMessage {
     role: 'user' | 'assistant';
     content: string;
     // REPLACE THIS LINE
-    attachedFiles?: { base64: string; type: string; name: string; wasGenerated?: boolean }[];
+   attachedFiles?: { base64: string; type: string; name: string; size?: number; wasGenerated?: boolean }[]; // <-- ADD size?
     timer?: TimerMessage;
     error?: boolean;
     isEditSuggestion?: boolean;
@@ -51,6 +51,8 @@ interface ChatMessage {
     newFullContent?: string;
     sequentialEdits?: EditStep[];
     isUpdateConfirmation?: boolean;
+    isVerifyingContent?: boolean;
+    isProcessingActions?: boolean;
     canRevert?: boolean;
     previousContent?: string;
     noteIdToRevert?: string;
@@ -1016,7 +1018,7 @@ Just ask to get started.
                 id: `user-${Date.now()}`,
                 role: 'user',
                 content: messageContent,
-                attachedFiles: filesForMessage.length > 0 ? filesForMessage.map(f => ({ base64: f.base64Data, type: f.type, name: f.name })) : undefined
+                attachedFiles: filesForMessage.length > 0 ? filesForMessage.map(f => ({ base64: f.base64Data, type: f.type, name: f.name, size: f.size })) : undefined
             });
             setSuggestedPrompts([]);
             setChatHistory(prev => [...prev, ...messagesToDisplayInChat]);
@@ -1686,17 +1688,34 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string) =
             : message.isGeneratingImage ? (<div className="flex items-center gap-2 text-sm"><Palette className="w-4 h-4 animate-pulse text-purple-500" /><span>Creating...</span></div>)
             : (<div className="flex space-x-0.5 p-1"><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce"></div><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div></div>)}
         </div>
-    ) : message.role === 'user' ? (
-        <>
-            {message.attachedFiles && message.attachedFiles.length > 0 && (
-                <div className="space-y-2 mb-2">
-                    {message.attachedFiles.map((file, idx) => (
-                        <img key={idx} src={`data:${file.type};base64,${file.base64}`} alt={file.name} className="max-w-full h-auto max-h-48 object-contain rounded-lg border border-indigo-200 dark:border-indigo-500/50"/>
-                    ))}
-                </div>
-            )}
-            {message.content && <div className="whitespace-pre-wrap text-sm">{message.content}</div>}
-        </>
+) : message.role === 'user' ? (
+    <>
+        {message.attachedFiles && message.attachedFiles.length > 0 && (
+            <div className="space-y-1.5 mb-1.5">
+                {message.attachedFiles.map((file, fileIndex) => (
+                    <div key={`${message.id}-file-${file.name}-${fileIndex}`} className="mt-1">
+                        {file.type.startsWith('image/') ? (
+                            <img 
+                                src={`data:${file.type};base64,${file.base64}`} 
+                                alt={file.name} 
+                                className="max-w-full h-auto max-h-40 object-contain rounded-md border border-indigo-200 dark:border-indigo-500/50 cursor-pointer" 
+                                onClick={() => window.open(`data:${file.type};base64,${file.base64}`, '_blank')} 
+                                title={`View ${file.name}`}
+                            />
+                        ) : (
+                            <div className="flex items-center gap-1.5 p-1.5 rounded-md border bg-indigo-400/20 dark:bg-indigo-600/20 border-indigo-300 dark:border-indigo-600/40 text-indigo-100 dark:text-indigo-300 text-[10px] max-w-xs">
+                                <FileText className="w-3 h-3 flex-shrink-0" /> 
+                                <span className="truncate flex-1" title={file.name}>
+                                    {file.name} ({formatBytes(file.size || 0)})
+                                </span>
+                            </div>
+                        )}
+                    </div>
+                ))}
+            </div>
+        )}
+        {message.content && <div className="whitespace-pre-wrap text-sm">{message.content}</div>}
+    </>
     ) : <AssistantMessageContent message={message} onAcceptEdit={handleAcceptEdit} onRevertEdit={handleRevertEdit} isChatLoading={isChatLoading} isDarkMode={!isIlluminateEnabled} />}
 </div>
                                     </div>
