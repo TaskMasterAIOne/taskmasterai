@@ -284,26 +284,18 @@ export const updateUserNoteUsage = async (userId: string, typeToIncrement: 'pdfA
                 const userRef = doc(db, 'users', userId);
                 const userSnap = await transaction.get(userRef);
                 const topLevelData = userSnap.exists() ? userSnap.data() : {};
-                
-                const initialData = prepareInitialProfileData(
-                    userId,
-                    topLevelData.email,
-                    topLevelData.displayName,
-                    topLevelData.photoURL
-                );
 
-                const finalData = {
-                    ...initialData,
-                    ...topLevelData,
-                    activeTier: topLevelData.activeTier || initialData.activeTier,
-                    subscriptionStatus: topLevelData.subscriptionStatus || initialData.subscriptionStatus,
-                };
+                const initialData = prepareInitialProfileData(userId, topLevelData.email, topLevelData.displayName, topLevelData.photoURL);
 
-                finalData.noteUsageByMonth = {
+                // Inherit subscription status from the top-level document
+                initialData.activeTier = topLevelData.activeTier || initialData.activeTier;
+                initialData.subscriptionStatus = topLevelData.subscriptionStatus || null;
+
+                initialData.noteUsageByMonth = {
                     [currentMonth]: { pdfAi: 0, youtube: 0, lastUpdated: Timestamp.now() }
                 };
-                (finalData.noteUsageByMonth[currentMonth] as any)[typeToIncrement] = 1;
-                transaction.set(userProfileRef, finalData);
+                (initialData.noteUsageByMonth[currentMonth] as any)[typeToIncrement] = 1;
+                transaction.set(userProfileRef, initialData);
                 // --- END: CORRECTED PROFILE CREATION ---
             } else {
                 const currentData = profileSnap.data() as UserProfileData;
@@ -382,19 +374,16 @@ export const updateUserPointsAndLevel = async (
             userDetailsForCreation?.displayName || topLevelData.displayName,
             userDetailsForCreation?.photoURL || topLevelData.photoURL
         );
-        
-        const finalData = {
-            ...initialData,
-            ...topLevelData,
-            activeTier: topLevelData.activeTier || initialData.activeTier,
-            subscriptionStatus: topLevelData.subscriptionStatus || initialData.subscriptionStatus,
-        };
+
+        // Inherit subscription status from the top-level document
+        initialData.activeTier = topLevelData.activeTier || initialData.activeTier;
+        initialData.subscriptionStatus = topLevelData.subscriptionStatus || null;
 
         const newPoints = pointsToAdd;
-        finalData.points = newPoints;
-        finalData.level = calculateLevel(newPoints);
-        transaction.set(profileRef, finalData);
-        return { newPoints: finalData.points, newLevel: finalData.level, newTier: undefined };
+        initialData.points = newPoints;
+        initialData.level = calculateLevel(newPoints);
+        transaction.set(profileRef, initialData);
+        return { newPoints: initialData.points, newLevel: initialData.level, newTier: undefined };
         // --- END: CORRECTED PROFILE CREATION ---
     } else {
         const currentProfileData = profileSnap.data() as UserProfileData;
@@ -447,22 +436,19 @@ export const updateUserStreak = async (
             userDetailsForCreation?.photoURL || topLevelData.photoURL
         );
 
-        const finalData = {
-            ...initialData,
-            ...topLevelData,
-            activeTier: topLevelData.activeTier || initialData.activeTier,
-            subscriptionStatus: topLevelData.subscriptionStatus || initialData.subscriptionStatus,
-        };
+        // Inherit subscription status from the top-level document
+        initialData.activeTier = topLevelData.activeTier || initialData.activeTier;
+        initialData.subscriptionStatus = topLevelData.subscriptionStatus || null;
 
         const now = Timestamp.now();
         if (streakType === 'overall') {
-            finalData.overallStreakCount = 1;
-            finalData.lastOverallStreakUpdate = now;
+            initialData.overallStreakCount = 1;
+            initialData.lastOverallStreakUpdate = now;
         } else {
-            finalData.notesStreakCount = 1;
-            finalData.lastNotesStreakUpdate = now;
+            initialData.notesStreakCount = 1;
+            initialData.lastNotesStreakUpdate = now;
         }
-        transaction.set(profileRef, finalData);
+        transaction.set(profileRef, initialData);
         return { newStreakCount: 1, streakBroken: false };
         // --- END: CORRECTED PROFILE CREATION ---
     } else {
@@ -539,15 +525,12 @@ export const addUserBadge = async (
             userDetailsForCreation?.photoURL,
         );
         
-        const finalData = {
-            ...initialData,
-            ...topLevelData,
-            activeTier: topLevelData.activeTier || initialData.activeTier,
-            subscriptionStatus: topLevelData.subscriptionStatus || initialData.subscriptionStatus,
-        };
+        // Inherit subscription status from the top-level document
+        initialData.activeTier = topLevelData.activeTier || initialData.activeTier;
+        initialData.subscriptionStatus = topLevelData.subscriptionStatus || null;
 
-        finalData.badges = [badgeId];
-        transaction.set(profileRef, finalData);
+        initialData.badges = [badgeId];
+        transaction.set(profileRef, initialData);
         // --- END: CORRECTED PROFILE CREATION ---
     } else {
         const currentProfileData = profileSnap.data() as UserProfileData;
@@ -584,15 +567,12 @@ export const incrementUserProfileCounter = async (
                 userDetailsForCreation?.photoURL,
             );
 
-            const finalData = {
-                ...initialData,
-                ...topLevelData,
-                activeTier: topLevelData.activeTier || initialData.activeTier,
-                subscriptionStatus: topLevelData.subscriptionStatus || initialData.subscriptionStatus,
-            };
+            // Inherit subscription status from the top-level document
+            initialData.activeTier = topLevelData.activeTier || initialData.activeTier;
+            initialData.subscriptionStatus = topLevelData.subscriptionStatus || null;
 
-            (finalData as any)[counterField] = incrementValue;
-            transaction.set(profileRef, finalData);
+            (initialData as any)[counterField] = incrementValue;
+            transaction.set(profileRef, initialData);
             // --- END: CORRECTED PROFILE CREATION ---
         } else {
             transaction.update(profileRef, {
@@ -624,7 +604,7 @@ export const createUserProfileDocument = async (
     email?: string | null,
     displayName?: string | null,
     photoURL?: string | null,
-    transaction?: any // FirestoreTransaction is not exported, using any
+    transaction?: any 
 ): Promise<UserProfileData> => {
   const profileRef = doc(db, 'users', userId, 'profile', 'data');
   const initialData = prepareInitialProfileData(userId, email, displayName, photoURL);
