@@ -1044,7 +1044,6 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
   const currentFiles = incomingFiles !== undefined ? incomingFiles : selectedFiles;
 
     if ((!currentMessage.trim() && currentFiles.length === 0 && !isImageGenModeActive) || (isImageGenModeActive && !currentMessage.trim()) || !user || !user.uid) return;
-    if (isRecording) { recognitionRef.current?.stop(); }
 
     const isNewConversation = !conversationId;
     let currentConvId = conversationId;
