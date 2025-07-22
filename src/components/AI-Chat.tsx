@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { IntegrationsControl } from './integrations-control'; // ADD THIS IMPORT
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 import { useNavigate, Link } from 'react-router-dom';
 import {
@@ -29,12 +30,13 @@ import { FlashcardsQuestions } from './FlashcardsQuestions';
 import { ContextDialog } from './context-dialog';
 import { ChatControls } from './chat-controls';
 
+
+
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
 const GEMINI_TEXT_MODEL = 'gemini-2.5-flash';
 const GEMINI_MINI_MODEL = 'gemini-2.0-flash';
 const GEMINI_IMAGE_GEN_MODEL = 'gemini-2.0-flash-preview-image-generation';
 
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 const SUPPORTED_FILE_TYPES = "image/jpeg,image/png,image/webp,image/gif,image/svg+xml,application/pdf,text/plain,.md,.txt,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.rtf";
 const MAX_FILE_SIZE_MB = 20;
 const CHAT_HISTORY_LENGTH_FOR_PROMPT = 10;
@@ -54,7 +56,13 @@ export interface ChatMessageData {
   flashcard?: FlashcardMessage;
   question?: QuestionMessage;
   error?: boolean;
-  actionDetails?: { status: 'success' | 'error'; message?: string };
+ actionDetails?: {
+    status: 'success' | 'error';
+    message?: string;
+    // --- ADD THESE TWO LINES ---
+    pageUrl?: string;
+    pageTitle?: string;
+  };
   localImageData?: LocalImageData;
   imageUrl?: string;
   imageMeta?: FirebaseImageMeta;
@@ -391,7 +399,8 @@ const combineDateAndTime = (dateStr: string | undefined | null, timeStr: string 
 // In AI-Chat.tsx, replace the entire AssistantMessageContent component:
 
 const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessageData, isDarkMode: boolean }) => {
-    const proseClass = `prose prose-sm max-w-none text-gray-800 dark:text-gray-100 prose-p:mb-3 prose-p:last:mb-0 prose-p:leading-relaxed prose-ul:my-3 prose-ul:space-y-2 prose-ol:my-3 prose-ol:space-y-2 prose-li:pl-1 prose-code:text-xs prose-code:px-1 prose-code:py-0.5 prose-pre:text-xs prose-pre:my-2 prose-pre:p-2 prose-pre:leading-relaxed
+    // --- MODIFIED THIS LINE ---
+    const proseClass = `prose prose-base max-w-none text-gray-800 dark:text-gray-100 prose-p:text-sm md:prose-p:text-[15px] prose-p:mb-3 prose-p:last:mb-0 prose-p:leading-relaxed prose-ul:my-3 prose-ul:space-y-2 prose-ol:my-3 prose-ol:space-y-2 prose-li:pl-1 prose-code:text-sm prose-code:px-1 prose-code:py-0.5 prose-pre:text-sm prose-pre:my-2 prose-pre:p-2 prose-pre:leading-relaxed
     ${isDarkMode
         ? 'prose-invert prose-a:text-[#8A85FF] hover:prose-a:text-indigo-300 prose-code:bg-gray-700/70 prose-code:text-pink-400 prose-pre:bg-black/60'
         : 'prose-a:text-[#635BFF] hover:prose-a:text-indigo-700 prose-code:bg-gray-200/70 prose-code:text-pink-600 prose-pre:bg-gray-800/80 prose-pre:text-white/90'
@@ -453,13 +462,30 @@ const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessage
             {message.flashcard && <FlashcardsQuestions type="flashcard" data={message.flashcard.data} onComplete={() => {}} />}
             {message.question && <FlashcardsQuestions type="question" data={message.question.data} onComplete={() => {}} />}
 
-            {message.actionDetails && (
+          {message.actionDetails && (
                 <div className={`mt-2 pt-2 border-t border-dashed ${message.actionDetails.status === 'success' ? 'border-green-300 dark:border-green-700/60' : 'border-red-300 dark:border-red-700/60'}`}>
                     <div className={`flex items-center gap-1.5 text-xs font-medium ${message.actionDetails.status === 'success' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                         {message.actionDetails.status === 'success' ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
                         <span className="whitespace-pre-wrap">{message.actionDetails.message}</span>
                     </div>
-                </div>
+
+                    {/* --- ADD THIS BLOCK TO RENDER THE LINK BUTTON --- */}
+                    {message.actionDetails.status === 'success' && message.actionDetails.pageUrl && (
+                        <div className="mt-2">
+                            <a
+                                href={message.actionDetails.pageUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-200/50 dark:bg-gray-700/50 px-2.5 py-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                            >
+                                <NotionIcon className="w-3.5 h-3.5 fill-current" />
+                                <span>View "{message.actionDetails.pageTitle || "Page"}" in Notion</span>
+                                <ArrowUpRight className="w-3 h-3" />
+                            </a>
+                        </div>
+                    )}
+                    {/* --- END OF NEW BLOCK --- */}
+                                   </div>
             )}
             
             {message.sources && message.sources.length > 0 && (
@@ -582,6 +608,8 @@ const getFileContentAsBase64 = async (fileMeta: { url?: string; type: string; })
 };
 
 
+
+
 export function AIChat() {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
@@ -642,6 +670,13 @@ const [isDraggingOver, setIsDraggingOver] = useState(false);
    const [isNotionConnected, setIsNotionConnected] = useState(false);
   const [isNotionSearchModeActive, setIsNotionSearchModeActive] = useState(false);
   const [notionActionStatus, setNotionActionStatus] = useState<string | null>(null);
+  const [isProcessingNotion, setIsProcessingNotion] = useState(false);
+
+    // --- ADD THIS STATE FOR SHORT-TERM MEMORY ---
+
+    const [activeNotionPage, setActiveNotionPage] = useState<{ id: string, title: string } | null>(null);
+
+
   const functions = getFunctions();
 
   const handleStyleSelect = (style: string, prompt: string) => {
@@ -1015,21 +1050,41 @@ const [isDraggingOver, setIsDraggingOver] = useState(false);
     return [...formattedHistory, { role: 'user', parts: userMessageParts }];
   };
 
-  const generateChatName = async (convId: string, history: ChatMessageData[], currentUser: User | null) => {
-    if (!currentUser || !currentUser.uid || history.length < 2 || !geminiApiKey) return;
+const generateChatName = async (convId: string, history: ChatMessageData[], currentUser: User | null) => {
+    // --- FIX START: Relax the history check to run if there is ANY content ---
+    if (!currentUser || !currentUser.uid || history.length === 0 || !geminiApiKey) {
+        console.warn("generateChatName guard clause triggered. Aborting.", { hasUser: !!currentUser, historyLength: history.length });
+        return;
+    }
+    // --- FIX END ---
+
     const relevantHistory = history.slice(0, Math.min(history.length, 4)).map(m => `${m.role}: ${m.content?.substring(0, 100) || ""}`).join("\n");
     const prompt = `Please provide a short 3-5 word title summarizing the conversation so far:\n${relevantHistory}\nReturn ONLY the title, with no extra commentary. USE THE SAME LANGUAGE AS PRESENTED IN THE CONVERSATION!`;
+    
     try {
-      const nameGenEndpoint = `${GEMINI_API_BASE}${GEMINI_MINI_MODEL}:generateContent?key=${geminiApiKey}`;
-      const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 60 } }) };
-      const response = await fetchWithTimeout(nameGenEndpoint, geminiOptions, 10000);
-      if (!response.ok) { console.warn(`Name gen API failed: ${response.status}`); return; }
-      const responseText = await response.text();
-      const parsedResponse = parseGeminiApiResponse(responseText, false);
-      if (parsedResponse.text && parsedResponse.text.trim()) { await updateChatConversationName(convId, parsedResponse.text.trim().substring(0, 50)); }
-      else if (parsedResponse.error) { console.warn("Name gen failed (API/parsing):", parsedResponse.error); }
-    } catch (error) { console.error("Error in generateChatName:", error); }
-  };
+        const nameGenEndpoint = `${GEMINI_API_BASE}${GEMINI_MINI_MODEL}:generateContent?key=${geminiApiKey}`;
+        const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 60 } }) };
+        const response = await fetchWithTimeout(nameGenEndpoint, geminiOptions, 10000);
+        if (!response.ok) { 
+            console.warn(`Name gen API failed: ${response.status}`); 
+            return; 
+        }
+        const responseText = await response.text();
+        const parsedResponse = parseGeminiApiResponse(responseText, false);
+      
+        if (parsedResponse.text && parsedResponse.text.trim()) {
+            // Clean up the name by removing potential quotes
+            const newName = parsedResponse.text.trim().replace(/["']/g, "").substring(0, 50);
+            await updateChatConversationName(convId, newName);
+            // This state update is a signal for the UI, not the primary logic trigger
+            setHasGeneratedChatName(true); 
+        } else if (parsedResponse.error) { 
+            console.warn("Name gen failed (API/parsing):", parsedResponse.error); 
+        }
+    } catch (error) { 
+        console.error("Error in generateChatName:", error); 
+    }
+};
 
 const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, incomingFiles?: SelectedFile[]) => {
     e?.preventDefault();
@@ -1082,7 +1137,7 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
       'style of', 'draw like', 'in the style of', 'generate in the style of', 'draw', 'design', 'turn this' 
     ];
 
-    const searchTriggers = [
+    const searchTriggers = [ 
     ];
 
     const containsTrigger = (message: string, triggers: string[]) => {
@@ -1231,25 +1286,150 @@ ${memoryContext}
 
 // -------------------------------------------------------------------------------------------------
 // [PROTOCOL 1: NOTION ACTION PROTOCOL]
-// Use this for all interactions with the user's Notion workspace.
+// This is your complete guide for all Notion interactions. Follow it with absolute precision.
 // -------------------------------------------------------------------------------------------------
-   - **Critical Rule**: Your response for a Notion action MUST be a single JSON object with type: "notion". Do not include any other text outside the JSON block.
-   - **Workflow**: To read, update, or append to a page, you often need its page_id. If you don't know the page_id, you MUST use the searchNotion action first to find it. The system will provide a list of results, and you can use the ID from there for subsequent actions.
-   - **JSON Format**:
+
+   // --- [THE GOLDEN RULE: The "Active Page" Context] ---
+   // This is your most important rule. It is the key to avoiding almost all errors.
+   // 1. When you successfully find, create, or modify a page, that page's unique ID and Title become the "Active Page".
+   // 2. The system will provide this "Active Page" context to you on the next turn.
+   // 3. All subsequent commands from the user (e.g., "add notes", "update it") MUST be performed on this "Active Page" using its direct page_id.
+   // 4. This context is only cleared if the user explicitly asks for a DIFFERENT page by name.
+
+   // --- [CORE WORKFLOW: The Two-Tiered Approach] ---
+   // This is your primary logic for every Notion request.
+
+   // TIER 1: Do you have an "Active Page ID" provided in the context?
+   // If YES: You MUST use a **Direct Action** with the page_id. This is non-negotiable. It bypasses search and prevents all ambiguity errors.
+   //   - **Direct Actions:** appendToNotionPage, deleteNotionPage.
+
+   // TIER 2: If you DO NOT have an "Active Page ID":
+   // You must first DISCOVER the page using a **Smart Action** that searches by title.
+   //   - **Smart Actions:** findAndReadPageContent, findAndAppendToPage, findAndReplaceInPage, etc.
+
+${activeNotionPage ? `
+   // --- [CURRENT CONTEXT: YOU HAVE AN ACTIVE PAGE!] ---
+   - **Page Title:** "${activeNotionPage.title}"
+   - **Page ID:** "${activeNotionPage.id}"
+   - **CRITICAL INSTRUCTION:** For the user's next command, you MUST use a **Direct Action** with the page_id above.
+   - **EXAMPLE PAYLOAD:** \`{ "action": "appendToNotionPage", "payload": { "page_id": "${activeNotionPage.id}", "content": "..." } }\`
+` : `
+   // --- [CURRENT CONTEXT: YOU DO NOT HAVE AN ACTIVE PAGE] ---
+   - You must first identify the target page using a **Smart Action** (e.g., \`findAndReadPageContent\`, \`findAndAppendToPage\`).
+`}
+
+
+
+   // --- [THE GOLDEN RULE OF CONTEXT: THE "ACTIVE PAGE"] ---
+   - **This is your most important rule for Notion.** When you successfully find, create, or modify a page, that page's title (e.g., "Marketing 101 class") becomes the **"Active Page"**.
+   - **You MUST remember this title.** All subsequent user commands that are modifications (e.g., "add notes," "update it," "change the title") are about this **"Active Page"** unless the user specifies a new page title.
+   - **DO NOT** get confused by the page's content (like headings) or its parent (like "Homework"). Your focus is locked onto the "Active Page" title until a new one is mentioned.
+
+   // --- [CORE BEHAVIOR: PROACTIVE & SURGICAL MODIFICATION] ---
+   - **Rule 1: Never Create Empty Pages.** When a user asks you to create a page like a "study plan" or "meeting notes," you MUST generate useful starter content and include it in the createNotionPage call. This prevents immediate follow-up failures.
+   - **Rule 2: Never Be Destructive.** When a user asks to "update" or "add to" a section, you MUST use a precise tool like findAndReplaceInPage or findAndInsertAfter. Do NOT use findAndUpdatePageContent (which deletes everything) unless the user explicitly says "replace the whole page" or "start over."
+
+      // --- [CRITICAL WORKFLOW: HOW TO REPLACE A SECTION] ---
+   - This is the correct procedure for updating a section like "Goals for the Week".
+   1.  You must identify the **header** of the section the user wants to change.
+   2.  You will use the findAndReplaceInPage action.
+   3.  For the findText payload, you MUST use **only the text of the header** (e.g., "Goals for the Week:").
+   4.  For the replaceText payload, you MUST provide the **full, new, updated section**, including the new header and all its new bullet points, formatted in Markdown.
+   - **Example:**
+     - **User:** "lets update he goals to be longer"
+     - **Your Thought Process:** The user wants to update the 'Goals' section on the active 'Study Plan' page. I will find the header "Goals for the Week:" and replace it with a new header and new, longer goals.
+     - **CORRECT PAYLOAD:**
+       \`\`\`json
+       {
+         "action": "findAndReplaceInPage",
+         "payload": {
+           "title": "Study Plan",
+           "findText": "Goals for the Week:",
+           "replaceText": "### Expanded Goals for the Week:\\n- **Goal 1:** Complete 2 full-length SAT practice tests under timed conditions and score above 1400.\\n- **Goal 2:** Meticulously review every incorrect answer from both practice tests, writing down the reason for the error and the correct principle to apply.\\n- **Goal 3:** Master 3 new advanced math concepts, such as trigonometry identities and complex numbers, by completing at least 20 practice problems for each."
+         }
+       }
+       \`\`\`
+   - **WRONG PAYLOAD:** Do NOT put the old bullet points in the findText. It will fail.
+     - \`{"findText": "Goals for the Week:\\n- Complete 2 full SAT..."}\` <-- THIS IS WRONG.
+
+   // --- [TOOL SELECTION GUIDE] ---
+
+   // **Direct Actions (Use these ONLY when you have an active page_id)**
+   - appendToNotionPage: Adds content to the end of the active page. Payload: \`{"page_id": string, "content": string}\`.
+   - deleteNotionPage: Deletes the active page. Payload: \`{"page_id": string}\`.
+
+   // **Smart Actions (Use these to FIND a page by its title and then act on it)**
+   - findAndReadPageContent, findAndAppendToPage, findAndInsertAfter, findAndReplaceInPage, findAndDeletePage.
+
+   // **Creation Action**
+   - createNotionPage: Creates a new page.
+     - If the user says "create a top-level page" or doesn't specify a parent, OMIT the parent_page_id from the payload.
+     - **CRITICAL:** NEVER create an empty page. Always generate useful starter content.
+
+   // --- [SPECIFIC WORKFLOWS & RULES] ---
+   - **Batch Creation:** To create multiple pages, use the actions array with multiple reateNotionPage objects.
+   - **Replacing a Section:** To update a section, use findAndReplaceInPage. Your findText MUST be the section's header text only (e.g., "Action Items:"). Your replaceText should be the full new section content.
+   - **Handling Latency:** If a find... action fails right after page creation, tell the user it's taking a moment and then **retry the exact same JSON action.**
+  // --- [CRITICAL WORKFLOW: HANDLING MULTIPLE ACTIONS (BATCHING)] ---
+   - **When the user asks to create or modify multiple items at once, you MUST use the batch format.**
+   - The JSON payload should have a single key "actions" which is an array of individual action objects.
+   - **Example Scenario:** User asks to create 3 sub-pages in their "School" page.
+   - **CORRECT BATCH PAYLOAD:**
      \`\`\`json
      {
        "type": "notion",
-       "action": "the_action_to_perform",
-       "payload": { "parameter": "value" }
+       "actions": [
+         {
+           "action": "createNotionPage",
+           "payload": { "title": "SAT", "parent_page_id": "b34c...", "content": "## SAT Study Plan..." }
+         },
+         {
+           "action": "createNotionPage",
+           "payload": { "title": "Cooking", "parent_page_id": "b34c...", "content": "## Cooking Notes..." }
+         },
+         {
+           "action": "createNotionPage",
+           "payload": { "title": "Basketball", "parent_page_id": "b34c...", "content": "## Basketball Drills..." }
+         }
+       ]
      }
      \`\`\`
-   - **Available Actions & Payloads**:
-     - \`searchNotion\`: Finds pages/databases. Payload: \`{"query": string}\`
-     - \`readNotionPageContent\`: Reads the text content of a page. Payload: \`{"page_id": string}\`
-     - \`createNotionPage\`: Creates a new page. Payload: \`{"title": string, "content"?: string, "parent_page_id"?: string}\` (A default parent will be used if omitted).
-     - \`appendToNotionPage\`: Adds text to the end of a page. Payload: \`{"page_id": string, "content": string}\`
-     - \`updateNotionPage\`: Updates page properties (like title). Payload: \`{"page_id": string, "properties": object}\`
-   - **Important**: If the user tries a Notion action but the integration is not connected, you MUST respond in plain text telling them to connect Notion in the settings. Do not output JSON
+   - **DO NOT** send multiple, separate JSON objects. Send one object with one actions array.
+
+   // --- [HANDLING FAILURES & LATENCY] ---
+   - **If a find... action fails immediately after you create a page, it is likely an API delay.**
+   - **DO NOT tell the user the page doesn't exist.**
+   - Your response MUST be: "It seems to be taking a moment for the new page to become available. Let me try that again." Then, you MUST output the **exact same JSON action a second time.**
+
+   // --- [PAYLOAD ACCURACY] ---
+   - When using findText, you MUST use the raw text content only. **DO NOT include markdown characters like # or -.**
+   - **GOOD:** {"findText": "Action Items"}
+   - **BAD:**{"findText": "## Action Items"}
+
+// --- [PAGE CREATION & SEARCH] ---
+   - To **CREATE** a brand new page: Use \`createNotionPage\`. If the user does not specify where to put it (a parent page or database), you **MUST** ask them first. See the "Page Creation Behavior" below.
+   - To **SEARCH** for pages or read a specific one:
+     - Use \`searchNotion\` to find a list of pages. Payload: \`{"query": string}\`.
+     - Use \`readNotionPageContent\` ONLY if you already have the page ID from a previous step in the same turn (this is rare).
+
+// --- [PAGE CREATION BEHAVIOR (CRITICAL)] ---
+   - Every new Notion page requires a parent (a page or a database).
+   - **If the user's request to create a page is AMBIGUOUS** (e.g., "create a page called Gym Routine"), you **MUST** ask them where it should go.
+   - **This is a two-step process for you:**
+     1.  **Step 1 (Clarification):** Your response MUST be a clarifying question. Example: "Of course! Where would you like to create the 'Gym Routine' page? You can add it to a database or inside an existing page." You can use \`searchNotion\` with an empty query to get a list of potential parents to suggest to the user.
+     2.  **Step 2 (Execution):** Once the user specifies a parent, you will then call \`createNotionPage\` with the correct \`parent_page_id\` or \`parent_database_id\`.
+
+// --- [CONTENT GENERATION FOR NOTION] ---
+   - **CRITICAL**: When providing content for a page (in the \`content\` field), you **MUST** format it using standard Markdown.
+   - Supported Markdown: Headings (#, ##, ###), Bullet Points (- or *), and To-Do lists (- [ ] for unchecked, - [x] for checked).
+   - **Example**: \`"content": "## Mexico Trip\\n\\n### Packing\\n- Passport\\n- [ ] Book flights"\`
+   
+   - **JSON Format**:
+     \\\`\\\`\\\`json
+     { "type": "notion", "action": "the_action_to_perform", "payload": { ... } }
+     \\\`\\\`\\\`
+
+   - **Important**: If the integration is not connected, respond in plain text telling them to connect Notion in the settings. Do not output JSON.
 
 // -------------------------------------------------------------------------------------------------
 // [PROTOCOL 1: JSON ACTION PROTOCOL]
@@ -1558,108 +1738,124 @@ Assistant:`;
         } catch (uploadError) { console.error("Error saving generated image:", uploadError); assistantTextForDisplay = (assistantTextForDisplay ? assistantTextForDisplay + "\n" : "") + "Error: Failed to save generated image."; }
       }
 
-      // Handle Notion Action
-      if (notionBlock && user?.uid && isNotionConnected) {
-        setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? { ...msg, isLoading: true, isProcessingActions: true, content: `Accessing Notion for: ${notionBlock.action}...` } : msg ));
-        setAiActionStatus(`Performing Notion action: ${notionBlock.action}...`);
-        
-        try {
-            const notionAction = httpsCallable(functions, 'notionProxy');
-            const result = await notionAction({ action: notionBlock.action, payload: notionBlock.payload });
-            const actionResult = result.data as any;
-            
-            let resultMessage = `Notion action '${notionBlock.action}' completed successfully.`; // Default message
-            
-            // Format a detailed message based on the Notion action's result
-            if (notionBlock.action === 'searchNotion') {
-                if (actionResult.results?.length > 0) {
-                    const pageLinks = actionResult.results.map((item: any) => {
-                        let title = "Untitled";
-                        let type = "";
-                        if (item.object === 'database' && item.title?.[0]?.plain_text) {
-                            title = item.title[0].plain_text;
-                            type = '[DB]';
-                        } else if (item.object === 'page' && item.properties?.title?.title?.[0]?.plain_text) {
-                            title = item.properties.title.title[0].plain_text;
-                            type = '[Page]';
-                        }
-                        return `- ${type} [${title}](${item.url})\n  *ID: \`${item.id}\`*`;
-                    }).join('\n');
-                    resultMessage = `I found these items in your Notion:\n\n${pageLinks}\n\nYou can use an item's ID for other actions like reading or appending content.`;
-                } else {
-                    resultMessage = `I couldn't find any pages matching your query in Notion.`;
-                }
-            } else if (notionBlock.action === 'readNotionPageContent') {
-                resultMessage = `Here is the content of the page:\n\n---\n\n${actionResult.markdownContent}`;
-            } else if (['createNotionPage', 'updateNotionPage', 'appendToNotionPage'].includes(notionBlock.action) && actionResult.url) {
-                const title = actionResult.properties?.title?.title?.[0]?.plain_text || 'the page';
-                resultMessage = `Successfully performed action on "[${title}](${actionResult.url})" in Notion.`;
-            }
 
-            // Prepend AI's conversational text if it exists, otherwise just use our result message
-            assistantTextForDisplay = cleanedText.trim() ? `${cleanedText}\n\n${resultMessage}` : resultMessage;
-            actionTakenDetails = { status: 'success', message: `Notion: ${notionBlock.action} succeeded.`};
+      // Handle Notion Action
+ if (notionBlock && user?.uid && isNotionConnected) {
+    setIsProcessingNotion(true);
+    setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? { ...msg, isLoading: true } : msg ));
+    
+    try {
+        const notionAction = httpsCallable(functions, 'notionProxy');
+        const requestData = notionBlock.actions
+            ? notionBlock
+            : { action: notionBlock.action, payload: notionBlock.payload };
+        const result = await notionAction(requestData);
+        const actionResult = result.data as any;
+        
+        let friendlyMessage = "";
+        let successMessage = "";
+        let pageUrl: string | undefined = undefined;
+        let pageTitle: string | undefined = undefined;
+
+        // Handle BATCH action results
+        if (Array.isArray(actionResult)) {
+            const successfulActions = actionResult.filter(r => r && !r.error);
+            successMessage = `Successfully completed ${successfulActions.length} of ${actionResult.length} Notion actions.`;
             
-        } catch (err: any) {
-            console.error("Notion action failed:", err);
-            const errorMessage = `Sorry, the Notion action failed: ${err.message || 'An unknown error occurred.'}`;
-            assistantTextForDisplay = cleanedText.trim() ? `${cleanedText}\n\n${errorMessage}` : errorMessage;
-            actionTakenDetails = { status: 'error', message: `Notion action failed.`};
-        } finally {
-            setAiActionStatus(null);
+            const lastSuccess = successfulActions[successfulActions.length - 1];
+            if (lastSuccess && lastSuccess.url) {
+                pageUrl = lastSuccess.url;
+                pageTitle = lastSuccess.properties?.title?.title?.[0]?.plain_text || "Last Created Page";
+                setActiveNotionPage({ id: lastSuccess.id, title: pageTitle });
+            }
+        } 
+        // Handle SINGLE action results
+        else {
+            switch (notionBlock.action) {
+                case 'searchNotion':
+                    successMessage = "Searched Notion.";
+                    if (actionResult.results?.length > 0) {
+                        friendlyMessage = actionResult.results.map((item: any) => {
+                            const title = item.object === 'page'
+                                ? item.properties.title?.title?.[0]?.plain_text
+                                : item.title?.[0]?.plain_text;
+                            return `- [${title}](${item.url})`;
+                        }).join('\n');
+                    } else {
+                        friendlyMessage = "I couldn't find any matching pages in your Notion.";
+                    }
+                    // A search action shouldn't set an active page unless it's a single, unambiguous result.
+                    if (actionResult.results?.length === 1) {
+                        const singleResult = actionResult.results[0];
+                         const title = singleResult.properties?.title?.title?.[0]?.plain_text;
+                         if (singleResult.id && title) {
+                            setActiveNotionPage({ id: singleResult.id, title: title });
+                         }
+                    } else {
+                        setActiveNotionPage(null); // Clear active page if search is ambiguous
+                    }
+                    break;
+
+                case 'createNotionPage':
+                case 'findAndAppendToPage':
+                case 'findAndUpdatePageContent':
+                case 'findAndReplaceInPage':
+                case 'appendToNotionPage':
+                case 'findAndInsertAfter':
+                case 'findAndReadPageContent': // Merged all page-returning actions
+                    successMessage = notionBlock.action === 'createNotionPage' ? "Created Notion page." : "Updated Notion page.";
+                    if (notionBlock.action === 'findAndReadPageContent') {
+                        successMessage = "Read Notion page.";
+                        friendlyMessage = actionResult.markdownContent || "This page appears to be empty.";
+                    }
+                    
+                    pageUrl = actionResult.url;
+                    pageTitle = actionResult.properties?.title?.title?.[0]?.plain_text || actionResult.pageTitle || "Untitled";
+
+                    // Set the successful page as our new "Active Page" in memory
+                    if (actionResult.id && pageTitle) {
+                        setActiveNotionPage({ id: actionResult.id, title: pageTitle });
+                    }
+                    break;
+                
+                case 'readNotionPageContent': // This is the older action that uses a page_id directly
+                     successMessage = "Read Notion page content.";
+                     friendlyMessage = "Here's the content I found:\n\n---\n\n" + (actionResult.markdownContent || "That page appears to be empty.");
+                     const pageIdRead = notionBlock.payload.page_id;
+                     if (pageIdRead) {
+                        pageUrl = `https://www.notion.so/${pageIdRead.replace(/-/g, '')}`;
+                        pageTitle = actionResult.pageTitle || "Notion Page"; 
+                        if (actionResult.id && pageTitle) {
+                           setActiveNotionPage({ id: actionResult.id, title: pageTitle });
+                        }
+                     }
+                     break;
+
+                case 'findAndDeletePage':
+                    successMessage = `Deleted Notion page "${actionResult.title}".`;
+                    setActiveNotionPage(null); // Clear active page after deletion
+                    break;
+                
+                default:
+                    successMessage = `Notion action '${notionBlock.action}' succeeded.`;
+            }
         }
-      }
+
+        assistantTextForDisplay = [cleanedText.trim(), friendlyMessage.trim()].filter(Boolean).join('\n\n');
+        actionTakenDetails = { status: 'success', message: successMessage, pageUrl, pageTitle };
+        
+    } catch (err: any) {
+        console.error("Notion action failed:", err);
+        assistantTextForDisplay = `Sorry, the Notion action failed: ${err.message || 'An unknown error occurred.'}`;
+        actionTakenDetails = { status: 'error', message: `Notion: ${notionBlock.action || 'batch operation'} failed.`};
+    } finally {
+        setIsProcessingNotion(false);
+    }
+}
 
 
       const educationalBlock = jsonActionBlocks.find(block => block.type === "flashcard" || block.type === "question");
       const otherActionBlocks = jsonActionBlocks.filter(b => b !== educationalBlock && b !== notionBlock);
-
-      if (notionBlock && user?.uid && isNotionConnected) {
-        setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? { ...msg, isLoading: true, isProcessingActions: true } : msg ));
-        setNotionActionStatus(`Performing Notion action: ${notionBlock.action}...`);
-        
-        try {
-            const notionAction = httpsCallable(functions, 'notionProxy');
-            const result = await notionAction({ action: notionBlock.action, payload: notionBlock.payload });
-            
-            const actionResult = result.data as any;
-            let resultMessage = `Notion action '${notionBlock.action}' completed.`;
-            if (notionBlock.action === 'searchNotion' && actionResult.results?.length > 0) {
-                const pageLinks = actionResult.results.map((item: any) => {
-                    let title = "Untitled";
-                    let type = "";
-                    // Check if it's a database object
-                    if (item.object === 'database' && item.title?.[0]?.plain_text) {
-                        title = item.title[0].plain_text;
-                        type = '[DB]';
-                    // Check if it's a page object
-                    } else if (item.object === 'page' && item.properties?.title?.title?.[0]?.plain_text) {
-                        title = item.properties.title.title[0].plain_text;
-                        type = '[Page]';
-                    }
-                    return `- ${type} [${title}](${item.url}) - \`ID: ${item.id}\``;
-                }).join('\n');
-                resultMessage = `I found these pages/databases in your Notion:\n${pageLinks}`;
-            } else if (notionBlock.action === 'searchNotion') {
-                resultMessage = `I couldn't find any pages matching your query in Notion.`;
-            } else if (notionBlock.action === 'readNotionPageContent') {
-                resultMessage = `Here is the content of the page:\n\n---\n\n${actionResult.markdownContent}`;
-            } else if (notionBlock.action === 'createNotionPage' || notionBlock.action === 'updateNotionPage') {
-                 const title = actionResult.properties.title?.title?.[0]?.plain_text || 'Untitled';
-                resultMessage = `Successfully performed action on page "[${title}](${actionResult.url})" in Notion.`;
-            }
-
-            assistantTextForDisplay = resultMessage;
-            actionTakenDetails = { status: 'success', message: `Notion: ${notionBlock.action} succeeded.`};
-            
-        } catch (err: any) {
-            console.error("Notion action failed:", err);
-            assistantTextForDisplay = `Sorry, the Notion action failed: ${err.message || 'An unknown error occurred.'}`;
-            actionTakenDetails = { status: 'error', message: `Notion: ${notionBlock.action} failed.`};
-        } finally {
-            setNotionActionStatus(null);
-        }
-      }
 
 
       if (educationalBlock && user?.uid) {
@@ -1756,43 +1952,123 @@ Assistant:`;
         }
       }
 
-      if (actionTakenDetails && !cleanedText.trim()) { assistantTextForDisplay = ""; }
-      else if (educationalContent && !cleanedText.trim()) { assistantTextForDisplay = educationalContent.type === 'flashcard' ? "Here are some flashcards, verified for accuracy:" : "Here's a quiz, verified for accuracy:"; }
-      if (parsedApiResult.error && !assistantTextForDisplay.trim()) { assistantTextForDisplay = parsedApiResult.error; }
-      else if (!assistantTextForDisplay.trim() && !finalImageUrl && !educationalContent && !actionTakenDetails) { assistantTextForDisplay = "(AI did not provide a text response)"; }
+       // --- FIX STARTS HERE ---
+      console.log("[DEBUG] Before Final Content Decision:", {
+          assistantTextForDisplay_Initial: assistantTextForDisplay,
+          cleanedText_from_AI: cleanedText,
+          hasActionDetails: !!actionTakenDetails,
+          hasEducationalContent: !!educationalContent,
+          hasGeneratedImage: !!finalImageUrl,
+          apiError: parsedApiResult.error,
+      });
+
+      // New, more robust logic for determining the final message content.
+      // This ensures action results are never accidentally erased.
+      let finalContent = assistantTextForDisplay.trim();
+
+      // If the AI's conversational text is empty, but we have action details,
+      // we must ensure the action's result (already in `finalContent`) is preserved.
+      if (actionTakenDetails && !cleanedText.trim()) {
+          console.log("[DEBUG] Action was taken, and AI provided no extra text. Preserving action result message.");
+          // We do nothing here, `finalContent` already holds our desired result.
+      } 
+      // This handles cases where other actions might not set a display text.
+      else if (!finalContent && actionTakenDetails && actionTakenDetails.message) {
+          console.log("[DEBUG] Using actionDetails.message as fallback content.");
+          finalContent = actionTakenDetails.message;
+      }
+      
+      if (educationalContent && !cleanedText.trim()) {
+          finalContent = educationalContent.type === 'flashcard' 
+              ? "Here are some flashcards, verified for accuracy:" 
+              : "Here's a quiz, verified for accuracy:";
+      }
+
+      if (parsedApiResult.error && !finalContent) {
+          finalContent = parsedApiResult.error;
+      }
+
+      // Final fallback if nothing else has produced content
+      if (!finalContent && !finalImageUrl && !educationalContent && !actionTakenDetails) {
+          finalContent = "(AI did not provide a text response)";
+      }
+
+      console.log("[DEBUG] Final content determined:", { finalContent });
 
       const finalAssistantMsgDataForUi: ChatMessageData = {
-        id: newAssistantLPHId, role: 'assistant', content: assistantTextForDisplay.trim(), createdAt: new Date(),
+      id: newAssistantLPHId,
+        role: 'assistant',
+        content: assistantTextForDisplay.trim(),
+        createdAt: new Date(),
+        actionDetails: actionTakenDetails,
         flashcard: educationalContent?.type === 'flashcard' ? educationalContent as FlashcardMessage : undefined,
         question: educationalContent?.type === 'question' ? educationalContent as QuestionMessage : undefined,
-        actionDetails: actionTakenDetails,
-        imageUrl: finalImageUrl, imageMeta: finalImageMeta, wasImageGenerated: imageGenModeOn && !!finalImageUrl && !parsedApiResult.error,
-        error: !!parsedApiResult.error || actionTakenDetails?.status === 'error', 
-        isLoading: false, isVerifyingContent: false, isProcessingActions: false, sources: sources,
+        imageUrl: finalImageUrl,
+        imageMeta: finalImageMeta,
+        wasImageGenerated: imageGenModeOn && !!finalImageUrl && !parsedApiResult.error,
+        error: !!parsedApiResult.error || actionTakenDetails?.status === 'error',
+        isLoading: false,
+        isVerifyingContent: false,
+        isProcessingActions: false,
+        sources: sources,
       };
+
+      console.log("[DEBUG] Final assistant message object being set to state:", finalAssistantMsgDataForUi);
+
+      // --- FIX ENDS HERE ---
 
       setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? finalAssistantMsgDataForUi : msg));
       
       const assistantMsgToSave: Partial<FirebaseChatMessage> = {
-        role: finalAssistantMsgDataForUi.role, content: finalAssistantMsgDataForUi.content, flashcard: finalAssistantMsgDataForUi.flashcard,
-        question: finalAssistantMsgDataForUi.question, 
-        actionDetails: finalAssistantMsgDataForUi.actionDetails,
-        imageUrl: finalAssistantMsgDataForUi.imageUrl, imageMeta: finalAssistantMsgDataForUi.imageMeta,
-        wasImageGenerated: finalAssistantMsgDataForUi.wasImageGenerated, error: finalAssistantMsgDataForUi.error, sources: finalAssistantMsgDataForUi.sources,
+        role: finalAssistantMsgDataForUi.role,
+        content: finalAssistantMsgDataForUi.content,
+        flashcard: finalAssistantMsgDataForUi.flashcard,
+        question: finalAssistantMsgDataForUi.question,
+        imageUrl: finalAssistantMsgDataForUi.imageUrl,
+        imageMeta: finalAssistantMsgDataForUi.imageMeta,
+        wasImageGenerated: finalAssistantMsgDataForUi.wasImageGenerated,
+        error: finalAssistantMsgDataForUi.error,
+        sources: finalAssistantMsgDataForUi.sources,
       };
+
+            // Conditionally build the actionDetails object to avoid 'undefined'
+  // Conditionally build the actionDetails object to AVOID 'undefined' values
+      if (finalAssistantMsgDataForUi.actionDetails) {
+        const detailsToSave: any = {
+            status: finalAssistantMsgDataForUi.actionDetails.status,
+            message: finalAssistantMsgDataForUi.actionDetails.message || null,
+        };
+        if (finalAssistantMsgDataForUi.actionDetails.pageUrl) {
+            detailsToSave.pageUrl = finalAssistantMsgDataForUi.actionDetails.pageUrl;
+        }
+        if (finalAssistantMsgDataForUi.actionDetails.pageTitle) {
+            detailsToSave.pageTitle = finalAssistantMsgDataForUi.actionDetails.pageTitle;
+        }
+        assistantMsgToSave.actionDetails = detailsToSave;
+      }
       
       if (currentConvId) { 
           await saveChatMessage(currentConvId, assistantMsgToSave, newAssistantLPHId);
       }
       
+      
       const finalHistoryForName = [...chatHistory.filter(m => m.id !== newAssistantLPHId), finalAssistantMsgDataForUi];
-      if (isNewConversation || (!hasGeneratedChatName && finalHistoryForName.filter(m => m.role === 'user').length === 1)) {
-        await generateChatName(currentConvId, finalHistoryForName, user);
-        setHasGeneratedChatName(true);
+
+      // --- FIX START: This is the robust logic for triggering name generation ---
+      const conversationJustCreated = isNewConversation;
+      const conversationNeedsRenaming = !isNewConversation && currentConversation?.chatName === 'New Chat';
+      const hasContentToName = finalHistoryForName.some(m => m.role === 'user' && m.content?.trim());
+
+      if ((conversationJustCreated || conversationNeedsRenaming) && hasContentToName) {
+        // We call this without `await` so it doesn't block the UI from updating.
+        // The function will run in the background and update the conversation name when ready.
+        generateChatName(currentConvId, finalHistoryForName, user);
       }
-    } catch (err: any) {
-        console.error("Error in handleChatSubmit:", err);
-        const errorMsgContent = `Sorry, I encountered an error${err.message ? ': ' + err.message : '.'} Please try again.`;
+      // --- FIX END ---
+      
+     } catch (err: any) {
+        console.error("CRITICAL ERROR in handleChatSubmit:", err);
+        const errorMsgContent = `Sorry, a critical error occurred${err.message ? ': ' + err.message : '.'} Please check the console and try again.`;
         const errorMsgForState: ChatMessageData = { id: newAssistantLPHId, role: 'assistant', content: errorMsgContent, error: true, createdAt: new Date(), isLoading: false };
         setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? errorMsgForState : msg));
         if (currentConvId) await saveChatMessage(currentConvId, { role: 'assistant', content: errorMsgContent, error: true }, newAssistantLPHId);
@@ -1800,12 +2076,23 @@ Assistant:`;
         setIsChatLoading(false); 
         setAssistantLoadingPlaceholderId(null); 
     }
+};
+
+ const handleNewConversation = async () => { 
+    if (!user || !user.uid) return; 
+    const newConvId = await createChatConversation(user.uid, 'New Chat'); 
+    if (newConvId) { 
+      setConversationId(newConvId); 
+    } 
   };
 
-  const handleNewConversation = async () => { if (!user || !user.uid) return; const newConvId = await createChatConversation(user.uid, 'New Chat'); if (newConvId) { setConversationId(newConvId); } };
-
-  const handleSelectConversation = (convId: string) => { if (conversationId === convId) return; setConversationId(convId); const selConv = conversationList.find(c => c.id === convId); setHasGeneratedChatName(selConv ? selConv.chatName !== "New Chat" : false); setIsConversationListOpen(false); };
-
+ const handleSelectConversation = (convId: string) => { 
+    if (conversationId === convId) return; 
+    setConversationId(convId); 
+    const selConv = conversationList.find(c => c.id === convId); 
+    setHasGeneratedChatName(selConv ? selConv.chatName !== "New Chat" : false); 
+    setIsConversationListOpen(false); 
+  };
   const handleRenameConversation = async (conv: any) => { setOpenDropdownId(null); const newName = window.prompt('Enter new chat name:', conv.chatName); if (newName?.trim()) await updateChatConversationName(conv.id, newName.trim()); };
 
   const handleDeleteConversationClick = (conv: any) => {
@@ -1858,54 +2145,115 @@ Assistant:`;
       <Sidebar isCollapsed={isSidebarCollapsed} onToggleCollapse={() => setIsSidebarCollapsed(p => !p)} userName={userName} userProfile={userProfile} onProfileClick={() => setShowProfileModal(true)} isMobileOpen={isMobileSidebarOpen} setIsMobileOpen={setIsMobileSidebarOpen}/>
       <ProfileModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} userProfile={userProfile} userName={userName} />
       
-      <main className={`flex-1 flex flex-col transition-all duration-300 pt-14 md:pt-0 ${isSidebarCollapsed ? 'md:ml-20' : 'md:ml-64'}`}>
+         <main className={`flex-1 flex flex-col transition-all duration-300 pt-14 md:pt-0 ${isSidebarCollapsed ? 'md:ml-20' : 'md:ml-64'}`}>
 
-        <div className="flex-1 flex overflow-hidden">
-          <div className="flex-1 flex flex-col overflow-hidden">
-                       {/* START: THIS IS THE CORRECT PLACEMENT FOR THE HEADER */}
+        {/* --- START OF REPLACEMENT BLOCK --- */}
+        <div className="flex-1 flex flex-row overflow-hidden"> {/* Use flex-row here */}
+          
+          {/* Main Chat/Content Area */}
+<div className="flex-1 flex flex-col overflow-hidden min-w-0"> {/* This is the primary column */}
+            
+            {/* Conditional Header */}
             {currentConversation && (
-              <div className="p-4 border-b border-gray-200 dark:border-gray-700/50 flex justify-between items-center flex-shrink-0">
+              <div className="p-4 flex justify-between items-center flex-shrink-0 border-b border-gray-200 dark:border-gray-700/50">
                 <div className="flex items-center gap-2 flex-grow min-w-0">
                   <h1 className="text-lg sm:text-xl font-bold flex items-center gap-2">
                     <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-500 dark:text-indigo-400 flex-shrink-0" />
                     <span className="truncate" title={currentConversation.chatName}>{currentConversation.chatName}</span>
                   </h1>
                 </div>
-                {/* This button shows the conversation list on mobile */}
                 <button onClick={() => setIsConversationListOpen(true)} className="p-2 md:hidden">
                   <LayoutDashboard className="w-6 h-6"/>
                 </button>
               </div>
             )}
-            {/* END: HEADER PLACEMENT */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
-              {(!conversationId && chatHistory.length === 0) ? (
-                <div className="h-full flex flex-col items-center justify-center text-center p-4 md:p-6">
-                  <h1 className="text-xl md:text-3xl font-semibold mb-2 md:mb-3">Hey {truncatedName || 'there'}, how can I help?</h1>
-                  <p className="mb-4 md:mb-6 text-sm text-gray-500 dark:text-gray-400">Select a quick action or start a new conversation.</p>
-                  <div className="relative w-full max-w-5xl overflow-hidden my-3 md:my-4">
-                    <div className="absolute left-0 top-0 h-full w-16 z-10 pointer-events-none bg-gradient-to-r from-[#F7F8FA] dark:from-[#0C0E1A] to-transparent" />
-                    <div className="absolute right-0 top-0 h-full w-16 z-10 pointer-events-none bg-gradient-to-l from-[#F7F8FA] dark:from-[#0C0E1A] to-transparent" />
-                    <div className="flex relative overflow-x-auto pb-3 scrollbar-hide">
-                      <motion.div className="flex space-x-2.5 md:space-x-3 px-2" animate={{ x: [0, -2000] }} transition={{ x: { repeat: Infinity, repeatType: "loop", duration: 50, ease: "linear" } }}>
-                        {[...quickActions, ...quickActions].map((action, index) => (
-                          <button key={`${action}-${index}`} className="flex items-center space-x-2 md:space-x-2.5 bg-gradient-to-r from-[#635BFF] to-[#8A85FF] px-3.5 py-2 md:px-4 md:py-2.5 rounded-xl text-white whitespace-nowrap text-xs md:text-sm flex-shrink-0 shadow-md transform transition-transform active:scale-95 hover:opacity-90 hover:scale-102" onClick={() => handleQuickActionClick(action)}>
-                            <span className="flex-shrink-0 mr-0.5">{quickActionIcons[action]}</span>
-                            <span>{action}</span>
-                          </button>
-                        ))}
-                      </motion.div>
-                    </div>
+            
+            {/* Scrollable Content Area */}
+            <div className="flex-1 overflow-y-auto">
+ {(!conversationId && chatHistory.length === 0) ? (
+                // --- START: THIS IS THE ONLY BLOCK YOU NEED TO REPLACE ---
+                <div className="h-full flex flex-col">
+
+                  {/* MOBILE-ONLY VIEW (This entire block is hidden on desktop) */}
+                  <div className="md:hidden flex flex-col h-full">
+                      {/* Mobile Header */}
+                      <div className="flex-shrink-0 px-4 pt-6 pb-2">
+                          <h1 className="text-2xl font-semibold">Hey {truncatedName || 'there'}!</h1>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Select a recent chat or start a new one.</p>
+                      </div>
+
+                      {/* Mobile Vertical Chat List (This now scrolls correctly) */}
+                      <div className="flex-1 space-y-2.5 overflow-y-auto px-4 mt-4 min-h-0">
+                          {conversationList.length > 0 ? (
+                              conversationList
+                                  .sort((a, b) => (b.updatedAt?.toDate?.() || 0) - (a.updatedAt?.toDate?.() || 0))
+                                  .map((conv) => (
+                                      <button
+                                          key={conv.id}
+                                          onClick={() => handleSelectConversation(conv.id)}
+                                          className="w-full flex items-center gap-3 text-left p-3 rounded-xl border border-white/5 bg-gray-800/50 hover:bg-gray-700/60 transition-colors"
+                                      >
+                                          <MessageCircle className="w-5 h-5 flex-shrink-0 text-gray-400" />
+                                          <span className="font-medium text-gray-200 truncate">{conv.chatName}</span>
+                                      </button>
+                                  ))
+                          ) : (
+                              <div className="flex items-center justify-center h-full text-center text-gray-500">
+                                  <p>No recent chats found.<br/>Start one below!</p>
+                              </div>
+                          )}
+                      </div>
+
+                      {/* Mobile Horizontal Quick Actions Carousel (This now scrolls correctly) */}
+                      <div className="flex-shrink-0 w-full pt-3">
+                          <div className="flex gap-2.5 overflow-x-auto scrollbar-hide px-4 pb-3">
+                              {quickActions.slice(0, 10).map((action) => (
+                                  <button
+                                      key={action}
+                                      onClick={() => handleQuickActionClick(action)}
+                                      className="flex-shrink-0 flex items-center gap-2 bg-[#635BFF] px-4 py-2.5 rounded-lg text-white whitespace-nowrap text-sm"
+                                  >
+                                      {React.cloneElement(quickActionIcons[action], { className: "w-4 h-4" })}
+                                      <span>{action}</span>
+                                  </button>
+                              ))}
+                          </div>
+                      </div>
+                  </div>
+
+                  {/* DESKTOP-ONLY VIEW (This entire block is hidden on mobile) */}
+                  <div className="hidden md:flex h-full flex-col items-center justify-center text-center p-6">
+                      <h1 className="text-3xl font-semibold mb-3">Hey {truncatedName || 'there'}, how can I help?</h1>
+                      <p className="mb-6 text-sm text-gray-500 dark:text-gray-400">Select a quick action or start a new conversation.</p>
+                      <div className="relative w-full max-w-5xl overflow-hidden my-4">
+                          <div className="absolute left-0 top-0 h-full w-16 z-10 pointer-events-none bg-gradient-to-r from-[#F7F8FA] dark:from-[#0C0E1A] to-transparent" />
+                          <div className="absolute right-0 top-0 h-full w-16 z-10 pointer-events-none bg-gradient-to-l from-[#F7F8FA] dark:from-[#0C0E1A] to-transparent" />
+                          <div className="flex relative overflow-x-auto pb-3 scrollbar-hide">
+                              <motion.div className="flex space-x-3 px-2" animate={{ x: [0, -2000] }} transition={{ x: { repeat: Infinity, repeatType: "loop", duration: 50, ease: "linear" } }}>
+                                  {[...quickActions, ...quickActions].map((action, index) => (
+                                      <button key={`${action}-${index}`} className="flex items-center space-x-2.5 bg-gradient-to-r from-[#635BFF] to-[#8A85FF] px-4 py-2.5 rounded-xl text-white whitespace-nowrap text-sm flex-shrink-0 shadow-md transform transition-transform active:scale-95 hover:opacity-90 hover:scale-102" onClick={() => handleQuickActionClick(action)}>
+                                          <span className="flex-shrink-0 mr-0.5">{quickActionIcons[action]}</span>
+                                          <span>{action}</span>
+                                      </button>
+                                  ))}
+                              </motion.div>
+                          </div>
+                      </div>
                   </div>
                 </div>
               ) : (
-                <>
+                <div className="p-4 space-y-3">
                   {chatHistory.map((message, index) => (
                     <div key={message.id || `msg-${index}`} className={`flex w-full ${message.role === 'user' || message.role === 'system' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[85%] rounded-xl px-3.5 py-2.5 shadow-md break-words ${message.role === 'user' ? 'bg-indigo-500 text-white' : message.error ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200 border border-red-200 dark:border-red-700/60' : message.role === 'system' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-100 border border-yellow-200 dark:border-yellow-700/60 text-center mx-auto' : 'bg-gray-100 dark:bg-[#161922] text-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700/50'}`}>
+                      <div className={`max-w-[85%] rounded-xl px-3.5 py-2.5 shadow-md break-words ${message.role === 'user' ? 'bg-indigo-500 text-white' : message.error ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200 ' : message.role === 'system' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-100 text-center mx-auto' : 'bg-gray-100 dark:bg-[#161922] text-gray-800 dark:text-gray-100 '}`}>
                         {message.isLoading && (
                           <div className="flex flex-col items-center gap-1.5 text-gray-500 dark:text-gray-400 p-1">
-                            {message.isProcessingActions ? (
+                            {isProcessingNotion ? (
+                              <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                                <NotionIcon className="w-4 h-4 animate-pulse fill-current" />
+                                <span>Working with Notion...</span>
+                              </div>
+                            ) : message.isProcessingActions ? (
                               <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                                 <LayoutDashboard className="w-4 h-4 animate-pulse text-indigo-500" />
                                 <span>Working with Dashboard...</span>
@@ -1964,7 +2312,7 @@ Assistant:`;
                               </div>
                             )}
                             {message.content && (
-                              <div className="whitespace-pre-wrap text-sm">{message.content}</div>
+                              <div className="whitespace-pre-wrap text-sm md:text-[15px]">{message.content}</div>
                             )}
                           </>
                         )}
@@ -1974,146 +2322,143 @@ Assistant:`;
                     </div>
                   ))}
                   <div ref={chatEndRef}></div>
-                </>
-              )}
-            </div>
-            <div className="p-3 border-t border-gray-200 dark:border-gray-700/50 bg-[#F7F8FA] dark:bg-[#0C0E1A]/80 backdrop-blur-sm">
-              {selectedFiles.length > 0 && !isImageGenModeActive && !isSearchModeActive && (
-                <div className="mb-2 flex flex-wrap gap-1.5 p-1.5 max-h-16 overflow-y-auto scrollbar-thin border border-dashed rounded-lg border-gray-300 dark:border-gray-600">
-                  {selectedFiles.map(file => (
-                    <div key={file.name} className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg border bg-indigo-100 dark:bg-indigo-600/20 border-indigo-200 dark:border-indigo-600/40 text-indigo-700 dark:text-indigo-300">
-                      {file.type.startsWith("image/") && file.localPreviewUrl && (<img src={file.localPreviewUrl} alt={file.name} className="w-4 h-4 rounded-sm object-cover" />)}
-                      {!file.type.startsWith("image/") && <FileText className="w-3 h-3 flex-shrink-0" />}
-                      <span className="truncate max-w-[80px]">{file.name}</span>
-                      <button type="button" onClick={() => handleRemoveFile(file.name)} className="ml-1 p-0.5 rounded-full hover:bg-indigo-200 dark:hover:bg-indigo-600/40" title="Remove"> <X className="w-2.5 h-2.5" /> </button>
-                    </div>
-                  ))}
                 </div>
               )}
-<form onSubmit={handleChatSubmit}>
-    <div 
-        onDrop={handleDrop}
-        onDragOver={handleDragEvents}
-        onDragEnter={handleDragEnter}
-        onDragLeave={handleDragLeave}
-        className={`relative bg-white dark:bg-[#161922] border border-gray-300 dark:border-gray-700/50 rounded-2xl shadow-sm transition-all duration-200 flex flex-col ${isDraggingOver ? 'ring-2 ring-indigo-400 dark:ring-indigo-600 ring-offset-2 ring-offset-white dark:ring-offset-[#12141D]' : 'focus-within:ring-2 focus-within:ring-indigo-400 dark:focus-within:ring-indigo-600'}`}
-    >
-        <AnimatePresence>
-        {isDraggingOver && (
-            <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-indigo-50/90 dark:bg-indigo-900/90 z-10 flex items-center justify-center rounded-2xl pointer-events-none border-2 border-dashed border-indigo-400"
-            >
-                <div className="text-center">
-                    <ImageIcon className="w-8 h-8 text-indigo-500 dark:text-indigo-400 mx-auto mb-2"/>
-                    <p className="font-semibold text-indigo-600 dark:text-indigo-300">Drop files to attach</p>
-                </div>
-            </motion.div>
-        )}
-        </AnimatePresence>
-
-        <AnimatePresence>
-            {aiActionStatus && (
-                <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="text-center text-sm p-2 text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600/50"
-                >
-                    {aiActionStatus}
-                </motion.div>
-            )}
-        </AnimatePresence>
-
-        <textarea
-            ref={textareaRef}
-            rows={1}
-            value={chatMessage}
-            onChange={(e) => setChatMessage(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSubmit(); } }}
-            onPaste={handlePaste}
-            placeholder={
-                listening ? "Listening..." :
-                isImageGenModeActive ? "Describe the image to generate..." :
-                isNotionSearchModeActive ? "Search your Notion..." :
-                "Ask anything..."
-            }
-            className="w-full bg-transparent text-gray-800 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 p-3.5 text-sm focus:ring-0 focus:outline-none border-0 resize-none overflow-y-auto max-h-44 leading-relaxed"
-            disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading'}
-        />
-        <div className="flex justify-between items-center px-2 py-1.5 mt-1">
-            <div className="flex items-center gap-1">
-                <input type="file" ref={fileInputRef} onChange={handleFileSelect} multiple accept={SUPPORTED_FILE_TYPES} className="hidden" disabled={isImageGenModeActive || isSearchModeActive || isNotionSearchModeActive || isChatLoading || isChatDisabledByLimit} />
-                <button type="button" onClick={triggerFileSelect} disabled={isImageGenModeActive || isSearchModeActive || isNotionSearchModeActive || isChatLoading || isChatDisabledByLimit} className="p-2 rounded-lg transition-colors duration-150 text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600 disabled:cursor-not-allowed" title="Attach Files">
-                    <Plus className="w-4 h-4" />
-                </button>
-                <button type="button" onClick={handleToggleSearchMode} disabled={isChatLoading || isChatDisabledByLimit || isNotionSearchModeActive} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isSearchModeActive ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'}`} title={isSearchModeActive ? "Disable Search" : "Enable Search"}>
-                    <Globe className="w-4 h-4" />
-                    <span className="hidden sm:inline">Search</span>
-                </button>
-                <button type="button" onClick={handleToggleImageGenMode} disabled={isChatLoading || isChatDisabledByLimit || isNotionSearchModeActive} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isImageGenModeActive ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'}`} title={isImageGenModeActive ? "Switch to Normal" : "Generate Image"}>
-                    <ImageIcon className="w-4 h-4" />
-                    <span className="hidden sm:inline">Image</span>
-                </button>
-                 <button
-                    type="button"
-                    onClick={handleToggleNotionSearchMode}
-                    disabled={isChatLoading || isChatDisabledByLimit}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${
-                        isNotionSearchModeActive ? 'bg-gray-800 dark:bg-gray-200 text-white dark:text-black' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'
-                    }`}
-                    title={isNotionConnected ? (isNotionSearchModeActive ? "Disable Notion Search" : "Enable Notion Search") : "Connect Notion in Settings"}
-                    >
-                    <NotionIcon className="w-4 h-4" />
-                    <span className="hidden sm:inline">Notion</span>
-                </button>
-                <ChatControls
-                    onStyleSelect={handleStyleSelect}
-                    activeStyle={activeStyle}
-                    isIlluminateEnabled={isIlluminateEnabled}
-                    isBlackoutEnabled={isDarkMode && !isIlluminateEnabled}
-                />
             </div>
-            <div className="flex items-center">
-                <AnimatePresence mode="wait" initial={false}>
-                    <motion.div
-                        key={(chatMessage.trim() || selectedFiles.length > 0 || (isImageGenModeActive && chatMessage.trim())) ? 'send' : 'mic'}
-                        initial={{ opacity: 0, y: 5 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -5 }}
-                        transition={{ duration: 0.15 }}
+            
+            {/* Input Form Area */}
+            <div className="flex-shrink-0 p-3 border-t border-gray-200 dark:border-gray-700/50 bg-[#F7F8FA] dark:bg-[#0C0E1A]/80 backdrop-blur-sm">
+                {selectedFiles.length > 0 && !isImageGenModeActive && !isSearchModeActive && (
+                  <div className="mb-2 flex flex-wrap gap-1.5 p-1.5 max-h-16 overflow-y-auto scrollbar-thin border border-dashed rounded-lg border-gray-300 dark:border-gray-600">
+                    {selectedFiles.map(file => (
+                      <div key={file.name} className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg border bg-indigo-100 dark:bg-indigo-600/20 border-indigo-200 dark:border-indigo-600/40 text-indigo-700 dark:text-indigo-300">
+                        {file.type.startsWith("image/") && file.localPreviewUrl && (<img src={file.localPreviewUrl} alt={file.name} className="w-4 h-4 rounded-sm object-cover" />)}
+                        {!file.type.startsWith("image/") && <FileText className="w-3 h-3 flex-shrink-0" />}
+                        <span className="truncate max-w-[80px]">{file.name}</span>
+                        <button type="button" onClick={() => handleRemoveFile(file.name)} className="ml-1 p-0.5 rounded-full hover:bg-indigo-200 dark:hover:bg-indigo-600/40" title="Remove"> <X className="w-2.5 h-2.5" /> </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <form onSubmit={handleChatSubmit}>
+                    <div 
+                        onDrop={handleDrop}
+                        onDragOver={handleDragEvents}
+                        onDragEnter={handleDragEnter}
+                        onDragLeave={handleDragLeave}
+                        className={`relative bg-white dark:bg-[#161922] border border-gray-300 dark:border-gray-700/50 rounded-2xl shadow-sm transition-all duration-200 flex flex-col ${isDraggingOver ? 'ring-2 ring-indigo-400 dark:ring-indigo-600 ring-offset-2 ring-offset-white dark:ring-offset-[#12141D]' : 'focus-within:ring-2 focus-within:ring-indigo-400 dark:focus-within:ring-indigo-600'}`}
                     >
-                        {(chatMessage.trim() || selectedFiles.length > 0 || (isImageGenModeActive && chatMessage.trim())) ? (
-                            <button type="submit" disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading'} className="p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-indigo-500 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20" title="Send" aria-label="Send chat message">
-                                {isChatLoading ? <Loader2 className="w-5 h-5 animate-spin"/> : <Send className="w-5 h-5" />}
-                            </button>
-                        ) : (
-                            <button 
-                                type="button" 
-                                onClick={handleToggleRecording} 
-                                disabled={isChatLoading || isChatDisabledByLimit || !browserSupportsSpeechRecognition} 
-                                className={`p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${listening ? 'text-red-500 bg-red-100 dark:bg-red-500/20 animate-pulse' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/70'}`} 
-                                title={!browserSupportsSpeechRecognition ? "Browser not supported" : listening ? "Stop Recording" : "Start Recording"}
+                        <AnimatePresence>
+                        {isDraggingOver && (
+                            <motion.div 
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="absolute inset-0 bg-indigo-50/90 dark:bg-indigo-900/90 z-10 flex items-center justify-center rounded-2xl pointer-events-none border-2 border-dashed border-indigo-400"
                             >
-                                {listening ? <StopCircle className="w-5 h-5"/> : <Mic className="w-5 h-5" />}
-                            </button>
+                                <div className="text-center">
+                                    <ImageIcon className="w-8 h-8 text-indigo-500 dark:text-indigo-400 mx-auto mb-2"/>
+                                    <p className="font-semibold text-indigo-600 dark:text-indigo-300">Drop files to attach</p>
+                                </div>
+                            </motion.div>
                         )}
-                    </motion.div>
-                </AnimatePresence>
-            </div>
-        </div>
-    </div>
-</form>
-              {userTier !== 'premium' && userTier !== 'loading' && (<div className="pt-2 text-xs text-center"> <span className="text-gray-500 dark:text-gray-400">Usage: {chatUsageCount} / {currentChatLimitDisplay}</span> {isChatDisabledByLimit && <span className="text-red-500 dark:text-red-400 ml-1 font-medium">(Limit Reached)</span>} {!isChatDisabledByLimit && userTier === 'basic' && <Link to="/pricing" className="ml-1 font-medium text-indigo-500 dark:text-indigo-400 hover:underline"><Crown className="w-3 h-3 inline mr-0.5" />Upgrade</Link>}</div>)}
+                        </AnimatePresence>
+
+                        <AnimatePresence>
+                            {aiActionStatus && (
+                                <motion.div
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                    className="text-center text-sm p-2 text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600/50"
+                                >
+                                    {aiActionStatus}
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
+                        <textarea
+                            ref={textareaRef}
+                            rows={1}
+                            value={chatMessage}
+                            onChange={(e) => setChatMessage(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSubmit(); } }}
+                            onPaste={handlePaste}
+                            placeholder={
+                                listening ? "Listening..." :
+                                isImageGenModeActive ? "Describe the image to generate..." :
+                                isNotionSearchModeActive ? "Search your Notion..." :
+                                "Ask anything..."
+                            }
+                            className="w-full bg-transparent text-gray-800 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 p-3.5 text-sm focus:ring-0 focus:outline-none border-0 resize-none overflow-y-auto max-h-44 leading-relaxed"
+                            disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading'}
+                        />
+                        <div className="flex justify-between items-center px-2 py-1.5 mt-1">
+                            <div className="flex items-center gap-1">
+                                <input type="file" ref={fileInputRef} onChange={handleFileSelect} multiple accept={SUPPORTED_FILE_TYPES} className="hidden" disabled={isImageGenModeActive || isSearchModeActive || isNotionSearchModeActive || isChatLoading || isChatDisabledByLimit} />
+                                <button type="button" onClick={triggerFileSelect} disabled={isImageGenModeActive || isSearchModeActive || isNotionSearchModeActive || isChatLoading || isChatDisabledByLimit} className="p-2 rounded-lg transition-colors duration-150 text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600 disabled:cursor-not-allowed" title="Attach Files">
+                                    <Plus className="w-4 h-4" />
+                                </button>
+                                <button type="button" onClick={handleToggleSearchMode} disabled={isChatLoading || isChatDisabledByLimit || isNotionSearchModeActive} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isSearchModeActive ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'}`} title={isSearchModeActive ? "Disable Search" : "Enable Search"}>
+                                    <Globe className="w-4 h-4" />
+                                    <span className="hidden sm:inline">Search</span>
+                                </button>
+                                <button type="button" onClick={handleToggleImageGenMode} disabled={isChatLoading || isChatDisabledByLimit || isNotionSearchModeActive} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isImageGenModeActive ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'}`} title={isImageGenModeActive ? "Switch to Normal" : "Generate Image"}>
+                                    <ImageIcon className="w-4 h-4" />
+                                    <span className="hidden sm:inline">Image</span>
+                                </button>
+                                <ChatControls
+                                    onStyleSelect={handleStyleSelect}
+                                    activeStyle={activeStyle}
+                                    isIlluminateEnabled={isIlluminateEnabled}
+                                    isBlackoutEnabled={isDarkMode && !isIlluminateEnabled}
+                                />
+                                <IntegrationsControl
+                                    isNotionConnected={isNotionConnected}
+                                    isNotionSearchModeActive={isNotionSearchModeActive}
+                                    onToggleNotionSearchMode={handleToggleNotionSearchMode}
+                                />
+                            </div>
+
+                            <div className="flex items-center">
+                                <AnimatePresence mode="wait" initial={false}>
+                                    <motion.div
+                                        key={(chatMessage.trim() || selectedFiles.length > 0 || (isImageGenModeActive && chatMessage.trim())) ? 'send' : 'mic'}
+                                        initial={{ opacity: 0, y: 5 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -5 }}
+                                        transition={{ duration: 0.15 }}
+                                    >
+                                        {(chatMessage.trim() || selectedFiles.length > 0 || (isImageGenModeActive && chatMessage.trim())) ? (
+                                            <button type="submit" disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading'} className="p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-indigo-500 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20" title="Send" aria-label="Send chat message">
+                                                {isChatLoading ? <Loader2 className="w-5 h-5 animate-spin"/> : <Send className="w-5 h-5" />}
+                                            </button>
+                                        ) : (
+                                            <button 
+                                                type="button" 
+                                                onClick={handleToggleRecording} 
+                                                disabled={isChatLoading || isChatDisabledByLimit || !browserSupportsSpeechRecognition} 
+                                                className={`p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${listening ? 'text-red-500 bg-red-100 dark:bg-red-500/20 animate-pulse' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/70'}`} 
+                                                title={!browserSupportsSpeechRecognition ? "Browser not supported" : listening ? "Stop Recording" : "Start Recording"}
+                                            >
+                                                {listening ? <StopCircle className="w-5 h-5"/> : <Mic className="w-5 h-5" />}
+                                            </button>
+                                        )}
+                                    </motion.div>
+                                </AnimatePresence>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+                {userTier !== 'premium' && userTier !== 'loading' && (<div className="pt-2 text-xs text-center"> <span className="text-gray-500 dark:text-gray-400">Usage: {chatUsageCount} / {currentChatLimitDisplay}</span> {isChatDisabledByLimit && <span className="text-red-500 dark:text-red-400 ml-1 font-medium">(Limit Reached)</span>} {!isChatDisabledByLimit && userTier === 'basic' && <Link to="/pricing" className="ml-1 font-medium text-indigo-500 dark:text-indigo-400 hover:underline"><Crown className="w-3 h-3 inline mr-0.5" />Upgrade</Link>}</div>)}
             </div>
           </div>
           
-          <aside className="w-80 border-l border-gray-200 dark:border-gray-700/50 flex-col hidden md:flex bg-white dark:bg-[#161922]">
+          {/* Desktop Conversation List */}
+          <aside className="w-80 min-w-[280px] border-l border-gray-200 dark:border-gray-700/50 flex-col hidden md:flex bg-white dark:bg-[#161922]">
             <div className="p-3 flex flex-col h-full">
               <div className="flex items-center justify-between mb-2.5">
-                <h2 className="text-base font-semibold">Conversations</h2>
+                <h2 className="text-base font-semibold">Chats</h2>
                 <button onClick={handleNewConversation} className="bg-indigo-500 text-white flex items-center justify-center p-1.5 rounded-full transition-colors shadow-sm hover:bg-indigo-600 transform hover:scale-105 active:scale-100" title="New Conversation"><Plus className="w-4 h-4" /></button>
               </div>
               <div className="flex-1 overflow-y-auto space-y-1.5 pr-0.5 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
