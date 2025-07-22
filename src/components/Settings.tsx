@@ -303,6 +303,8 @@ export function Settings() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [userProfileData, setUserProfileData] = useState<UserProfileData | null>(null);
   const [learningProfile, setLearningProfile] = useState<LearningProfile | null>(null);
+    const [isHandlingRedirect, setIsHandlingRedirect] = useState(false);
+
   const [isNotionConnected, setIsNotionConnected] = useState(false);
   const [isNotionConnecting, setIsNotionConnecting] = useState(false);
   const [isNotionDisconnecting, setIsNotionDisconnecting] = useState(false); // ADD THIS LINE
@@ -326,6 +328,51 @@ export function Settings() {
     localStorage.setItem('isIlluminateEnabled', JSON.stringify(isIlluminateEnabled));
     localStorage.setItem('isBlackoutEnabled', JSON.stringify(isBlackoutEnabled));
   }, [isIlluminateEnabled, isBlackoutEnabled]);
+
+
+   // --- FIX 2: Create a NEW, DEDICATED useEffect just for the Notion redirect ---
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    const currentUser = getCurrentUser(); // Get user directly
+
+    // Only run if there's a code, a user, and we aren't already handling it.
+    if (code && currentUser && !isHandlingRedirect) {
+        setIsHandlingRedirect(true); // Set the flag immediately to prevent re-runs
+        setIsNotionConnecting(true);
+
+        const isProduction = window.location.hostname === 'www.taskmaster.one';
+        const redirectUri = isProduction
+            ? 'https://www.taskmaster.one/settings'
+            : 'http://localhost:5173/settings';
+
+        console.log("handleNotionRedirect: Detected auth code. Calling cloud function once with:", {
+            code,
+            redirectUri
+        });
+
+        const processRedirect = async () => {
+            try {
+                const notionConnect = httpsCallable(functions, 'notionOAuthCallback');
+                await notionConnect({ code: code, redirectUri: redirectUri });
+                
+                console.log("Successfully connected to Notion.");
+                setIsNotionConnected(true);
+                navigate('/settings', { replace: true }); // Clean URL
+
+            } catch (error: any) {
+                console.error("Error connecting to Notion. Full error:", error);
+                const detailedMessage = error.details ? `Details: ${JSON.stringify(error.details)}` : "No further details.";
+                setError(`Failed to connect to Notion: ${error.message}. ${detailedMessage}`);
+            } finally {
+                setIsNotionConnecting(false);
+            }
+        };
+
+        processRedirect();
+    }
+  }, [navigate, functions, isHandlingRedirect]); // Minimal dependencies
+
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -366,27 +413,7 @@ export function Settings() {
     };
     checkNotionConnection();
 
-    const handleNotionRedirect = async () => {
-        const urlParams = new URLSearchParams(window.location.search);
-        const code = urlParams.get('code');
-        if (code && currentUser) {
-            setIsNotionConnecting(true);
-            try {
-                const notionConnect = httpsCallable(functions, 'notionOAuthCallback');
-                await notionConnect({ code: code });
-                setIsNotionConnected(true);
-                navigate('/settings', { replace: true });
-            } catch (error) {
-                console.error("Error connecting to Notion:", error);
-                setError("Failed to connect to Notion.");
-            } finally {
-                setIsNotionConnecting(false);
-            }
-        }
-    };
 
-    handleNotionRedirect();
-    
     const googleFlag = currentUser.providerData?.some((p) => p.providerId === 'google.com');
     setIsGoogleUser(!!googleFlag);
 
@@ -650,7 +677,7 @@ const handleNotionConnect = () => {
     window.location.href = notionAuthUrl;
 };
 
-const handleNotionDisconnect = async () => {
+  const handleNotionDisconnect = async () => {
     // Prevent function from running if user is not set or if it's already running
     if (!user || isNotionDisconnecting) return;
     
@@ -675,7 +702,7 @@ const handleNotionDisconnect = async () => {
         // IMPORTANT: Always set loading state OFF when the process is complete
         setIsNotionDisconnecting(false); 
     }
-};
+  };
   
   const ProgressBar = ({ current, total, label }: { current: number; total: number; label: string }) => {
     const displayTotal = total === Infinity ? '∞' : total;
