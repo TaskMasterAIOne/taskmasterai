@@ -12,6 +12,9 @@ import { Timer } from './Timer';
 import { ChatControls } from './chat-controls';
 import { FlashcardsQuestions } from './FlashcardsQuestions';
 import { getTimeBasedGreeting } from '../lib/greetings';
+import { getFunctions, httpsCallable } from 'firebase/functions'; 
+import { getUserData } from '../lib/settings-firebase';
+import { IntegrationsControl } from './integrations-control';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
@@ -117,8 +120,15 @@ export interface ChatMessageData {
   flashcard?: FlashcardMessage;
   question?: QuestionMessage;
   error?: boolean;
-  actionDetails?: { status: 'success' | 'error'; message?: string };
-  localImageData?: LocalImageData;
+  // --- MODIFY THIS PART ---
+  actionDetails?: {
+    status: 'success' | 'error';
+    message?: string;
+    pageUrl?: string;     // ADD THIS
+    pageTitle?: string;   // ADD THIS
+  };
+    localImageData?: LocalImageData;
+
   imageUrl?: string;
   imageMeta?: FirebaseImageMeta;
   isGeneratingImage?: boolean;
@@ -128,6 +138,8 @@ export interface ChatMessageData {
   localPlaceholderId?: string;
   isLoading?: boolean;
   isVerifyingContent?: boolean; // Add this line
+    isProcessingActions?: boolean; // ADD THIS
+  isProcessingNotion?: boolean;  // ADD THIS
   sources?: any[]; 
 }
 
@@ -634,6 +646,8 @@ const ActionGroupRenderer = ({ actionType, actions }: { actionType: string, acti
     )
 };
 
+// In Dashboard.tsx, replace the entire AssistantMessageContent component
+
 const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessageData, isDarkMode: boolean }) => {
     const proseClassDashboard = `prose prose-sm max-w-none prose-p:mb-3 prose-p:last:mb-0 prose-p:leading-relaxed prose-ul:my-3 prose-ul:space-y-2 prose-ol:my-3 prose-ol:space-y-2 prose-li:pl-1 prose-code:text-xs prose-code:px-1 prose-code:py-0.5 prose-pre:text-xs prose-pre:my-2 prose-pre:p-2 prose-pre:leading-relaxed
     ${isDarkMode
@@ -650,7 +664,7 @@ const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessage
                     className={proseClassDashboard}
                     components={{
                         a: ({ node, ...props }) => {
-                            const textContent = node.children[0]?.type === 'text' ? node.children[0].value : '';
+                            const textContent = node?.children[0]?.type === 'text' ? node.children[0].value : '';
                             const citationMatch = textContent.match(/^\[(\d+)\]$/);
                             if (citationMatch && props.href) {
                               return (
@@ -685,6 +699,32 @@ const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessage
                 </ReactMarkdown>
             )}
 
+            {message.actionDetails && (
+                <div className={`mt-2 pt-2 border-t border-dashed ${message.actionDetails.status === 'success' ? 'border-green-300 dark:border-green-700/60' : 'border-red-300 dark:border-red-700/60'}`}>
+                    <div className={`flex items-center gap-1.5 text-xs font-medium ${message.actionDetails.status === 'success' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                        {message.actionDetails.status === 'success' ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+                        <span className="whitespace-pre-wrap">{message.actionDetails.message}</span>
+                    </div>
+
+                    {/* --- THIS IS THE NEW PART THAT RENDERS THE NOTION BUTTON --- */}
+                    {message.actionDetails.status === 'success' && message.actionDetails.pageUrl && (
+                        <div className="mt-2">
+                            <a
+                                href={message.actionDetails.pageUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-200/50 dark:bg-gray-700/50 px-2.5 py-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                            >
+                                <NotionIcon className="w-3.5 h-3.5" />
+                                <span>View "{message.actionDetails.pageTitle || "Page"}" in Notion</span>
+                                <ArrowUpRight className="w-3 h-3" />
+                            </a>
+                        </div>
+                    )}
+                    {/* --- END OF NEW PART --- */}
+                </div>
+            )}
+            
             {message.sources && message.sources.length > 0 && (
                  <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700/70">
                     <h4 className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">{message.sources.length} sources found</h4>
@@ -721,6 +761,12 @@ const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessage
     );
 };
 
+
+const NotionIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <path className="fill-black dark:fill-white" d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z"/>
+    </svg>
+);
 
 
 export function Dashboard() {
@@ -829,6 +875,15 @@ useEffect(() => {
     const [activeStyle, setActiveStyle] = useState<string | null>(null);
   const [activePrompt, setActivePrompt] = useState<string>('');
   const [showProfileModal, setShowProfileModal] = useState(false);
+
+    // --- ADD THESE NEW STATE VARIABLES ---
+  const [isNotionConnected, setIsNotionConnected] = useState(false);
+  const [isNotionSearchModeActive, setIsNotionSearchModeActive] = useState(false);
+  const [activeNotionPage, setActiveNotionPage] = useState<{ id: string, title: string } | null>(null);
+  const [isProcessingNotion, setIsProcessingNotion] = useState(false);
+  const functions = getFunctions();
+  // --- END OF NEW STATE ---
+
 
   const [lastCompletedItem, setLastCompletedItem] = useState<{ id: string; tab: string; timestamp: number } | null>(null);
   const undoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -1347,83 +1402,7 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
     ];
 
     const searchTriggers = [
-  // Core queries
-  'who is', 'what is', 'when is', 'where is', 'why is', 'how is', 'how does', 'how many', 'how much', 'what are', 'what was', 'who won',
-  'what happened', 'what happened in', 'what’s going on', 'what is going on', 'what do we know about', 'tell me about', 'can you tell me about', 'give me info on',
-  'real-time update', 'give me the current', 'is it true that', 'current info on', 'latest news on', 'update on', 'who', 'when', 'where', 'hey when', 'hi when', 'hello when', 'hey where','hi where','hello where', 'hey what','hi what', 'hello what', 'find', 'search for', 'google', 'search', 'please find',
-
-  // Date/time
-  'what day is it', 'what date is it', 'what year is it', 'what time is it', 'what time is it in', 'time in', 'date in', 'day in',
-  'sunrise in', 'sunset in', 'moon phase today', 'time zone of', 'timezone in',
-
-  // People
-  'how old is', 'how tall is', 'where is', 'where was', 'what nationality is', 'is still alive', 'did die', 'who died', 'who passed away',
-  'celebrities who died', 'who just died', 'famous deaths', 'latest celebrity death', 'current president of', 'prime minister of', 'governor of', 'senator of',
-  'mayor of', 'leader of', 'dictator of', 'general of', 'ambassador of', 'ceo of', 'founder of', 'chairman of', 'director of', 'owner of', 'manager of',
-
-  // Events / breaking
-  'breaking news', 'live update', 'currently happening', 'latest news', 'real-time news', 'trending now', 'trending today', 'hot topics', 'news update',
-  'summary of news', 'headline', 'headlines today', 'what’s the top story', 'what’s the main headline', 'top story right now', 'biggest news today',
-
-  // Disasters
-  'earthquake in', 'fire in', 'shooting in', 'explosion in', 'flood in', 'storm in', 'tsunami in', 'disaster in', 'crash in', 'accident in', 'emergency in',
-  'evacuation in', 'power outage in', 'tornado in', 'hurricane in', 'volcano in',
-
-  // Health / viruses
-  'covid cases in', 'covid today', 'covid deaths', 'flu cases', 'disease outbreak in', 'epidemic in', 'pandemic update', 'cases of', 'hospitalization rate',
-  'health alert in', 'infection rate in', 'vaccination rate in',
-
-  // Crime / safety
-  'crime in', 'shooting in', 'murder in', 'robbery in', 'assault in', 'arrest in', 'wanted list in', 'missing person in', 'police report in',
-  'fbi case', 'most wanted in', 'crime stats in', 'is it safe in', 'danger level in', 'crime index of',
-
-  // Locations
-  'capital of', 'largest city in', 'population of', 'current population of', 'how many people in', 'area of', 'size of', 'bordering countries of', 'country that owns',
-  'distance from', 'how far is', 'what country is', 'city in', 'town in', 'village in',
-
-  // Weather / environment
-  'weather in', 'forecast in', 'forecast for', 'temperature in', 'humidity in', 'air quality in', 'pollution level in', 'uv index in', 'is it raining in',
-  'is it snowing in', 'climate in', 'natural disaster in', 'fire danger in', 'rainfall in', 'heat wave in', 'cold front in', 'storm alert in',
-
-  // Sports
-  'nba scores', 'nfl scores', 'mlb scores', 'soccer scores', 'football scores', 'who won the game', 'final score of', 'current score of', 'who is winning',
-  'sports standings', 'sports news', 'league table for', 'match results', 'tournament bracket', 'playoff update', 'draft results', 'sports schedule for',
-
-  // Financial / economy
-  'stock price of', 'price of', 'price for', 'value of', 'share price of', 'market cap of', 'how much is', 'worth of', 'net worth of', 'salary of',
-  'budget of', 'revenue of', 'profit of', 'interest rate', 'inflation rate', 'unemployment rate', 'gdp of', 'economic update', 'trade deficit of',
-
-  // Crypto
-  'crypto price of', 'bitcoin price', 'ethereum price', 'crypto news', 'crypto crash', 'market update', 'trading volume of', 'altcoin price', 'crypto prediction',
-
-  // Politics / elections
-  'election results', 'polling in', 'voting in', 'exit poll in', 'approval rating of', 'senate control', 'house vote', 'president of', 'leader of', 'candidate in',
-  'who is running for', 'ballot measure', 'referendum in', 'government of', 'minister of',
-
-  // Technology / science
-  'tech news', 'latest invention', 'ai update', 'new gadget', 'software release', 'apple news', 'google update', 'microsoft news', 'elon musk update',
-  'space launch', 'nasa mission', 'space news', 'new discovery', 'scientific breakthrough', 'lab result', 'experiment in', 'satellite in', 'meteor spotted in',
-  'asteroid near earth',
-
-  // Entertainment / media
-  'box office numbers', 'movie release', 'who stars in', 'cast of', 'director of', 'trailer for', 'tv show premiere', 'tv ratings', 'oscars winners',
-  'emmy winners', 'grammy winners', 'celebrity news', 'who is dating', 'relationship of', 'divorce of', 'drama about', 'viral video', 'trending tiktok',
-  'trending reel', 'youtube trending', 'latest episode of', 'show finale', 'streaming on', 'where to watch',
-
-  // Education / statistics
-  'test scores in', 'graduation rate in', 'school ranking in', 'college acceptance rate', 'number of students in', 'education rate in', 'top school in',
-  'literacy rate in', 'math score average in',
-
-  // Transportation / infrastructure
-  'traffic in', 'road closure in', 'train delay in', 'bus strike in', 'airport closed in', 'flight status of', 'gas price in', 'subway delay in',
-
-  // Miscellaneous
-  'how long is', 'how big is', 'how deep is', 'how wide is', 'how tall is', 'how fast is', 'length of', 'height of', 'weight of', 'depth of',
-  'volume of', 'mass of', 'density of', 'radius of', 'diameter of', 'distance between', 'comparison of', 'vs', 'versus', 'difference between',
-
-  // Wildcard / general
-  'info on', 'news about', 'news from', 'data on', 'statistics on', 'facts about', 'what’s the status of', 'current update on', 'report on',
-  'did something happen in', 'was there', 'is there news about', 'what can you tell me about', 'show me what’s happening in'
+  
 ];
 
     if (!imageGenModeOn && imageTriggers.some(kw => lowerCaseMessage.includes(kw))) {
@@ -1519,6 +1498,8 @@ ${activePrompt || 'Respond in a standard, helpful manner.'}
   - Short-term Focus: ${userContext?.shortTermFocus || 'Not specified'}
   - Long-term Learning Goals: ${userContext?.longTermGoals || 'Not specified'}
   - Additional Notes: ${userContext?.otherContext || 'Not specified'}
+  - Notion Integration: ${isNotionConnected ? 'Connected' : 'Not Connected'}  // <--- THIS LINE IS THE KEY FIX
+
 
 // [B. DYNAMIC DATA CONTEXT] - This is the live data you are working with.
 
@@ -1542,14 +1523,159 @@ ${memoryContext}
 // =================================================================================================
 
 **DECISION HIERARCHY:**
-1.  **Is the user in "Image Generation Mode" AND asking for an image?**
-    -> If YES, proceed to the **[IMAGE GENERATION PROTOCOL]**.
-2.  **Is the user issuing a direct command to modify data (create, update, delete, remember, generate quiz/flashcards)?**
+1.  **Is the user in "Image Generation Mode"?** -> **[IMAGE GENERATION PROTOCOL]**.
+2.  **Does the query explicitly involve Notion (e.g., "in Notion", "find my Notion page") AND is the Notion integration "Connected"?** -> **[NOTION ACTION PROTOCOL]**.
+3.  **Is the user issuing a direct command to modify data (create, update, delete, remember, generate quiz/flashcards)?**
     -> If YES, proceed to the **[JSON ACTION PROTOCOL]**.
-3.  **Does the user's query require external, real-time, or specific information not available in the context?**
+4.  **Does the user's query require external, real-time, or specific information not available in the context?**
     -> If YES, use the **[WEB SEARCH PROTOCOL]**, then formulate a conversational response.
-4.  **If none of the above, treat it as a general conversational query.**
+5.  **If none of the above, treat it as a general conversational query.**
     -> Proceed to the **[GENERAL CONVERSATIONAL PROTOCOL]**.
+
+// -------------------------------------------------------------------------------------------------
+// [PROTOCOL NOTION ACTION PROTOCOL]
+// This is your complete guide for all Notion interactions. Follow it with absolute precision.
+// -------------------------------------------------------------------------------------------------
+
+   // --- [THE GOLDEN RULE: The "Active Page" Context] ---
+   // This is your most important rule. It is the key to avoiding almost all errors.
+   // 1. When you successfully find, create, or modify a page, that page's unique ID and Title become the "Active Page".
+   // 2. The system will provide this "Active Page" context to you on the next turn.
+   // 3. All subsequent commands from the user (e.g., "add notes", "update it") MUST be performed on this "Active Page" using its direct page_id.
+   // 4. This context is only cleared if the user explicitly asks for a DIFFERENT page by name.
+
+   // --- [CORE WORKFLOW: The Two-Tiered Approach] ---
+   // This is your primary logic for every Notion request.
+
+   // TIER 1: Do you have an "Active Page ID" provided in the context?
+   // If YES: You MUST use a **Direct Action** with the page_id. This is non-negotiable. It bypasses search and prevents all ambiguity errors.
+   //   - **Direct Actions:** appendToNotionPage, deleteNotionPage.
+
+   // TIER 2: If you DO NOT have an "Active Page ID":
+   // You must first DISCOVER the page using a **Smart Action** that searches by title.
+   //   - **Smart Actions:** findAndReadPageContent, findAndAppendToPage, findAndReplaceInPage, etc.
+
+${activeNotionPage ? `
+   // --- [CURRENT CONTEXT: YOU HAVE AN ACTIVE PAGE!] ---
+   - **Page Title:** "${activeNotionPage.title}"
+   - **Page ID:** "${activeNotionPage.id}"
+   - **CRITICAL INSTRUCTION:** For the user's next command, you MUST use a **Direct Action** with the page_id above (e.g., appendToNotionPage).
+` : `
+   // --- [CURRENT CONTEXT: YOU DO NOT HAVE AN ACTIVE PAGE] ---
+   - You must first identify the target page using a **Smart Action** (e.g., \`findAndReadPageContent\`, \`createNotionPage\`).
+`}
+
+
+
+   // --- [THE GOLDEN RULE OF CONTEXT: THE "ACTIVE PAGE"] ---
+   - **This is your most important rule for Notion.** When you successfully find, create, or modify a page, that page's title (e.g., "Marketing 101 class") becomes the **"Active Page"**.
+   - **You MUST remember this title.** All subsequent user commands that are modifications (e.g., "add notes," "update it," "change the title") are about this **"Active Page"** unless the user specifies a new page title.
+   - **DO NOT** get confused by the page's content (like headings) or its parent (like "Homework"). Your focus is locked onto the "Active Page" title until a new one is mentioned.
+
+   // --- [CORE BEHAVIOR: PROACTIVE & SURGICAL MODIFICATION] ---
+   - **Rule 1: Never Create Empty Pages.** When a user asks you to create a page like a "study plan" or "meeting notes," you MUST generate useful starter content and include it in the createNotionPage call. This prevents immediate follow-up failures.
+   - **Rule 2: Never Be Destructive.** When a user asks to "update" or "add to" a section, you MUST use a precise tool like findAndReplaceInPage or findAndInsertAfter. Do NOT use findAndUpdatePageContent (which deletes everything) unless the user explicitly says "replace the whole page" or "start over."
+
+      // --- [CRITICAL WORKFLOW: HOW TO REPLACE A SECTION] ---
+   - This is the correct procedure for updating a section like "Goals for the Week".
+   1.  You must identify the **header** of the section the user wants to change.
+   2.  You will use the findAndReplaceInPage action.
+   3.  For the findText payload, you MUST use **only the text of the header** (e.g., "Goals for the Week:").
+   4.  For the replaceText payload, you MUST provide the **full, new, updated section**, including the new header and all its new bullet points, formatted in Markdown.
+   - **Example:**
+     - **User:** "lets update he goals to be longer"
+     - **Your Thought Process:** The user wants to update the 'Goals' section on the active 'Study Plan' page. I will find the header "Goals for the Week:" and replace it with a new header and new, longer goals.
+     - **CORRECT PAYLOAD:**
+       \`\`\`json
+       {
+         "action": "findAndReplaceInPage",
+         "payload": {
+           "title": "Study Plan",
+           "findText": "Goals for the Week:",
+           "replaceText": "### Expanded Goals for the Week:\\n- **Goal 1:** Complete 2 full-length SAT practice tests under timed conditions and score above 1400.\\n- **Goal 2:** Meticulously review every incorrect answer from both practice tests, writing down the reason for the error and the correct principle to apply.\\n- **Goal 3:** Master 3 new advanced math concepts, such as trigonometry identities and complex numbers, by completing at least 20 practice problems for each."
+         }
+       }
+       \`\`\`
+   - **WRONG PAYLOAD:** Do NOT put the old bullet points in the findText. It will fail.
+     - \`{"findText": "Goals for the Week:\\n- Complete 2 full SAT..."}\` <-- THIS IS WRONG.
+
+   // --- [TOOL SELECTION GUIDE] ---
+
+   // **Direct Actions (Use these ONLY when you have an active page_id)**
+   - appendToNotionPage: Adds content to the end of the active page. Payload: \`{"page_id": string, "content": string}\`.
+   - deleteNotionPage: Deletes the active page. Payload: \`{"page_id": string}\`.
+
+   // **Smart Actions (Use these to FIND a page by its title and then act on it)**
+   - findAndReadPageContent, findAndAppendToPage, findAndInsertAfter, findAndReplaceInPage, findAndDeletePage.
+
+   // **Creation Action**
+   - createNotionPage: Creates a new page.
+     - If the user says "create a top-level page" or doesn't specify a parent, OMIT the parent_page_id from the payload.
+     - **CRITICAL:** NEVER create an empty page. Always generate useful starter content.
+
+   // --- [SPECIFIC WORKFLOWS & RULES] ---
+   - **Batch Creation:** To create multiple pages, use the actions array with multiple reateNotionPage objects.
+   - **Replacing a Section:** To update a section, use findAndReplaceInPage. Your findText MUST be the section's header text only (e.g., "Action Items:"). Your replaceText should be the full new section content.
+   - **Handling Latency:** If a find... action fails right after page creation, tell the user it's taking a moment and then **retry the exact same JSON action.**
+  // --- [CRITICAL WORKFLOW: HANDLING MULTIPLE ACTIONS (BATCHING)] ---
+   - **When the user asks to create or modify multiple items at once, you MUST use the batch format.**
+   - The JSON payload should have a single key "actions" which is an array of individual action objects.
+   - **Example Scenario:** User asks to create 3 sub-pages in their "School" page.
+   - **CORRECT BATCH PAYLOAD:**
+     \`\`\`json
+     {
+       "type": "notion",
+       "actions": [
+         {
+           "action": "createNotionPage",
+           "payload": { "title": "SAT", "parent_page_id": "b34c...", "content": "## SAT Study Plan..." }
+         },
+         {
+           "action": "createNotionPage",
+           "payload": { "title": "Cooking", "parent_page_id": "b34c...", "content": "## Cooking Notes..." }
+         },
+         {
+           "action": "createNotionPage",
+           "payload": { "title": "Basketball", "parent_page_id": "b34c...", "content": "## Basketball Drills..." }
+         }
+       ]
+     }
+     \`\`\`
+   - **DO NOT** send multiple, separate JSON objects. Send one object with one actions array.
+
+   // --- [HANDLING FAILURES & LATENCY] ---
+   - **If a find... action fails immediately after you create a page, it is likely an API delay.**
+   - **DO NOT tell the user the page doesn't exist.**
+   - Your response MUST be: "It seems to be taking a moment for the new page to become available. Let me try that again." Then, you MUST output the **exact same JSON action a second time.**
+
+   // --- [PAYLOAD ACCURACY] ---
+   - When using findText, you MUST use the raw text content only. **DO NOT include markdown characters like # or -.**
+   - **GOOD:** {"findText": "Action Items"}
+   - **BAD:**{"findText": "## Action Items"}
+
+// --- [PAGE CREATION & SEARCH] ---
+   - To **CREATE** a brand new page: Use \`createNotionPage\`. If the user does not specify where to put it (a parent page or database), you **MUST** ask them first. See the "Page Creation Behavior" below.
+   - To **SEARCH** for pages or read a specific one:
+     - Use \`searchNotion\` to find a list of pages. Payload: \`{"query": string}\`.
+
+// --- [PAGE CREATION BEHAVIOR (CRITICAL)] ---
+   - Every new Notion page requires a parent (a page or a database).
+   - **If the user's request to create a page is AMBIGUOUS** (e.g., "create a page called Gym Routine"), you **MUST** ask them where it should go.
+   - **This is a two-step process for you:**
+     1.  **Step 1 (Clarification):** Your response MUST be a clarifying question. Example: "Of course! Where would you like to create the 'Gym Routine' page? You can add it to a database or inside an existing page." You can use \`searchNotion\` with an empty query to get a list of potential parents to suggest to the user.
+     2.  **Step 2 (Execution):** Once the user specifies a parent, you will then call \`createNotionPage\` with the correct \`parent_page_id\` or \`parent_database_id\`.
+
+// --- [CONTENT GENERATION FOR NOTION] ---
+   - **CRITICAL**: When providing content for a page (in the \`content\` field), you **MUST** format it using standard Markdown.
+   - Supported Markdown: Headings (#, ##, ###), Bullet Points (- or *), and To-Do lists (- [ ] for unchecked, - [x] for checked).
+   - **Example**: \`"content": "## Mexico Trip\\n\\n### Packing\\n- Passport\\n- [ ] Book flights"\`
+   
+   - **JSON Format**:
+     \\\`\\\`\\\`json
+     { "type": "notion", "action": "the_action_to_perform", "payload": { ... } }
+     \\\`\\\`\\\`
+
+   - **Important**: If the integration is not connected, respond in plain text telling them to connect Notion in the settings. Do not output JSON.
 
 // -------------------------------------------------------------------------------------------------
 // [PROTOCOL 1: JSON ACTION PROTOCOL]
@@ -1822,24 +1948,26 @@ Assistant:`;
     const geminiOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(apiRequestBody) };
 
     try {
-      const response = await fetchWithTimeout(fullApiUrl, geminiOptions);
-      const responseText = await response.text();
-      const parsedApiResult = parseGeminiApiResponse(responseText, imageGenModeOn);
+         const response = await fetchWithTimeout(fullApiUrl, geminiOptions);
+        const responseText = await response.text();
+        const parsedApiResult = parseGeminiApiResponse(responseText, imageGenModeOn);
+        
+        let contentToProcess = parsedApiResult.text || "";
+        const sources = parsedApiResult.sources || [];
+        if (sources.length > 0) { contentToProcess = contentToProcess.replace(/\[\d+\]/g, '').trim(); }
+        
+        const { blocks: jsonActionBlocks, cleanedText } = extractJsonBlocks(contentToProcess);
+        let assistantTextForDisplay = cleanedText;
 
-      let contentToProcess = parsedApiResult.text || "";
-      const sources = parsedApiResult.sources || [];
-      if (sources.length > 0) {
-          contentToProcess = contentToProcess.replace(/\[\d+\]/g, '').replace(/\[\d+(,\s*\d+)*\]/g, '').trim();
-      }
+        // --- START OF NEW NOTION HANDLING LOGIC (insert after jsonActionBlocks is defined) ---
+        const notionBlock = jsonActionBlocks.find(b => b.type === 'notion' && b.action);
+        // --- END OF NEW NOTION HANDLING LOGIC ---
 
-      const { blocks: jsonActionBlocks, cleanedText } = extractJsonBlocks(contentToProcess);
-
-      let assistantTextForDisplay = cleanedText;
-      const geminiGeneratedImageData = parsedApiResult.localImageData;
-      let finalImageUrl: string | undefined = undefined;
-      let finalImageMeta: FirebaseImageMeta | undefined = undefined;
-      let educationalContent: FlashcardMessage | QuestionMessage | undefined = undefined;
-      let actionTakenDetails: ChatMessageData['actionDetails'] | undefined = undefined;
+        const geminiGeneratedImageData = parsedApiResult.localImageData;
+        let finalImageUrl: string | undefined = undefined; 
+        let finalImageMeta: FirebaseImageMeta | undefined = undefined;
+        let educationalContent: FlashcardMessage | QuestionMessage | undefined = undefined;
+        let actionTakenDetails: ChatMessageData['actionDetails'] | undefined = undefined;
 
       if (geminiGeneratedImageData && user && user.uid && currentConvId) {
         setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? {...msg, content: "Generating & saving image..." , isLoading: true  } : msg));
@@ -1854,6 +1982,125 @@ Assistant:`;
             assistantTextForDisplay = (assistantTextForDisplay ? assistantTextForDisplay + "\n" : "") + "Error: Failed to save generated image.";
         }
       }
+
+
+        // --- ADD THIS ENTIRE BLOCK TO HANDLE NOTION ACTIONS ---
+// --- START REPLACEMENT ---
+if (notionBlock && user?.uid && isNotionConnected) {
+    setIsProcessingNotion(true);
+    setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? { ...msg, isLoading: true, isProcessingNotion: true } : msg ));
+    
+    try {
+        const notionAction = httpsCallable(functions, 'notionProxy');
+        const requestData = notionBlock.actions
+            ? notionBlock
+            : { action: notionBlock.action, payload: notionBlock.payload };
+        const result = await notionAction(requestData);
+        const actionResult = result.data as any;
+        
+        let friendlyMessage = "";
+        let successMessage = "";
+        let pageUrl: string | undefined = undefined;
+        let pageTitle: string | undefined = undefined;
+
+        if (Array.isArray(actionResult)) {
+            // Batch action handling
+            const successfulActions = actionResult.filter(r => r && !r.error);
+            successMessage = `Successfully completed ${successfulActions.length} of ${actionResult.length} Notion actions.`;
+            
+            const lastSuccess = successfulActions[successfulActions.length - 1];
+            if (lastSuccess && lastSuccess.url) {
+                pageUrl = lastSuccess.url;
+                pageTitle = lastSuccess.properties?.title?.title?.[0]?.plain_text || "Last Created Page";
+                setActiveNotionPage({ id: lastSuccess.id, title: pageTitle });
+            }
+        } 
+        else {
+            // Single action handling
+            switch (notionBlock.action) {
+                case 'searchNotion':
+                    successMessage = "Searched Notion.";
+                    if (actionResult.results?.length > 0) {
+                        friendlyMessage = "Here's what I found in your Notion:\n" + actionResult.results.map((item: any) => {
+                            const title = item.object === 'page'
+                                ? item.properties.title?.title?.[0]?.plain_text
+                                : item.title?.[0]?.plain_text;
+                            return `- [${title}](${item.url})`;
+                        }).join('\n');
+                    } else {
+                        friendlyMessage = "I couldn't find any matching pages in your Notion.";
+                    }
+                    if (actionResult.results?.length === 1) {
+                        const singleResult = actionResult.results[0];
+                         const title = singleResult.properties?.title?.title?.[0]?.plain_text;
+                         if (singleResult.id && title) {
+                            setActiveNotionPage({ id: singleResult.id, title: title });
+                         }
+                    } else {
+                        setActiveNotionPage(null);
+                    }
+                    break;
+
+                // --- FIX #1: ADDED THE MISSING 'readNotionPageContent' CASE ---
+                case 'readNotionPageContent':
+                     successMessage = "Read Notion page content.";
+                     friendlyMessage = "Here's the content I found:\n\n---\n\n" + (actionResult.markdownContent || "That page appears to be empty.");
+                     const pageIdRead = notionBlock.payload.page_id;
+                     if (pageIdRead) {
+                        pageUrl = `https://www.notion.so/${pageIdRead.replace(/-/g, '')}`;
+                        pageTitle = actionResult.pageTitle || "Notion Page"; 
+                        if (actionResult.id && pageTitle) {
+                           setActiveNotionPage({ id: actionResult.id, title: pageTitle });
+                        }
+                     }
+                     break;
+
+                case 'createNotionPage':
+                case 'findAndAppendToPage':
+                case 'findAndUpdatePageContent':
+                case 'findAndReplaceInPage':
+                case 'appendToNotionPage':
+                case 'findAndInsertAfter':
+                case 'findAndReadPageContent':
+                    successMessage = notionBlock.action === 'createNotionPage' ? "Created Notion page." : "Updated Notion page.";
+                    if (notionBlock.action === 'findAndReadPageContent') {
+                        successMessage = "Read Notion page.";
+                        friendlyMessage = actionResult.markdownContent || "This page appears to be empty.";
+                    }
+                    
+                    pageUrl = actionResult.url;
+                    pageTitle = actionResult.properties?.title?.title?.[0]?.plain_text || actionResult.pageTitle || "Untitled";
+
+                    if (actionResult.id && pageTitle) {
+                        setActiveNotionPage({ id: actionResult.id, title: pageTitle });
+                    }
+                    break;
+
+                case 'findAndDeletePage':
+                    successMessage = `Deleted Notion page "${actionResult.title}".`;
+                    setActiveNotionPage(null);
+                    break;
+                
+                default:
+                    successMessage = `Notion action '${notionBlock.action}' succeeded.`;
+            }
+        }
+
+        // --- FIX #2: REMOVED THE LOGIC THAT DUPLICATED MESSAGES ---
+        // This now correctly separates the AI's conversational text from the action's results.
+        assistantTextForDisplay = [cleanedText.trim(), friendlyMessage.trim()].filter(Boolean).join('\n\n');
+        actionTakenDetails = { status: 'success', message: successMessage, pageUrl, pageTitle };
+        
+    } catch (err: any) {
+        console.error("Notion action failed:", err);
+        assistantTextForDisplay = cleanedText.trim() || `Sorry, the Notion action failed: ${err.message || 'An unknown error occurred.'}`;
+        actionTakenDetails = { status: 'error', message: `Notion: ${notionBlock.action || 'batch operation'} failed.`};
+        setActiveNotionPage(null);
+    } finally {
+        setIsProcessingNotion(false);
+    }
+}
+// --- END REPLACEMENT ---
 
       const educationalBlock = jsonActionBlocks.find(block => block.type === "flashcard" || block.type === "question");
 
@@ -1872,7 +2119,8 @@ Assistant:`;
           educationalContent = await verifyEducationalContent(tempEducationalContent);
       }
       
-      const otherActionBlocks = jsonActionBlocks.filter(b => b !== educationalBlock);
+      const otherActionBlocks = jsonActionBlocks.filter(b => b.type !== 'notion' && b.type !== 'flashcard' && b.type !== 'question');
+
 
       if (!isImageGenModeActive && otherActionBlocks.length > 0 && user?.uid) {
           let combinedActionMessage = "";
@@ -2041,76 +2289,108 @@ Assistant:`;
               actionTakenDetails = { status: overallStatus, message: combinedActionMessage };
           }
       }
+      // --- START: CORRECTED LOGIC BLOCK ---
+      // This new, more robust logic ensures action results are never accidentally erased or duplicated.
+      let finalContent = assistantTextForDisplay.trim();
 
+      // If an action was taken but the AI gave no conversational text, we preserve the action's friendly message (like search results).
       if (actionTakenDetails && !cleanedText.trim()) {
-          assistantTextForDisplay = ""; 
-      } else if (educationalContent && !cleanedText.trim()) {
-          assistantTextForDisplay = educationalContent.type === 'flashcard' ? "Here are some flashcards, verified for accuracy:" : "Here's a quiz, verified for accuracy:";
+          // We do nothing here, `finalContent` (which is assistantTextForDisplay) already holds our desired result.
+      } 
+      // If there's no main content yet, but we have an action message, use that message as a fallback.
+      else if (!finalContent && actionTakenDetails && actionTakenDetails.message) {
+          finalContent = actionTakenDetails.message;
+      }
+      
+      // If we have educational content but no other text, provide a default intro.
+      if (educationalContent && !cleanedText.trim()) {
+          finalContent = educationalContent.type === 'flashcard' 
+              ? "Here are some flashcards, verified for accuracy:" 
+              : "Here's a quiz, verified for accuracy:";
       }
 
-      if (parsedApiResult.error && !assistantTextForDisplay.trim()) {
-          assistantTextForDisplay = parsedApiResult.error;
-      } else if (!assistantTextForDisplay.trim() && !finalImageUrl && !educationalContent && !actionTakenDetails) {
-          assistantTextForDisplay = "(AI did not provide a text response)";
+      // If there's an API error and no other content, the error becomes the main content.
+      if (parsedApiResult.error && !finalContent) {
+          finalContent = parsedApiResult.error;
       }
-      
-      const finalAssistantMsgDataForUi: ChatMessageData = {
-          id: newAssistantLPHId,
-          role: 'assistant',
-          content: assistantTextForDisplay.trim(),
-          createdAt: new Date(),
-          flashcard: educationalContent?.type === 'flashcard' ? educationalContent as FlashcardMessage : undefined,
-          question: educationalContent?.type === 'question' ? educationalContent as QuestionMessage : undefined,
-          actionDetails: actionTakenDetails,
-          imageUrl: finalImageUrl,
-          imageMeta: finalImageMeta,
-          wasImageGenerated: imageGenModeOn && !!finalImageUrl && !parsedApiResult.error,
-          error: !!parsedApiResult.error || actionTakenDetails?.status === 'error',
-          isLoading: false,
-          isVerifyingContent: false,
-          sources: sources,
-      };
-      
-      setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? finalAssistantMsgDataForUi : msg ));
 
-      const assistantMsgToSave : Partial<FirebaseChatMessage> = {
-          role: finalAssistantMsgDataForUi.role,
-          content: finalAssistantMsgDataForUi.content,
-          flashcard: finalAssistantMsgDataForUi.flashcard,
-          question: finalAssistantMsgDataForUi.question,
-          actionDetails: finalAssistantMsgDataForUi.actionDetails,
-          imageUrl: finalAssistantMsgDataForUi.imageUrl,
-          imageMeta: finalAssistantMsgDataForUi.imageMeta,
-          wasImageGenerated: finalAssistantMsgDataForUi.wasImageGenerated,
-          error: finalAssistantMsgDataForUi.error,
-          sources: finalAssistantMsgDataForUi.sources,
-      };
-      
-      if (currentConvId) {
-          await saveChatMessage(currentConvId, assistantMsgToSave);
+      // A final fallback if absolutely nothing else has produced content.
+      if (!finalContent && !finalImageUrl && !educationalContent && !actionTakenDetails) {
+          finalContent = "(AI did not provide a text response)";
       }
+      // --- END: CORRECTED LOGIC BLOCK ---
       
-      const finalHistoryForName = [...chatHistory.filter(m => m.id !== newAssistantLPHId), finalAssistantMsgDataForUi];
-      const totalUserMessagesInConv = finalHistoryForName.filter(m => m.role === 'user').length;
-      const currentConvInfo = conversationList.find(c => c.id === currentConvId);
+        const finalAssistantMsgDataForUi: ChatMessageData = {
+            id: newAssistantLPHId,
+            role: 'assistant',
+          content: finalContent, // Use the corrected finalContent variable here
+            createdAt: new Date(),
+            actionDetails: actionTakenDetails,
+            flashcard: educationalContent?.type === 'flashcard' ? educationalContent as FlashcardMessage : undefined,
+            question: educationalContent?.type === 'question' ? educationalContent as QuestionMessage : undefined,
+            imageUrl: finalImageUrl,
+            imageMeta: finalImageMeta,
+            wasImageGenerated: imageGenModeOn && !!finalImageUrl && !parsedApiResult.error,
+            error: !!parsedApiResult.error || actionTakenDetails?.status === 'error',
+            isLoading: false,
+            isVerifyingContent: false,
+            isProcessingActions: otherActionBlocks.length > 0,
+            isProcessingNotion: !!notionBlock,
+            sources: sources,
+        };
+      
+        setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? finalAssistantMsgDataForUi : msg ));
 
-      if (currentConvId && currentConvInfo?.chatName === "New Chat" && (!hasGeneratedChatName || totalUserMessagesInConv === 1) ) {
-          await generateChatName(currentConvId, finalHistoryForName, user);
-          setHasGeneratedChatName(true);
-      }
+        // --- START OF THE FIX ---
+        const assistantMsgToSave : Partial<FirebaseChatMessage> = {
+            role: finalAssistantMsgDataForUi.role,
+            content: finalAssistantMsgDataForUi.content,
+            flashcard: finalAssistantMsgDataForUi.flashcard,
+            question: finalAssistantMsgDataForUi.question,
+            imageUrl: finalAssistantMsgDataForUi.imageUrl,
+            imageMeta: finalAssistantMsgDataForUi.imageMeta,
+            wasImageGenerated: finalAssistantMsgDataForUi.wasImageGenerated,
+            error: finalAssistantMsgDataForUi.error,
+            sources: finalAssistantMsgDataForUi.sources,
+        };
+
+        if (finalAssistantMsgDataForUi.actionDetails) {
+            assistantMsgToSave.actionDetails = {
+                status: finalAssistantMsgDataForUi.actionDetails.status,
+                // Replace `undefined` with `null`, which Firestore accepts.
+                message: finalAssistantMsgDataForUi.actionDetails.message || null,
+                pageUrl: finalAssistantMsgDataForUi.actionDetails.pageUrl || null,
+                pageTitle: finalAssistantMsgDataForUi.actionDetails.pageTitle || null,
+            };
+        }
+        // --- END OF THE FIX ---
+      
+        if (currentConvId) {
+            await saveChatMessage(currentConvId, assistantMsgToSave);
+        }
+      
+        const finalHistoryForName = [...chatHistory.filter(m => m.id !== newAssistantLPHId), finalAssistantMsgDataForUi];
+        const totalUserMessagesInConv = finalHistoryForName.filter(m => m.role === 'user').length;
+        const currentConvInfo = conversationList.find(c => c.id === currentConvId);
+
+        if (currentConvId && currentConvInfo?.chatName === "New Chat" && (!hasGeneratedChatName || totalUserMessagesInConv === 1) ) {
+            await generateChatName(currentConvId, finalHistoryForName, user);
+            setHasGeneratedChatName(true);
+        }
 
     } catch (err: any) {
-      console.error("Error in handleChatSubmit:", err);
-      const errorMsgContent = `Sorry, I encountered an error${err.message ? ': ' + err.message : '.'} Please try again.`;
-      const errorMsgForState: ChatMessageData = { id: newAssistantLPHId, role: 'assistant', content: errorMsgContent, error: true, createdAt: new Date(), isLoading: false };
-      setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? errorMsgForState : msg ));
-      if (currentConvId) await saveChatMessage(currentConvId, { role: 'assistant', content: errorMsgContent, error: true });
+        console.error("Error in handleChatSubmit:", err);
+        const errorMsgContent = `Sorry, I encountered an error${err.message ? ': ' + err.message : '.'} Please try again.`;
+        const errorMsgForState: ChatMessageData = { id: newAssistantLPHId, role: 'assistant', content: errorMsgContent, error: true, createdAt: new Date(), isLoading: false };
+        setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? errorMsgForState : msg ));
+        if (currentConvId) await saveChatMessage(currentConvId, { role: 'assistant', content: errorMsgContent, error: true });
     } finally {
-      setIsChatLoading(false);
-      setIsAiSearching(false);
-      setAssistantLoadingPlaceholderId(null);
+        setIsChatLoading(false);
+        setIsAiSearching(false);
+        setIsProcessingNotion(false);
+        setAssistantLoadingPlaceholderId(null);
     }
-  };
+};
 
   const [tasks, setTasks] = useState<Array<{ id: string; data: any }>>([]);
   const [goals, setGoals] = useState<Array<{ id: string; data: any }>>([]);
@@ -2309,6 +2589,16 @@ Assistant:`;
           }
         });
 
+                // --- ADD THIS BLOCK TO CHECK NOTION STATUS ---
+        getUserData(firebaseUser.uid).then(userData => {
+          if (userData && userData.notionAccessData) {
+            setIsNotionConnected(true);
+          } else {
+            setIsNotionConnected(false);
+          }
+        });
+        // --- END OF BLOCK ---
+
         // Fetch page-specific data
         unsubTasks = onCollectionSnapshot('tasks', firebaseUser.uid, setTasks);
         unsubGoals = onCollectionSnapshot('goals', firebaseUser.uid, setGoals);
@@ -2348,6 +2638,9 @@ Assistant:`;
         setIsChatDisabledByLimit(true);
         setUserProfile(null);
         setMemories([]);
+                setIsNotionConnected(false);
+        setActiveNotionPage(null);
+        setIsNotionSearchModeActive(false);
         setUserContext(null);
       }
       
@@ -2375,6 +2668,22 @@ Assistant:`;
       setIsChatDisabledByLimit(chatUsageCount >= chatLimit && chatLimit !== Infinity);
     }
   }, [chatUsageCount, chatLimit, userTier]);
+
+    const handleToggleNotionSearchMode = () => {
+    if (!isNotionConnected) {
+        // Redirect to settings page if Notion is not connected
+        navigate('/settings');
+        return;
+    }
+    setIsNotionSearchModeActive(prev => {
+        if (!prev) {
+            // When enabling Notion mode, disable other modes
+            setIsImageGenModeActive(false);
+            setIsSearchModeActive(false);
+        }
+        return !prev;
+    });
+  };
 
 
   useEffect(() => {
@@ -4640,27 +4949,33 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                     {conversationId && chatHistory.map((message, index) => (
                         <div key={message.id || `${message.role}-${index}`} className={`flex ${message.role === 'user' || message.role === 'system' ? 'justify-end' : 'justify-start'} animate-fadeIn`} style={{ animationDelay: `${index * 20}ms`, animationDuration: '250ms' }}>
                             <div className={`max-w-[85%] rounded-xl px-3.5 py-2.5 ${message.role === 'user' ? 'text-sm' : 'text-xs'} shadow-md break-words ${message.role === 'user' ? 'bg-indigo-500 text-white' : message.error ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200 border border-red-200 dark:border-red-700/60' : message.role === 'system' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-100 border border-yellow-200 dark:border-yellow-700/60 text-center mx-auto' : 'bg-gray-100 dark:bg-[#161922] text-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700/70'}`}>
-                                {message.isLoading && (
-                                    <div className="flex flex-col items-center gap-1.5 text-gray-500 dark:text-gray-400 p-1">
-                                        {message.isVerifyingContent ? (
-                                            <div className="flex flex-col items-center gap-2 text-sm text-gray-600 dark:text-gray-400 p-2">
-                                                <ShieldCheck className="w-7 h-7 text-green-500 animate-pulse" />
-                                                <span className="font-medium">Ensuring accuracy...</span>
-                                            </div>
-                                        ) : message.isSearching ? (
-                                             <div className="text-left w-full text-sm">
-                                                <div className="flex items-center gap-2 font-medium">
-                                                    <Globe className="w-4 h-4 animate-spin" />
-                                                    <span>Searching the web...</span>
-                                                </div>
-                                             </div>
-                                        ) : message.isGeneratingImage ? (
-                                            <div className="flex items-center gap-2 text-sm"><Palette className="w-4 h-4 animate-pulse text-purple-500" /><span>Creating image...</span></div>
-                                        ) : (
-                                            <div className="flex space-x-0.5 p-1"><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce"></div><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div></div>
-                                        )}
-                                    </div>
-                                )}
+  {message.isLoading && (
+    <div className="flex flex-col items-center gap-1.5 text-gray-500 dark:text-gray-400 p-1">
+        {/* --- THIS IS THE CORRECTED LOGIC --- */}
+        {message.isProcessingNotion ? (
+            <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                <NotionIcon className="w-4 h-4 animate-pulse" />
+                <span>Working with Notion...</span>
+            </div>
+        ) : message.isVerifyingContent ? (
+            <div className="flex flex-col items-center gap-2 text-sm text-gray-600 dark:text-gray-400 p-2">
+                <ShieldCheck className="w-7 h-7 text-green-500 animate-pulse" />
+                <span className="font-medium">Ensuring accuracy...</span>
+            </div>
+        ) : message.isSearching ? (
+            <div className="text-left w-full text-sm">
+                <div className="flex items-center gap-2 font-medium">
+                    <Globe className="w-4 h-4 animate-spin" />
+                    <span>Searching the web...</span>
+                </div>
+            </div>
+        ) : message.isGeneratingImage ? (
+            <div className="flex items-center gap-2 text-sm"><Palette className="w-4 h-4 animate-pulse text-purple-500" /><span>Creating image...</span></div>
+        ) : (
+            <div className="flex space-x-0.5 p-1"><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce"></div><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div></div>
+        )}
+    </div>
+)}
                                 {message.role === 'user' && (
                                     <>
                                         {message.attachedFilesMeta && message.attachedFilesMeta.length > 0 && (
@@ -4797,6 +5112,11 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                     isIlluminateEnabled={!isDarkMode}
                     isBlackoutEnabled={false} 
                 />
+                        <IntegrationsControl
+            isNotionConnected={isNotionConnected}
+            isNotionSearchModeActive={isNotionSearchModeActive}
+            onToggleNotionSearchMode={handleToggleNotionSearchMode}
+        />
             </div>
             <div className="flex items-center">
                 <AnimatePresence mode="wait" initial={false}>
