@@ -1549,7 +1549,7 @@ ${memoryContext}
 
    // TIER 1: Do you have an "Active Page ID" provided in the context?
    // If YES: You MUST use a **Direct Action** with the page_id. This is non-negotiable. It bypasses search and prevents all ambiguity errors.
-   //   - **Direct Actions:** appendToNotionPage, deleteNotionPage.
+   //   - **Direct Actions:** appendToNotionPage, findAndDeletePage.
 
    // TIER 2: If you DO NOT have an "Active Page ID":
    // You must first DISCOVER the page using a **Smart Action** that searches by title.
@@ -1603,7 +1603,7 @@ ${activeNotionPage ? `
 
    // **Direct Actions (Use these ONLY when you have an active page_id)**
    - appendToNotionPage: Adds content to the end of the active page. Payload: \`{"page_id": string, "content": string}\`.
-   - deleteNotionPage: Deletes the active page. Payload: \`{"page_id": string}\`.
+   - findAndDeletePage: Deletes the active page. Payload: \`{"page_id": string}\`.
 
    // **Smart Actions (Use these to FIND a page by its title and then act on it)**
    - findAndReadPageContent, findAndAppendToPage, findAndInsertAfter, findAndReplaceInPage, findAndDeletePage.
