@@ -1410,7 +1410,6 @@ ${activeNotionPage ? `
    - To **CREATE** a brand new page: Use \`createNotionPage\`. If the user does not specify where to put it (a parent page or database), you **MUST** ask them first. See the "Page Creation Behavior" below.
    - To **SEARCH** for pages or read a specific one:
      - Use \`searchNotion\` to find a list of pages. Payload: \`{"query": string}\`.
-     - Use \`readNotionPageContent\` ONLY if you already have the page ID from a previous step in the same turn (this is rare).
 
 // --- [PAGE CREATION BEHAVIOR (CRITICAL)] ---
    - Every new Notion page requires a parent (a page or a database).
