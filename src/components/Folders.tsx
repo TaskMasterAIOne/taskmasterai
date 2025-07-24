@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition'; // <-- ADD THIS IMPORT
+import { getFunctions, httpsCallable } from 'firebase/functions'; 
+import { getUserData } from '../lib/settings-firebase';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Folder as FolderIconLucide, Folders as FoldersIcon, FolderPlus, MessageCircle, Edit, Bot, Trash, Search, X, MessageSquare, ChevronRight, ChevronDown,
@@ -45,6 +47,10 @@ import {
   deleteMemory,
   type Memory,
 } from '../lib/ai-memories-firebase';
+
+
+import { IntegrationsControl } from './integrations-control';
+
 
 import {
   UserTier,
@@ -131,7 +137,14 @@ export interface ChatMessageData {
   flashcard?: FlashcardMessage;
   question?: QuestionMessage;
   error?: boolean;
-  actionDetails?: { status: 'success' | 'error'; message?: string };
+  
+ // --- MODIFY THIS PART ---
+  actionDetails?: {
+    status: 'success' | 'error';
+    message?: string;
+    pageUrl?: string;     // ADD THIS
+    pageTitle?: string;   // ADD THIS
+  };
   localImageData?: LocalImageData;
   imageUrl?: string;
   imageMeta?: FirebaseImageMeta;
@@ -142,6 +155,8 @@ export interface ChatMessageData {
   attachedFilesMeta?: Array<{ name: string; type: string; size: number; url?: string; base64Data?: string; localPreviewUrl?: string; storagePath?:string }>;
   localPlaceholderId?: string;
   isLoading?: boolean;
+    isProcessingNotion?: boolean; // ADD THIS
+
   sources?: Array<{ number: number; url: string; title: string }>;
 }
 
@@ -393,7 +408,7 @@ const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessage
                     className={proseClassFolders}
                     components={{
                         a: ({ node, ...props }) => {
-                            const textContent = node.children[0]?.type === 'text' ? node.children[0].value : '';
+                            const textContent = node?.children[0]?.type === 'text' ? node.children[0].value : '';
                             const citationMatch = textContent.match(/^\[(\d+)\]$/);
                             if (citationMatch && props.href) {
                               return (
@@ -428,6 +443,30 @@ const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessage
                 </ReactMarkdown>
             )}
 
+            {message.actionDetails && (
+                <div className={`mt-2 pt-2 border-t border-dashed ${message.actionDetails.status === 'success' ? 'border-green-300 dark:border-green-700/60' : 'border-red-300 dark:border-red-700/60'}`}>
+                    <div className={`flex items-center gap-1.5 text-xs font-medium ${message.actionDetails.status === 'success' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                        {message.actionDetails.status === 'success' ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+                        <span className="whitespace-pre-wrap">{message.actionDetails.message}</span>
+                    </div>
+                    
+                    {message.actionDetails.status === 'success' && message.actionDetails.pageUrl && (
+                        <div className="mt-2">
+                            <a
+                                href={message.actionDetails.pageUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-200/50 dark:bg-gray-700/50 px-2.5 py-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                            >
+                                <NotionIcon className="w-3.5 h-3.5" />
+                                <span>View "{message.actionDetails.pageTitle || "Page"}" in Notion</span>
+                                <ArrowUpRight className="w-3 h-3" />
+                            </a>
+                        </div>
+                    )}
+                </div>
+            )}
+            
             {message.sources && message.sources.length > 0 && (
                  <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700/70">
                     <h4 className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">{message.sources.length} sources found</h4>
@@ -455,6 +494,13 @@ const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessage
 };
 
 
+const NotionIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <path className="fill-black dark:fill-white" d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z"/>
+    </svg>
+);
+
+
 export function Folders() {
   const navigate = useNavigate();
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -469,6 +515,14 @@ export function Folders() {
 
     const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+
+    // --- ADD THESE NEW STATE VARIABLES ---
+  const [isNotionConnected, setIsNotionConnected] = useState(false);
+  const [isNotionSearchModeActive, setIsNotionSearchModeActive] = useState(false);
+  const [activeNotionPage, setActiveNotionPage] = useState<{ id: string, title: string } | null>(null);
+  const [isProcessingNotion, setIsProcessingNotion] = useState(false);
+  const functions = getFunctions();
   
   // --- ADD THESE NEW STATES AND HOOKS ---
   const [isDraggingOver, setIsDraggingOver] = useState(false);
@@ -860,12 +914,27 @@ const recognitionRef = useRef<any>(null);
       setChatUsageCount(0);
       setIsChatDisabledByLimit(true);
       setAllUserTags([]);
+            setIsNotionConnected(false);
+      setActiveNotionPage(null);
+      setIsNotionSearchModeActive(false);
       return;
     }
 
     setUserName(user.displayName || user.email?.split('@')[0] || "Learner");
     updateDashboardLastSeen(user.uid).catch(err => console.warn("Failed to update last seen:", err));
 
+
+        // --- ADD THIS BLOCK TO CHECK NOTION STATUS ---
+    getUserData(user.uid).then(userData => {
+      if (userData && userData.notionAccessData) {
+        setIsNotionConnected(true);
+      } else {
+        setIsNotionConnected(false);
+      }
+    });
+    // --- END OF BLOCK ---
+
+    
     const unsubProfile = onUserProfileSnapshot(user.uid, async (profileData) => {
       if (profileData) {
         setUserProfile(currentProfile => JSON.stringify(currentProfile) !== JSON.stringify(profileData) ? profileData : currentProfile);
@@ -1020,6 +1089,22 @@ const recognitionRef = useRef<any>(null);
 
       const pointsNeededForPremium = userProfile ? Math.max(0, POINTS_FOR_FREE_PREMIUM - userProfile.points) : POINTS_FOR_FREE_PREMIUM;
   
+// Add this handler function inside the Folders component
+const handleToggleNotionSearchMode = () => {
+    if (!isNotionConnected) {
+        // Redirect to settings page if Notion is not connected
+        navigate('/settings');
+        return;
+    }
+    setIsNotionSearchModeActive(prev => {
+        if (!prev) {
+            // When enabling Notion mode, disable other modes
+            setIsImageGenModeActive(false);
+            setIsSearchModeActive(false);
+        }
+        return !prev;
+    });
+};
 
 
   useEffect(() => {
@@ -1592,6 +1677,7 @@ ${activePrompt || 'Respond in a standard, helpful manner.'}
   - Short-term Focus: ${userContext?.shortTermFocus || 'Not specified'}
   - Long-term Goals: ${userContext?.longTermGoals || 'Not specified'}
   - Other Notes: ${userContext?.otherContext || 'Not specified'}
+  - Notion Integration: ${isNotionConnected ? 'Connected' : 'Not Connected'} 
 
 // [B. DYNAMIC DATA CONTEXT] - This is the live data you are working with.
 
@@ -1626,6 +1712,155 @@ ${memories.length > 0 ? memories.map(m => `- [Internal Ref ID: ${m.id}] ${m.cont
     -> If YES, use the **[WEB SEARCH PROTOCOL]**, then formulate a conversational response.
 4.  **If none of the above, treat it as a general conversational query.**
     -> Proceed to the **[GENERAL CONVERSATIONAL PROTOCOL]**.
+5. **Does the query explicitly involve Notion (e.g., "in Notion", "find my Notion page") AND is the Notion integration "Connected"?**
+    -> IF YES, use the **[NOTION ACTION PROTOCOL]**.
+
+
+
+// -------------------------------------------------------------------------------------------------
+// [PROTOCOL NOTION ACTION PROTOCOL]
+// This is your complete guide for all Notion interactions. Follow it with absolute precision.
+// -------------------------------------------------------------------------------------------------
+
+   // --- [THE GOLDEN RULE: The "Active Page" Context] ---
+   // This is your most important rule. It is the key to avoiding almost all errors.
+   // 1. When you successfully find, create, or modify a page, that page's unique ID and Title become the "Active Page".
+   // 2. The system will provide this "Active Page" context to you on the next turn.
+   // 3. All subsequent commands from the user (e.g., "add notes", "update it") MUST be performed on this "Active Page" using its direct page_id.
+   // 4. This context is only cleared if the user explicitly asks for a DIFFERENT page by name.
+
+   // --- [CORE WORKFLOW: The Two-Tiered Approach] ---
+   // This is your primary logic for every Notion request.
+
+   // TIER 1: Do you have an "Active Page ID" provided in the context?
+   // If YES: You MUST use a **Direct Action** with the page_id. This is non-negotiable. It bypasses search and prevents all ambiguity errors.
+   //   - **Direct Actions:** appendToNotionPage, findAndDeletePage.
+
+   // TIER 2: If you DO NOT have an "Active Page ID":
+   // You must first DISCOVER the page using a **Smart Action** that searches by title.
+   //   - **Smart Actions:** findAndReadPageContent, findAndAppendToPage, findAndReplaceInPage, etc.
+
+${activeNotionPage ? `
+   // --- [CURRENT CONTEXT: YOU HAVE AN ACTIVE PAGE!] ---
+   - **Page Title:** "${activeNotionPage.title}"
+   - **Page ID:** "${activeNotionPage.id}"
+   - **CRITICAL INSTRUCTION:** For the user's next command, you MUST use a **Direct Action** with the page_id above (e.g., appendToNotionPage).
+` : `
+   // --- [CURRENT CONTEXT: YOU DO NOT HAVE AN ACTIVE PAGE] ---
+   - You must first identify the target page using a **Smart Action** (e.g., \`findAndReadPageContent\`, \`createNotionPage\`).
+`}
+
+
+
+   // --- [THE GOLDEN RULE OF CONTEXT: THE "ACTIVE PAGE"] ---
+   - **This is your most important rule for Notion.** When you successfully find, create, or modify a page, that page's title (e.g., "Marketing 101 class") becomes the **"Active Page"**.
+   - **You MUST remember this title.** All subsequent user commands that are modifications (e.g., "add notes," "update it," "change the title") are about this **"Active Page"** unless the user specifies a new page title.
+   - **DO NOT** get confused by the page's content (like headings) or its parent (like "Homework"). Your focus is locked onto the "Active Page" title until a new one is mentioned.
+
+   // --- [CORE BEHAVIOR: PROACTIVE & SURGICAL MODIFICATION] ---
+   - **Rule 1: Never Create Empty Pages.** When a user asks you to create a page like a "study plan" or "meeting notes," you MUST generate useful starter content and include it in the createNotionPage call. This prevents immediate follow-up failures.
+   - **Rule 2: Never Be Destructive.** When a user asks to "update" or "add to" a section, you MUST use a precise tool like findAndReplaceInPage or findAndInsertAfter. Do NOT use findAndUpdatePageContent (which deletes everything) unless the user explicitly says "replace the whole page" or "start over."
+
+      // --- [CRITICAL WORKFLOW: HOW TO REPLACE A SECTION] ---
+   - This is the correct procedure for updating a section like "Goals for the Week".
+   1.  You must identify the **header** of the section the user wants to change.
+   2.  You will use the findAndReplaceInPage action.
+   3.  For the findText payload, you MUST use **only the text of the header** (e.g., "Goals for the Week:").
+   4.  For the replaceText payload, you MUST provide the **full, new, updated section**, including the new header and all its new bullet points, formatted in Markdown.
+   - **Example:**
+     - **User:** "lets update he goals to be longer"
+     - **Your Thought Process:** The user wants to update the 'Goals' section on the active 'Study Plan' page. I will find the header "Goals for the Week:" and replace it with a new header and new, longer goals.
+     - **CORRECT PAYLOAD:**
+       \`\`\`json
+       {
+         "action": "findAndReplaceInPage",
+         "payload": {
+           "title": "Study Plan",
+           "findText": "Goals for the Week:",
+           "replaceText": "### Expanded Goals for the Week:\\n- **Goal 1:** Complete 2 full-length SAT practice tests under timed conditions and score above 1400.\\n- **Goal 2:** Meticulously review every incorrect answer from both practice tests, writing down the reason for the error and the correct principle to apply.\\n- **Goal 3:** Master 3 new advanced math concepts, such as trigonometry identities and complex numbers, by completing at least 20 practice problems for each."
+         }
+       }
+       \`\`\`
+   - **WRONG PAYLOAD:** Do NOT put the old bullet points in the findText. It will fail.
+     - \`{"findText": "Goals for the Week:\\n- Complete 2 full SAT..."}\` <-- THIS IS WRONG.
+
+   // --- [TOOL SELECTION GUIDE] ---
+
+   // **Direct Actions (Use these ONLY when you have an active page_id)**
+   - appendToNotionPage: Adds content to the end of the active page. Payload: \`{"page_id": string, "content": string}\`.
+   - findAndDeletePage: Deletes the active page. Payload: \`{"page_id": string}\`.
+
+   // **Smart Actions (Use these to FIND a page by its title and then act on it)**
+   - findAndReadPageContent, findAndAppendToPage, findAndInsertAfter, findAndReplaceInPage, findAndDeletePage.
+
+   // **Creation Action**
+   - createNotionPage: Creates a new page.
+     - If the user says "create a top-level page" or doesn't specify a parent, OMIT the parent_page_id from the payload.
+     - **CRITICAL:** NEVER create an empty page. Always generate useful starter content.
+
+   // --- [SPECIFIC WORKFLOWS & RULES] ---
+   - **Batch Creation:** To create multiple pages, use the actions array with multiple reateNotionPage objects.
+   - **Replacing a Section:** To update a section, use findAndReplaceInPage. Your findText MUST be the section's header text only (e.g., "Action Items:"). Your replaceText should be the full new section content.
+   - **Handling Latency:** If a find... action fails right after page creation, tell the user it's taking a moment and then **retry the exact same JSON action.**
+  // --- [CRITICAL WORKFLOW: HANDLING MULTIPLE ACTIONS (BATCHING)] ---
+   - **When the user asks to create or modify multiple items at once, you MUST use the batch format.**
+   - The JSON payload should have a single key "actions" which is an array of individual action objects.
+   - **Example Scenario:** User asks to create 3 sub-pages in their "School" page.
+   - **CORRECT BATCH PAYLOAD:**
+     \`\`\`json
+     {
+       "type": "notion",
+       "actions": [
+         {
+           "action": "createNotionPage",
+           "payload": { "title": "SAT", "parent_page_id": "b34c...", "content": "## SAT Study Plan..." }
+         },
+         {
+           "action": "createNotionPage",
+           "payload": { "title": "Cooking", "parent_page_id": "b34c...", "content": "## Cooking Notes..." }
+         },
+         {
+           "action": "createNotionPage",
+           "payload": { "title": "Basketball", "parent_page_id": "b34c...", "content": "## Basketball Drills..." }
+         }
+       ]
+     }
+     \`\`\`
+   - **DO NOT** send multiple, separate JSON objects. Send one object with one actions array.
+
+   // --- [HANDLING FAILURES & LATENCY] ---
+   - **If a find... action fails immediately after you create a page, it is likely an API delay.**
+   - **DO NOT tell the user the page doesn't exist.**
+   - Your response MUST be: "It seems to be taking a moment for the new page to become available. Let me try that again." Then, you MUST output the **exact same JSON action a second time.**
+
+   // --- [PAYLOAD ACCURACY] ---
+   - When using findText, you MUST use the raw text content only. **DO NOT include markdown characters like # or -.**
+   - **GOOD:** {"findText": "Action Items"}
+   - **BAD:**{"findText": "## Action Items"}
+
+// --- [PAGE CREATION & SEARCH] ---
+   - To **CREATE** a brand new page: Use \`createNotionPage\`. If the user does not specify where to put it (a parent page or database), you **MUST** ask them first. See the "Page Creation Behavior" below.
+   - To **SEARCH** for pages or read a specific one:
+     - Use \`searchNotion\` to find a list of pages. Payload: \`{"query": string}\`.
+
+// --- [PAGE CREATION BEHAVIOR (CRITICAL)] ---
+   - Every new Notion page requires a parent (a page or a database).
+   - **If the user's request to create a page is AMBIGUOUS** (e.g., "create a page called Gym Routine"), you **MUST** ask them where it should go.
+   - **This is a two-step process for you:**
+     1.  **Step 1 (Clarification):** Your response MUST be a clarifying question. Example: "Of course! Where would you like to create the 'Gym Routine' page? You can add it to a database or inside an existing page." You can use \`searchNotion\` with an empty query to get a list of potential parents to suggest to the user.
+     2.  **Step 2 (Execution):** Once the user specifies a parent, you will then call \`createNotionPage\` with the correct \`parent_page_id\` or \`parent_database_id\`.
+
+// --- [CONTENT GENERATION FOR NOTION] ---
+   - **CRITICAL**: When providing content for a page (in the \`content\` field), you **MUST** format it using standard Markdown.
+   - Supported Markdown: Headings (#, ##, ###), Bullet Points (- or *), and To-Do lists (- [ ] for unchecked, - [x] for checked).
+   - **Example**: \`"content": "## Mexico Trip\\n\\n### Packing\\n- Passport\\n- [ ] Book flights"\`
+   
+   - **JSON Format**:
+     \\\`\\\`\\\`json
+     { "type": "notion", "action": "the_action_to_perform", "payload": { ... } }
+     \\\`\\\`\\\`
+
+   - **Important**: If the integration is not connected, respond in plain text telling them to connect Notion in the settings. Do not output JSON.
 
 // -------------------------------------------------------------------------------------------------
 // [PROTOCOL 1: JSON ACTION PROTOCOL]
@@ -1788,6 +2023,9 @@ Assistant:`;
 
         if (geminiFormattedContents.length === 0 || (geminiFormattedContents.length === 1 && geminiFormattedContents[0].parts.every(p => !p.text && !p.inline_data))) {
             setIsChatLoading(false);
+                  setIsAiSearching(false);
+
+                  setIsProcessingNotion(false); // Add this
             setAssistantLoadingPlaceholderId(null);
             const errorMsgContent = "I couldn't process an empty message. Please type something or attach a file.";
             const errorMsgForState: ChatMessageData = { id: newAssistantLPHId, role: 'assistant', content: errorMsgContent, error: true, createdAt: new Date(), isLoading: false };
@@ -1823,6 +2061,130 @@ Assistant:`;
       }
       const { blocks: jsonActionBlocks, cleanedText, originalText } = extractJsonBlocks(contentToProcess);
       let assistantTextForDisplay = isImageGenModeActive ? (parsedApiResult.text || "") : cleanedText;
+
+
+             // --- START OF NEW NOTION HANDLING LOGIC (insert after jsonActionBlocks is defined) ---
+        const notionBlock = jsonActionBlocks.find(b => b.type === 'notion' && b.action);
+        let actionTakenDetails: ChatMessageData['actionDetails'] | undefined = undefined;
+
+if (notionBlock && user?.uid && isNotionConnected) {
+    setIsProcessingNotion(true);
+    setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? { ...msg, isLoading: true, isProcessingNotion: true } : msg ));
+    
+    try {
+        const notionAction = httpsCallable(functions, 'notionProxy');
+        const requestData = notionBlock.actions
+            ? notionBlock
+            : { action: notionBlock.action, payload: notionBlock.payload };
+        const result = await notionAction(requestData);
+        const actionResult = result.data as any;
+        
+        let friendlyMessage = "";
+        let successMessage = "";
+        let pageUrl: string | undefined = undefined;
+        let pageTitle: string | undefined = undefined;
+
+        if (Array.isArray(actionResult)) {
+            // Batch action handling
+            const successfulActions = actionResult.filter(r => r && !r.error);
+            successMessage = `Successfully completed ${successfulActions.length} of ${actionResult.length} Notion actions.`;
+            
+            const lastSuccess = successfulActions[successfulActions.length - 1];
+            if (lastSuccess && lastSuccess.url) {
+                pageUrl = lastSuccess.url;
+                pageTitle = lastSuccess.properties?.title?.title?.[0]?.plain_text || "Last Created Page";
+                setActiveNotionPage({ id: lastSuccess.id, title: pageTitle });
+            }
+        } 
+        else {
+            // Single action handling
+            switch (notionBlock.action) {
+                case 'searchNotion':
+                    successMessage = "Searched Notion.";
+                    if (actionResult.results?.length > 0) {
+                        friendlyMessage = "Here's what I found in your Notion:\n" + actionResult.results.map((item: any) => {
+                            const title = item.object === 'page'
+                                ? item.properties.title?.title?.[0]?.plain_text
+                                : item.title?.[0]?.plain_text;
+                            return `- [${title}](${item.url})`;
+                        }).join('\n');
+                    } else {
+                        friendlyMessage = "I couldn't find any matching pages in your Notion.";
+                    }
+                    if (actionResult.results?.length === 1) {
+                        const singleResult = actionResult.results[0];
+                         const title = singleResult.properties?.title?.title?.[0]?.plain_text;
+                         if (singleResult.id && title) {
+                            setActiveNotionPage({ id: singleResult.id, title: title });
+                         }
+                    } else {
+                        setActiveNotionPage(null);
+                    }
+                    break;
+
+                // --- FIX #1: ADDED THE MISSING 'readNotionPageContent' CASE ---
+                case 'readNotionPageContent':
+                     successMessage = "Read Notion page content.";
+                     friendlyMessage = "Here's the content I found:\n\n---\n\n" + (actionResult.markdownContent || "That page appears to be empty.");
+                     const pageIdRead = notionBlock.payload.page_id;
+                     if (pageIdRead) {
+                        pageUrl = `https://www.notion.so/${pageIdRead.replace(/-/g, '')}`;
+                        pageTitle = actionResult.pageTitle || "Notion Page"; 
+                        if (actionResult.id && pageTitle) {
+                           setActiveNotionPage({ id: actionResult.id, title: pageTitle });
+                        }
+                     }
+                     break;
+
+                case 'createNotionPage':
+                case 'findAndAppendToPage':
+                case 'findAndUpdatePageContent':
+                case 'findAndReplaceInPage':
+                case 'appendToNotionPage':
+                case 'findAndInsertAfter':
+                case 'findAndReadPageContent':
+                    successMessage = notionBlock.action === 'createNotionPage' ? "Created Notion page." : "Updated Notion page.";
+                    if (notionBlock.action === 'findAndReadPageContent') {
+                        successMessage = "Read Notion page.";
+                        friendlyMessage = actionResult.markdownContent || "This page appears to be empty.";
+                    }
+                    
+                    pageUrl = actionResult.url;
+                    pageTitle = actionResult.properties?.title?.title?.[0]?.plain_text || actionResult.pageTitle || "Untitled";
+
+                    if (actionResult.id && pageTitle) {
+                        setActiveNotionPage({ id: actionResult.id, title: pageTitle });
+                    }
+                    break;
+
+                case 'findAndDeletePage':
+                    successMessage = `Deleted Notion page "${actionResult.title}".`;
+                    setActiveNotionPage(null);
+                    break;
+                
+                default:
+                    successMessage = `Notion action '${notionBlock.action}' succeeded.`;
+            }
+        }
+
+        // --- FIX #2: REMOVED THE LOGIC THAT DUPLICATED MESSAGES ---
+        // This now correctly separates the AI's conversational text from the action's results.
+        assistantTextForDisplay = [cleanedText.trim(), friendlyMessage.trim()].filter(Boolean).join('\n\n');
+        actionTakenDetails = { status: 'success', message: successMessage, pageUrl, pageTitle };
+        
+    } catch (err: any) {
+        console.error("Notion action failed:", err);
+        assistantTextForDisplay = cleanedText.trim() || `Sorry, the Notion action failed: ${err.message || 'An unknown error occurred.'}`;
+        actionTakenDetails = { status: 'error', message: `Notion: ${notionBlock.action || 'batch operation'} failed.`};
+        setActiveNotionPage(null);
+    } finally {
+        setIsProcessingNotion(false);
+    }
+}
+// --- END REPLACEMENT ---
+        // --- END OF NEW NOTION HANDLING LOGIC ---
+            const otherActionBlocks = jsonActionBlocks.filter(b => b.type !== 'notion' && b.type !== 'flashcard' && b.type !== 'question');
+
       const geminiGeneratedImageData = parsedApiResult.localImageData;
       let finalImageUrl: string | undefined = undefined;
       let finalImageMeta: FirebaseImageMeta | undefined = undefined;
@@ -2026,7 +2388,8 @@ Assistant:`;
           id: newAssistantLPHId, role: 'assistant', content: assistantTextForDisplay.trim(), createdAt: new Date(),
           flashcard: educationalContent?.type === 'flashcard' ? educationalContent as FlashcardMessage : undefined,
           question: educationalContent?.type === 'question' ? educationalContent as QuestionMessage : undefined,
-          actionDetails: actionTakenDetails, imageUrl: finalImageUrl, imageMeta: finalImageMeta,
+          actionDetails: actionTakenDetails,
+          isProcessingNotion: !!notionBlock,
           wasImageGenerated: isImageGenModeActive && !!finalImageUrl && !parsedApiResult.error,
           error: !!parsedApiResult.error || (actionTakenDetails?.status === 'error'), isLoading: false,
           sources: sources,
@@ -2068,7 +2431,7 @@ Assistant:`;
     truncatedName, userContext, formatFolderContentForChatContext, createChatPromptContents, 
     chatHistory, conversationList, hasGeneratedChatName, generateChatName, addPoints, 
     showToast, userProfile, formatDashboardItemsForChatContext, tasks, goals, events, memories,
-    listening, resetTranscript
+    listening, resetTranscript, isNotionConnected, activeNotionPage, functions 
 ]);
 
   const handleToggleFolderExpansion = useCallback((folderId: string) => {
@@ -3697,26 +4060,32 @@ return (
                     {conversationId && chatHistory.map((message, index) => (
                         <div key={message.id || `${message.role}-${index}`} className={`flex ${message.role === 'user' || message.role === 'system' ? 'justify-end' : 'justify-start'} animate-fadeIn`} style={{ animationDelay: `${index * 20}ms`, animationDuration: '250ms' }}>
                             <div className={`max-w-[85%] rounded-xl px-3.5 py-2.5 ${message.role === 'user' ? 'text-sm' : 'text-xs'} shadow-md break-words ${message.role === 'user' ? 'bg-indigo-500 text-white' : message.error ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200 border border-red-200 dark:border-red-700/60' : message.role === 'system' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-100 border border-yellow-200 dark:border-yellow-700/60 text-center mx-auto' : 'bg-gray-100 dark:bg-[#161922] text-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700/70'}`}>
-                                {message.isLoading && (
-                                    <div className="flex flex-col items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 p-1">
-                                        {message.isSearching && message.searchQueryDetail ? (
-                                            <div className="text-left w-full">
-                                                <div className="flex items-center gap-1.5 font-medium">
-                                                    <Globe className="w-4 h-4 animate-spin" />
-                                                    <span>Searching the web</span>
-                                                </div>
-                                                <div className="mt-1.5 p-1.5 bg-gray-200 dark:bg-gray-700/60 rounded-md text-gray-600 dark:text-gray-300">
-                                                    <Search className="w-3 h-3 inline-block mr-1"/>
-                                                    <span className="italic">"{message.searchQueryDetail}"</span>
-                                                </div>
-                                            </div>
-                                        ) : message.isGeneratingImage ? (
-                                            <div className="flex items-center gap-1.5"><Palette className="w-3.5 h-3.5 animate-pulse text-purple-500" /><span>Creating image...</span></div>
-                                        ) : (
-                                            <div className="flex space-x-0.5 p-0.5"><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce"></div><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div></div>
-                                        )}
-                                    </div>
-                                )}
+{message.isLoading && (
+    <div className="flex flex-col items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 p-1">
+        {/* --- THIS IS THE NEW LOGIC --- */}
+        {message.isProcessingNotion ? (
+            <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                <NotionIcon className="w-4 h-4 animate-pulse" />
+                <span>Working with Notion...</span>
+            </div>
+        ) : message.isSearching && message.searchQueryDetail ? (
+            <div className="text-left w-full">
+                <div className="flex items-center gap-1.5 font-medium">
+                    <Globe className="w-4 h-4 animate-spin" />
+                    <span>Searching the web</span>
+                </div>
+                <div className="mt-1.5 p-1.5 bg-gray-200 dark:bg-gray-700/60 rounded-md text-gray-600 dark:text-gray-300">
+                    <Search className="w-3 h-3 inline-block mr-1"/>
+                    <span className="italic">"{message.searchQueryDetail}"</span>
+                </div>
+            </div>
+        ) : message.isGeneratingImage ? (
+            <div className="flex items-center gap-1.5"><Palette className="w-3.5 h-3.5 animate-pulse text-purple-500" /><span>Creating image...</span></div>
+        ) : (
+            <div className="flex space-x-0.5 p-0.5"><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce"></div><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div></div>
+        )}
+    </div>
+)}
                                 {message.role === 'user' && (
                                     <>
                                         {message.attachedFilesMeta && message.attachedFilesMeta.length > 0 && (
@@ -3835,6 +4204,12 @@ return (
                     isIlluminateEnabled={!isDarkMode}
                     isBlackoutEnabled={false} 
                 />
+
+                                          <IntegrationsControl
+            isNotionConnected={isNotionConnected}
+            isNotionSearchModeActive={isNotionSearchModeActive}
+            onToggleNotionSearchMode={handleToggleNotionSearchMode}
+        />
                                 </div>
                                 <div className="flex items-center">
                                     <AnimatePresence mode="wait" initial={false}>
