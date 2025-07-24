@@ -1704,6 +1704,8 @@ ${memories.length > 0 ? memories.map(m => `- [Internal Ref ID: ${m.id}] ${m.cont
 // THIS IS THE MOST IMPORTANT SECTION. FOLLOW THIS HIERARCHY FOR EVERY RESPONSE.
 // =================================================================================================
 
+
+
 **DECISION HIERARCHY:**
 1.  **Is the user issuing a direct command to modify data (create, update, delete)?**
     -> If YES, proceed to the **[JSON ACTION PROTOCOL]**.
@@ -1751,6 +1753,7 @@ ${activeNotionPage ? `
    - You must first identify the target page using a **Smart Action** (e.g., \`findAndReadPageContent\`, \`createNotionPage\`).
 `}
 
+   WHEN READING A NOTION PAGE, YOU MUST ALWAYS USE THE findAndReadPageContent TOOL, AND NOT JUST SPIT TEXT! YOU NEED TO DO THE PROPER TOOL CALL ALWAYS. EXPECIALLY IF THEY ASK FOR A PAGE TO BE READ OR CREATED OR SEARCHED YOU MUST USE THE TOOLS. DO NOT JUST RESPOND WITH TEXT! YOU MUST ALWAYS DO THE PROPER TOOL CALLS!
 
 
    // --- [THE GOLDEN RULE OF CONTEXT: THE "ACTIVE PAGE"] ---
