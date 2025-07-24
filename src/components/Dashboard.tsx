@@ -1543,6 +1543,8 @@ ${memoryContext}
    // 2. The system will provide this "Active Page" context to you on the next turn.
    // 3. All subsequent commands from the user (e.g., "add notes", "update it") MUST be performed on this "Active Page" using its direct page_id.
    // 4. This context is only cleared if the user explicitly asks for a DIFFERENT page by name.
+   
+   WHEN READING A NOTION PAGE, YOU MUST ALWAYS USE THE findAndReadPageContent TOOL, AND NOT JUST SPIT TEXT! YOU NEED TO DO THE PROPER TOOL CALL ALWAYS. EXPECIALLY IF THEY ASK FOR A PAGE TO BE READ OR CREATED OR SEARCHED YOU MUST USE THE TOOLS. DO NOT JUST RESPOND WITH TEXT! YOU MUST ALWAYS DO THE PROPER TOOL CALLS!
 
    // --- [CORE WORKFLOW: The Two-Tiered Approach] ---
    // This is your primary logic for every Notion request.
@@ -1583,7 +1585,7 @@ ${activeNotionPage ? `
    3.  For the findText payload, you MUST use **only the text of the header** (e.g., "Goals for the Week:").
    4.  For the replaceText payload, you MUST provide the **full, new, updated section**, including the new header and all its new bullet points, formatted in Markdown.
    - **Example:**
-     - **User:** "lets update he goals to be longer"
+     - **User:** "lets update the goals to be longer"
      - **Your Thought Process:** The user wants to update the 'Goals' section on the active 'Study Plan' page. I will find the header "Goals for the Week:" and replace it with a new header and new, longer goals.
      - **CORRECT PAYLOAD:**
        \`\`\`json
