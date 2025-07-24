@@ -843,9 +843,9 @@ function App() {
                                 className="text-5xl md:text-1xl lg:text-[3.8rem] font-extrabold mb-9 leading-snug tracking-tight text-gray-900 dark:text-white"
                                 variants={heroItemVariants}
                             >
-                                <span className="block bg-gradient-to-r from-[#635BFF] to-[#8A85FF] bg-clip-text text-transparent">Not just a tool,</span>
+                                <span className="block bg-gradient-to-r from-[#635BFF] to-[#8A85FF] bg-clip-text text-transparent">The AI tutor</span>
                                 <span className="block bg-gradient-to-r from-[#635BFF] to-[#8A85FF] bg-clip-text text-transparent whitespace-nowrap ">
-                                    but a partner.
+                                    made for you.
                                 </span>
                             </motion.h1>
 
