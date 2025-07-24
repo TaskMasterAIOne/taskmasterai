@@ -2045,7 +2045,7 @@ if (notionBlock && user?.uid && isNotionConnected) {
 
                 // --- FIX #1: ADDED THE MISSING 'readNotionPageContent' CASE ---
                 case 'readNotionPageContent':
-                     successMessage = "Read Notion page content.";
+                     successMessage = "Read Notion page.";
                      friendlyMessage = "Here's the content I found:\n\n---\n\n" + (actionResult.markdownContent || "That page appears to be empty.");
                      const pageIdRead = notionBlock.payload.page_id;
                      if (pageIdRead) {
