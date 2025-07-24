@@ -5008,14 +5008,6 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                                 )}
                                 {message.flashcard && <FlashcardsQuestions type="flashcard" data={message.flashcard.data} onComplete={() => {}} />}
                                 {message.question && <FlashcardsQuestions type="question" data={message.question.data} onComplete={() => {}} />}
-                                {message.actionDetails && (
-                                    <div className={`mt-2 pt-2 border-t border-dashed ${message.actionDetails.status === 'success' ? 'border-green-300 dark:border-green-700/60' : 'border-red-300 dark:border-red-700/60'}`}>
-                                        <div className={`flex items-center gap-1.5 text-xs font-medium ${message.actionDetails.status === 'success' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                                            {message.actionDetails.status === 'success' ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
-                                            <span className="whitespace-pre-wrap">{message.actionDetails.message}</span>
-                                        </div>
-                                    </div>
-                                )}
                             </>
                         )}
                         {message.role === 'system' && !message.isLoading && (
