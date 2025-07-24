@@ -450,6 +450,7 @@ const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessage
                         <span className="whitespace-pre-wrap">{message.actionDetails.message}</span>
                     </div>
                     
+                    {/* THIS PART RENDERS THE "VIEW IN NOTION" BUTTON */}
                     {message.actionDetails.status === 'success' && message.actionDetails.pageUrl && (
                         <div className="mt-2">
                             <a
@@ -4056,17 +4057,17 @@ return (
                 <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent bg-white dark:bg-[#0C0E1A]">
                    {(!conversationId && !selectedFolder) && ( <div className="text-center py-8 flex flex-col items-center"><MessageCircle className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-2.5" /><p className="text-gray-500 dark:text-gray-400 text-sm mb-4">Select a folder to start a new chat or choose one from history.</p></div>)}
                    {(!conversationId && selectedFolder) && ( <div className="text-center py-8 flex flex-col items-center"><MessageCircle className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-2.5" /><p className="text-gray-500 dark:text-gray-400 text-sm mb-4">Start a new chat for "{selectedFolder.name}" or select one from history.</p><button onClick={() => handleNewConversation()} className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 text-sm font-semibold rounded-lg hover:shadow-md transition-all duration-200 flex items-center gap-1.5 transform hover:scale-105 active:scale-100"><Plus className="w-4 h-4" /> New Chat</button></div>)}
-                    {conversationId && chatHistory.map((message, index) => (
-                        <div key={message.id || `${message.role}-${index}`} className={`flex ${message.role === 'user' || message.role === 'system' ? 'justify-end' : 'justify-start'} animate-fadeIn`} style={{ animationDelay: `${index * 20}ms`, animationDuration: '250ms' }}>
-                            <div className={`max-w-[85%] rounded-xl px-3.5 py-2.5 ${message.role === 'user' ? 'text-sm' : 'text-xs'} shadow-md break-words ${message.role === 'user' ? 'bg-indigo-500 text-white' : message.error ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200 border border-red-200 dark:border-red-700/60' : message.role === 'system' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-100 border border-yellow-200 dark:border-yellow-700/60 text-center mx-auto' : 'bg-gray-100 dark:bg-[#161922] text-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700/70'}`}>
-{message.isLoading && (
-    <div className="flex flex-col items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 p-1">
-        {/* --- THIS IS THE NEW LOGIC --- */}
-        {message.isProcessingNotion ? (
-            <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                <NotionIcon className="w-4 h-4 animate-pulse" />
-                <span>Working with Notion...</span>
-            </div>
+{conversationId && chatHistory.map((message, index) => (
+    <div key={message.id || `${message.role}-${index}`} className={`flex ${message.role === 'user' || message.role === 'system' ? 'justify-end' : 'justify-start'} animate-fadeIn`} style={{ animationDelay: `${index * 20}ms`, animationDuration: '250ms' }}>
+        <div className={`max-w-[85%] rounded-xl px-3.5 py-2.5 ${message.role === 'user' ? 'text-sm' : 'text-xs'} shadow-md break-words ${message.role === 'user' ? 'bg-indigo-500 text-white' : message.error ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200 border border-red-200 dark:border-red-700/60' : message.role === 'system' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-100 border border-yellow-200 dark:border-yellow-700/60 text-center mx-auto' : 'bg-gray-100 dark:bg-[#161922] text-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700/70'}`}>
+            {message.isLoading && (
+                <div className="flex flex-col items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 p-1">
+                    {/* THIS IS THE UPDATED LOADING STATE UI */}
+                    {message.isProcessingNotion ? (
+                        <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                            <NotionIcon className="w-4 h-4 animate-pulse" />
+                            <span>Working with Notion...</span>
+                        </div>
         ) : message.isSearching && message.searchQueryDetail ? (
             <div className="text-left w-full">
                 <div className="flex items-center gap-1.5 font-medium">
@@ -4117,7 +4118,6 @@ return (
                                         )}
                                         {message.flashcard && <FlashcardsQuestions type="flashcard" data={message.flashcard.data.map(fc => ({...fc, question: fc.term, answer: fc.definition}))} onComplete={() => {}} />}
                                         {message.question && <FlashcardsQuestions type="question" data={message.question.data} onComplete={() => {}} />}
-                                        {message.actionDetails && (<div className={`mt-1.5 pt-1.5 border-t border-dashed ${message.actionDetails.status === 'success' ? 'border-green-300 dark:border-green-700/60' : 'border-red-300 dark:border-red-700/60'} text-[11px] font-medium ${message.actionDetails.status === 'success' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}><CheckCircle className="w-3 h-3 inline mr-1" />{message.actionDetails.message}</div> )}
                                     </>
                                 )}
                                 {message.role === 'system' && !message.isLoading && (
