@@ -2139,7 +2139,7 @@ const { blocks: jsonActionBlocks, cleanedText, originalText } = extractJsonBlock
                           break;
                       case 'readNotionPageContent':
                       case 'findAndReadPageContent':
-                           successMessage = "Read Notion page content.";
+                           successMessage = "Read Notion page.";
                            friendlyMessage = "Here's the content I found:\n\n---\n\n" + (actionResult.markdownContent || "That page appears to be empty.");
                            pageUrl = actionResult.url;
                            pageTitle = actionResult.pageTitle || "Notion Page";
@@ -2157,7 +2157,7 @@ const { blocks: jsonActionBlocks, cleanedText, originalText } = extractJsonBlock
                           break;
                       case 'findAndAppendToPage':
                       case 'appendToNotionPage':
-                          successMessage = "Appended to Notion page.";
+                          successMessage = "Added to Notion page.";
                           pageUrl = actionResult.url;
                           pageTitle = actionResult.pageTitle || "Notion Page";
                            if (actionResult.id && pageTitle) {
