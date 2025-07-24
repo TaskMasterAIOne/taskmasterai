@@ -2407,7 +2407,7 @@ const { blocks: jsonActionBlocks, cleanedText, originalText } = extractJsonBlock
           assistantTextForDisplay = originalText || "(AI did not provide a text response)";
       }
       
-      const finalAssistantMsgDataForUi: ChatMessageData = {
+   const finalAssistantMsgDataForUi: ChatMessageData = {
           id: newAssistantLPHId, role: 'assistant', content: assistantTextForDisplay.trim(), createdAt: new Date(),
           flashcard: educationalContent?.type === 'flashcard' ? educationalContent as FlashcardMessage : undefined,
           question: educationalContent?.type === 'question' ? educationalContent as QuestionMessage : undefined,
@@ -2419,7 +2419,11 @@ const { blocks: jsonActionBlocks, cleanedText, originalText } = extractJsonBlock
           imageUrl: finalImageUrl,
           imageMeta: finalImageMeta,
       };
+
+      // Update the UI immediately
       setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? finalAssistantMsgDataForUi : msg ));
+
+      // --- START OF FIX: Sanitize the object before saving to Firestore ---
       const assistantMsgToSave: Partial<FirebaseChatMessage> = {
           role: finalAssistantMsgDataForUi.role,
           content: finalAssistantMsgDataForUi.content,
@@ -2427,20 +2431,41 @@ const { blocks: jsonActionBlocks, cleanedText, originalText } = extractJsonBlock
 
       if (finalAssistantMsgDataForUi.flashcard) assistantMsgToSave.flashcard = finalAssistantMsgDataForUi.flashcard;
       if (finalAssistantMsgDataForUi.question) assistantMsgToSave.question = finalAssistantMsgDataForUi.question;
-      if (finalAssistantMsgDataForUi.actionDetails) assistantMsgToSave.actionDetails = finalAssistantMsgDataForUi.actionDetails;
       if (finalAssistantMsgDataForUi.imageUrl) assistantMsgToSave.imageUrl = finalAssistantMsgDataForUi.imageUrl;
       if (finalAssistantMsgDataForUi.imageMeta) assistantMsgToSave.imageMeta = finalAssistantMsgDataForUi.imageMeta;
       if (finalAssistantMsgDataForUi.wasImageGenerated) assistantMsgToSave.wasImageGenerated = finalAssistantMsgDataForUi.wasImageGenerated;
       if (finalAssistantMsgDataForUi.error) assistantMsgToSave.error = finalAssistantMsgDataForUi.error;
       if (finalAssistantMsgDataForUi.sources) assistantMsgToSave.sources = finalAssistantMsgDataForUi.sources;
+
+      // This is the critical change. We build a clean `actionDetails` object for Firestore.
+      if (finalAssistantMsgDataForUi.actionDetails) {
+          const { status, message, pageUrl, pageTitle } = finalAssistantMsgDataForUi.actionDetails;
+          const cleanActionDetails: any = {
+              status: status,
+          };
+          if (message) {
+              cleanActionDetails.message = message;
+          }
+          if (pageUrl) { // Only add pageUrl if it exists
+              cleanActionDetails.pageUrl = pageUrl;
+          }
+          if (pageTitle) { // Only add pageTitle if it exists
+              cleanActionDetails.pageTitle = pageTitle;
+          }
+          assistantMsgToSave.actionDetails = cleanActionDetails;
+      }
+      // --- END OF FIX ---
       
-      if (currentConvId) await saveChatMessage(user.uid, currentConvId, assistantMsgToSave);
+      if (currentConvId) {
+          await saveChatMessage(user.uid, currentConvId, assistantMsgToSave);
+      }
 
       const finalHistoryForName = [...chatHistory.filter(m => m.id !== newAssistantLPHId), finalAssistantMsgDataForUi];
       const totalUserMessagesInConv = finalHistoryForName.filter(m => m.role === 'user').length;
       const currentConvInfo = conversationList.find(c => c.id === currentConvId);
+
       if (currentConvId && currentConvInfo?.chatName.startsWith("Chat for") && (!hasGeneratedChatName || totalUserMessagesInConv === 1) ) {
-          await generateChatName(currentConvId!, finalHistoryForName, user);
+          await generateChatName(currentConvId, finalHistoryForName, user);
           setHasGeneratedChatName(true);
       }
     } catch (err: any) {
