@@ -2189,7 +2189,6 @@ if (notionBlock && user?.uid && isNotionConnected) {
       let finalImageUrl: string | undefined = undefined;
       let finalImageMeta: FirebaseImageMeta | undefined = undefined;
       let educationalContent: FlashcardMessage | QuestionMessage | { type: 'mixed_content', data: { flashcards?: FlashcardDataForChat[], questions?: QuestionDataForChat[] }} | undefined = undefined;
-      let actionTakenDetails: ChatMessageData['actionDetails'] | undefined = undefined;
       let combinedActionMessage = "";
       let itemsAddedByAICount = 0;
 
