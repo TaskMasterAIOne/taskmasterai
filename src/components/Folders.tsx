@@ -2349,7 +2349,7 @@ Assistant:`;
                             } else { currentActionMsg = `Memory deletion failed: Identifier missing.`; actionStatus = 'error'; }
                             break;
                         default:
-                            currentActionMsg = `Unknown or unhandled action: ${block.action}`;
+                          return { status: 'error', message: `Unknown action: ${actionType}` };
                     }
                 } catch (err: any) { console.error(`Error processing action ${block.action}:`, err); currentActionMsg = `Error with ${block.action}: ${err.message || 'Failed'}`; actionStatus = 'error'; }
             } else if (block.type === "flashcard" && Array.isArray(block.data)) {
