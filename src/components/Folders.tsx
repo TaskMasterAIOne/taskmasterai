@@ -2060,135 +2060,149 @@ Assistant:`;
       if (sources.length > 0) {
           contentToProcess = contentToProcess.replace(/\[\d+\]/g, '').replace(/\[\d+(,\s*\d+)*\]/g, '').trim();
       }
-      const { blocks: jsonActionBlocks, cleanedText, originalText } = extractJsonBlocks(contentToProcess);
+const { blocks: jsonActionBlocks, cleanedText, originalText } = extractJsonBlocks(contentToProcess);
       let assistantTextForDisplay = isImageGenModeActive ? (parsedApiResult.text || "") : cleanedText;
 
 
              // --- START OF NEW NOTION HANDLING LOGIC (insert after jsonActionBlocks is defined) ---
-        const notionBlock = jsonActionBlocks.find(b => b.type === 'notion' && b.action);
-        let actionTakenDetails: ChatMessageData['actionDetails'] | undefined = undefined;
-        const otherActionBlocks = jsonActionBlocks.filter(b => b.type !== 'notion'); // Isolate other actions
+      // --- START OF FIXED NOTION & ACTION HANDLING LOGIC ---
+      const notionBlock = jsonActionBlocks.find(b => b.type === 'notion' && (b.action || b.actions));
+      const otherActionBlocks = jsonActionBlocks.filter(b => b.type !== 'notion');
+      let actionTakenDetails: ChatMessageData['actionDetails'] | undefined = undefined;
 
+      if (notionBlock && user?.uid && isNotionConnected) {
+          setIsProcessingNotion(true);
+          setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? { ...msg, isLoading: true, isProcessingNotion: true } : msg ));
+          
+          try {
+              const notionAction = httpsCallable(functions, 'notionProxy');
+              // Prepare request for either single or batch action
+              const requestData = notionBlock.actions
+                  ? { actions: notionBlock.actions } // Pass the whole batch object
+                  : { action: notionBlock.action, payload: notionBlock.payload }; // Pass single action
 
-       // THIS IS THE CORRECTED BLOCK YOU PROVIDED, WHICH SHOULD BE USED:
-        if (notionBlock && user?.uid && isNotionConnected) {
-            setIsProcessingNotion(true);
-            setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? { ...msg, isLoading: true, isProcessingNotion: true } : msg ));
-            
-            try {
-                const notionAction = httpsCallable(functions, 'notionProxy');
-                const requestData = notionBlock.actions
-                    ? notionBlock
-                    : { action: notionBlock.action, payload: notionBlock.payload };
-                const result = await notionAction(requestData);
-                const actionResult = result.data as any;
-                
-                let friendlyMessage = "";
-                let successMessage = "";
-                let pageUrl: string | undefined = undefined;
-                let pageTitle: string | undefined = undefined;
+              const result = await notionAction(requestData);
+              const actionResult = result.data as any;
+              
+              let friendlyMessage = "";
+              let successMessage = "";
+              let pageUrl: string | undefined = undefined;
+              let pageTitle: string | undefined = undefined;
 
-                if (Array.isArray(actionResult)) {
-                    // Batch action handling
-                    const successfulActions = actionResult.filter(r => r && !r.error);
-                    successMessage = `Successfully completed ${successfulActions.length} of ${actionResult.length} Notion actions.`;
-                    
-                    const lastSuccess = successfulActions[successfulActions.length - 1];
-                    if (lastSuccess && lastSuccess.url) {
-                        pageUrl = lastSuccess.url;
-                        pageTitle = lastSuccess.properties?.title?.title?.[0]?.plain_text || "Last Created Page";
-                        setActiveNotionPage({ id: lastSuccess.id, title: pageTitle });
-                    }
-                } 
-                else {
-                    // Single action handling
-                    switch (notionBlock.action) {
-                        case 'searchNotion':
-                            successMessage = "Searched Notion.";
-                            if (actionResult.results?.length > 0) {
-                                friendlyMessage = "Here's what I found in your Notion:\n" + actionResult.results.map((item: any) => {
-                                    const title = item.object === 'page'
-                                        ? item.properties.title?.title?.[0]?.plain_text
-                                        : item.title?.[0]?.plain_text;
-                                    return `- [${title}](${item.url})`;
-                                }).join('\n');
-                            } else {
-                                friendlyMessage = "I couldn't find any matching pages in your Notion.";
-                            }
-                            if (actionResult.results?.length === 1) {
-                                const singleResult = actionResult.results[0];
-                                 const title = singleResult.properties?.title?.title?.[0]?.plain_text;
-                                 if (singleResult.id && title) {
-                                    setActiveNotionPage({ id: singleResult.id, title: title });
-                                 }
-                            } else {
-                                setActiveNotionPage(null);
-                            }
-                            break;
+              // Handle batch action results
+              if (Array.isArray(actionResult)) {
+                  const successfulActions = actionResult.filter(r => r && !r.error);
+                  const failedActions = actionResult.length - successfulActions.length;
+                  successMessage = `Completed ${successfulActions.length} Notion actions`;
+                  if (failedActions > 0) {
+                      successMessage += ` (${failedActions} failed).`;
+                  } else {
+                      successMessage += '.';
+                  }
+                  
+                  const lastSuccess = successfulActions[successfulActions.length - 1];
+                  if (lastSuccess && lastSuccess.url) {
+                      pageUrl = lastSuccess.url;
+                      pageTitle = lastSuccess.properties?.title?.title?.[0]?.plain_text || "Last Page";
+                      setActiveNotionPage({ id: lastSuccess.id, title: pageTitle });
+                  }
+              } 
+              // Handle single action results
+              else {
+                  // Determine success message based on the specific action
+                  switch (notionBlock.action) {
+                      case 'searchNotion':
+                          successMessage = "Searched Notion.";
+                          if (actionResult.results?.length > 0) {
+                              friendlyMessage = "Here's what I found in your Notion:\n" + actionResult.results.map((item: any) => {
+                                  const title = item.object === 'page'
+                                      ? item.properties.title?.title?.[0]?.plain_text
+                                      : item.title?.[0]?.plain_text;
+                                  return `- [${title}](${item.url})`;
+                              }).join('\n');
+                          } else {
+                              friendlyMessage = "I couldn't find any matching pages in your Notion.";
+                          }
+                          // Set active page if only one result is found for context
+                          if (actionResult.results?.length === 1) {
+                              const singleResult = actionResult.results[0];
+                               const title = singleResult.properties?.title?.title?.[0]?.plain_text;
+                               if (singleResult.id && title) {
+                                  setActiveNotionPage({ id: singleResult.id, title: title });
+                               }
+                          } else {
+                              setActiveNotionPage(null);
+                          }
+                          break;
+                      case 'readNotionPageContent':
+                      case 'findAndReadPageContent':
+                           successMessage = "Read Notion page content.";
+                           friendlyMessage = "Here's the content I found:\n\n---\n\n" + (actionResult.markdownContent || "That page appears to be empty.");
+                           pageUrl = actionResult.url;
+                           pageTitle = actionResult.pageTitle || "Notion Page";
+                           if (actionResult.id && pageTitle) {
+                              setActiveNotionPage({ id: actionResult.id, title: pageTitle });
+                           }
+                           break;
+                      case 'createNotionPage':
+                          successMessage = "Created Notion page.";
+                          pageUrl = actionResult.url;
+                          pageTitle = actionResult.properties?.title?.title?.[0]?.plain_text || "Untitled";
+                          if (actionResult.id && pageTitle) {
+                              setActiveNotionPage({ id: actionResult.id, title: pageTitle });
+                          }
+                          break;
+                      case 'findAndAppendToPage':
+                      case 'appendToNotionPage':
+                          successMessage = "Appended to Notion page.";
+                          pageUrl = actionResult.url;
+                          pageTitle = actionResult.pageTitle || "Notion Page";
+                           if (actionResult.id && pageTitle) {
+                              setActiveNotionPage({ id: actionResult.id, title: pageTitle });
+                           }
+                          break;
+                      case 'findAndReplaceInPage':
+                      case 'findAndUpdatePageContent':
+                          successMessage = "Updated Notion page content.";
+                          pageUrl = actionResult.url;
+                          pageTitle = actionResult.pageTitle || "Notion Page";
+                           if (actionResult.id && pageTitle) {
+                              setActiveNotionPage({ id: actionResult.id, title: pageTitle });
+                           }
+                          break;
+                      case 'findAndDeletePage':
+                          successMessage = `Deleted Notion page "${actionResult.title}".`;
+                          setActiveNotionPage(null);
+                          break;
+                      default:
+                          successMessage = `Notion action '${notionBlock.action}' completed.`;
+                          pageUrl = actionResult.url;
+                          pageTitle = actionResult.pageTitle || "Notion Page";
+                           if (actionResult.id && pageTitle) {
+                              setActiveNotionPage({ id: actionResult.id, title: pageTitle });
+                           }
+                          break;
+                  }
+              }
 
-                        case 'readNotionPageContent':
-                             successMessage = "Read Notion page content.";
-                             friendlyMessage = "Here's the content I found:\n\n---\n\n" + (actionResult.markdownContent || "That page appears to be empty.");
-                             const pageIdRead = notionBlock.payload.page_id;
-                             if (pageIdRead) {
-                                pageUrl = `https://www.notion.so/${pageIdRead.replace(/-/g, '')}`;
-                                pageTitle = actionResult.pageTitle || "Notion Page"; 
-                                if (actionResult.id && pageTitle) {
-                                   setActiveNotionPage({ id: actionResult.id, title: pageTitle });
-                                }
-                             }
-                             break;
-
-                        case 'createNotionPage':
-                        case 'findAndAppendToPage':
-                        case 'findAndUpdatePageContent':
-                        case 'findAndReplaceInPage':
-                        case 'appendToNotionPage':
-                        case 'findAndInsertAfter':
-                        case 'findAndReadPageContent':
-                            successMessage = notionBlock.action === 'createNotionPage' ? "Created Notion page." : "Updated Notion page.";
-                            if (notionBlock.action === 'findAndReadPageContent') {
-                                successMessage = "Read Notion page.";
-                                friendlyMessage = actionResult.markdownContent || "This page appears to be empty.";
-                            }
-                            
-                            pageUrl = actionResult.url;
-                            pageTitle = actionResult.properties?.title?.title?.[0]?.plain_text || actionResult.pageTitle || "Untitled";
-
-                            if (actionResult.id && pageTitle) {
-                                setActiveNotionPage({ id: actionResult.id, title: pageTitle });
-                            }
-                            break;
-
-                        case 'findAndDeletePage':
-                            successMessage = `Deleted Notion page "${actionResult.title}".`;
-                            setActiveNotionPage(null);
-                            break;
-                        
-                        default:
-                            // This default case prevents the "Unknown action" error
-                            successMessage = `Notion action '${notionBlock.action}' succeeded.`;
-                            break;
-                    }
-                }
-
-                // This correctly separates the AI's conversational text from the action's results.
-                assistantTextForDisplay = [cleanedText.trim(), friendlyMessage.trim()].filter(Boolean).join('\n\n');
-                actionTakenDetails = { status: 'success', message: successMessage, pageUrl, pageTitle };
-                
-            } catch (err: any) {
-                console.error("Notion action failed:", err);
-                assistantTextForDisplay = cleanedText.trim() || `Sorry, the Notion action failed: ${err.message || 'An unknown error occurred.'}`;
-                actionTakenDetails = { status: 'error', message: `Notion: ${notionBlock.action || 'batch operation'} failed.`};
-                setActiveNotionPage(null);
-            } finally {
-                setIsProcessingNotion(false);
-            }
-        }
+              // Combine AI's conversational text with the friendly message from the action
+              assistantTextForDisplay = [cleanedText.trim(), friendlyMessage.trim()].filter(Boolean).join('\n\n');
+              actionTakenDetails = { status: 'success', message: successMessage, pageUrl, pageTitle };
+              
+          } catch (err: any) {
+              console.error("Notion action failed:", err);
+              const errorMessage = err.message || 'An unknown error occurred.';
+              assistantTextForDisplay = cleanedText.trim() || `Sorry, the Notion action failed: ${errorMessage}`;
+              actionTakenDetails = { status: 'error', message: `Notion Error: ${errorMessage}`};
+              setActiveNotionPage(null);
+          } finally {
+              setIsProcessingNotion(false);
+          }
+      }
 // --- END REPLACEMENT ---
         // --- END OF NEW NOTION HANDLING LOGIC ---
 
-      const geminiGeneratedImageData = parsedApiResult.localImageData;
+    const geminiGeneratedImageData = parsedApiResult.localImageData;
       let finalImageUrl: string | undefined = undefined;
       let finalImageMeta: FirebaseImageMeta | undefined = undefined;
       let educationalContent: FlashcardMessage | QuestionMessage | { type: 'mixed_content', data: { flashcards?: FlashcardDataForChat[], questions?: QuestionDataForChat[] }} | undefined = undefined;
@@ -2205,8 +2219,9 @@ Assistant:`;
         } catch (uploadError) { console.error("Error saving generated image:", uploadError); assistantTextForDisplay = (assistantTextForDisplay ? assistantTextForDisplay + "\n" : "") + "Error: Failed to save generated image."; }
       }
 
-      if (!isImageGenModeActive && jsonActionBlocks.length > 0 && user?.uid) {
-        for (const block of jsonActionBlocks) {
+      // --- FIX: Process only the non-Notion action blocks ---
+      if (!isImageGenModeActive && otherActionBlocks.length > 0 && user?.uid) {
+        for (const block of otherActionBlocks) {
             let actionStatus: 'success' | 'error' = 'success';
             let currentActionMsg = "";
             const payload = block.payload;
@@ -2349,7 +2364,10 @@ Assistant:`;
                             } else { currentActionMsg = `Memory deletion failed: Identifier missing.`; actionStatus = 'error'; }
                             break;
                         default:
-                          return { status: 'error', message: `Unknown action: ${actionType}` };
+                          // --- FIX: Correctly handle unknown actions ---
+                          currentActionMsg = `Error: Unknown action '${block.action}' requested.`;
+                          actionStatus = 'error';
+                          break;
                     }
                 } catch (err: any) { console.error(`Error processing action ${block.action}:`, err); currentActionMsg = `Error with ${block.action}: ${err.message || 'Failed'}`; actionStatus = 'error'; }
             } else if (block.type === "flashcard" && Array.isArray(block.data)) {
@@ -2361,8 +2379,11 @@ Assistant:`;
             }
 
             if (currentActionMsg) { combinedActionMessage += (combinedActionMessage && currentActionMsg ? "\n" : "") + currentActionMsg; }
-            if (actionStatus === 'error' || (actionTakenDetails && actionTakenDetails.status === 'error')) { actionTakenDetails = { status: 'error', message: combinedActionMessage || "An error occurred with an action." }; }
-            else if (block.action) { actionTakenDetails = { status: 'success', message: combinedActionMessage || "Action completed." }; }
+            
+            // Do not override a Notion action detail with a non-Notion one unless it's an error.
+            if (!actionTakenDetails || actionStatus === 'error') {
+                 actionTakenDetails = { status: actionStatus, message: combinedActionMessage || "Action completed." };
+            }
         }
         if (itemsAddedByAICount > 0) {
             addPoints(itemsAddedByAICount * 2, 'folder', selectedFolder.id);
@@ -2395,6 +2416,8 @@ Assistant:`;
           wasImageGenerated: isImageGenModeActive && !!finalImageUrl && !parsedApiResult.error,
           error: !!parsedApiResult.error || (actionTakenDetails?.status === 'error'), isLoading: false,
           sources: sources,
+          imageUrl: finalImageUrl,
+          imageMeta: finalImageMeta,
       };
       setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? finalAssistantMsgDataForUi : msg ));
       const assistantMsgToSave: Partial<FirebaseChatMessage> = {
