@@ -81,7 +81,7 @@ export function IntegrationsControl({
         sideOffset={8}
       >
         <div className="p-3 border-b border-gray-200 dark:border-gray-700/50">
-          <h4 className="font-semibold text-gray-800 dark:text-gray-100">Connect Your Tools</h4>
+          <h4 className="font-semibold text-gray-800 dark:text-gray-100">Connect Your Apps</h4>
           <p className="text-xs text-gray-500 dark:text-gray-400">Expand TaskMaster's capabilities.</p>
         </div>
         <div className="p-2 space-y-1">
