@@ -3523,7 +3523,7 @@ if (notionBlock && user?.uid && isNotionConnected) {
             const isToday = dateStr === formatDateForComparison(new Date());
             const itemsForDay = itemsByDateForCalendar.get(dateStr) || [];
             return (
-                <div key={dateStr} className={`p-2.5 rounded-lg border flex flex-col transition-all duration-200
+                <div key={dateStr} className={`p-2.5 rounded-lg  flex flex-col transition-all duration-200
                     min-h-[320px] md:min-h-[380px] lg:min-h-[420px]
                     ${isToday ? 'bg-indigo-50 dark:bg-[#635BFF]/10 border-[#635BFF]/50' : 'bg-white dark:bg-[#1A1D29]/80 border-gray-200 dark:border-gray-700/80 hover:shadow-lg'}`}
                 >
@@ -3589,7 +3589,7 @@ if (notionBlock && user?.uid && isNotionConnected) {
             const isToday = dateStr === formatDateForComparison(new Date());
             const itemsForDay = itemsByDateForCalendar.get(dateStr) || [];
 
-            let dayClass = `bg-white dark:bg-[#1A1D29]/70 border border-gray-200 dark:border-gray-700/80 p-1.5 sm:p-2 text-xs sm:text-sm flex flex-col items-start justify-start
+            let dayClass = `bg-white dark:bg-[#1A1D29]/70 p-1.5 sm:p-2 text-xs sm:text-sm flex flex-col items-start justify-start
                             min-h-[180px] sm:min-h-[220px] lg:min-h-[250px]
                             h-auto rounded-lg transition-all duration-150 hover:shadow-xl cursor-pointer hover:ring-1 hover:ring-[#635BFF] `;
             if (isToday) dayClass += "bg-indigo-50 dark:bg-[#635BFF]/20 border-[#635BFF]/50 dark:border-[#635BFF]/70 ring-1 ring-[#635BFF] ";
@@ -4324,7 +4324,7 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
       </section>
 
 
-      <section className={`p-4 sm:p-5 rounded-xl shadow-lg bg-white dark:bg-[#161922] border border-gray-200 dark:border-gray-700/50 animate-fadeIn delay-100 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
+      <section className={`p-4 sm:p-5 rounded-xl shadow-lg bg-white dark:bg-[#161922] animate-fadeIn delay-100 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
         {[
             { label: "Add Task", icon: ListTodo, action: () => { document.getElementById('new-item-input')?.focus(); setActiveTab('tasks'); }, color: "text-blue-500 dark:text-blue-400", bgColor: "bg-blue-50 dark:bg-blue-500/10", hoverBgColor: "hover:bg-blue-100 dark:hover:bg-blue-500/20" },
@@ -4348,7 +4348,7 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
 </section>
 
         
-            <section id="add-edit-form-section" className={`p-4 sm:p-5 rounded-xl shadow-lg bg-white dark:bg-[#161922] border border-gray-200 dark:border-gray-700/50 animate-fadeIn delay-100 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
+            <section id="add-edit-form-section" className={`p-4 sm:p-5 rounded-xl shadow-lg bg-white dark:bg-[#161922] animate-fadeIn delay-100 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
                 <h3 className="text-md font-semibold mb-3 text-gray-800 dark:text-gray-100">
                     {editingItemId ? `Edit ${activeTab === 'tasks' ? 'Task' : 'Goal'}` : `Quick Add ${activeTab === 'tasks' ? 'Task' : 'Goal'}`}
                 </h3>
@@ -4481,7 +4481,7 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                             <PlusCircle className="w-3 h-3" /> Add Task
                         </button>
                     </div>
-                    <div className="bg-white dark:bg-[#161922] p-4 sm:p-5 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700/50 relative overflow-hidden">
+                    <div className="bg-white dark:bg-[#161922] p-4 sm:p-5 rounded-xl shadow-lg  relative overflow-hidden">
                         <div className={`absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-white dark:from-[#161922] to-transparent pointer-events-none transition-opacity duration-200 z-10 ${showTopGradient ? 'opacity-100' : 'opacity-0'}`}></div>
                         <div
                             ref={studyTodayScrollContainerRef}
@@ -4490,7 +4490,7 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                         >
                             {sortedTasks.length > 0 ? (
                                 sortedTasks.map(task => (
-                                    <div key={task.id} className="bg-gray-50 dark:bg-[#1A1D29] p-3 rounded-xl shadow-md border border-gray-100 dark:border-gray-700/70 group hover:bg-gray-100 dark:hover:bg-[#1E222D] hover:shadow-lg transition-all duration-200 ease-out">
+                                    <div key={task.id} className="bg-gray-50 dark:bg-[#1A1D29] p-3 rounded-xl shadow-md group hover:bg-gray-100 dark:hover:bg-[#1E222D] hover:shadow-lg transition-all duration-200 ease-out">
                                         <div className="flex items-center gap-3" >
                                             <button
                                               onClick={(e) => { e.stopPropagation(); handleMarkComplete(task.id, 'tasks'); }}
@@ -4599,7 +4599,7 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                             <PlusCircle className="w-3.5 h-3.5" /> Add Goal
                         </button>
                     </div>
-                     <div className="bg-white dark:bg-[#161922] p-4 sm:p-5 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700/50 relative overflow-hidden">
+                     <div className="bg-white dark:bg-[#161922] p-4 sm:p-5 rounded-xl shadow-lg relative overflow-hidden">
                         <div className={`absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-white dark:from-[#161922] to-transparent pointer-events-none transition-opacity duration-200 z-10 ${showGoalsTopGradient ? 'opacity-100' : 'opacity-0'}`}></div>
                         <div
                             ref={goalsScrollContainerRef}
@@ -4608,7 +4608,7 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                         >
                         {sortedGoals.length > 0 ? (
                              sortedGoals.map(goal => (
-                                <div key={goal.id} className="bg-gray-50 dark:bg-[#1A1D29] p-3 rounded-xl shadow-md border border-gray-100 dark:border-gray-700/70 group hover:bg-gray-100 dark:hover:bg-[#1E222D] hover:shadow-lg transition-all duration-200 ease-out">
+                                <div key={goal.id} className="bg-gray-50 dark:bg-[#1A1D29] p-3 rounded-xl shadow-md  group hover:bg-gray-100 dark:hover:bg-[#1E222D] hover:shadow-lg transition-all duration-200 ease-out">
                                     <div className="flex items-center gap-3">
                                         <button
                                             onClick={(e) => { e.stopPropagation(); handleMarkComplete(goal.id, 'goals'); }}
@@ -4805,7 +4805,7 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                         <PlusCircle className="w-3.5 h-3.5" /> Add Event
                     </button>
                 </div>
-                <div className="bg-white dark:bg-[#161922] p-4 sm:p-5 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700/50">
+                <div className="bg-white dark:bg-[#161922] p-4 sm:p-5 rounded-xl shadow-lg ">
                     {events.length === 0 && !showEventForm && (
                         <p className="text-sm text-gray-500 dark:text-gray-400 italic text-center py-4">No upcoming events. Plan something exciting! 🗓️</p>
                     )}
@@ -4890,7 +4890,7 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                         <button onClick={() => setCalendarViewMode('month')}  className={`px-2.5 py-1 text-[11px] rounded-md font-medium transition-all duration-150 transform hover:scale-105 active:scale-100 ${calendarViewMode === 'month' ? 'bg-[#635BFF] text-white' : 'bg-gray-100 dark:bg-gray-700/70 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600/80'}`}>Month</button>
                     </div>
                 </div>
-                 <div className="bg-white dark:bg-[#161922] p-4 sm:p-5 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700/50">
+                 <div className="bg-white dark:bg-[#161922] p-4 sm:p-5 rounded-xl shadow-lg ">
                     {calendarViewMode === 'week' ? (
                         <>
                         <div className="flex items-center justify-between mb-3">
