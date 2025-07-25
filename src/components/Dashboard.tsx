@@ -5040,7 +5040,7 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                     ))}
                     <div ref={chatEndRef} />
                 </div>
-                <div className="p-3 border-t border-gray-200 dark:border-gray-700/80 bg-gray-50 dark:bg-[#0C0E1A] flex-shrink-0">
+                <div className="p-3  bg-white dark:bg-[#0C0E1A] flex-shrink-0">
                     {selectedFiles.length > 0 && !isImageGenModeActive && !isSearchModeActive && (
                         <div className="mb-2 flex flex-wrap gap-1.5 p-1.5 max-h-16 overflow-y-auto scrollbar-thin border border-dashed rounded-lg border-gray-300 dark:border-gray-600">
                             {selectedFiles.map(file => (
