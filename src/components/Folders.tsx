@@ -4190,7 +4190,7 @@ return (
                             onDragOver={handleDragEvents}
                             onDragEnter={handleDragEnter}
                             onDragLeave={handleDragLeave}
-                            className="relative bg-white dark:bg-[#161922] border border-gray-300 dark:border-gray-800 rounded-2xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-400 dark:focus-within:ring-indigo-600 transition-all duration-200 flex flex-col"
+                            className="relative bg-[#F7F8FA] dark:bg-[#161922]  rounded-2xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-400 dark:focus-within:ring-indigo-600 transition-all duration-200 flex flex-col"
                         >
                             <AnimatePresence>
                                 {isDraggingOver && (
