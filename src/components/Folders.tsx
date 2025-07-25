@@ -2166,7 +2166,7 @@ const { blocks: jsonActionBlocks, cleanedText, originalText } = extractJsonBlock
                           break;
                       case 'findAndReplaceInPage':
                       case 'findAndUpdatePageContent':
-                          successMessage = "Updated Notion page content.";
+                          successMessage = "Updated Notion page.";
                           pageUrl = actionResult.url;
                           pageTitle = actionResult.pageTitle || "Notion Page";
                            if (actionResult.id && pageTitle) {
