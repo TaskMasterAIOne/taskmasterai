@@ -1,7 +1,7 @@
 import { auth, db } from "./firebase"
 
 
-export const geminiApiKey = "AIzaSyCZdMRtrC6DJ21RGsXhzIctAcZpJMA9pGg" // Ensure this is not committed if sensitive
+export const geminiApiKey = "AIzaSyDoCDqtDEe1IXNSPJZsk8lVVIh-B03aqbc" // Ensure this is not committed if sensitive
 
 import { type User, onAuthStateChanged, createUserWithEmailAndPassword, updateProfile } from "firebase/auth"
 
