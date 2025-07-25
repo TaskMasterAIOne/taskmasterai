@@ -27,6 +27,9 @@ import {
     getChatLimitForTier,
 } from '../lib/current-paying-user';
 
+import { IntegrationsControl } from './integrations-control';
+
+
 interface TimerMessage { type: 'timer'; duration: number; id: string; }
 export interface ImageData { base64: string; type: string; name: string; }
 interface EditStep { editType: 'insert_after_context' | 'replace_context' | 'delete_context' | 'insert_at_start' | 'append_at_end' | 'insert_before_context'; targetContext: string | null; contentFragment: string; }
@@ -670,6 +673,10 @@ const NoteChatComponent: React.ForwardRefRenderFunction<NoteChatHandle, NoteChat
     const truncatedName = useMemo(() => userName.split(' ')[0] || userName, [userName]);
     const [isDraggingOver, setIsDraggingOver] = useState(false);
 
+  const [isNotionConnected, setIsNotionConnected] = useState(false);
+  const [isNotionSearchModeActive, setIsNotionSearchModeActive] = useState(false);
+  const [activeNotionPage, setActiveNotionPage] = useState<{ id: string, title: string } | null>(null);
+  const [isProcessingNotion, setIsProcessingNotion] = useState(false);
 
     const {
         transcript,
@@ -898,6 +905,8 @@ const NoteChatComponent: React.ForwardRefRenderFunction<NoteChatHandle, NoteChat
         }
     }, [isVisible, userTier, user?.uid]);
 
+
+    
 
     useEffect(() => {
         if (note && (note.id !== currentNoteId.current || (displayMode === 'overlay' && isVisible && !initialMessageSent.current))) {
@@ -1615,6 +1624,24 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string) =
         ? `fixed bottom-4 right-4 z-50 bg-white dark:bg-[#12141D] rounded-lg flex flex-col shadow-xl border border-gray-200 dark:border-gray-700/50`
         : `h-full w-full flex flex-col bg-white dark:bg-[#12141D]`;
 
+
+        // Add this handler function inside the Folders component
+const handleToggleNotionSearchMode = () => {
+    if (!isNotionConnected) {
+        // Redirect to settings page if Notion is not connected
+        navigate('/settings');
+        return;
+    }
+    setIsNotionSearchModeActive(prev => {
+        if (!prev) {
+            // When enabling Notion mode, disable other modes
+            setIsImageGenModeActive(false);
+            setIsSearchModeActive(false);
+        }
+        return !prev;
+    });
+};
+
     const overlayStyle: React.CSSProperties = {};
     if (displayMode === 'overlay') {
         if (isMinimized) {
@@ -1642,7 +1669,7 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string) =
                         <div className="w-full h-full border-l-2 border-t-2 border-gray-400/60 dark:border-gray-500/60 rounded-tl-lg" />
                     </div>
                 )}
-                 <div className={`p-2 border-b border-gray-200 dark:border-gray-700/50 bg-gray-50 dark:bg-[#1A1D29]/90 flex justify-between items-center shrink-0 sticky top-0 z-10 ${displayMode === 'overlay' ? 'cursor-pointer rounded-t-lg' : ''}`} onClick={displayMode === 'overlay' ? () => setIsMinimized(!isMinimized) : undefined} title={displayMode === 'overlay' ? (isMinimized ? "Expand" : "Minimize") : undefined}>
+                 <div className={`p-2  bg-gray-50 dark:bg-[#161922] flex justify-between items-center shrink-0 sticky top-0 z-10 ${displayMode === 'overlay' ? 'cursor-pointer rounded-t-lg' : ''}`} onClick={displayMode === 'overlay' ? () => setIsMinimized(!isMinimized) : undefined} title={displayMode === 'overlay' ? (isMinimized ? "Expand" : "Minimize") : undefined}>
                      <h3 className={`text-sm font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-1.5 truncate pr-2`}>
                          <MessageCircle className={`w-4 h-4 shrink-0 text-indigo-500 dark:text-indigo-400`} />
                          <span className="truncate" title={`Chat: ${note.title}`}>Chat: {note.title}</span>
@@ -1675,7 +1702,7 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string) =
     : message.error ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200 border border-red-200 dark:border-red-700/60'
     : message.isEditSuggestion ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-700/60'
     : message.isUpdateConfirmation ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-700/60'
-    : 'bg-gray-100 dark:bg-[#161922] border border-gray-200 dark:border-gray-700/50'
+    : 'bg-gray-100 dark:bg-[#161922] '
     }`}>
     {isPdfContextDisplayMsg ? (
         <>
@@ -1731,7 +1758,7 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string) =
                             <div ref={chatEndRef} />
                         </div>
 
-                        <div className={`p-2 border-t border-gray-200 dark:border-gray-700/50 bg-[#F7F8FA] dark:bg-[#0C0E1A]/80 shrink-0 sticky bottom-0`}>
+                        <div className={`p-2 bg-white dark:bg-[#0C0E1A] shrink-0 sticky bottom-0`}>
                             {userTier !== 'premium' && userTier !== 'loading' && (<div className="pb-1.5 text-xs text-center"><span className="text-gray-600 dark:text-gray-400">Messages: {isLoadingUsage ? '...' : chatCount} / {currentChatLimit === Infinity ? '∞' : currentChatLimit}</span>{isChatLimitReached && !isLoadingUsage && (<span className="text-red-500 ml-1 font-medium">(Limit Reached)</span>)}{!isChatLimitReached && userTier === 'basic' && (<Link to="/pricing" className={`ml-2 font-medium text-indigo-500 dark:text-indigo-400 hover:underline`}><Crown className="w-2.5 h-2.5 inline mr-0.5"/>Upgrade</Link>)}</div>)}
                             {pdfContextSegments.length > 0 && !isImageGenModeActive && !isSearchModeActive && (<div className="mb-2 px-1 max-h-24 overflow-y-auto scrollbar-thin"><div className="flex flex-col gap-1.5">{pdfContextSegments.map(segment => (<div key={segment.id} className={`flex items-center p-2 rounded-lg shadow-sm bg-gray-200 dark:bg-gray-700/60`}><CornerDownRight className={`w-4 h-4 mr-2 shrink-0 text-gray-500 dark:text-gray-400`}/><span className={`flex-1 text-xs truncate text-gray-700 dark:text-gray-200`} title={segment.text}>{segment.text}</span><button type="button" onClick={() => removePdfContextSegment(segment.id)} className={`ml-2 p-1 rounded-full hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors`} title="Remove context segment"><X className="w-3 h-3"/></button></div>))}</div></div>)}
                             {selectedFiles.length > 0 && !isImageGenModeActive && !isSearchModeActive && (<div className="mb-2 flex flex-wrap gap-1.5 p-1.5 max-h-20 overflow-y-auto scrollbar-thin border border-dashed rounded-lg border-gray-300 dark:border-gray-600">{selectedFiles.map(file => (<div key={file.name} className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg border bg-indigo-100 dark:bg-indigo-600/20 border-indigo-200 dark:border-indigo-600/40 text-indigo-700 dark:text-indigo-300">{file.type.startsWith("image/") && file.localPreviewUrl && (<img src={file.localPreviewUrl} alt={file.name} className="w-4 h-4 rounded-sm object-cover"/>)}{!file.type.startsWith("image/") && <Paperclip className="w-3 h-3 flex-shrink-0"/>}<span className="truncate max-w-[80px]">{file.name}</span><button type="button" onClick={() => handleRemoveFile(file.name)} className="ml-1 p-0.5 rounded-full hover:bg-indigo-200 dark:hover:bg-indigo-600/40" title="Remove"><X className="w-2.5 h-2.5"/></button></div>))}</div>)}
@@ -1741,7 +1768,7 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string) =
                                     onDragOver={handleDragEvents}
                                     onDragEnter={handleDragEnter}
                                     onDragLeave={handleDragLeave}
-                                    className="relative bg-white dark:bg-[#161922] border border-gray-300 dark:border-gray-700/50 rounded-2xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-400 dark:focus-within:ring-indigo-600 transition-all duration-200 flex flex-col"
+                                    className="relative bg-[#F7F8FA] dark:bg-[#161922]  rounded-2xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-400 dark:focus-within:ring-indigo-600 transition-all duration-200 flex flex-col"
                                 >
                                     <AnimatePresence>
                                     {isDraggingOver && (
@@ -1784,6 +1811,12 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string) =
                                              <button type="button" onClick={handleToggleSearchMode} disabled={isChatLoading || isChatLimitReached} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isSearchModeActive ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'}`} title={isSearchModeActive ? "Disable Search" : "Enable Search"}><Globe className="w-4 h-4"/><span className="hidden sm:inline">Search</span></button>
                                              <button type="button" onClick={handleToggleImageGenMode} disabled={isChatLoading || isChatLimitReached} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isImageGenModeActive ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'}`} title={isImageGenModeActive ? "Switch to Normal" : "Generate Image"}><ImageIcon className="w-4 h-4"/><span className="hidden sm:inline">Image</span></button>
                                              <ChatControls onStyleSelect={handleStyleSelect} activeStyle={activeStyle} isIlluminateEnabled={isIlluminateEnabled} isBlackoutEnabled={isBlackoutEnabled}/>
+
+                                          <IntegrationsControl
+            isNotionConnected={isNotionConnected}
+            isNotionSearchModeActive={isNotionSearchModeActive}
+            onToggleNotionSearchMode={handleToggleNotionSearchMode}
+        />
                                          </div>
                                          <div className="flex items-center">
                                             <AnimatePresence mode="wait" initial={false}>
