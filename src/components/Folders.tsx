@@ -3584,7 +3584,7 @@ return (
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4, ease: "easeOut" }}
-              className="bg-gradient-to-r from-slate-50 to-gray-100 dark:from-[#10121c] dark:to-[#131520] p-3 sm:p-4 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700/50 mb-7 max-w-7xl mx-auto space-y-6"
+              className="bg-gradient-to-r from-slate-50 to-gray-100 dark:from-[#10121c] dark:to-[#131520] p-3 sm:p-4 rounded-xl shadow-lg  mb-7 max-w-7xl mx-auto space-y-6"
             >
               <div className="flex flex-col md:flex-row justify-between items-center gap-2 md:gap-3">
                 <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-center md:justify-start">
@@ -3637,7 +3637,7 @@ return (
                       <motion.div
                         key={stat.label}
                         whileHover={{ scale: 1.05, y: -2 }}
-                        className="bg-white dark:bg-slate-800/50 p-2.5 rounded-lg text-center shadow-sm border border-gray-200 dark:border-gray-700/60 w-20 sm:w-24"
+                        className="bg-white dark:bg-[#0C0E1A] p-2.5 rounded-lg text-center shadow-sm  w-20 sm:w-24"
                         {...statAnimationProps}
                       >
                         {stat.label === 'Streak' ? (
@@ -3657,7 +3657,7 @@ return (
                     );
                   })}
                 </div>
-                <div className="flex-grow md:flex-grow-0 md:ml-3 mt-3 md:mt-0 text-xs text-gray-600 dark:text-gray-300 bg-gray-100/50 dark:bg-gray-800/40 p-2 rounded-lg border border-gray-200 dark:border-gray-700/60 text-center sm:text-left flex items-center gap-2 shadow-inner">
+                <div className="flex-grow md:flex-grow-0 md:ml-3 mt-3 md:mt-0 text-xs text-gray-600 dark:text-gray-300 bg-gray-100/50 dark:bg-[#0C0E1A] p-2 rounded-lg  text-center sm:text-left flex items-center gap-2 shadow-inner">
                   <Lightbulb className="w-7 h-7 sm:w-8 sm:h-8 text-yellow-400 flex-shrink-0 animate-pulse" />
                   <span className="leading-snug whitespace-nowrap">
                     {encouragement}
@@ -3681,7 +3681,7 @@ return (
                 </motion.div>
               )}
 
-              <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700/50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-2">
+              <div className="mt-4 pt-3  flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-2">
                 <div className="flex flex-wrap justify-center sm:justify-start gap-1.5 sm:gap-2">
                     {quickActions.map(action => (
                         <button
@@ -3711,23 +3711,23 @@ return (
         )}
         <div className="max-w-7xl mx-auto space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] lg:grid-cols-[350px_1fr] gap-6">
-                <section className={`md:col-span-1 bg-white dark:bg-[#161922] p-4 sm:p-5 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700/50 animate-fadeIn delay-100 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'} flex flex-col max-h-[calc(106vh-12rem)] min-h-[300px]`}>
-                    <div className="flex justify-between items-center mb-3 pb-3 border-b border-gray-200 dark:border-gray-700/50">
+                <section className={`md:col-span-1 bg-[#F7F8FA] dark:bg-[#161922] p-4 sm:p-5 rounded-xl shadow-lg animate-fadeIn delay-100 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'} flex flex-col max-h-[calc(106vh-12rem)] min-h-[300px]`}>
+                    <div className="flex justify-between items-center mb-3 pb-3 ">
                         <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center"><FoldersIcon className="w-5 h-5 mr-2 text-indigo-500 dark:text-indigo-400" /> My Folders</h2>
                         <button onClick={() => { resetFolderForm(); setShowNewFolderForm(true); setNewFolderParentId(null); }} className="p-1.5 rounded-lg text-indigo-500 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-700/30 transition-colors" title="New Root Folder"><FolderPlus className="w-4 h-4" /></button>
                     </div>
                     <div className="mb-2 relative">
-                        <input type="text" placeholder="Search folders..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-colors shadow-sm"/>
+                        <input type="text" placeholder="Search folders..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-white dark:bg-[#0C0E1A] border-gray-200 dark:border-gray-700/60 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-colors shadow-sm"/>
                         <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
                     </div>
                     {showNewFolderForm && (
-                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mb-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700/50 bg-gray-50 dark:bg-gray-800/50 overflow-hidden">
+                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mb-3 p-3 rounded-lg  bg-gray-50 dark:bg-[#161922] overflow-hidden">
                             <h3 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-200">{editingFolder ? 'Edit Folder' : (newFolderParentId ? `New Subfolder in "${folders.find(f=>f.id===newFolderParentId)?.name || Object.values(subFolders).flat().find(f=>f.id===newFolderParentId)?.name || 'Folder'}"` : 'New Folder')}</h3>
                             <div className="space-y-2">
-                                <input type="text" placeholder="Folder Name" value={newFolderName} onChange={e => setNewFolderName(e.target.value)} className="w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs focus:ring-indigo-500 focus:border-indigo-500"/>
-                                <textarea placeholder="Description (optional)" value={newFolderDescription} onChange={e => setNewFolderDescription(e.target.value)} rows={2} className="w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs focus:ring-indigo-500 focus:border-indigo-500"/>
+                                <input type="text" placeholder="Folder Name" value={newFolderName} onChange={e => setNewFolderName(e.target.value)} className="w-full bg-white dark:bg-[#0C0E1A] border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs focus:ring-indigo-500 focus:border-indigo-500"/>
+                                <textarea placeholder="Description (optional)" value={newFolderDescription} onChange={e => setNewFolderDescription(e.target.value)} rows={2} className="w-full bg-white dark:bg-[#0C0E1A] border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs focus:ring-indigo-500 focus:border-indigo-500"/>
                                 <div className="flex items-center gap-2">
-                                <select value={newFolderType} onChange={e => setNewFolderType(e.target.value as any)} className="flex-1 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs focus:ring-indigo-500 focus:border-indigo-500">
+                                <select value={newFolderType} onChange={e => setNewFolderType(e.target.value as any)} className="flex-1 bg-white dark:bg-[#0C0E1A] border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs focus:ring-indigo-500 focus:border-indigo-500">
                                     <option value="mixed">Mixed</option><option value="flashcard">Flashcards</option><option value="question">Questions</option>
                                 </select>
                                 <input type="color" value={newFolderColor} onChange={e => setNewFolderColor(e.target.value)} className="w-8 h-7 p-0.5 border-none rounded-md cursor-pointer bg-transparent dark:bg-gray-700"/>
@@ -3751,8 +3751,8 @@ return (
 
                 <section className={`md:col-span-1 animate-fadeIn delay-200 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
                  {!activeStudyMode && selectedFolder && (
-                    <div className="bg-white dark:bg-[#161922] p-4 sm:p-5 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700/50 mb-6">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 pb-3 border-b border-gray-200 dark:border-gray-700/50">
+                    <div className="bg-[#F7F8FA] dark:bg-[#161922] p-4 sm:p-5 rounded-xl shadow-lg mb-6">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 pb-3 ">
                             <div className="flex items-center gap-2 min-w-0">
                                 <FolderIconLucide className="w-5 h-5 text-indigo-500 dark:text-indigo-400 flex-shrink-0" style={{color: selectedFolder.color || undefined }}/>
                                 <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 truncate" title={selectedFolder.name}>{selectedFolder.name}</h2>
@@ -3768,7 +3768,7 @@ return (
                                  <div className="relative">
                                      <button onClick={() => setOpenDropdownId(selectedFolder.id === openDropdownId ? null : selectedFolder.id)} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/60 text-gray-500 dark:text-gray-400 transition-colors"><MoreHorizontal className="w-4 h-4"/></button>
                                      {openDropdownId === selectedFolder.id && (
-                                         <div ref={dropdownRef} className="absolute right-0 mt-1 w-52 bg-white dark:bg-gray-800 rounded-lg shadow-xl z-20 border border-gray-200 dark:border-gray-700/50 overflow-hidden text-xs">
+                                         <div ref={dropdownRef} className="absolute right-0 mt-1 w-52 bg-white dark:bg-[#0C0E1A] rounded-lg shadow-xl z-20 border border-gray-200 dark:border-gray-700/50 overflow-hidden text-xs">
                                             <button onClick={() => {setShowTagManagement(prev => !prev); setOpenDropdownId(null);}} className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/60 flex items-center gap-2"><Tag className="w-3.5 h-3.5"/>Manage Tags</button>
                                             <button onClick={() => {setShowSetGoalModal(true); setOpenDropdownId(null);}} className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/60 flex items-center gap-2"><ShieldCheck className="w-3.5 h-3.5"/>Set Study Goal</button>
                                             <div className="my-1 border-t border-gray-200 dark:border-gray-700/50"></div>
@@ -3793,7 +3793,7 @@ return (
                                     onClick={() => handleStartStudyMode(m.mode as any)}
                                     className={`flex flex-col items-center justify-center p-3 rounded-lg text-xs font-medium transition-all hover:shadow-md transform hover:-translate-y-0.5
                                                 ${m.highlight ? 'bg-green-100 dark:bg-green-700/30 text-green-700 dark:text-green-200 border-2 border-green-500'
-                                                             : 'bg-gray-50 dark:bg-gray-700/60 hover:bg-indigo-50 dark:hover:bg-indigo-700/30 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 hover:border-indigo-300 dark:hover:border-indigo-600'}`}
+                                                             : 'bg-white dark:bg-[#0C0E1A] hover:bg-indigo-50 dark:hover:bg-indigo-700/30 text-gray-700 dark:text-gray-200  dark: hover:border-indigo-300 dark:hover:border-indigo-600'}`}
                                 >
                                     <m.icon className={`w-6 h-6 mb-1.5 ${m.highlight ? 'text-green-600 dark:text-green-400' : 'text-indigo-500 dark:text-indigo-400'}`}/>
                                     <span className="font-semibold text-xs sm:text-sm">{m.label}</span>
@@ -3842,9 +3842,9 @@ return (
                         </div>
 
                         {showTagManagement && (
-                            <motion.div initial={{opacity:0, height:0}} animate={{opacity:1, height:'auto'}} exit={{opacity:0, height:0}} className="p-2 mb-2 border rounded-md bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700/50">
+                            <motion.div initial={{opacity:0, height:0}} animate={{opacity:1, height:'auto'}} exit={{opacity:0, height:0}} className="p-2 mb-2  rounded-md bg-[#F7F8FA] dark:bg-[#0C0E1A] ">
                                 <div className="flex items-center gap-2 mb-1">
-                                    <input type="text" value={newTagInput} onChange={e => setNewTagInput(e.target.value)} placeholder="Add new tag..." className="flex-1 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 text-xs focus:ring-indigo-500 focus:border-indigo-500"/>
+                                    <input type="text" value={newTagInput} onChange={e => setNewTagInput(e.target.value)} placeholder="Add new tag..." className="flex-1 bg-white dark:bg-[#0C0E1A] border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 text-xs focus:ring-indigo-500 focus:border-indigo-500"/>
                                     <button onClick={() => { if(user && newTagInput.trim() && selectedFolder) { addTagToFolder(user.uid, selectedFolder.id, newTagInput.trim().toLowerCase()); setNewTagInput(""); showToast("Tag added", "success");} }} className="p-1.5 rounded-md bg-indigo-500 hover:bg-indigo-600 text-white text-xs"><Plus className="w-3 h-3"/></button>
                                 </div>
                                 <div className="text-xs text-gray-500 dark:text-gray-400">All your tags: {allUserTags.join(', ') || 'None'}</div>
@@ -3892,7 +3892,7 @@ return (
                         )}
 
                         {showNewItemForm && selectedFolder && (
-                            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="p-3 mb-4 border rounded-lg bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700/50 overflow-hidden">
+                            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="p-3 mb-4  rounded-lg bg-[#F7F8FA] dark:bg-[#161922]   overflow-hidden">
                                 <div className="flex justify-between items-center mb-2">
                                     <h4 className="text-md font-semibold text-gray-700 dark:text-gray-200">{editingItem ? 'Edit Item' : 'New Item'}</h4>
                                     {selectedFolder.type === 'mixed' && !editingItem && (
@@ -3904,20 +3904,20 @@ return (
                                 </div>
                                 <div className="space-y-2">
                                 {newItemFormType === 'flashcard' ? (<>
-                                    <input type="text" placeholder="Term" value={flashcardTerm} onChange={e => setFlashcardTerm(e.target.value)} className="w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs"/>
-                                    <textarea placeholder="Definition" value={flashcardDefinition} onChange={e => setFlashcardDefinition(e.target.value)} rows={3} className="w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs"/>
-                                    <input type="text" placeholder="Topic (optional)" value={flashcardTopic} onChange={e => setFlashcardTopic(e.target.value)} className="w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs"/>
+                                    <input type="text" placeholder="Term" value={flashcardTerm} onChange={e => setFlashcardTerm(e.target.value)} className="w-full bg-white dark:bg-[#0C0E1A] border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs"/>
+                                    <textarea placeholder="Definition" value={flashcardDefinition} onChange={e => setFlashcardDefinition(e.target.value)} rows={3} className="w-full bg-white dark:bg-[#0C0E1A] border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs"/>
+                                    <input type="text" placeholder="Topic (optional)" value={flashcardTopic} onChange={e => setFlashcardTopic(e.target.value)} className="w-full bg-white dark:bg-[#0C0E1A] border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs"/>
                                 </>) : (<>
-                                    <textarea placeholder="Question" value={questionText} onChange={e => setQuestionText(e.target.value)} rows={2} className="w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs"/>
+                                    <textarea placeholder="Question" value={questionText} onChange={e => setQuestionText(e.target.value)} rows={2} className="w-full bg-white dark:bg-[#0C0E1A] border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs"/>
                                     {questionOptions.map((opt, i) => (
                                         <div key={i} className="flex items-center gap-2">
                                             <input type="radio" name="correctAnswer" checked={questionCorrectAnswer === i} onChange={() => setQuestionCorrectAnswer(i)} className="form-radio h-3 w-3 text-indigo-500 border-gray-300 dark:border-gray-600 focus:ring-indigo-500"/>
-                                            <input type="text" placeholder={`Option ${i+1}`} value={opt} onChange={e => { const newOpts = [...questionOptions]; newOpts[i] = e.target.value; setQuestionOptions(newOpts); }} className="flex-1 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs"/>
+                                            <input type="text" placeholder={`Option ${i+1}`} value={opt} onChange={e => { const newOpts = [...questionOptions]; newOpts[i] = e.target.value; setQuestionOptions(newOpts); }} className="flex-1 bg-white dark:bg-[#0C0E1A] border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs"/>
                                             {questionOptions.length > 2 && <button type="button" onClick={() => setQuestionOptions(prev => prev.filter((_,idx) => idx !== i))} className="p-1 text-red-500 hover:text-red-700"><Trash className="w-3 h-3"/></button>}
                                         </div>
                                     ))}
                                     {questionOptions.length < 6 && <button type="button" onClick={() => setQuestionOptions(prev => [...prev, ''])} className="text-xs text-indigo-500 hover:underline">+ Add Option</button>}
-                                    <textarea placeholder="Explanation (optional)" value={questionExplanation} onChange={e => setQuestionExplanation(e.target.value)} rows={2} className="w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs"/>
+                                    <textarea placeholder="Explanation (optional)" value={questionExplanation} onChange={e => setQuestionExplanation(e.target.value)} rows={2} className="w-full bg-white dark:bg-[#0C0E1A] border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs"/>
                                 </>)}
                                 <div className="flex justify-end gap-2 pt-1">
                                     <button type="button" onClick={resetItemForm} className="px-3 py-1 rounded-md text-xs bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500">Cancel</button>
@@ -3958,7 +3958,7 @@ return (
                                     const nextReviewDateObject = item.nextReviewDate ? toDateSafe(item.nextReviewDate) : null;
                                     const isReviewDue = nextReviewDateObject && nextReviewDateObject <= new Date();
                                     return (
-                                    <div key={item.id} className={`p-3 rounded-lg border border-gray-200 dark:border-gray-700/70 bg-white dark:bg-gray-800/70 group relative hover:shadow-md transition-shadow duration-150 ${viewMode === 'list' ? 'flex justify-between items-start gap-3' : ''}`}>
+                                    <div key={item.id} className={`p-3 rounded-lg bg-white dark:bg-[#0C0E1A] group relative hover:shadow-md transition-shadow duration-150 ${viewMode === 'list' ? 'flex justify-between items-start gap-3' : ''}`}>
                                         <div className="flex-1 min-w-0">
                                             {item.type === 'flashcard' ? (<>
                                                 <h5 className="text-sm font-semibold text-gray-800 dark:text-gray-100 break-words">{item.term}</h5>
@@ -3994,7 +3994,7 @@ return (
                     </div>
                  )}
                  {!activeStudyMode && !selectedFolder && (
-                    <div className="bg-white dark:bg-[#161922] p-8 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700/50 flex flex-col items-center justify-center min-h-[400px] text-center">
+                    <div className="bg-[#F7F8FA] dark:bg-[#161922] p-8 rounded-xl shadow-lg flex flex-col items-center justify-center min-h-[400px] text-center">
                         <FolderTree className="w-16 h-16 text-indigo-300 dark:text-indigo-600 mb-4 opacity-70"/>
                         <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-200">Select or Create a Folder</h3>
                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-xs">Your learning journey starts here.</p>
@@ -4171,7 +4171,7 @@ return (
                     ))}
                     <div ref={chatEndRef} />
                 </div>
-                <div className="p-3 border-t border-gray-200 dark:border-gray-700/80 bg-gray-50 dark:bg-[#0C0E1A] flex-shrink-0">
+                <div className="p-3  bg-white dark:bg-[#0C0E1A] flex-shrink-0">
                     {selectedFiles.length > 0 && !isImageGenModeActive && !isSearchModeActive && (
                         <div className="mb-2 flex flex-wrap gap-1 px-1 py-1 max-h-14 overflow-y-auto scrollbar-thin border border-dashed rounded-lg border-gray-300 dark:border-gray-600">
                             {selectedFiles.map(file => (
@@ -4555,16 +4555,16 @@ return (
 
     return (
         <div 
-            className="bg-white dark:bg-[#161922] p-4 sm:p-5 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700/50"
+            className="bg-[#F7F8FA] dark:bg-[#161922] p-4 sm:p-5 rounded-xl shadow-2xl "
         >
-            <div className="flex justify-between items-center mb-4 pb-3 border-b border-gray-200 dark:border-gray-700/50">
+            <div className="flex justify-between items-center mb-4 pb-3 ">
                  <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
                     {activeStudyMode === 'flashcards' && <BookOpen className="w-5 h-5 text-indigo-500"/>}
                     {(activeStudyMode === 'learn' || activeStudyMode === 'review') && <Lightbulb className="w-5 h-5 text-yellow-500"/>}
                     {activeStudyMode === 'test' && <Target className="w-5 h-5 text-red-500"/>}
                     {activeStudyMode === 'match' && <Gamepad2 className="w-5 h-5 text-green-500"/>}
                     {activeStudyMode === 'quiz' && <Brain className="w-5 h-5 text-purple-500"/>}
-                    {activeStudyMode.charAt(0).toUpperCase() + activeStudyMode.slice(1)} Mode
+                    {activeStudyMode.charAt(0).toUpperCase() + activeStudyMode.slice(1)} 
                     {selectedFolder && <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">({selectedFolder.name})</span>}
                 </h3>
                 <button onClick={() => setActiveStudyMode(null)} className="px-3 py-1.5 text-xs rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 transition-colors flex items-center gap-1"><X className="w-3 h-3"/>Exit</button>
@@ -4583,7 +4583,7 @@ return (
                                 updateLastReviewed(user.uid, selectedFolder.id, currentItemFromSession.id); 
                             } 
                         }}
-                        className={`w-full max-w-md h-60 md:h-64 rounded-xl shadow-lg cursor-pointer relative overflow-hidden border border-indigo-200 dark:border-indigo-700 bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-gray-800 dark:via-gray-800/80 dark:to-gray-900 perspective-1000`}
+                        className={`w-full max-w-md h-60 md:h-64 rounded-xl shadow-lg cursor-pointer relative overflow-hidden border border-indigo-200 dark:border-indigo-700 bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-[#0C0E1A] dark:via-[#0C0E1A] dark:[#0C0E1A] perspective-1000`}
                     >
                         <div
                             className="absolute inset-0 flex items-center justify-center p-4 text-center"
@@ -4592,7 +4592,7 @@ return (
                             <p className="text-lg md:text-xl font-semibold text-gray-800 dark:text-gray-100 break-words">{(currentItemFromSession as Flashcard).term}</p>
                         </div>
                         <div
-                            className="absolute inset-0 flex items-center justify-center p-4 text-center bg-gradient-to-br from-purple-50 via-white to-indigo-50 dark:from-gray-900 dark:via-gray-800/80 dark:to-gray-800"
+                            className="absolute inset-0 flex items-center justify-center p-4 text-center bg-gradient-to-br from-purple-50 via-white to-indigo-50 dark:from-[#0C0E1A] dark:via-[#0C0E1A ]dark:to-[#0C0E1A]"
                             style={{ backfaceVisibility: "hidden", transform: isCardFlipped ? 'rotateY(0deg)' : 'rotateY(-180deg)', transition: 'transform 0.6s' }}
                         >
                             <p className="text-md md:text-lg text-gray-700 dark:text-gray-200 break-words">{(currentItemFromSession as Flashcard).definition}</p>
