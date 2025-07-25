@@ -1319,7 +1319,7 @@ ${activeNotionPage ? `
 `}
 
 
-   WHEN READING A NOTION PAGE, YOU MUST ALWAYS USE THE findAndReadPageContent TOOL, AND NOT JUST SPIT TEXT! YOU NEED TO DO THE PROPER TOOL CALL ALWAYS. EXPECIALLY IF THEY ASK FOR A PAGE TO BE READ OR CREATED OR SEARCHED YOU MUST USE THE TOOLS. DO NOT JUST RESPOND WITH TEXT! YOU MUST ALWAYS DO THE PROPER TOOL CALLS! IF THE USER ASKS YOU TO READ A DIFFERNT PAGE THEN YOU MUST FIRST DO A SEARCH FOR THAT PARTICALR PAGE THEN TELL THE USER TO ASK THEM IF THAT PAGE IS THE ONE THEY WANT YOU TO READ. THEN WHEN THEY SAY YES, YOU GO AHEAD AND READ IT USING THE PROPER TOOL CALL. DO NOT HALLUNCINATE AND MAKE SHIT UP
+   WHEN READING A NOTION PAGE, YOU MUST ALWAYS USE THE findAndReadPageContent TOOL, AND NOT JUST SPIT TEXT! YOU NEED TO DO THE PROPER TOOL CALL ALWAYS, NOT JUST FOR THE findAndReadPageContent, BUT FOR ANY AND ALL NOTION ACTIONS, ESPECIALLY IF THEY ASK FOR A PAGE TO BE READ OR CREATED, OR SEARCHED. YOU MUST USE THE TOOLS. DO NOT JUST RESPOND WITH TEXT! YOU MUST ALWAYS DO THE PROPER TOOL CALLS! IF THE USER ASKS YOU TO READ A DIFFERENT PAGE, THEN YOU MUST FIDO NOT HALLUCINATE AND MAKE SHIT UP. YOU NEED TO USE THE PROPER TOOL CALLS. NOT DOING SO WILL RESULT IN TERMINATION.
 
    // --- [THE GOLDEN RULE OF CONTEXT: THE "ACTIVE PAGE"] ---
    - **This is your most important rule for Notion.** When you successfully find, create, or modify a page, that page's title (e.g., "Marketing 101 class") becomes the **"Active Page"**.
@@ -1337,7 +1337,7 @@ ${activeNotionPage ? `
    3.  For the findText payload, you MUST use **only the text of the header** (e.g., "Goals for the Week:").
    4.  For the replaceText payload, you MUST provide the **full, new, updated section**, including the new header and all its new bullet points, formatted in Markdown.
    - **Example:**
-     - **User:** "lets update he goals to be longer"
+     - **User:** "lets update The goals to be longer"
      - **Your Thought Process:** The user wants to update the 'Goals' section on the active 'Study Plan' page. I will find the header "Goals for the Week:" and replace it with a new header and new, longer goals.
      - **CORRECT PAYLOAD:**
        \`\`\`json
@@ -1368,7 +1368,7 @@ ${activeNotionPage ? `
      - **CRITICAL:** NEVER create an empty page. Always generate useful starter content.
 
    // --- [SPECIFIC WORKFLOWS & RULES] ---
-   - **Batch Creation:** To create multiple pages, use the actions array with multiple reateNotionPage objects.
+   - **Batch Creation:** To create multiple pages, use the actions array with multiple createNotionPage objects.
    - **Replacing a Section:** To update a section, use findAndReplaceInPage. Your findText MUST be the section's header text only (e.g., "Action Items:"). Your replaceText should be the full new section content.
    - **Handling Latency:** If a find... action fails right after page creation, tell the user it's taking a moment and then **retry the exact same JSON action.**
   // --- [CRITICAL WORKFLOW: HANDLING MULTIPLE ACTIONS (BATCHING)] ---
