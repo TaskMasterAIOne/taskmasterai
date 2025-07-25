@@ -2130,7 +2130,7 @@ Assistant:`;
   const handleQuickActionClick = (action: string) => { setChatMessage(action); textareaRef.current?.focus(); };
 
   return (
-    <div className={`flex h-screen bg-[#F7F8FA] dark:bg-[#0C0E1A] text-gray-900 dark:text-gray-100 font-poppins`}>
+    <div className={`flex h-screen bg-white dark:bg-[#0C0E1A] text-gray-900 dark:text-gray-100 font-poppins`}>
       {confirmAction && (
         <div className="fixed inset-0 bg-black/50 z-[90] flex items-center justify-center p-4">
           <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-sm w-full">
@@ -2328,7 +2328,7 @@ Assistant:`;
             </div>
             
             {/* Input Form Area */}
-            <div className="flex-shrink-0 p-3 bg-[#F7F8FA] dark:bg-[#0C0E1A]/80 backdrop-blur-sm">
+            <div className="flex-shrink-0 p-3 bg-white dark:bg-[#0C0E1A]/80 backdrop-blur-sm">
                 {selectedFiles.length > 0 && !isImageGenModeActive && !isSearchModeActive && (
                   <div className="mb-2 flex flex-wrap gap-1.5 p-1.5 max-h-16 overflow-y-auto scrollbar-thin border border-dashed rounded-lg border-gray-300 dark:border-gray-600">
                     {selectedFiles.map(file => (
