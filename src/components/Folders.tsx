@@ -3527,7 +3527,7 @@ if (userProfile) {
 
 
 return (
-    <div className={`bg-[#F7F8FA] dark:bg-[#0C0E1A] text-gray-900 dark:text-gray-100 min-h-screen w-full overflow-x-hidden relative font-poppins flex`}>
+    <div className={`bg-white dark:bg-[#0C0E1A] text-gray-900 dark:text-gray-100 min-h-screen w-full overflow-x-hidden relative font-poppins flex`}>
       {toastMessage && (
         <AnimatePresence>
         <motion.div
