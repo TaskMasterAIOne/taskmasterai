@@ -2056,12 +2056,32 @@ if (notionBlock && user?.uid && isNotionConnected) {
                         }
                      }
                      break;
-
-                case 'createNotionPage':
-                case 'findAndAppendToPage':
-                case 'findAndUpdatePageContent':
-                case 'findAndReplaceInPage':
-                case 'appendToNotionPage':
+                      case 'createNotionPage':
+                          successMessage = "Created Notion page.";
+                          pageUrl = actionResult.url;
+                          pageTitle = actionResult.properties?.title?.title?.[0]?.plain_text || "Untitled";
+                          if (actionResult.id && pageTitle) {
+                              setActiveNotionPage({ id: actionResult.id, title: pageTitle });
+                          }
+                          break;
+                      case 'findAndAppendToPage':
+                      case 'appendToNotionPage':
+                          successMessage = "Added to Notion page.";
+                          pageUrl = actionResult.url;
+                          pageTitle = actionResult.pageTitle || "Notion Page";
+                           if (actionResult.id && pageTitle) {
+                              setActiveNotionPage({ id: actionResult.id, title: pageTitle });
+                           }
+                          break;
+                      case 'findAndReplaceInPage':
+                      case 'findAndUpdatePageContent':
+                          successMessage = "Updated Notion page.";
+                          pageUrl = actionResult.url;
+                          pageTitle = actionResult.pageTitle || "Notion Page";
+                           if (actionResult.id && pageTitle) {
+                              setActiveNotionPage({ id: actionResult.id, title: pageTitle });
+                           }
+                          break;
                 case 'findAndInsertAfter':
                 case 'findAndReadPageContent':
                     successMessage = notionBlock.action === 'createNotionPage' ? "Created Notion page." : "Updated Notion page.";
