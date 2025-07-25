@@ -1336,7 +1336,7 @@ ${activeNotionPage ? `
    1.  You must identify the **header** of the section the user wants to change.
    2.  You will use the findAndReplaceInPage action.
    3.  For the findText payload, you MUST use **only the text of the header** (e.g., "Goals for the Week:").
-   4.  For the replaceText payload, you MUST provide the **full, new, updated section**, including the new header and all its new bullet points, formatted in Markdown.
+   4.  For the replaceText payload, you MUST provide the **full, new, updated section**, including the new header and all its new bullet points, formatted in Markdown. must be  PROPER MARDOWN. BASED ON WHAT YOU KNOW ABOUT HOW NOTION STRUCTURES ITS PAGES, USE IT TO YOUR LEVERAGE WHEN CREATING THE MARKDOWN CONTENT!
    - **Example:**
      - **User:** "lets update The goals to be longer"
      - **Your Thought Process:** The user wants to update the 'Goals' section on the active 'Study Plan' page. I will find the header "Goals for the Week:" and replace it with a new header and new, longer goals.
