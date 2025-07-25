@@ -2275,7 +2275,7 @@ useEffect(() => {
             <div key={`view-split-${selectedNote.id}`} className={`bg-white dark:bg-[#0C0E1A] flex flex-col overflow-hidden h-full`}>
                 <div className={`p-4 md:p-6 flex flex-col sm:flex-row sm:items-start sm:justify-between mb-0 gap-3 flex-shrink-0`}>
                     <h1 className={`text-2xl md:text-2xl font-semibold text-gray-800 dark:text-gray-100 break-words mr-auto pr-4`}>{selectedNote.title || "Untitled"}</h1>
-                    <div className={`flex items-center gap-1 flex-shrink-0 border rounded-full p-0.5 border-gray-200 dark:border-gray-700/50 bg-gray-50 dark:bg-[#1A1D29]/50`}>
+                    <div className={`flex items-center gap-1 flex-shrink-0  rounded-full p-0.5 bg-white dark:bg-[#0C0E1A]`}>
                         {!isMobile && isNotesListHidden && (
                             <>
                                 <button
@@ -2494,7 +2494,7 @@ useEffect(() => {
                             ) : selectedNote ? (
                                 isEditing ? (
                                     <div key={`edit-${selectedNote.id}`} className={`bg-white dark:bg-[#0C0E1A] flex flex-col h-full`}>
-                                        <div className="p-4 pt-5 md:p-6 flex-shrink-0 border-b border-gray-200 dark:border-gray-700">
+                                        <div className="p-4 pt-5 md:p-6 flex-shrink-0 ">
                                             <input
                                                 type="text"
                                                 value={editTitle}
@@ -2593,7 +2593,7 @@ useEffect(() => {
                                                                                 value={card.front}
                                                                                 onChange={(e) => handleFlashcardChange(index, 'front', e.target.value)}
                                                                                 placeholder="Term or question..."
-                                                                                className="w-full bg-white dark:bg-gray-700/60 border border-gray-200 dark:border-gray-600/70 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 text-sm rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y min-h-[40px] leading-relaxed"
+                                                                                className="w-full bg-white dark:bg-[#0C0E1A] border border-gray-200 dark:border-gray-600/70 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 text-sm rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y min-h-[40px] leading-relaxed"
                                                                             />
                                                                         </div>
                                                                         <div>
@@ -2604,7 +2604,7 @@ useEffect(() => {
                                                                                 value={card.back}
                                                                                 onChange={(e) => handleFlashcardChange(index, 'back', e.target.value)}
                                                                                 placeholder="Definition or answer..."
-                                                                                className="w-full bg-white dark:bg-gray-700/60 border border-gray-200 dark:border-gray-600/70 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 text-sm rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y min-h-[40px] leading-relaxed"
+                                                                                className="w-full bg-white dark:bg-[#0C0E1A] border border-gray-200 dark:border-gray-600/70 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 text-sm rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y min-h-[40px] leading-relaxed"
                                                                             />
                                                                         </div>
                                                                     </div>
@@ -2623,7 +2623,7 @@ useEffect(() => {
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className={`flex justify-end items-center gap-2 p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0 bg-white dark:bg-[#0C0E1A]`}>
+                                        <div className={`flex justify-end items-center gap-2 p-4  flex-shrink-0 bg-white dark:bg-[#0C0E1A]`}>
                                             <button onClick={handleCancelEdit} className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-4 py-1.5 rounded-md text-sm`}>Cancel</button>
                                             <button onClick={handleSaveEdit} disabled={isSaving || !editTitle.trim()} className={`bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-1.5 rounded-md text-sm flex items-center gap-1.5 ${isSaving || !editTitle.trim() ? 'opacity-50 cursor-not-allowed' : ''}`}> {isSaving ? (<> <Loader2 className="w-4 h-4 animate-spin" /> Saving... </>) : (<> <Save className="w-4 h-4" /> Save </>)} </button>
                                         </div>
@@ -2632,7 +2632,7 @@ useEffect(() => {
                                     <div key={`view-${selectedNote.id}`} className={`bg-white dark:bg-[#0C0E1A] flex flex-col overflow-hidden h-full animate-fadeIn`}>
                                         <div className={`p-4 md:p-6 flex flex-col sm:flex-row sm:items-start sm:justify-between mb-0 gap-3 flex-shrink-0`}>
                                             <h1 className={`text-2xl md:text-2xl font-semibold text-gray-800 dark:text-gray-100 break-words mr-auto pr-4`}>{selectedNote.title || "Untitled"}</h1>
-<div className={`flex items-center gap-1 flex-shrink-0 border rounded-full p-0.5 border-gray-200 dark:border-gray-700/50 bg-gray-50 dark:bg-[#1A1D29]/50`}>
+<div className={`flex items-center gap-1 flex-shrink-0  rounded-full p-0.5  bg-white dark:bg-[#0C0E1A]`}>
     {!isMobile && isNotesListHidden && (
         <>
             <button 
@@ -2853,7 +2853,7 @@ useEffect(() => {
     <div className={`mt-8 pt-6 border-t border-gray-200 dark:border-gray-700/50`}>
         <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 text-gray-800 dark:text-gray-100`}> <Sparkles className={`w-5 h-5 text-yellow-500 dark:text-yellow-400`} /> Key Points </h3>
         <div className={`space-y-3`}> {selectedNote.keyPoints.map((point, index) => (
-            <div key={index} className="flex items-start p-3 rounded-lg bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700/50">
+            <div key={index} className="flex items-start p-3 rounded-lg bg-gray-50 dark:bg-[#161922]">
                 <div className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-700/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center text-xs font-semibold mr-3 mt-0.5">{index + 1}</div>
                 <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed"><RenderWithLatex text={point} /></p>
             </div>
@@ -3012,13 +3012,13 @@ useEffect(() => {
                     )}
                 </div>
 
-                 <div className={` ${!isMobile && !isNotesListHidden ? 'w-full md:w-72 lg:w-80 xl:w-96 border-l' : 'w-0 hidden'} border-gray-200 dark:border-gray-700/50 flex-shrink-0 flex flex-col bg-white dark:bg-[#161922] transition-all duration-300 ease-in-out relative h-full z-10 order-last `}>
+                 <div className={` ${!isMobile && !isNotesListHidden ? 'w-full md:w-72 lg:w-80 xl:w-96 ' : 'w-0 hidden'} border-gray-200 dark:border-gray-700/50 flex-shrink-0 flex flex-col bg-white dark:bg-[#161922] transition-all duration-300 ease-in-out relative h-full z-10 order-last `}>
                      {(!isMobile && !isNotesListHidden) && (
                          <>
-                         <div className={`p-3 border-b border-gray-200 dark:border-gray-700/50 flex items-center justify-between flex-shrink-0`}> <h2 className={`text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2`}>
+                         <div className={`p-3  flex items-center justify-between flex-shrink-0`}> <h2 className={`text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2`}>
     <FileText className={`w-5 h-5 text-indigo-500 dark:text-indigo-400`} />
     <span>Notes</span>
-</h2> <div className="flex items-center gap-1"> <button onClick={handleToggleNotesList} className={`bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 p-1.5 rounded-full`} title="Hide List"> <PanelLeftClose className="w-4 h-4 transform scale-x-[-1]" /> </button> {notes.length >= 2 && !showPdfViewer && ( <button onClick={showSplitView ? closeSplitView : startSplitView} className={`bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 p-1.5 rounded-full`} title={showSplitView ? "Close Comparison" : "Compare Notes"}> <SplitSquareVertical className={`w-4 h-4 ${showSplitView ? 'text-indigo-500 dark:text-indigo-400': ''}`} /> </button> )} <button onClick={() => setShowNewNoteModal(true)} className={`bg-indigo-500 hover:bg-indigo-600 text-white p-2 rounded-full hover:shadow-md transition-all duration-150`} title="New Note"> <Plus className="w-4 h-4" /> </button> </div> </div>
+</h2> <div className="flex items-center gap-1"> <button onClick={handleToggleNotesList} className={`bg-white dark:bg-[#161922] hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 p-1.5 rounded-full`} title="Hide List"> <PanelLeftClose className="w-4 h-4 transform scale-x-[-1]" /> </button> {notes.length >= 2 && !showPdfViewer && ( <button onClick={showSplitView ? closeSplitView : startSplitView} className={`bg-white dark:bg-[#161922] hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 p-1.5 rounded-full`} title={showSplitView ? "Close Comparison" : "Compare Notes"}> <SplitSquareVertical className={`w-4 h-4 ${showSplitView ? 'text-indigo-500 dark:text-indigo-400': ''}`} /> </button> )} <button onClick={() => setShowNewNoteModal(true)} className={`bg-indigo-500 hover:bg-indigo-600 text-white p-2 rounded-full hover:shadow-md transition-all duration-150`} title="New Note"> <Plus className="w-4 h-4" /> </button> </div> </div>
                                                   {userTier !== 'premium' && userProfile && pointsNeededForPremium > 0 && (
                             <div className="px-3 pt-2 pb-2 border-b border-gray-200 dark:border-gray-700/50">
                                 <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-600/50 text-center shadow-sm">
@@ -3032,14 +3032,14 @@ useEffect(() => {
                             </div>
                         )}
                          {userProfile && (
-                            <div className="p-3 border-b border-gray-200 dark:border-gray-700/50 space-y-2 bg-gray-50 dark:bg-[#1A1D29]/70">
+                            <div className="p-3  space-y-2 bg-white dark:bg-[#161922]">
                                 <div className="grid grid-cols-3 gap-2 text-center">
                                     {[
                                         { label: 'Points', value: userProfile.points, icon: TrendingUp, color: 'text-indigo-500 dark:text-indigo-400' },
                                         { label: 'Level', value: userProfile.level, icon: Award, color: 'text-green-500 dark:text-green-400' },
                                         { label: 'Streak', value: userProfile.overallStreakCount, icon: Flame, color: 'text-orange-500 dark:text-orange-400' },
                                     ].map(stat => (
-                                        <div key={stat.label} className="p-1.5 rounded-md bg-white dark:bg-slate-800/60 shadow-sm border border-gray-200 dark:border-gray-700/60">
+                                        <div key={stat.label} className="p-1.5 rounded-md bg-[#F7F8FA] dark:bg-[#0C0E1A] shadow-sm ">
                                             <stat.icon className={`w-4 h-4 mx-auto mb-0.5 ${stat.color}`} />
                                             <p className="text-sm font-bold text-gray-700 dark:text-gray-100">{stat.value}</p>
                                             <p className="text-[9px] text-gray-500 dark:text-gray-400 uppercase">{stat.label}</p>
@@ -3059,7 +3059,7 @@ useEffect(() => {
                   {isMobile && (
                     <div className={` fixed inset-0 z-40 bg-black/50 transition-opacity duration-300 ease-in-out ${showNotesListOnMobile ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'} `} onClick={() => setShowNotesListOnMobile(false)}>
                         <div className={` absolute top-0 right-0 h-full w-4/5 max-w-sm bg-white dark:bg-[#0C0E1A] border-l border-gray-200 dark:border-gray-700/50 shadow-xl flex flex-col transform transition-transform duration-300 ease-in-out ${showNotesListOnMobile ? 'translate-x-0' : 'translate-x-full'} `} onClick={(e) => e.stopPropagation()}>
-                            <div className={`p-3 border-b border-gray-200 dark:border-gray-700/50 flex items-center justify-between flex-shrink-0`}>
+                            <div className={`p-3   flex items-center justify-between flex-shrink-0`}>
                                 <h2 className={`text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2`}> <FileText className={`w-5 h-5 text-indigo-500 dark:text-indigo-400`} /> Notes </h2>
                                 <div className="flex items-center gap-1">
                                     <button onClick={() => setShowNewNoteModal(true)} className={`bg-indigo-500 hover:bg-indigo-600 text-white p-1.5 rounded-full hover:shadow-md`} title="New Note"> <Plus className="w-4 h-4" /> </button>
@@ -3067,7 +3067,7 @@ useEffect(() => {
                                 </div>
                             </div>
                             {userProfile && (
-                                <div className="p-3 border-b border-gray-200 dark:border-gray-700/50 space-y-2 bg-gray-50 dark:bg-[#1A1D29]/70">
+                                <div className="p-3  space-y-2 bg-gray-50 dark:bg-[#0C0E1A]">
                                      <div className="grid grid-cols-3 gap-2 text-center">
                                         {[
                                             { label: 'Points', value: userProfile.points, icon: TrendingUp, color: 'text-indigo-500 dark:text-indigo-400' },
