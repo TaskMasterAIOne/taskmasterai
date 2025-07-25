@@ -5060,7 +5060,7 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
         onDragOver={handleDragEvents}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
-        className={`relative bg-[#F7F8FA] dark:bg-[#161922] rounded-2xl shadow-sm transition-all duration-200 flex flex-col ${isDraggingOver ? 'ring-2 ring-indigo-400 dark:ring-indigo-600 ring-offset-2 ring-offset-white dark:ring-offset-[#12141D]' : 'focus-within:ring-2 focus-within:ring-indigo-400 dark:focus-within:ring-indigo-600'}`}
+        className={`relative bg-gray-100 dark:bg-[#161922] rounded-2xl shadow-sm transition-all duration-200 flex flex-col ${isDraggingOver ? 'ring-2 ring-indigo-400 dark:ring-indigo-600 ring-offset-2 ring-offset-white dark:ring-offset-[#12141D]' : 'focus-within:ring-2 focus-within:ring-indigo-400 dark:focus-within:ring-indigo-600'}`}
     >
         <AnimatePresence>
         {isDraggingOver && (
