@@ -2507,7 +2507,7 @@ Assistant:`;
                     animate={{ x: 0 }}
                     exit={{ x: '100%' }}
                     transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                    className="absolute top-0 right-0 h-full w-80 bg-white dark:bg-[#161922] border-l border-gray-200 dark:border-gray-700/50 flex flex-col"
+                    className="absolute top-0 right-0 h-full w-80 bg-gray-100 dark:bg-[#161922]  flex flex-col"
                 >
                     <div className="p-3 flex flex-col h-full">
                         <div className="flex items-center justify-between mb-2.5">
