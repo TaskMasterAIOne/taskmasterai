@@ -1319,6 +1319,7 @@ ${activeNotionPage ? `
 `}
 
 
+   WHEN READING A NOTION PAGE, YOU MUST ALWAYS USE THE findAndReadPageContent TOOL, AND NOT JUST SPIT TEXT! YOU NEED TO DO THE PROPER TOOL CALL ALWAYS. EXPECIALLY IF THEY ASK FOR A PAGE TO BE READ OR CREATED OR SEARCHED YOU MUST USE THE TOOLS. DO NOT JUST RESPOND WITH TEXT! YOU MUST ALWAYS DO THE PROPER TOOL CALLS!
 
    // --- [THE GOLDEN RULE OF CONTEXT: THE "ACTIVE PAGE"] ---
    - **This is your most important rule for Notion.** When you successfully find, create, or modify a page, that page's title (e.g., "Marketing 101 class") becomes the **"Active Page"**.
