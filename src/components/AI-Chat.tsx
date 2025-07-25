@@ -2328,7 +2328,7 @@ Assistant:`;
             </div>
             
             {/* Input Form Area */}
-            <div className="flex-shrink-0 p-3 border-t border-gray-200 dark:border-gray-700/50 bg-[#F7F8FA] dark:bg-[#0C0E1A]/80 backdrop-blur-sm">
+            <div className="flex-shrink-0 p-3 bg-[#F7F8FA] dark:bg-[#0C0E1A]/80 backdrop-blur-sm">
                 {selectedFiles.length > 0 && !isImageGenModeActive && !isSearchModeActive && (
                   <div className="mb-2 flex flex-wrap gap-1.5 p-1.5 max-h-16 overflow-y-auto scrollbar-thin border border-dashed rounded-lg border-gray-300 dark:border-gray-600">
                     {selectedFiles.map(file => (
