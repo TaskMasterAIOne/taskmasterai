@@ -2246,7 +2246,7 @@ Assistant:`;
                 <div className="p-4 space-y-3">
                   {chatHistory.map((message, index) => (
                     <div key={message.id || `msg-${index}`} className={`flex w-full ${message.role === 'user' || message.role === 'system' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[85%] rounded-xl px-3.5 py-2.5 shadow-md break-words ${message.role === 'user' ? 'bg-indigo-500 text-white' : message.error ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200 ' : message.role === 'system' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-100 text-center mx-auto' : 'bg-gray-100 dark:bg-[#161922] text-gray-800 dark:text-gray-100 '}`}>
+                      <div className={`max-w-[85%] rounded-xl px-3.5 py-2.5 shadow-md break-words ${message.role === 'user' ? 'bg-indigo-500 text-white' : message.error ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200 ' : message.role === 'system' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-100 text-center mx-auto' : 'bg-[#F7F8FA] dark:bg-[#161922] text-gray-800 dark:text-gray-100 '}`}>
                         {message.isLoading && (
                           <div className="flex flex-col items-center gap-1.5 text-gray-500 dark:text-gray-400 p-1">
                             {isProcessingNotion ? (
