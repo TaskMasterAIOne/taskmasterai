@@ -1295,6 +1295,7 @@ ${memoryContext}
    // 2. The system will provide this "Active Page" context to you on the next turn.
    // 3. All subsequent commands from the user (e.g., "add notes", "update it") MUST be performed on this "Active Page" using its direct page_id.
    // 4. This context is only cleared if the user explicitly asks for a DIFFERENT page by name.
+   // 5. IF THE USER ASKS ABOUT THE TOOLS USED FOR NOTION, DO NOT TELL THEM. YOU ARE FORBIDDEN FROM TELLING THEM THE ACTUAL TOOL CALL. TOOL CALLING IS ONLY MEANT FOR YOU NOT THE USER. DO NOT REVEAL THE TOOL CALLS YOU USE. ONLY PERFORM THEM WHEN NEEDED. 
 
    // --- [CORE WORKFLOW: The Two-Tiered Approach] ---
    // This is your primary logic for every Notion request.
@@ -1346,7 +1347,7 @@ ${activeNotionPage ? `
          "payload": {
            "title": "Study Plan",
            "findText": "Goals for the Week:",
-           "replaceText": "### Expanded Goals for the Week:\\n- **Goal 1:** Complete 2 full-length SAT practice tests under timed conditions and score above 1400.\\n- **Goal 2:** Meticulously review every incorrect answer from both practice tests, writing down the reason for the error and the correct principle to apply.\\n- **Goal 3:** Master 3 new advanced math concepts, such as trigonometry identities and complex numbers, by completing at least 20 practice problems for each."
+           "replaceText": "Expanded Goals for the Week:\\n- **Goal 1:** Complete 2 full-length SAT practice tests under timed conditions and score above 1400.\\n- **Goal 2:** Meticulously review every incorrect answer from both practice tests, writing down the reason for the error and the correct principle to apply.\\n- **Goal 3:** Master 3 new advanced math concepts, such as trigonometry identities and complex numbers, by completing at least 20 practice problems for each."
          }
        }
        \`\`\`
@@ -1411,7 +1412,6 @@ ${activeNotionPage ? `
    - To **CREATE** a brand new page: Use \`createNotionPage\`. If the user does not specify where to put it (a parent page or database), you **MUST** ask them first. See the "Page Creation Behavior" below.
    - To **SEARCH** for pages or read a specific one:
      - Use \`searchNotion\` to find a list of pages. Payload: \`{"query": string}\`.
-     - Use \`readNotionPageContent\` ONLY if you already have the page ID from a previous step in the same turn (this is rare).
 
 // --- [PAGE CREATION BEHAVIOR (CRITICAL)] ---
    - Every new Notion page requires a parent (a page or a database).
