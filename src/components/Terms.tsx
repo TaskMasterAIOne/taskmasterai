@@ -66,7 +66,7 @@ function Terms() {
                               prose-p:leading-relaxed prose-p:text-gray-700 prose-p:dark:text-gray-300 prose-p:illuminate-prose-text-override
                               prose-strong:font-semibold prose-strong:text-gray-900 prose-strong:dark:text-white prose-strong:illuminate-prose-text-override
                               prose-a:text-indigo-600 prose-a:dark:text-purple-400 prose-a:no-underline hover:prose-a:underline
-                              prose-ul:list-disc prose-ul:pl-5 
+                              prose-ul:list-disc prose-ul:pl-5
                               prose-li:marker:text-indigo-500 prose-li:dark:marker:text-purple-500 prose-li:mb-3
                               prose-p:mb-6 prose-h2:mb-6 prose-h3:mb-5
                               illuminate-prose-override">
@@ -128,17 +128,29 @@ function Terms() {
             </ul>
 
             <h2 className="text-3xl font-semibold tracking-tight text-gray-900 dark:text-white illuminate-text-override mt-12">Fulfillment Policy</h2>
-            <p>At <strong className="text-indigo-600 dark:text-purple-400 illuminate-link-override">TaskMaster AI</strong>, we are committed to providing our customers with clear and transparent policies regarding refunds, delivery, returns, and cancellations. Our aim is to build trust through fairness and clarity, ensuring a seamless experience for all our users.</p>
+            <p>At <strong className="text-indigo-600 dark:text-purple-400 illuminate-link-override">TaskMaster AI</strong>, we are committed to providing our customers with clear and transparent policies regarding payments, delivery, and cancellations. We aim to ensure a clear understanding of our terms for all our users.</p>
             <ul>
-              <li>
-                <p><strong>Refund Policy:</strong> Our policy permits refunds only if a customer experiences a technical malfunction or issue with our service that we are unable to resolve within a reasonable timeframe. To request a refund, please contact our support team at <a href="mailto:taskmasteroneai@gmail.com">taskmasteroneai@gmail.com</a> within 30 days of your purchase or the occurrence of the unresolved issue, providing detailed information.</p>
-              </li>
-              <li>
-                <p><strong>Delivery of Services:</strong> Upon successful payment for subscription services, access to the corresponding features will be granted promptly, typically within minutes. You will receive an email confirmation of your subscription and access details.</p>
-              </li>
-              <li>
-                <p><strong>Cancellation Policy:</strong> You can cancel your subscription at any time through your account settings or by contacting support. Cancellations will take effect at the end of your current billing period. You will retain access to the paid features until then. No partial refunds are provided for cancellations made mid-billing cycle, except as outlined in our Refund Policy.</p>
-              </li>
+                <li>
+                    <p><strong>Strict No-Refund Policy:</strong> All sales are final. We do not offer refunds or credits for any of our subscription plans (Pro or Premium) under any circumstances. Once a payment is made, you will not be eligible for a refund for any portion of the subscription fee. This policy applies to all situations, including but not limited to:</p>
+                    <ul>
+                        <li>If you accidentally purchased a subscription.</li>
+                        <li>If you are unsatisfied with the Services.</li>
+                        <li>If you forgot to cancel your subscription before the renewal date.</li>
+                        <li>If your account was used by a third party, or if your payment method was stolen and used to purchase a subscription on our platform. You are responsible for the security of your account and payment information.</li>
+                    </ul>
+                </li>
+                <li>
+                    <p><strong>Acknowledgement of Policy:</strong> By completing your purchase, you acknowledge that you have read, understood, and agree to this no-refund policy.</p>
+                </li>
+                <li>
+                    <p><strong>Disputes:</strong> In the event of a payment dispute or chargeback initiated by you or your bank, we will provide our payment processor (Stripe) with evidence demonstrating that the purchase was made and that you accepted these Terms of Service, including this Fulfillment Policy, prior to the purchase. While we will contest the dispute by providing this information, the final outcome is determined by the card issuer, and we cannot guarantee the result.</p>
+                </li>
+                <li>
+                    <p><strong>Delivery of Services:</strong> Upon successful payment for a subscription, access to the corresponding features will be granted promptly, typically within minutes. You will receive an email confirmation of your subscription and access details.</p>
+                </li>
+                <li>
+                    <p><strong>Cancellation Policy:</strong> You can cancel your subscription at any time through your account settings or by contacting support. The cancellation will take effect at the end of your current billing period, and you will not be charged for subsequent periods. You will retain access to the paid features until the end of your current billing term. No refunds will be issued for the remaining period of the billing cycle upon cancellation.</p>
+                </li>
             </ul>
 
             <h2 className="text-3xl font-semibold tracking-tight text-gray-900 dark:text-white illuminate-text-override mt-12">Termination</h2>
