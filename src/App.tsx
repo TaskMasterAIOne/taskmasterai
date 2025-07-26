@@ -21,7 +21,7 @@ const universityLogos = [
 
 const testimonials = [
   {
-    quote: "TaskMaster broke down orgo, physics, and bio in a way that stuck. The flashcards and podcast reviews made studying easier, and I scored in the 95th percentile on the MCAT.",
+    quote: "TaskMaster broke down chem, physics, and bio in a way that stuck. The flashcards and podcast reviews made studying so much easier",
     name: "Mohana Dayyam",
     role: "Premed Student, Rice University",
     avatar: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/ricelogo.png?alt=media&token=1247209e-9df6-492c-8129-1e9b6c1403c1",
@@ -602,7 +602,7 @@ export function IntegrationsSection() {
             <div className="container mx-auto px-5 sm:px-6">
                 <div className="text-center mb-16 lg:mb-24">
                     <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 dark:text-white mb-5">
-                        All Your Existing Apps, <span className="bg-gradient-to-r from-[#635BFF] to-[#8A85FF] italic bg-clip-text text-transparent">Combined.</span>
+                        Your Apps, <span className="bg-gradient-to-r from-[#635BFF] to-[#8A85FF] italic bg-clip-text text-transparent">Combined.</span>
                     </h2>
                     <p className="text-base sm:text-lg text-gray-500 dark:text-gray-400 max-w-3xl mx-auto">
                         Connect your apps so TaskMaster learns you better and responds smarter.
@@ -840,7 +840,7 @@ function App() {
                             animate="visible"
                         >
                             <motion.h1 
-                                className="text-5xl md:text-1xl lg:text-[3.8rem] font-extrabold mb-9 leading-snug tracking-tight text-gray-900 dark:text-white"
+                                className="text-5xl md:text-1xl lg:text-[3.8rem] font-bold mb-9 leading-snug tracking-tight text-gray-900 dark:text-white"
                                 variants={heroItemVariants}
                             >
                                 <span className="block bg-gradient-to-r from-[#635BFF] to-[#8A85FF] bg-clip-text text-transparent">The AI tutor</span>
