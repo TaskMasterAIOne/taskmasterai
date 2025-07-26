@@ -1953,15 +1953,7 @@ Assistant:`;
         }
       }
 
-       // --- FIX STARTS HERE ---
-      console.log("[DEBUG] Before Final Content Decision:", {
-          assistantTextForDisplay_Initial: assistantTextForDisplay,
-          cleanedText_from_AI: cleanedText,
-          hasActionDetails: !!actionTakenDetails,
-          hasEducationalContent: !!educationalContent,
-          hasGeneratedImage: !!finalImageUrl,
-          apiError: parsedApiResult.error,
-      });
+
 
       // New, more robust logic for determining the final message content.
       // This ensures action results are never accidentally erased.
@@ -1970,12 +1962,10 @@ Assistant:`;
       // If the AI's conversational text is empty, but we have action details,
       // we must ensure the action's result (already in `finalContent`) is preserved.
       if (actionTakenDetails && !cleanedText.trim()) {
-          console.log("[DEBUG] Action was taken, and AI provided no extra text. Preserving action result message.");
           // We do nothing here, `finalContent` already holds our desired result.
       } 
       // This handles cases where other actions might not set a display text.
       else if (!finalContent && actionTakenDetails && actionTakenDetails.message) {
-          console.log("[DEBUG] Using actionDetails.message as fallback content.");
           finalContent = actionTakenDetails.message;
       }
       
@@ -1994,7 +1984,6 @@ Assistant:`;
           finalContent = "(AI did not provide a text response)";
       }
 
-      console.log("[DEBUG] Final content determined:", { finalContent });
 
       const finalAssistantMsgDataForUi: ChatMessageData = {
       id: newAssistantLPHId,
@@ -2014,7 +2003,6 @@ Assistant:`;
         sources: sources,
       };
 
-      console.log("[DEBUG] Final assistant message object being set to state:", finalAssistantMsgDataForUi);
 
       // --- FIX ENDS HERE ---
 
