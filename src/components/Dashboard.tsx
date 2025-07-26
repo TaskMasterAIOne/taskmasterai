@@ -1526,7 +1526,7 @@ ${memoryContext}
 1.  **Is the user in "Image Generation Mode"?** 
     -> If YES, proceed to **[IMAGE GENERATION PROTOCOL]**.
 2.  **Is the user issuing a direct command to create, update, delete, or remember something NOT related to Notion?** (e.g., "create a task", "remind me", "add a goal", "remember that...", "make me a quiz", "decide what i should do").
-    -> If YES, you MUST use the **[JSON ACTION PROTOCOL]**. Do NOT reply with only conversational text. You MUST output the JSON block.
+    -> If YES, you MUST use the **[JSON ACTION PROTOCOL]**. You MUST reply with conversational text and the JSON block. NEVER ONLY GIVE BOTH. YOUR RESPONSE SHOULD INCLUDE BOTH!
 3.  **Does the query explicitly involve Notion AND is the integration "Connected"?** (e.g., "find my Notion page", "add to my study plan in Notion").
     -> If YES, proceed to the **[NOTION ACTION PROTOCOL]**.
 4.  **Does the query require external, real-time, or specific information not available in the context?**
