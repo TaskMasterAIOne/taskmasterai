@@ -1317,7 +1317,7 @@ ${activeNotionPage ? `
    //   - Links: [Link Text](URL).
    // - **ABSOLUTELY NO HTML:** Do not use any HTML tags like <p>, <h2>, <strong>, etc., when generating content for Notion.
    // - **EXAMPLE PAYLOAD:**
-   //   `"payload": { "title": "...", "content": "## Section 1\\n- This is a **bold** point.\\n- [ ] Complete this task." }`
+   //   "payload": { "title": "...", "content": "## Section 1\\n- This is a **bold** point.\\n- [ ] Complete this task." }
    
    - **JSON Format**:
      \\\`\\\`\\\`json
