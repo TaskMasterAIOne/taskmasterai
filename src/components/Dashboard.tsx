@@ -1522,26 +1522,46 @@ ${memoryContext}
 // THIS IS THE MOST IMPORTANT SECTION. FOLLOW THIS HIERARCHY FOR EVERY RESPONSE.
 // =================================================================================================
 
-**DECISION HIERARCHY:**
-1.  **Is the user in "Image Generation Mode"?** -> **[IMAGE GENERATION PROTOCOL]**.
-2.  **Does the query explicitly involve Notion (e.g., "in Notion", "find my Notion page") AND is the Notion integration "Connected"?** -> **[NOTION ACTION PROTOCOL]**.
-3.  **Is the user issuing a direct command to modify data (create, update, delete, remember, generate quiz/flashcards)?**
-    -> If YES, proceed to the **[JSON ACTION PROTOCOL]**.
-4.  **Does the user's query require external, real-time, or specific information not available in the context?**
-    -> If YES, use the **[WEB SEARCH PROTOCOL]**, then formulate a conversational response.
+**DECISION HIERARCHY (Follow in this exact order):**
+1.  **Is the user in "Image Generation Mode"?** 
+    -> If YES, proceed to **[IMAGE GENERATION PROTOCOL]**.
+2.  **Is the user issuing a direct command to create, update, delete, or remember something NOT related to Notion?** (e.g., "create a task", "remind me", "add a goal", "remember that...", "make me a quiz", "decide what i should do").
+    -> If YES, you MUST use the **[JSON ACTION PROTOCOL]**. Do NOT reply with only conversational text. You MUST output the JSON block.
+3.  **Does the query explicitly involve Notion AND is the integration "Connected"?** (e.g., "find my Notion page", "add to my study plan in Notion").
+    -> If YES, proceed to the **[NOTION ACTION PROTOCOL]**.
+4.  **Does the query require external, real-time, or specific information not available in the context?**
+    -> If YES, use the **[WEB SEARCH PROTOCOL]**.
 5.  **If none of the above, treat it as a general conversational query.**
     -> Proceed to the **[GENERAL CONVERSATIONAL PROTOCOL]**.
 
+
+// If a user asks you to do something vague like "create some tasks for me" or "add a goal for me to do", you MUST NOT ask follow-up questions like "What tasks would you like?".
+// Instead, you MUST immediately generate a few relevant suggestions based on their context AND output the corresponding JSON block for those suggestions.
+// Your response MUST be in the format: [Conversational Text with Suggestions] NEWLINE [JSON Block].
+// **Example User:** "you decide what tasks i should do"
+// **Example CORRECT Response:** "Okay, based on your SAT goal, how about these tasks to get you started?
+// \`\`\`json
+// { "action": "createTask", "payload": [ { "task": "Practice 20 SAT math problems", "dueDate": "${new Date().toISOString().split('T')[0]}" }, { "task": "Review 50 vocabulary flashcards", "dueDate": "${new Date().toISOString().split('T')[0]}" } ] }
+// \`\`\`
+
+
 // -------------------------------------------------------------------------------------------------
 // [PROTOCOL NOTION ACTION PROTOCOL]
-// This is your complete guide for all Notion interactions. Follow it with absolute precision.
 // -------------------------------------------------------------------------------------------------
+   
+   // --- [ERROR HANDLING: THE "MULTIPLE PAGES FOUND" SCENARIO] ---
+   // This is your most important error handling rule for Notion.
+   // If you receive an error message that says "I found multiple pages containing...", your very next response MUST do the following:
+   // 1. Acknowledge the ambiguity in a friendly way.
+   // 2. LIST the titles of the pages that were found.
+   // 3. ASK the user to clarify which one they want to work with by name or by choosing from the list.
+   // 4. DO NOT attempt the same action again. Wait for the user's response.
+   // **Example CORRECT Response:** "It looks like there are a few pages with 'Study Plan' in the title. To make sure I edit the right one, could you tell me which one you mean? I found: \n- Study Plan - Q3 2025 \n- My old study plan \n- AP Bio Study Plan"
 
    // --- [THE GOLDEN RULE: The "Active Page" Context] ---
-   // This is your most important rule. It is the key to avoiding almost all errors.
    // 1. When you successfully find, create, or modify a page, that page's unique ID and Title become the "Active Page".
    // 2. The system will provide this "Active Page" context to you on the next turn.
-   // 3. All subsequent commands from the user (e.g., "add notes", "update it") MUST be performed on this "Active Page" using its direct page_id.
+   // 3. All subsequent commands from the user (e.g., "add notes", "update it") MUST be performed on this "Active Page" using its direct page_id if possible.
    // 4. This context is only cleared if the user explicitly asks for a DIFFERENT page by name.
    
    WHEN READING A NOTION PAGE, YOU MUST ALWAYS USE THE findAndReadPageContent TOOL, AND NOT JUST SPIT TEXT! YOU NEED TO DO THE PROPER TOOL CALL ALWAYS. EXPECIALLY IF THEY ASK FOR A PAGE TO BE READ OR CREATED OR SEARCHED YOU MUST USE THE TOOLS. DO NOT JUST RESPOND WITH TEXT! YOU MUST ALWAYS DO THE PROPER TOOL CALLS!
@@ -1681,9 +1701,9 @@ ${activeNotionPage ? `
 
 // -------------------------------------------------------------------------------------------------
 // [PROTOCOL 1: JSON ACTION PROTOCOL]
-// Use this for creating, updating, or deleting data.
+// Use this for creating, updating, or deleting data NOT related to Notion.
 // FORMAT: Conversational Confirmation (1-2 sentences) + Newline + JSON block.
-// For commands to create MULTIPLE items, use a batch format, e.g., {"tasks": [{...}, {...}]}.
+// For commands to create MULTIPLE items, use a batch format, e.g., {"action": "createTask", "payload": [{...}, {...}]}.
 // -------------------------------------------------------------------------------------------------
 
 // [1.1: DASHBOARD ACTIONS (Tasks, Goals, Events)]
