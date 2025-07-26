@@ -2,6 +2,9 @@ import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef, us
 import { MessageCircle, Send, Timer as TimerIcon, Paperclip, Bot, X, AlertTriangle, Loader2, ImageIcon, ChevronDown, Maximize, Minimize, Edit, Check, RefreshCcw, Crown, Download, Trash2, CornerDownRight, CheckSquare, Square, StopCircle, Mic, Plus, Globe, Palette, ArrowUpRight, CheckCircle, AlertCircle, LayoutDashboard, FileText, Lightbulb, ShieldCheck } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getUserData } from '../lib/settings-firebase';
+import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
 import rehypeRaw from 'rehype-raw';
 import remarkMath from 'remark-math';
@@ -66,9 +69,17 @@ interface ChatMessage {
     sources?: any[];
     flashcard?: FlashcardMessage;
     question?: QuestionMessage;
-    actionDetails?: { status: 'success' | 'error'; message?: string };
+  actionDetails?: {
+        status: 'success' | 'error';
+        message?: string;
+        // --- ADD THESE TWO LINES ---
+        pageUrl?: string;
+        pageTitle?: string;
+    };
     isVerifyingContent?: boolean;
     isProcessingActions?: boolean;
+    isProcessingNotion?: boolean; // ADD THIS LINE
+
 }
 interface SelectedFile { name: string; type: string; size: number; base64Data: string; localPreviewUrl?: string; fileObject: File; }
 interface Note { id: string; title: string; content: string; keyPoints?: string[]; questions?: { question: string }[]; }
@@ -529,26 +540,14 @@ const AssistantMessageContent = React.memo(({ message, onAcceptEdit, onRevertEdi
           </ReactMarkdown>
         )}
   
-        {message.imageData && (
-          <div className={`relative group mt-2 ${message.content ? 'border-t pt-2' : ''} border-gray-300/50 dark:border-gray-600/50`}>
-            <img
-              src={`data:${message.imageData.type};base64,${message.imageData.base64}`}
-              alt={message.imageData.name || "Chat Image"}
-              className="max-w-full h-auto max-h-56 object-contain rounded-lg border border-gray-300 dark:border-gray-600 cursor-pointer"
-              onClick={(e) => { e.stopPropagation(); window.open(`data:${message.imageData.type};base64,${message.imageData.base64}`, '_blank')}}
-              title={`Click to view full image: ${message.imageData.name || (message.wasImageGenerated ? 'Generated Image' : 'Uploaded Image')}`}
-            />
-            {message.wasImageGenerated && (
-              <button
-                onClick={(e) => { e.stopPropagation(); handleDownloadImage(message.imageData!); }}
-                className={`absolute top-1.5 right-1.5 p-1.5 rounded-full bg-gray-200/70 dark:bg-gray-900/70 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-200`}
-                title="Download Image"
-              >
-                <Download className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-        )}
+        {message.attachedFiles?.map((file, index) => file.wasGenerated && file.type.startsWith('image/') && (
+            <div key={index} className="relative group mt-2">
+                <img src={`data:${file.type};base64,${file.base64}`} alt={file.name || "Generated Image"} className="max-w-full h-auto max-h-56 object-contain rounded-lg border border-gray-300 dark:border-gray-600 cursor-pointer" onClick={() => window.open(`data:${file.type};base64,${file.base64}`, '_blank')} title="View full"/>
+                <button onClick={() => handleDownloadImage({ base64: file.base64, type: file.type, name: file.name })} className="absolute top-1.5 right-1.5 p-1.5 rounded-full opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-200 bg-gray-200/70 dark:bg-gray-900/70 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300" title="Download">
+                    <Download className="w-3.5 h-3.5" />
+                </button>
+            </div>
+        ))}
   
         {message.timer && (
           <div className="mt-2">
@@ -595,6 +594,20 @@ const AssistantMessageContent = React.memo(({ message, onAcceptEdit, onRevertEdi
                     {message.actionDetails.status === 'success' ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
                     <span className="whitespace-pre-wrap">{message.actionDetails.message}</span>
                 </div>
+                 {message.actionDetails.status === 'success' && message.actionDetails.pageUrl && (
+                    <div className="mt-2">
+                        <a
+                            href={message.actionDetails.pageUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-200/50 dark:bg-gray-700/50 px-2.5 py-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                        >
+                            <NotionIcon className="w-3.5 h-3.5 fill-current" />
+                            <span>View "{message.actionDetails.pageTitle || "Page"}" in Notion</span>
+                            <ArrowUpRight className="w-3 h-3" />
+                        </a>
+                    </div>
+                )}
             </div>
         )}
 
@@ -624,7 +637,14 @@ const AssistantMessageContent = React.memo(({ message, onAcceptEdit, onRevertEdi
       )}
       </>
     );
-  }); // <-- React.memo added here
+});
+
+const NotionIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <path className="fill-black dark:fill-white" d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z"/>
+    </svg>
+);
+
 
 const NoteChatComponent: React.ForwardRefRenderFunction<NoteChatHandle, NoteChatProps> = (props, ref) => {
     const {
@@ -663,6 +683,11 @@ const NoteChatComponent: React.ForwardRefRenderFunction<NoteChatHandle, NoteChat
     const [activeStyle, setActiveStyle] = useState<string | null>(null);
     const [activePrompt, setActivePrompt] = useState<string>('');
     const [aiActionStatus, setAiActionStatus] = useState<string | null>(null);
+
+
+
+const navigate = useNavigate();
+const functions = getFunctions();
 
     const [userProfile, setUserProfile] = useState<UserProfileData | null>(null);
     const [userContext, setUserContext] = useState<UserContext | null>(null);
@@ -858,11 +883,21 @@ const NoteChatComponent: React.ForwardRefRenderFunction<NoteChatHandle, NoteChat
         setActivePrompt(prompt);
     };
 
-    useEffect(() => {
-        const currentAuthUser = auth.currentUser;
-        setUser(currentAuthUser);
+useEffect(() => {
+    const currentAuthUser = auth.currentUser;
+    setUser(currentAuthUser);
 
-        if (!currentAuthUser) return;
+    if (!currentAuthUser) return;
+
+    // --- ADD THIS BLOCK ---
+    getUserData(currentAuthUser.uid).then(userData => {
+        if (userData && userData.notionAccessData) {
+            setIsNotionConnected(true);
+        } else {
+            setIsNotionConnected(false);
+        }
+    });
+    // --- END OF BLOCK ---
     
         const unsubProfile = onUserProfileSnapshot(currentAuthUser.uid, setUserProfile);
         const unsubContext = onUserContextChange(currentAuthUser.uid, setUserContext);
@@ -1072,6 +1107,8 @@ ${activePrompt || 'Respond in a standard, helpful manner.'}
   - Short-term Focus: ${userContext?.shortTermFocus || 'Not specified'}
   - Long-term Learning Goals: ${userContext?.longTermGoals || 'Not specified'}
   - Additional Notes: ${userContext?.otherContext || 'Not specified'}
+  - Notion Integration: ${isNotionConnected ? 'Connected' : 'Not Connected'} 
+
 
 // [B. DYNAMIC DATA CONTEXT]
 
@@ -1094,11 +1131,187 @@ ${memoryContext}
 // =================================================================================================
 
 **DECISION HIERARCHY:**
-1.  Is the user in "Image Generation Mode" AND asking for an image? -> Use **[IMAGE GENERATION PROTOCOL]**.
-2.  Is the user issuing a direct command to **modify the current note** (add, remove, rewrite)? -> Use **[NOTE EDITING PROTOCOL]**.
 3.  Is the user issuing a direct command to manage their **dashboard, memories, or create educational content**? -> Use **[JSON ACTION PROTOCOL]**.
 4.  Does the query require external/real-time info OR is the user in "Search Mode" OR does the user ask for a video to be embedded? -> Use **[WEB SEARCH PROTOCOL]**.
 5.  If none of the above, treat as a question or general chat. -> Use **[GENERAL CONVERSATIONAL PROTOCOL]**.
+
+
+**DECISION HIERARCHY (Follow in this exact order):**
+1.  **Is the user in "Image Generation Mode"?** 
+    -> If YES, proceed to **[IMAGE GENERATION PROTOCOL]**.
+2.  Is the user issuing a direct command to **modify the current note** (add, remove, rewrite)? 
+    -> Use **[NOTE EDITING PROTOCOL]**.
+3.  **Is the user issuing a direct command to create, update, delete, or remember something NOT related to Notion?** (e.g., "create a task", "remind me", "add a goal", "remember that...", "make me a quiz", "decide what i should do").
+    -> If YES, you MUST use the **[JSON ACTION PROTOCOL]**. You MUST reply with conversational text and the JSON block. NEVER ONLY GIVE ONE. YOUR RESPONSE SHOULD INCLUDE BOTH!
+4.  **Does the query explicitly involve Notion AND is the integration "Connected"?** (e.g., "find my Notion page", "add to my study plan in Notion").
+    -> If YES, proceed to the **[NOTION ACTION PROTOCOL]**.
+5.  **Does the query require external, real-time, or specific information not available in the context?**
+    -> If YES, use the **[WEB SEARCH PROTOCOL]**.
+6.  **If none of the above, treat it as a general conversational query.**
+    -> Proceed to the **[GENERAL CONVERSATIONAL PROTOCOL]**.
+
+// If a user asks you to do something vague like "create some tasks for me" or "add a goal for me to do", you MUST NOT ask follow-up questions like "What tasks would you like?".
+// Instead, you MUST immediately generate a few relevant suggestions based on their context AND output the corresponding JSON block for those suggestions.
+// Your response MUST be in the format: [Conversational Text with Suggestions] NEWLINE [JSON Block].
+// **Example User:** "you decide what tasks i should do"
+// **Example CORRECT Response:** "Okay, based on your SAT goal, how about these tasks to get you started?
+// \`\`\`json
+// { "action": "createTask", "payload": [ { "task": "Practice 20 SAT math problems", "dueDate": "${new Date().toISOString().split('T')[0]}" }, { "task": "Review 50 vocabulary flashcards", "dueDate": "${new Date().toISOString().split('T')[0]}" } ] }
+// \`\`\`
+
+// -------------------------------------------------------------------------------------------------
+// [PROTOCOL NOTION ACTION PROTOCOL]
+// -------------------------------------------------------------------------------------------------
+   
+   // --- [ERROR HANDLING: THE "MULTIPLE PAGES FOUND" SCENARIO] ---
+   // This is your most important error handling rule for Notion.
+   // If you receive an error message that says "I found multiple pages containing...", your very next response MUST do the following:
+   // 1. Acknowledge the ambiguity in a friendly way.
+   // 2. LIST the titles of the pages that were found.
+   // 3. ASK the user to clarify which one they want to work with by name or by choosing from the list.
+   // 4. DO NOT attempt the same action again. Wait for the user's response.
+   // **Example CORRECT Response:** "It looks like there are a few pages with 'Study Plan' in the title. To make sure I edit the right one, could you tell me which one you mean? I found: \n- Study Plan - Q3 2025 \n- My old study plan \n- AP Bio Study Plan"
+
+   // --- [THE GOLDEN RULE: The "Active Page" Context] ---
+   // 1. When you successfully find, create, or modify a page, that page's unique ID and Title become the "Active Page".
+   // 2. The system will provide this "Active Page" context to you on the next turn.
+   // 3. All subsequent commands from the user (e.g., "add notes", "update it") MUST be performed on this "Active Page" using its direct page_id if possible.
+   // 4. This context is only cleared if the user explicitly asks for a DIFFERENT page by name.
+   
+   WHEN READING A NOTION PAGE, YOU MUST ALWAYS USE THE findAndReadPageContent TOOL, AND NOT JUST SPIT TEXT! YOU NEED TO DO THE PROPER TOOL CALL ALWAYS. EXPECIALLY IF THEY ASK FOR A PAGE TO BE READ OR CREATED OR SEARCHED YOU MUST USE THE TOOLS. DO NOT JUST RESPOND WITH TEXT! YOU MUST ALWAYS DO THE PROPER TOOL CALLS!
+
+   // --- [CORE WORKFLOW: The Two-Tiered Approach] ---
+   // This is your primary logic for every Notion request.
+
+   // TIER 1: Do you have an "Active Page ID" provided in the context?
+   // If YES: You MUST use a **Direct Action** with the page_id. This is non-negotiable. It bypasses search and prevents all ambiguity errors.
+   //   - **Direct Actions:** appendToNotionPage, findAndDeletePage.
+
+   // TIER 2: If you DO NOT have an "Active Page ID":
+   // You must first DISCOVER the page using a **Smart Action** that searches by title.
+   //   - **Smart Actions:** findAndReadPageContent, findAndAppendToPage, findAndReplaceInPage, etc.
+
+${activeNotionPage ? `
+   // --- [CURRENT CONTEXT: YOU HAVE AN ACTIVE PAGE!] ---
+   - **Page Title:** "${activeNotionPage.title}"
+   - **Page ID:** "${activeNotionPage.id}"
+   - **CRITICAL INSTRUCTION:** For the user's next command, you MUST use a **Direct Action** with the page_id above (e.g., appendToNotionPage).
+` : `
+   // --- [CURRENT CONTEXT: YOU DO NOT HAVE AN ACTIVE PAGE] ---
+   - You must first identify the target page using a **Smart Action** (e.g., \`findAndReadPageContent\`, \`createNotionPage\`).
+`}
+
+
+
+   // --- [THE GOLDEN RULE OF CONTEXT: THE "ACTIVE PAGE"] ---
+   - **This is your most important rule for Notion.** When you successfully find, create, or modify a page, that page's title (e.g., "Marketing 101 class") becomes the **"Active Page"**.
+   - **You MUST remember this title.** All subsequent user commands that are modifications (e.g., "add notes," "update it," "change the title") are about this **"Active Page"** unless the user specifies a new page title.
+   - **DO NOT** get confused by the page's content (like headings) or its parent (like "Homework"). Your focus is locked onto the "Active Page" title until a new one is mentioned.
+
+   // --- [CORE BEHAVIOR: PROACTIVE & SURGICAL MODIFICATION] ---
+   - **Rule 1: Never Create Empty Pages.** When a user asks you to create a page like a "study plan" or "meeting notes," you MUST generate useful starter content and include it in the createNotionPage call. This prevents immediate follow-up failures.
+   - **Rule 2: Never Be Destructive.** When a user asks to "update" or "add to" a section, you MUST use a precise tool like findAndReplaceInPage or findAndInsertAfter. Do NOT use findAndUpdatePageContent (which deletes everything) unless the user explicitly says "replace the whole page" or "start over."
+
+      // --- [CRITICAL WORKFLOW: HOW TO REPLACE A SECTION] ---
+   - This is the correct procedure for updating a section like "Goals for the Week".
+   1.  You must identify the **header** of the section the user wants to change.
+   2.  You will use the findAndReplaceInPage action.
+   3.  For the findText payload, you MUST use **only the text of the header** (e.g., "Goals for the Week:").
+   4.  For the replaceText payload, you MUST provide the **full, new, updated section**, including the new header and all its new bullet points, formatted in Markdown.
+   - **Example:**
+     - **User:** "lets update the goals to be longer"
+     - **Your Thought Process:** The user wants to update the 'Goals' section on the active 'Study Plan' page. I will find the header "Goals for the Week:" and replace it with a new header and new, longer goals.
+     - **CORRECT PAYLOAD:**
+       \`\`\`json
+       {
+         "action": "findAndReplaceInPage",
+         "payload": {
+           "title": "Study Plan",
+           "findText": "Goals for the Week:",
+           "replaceText": "### Expanded Goals for the Week:\\n- **Goal 1:** Complete 2 full-length SAT practice tests under timed conditions and score above 1400.\\n- **Goal 2:** Meticulously review every incorrect answer from both practice tests, writing down the reason for the error and the correct principle to apply.\\n- **Goal 3:** Master 3 new advanced math concepts, such as trigonometry identities and complex numbers, by completing at least 20 practice problems for each."
+         }
+       }
+       \`\`\`
+   - **WRONG PAYLOAD:** Do NOT put the old bullet points in the findText. It will fail.
+     - \`{"findText": "Goals for the Week:\\n- Complete 2 full SAT..."}\` <-- THIS IS WRONG.
+
+   // --- [TOOL SELECTION GUIDE] ---
+
+   // **Direct Actions (Use these ONLY when you have an active page_id)**
+   - appendToNotionPage: Adds content to the end of the active page. Payload: \`{"page_id": string, "content": string}\`.
+   - findAndDeletePage: Deletes the active page. Payload: \`{"page_id": string}\`.
+
+   // **Smart Actions (Use these to FIND a page by its title and then act on it)**
+   - findAndReadPageContent, findAndAppendToPage, findAndInsertAfter, findAndReplaceInPage, findAndDeletePage.
+
+   // **Creation Action**
+   - createNotionPage: Creates a new page.
+     - If the user says "create a top-level page" or doesn't specify a parent, OMIT the parent_page_id from the payload.
+     - **CRITICAL:** NEVER create an empty page. Always generate useful starter content.
+
+   // --- [SPECIFIC WORKFLOWS & RULES] ---
+   - **Batch Creation:** To create multiple pages, use the actions array with multiple reateNotionPage objects.
+   - **Replacing a Section:** To update a section, use findAndReplaceInPage. Your findText MUST be the section's header text only (e.g., "Action Items:"). Your replaceText should be the full new section content.
+   - **Handling Latency:** If a find... action fails right after page creation, tell the user it's taking a moment and then **retry the exact same JSON action.**
+  // --- [CRITICAL WORKFLOW: HANDLING MULTIPLE ACTIONS (BATCHING)] ---
+   - **When the user asks to create or modify multiple items at once, you MUST use the batch format.**
+   - The JSON payload should have a single key "actions" which is an array of individual action objects.
+   - **Example Scenario:** User asks to create 3 sub-pages in their "School" page.
+   - **CORRECT BATCH PAYLOAD:**
+     \`\`\`json
+     {
+       "type": "notion",
+       "actions": [
+         {
+           "action": "createNotionPage",
+           "payload": { "title": "SAT", "parent_page_id": "b34c...", "content": "## SAT Study Plan..." }
+         },
+         {
+           "action": "createNotionPage",
+           "payload": { "title": "Cooking", "parent_page_id": "b34c...", "content": "## Cooking Notes..." }
+         },
+         {
+           "action": "createNotionPage",
+           "payload": { "title": "Basketball", "parent_page_id": "b34c...", "content": "## Basketball Drills..." }
+         }
+       ]
+     }
+     \`\`\`
+   - **DO NOT** send multiple, separate JSON objects. Send one object with one actions array.
+
+   // --- [HANDLING FAILURES & LATENCY] ---
+   - **If a find... action fails immediately after you create a page, it is likely an API delay.**
+   - **DO NOT tell the user the page doesn't exist.**
+   - Your response MUST be: "It seems to be taking a moment for the new page to become available. Let me try that again." Then, you MUST output the **exact same JSON action a second time.**
+
+   // --- [PAYLOAD ACCURACY] ---
+   - When using findText, you MUST use the raw text content only. **DO NOT include markdown characters like # or -.**
+   - **GOOD:** {"findText": "Action Items"}
+   - **BAD:**{"findText": "## Action Items"}
+
+// --- [PAGE CREATION & SEARCH] ---
+   - To **CREATE** a brand new page: Use \`createNotionPage\`. If the user does not specify where to put it (a parent page or database), you **MUST** ask them first. See the "Page Creation Behavior" below.
+   - To **SEARCH** for pages or read a specific one:
+     - Use \`searchNotion\` to find a list of pages. Payload: \`{"query": string}\`.
+
+// --- [PAGE CREATION BEHAVIOR (CRITICAL)] ---
+   - Every new Notion page requires a parent (a page or a database).
+   - **If the user's request to create a page is AMBIGUOUS** (e.g., "create a page called Gym Routine"), you **MUST** ask them where it should go.
+   - **This is a two-step process for you:**
+     1.  **Step 1 (Clarification):** Your response MUST be a clarifying question. Example: "Of course! Where would you like to create the 'Gym Routine' page? You can add it to a database or inside an existing page." You can use \`searchNotion\` with an empty query to get a list of potential parents to suggest to the user.
+     2.  **Step 2 (Execution):** Once the user specifies a parent, you will then call \`createNotionPage\` with the correct \`parent_page_id\` or \`parent_database_id\`.
+
+// --- [CONTENT GENERATION FOR NOTION] ---
+   - **CRITICAL**: When providing content for a page (in the \`content\` field), you **MUST** format it using standard Markdown.
+   - Supported Markdown: Headings (#, ##, ###), Bullet Points (- or *), and To-Do lists (- [ ] for unchecked, - [x] for checked).
+   - **Example**: \`"content": "## Mexico Trip\\n\\n### Packing\\n- Passport\\n- [ ] Book flights"\`
+   
+   - **JSON Format**:
+     \\\`\\\`\\\`json
+     { "type": "notion", "action": "the_action_to_perform", "payload": { ... } }
+     \\\`\\\`\\\`
+
+   - **Important**: If the integration is not connected, respond in plain text telling them to connect Notion in the settings. Do not output JSON.
 
 // -------------------------------------------------------------------------------------------------
 // [PROTOCOL 1: IMAGE GENERATION PROTOCOL] (Image Model - NO JSON)
@@ -1487,12 +1700,102 @@ recentHistory.forEach(msg => {
 
                 const { blocks: jsonActionBlocks, cleanedText } = extractJsonBlocks(contentToProcess);
                 let assistantTextForDisplay = cleanedText;
+const notionBlock = jsonActionBlocks.find(b => b.type === 'notion' && (b.action || b.actions));
 
                 let assistantFinalMessage: ChatMessage = { id: newLoadingMsgId, role: 'assistant', content: assistantTextForDisplay, attachedFiles: parsedResult.imageData ? [{ ...parsedResult.imageData, wasGenerated: true }] : undefined, error: !!parsedResult.error, isEditSuggestion: false, wasImageGenerated: isUsingImageGenModel && !!parsedResult.imageData && !parsedResult.error, sources: parsedResult.sources };
 
                 const noteEditBlock = jsonActionBlocks.find(b => b.action && b.action.startsWith('propose_'));
                 const educationalBlock = jsonActionBlocks.find(b => b.type === "flashcard" || b.type === "question");
-                const otherActionBlocks = jsonActionBlocks.filter(b => b !== noteEditBlock && b !== educationalBlock);
+const otherActionBlocks = jsonActionBlocks.filter(b => b !== notionBlock && b !== noteEditBlock && b !== educationalBlock);
+
+
+                // START of full logic block
+if (notionBlock && user?.uid && isNotionConnected) {
+    setIsProcessingNotion(true);
+    setChatHistory(prev => prev.map(msg => msg.id === newLoadingMsgId ? { ...msg, isProcessingNotion: true } : msg));
+
+    try {
+        const notionAction = httpsCallable(functions, 'notionProxy');
+        const requestData = notionBlock.actions
+            ? { actions: notionBlock.actions }
+            : { action: notionBlock.action, payload: notionBlock.payload };
+
+        const result = await notionAction(requestData);
+        const actionResult = result.data as any;
+
+        let friendlyMessage = "";
+        let successMessage = "";
+        let pageUrl: string | undefined = undefined;
+        let pageTitle: string | undefined = undefined;
+
+        if (Array.isArray(actionResult)) {
+            const successfulActions = actionResult.filter(r => r && !r.error);
+            successMessage = `Successfully completed ${successfulActions.length} of ${actionResult.length} Notion actions.`;
+            const lastSuccess = successfulActions[successfulActions.length - 1];
+            if (lastSuccess?.url) {
+                pageUrl = lastSuccess.url;
+                pageTitle = lastSuccess.properties?.title?.title?.[0]?.plain_text || "Last Created Page";
+                setActiveNotionPage({ id: lastSuccess.id, title: pageTitle });
+            }
+        } else {
+            pageUrl = actionResult.url;
+            pageTitle = actionResult.properties?.title?.title?.[0]?.plain_text || actionResult.pageTitle || "Untitled";
+
+            if (actionResult.id && pageTitle) {
+                setActiveNotionPage({ id: actionResult.id, title: pageTitle });
+            }
+
+            switch (notionBlock.action) {
+                case 'searchNotion':
+                    successMessage = "Searched Notion.";
+                    if (actionResult.results?.length > 0) {
+                        friendlyMessage = "Here's what I found:\n" + actionResult.results.map((item: any) => {
+                            const title = item.object === 'page'
+                                ? item.properties.title?.title?.[0]?.plain_text
+                                : item.title?.[0]?.plain_text;
+                            return `- [${title}](${item.url})`;
+                        }).join('\n');
+                    } else {
+                        friendlyMessage = "I couldn't find any matching pages in your Notion.";
+                    }
+                    if (actionResult.results?.length !== 1) {
+                        setActiveNotionPage(null);
+                    }
+                    break;
+                case 'createNotionPage':
+                case 'findAndAppendToPage':
+                case 'findAndUpdatePageContent':
+                case 'findAndReplaceInPage':
+                case 'appendToNotionPage':
+                case 'findAndInsertAfter':
+                    successMessage = notionBlock.action === 'createNotionPage' ? "Created Notion page." : "Updated Notion page.";
+                    break;
+                case 'findAndReadPageContent':
+                    successMessage = "Read Notion page.";
+                    friendlyMessage = actionResult.markdownContent || "This page appears to be empty.";
+                    break;
+                case 'findAndDeletePage':
+                    successMessage = `Deleted Notion page "${actionResult.title}".`;
+                    setActiveNotionPage(null);
+                    break;
+                default:
+                    successMessage = `Notion action '${notionBlock.action}' succeeded.`;
+            }
+        }
+
+        assistantTextForDisplay = [cleanedText.trim(), friendlyMessage.trim()].filter(Boolean).join('\n\n');
+        assistantFinalMessage.actionDetails = { status: 'success', message: successMessage, pageUrl, pageTitle };
+
+    } catch (err: any) {
+        console.error("Notion action failed:", err);
+        const errorMessage = `Sorry, the Notion action failed: ${err.message || 'An unknown error occurred.'}`;
+        assistantTextForDisplay = cleanedText ? `${cleanedText}\n\n${errorMessage}` : errorMessage;
+        assistantFinalMessage.actionDetails = { status: 'error', message: `Notion: ${notionBlock.action || 'batch operation'} failed.`};
+        assistantFinalMessage.error = true;
+    } finally {
+        setIsProcessingNotion(false);
+    }
+}
 
                 if (noteEditBlock) {
                     try {
@@ -1628,15 +1931,19 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string) =
         // Add this handler function inside the Folders component
 const handleToggleNotionSearchMode = () => {
     if (!isNotionConnected) {
-        // Redirect to settings page if Notion is not connected
         navigate('/settings');
         return;
     }
     setIsNotionSearchModeActive(prev => {
         if (!prev) {
-            // When enabling Notion mode, disable other modes
             setIsImageGenModeActive(false);
             setIsSearchModeActive(false);
+            if (selectedFiles.length > 0 || pdfContextSegments.length > 0) {
+                 setAiActionStatus("Notion mode enabled. Files/context ignored.");
+                 setTimeout(() => setAiActionStatus(null), 2500);
+                 setSelectedFiles([]);
+                 setPdfContextSegments([]);
+            }
         }
         return !prev;
     });
