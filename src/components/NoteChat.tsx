@@ -1720,7 +1720,7 @@ if (notionBlock && user?.uid && isNotionConnected) {
         const requestData = notionBlock.actions
             ? { actions: notionBlock.actions }
             : { action: notionBlock.action, payload: notionBlock.payload };
-        
+
         const result = await notionAction(requestData);
         const actionResult = result.data as any;
         
@@ -1795,6 +1795,8 @@ if (notionBlock && user?.uid && isNotionConnected) {
 
         assistantTextForDisplay = [cleanedText.trim(), friendlyMessage.trim()].filter(Boolean).join('\n\n');
         assistantFinalMessage.actionDetails = { status: 'success', message: successMessage, pageUrl, pageTitle };
+                assistantFinalMessage.content = assistantTextForDisplay;
+
         
     } catch (err: any) {
         console.error("Notion action failed:", err);
