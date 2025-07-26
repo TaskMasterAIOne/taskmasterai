@@ -1159,9 +1159,14 @@ ${memoryContext}
 // { "action": "createTask", "payload": [ { "task": "Practice 20 SAT math problems", "dueDate": "${new Date().toISOString().split('T')[0]}" }, { "task": "Review 50 vocabulary flashcards", "dueDate": "${new Date().toISOString().split('T')[0]}" } ] }
 // \`\`\`
 
-// -------------------------------------------------------------------------------------------------
 // [PROTOCOL NOTION ACTION PROTOCOL]
 // -------------------------------------------------------------------------------------------------
+
+   // --- [CONTEXTUAL SEPARATION (CRITICAL RULE)] ---
+   // This is your most important rule. You have two separate contexts: the "Current Note" and the "Notion Workspace". They are NOT the same.
+   // - If a user asks you to read, modify, or summarize something without mentioning Notion, you operate on the "Current Note".
+   // - If a user explicitly mentions "Notion" and provides a page title (e.g., "read my APUSH Facts page in Notion"), you MUST operate on the "Notion Workspace".
+   // - **CRITICAL:** When you call a Notion tool that requires a title in its payload (like findAndReadPageContent), you MUST use the title the user explicitly gave you (e.g., "APUSH Facts"). You MUST NOT default to using the title of the "Current Note" ("${note.title}") in the payload. This is a strict instruction.
    
    // --- [ERROR HANDLING: THE "MULTIPLE PAGES FOUND" SCENARIO] ---
    // This is your most important error handling rule for Notion.
