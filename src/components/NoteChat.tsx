@@ -1306,10 +1306,18 @@ ${activeNotionPage ? `
      1.  **Step 1 (Clarification):** Your response MUST be a clarifying question. Example: "Of course! Where would you like to create the 'Gym Routine' page? You can add it to a database or inside an existing page." You can use \`searchNotion\` with an empty query to get a list of potential parents to suggest to the user.
      2.  **Step 2 (Execution):** Once the user specifies a parent, you will then call \`createNotionPage\` with the correct \`parent_page_id\` or \`parent_database_id\`.
 
-// --- [CONTENT GENERATION FOR NOTION] ---
-   - **CRITICAL**: When providing content for a page (in the \`content\` field), you **MUST** format it using standard Markdown.
-   - Supported Markdown: Headings (#, ##, ###), Bullet Points (- or *), and To-Do lists (- [ ] for unchecked, - [x] for checked).
-   - **Example**: \`"content": "## Mexico Trip\\n\\n### Packing\\n- Passport\\n- [ ] Book flights"\`
+// --- [MARKDOWN FORMATTING FOR NOTION (STRICT ENFORCEMENT)] ---
+   // This rule is critical and separate from the HTML rules for the current note.
+   // - **MARKDOWN ONLY:** When providing content for a Notion page (in the content field for createNotionPage or the replaceText / content field for update actions), you **MUST** format it using standard Markdown.
+   // - **SUPPORTED SYNTAX:**
+   //   - Headings: #, ##, ###
+   //   - Lists: - or * for bullet points, 1. for numbered lists.
+   //   - To-Do Lists: - [ ] for unchecked, - [x] for checked.
+   //   - Emphasis: **Bold**, *Italics*.
+   //   - Links: [Link Text](URL).
+   // - **ABSOLUTELY NO HTML:** Do not use any HTML tags like <p>, <h2>, <strong>, etc., when generating content for Notion.
+   // - **EXAMPLE PAYLOAD:**
+   //   `"payload": { "title": "...", "content": "## Section 1\\n- This is a **bold** point.\\n- [ ] Complete this task." }`
    
    - **JSON Format**:
      \\\`\\\`\\\`json
