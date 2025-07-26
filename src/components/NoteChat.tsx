@@ -1710,46 +1710,43 @@ const otherActionBlocks = jsonActionBlocks.filter(b => b !== notionBlock && b !=
 
 
                 // START of full logic block
+// --- START REPLACEMENT ---
 if (notionBlock && user?.uid && isNotionConnected) {
     setIsProcessingNotion(true);
-    setChatHistory(prev => prev.map(msg => msg.id === newLoadingMsgId ? { ...msg, isProcessingNotion: true } : msg));
-
+    setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? { ...msg, isLoading: true, isProcessingNotion: true } : msg ));
+    
     try {
         const notionAction = httpsCallable(functions, 'notionProxy');
         const requestData = notionBlock.actions
-            ? { actions: notionBlock.actions }
+            ? notionBlock
             : { action: notionBlock.action, payload: notionBlock.payload };
-
         const result = await notionAction(requestData);
         const actionResult = result.data as any;
-
+        
         let friendlyMessage = "";
         let successMessage = "";
         let pageUrl: string | undefined = undefined;
         let pageTitle: string | undefined = undefined;
 
         if (Array.isArray(actionResult)) {
+            // Batch action handling
             const successfulActions = actionResult.filter(r => r && !r.error);
             successMessage = `Successfully completed ${successfulActions.length} of ${actionResult.length} Notion actions.`;
+            
             const lastSuccess = successfulActions[successfulActions.length - 1];
-            if (lastSuccess?.url) {
+            if (lastSuccess && lastSuccess.url) {
                 pageUrl = lastSuccess.url;
                 pageTitle = lastSuccess.properties?.title?.title?.[0]?.plain_text || "Last Created Page";
                 setActiveNotionPage({ id: lastSuccess.id, title: pageTitle });
             }
-        } else {
-            pageUrl = actionResult.url;
-            pageTitle = actionResult.properties?.title?.title?.[0]?.plain_text || actionResult.pageTitle || "Untitled";
-
-            if (actionResult.id && pageTitle) {
-                setActiveNotionPage({ id: actionResult.id, title: pageTitle });
-            }
-
+        } 
+        else {
+            // Single action handling
             switch (notionBlock.action) {
                 case 'searchNotion':
                     successMessage = "Searched Notion.";
                     if (actionResult.results?.length > 0) {
-                        friendlyMessage = "Here's what I found:\n" + actionResult.results.map((item: any) => {
+                        friendlyMessage = "Here's what I found in your Notion:\n" + actionResult.results.map((item: any) => {
                             const title = item.object === 'page'
                                 ? item.properties.title?.title?.[0]?.plain_text
                                 : item.title?.[0]?.plain_text;
@@ -1758,44 +1755,97 @@ if (notionBlock && user?.uid && isNotionConnected) {
                     } else {
                         friendlyMessage = "I couldn't find any matching pages in your Notion.";
                     }
-                    if (actionResult.results?.length !== 1) {
+                    if (actionResult.results?.length === 1) {
+                        const singleResult = actionResult.results[0];
+                         const title = singleResult.properties?.title?.title?.[0]?.plain_text;
+                         if (singleResult.id && title) {
+                            setActiveNotionPage({ id: singleResult.id, title: title });
+                         }
+                    } else {
                         setActiveNotionPage(null);
                     }
                     break;
-                case 'createNotionPage':
-                case 'findAndAppendToPage':
-                case 'findAndUpdatePageContent':
-                case 'findAndReplaceInPage':
-                case 'appendToNotionPage':
+
+                // --- FIX #1: ADDED THE MISSING 'readNotionPageContent' CASE ---
+                case 'readNotionPageContent':
+                     successMessage = "Read Notion page.";
+                     friendlyMessage = "Here's the content I found:\n\n---\n\n" + (actionResult.markdownContent || "That page appears to be empty.");
+                     const pageIdRead = notionBlock.payload.page_id;
+                     if (pageIdRead) {
+                        pageUrl = `https://www.notion.so/${pageIdRead.replace(/-/g, '')}`;
+                        pageTitle = actionResult.pageTitle || "Notion Page"; 
+                        if (actionResult.id && pageTitle) {
+                           setActiveNotionPage({ id: actionResult.id, title: pageTitle });
+                        }
+                     }
+                     break;
+                      case 'createNotionPage':
+                          successMessage = "Created Notion page.";
+                          pageUrl = actionResult.url;
+                          pageTitle = actionResult.properties?.title?.title?.[0]?.plain_text || "Untitled";
+                          if (actionResult.id && pageTitle) {
+                              setActiveNotionPage({ id: actionResult.id, title: pageTitle });
+                          }
+                          break;
+                      case 'findAndAppendToPage':
+                      case 'appendToNotionPage':
+                          successMessage = "Added to Notion page.";
+                          pageUrl = actionResult.url;
+                          pageTitle = actionResult.pageTitle || "Notion Page";
+                           if (actionResult.id && pageTitle) {
+                              setActiveNotionPage({ id: actionResult.id, title: pageTitle });
+                           }
+                          break;
+                      case 'findAndReplaceInPage':
+                      case 'findAndUpdatePageContent':
+                          successMessage = "Updated Notion page.";
+                          pageUrl = actionResult.url;
+                          pageTitle = actionResult.pageTitle || "Notion Page";
+                           if (actionResult.id && pageTitle) {
+                              setActiveNotionPage({ id: actionResult.id, title: pageTitle });
+                           }
+                          break;
                 case 'findAndInsertAfter':
-                    successMessage = notionBlock.action === 'createNotionPage' ? "Created Notion page." : "Updated Notion page.";
-                    break;
                 case 'findAndReadPageContent':
-                    successMessage = "Read Notion page.";
-                    friendlyMessage = actionResult.markdownContent || "This page appears to be empty.";
+                    successMessage = notionBlock.action === 'createNotionPage' ? "Created Notion page." : "Updated Notion page.";
+                    if (notionBlock.action === 'findAndReadPageContent') {
+                        successMessage = "Read Notion page.";
+                        friendlyMessage = actionResult.markdownContent || "This page appears to be empty.";
+                    }
+                    
+                    pageUrl = actionResult.url;
+                    pageTitle = actionResult.properties?.title?.title?.[0]?.plain_text || actionResult.pageTitle || "Untitled";
+
+                    if (actionResult.id && pageTitle) {
+                        setActiveNotionPage({ id: actionResult.id, title: pageTitle });
+                    }
                     break;
+
                 case 'findAndDeletePage':
                     successMessage = `Deleted Notion page "${actionResult.title}".`;
                     setActiveNotionPage(null);
                     break;
+                
                 default:
                     successMessage = `Notion action '${notionBlock.action}' succeeded.`;
             }
         }
 
+        // --- FIX #2: REMOVED THE LOGIC THAT DUPLICATED MESSAGES ---
+        // This now correctly separates the AI's conversational text from the action's results.
         assistantTextForDisplay = [cleanedText.trim(), friendlyMessage.trim()].filter(Boolean).join('\n\n');
-        assistantFinalMessage.actionDetails = { status: 'success', message: successMessage, pageUrl, pageTitle };
-
+        actionTakenDetails = { status: 'success', message: successMessage, pageUrl, pageTitle };
+        
     } catch (err: any) {
         console.error("Notion action failed:", err);
-        const errorMessage = `Sorry, the Notion action failed: ${err.message || 'An unknown error occurred.'}`;
-        assistantTextForDisplay = cleanedText ? `${cleanedText}\n\n${errorMessage}` : errorMessage;
-        assistantFinalMessage.actionDetails = { status: 'error', message: `Notion: ${notionBlock.action || 'batch operation'} failed.`};
-        assistantFinalMessage.error = true;
+        assistantTextForDisplay = cleanedText.trim() || `Sorry, the Notion action failed: ${err.message || 'An unknown error occurred.'}`;
+        actionTakenDetails = { status: 'error', message: `Notion: ${notionBlock.action || 'batch operation'} failed.`};
+        setActiveNotionPage(null);
     } finally {
         setIsProcessingNotion(false);
     }
 }
+// --- END REPLACEMENT ---
 
                 if (noteEditBlock) {
                     try {
