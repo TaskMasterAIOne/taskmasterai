@@ -103,7 +103,7 @@ import { ProfileModal } from './ProfileModal';
 
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
-const GEMINI_TEXT_MODEL = 'gemini-2.0-flash';
+const GEMINI_TEXT_MODEL = 'gemini-2.5-flash';
 const GEMINI_IMAGE_GEN_MODEL = 'gemini-2.0-flash-preview-image-generation';
 
 interface ChatMessageDisplayData {
