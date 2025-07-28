@@ -12,8 +12,9 @@ import {
   onSnapshot,
 } from "firebase/firestore";
 
-const PREMIUM_EMAILS = [
-    "bajinsrinivasr@lexington1.net",  "1cosmic20@gmail.com", "enable73@gmail.com", "williansugiyama@gmail.com", "amlitha@gmail.com", "paulkoh4@gmail.com", "richard@openhaul.com", "suryar9108@gmail.com", "yhlvyp@gmail.com", "poojarameshkumar789@gmail.com", "achallapureddy@gmail.com", "ali.ahsan.a214@gmail.com", "amrish.naranappa@gmail.com",
+export const PREMIUM_EMAILS = [
+    "bajinsrinivasr@lexington1.net",  "1cosmic20@gmail.com", "enable73@gmail.com", "williansugiyama@gmail.com", "amlitha@gmail.com", "alfredisgoatedfr@gail.com",
+    "poojarameshkumar789@gmail.com", "achallapureddy@gmail.com", "ali.ahsan.a214@gmail.com", "amrish.naranappa@gmail.com",
     "navaneeth.ravindranath@gmail.com", "Goduwin_Ravi@yahoo.com", "gautham.paddu@outlook.com", "Isha.kandhaluram@gmail.com", "learner@example.com", "benjamin.schreiber3@gmail.com"
 ];
 
@@ -67,6 +68,11 @@ export interface UserProfileData {
   aiNotesCreatedCount?: number;
   noteFlashcardsCreatedCount?: number;
   noteChatsStartedCount?: number;
+  // --- ADD THESE MISSING FIELDS ---
+  notionAccessData?: any;
+  googleDriveConnected?: boolean;
+  googleCalendarConnected?: boolean;
+  stripeCustomerId?: string; // Also add this for consistency
 }
 
 const toDateSafeForProfile = (timestampField: any): Date | null => {
@@ -279,23 +285,12 @@ export const updateUserNoteUsage = async (userId: string, typeToIncrement: 'pdfA
         await runTransaction(db, async (transaction) => {
             const profileSnap = await transaction.get(userProfileRef);
             if (!profileSnap.exists()) {
-                // --- START: CORRECTED PROFILE CREATION ---
-                const userRef = doc(db, 'users', userId);
-                const userSnap = await transaction.get(userRef);
-                const topLevelData = userSnap.exists() ? userSnap.data() : {};
-
-                const initialData = prepareInitialProfileData(userId, topLevelData.email, topLevelData.displayName, topLevelData.photoURL);
-
-                // Inherit subscription status from the top-level document
-                initialData.activeTier = topLevelData.activeTier || initialData.activeTier;
-                initialData.subscriptionStatus = topLevelData.subscriptionStatus || null;
-
+                const initialData = prepareInitialProfileData(userId);
                 initialData.noteUsageByMonth = {
                     [currentMonth]: { pdfAi: 0, youtube: 0, lastUpdated: Timestamp.now() }
                 };
                 (initialData.noteUsageByMonth[currentMonth] as any)[typeToIncrement] = 1;
                 transaction.set(userProfileRef, initialData);
-                // --- END: CORRECTED PROFILE CREATION ---
             } else {
                 const currentData = profileSnap.data() as UserProfileData;
                 let noteUsageByMonth = currentData.noteUsageByMonth || {};
@@ -316,12 +311,18 @@ export const updateUserNoteUsage = async (userId: string, typeToIncrement: 'pdfA
     }
 };
 
+// Now, replace the entire onUserProfileSnapshot function with this one:
 export const onUserProfileSnapshot = (userId: string, callback: (profile: UserProfileData | null) => void): (() => void) => {
-  const profileRef = doc(db, 'users', userId, 'profile', 'data');
-  return onSnapshot(profileRef, (docSnap) => {
+  // --- THE FIX IS HERE: Point to the main user document, NOT the subcollection ---
+  const userDocRef = doc(db, 'users', userId);
+  
+  return onSnapshot(userDocRef, (docSnap) => {
     if (docSnap.exists()) {
       const data = docSnap.data() as Partial<UserProfileData>;
+      
+      // We still use a default/prepared object to handle brand new users gracefully
       const defaultProfile = prepareInitialProfileData(userId, data.email, data.displayName, data.photoURL);
+      
       callback({
         ...defaultProfile,
         ...data,
@@ -333,13 +334,6 @@ export const onUserProfileSnapshot = (userId: string, callback: (profile: UserPr
         updatedAt: toDateSafeForProfile(data.updatedAt) || new Date(),
         premiumAwardedUntil: toDateSafeForProfile(data.premiumAwardedUntil),
         activeTier: data.activeTier || defaultProfile.activeTier,
-        notesStreakCount: data.notesStreakCount || 0,
-        notesCreatedCount: data.notesCreatedCount || 0,
-        pdfNotesCreatedCount: data.pdfNotesCreatedCount || 0,
-        youtubeNotesCreatedCount: data.youtubeNotesCreatedCount || 0,
-        aiNotesCreatedCount: data.aiNotesCreatedCount || 0,
-        noteFlashcardsCreatedCount: data.noteFlashcardsCreatedCount || 0,
-        noteChatsStartedCount: data.noteChatsStartedCount || 0,
       });
     } else {
       callback(null);
@@ -349,7 +343,6 @@ export const onUserProfileSnapshot = (userId: string, callback: (profile: UserPr
     callback(null);
   });
 };
-
 export const updateUserPointsAndLevel = async (
     userId: string,
     pointsToAdd: number,
@@ -362,28 +355,17 @@ export const updateUserPointsAndLevel = async (
     let newTierAwarded: UserTier | undefined = undefined;
 
     if (!profileSnap.exists()) {
-        // --- START: CORRECTED PROFILE CREATION ---
-        const userRef = doc(db, 'users', userId);
-        const userSnap = await transaction.get(userRef);
-        const topLevelData = userSnap.exists() ? userSnap.data() : {};
-
         const initialData = prepareInitialProfileData(
             userId,
-            userDetailsForCreation?.email || topLevelData.email,
-            userDetailsForCreation?.displayName || topLevelData.displayName,
-            userDetailsForCreation?.photoURL || topLevelData.photoURL
+            userDetailsForCreation?.email,
+            userDetailsForCreation?.displayName,
+            userDetailsForCreation?.photoURL
         );
-
-        // Inherit subscription status from the top-level document
-        initialData.activeTier = topLevelData.activeTier || initialData.activeTier;
-        initialData.subscriptionStatus = topLevelData.subscriptionStatus || null;
-
         const newPoints = pointsToAdd;
         initialData.points = newPoints;
         initialData.level = calculateLevel(newPoints);
         transaction.set(profileRef, initialData);
         return { newPoints: initialData.points, newLevel: initialData.level, newTier: undefined };
-        // --- END: CORRECTED PROFILE CREATION ---
     } else {
         const currentProfileData = profileSnap.data() as UserProfileData;
         const currentPoints = currentProfileData.points || 0;
@@ -423,22 +405,12 @@ export const updateUserStreak = async (
     const profileSnap = await transaction.get(profileRef);
 
     if (!profileSnap.exists()) {
-        // --- START: CORRECTED PROFILE CREATION ---
-        const userRef = doc(db, 'users', userId);
-        const userSnap = await transaction.get(userRef);
-        const topLevelData = userSnap.exists() ? userSnap.data() : {};
-
         const initialData = prepareInitialProfileData(
             userId,
-            userDetailsForCreation?.email || topLevelData.email,
-            userDetailsForCreation?.displayName || topLevelData.displayName,
-            userDetailsForCreation?.photoURL || topLevelData.photoURL
+            userDetailsForCreation?.email,
+            userDetailsForCreation?.displayName,
+            userDetailsForCreation?.photoURL
         );
-
-        // Inherit subscription status from the top-level document
-        initialData.activeTier = topLevelData.activeTier || initialData.activeTier;
-        initialData.subscriptionStatus = topLevelData.subscriptionStatus || null;
-
         const now = Timestamp.now();
         if (streakType === 'overall') {
             initialData.overallStreakCount = 1;
@@ -449,7 +421,6 @@ export const updateUserStreak = async (
         }
         transaction.set(profileRef, initialData);
         return { newStreakCount: 1, streakBroken: false };
-        // --- END: CORRECTED PROFILE CREATION ---
     } else {
         const currentProfileData = profileSnap.data() as UserProfileData;
         let currentStreak: number;
@@ -512,25 +483,14 @@ export const addUserBadge = async (
   await runTransaction(db, async (transaction) => {
     const profileSnap = await transaction.get(profileRef);
     if (!profileSnap.exists()) {
-        // --- START: CORRECTED PROFILE CREATION ---
-        const userRef = doc(db, 'users', userId);
-        const userSnap = await transaction.get(userRef);
-        const topLevelData = userSnap.exists() ? userSnap.data() : {};
-
         const initialData = prepareInitialProfileData(
             userId,
-            userDetailsForCreation?.email || topLevelData.email,
-            userDetailsForCreation?.displayName || topLevelData.displayName,
+            userDetailsForCreation?.email,
+            userDetailsForCreation?.displayName,
             userDetailsForCreation?.photoURL,
         );
-        
-        // Inherit subscription status from the top-level document
-        initialData.activeTier = topLevelData.activeTier || initialData.activeTier;
-        initialData.subscriptionStatus = topLevelData.subscriptionStatus || null;
-
         initialData.badges = [badgeId];
         transaction.set(profileRef, initialData);
-        // --- END: CORRECTED PROFILE CREATION ---
     } else {
         const currentProfileData = profileSnap.data() as UserProfileData;
         const badges = currentProfileData.badges || [];
@@ -554,25 +514,14 @@ export const incrementUserProfileCounter = async (
     await runTransaction(db, async (transaction) => {
         const profileSnap = await transaction.get(profileRef);
         if (!profileSnap.exists()) {
-            // --- START: CORRECTED PROFILE CREATION ---
-            const userRef = doc(db, 'users', userId);
-            const userSnap = await transaction.get(userRef);
-            const topLevelData = userSnap.exists() ? userSnap.data() : {};
-            
             const initialData = prepareInitialProfileData(
                 userId,
-                userDetailsForCreation?.email || topLevelData.email,
-                userDetailsForCreation?.displayName || topLevelData.displayName,
+                userDetailsForCreation?.email,
+                userDetailsForCreation?.displayName,
                 userDetailsForCreation?.photoURL,
             );
-
-            // Inherit subscription status from the top-level document
-            initialData.activeTier = topLevelData.activeTier || initialData.activeTier;
-            initialData.subscriptionStatus = topLevelData.subscriptionStatus || null;
-
             (initialData as any)[counterField] = incrementValue;
             transaction.set(profileRef, initialData);
-            // --- END: CORRECTED PROFILE CREATION ---
         } else {
             transaction.update(profileRef, {
                 [counterField]: increment(incrementValue),
@@ -603,7 +552,7 @@ export const createUserProfileDocument = async (
     email?: string | null,
     displayName?: string | null,
     photoURL?: string | null,
-    transaction?: any 
+    transaction?: FirestoreTransaction
 ): Promise<UserProfileData> => {
   const profileRef = doc(db, 'users', userId, 'profile', 'data');
   const initialData = prepareInitialProfileData(userId, email, displayName, photoURL);
@@ -620,3 +569,4 @@ export const createUserProfileDocument = async (
       activeTier: initialData.activeTier,
   };
 };
+
