@@ -1685,7 +1685,7 @@ Be efficient. Be minimal. Don’t explain unless asked.
                 const requestBody: any = {
                     generationConfig: {
                         temperature: isUsingImageGenModel ? 0.8 : 0.7,
-                       maxOutputTokens: isUsingImageGenModel ? 2048 : 65536,
+                       maxOutputTokens: isUsingImageGenModel ? 2048 : 35536,
                     },
                 };
                 
