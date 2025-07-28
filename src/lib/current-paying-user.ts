@@ -143,6 +143,13 @@ export const getUserTier = async (userId: string | null | undefined, emailFromPr
                     updatedAt: toDateSafeForProfile(data.updatedAt) || new Date(),
                     premiumAwardedUntil: toDateSafeForProfile(data.premiumAwardedUntil),
                     activeTier: data.activeTier || 'basic',
+                          notesStreakCount: data.notesStreakCount || 0,
+        notesCreatedCount: data.notesCreatedCount || 0,
+        pdfNotesCreatedCount: data.pdfNotesCreatedCount || 0,
+        youtubeNotesCreatedCount: data.youtubeNotesCreatedCount || 0,
+        aiNotesCreatedCount: data.aiNotesCreatedCount || 0,
+        noteFlashcardsCreatedCount: data.noteFlashcardsCreatedCount || 0,
+        noteChatsStartedCount: data.noteChatsStartedCount || 0,
                 };
             } else {
                  return (emailFromProfileOrAuth && PREMIUM_EMAILS.map(e => e.toLowerCase()).includes(emailFromProfileOrAuth.toLowerCase())) ? 'premium' :
