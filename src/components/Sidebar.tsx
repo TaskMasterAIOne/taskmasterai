@@ -59,36 +59,41 @@ export function Sidebar({
   const [showInitialAvatarGlow, setShowInitialAvatarGlow] = useState<boolean>(false);
   const [showTags, setShowTags] = useState<boolean>(false);
 
-// REPLACE the existing useEffect hook with this corrected version:
-useEffect(() => {
+ // REPLACE the entire useEffect hook with this one:
+  useEffect(() => {
     let profileListenerUnsubscribe: (() => void) | null = null;
+    let profileFallbackTimer: NodeJS.Timeout | null = null;
 
     const authUnsubscribe = auth.onAuthStateChanged((user) => {
-      // Clean up the previous user's profile listener
-      if (profileListenerUnsubscribe) {
-        profileListenerUnsubscribe();
-      }
+      // Clean up listeners from the previous user session
+      if (profileListenerUnsubscribe) profileListenerUnsubscribe();
+      if (profileFallbackTimer) clearTimeout(profileFallbackTimer);
 
       setCurrentUser(user);
       setShowInitialAvatarGlow(false);
       setShowTags(false);
 
       if (user) {
-        setUserTier('loading'); // Set loading state while we wait for the profile data
+        setUserTier('loading'); // Always start in a loading state for a new user session
 
-        // Set up the real-time listener for the current user's profile
         profileListenerUnsubscribe = onUserProfileSnapshot(user.uid, (profile) => {
+          // If we receive profile data, clear any pending fallback timer
+          if (profileFallbackTimer) clearTimeout(profileFallbackTimer);
+
           if (profile) {
-            // Profile data exists, set the tier directly from the live data
+            // We have the profile data, so set the correct tier
             setUserTier(profile.activeTier || 'basic');
           } else {
-            // This can happen briefly on sign-up before the doc is created.
-            // 'basic' is a safe default until the listener receives the created document.
-            setUserTier('basic');
+            // The profile does not exist yet. This could be a new user.
+            // Wait for a short period before defaulting to 'basic' to avoid UI flicker.
+            profileFallbackTimer = setTimeout(() => {
+              // If the listener hasn't provided a profile after the delay,
+              // it's safe to assume the user is 'basic'.
+              setUserTier('basic');
+            }, 2000); // 2-second grace period
           }
         });
         
-        // Handle Dev/Intern specific UI tags
         const userIsDev = user.email ? DEV_EMAILS.includes(user.email) : false;
         const userIsIntern = user.email ? INTERN_EMAILS.includes(user.email) : false;
         setIsDev(userIsDev);
@@ -97,7 +102,7 @@ useEffect(() => {
           setShowInitialAvatarGlow(true);
         }
       } else {
-        // No user is logged in, reset all states
+        // User logged out, reset everything
         setCurrentUser(null);
         setUserTier('loading');
         setIsDev(false);
@@ -105,14 +110,14 @@ useEffect(() => {
       }
     });
 
-    // Cleanup function for when the component unmounts
+    // Cleanup function to run when the component unmounts
     return () => {
       authUnsubscribe();
-      if (profileListenerUnsubscribe) {
-        profileListenerUnsubscribe();
-      }
+      if (profileListenerUnsubscribe) profileListenerUnsubscribe();
+      if (profileFallbackTimer) clearTimeout(profileFallbackTimer);
     };
-}, []); // The empty dependency array ensures this runs only once on mount.
+  }, []); // Empty dependency array ensures this runs only once.
+
   
   const handleInitialGlowEnd = () => {
     setShowInitialAvatarGlow(false);
