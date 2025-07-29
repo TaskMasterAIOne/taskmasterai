@@ -17,7 +17,7 @@ import { LogoSmall } from "./LogoSmall";
 import { useLocation, useNavigate } from "react-router-dom";
 import { auth } from "../lib/firebase";
 import { User } from 'firebase/auth';
-import { UserTier, getUserTier } from '../lib/current-paying-user';
+import { UserTier, onUserProfileSnapshot } from '../lib/current-paying-user';
 
 interface SidebarProps {
   userName: string;
@@ -59,20 +59,36 @@ export function Sidebar({
   const [showInitialAvatarGlow, setShowInitialAvatarGlow] = useState<boolean>(false);
   const [showTags, setShowTags] = useState<boolean>(false);
 
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+// REPLACE the existing useEffect hook with this corrected version:
+useEffect(() => {
+    let profileListenerUnsubscribe: (() => void) | null = null;
+
+    const authUnsubscribe = auth.onAuthStateChanged((user) => {
+      // Clean up the previous user's profile listener
+      if (profileListenerUnsubscribe) {
+        profileListenerUnsubscribe();
+      }
+
       setCurrentUser(user);
       setShowInitialAvatarGlow(false);
       setShowTags(false);
+
       if (user) {
-        setUserTier('loading');
-        try {
-          const tier = await getUserTier(user.uid, user.email);
-          setUserTier(tier);
-        } catch (error) {
-          console.error("Sidebar: Error fetching user tier:", error);
-          setUserTier('basic');
-        }
+        setUserTier('loading'); // Set loading state while we wait for the profile data
+
+        // Set up the real-time listener for the current user's profile
+        profileListenerUnsubscribe = onUserProfileSnapshot(user.uid, (profile) => {
+          if (profile) {
+            // Profile data exists, set the tier directly from the live data
+            setUserTier(profile.activeTier || 'basic');
+          } else {
+            // This can happen briefly on sign-up before the doc is created.
+            // 'basic' is a safe default until the listener receives the created document.
+            setUserTier('basic');
+          }
+        });
+        
+        // Handle Dev/Intern specific UI tags
         const userIsDev = user.email ? DEV_EMAILS.includes(user.email) : false;
         const userIsIntern = user.email ? INTERN_EMAILS.includes(user.email) : false;
         setIsDev(userIsDev);
@@ -81,15 +97,23 @@ export function Sidebar({
           setShowInitialAvatarGlow(true);
         }
       } else {
+        // No user is logged in, reset all states
         setCurrentUser(null);
         setUserTier('loading');
         setIsDev(false);
         setIsIntern(false);
       }
     });
-    return () => unsubscribe();
-  }, []);
 
+    // Cleanup function for when the component unmounts
+    return () => {
+      authUnsubscribe();
+      if (profileListenerUnsubscribe) {
+        profileListenerUnsubscribe();
+      }
+    };
+}, []); // The empty dependency array ensures this runs only once on mount.
+  
   const handleInitialGlowEnd = () => {
     setShowInitialAvatarGlow(false);
     if (isDev || isIntern) {
