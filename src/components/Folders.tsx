@@ -61,7 +61,6 @@ import {
   PRO_CHAT_LIMIT,
   UserProfileData,
   onUserProfileSnapshot,
-  createUserProfileDocument,
   updateUserPointsAndLevel,
   updateUserStreak,
   addUserBadge,
@@ -936,10 +935,11 @@ const recognitionRef = useRef<any>(null);
     // --- END OF BLOCK ---
 
     
+    // MODIFY THIS LISTENER
     const unsubProfile = onUserProfileSnapshot(user.uid, async (profileData) => {
       if (profileData) {
         setUserProfile(currentProfile => JSON.stringify(currentProfile) !== JSON.stringify(profileData) ? profileData : currentProfile);
-        const currentTier = await getUserTier(user.uid, profileData.email!, profileData);
+        const currentTier = await getUserTier(user.uid, profileData.email!); // Removed profileData pass-through
         setUserTier(currentTier);
         const limitForTier = getChatLimitForTier(currentTier);
         setChatLimit(limitForTier);
@@ -954,10 +954,8 @@ const recognitionRef = useRef<any>(null);
           setChatUsageCount(0);
         }
       } else {
-        const newProfile = await createUserProfileDocument(user.uid, user.email, user.displayName, user.photoURL);
-        setUserProfile(newProfile);
-        const currentTier = await getUserTier(user.uid, newProfile.email!, newProfile);
-        setUserTier(currentTier);
+        setUserProfile(null);
+        setUserTier('loading');
         const limitForTier = getChatLimitForTier(currentTier);
         setChatLimit(limitForTier);
         setCurrentChatLimitDisplay(limitForTier === Infinity ? '∞' : limitForTier);
