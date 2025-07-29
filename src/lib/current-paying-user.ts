@@ -44,10 +44,13 @@ export interface NoteUsageData {
 }
 
 export interface UserProfileData {
-  id: string;
-  displayName?: string | null;
-  email?: string | null;
-  photoURL?: string | null;
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  name: string | null;
+  photoURL: string | null;
+  firstName?: string;
+  lastName?: string;
   points: number;
   level: number;
   overallStreakCount: number;
@@ -56,20 +59,26 @@ export interface UserProfileData {
   lastNotesStreakUpdate: Timestamp | Date | null;
   badges: string[];
   createdAt: Timestamp | Date;
+  lastLoginAt: Timestamp | Date;
   updatedAt: Timestamp | Date;
   premiumAwardedUntil?: Timestamp | Date | null;
   activeTier: UserTier;
   subscriptionStatus?: 'active' | 'canceled' | 'past_due' | 'incomplete' | null;
-  noteUsageByMonth?: { [monthYear: string]: { pdfAi: number; youtube: number; lastUpdated: Timestamp } };
-  notesCreatedCount?: number;
-  pdfNotesCreatedCount?: number;
-  youtubeNotesCreatedCount?: number;
-  aiNotesCreatedCount?: number;
-  noteFlashcardsCreatedCount?: number;
-  noteChatsStartedCount?: number;
+  stripeCustomerId?: string | null;
+  noteUsageByMonth: { [monthYear: string]: { pdfAi: number; youtube: number; lastUpdated: Timestamp } };
+  notesCreatedCount: number;
+  pdfNotesCreatedCount: number;
+  youtubeNotesCreatedCount: number;
+  aiNotesCreatedCount: number;
+  noteFlashcardsCreatedCount: number;
+  noteChatsStartedCount: number;
+  notionAccessData?: any;
+  tokens: number;
+  uploadBonusCount: number;
+  abuseWarningCount: number;
 }
 
-const toDateSafeForProfile = (timestampField: any): Date | null => {
+const toDateSafe = (timestampField: any): Date | null => {
     if (!timestampField) return null;
     if (timestampField instanceof Timestamp) return timestampField.toDate();
     if (timestampField instanceof Date) return timestampField;
@@ -81,20 +90,23 @@ const toDateSafeForProfile = (timestampField: any): Date | null => {
         typeof (timestampField as any).seconds === 'number' && typeof (timestampField as any).nanoseconds === 'number') {
         try {
             return new Timestamp((timestampField as any).seconds, (timestampField as any).nanoseconds).toDate();
-        } catch (e) { console.warn("toDateSafeForProfile: Error converting plain object to Date", e); return null; }
+        } catch (e) { console.warn("toDateSafe: Error converting plain object to Date", e); return null; }
     }
     return null;
 };
 
-const prepareInitialProfileData = (userId: string, email?: string | null, displayName?: string | null, photoURL?: string | null): UserProfileData => {
+export const prepareInitialProfileData = (userId: string, email?: string | null, displayName?: string | null, photoURL?: string | null, firstName?: string | null, lastName?: string | null): Omit<UserProfileData, 'updatedAt' | 'lastLoginAt'> => {
     const now = Timestamp.now();
     const initialTier: UserTier = (email && PREMIUM_EMAILS.map(e => e.toLowerCase()).includes(email.toLowerCase())) ? 'premium' :
                                 (email && PRO_EMAILS.map(e => e.toLowerCase()).includes(email.toLowerCase())) ? 'pro' : 'basic';
     return {
-        id: userId,
+        uid: userId,
         email: email ?? null,
         displayName: displayName ?? null,
+        name: displayName ?? null,
         photoURL: photoURL ?? null,
+        firstName: firstName?.trim() ?? '',
+        lastName: lastName?.trim() ?? '',
         points: 0,
         level: 1,
         overallStreakCount: 0,
@@ -103,7 +115,6 @@ const prepareInitialProfileData = (userId: string, email?: string | null, displa
         lastNotesStreakUpdate: null,
         badges: [],
         createdAt: now,
-        updatedAt: now,
         premiumAwardedUntil: null,
         activeTier: initialTier,
         subscriptionStatus: null,
@@ -114,65 +125,54 @@ const prepareInitialProfileData = (userId: string, email?: string | null, displa
         aiNotesCreatedCount: 0,
         noteFlashcardsCreatedCount: 0,
         noteChatsStartedCount: 0,
+        tokens: 500,
+        uploadBonusCount: 0,
+        abuseWarningCount: 0,
     };
 };
 
-export const getUserTier = async (userId: string | null | undefined, emailFromProfileOrAuth: string | null | undefined, profileData?: UserProfileData | null): Promise<UserTier> => {
+export const getUserTier = async (userId: string | null | undefined, emailFromAuth?: string | null): Promise<UserTier> => {
     if (!userId) return 'loading';
 
-    let userProfile = profileData;
-    if (!userProfile) {
-        try {
-            const userRef = doc(db, 'users', userId, 'profile', 'data');
-            const docSnap = await getDoc(userRef);
-            if (docSnap.exists()) {
-                const data = docSnap.data() as Partial<UserProfileData>;
-                userProfile = {
-                    ...prepareInitialProfileData(userId, data.email || emailFromProfileOrAuth, data.displayName, data.photoURL),
-                    ...data,
-                    id: docSnap.id,
-                    lastOverallStreakUpdate: toDateSafeForProfile(data.lastOverallStreakUpdate),
-                    lastNotesStreakUpdate: toDateSafeForProfile(data.lastNotesStreakUpdate),
-                    createdAt: toDateSafeForProfile(data.createdAt) || new Date(),
-                    updatedAt: toDateSafeForProfile(data.updatedAt) || new Date(),
-                    premiumAwardedUntil: toDateSafeForProfile(data.premiumAwardedUntil),
-                    activeTier: data.activeTier || 'basic',
-                };
-            } else {
-                 return (emailFromProfileOrAuth && PREMIUM_EMAILS.map(e => e.toLowerCase()).includes(emailFromProfileOrAuth.toLowerCase())) ? 'premium' :
-                       (emailFromProfileOrAuth && PRO_EMAILS.map(e => e.toLowerCase()).includes(emailFromProfileOrAuth.toLowerCase())) ? 'pro' : 'basic';
+    try {
+        const userRef = doc(db, 'users', userId);
+        const docSnap = await getDoc(userRef);
+        
+        if (docSnap.exists()) {
+            const userProfile = docSnap.data() as UserProfileData;
+            
+            if (userProfile.premiumAwardedUntil) {
+                const awardedUntilDate = toDateSafe(userProfile.premiumAwardedUntil);
+                if (awardedUntilDate && awardedUntilDate > new Date()) {
+                    return 'premium';
+                }
             }
-        } catch (error) {
-            console.error(`Error fetching Firestore profile for tier check ${userId}:`, error);
-             return (emailFromProfileOrAuth && PREMIUM_EMAILS.map(e => e.toLowerCase()).includes(emailFromProfileOrAuth.toLowerCase())) ? 'premium' :
-                       (emailFromProfileOrAuth && PRO_EMAILS.map(e => e.toLowerCase()).includes(emailFromProfileOrAuth.toLowerCase())) ? 'pro' : 'basic';
+            
+            if (userProfile.subscriptionStatus === 'active' && (userProfile.activeTier === 'pro' || userProfile.activeTier === 'premium')) {
+                return userProfile.activeTier;
+            }
+            
+            const currentEmail = (userProfile.email || emailFromAuth)?.toLowerCase();
+            if (currentEmail) {
+                if (PREMIUM_EMAILS.map(e => e.toLowerCase()).includes(currentEmail)) return 'premium';
+                if (PRO_EMAILS.map(e => e.toLowerCase()).includes(currentEmail)) return 'pro';
+            }
+            
+            return userProfile.activeTier || 'basic';
+        } else {
+             const lowercasedEmail = emailFromAuth?.toLowerCase();
+             if (lowercasedEmail && PREMIUM_EMAILS.map(e => e.toLowerCase()).includes(lowercasedEmail)) return 'premium';
+             if (lowercasedEmail && PRO_EMAILS.map(e => e.toLowerCase()).includes(lowercasedEmail)) return 'pro';
+             return 'basic';
         }
-    }
-
-    if (!userProfile) {
+    } catch (error) {
+        console.error(`Error fetching user for tier check ${userId}:`, error);
+        const lowercasedEmail = emailFromAuth?.toLowerCase();
+        if (lowercasedEmail && PREMIUM_EMAILS.map(e => e.toLowerCase()).includes(lowercasedEmail)) return 'premium';
+        if (lowercasedEmail && PRO_EMAILS.map(e => e.toLowerCase()).includes(lowercasedEmail)) return 'pro';
         return 'basic';
     }
-
-    if (userProfile.premiumAwardedUntil) {
-        const awardedUntilDate = toDateSafeForProfile(userProfile.premiumAwardedUntil);
-        if (awardedUntilDate && awardedUntilDate > new Date()) {
-            return 'premium';
-        }
-    }
-
-    if (userProfile.subscriptionStatus === 'active' && (userProfile.activeTier === 'pro' || userProfile.activeTier === 'premium')) {
-        return userProfile.activeTier;
-    }
-
-    const currentEmail = (emailFromProfileOrAuth || userProfile.email)?.toLowerCase();
-    if (currentEmail) {
-        if (PREMIUM_EMAILS.map(e => e.toLowerCase()).includes(currentEmail)) return 'premium';
-        if (PRO_EMAILS.map(e => e.toLowerCase()).includes(currentEmail)) return 'pro';
-    }
-
-    return userProfile.activeTier || 'basic';
 };
-
 
 export const getChatLimitForTier = (tier: UserTier): number => {
     switch (tier) {
@@ -246,67 +246,55 @@ export const getUserNoteUsage = async (userId: string): Promise<NoteUsageData | 
     if (!userId) return null;
     const currentMonthYear = new Date().toISOString().slice(0, 7);
     try {
-        const userProfileRef = doc(db, 'users', userId, 'profile', 'data');
-        const docSnap = await getDoc(userProfileRef);
+        const userRef = doc(db, 'users', userId);
+        const docSnap = await getDoc(userRef);
         if (docSnap.exists()) {
             const userData = docSnap.data() as UserProfileData;
             const monthlyUsage = userData?.noteUsageByMonth?.[currentMonthYear];
             if (monthlyUsage && typeof monthlyUsage.pdfAi === 'number' && typeof monthlyUsage.youtube === 'number') {
                 return { pdfAi: monthlyUsage.pdfAi, youtube: monthlyUsage.youtube, month: currentMonthYear };
-            } else if (userData) {
-                 await updateDoc(userProfileRef, {
-                    [`noteUsageByMonth.${currentMonthYear}`]: { pdfAi: 0, youtube: 0, lastUpdated: serverTimestamp() },
-                    updatedAt: serverTimestamp()
-                });
-                return { pdfAi: 0, youtube: 0, month: currentMonthYear };
             }
-        } else {
-             return { pdfAi: 0, youtube: 0, month: currentMonthYear };
+            return { pdfAi: 0, youtube: 0, month: currentMonthYear };
         }
+        return { pdfAi: 0, youtube: 0, month: currentMonthYear };
     } catch (error) {
         console.error(`Error getting note usage for ${userId}:`, error);
+        return { pdfAi: 0, youtube: 0, month: currentMonthYear };
     }
-    return { pdfAi: 0, youtube: 0, month: currentMonthYear };
 };
 
 export const updateUserNoteUsage = async (userId: string, typeToIncrement: 'pdfAi' | 'youtube', currentMonth: string): Promise<void> => {
     if (!userId || !typeToIncrement || !currentMonth || !/^\d{4}-\d{2}$/.test(currentMonth)) {
         throw new Error("Invalid params for updating note usage.");
     }
-    const userProfileRef = doc(db, 'users', userId, 'profile', 'data');
+    const userRef = doc(db, 'users', userId);
+    const updatePath = `noteUsageByMonth.${currentMonth}.${typeToIncrement}`;
+    const lastUpdatedPath = `noteUsageByMonth.${currentMonth}.lastUpdated`;
+    const now = serverTimestamp();
 
     try {
         await runTransaction(db, async (transaction) => {
-            const profileSnap = await transaction.get(userProfileRef);
-            if (!profileSnap.exists()) {
-                // --- START: CORRECTED PROFILE CREATION ---
-                const userRef = doc(db, 'users', userId);
-                const userSnap = await transaction.get(userRef);
-                const topLevelData = userSnap.exists() ? userSnap.data() : {};
+            const userSnap = await transaction.get(userRef);
+            if (!userSnap.exists()) {
+                 return;
+            }
+            const currentData = userSnap.data() as UserProfileData;
+            const monthUsage = currentData.noteUsageByMonth?.[currentMonth];
 
-                const initialData = prepareInitialProfileData(userId, topLevelData.email, topLevelData.displayName, topLevelData.photoURL);
-
-                // Inherit subscription status from the top-level document
-                initialData.activeTier = topLevelData.activeTier || initialData.activeTier;
-                initialData.subscriptionStatus = topLevelData.subscriptionStatus || null;
-
-                initialData.noteUsageByMonth = {
-                    [currentMonth]: { pdfAi: 0, youtube: 0, lastUpdated: Timestamp.now() }
-                };
-                (initialData.noteUsageByMonth[currentMonth] as any)[typeToIncrement] = 1;
-                transaction.set(userProfileRef, initialData);
-                // --- END: CORRECTED PROFILE CREATION ---
+            if (monthUsage) {
+                transaction.update(userRef, {
+                    [updatePath]: increment(1),
+                    [lastUpdatedPath]: now,
+                    updatedAt: now
+                });
             } else {
-                const currentData = profileSnap.data() as UserProfileData;
-                let noteUsageByMonth = currentData.noteUsageByMonth || {};
-                let noteUsageForMonth = noteUsageByMonth[currentMonth] || { pdfAi: 0, youtube: 0, lastUpdated: Timestamp.now() };
-
-                noteUsageForMonth[typeToIncrement] = (noteUsageForMonth[typeToIncrement] || 0) + 1;
-                noteUsageForMonth.lastUpdated = Timestamp.now();
-                noteUsageByMonth[currentMonth] = noteUsageForMonth;
-                transaction.update(userProfileRef, {
-                    noteUsageByMonth: noteUsageByMonth,
-                    updatedAt: serverTimestamp()
+                 transaction.update(userRef, {
+                    [`noteUsageByMonth.${currentMonth}`]: {
+                        pdfAi: typeToIncrement === 'pdfAi' ? 1 : 0,
+                        youtube: typeToIncrement === 'youtube' ? 1 : 0,
+                        lastUpdated: Timestamp.now()
+                    },
+                    updatedAt: now
                 });
             }
         });
@@ -317,29 +305,20 @@ export const updateUserNoteUsage = async (userId: string, typeToIncrement: 'pdfA
 };
 
 export const onUserProfileSnapshot = (userId: string, callback: (profile: UserProfileData | null) => void): (() => void) => {
-  const profileRef = doc(db, 'users', userId, 'profile', 'data');
-  return onSnapshot(profileRef, (docSnap) => {
+  const userRef = doc(db, 'users', userId);
+  return onSnapshot(userRef, (docSnap) => {
     if (docSnap.exists()) {
-      const data = docSnap.data() as Partial<UserProfileData>;
-      const defaultProfile = prepareInitialProfileData(userId, data.email, data.displayName, data.photoURL);
+      const data = docSnap.data() as UserProfileData;
       callback({
-        ...defaultProfile,
         ...data,
-        id: docSnap.id,
+        uid: docSnap.id,
         level: data.level || calculateLevel(data.points || 0),
-        lastOverallStreakUpdate: toDateSafeForProfile(data.lastOverallStreakUpdate),
-        lastNotesStreakUpdate: toDateSafeForProfile(data.lastNotesStreakUpdate),
-        createdAt: toDateSafeForProfile(data.createdAt) || new Date(),
-        updatedAt: toDateSafeForProfile(data.updatedAt) || new Date(),
-        premiumAwardedUntil: toDateSafeForProfile(data.premiumAwardedUntil),
-        activeTier: data.activeTier || defaultProfile.activeTier,
-        notesStreakCount: data.notesStreakCount || 0,
-        notesCreatedCount: data.notesCreatedCount || 0,
-        pdfNotesCreatedCount: data.pdfNotesCreatedCount || 0,
-        youtubeNotesCreatedCount: data.youtubeNotesCreatedCount || 0,
-        aiNotesCreatedCount: data.aiNotesCreatedCount || 0,
-        noteFlashcardsCreatedCount: data.noteFlashcardsCreatedCount || 0,
-        noteChatsStartedCount: data.noteChatsStartedCount || 0,
+        lastOverallStreakUpdate: toDateSafe(data.lastOverallStreakUpdate),
+        lastNotesStreakUpdate: toDateSafe(data.lastNotesStreakUpdate),
+        createdAt: toDateSafe(data.createdAt) || new Date(),
+        updatedAt: toDateSafe(data.updatedAt) || new Date(),
+        lastLoginAt: toDateSafe(data.lastLoginAt) || new Date(),
+        premiumAwardedUntil: toDateSafe(data.premiumAwardedUntil),
       });
     } else {
       callback(null);
@@ -350,42 +329,48 @@ export const onUserProfileSnapshot = (userId: string, callback: (profile: UserPr
   });
 };
 
+const createProfileInTransaction = (
+    transaction: any,
+    profileRef: any,
+    userId: string,
+    userDetails: { email?: string | null; displayName?: string | null; photoURL?: string | null; } = {}
+) => {
+    const initialData = prepareInitialProfileData(
+        userId,
+        userDetails.email,
+        userDetails.displayName,
+        userDetails.photoURL
+    );
+    const fullInitialData = {
+        ...initialData,
+        lastLoginAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+    };
+    transaction.set(profileRef, fullInitialData);
+    return fullInitialData;
+};
+
+
 export const updateUserPointsAndLevel = async (
     userId: string,
     pointsToAdd: number,
     userDetailsForCreation?: { email?: string | null; displayName?: string | null; photoURL?: string | null; }
 ): Promise<{ newPoints: number, newLevel: number, newTier?: UserTier }> => {
-  const profileRef = doc(db, 'users', userId, 'profile', 'data');
+  const userRef = doc(db, 'users', userId);
 
   return runTransaction(db, async (transaction) => {
-    const profileSnap = await transaction.get(profileRef);
+    const userSnap = await transaction.get(userRef);
     let newTierAwarded: UserTier | undefined = undefined;
 
-    if (!profileSnap.exists()) {
-        // --- START: CORRECTED PROFILE CREATION ---
-        const userRef = doc(db, 'users', userId);
-        const userSnap = await transaction.get(userRef);
-        const topLevelData = userSnap.exists() ? userSnap.data() : {};
-
-        const initialData = prepareInitialProfileData(
-            userId,
-            userDetailsForCreation?.email || topLevelData.email,
-            userDetailsForCreation?.displayName || topLevelData.displayName,
-            userDetailsForCreation?.photoURL || topLevelData.photoURL
-        );
-
-        // Inherit subscription status from the top-level document
-        initialData.activeTier = topLevelData.activeTier || initialData.activeTier;
-        initialData.subscriptionStatus = topLevelData.subscriptionStatus || null;
-
+    if (!userSnap.exists()) {
+        const initialData = createProfileInTransaction(transaction, userRef, userId, userDetailsForCreation);
         const newPoints = pointsToAdd;
         initialData.points = newPoints;
         initialData.level = calculateLevel(newPoints);
-        transaction.set(profileRef, initialData);
+        transaction.update(userRef, { points: newPoints, level: initialData.level });
         return { newPoints: initialData.points, newLevel: initialData.level, newTier: undefined };
-        // --- END: CORRECTED PROFILE CREATION ---
     } else {
-        const currentProfileData = profileSnap.data() as UserProfileData;
+        const currentProfileData = userSnap.data() as UserProfileData;
         const currentPoints = currentProfileData.points || 0;
         const newPoints = currentPoints + pointsToAdd;
         const newLevel = calculateLevel(newPoints);
@@ -396,9 +381,9 @@ export const updateUserPointsAndLevel = async (
             updatedAt: serverTimestamp(),
         };
 
-        const currentTier = await getUserTier(userId, currentProfileData.email, currentProfileData);
+        const currentTier = await getUserTier(userId, currentProfileData.email);
         if ( (currentTier === 'basic' || currentTier === 'pro') &&
-            (!currentProfileData.premiumAwardedUntil || toDateSafeForProfile(currentProfileData.premiumAwardedUntil)! < new Date()) &&
+            (!currentProfileData.premiumAwardedUntil || toDateSafe(currentProfileData.premiumAwardedUntil)! < new Date()) &&
             newPoints >= POINTS_FOR_FREE_PREMIUM && currentPoints < POINTS_FOR_FREE_PREMIUM
         ) {
             const oneWeekFromNow = new Date();
@@ -406,7 +391,7 @@ export const updateUserPointsAndLevel = async (
             updateData.premiumAwardedUntil = Timestamp.fromDate(oneWeekFromNow);
             newTierAwarded = 'premium';
         }
-        transaction.update(profileRef, updateData);
+        transaction.update(userRef, updateData);
         return { newPoints, newLevel, newTier: newTierAwarded };
     }
   });
@@ -417,28 +402,13 @@ export const updateUserStreak = async (
     userDetailsForCreation?: { email?: string | null; displayName?: string | null; photoURL?: string | null; },
     streakType: 'overall' | 'notes' = 'overall'
 ): Promise<{ newStreakCount: number, streakBroken: boolean }> => {
-  const profileRef = doc(db, 'users', userId, 'profile', 'data');
+  const userRef = doc(db, 'users', userId);
 
   return runTransaction(db, async (transaction) => {
-    const profileSnap = await transaction.get(profileRef);
+    const userSnap = await transaction.get(userRef);
 
-    if (!profileSnap.exists()) {
-        // --- START: CORRECTED PROFILE CREATION ---
-        const userRef = doc(db, 'users', userId);
-        const userSnap = await transaction.get(userRef);
-        const topLevelData = userSnap.exists() ? userSnap.data() : {};
-
-        const initialData = prepareInitialProfileData(
-            userId,
-            userDetailsForCreation?.email || topLevelData.email,
-            userDetailsForCreation?.displayName || topLevelData.displayName,
-            userDetailsForCreation?.photoURL || topLevelData.photoURL
-        );
-
-        // Inherit subscription status from the top-level document
-        initialData.activeTier = topLevelData.activeTier || initialData.activeTier;
-        initialData.subscriptionStatus = topLevelData.subscriptionStatus || null;
-
+    if (!userSnap.exists()) {
+        const initialData = createProfileInTransaction(transaction, userRef, userId, userDetailsForCreation);
         const now = Timestamp.now();
         if (streakType === 'overall') {
             initialData.overallStreakCount = 1;
@@ -447,11 +417,15 @@ export const updateUserStreak = async (
             initialData.notesStreakCount = 1;
             initialData.lastNotesStreakUpdate = now;
         }
-        transaction.set(profileRef, initialData);
+        transaction.update(userRef, {
+            overallStreakCount: initialData.overallStreakCount,
+            lastOverallStreakUpdate: initialData.lastOverallStreakUpdate,
+            notesStreakCount: initialData.notesStreakCount,
+            lastNotesStreakUpdate: initialData.lastNotesStreakUpdate,
+        });
         return { newStreakCount: 1, streakBroken: false };
-        // --- END: CORRECTED PROFILE CREATION ---
     } else {
-        const currentProfileData = profileSnap.data() as UserProfileData;
+        const currentProfileData = userSnap.data() as UserProfileData;
         let currentStreak: number;
         let lastUpdateRaw: Timestamp | Date | null;
         const now = new Date();
@@ -465,7 +439,7 @@ export const updateUserStreak = async (
             lastUpdateRaw = currentProfileData.lastNotesStreakUpdate;
         }
 
-        const lastUpdate = lastUpdateRaw ? toDateSafeForProfile(lastUpdateRaw) : null;
+        const lastUpdate = lastUpdateRaw ? toDateSafe(lastUpdateRaw) : null;
         let shouldUpdate = false;
 
         if (lastUpdate) {
@@ -496,7 +470,7 @@ export const updateUserStreak = async (
                 updateData.notesStreakCount = currentStreak;
                 updateData.lastNotesStreakUpdate = Timestamp.fromDate(now);
             }
-            transaction.update(profileRef, updateData);
+            transaction.update(userRef, updateData);
         }
         return { newStreakCount: currentStreak, streakBroken };
     }
@@ -508,38 +482,18 @@ export const addUserBadge = async (
   badgeId: string,
   userDetailsForCreation?: { email?: string | null; displayName?: string | null; photoURL?: string | null; }
 ): Promise<void> => {
-  const profileRef = doc(db, 'users', userId, 'profile', 'data');
+  const userRef = doc(db, 'users', userId);
   await runTransaction(db, async (transaction) => {
-    const profileSnap = await transaction.get(profileRef);
-    if (!profileSnap.exists()) {
-        // --- START: CORRECTED PROFILE CREATION ---
-        const userRef = doc(db, 'users', userId);
-        const userSnap = await transaction.get(userRef);
-        const topLevelData = userSnap.exists() ? userSnap.data() : {};
-
-        const initialData = prepareInitialProfileData(
-            userId,
-            userDetailsForCreation?.email || topLevelData.email,
-            userDetailsForCreation?.displayName || topLevelData.displayName,
-            userDetailsForCreation?.photoURL,
-        );
-        
-        // Inherit subscription status from the top-level document
-        initialData.activeTier = topLevelData.activeTier || initialData.activeTier;
-        initialData.subscriptionStatus = topLevelData.subscriptionStatus || null;
-
+    const userSnap = await transaction.get(userRef);
+    if (!userSnap.exists()) {
+        const initialData = createProfileInTransaction(transaction, userRef, userId, userDetailsForCreation);
         initialData.badges = [badgeId];
-        transaction.set(profileRef, initialData);
-        // --- END: CORRECTED PROFILE CREATION ---
+        transaction.update(userRef, { badges: initialData.badges });
     } else {
-        const currentProfileData = profileSnap.data() as UserProfileData;
-        const badges = currentProfileData.badges || [];
-        if (!badges.includes(badgeId)) {
-            transaction.update(profileRef, {
-                badges: arrayUnion(badgeId),
-                updatedAt: serverTimestamp()
-            });
-        }
+        transaction.update(userRef, {
+            badges: arrayUnion(badgeId),
+            updatedAt: serverTimestamp()
+        });
     }
   });
 };
@@ -550,31 +504,15 @@ export const incrementUserProfileCounter = async (
     incrementValue: number = 1,
     userDetailsForCreation?: { email?: string | null; displayName?: string | null; photoURL?: string | null; }
 ): Promise<void> => {
-    const profileRef = doc(db, 'users', userId, 'profile', 'data');
+    const userRef = doc(db, 'users', userId);
     await runTransaction(db, async (transaction) => {
-        const profileSnap = await transaction.get(profileRef);
-        if (!profileSnap.exists()) {
-            // --- START: CORRECTED PROFILE CREATION ---
-            const userRef = doc(db, 'users', userId);
-            const userSnap = await transaction.get(userRef);
-            const topLevelData = userSnap.exists() ? userSnap.data() : {};
-            
-            const initialData = prepareInitialProfileData(
-                userId,
-                userDetailsForCreation?.email || topLevelData.email,
-                userDetailsForCreation?.displayName || topLevelData.displayName,
-                userDetailsForCreation?.photoURL,
-            );
-
-            // Inherit subscription status from the top-level document
-            initialData.activeTier = topLevelData.activeTier || initialData.activeTier;
-            initialData.subscriptionStatus = topLevelData.subscriptionStatus || null;
-
+        const userSnap = await transaction.get(userRef);
+        if (!userSnap.exists()) {
+            const initialData = createProfileInTransaction(transaction, userRef, userId, userDetailsForCreation);
             (initialData as any)[counterField] = incrementValue;
-            transaction.set(profileRef, initialData);
-            // --- END: CORRECTED PROFILE CREATION ---
+            transaction.update(userRef, { [counterField]: incrementValue });
         } else {
-            transaction.update(profileRef, {
+            transaction.update(userRef, {
                 [counterField]: increment(incrementValue),
                 updatedAt: serverTimestamp()
             });
@@ -596,27 +534,4 @@ export const calculateLevel = (points: number): number => {
         pointsNeededForNextLevel = Math.floor(pointsNeededForNextLevel * factor);
     }
     return level;
-};
-
-export const createUserProfileDocument = async (
-    userId: string,
-    email?: string | null,
-    displayName?: string | null,
-    photoURL?: string | null,
-    transaction?: any 
-): Promise<UserProfileData> => {
-  const profileRef = doc(db, 'users', userId, 'profile', 'data');
-  const initialData = prepareInitialProfileData(userId, email, displayName, photoURL);
-
-  if (transaction) {
-    transaction.set(profileRef, initialData);
-  } else {
-    await setDoc(profileRef, initialData);
-  }
-  return {
-      ...initialData,
-      createdAt: (initialData.createdAt as Timestamp).toDate(),
-      updatedAt: (initialData.updatedAt as Timestamp).toDate(),
-      activeTier: initialData.activeTier,
-  };
 };
