@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { 
     createUserWithEmailAndPassword, 
     updateProfile,
     GoogleAuthProvider, 
-    signInWithPopup 
+    signInWithPopup,
+    User
 } from 'firebase/auth';
-import { auth, db } from '../lib/firebase'; // Adjust path if necessary
+import { auth, db } from '../lib/firebase';
 import { 
     doc, 
     setDoc, 
@@ -15,9 +16,8 @@ import {
     updateDoc, 
     serverTimestamp 
 } from 'firebase/firestore';
+import { prepareInitialProfileData } from '../lib/current-paying-user';
 
-// -------- SignUpForm Component --------
-// Removed isDarkMode prop
 export function SignUpForm() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -36,19 +36,17 @@ export function SignUpForm() {
       const user = result.user; 
       const fullName = `${firstName.trim()} ${lastName.trim()}`; 
       await updateProfile(user, { displayName: fullName }); 
+      
       const userDocRef = doc(db, "users", user.uid); 
-      await setDoc(userDocRef, { 
-        uid: user.uid, 
-        email: user.email, 
-        firstName: firstName.trim(), 
-        lastName: lastName.trim(), 
-        name: fullName, 
-        displayName: fullName, 
-        createdAt: serverTimestamp(), 
-        tokens: 500, 
-        uploadBonusCount: 0, 
-        abuseWarningCount: 0, 
+      const initialData = prepareInitialProfileData(user.uid, user.email, fullName, user.photoURL, firstName, lastName);
+      
+      await setDoc(userDocRef, {
+          ...initialData,
+          createdAt: serverTimestamp(),
+          lastLoginAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
       }); 
+      
       navigate('/onboarding'); 
     }
     catch (err: any) { 
@@ -62,7 +60,6 @@ export function SignUpForm() {
     }
   };
   
-  // Styles are now directly using dark: prefixes, matching Login.tsx
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div className="grid grid-cols-2 gap-x-4">
@@ -125,33 +122,39 @@ export function SignUpForm() {
   );
 }
 
-// -------- GoogleSignUp Component --------
-// Removed isDarkMode prop
 export function GoogleSignUp() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  const saveOrUpdateUserData = async (user: any) => {
+  const saveOrUpdateUserData = async (user: User) => {
     const userDocRef = doc(db, "users", user.uid);
     try {
       const docSnap = await getDoc(userDocRef);
-      const name = user.displayName || user.providerData[0]?.displayName || "Anonymous User";
-      const photoURL = user.photoURL || user.providerData[0]?.photoURL || null;
+      const name = user.displayName || "Anonymous User";
+      const photoURL = user.photoURL || null;
+      const [firstName, ...lastNameParts] = name.split(' ');
+      const lastName = lastNameParts.join(' ');
+
 
       if (!docSnap.exists()) {
+        const initialData = prepareInitialProfileData(user.uid, user.email, name, photoURL, firstName, lastName);
         await setDoc(userDocRef, {
-          uid: user.uid, email: user.email, name: name, displayName: name, photoURL: photoURL,
-          createdAt: serverTimestamp(), lastLoginAt: serverTimestamp(), tokens: 500,
-          uploadBonusCount: 0, abuseWarningCount: 0,
+            ...initialData,
+            createdAt: serverTimestamp(),
+            lastLoginAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
         });
       } else {
         await updateDoc(userDocRef, {
-          name: name, displayName: name, email: user.email, photoURL: photoURL,
+          name: name,
+          displayName: name,
+          email: user.email,
+          photoURL: photoURL,
           lastLoginAt: serverTimestamp()
         });
       }
-    } catch (err) { // Renamed to avoid conflict with state
+    } catch (err) {
       console.error("Error saving or updating user data:", err);
       throw err;
     }
@@ -181,7 +184,6 @@ export function GoogleSignUp() {
     }
   };
 
-  // Styles are now directly using dark: prefixes, matching Login.tsx
   return (
     <>
       <button
@@ -208,10 +210,7 @@ export function GoogleSignUp() {
   );
 }
 
-
-// -------- Main SignUp Page Component --------
 function SignUp() {
-  // This state is crucial for triggering re-renders for JS-calculated styles like cardShadow
   const [effectiveDarkMode, setEffectiveDarkMode] = useState(() => {
     const isIlluminateEnabledItem = localStorage.getItem('isIlluminateEnabled');
     const isIlluminateEnabled = isIlluminateEnabledItem ? JSON.parse(isIlluminateEnabledItem) : false;
@@ -221,7 +220,7 @@ function SignUp() {
     return window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
 
-  useEffect(() => {
+  React.useEffect(() => {
     const applyAndSetTheme = () => {
         const isIlluminateEnabledItem = localStorage.getItem('isIlluminateEnabled');
         const isIlluminateEnabled = isIlluminateEnabledItem ? JSON.parse(isIlluminateEnabledItem) : false;
@@ -263,13 +262,10 @@ function SignUp() {
   }, []); 
 
   const isIlluminateActive = JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'false');
-  // cardShadow calculation uses effectiveDarkMode state (which reflects the theme on <html>)
-  // and isIlluminateActive to match Login.tsx logic
   const cardShadow = effectiveDarkMode && !isIlluminateActive
     ? '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 20px 40px -10px rgba(128, 90, 213, 0.15)' 
     : '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)';
 
-  // Main layout uses dark: prefixes
   return (
     <div className="min-h-screen font-poppins flex flex-col bg-gray-100 text-gray-900 dark:bg-[#0C0E1A] dark:text-gray-200">
       <header className="py-6 px-4 sm:px-6 h-20"></header>
@@ -281,7 +277,6 @@ function SignUp() {
           <h2 className="text-3xl font-bold text-center text-gray-900 dark:text-white mb-2">Sign Up</h2>
           <p className="text-center text-gray-600 dark:text-gray-400 mb-8 text-sm whitespace-nowrap"> Learn in minutes. No credit card required. </p>
           
-          {/* Children components no longer receive isDarkMode prop */}
           <GoogleSignUp /> 
           
           <div className="flex items-center my-7"> 
@@ -301,7 +296,7 @@ function SignUp() {
         </div>
       </main>
       <footer className="py-8 bg-gray-100 dark:bg-[#0C0E1A]"> 
-        <div className="text-center text-xs text-gray-500 px-4"> {/* Footer text often muted in both light/dark */}
+        <div className="text-center text-xs text-gray-500 px-4">
           <p className="whitespace-nowrap overflow-hidden text-ellipsis sm:whitespace-normal"> 
             By creating or entering an account, you agree to the{' '} 
             <a href="/terms" className="font-medium text-indigo-600 hover:text-indigo-500 dark:text-purple-400 dark:hover:text-purple-300 transition-colors duration-200"> Terms of Service </a>{' '} 
