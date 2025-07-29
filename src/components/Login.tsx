@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { auth, db } from '../lib/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, User } from 'firebase/auth';
 import { googleSignIn, emailSignIn } from '../lib/login-firebase';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { prepareInitialProfileData } from '../lib/current-paying-user';
 
 function Login() {
   const navigate = useNavigate();
@@ -19,7 +20,7 @@ function Login() {
         updateAndNavigate(user);
       }
     });
-    // Theme listener (for dynamic OS/localStorage changes during component lifecycle)
+    
     const applyTheme = () => {
       const isIlluminateEnabled = JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'false');
       if (isIlluminateEnabled) {
@@ -34,7 +35,7 @@ function Login() {
         }
       }
     };
-    applyTheme(); // Apply on mount based on current state of <html> set by index.html script or previous interactions
+    applyTheme();
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     mediaQuery.addEventListener('change', applyTheme);
     window.addEventListener('storage', (event) => { if (event.key === 'isIlluminateEnabled') applyTheme(); });
@@ -46,9 +47,39 @@ function Login() {
     };
   }, [navigate]);
 
-  const updateAndNavigate = async (user: any) => {
-    try { const userDocRef = doc(db, 'users', user.uid); const docSnap = await getDoc(userDocRef); const name = user.displayName || user.providerData?.[0]?.displayName || "Anonymous User"; const photoURL = user.photoURL || user.providerData?.[0]?.photoURL || null; if (docSnap.exists()) { await updateDoc(userDocRef, { name, displayName: name, email: user.email, photoURL, lastLoginAt: serverTimestamp() }); } else { await setDoc(userDocRef, { uid: user.uid, email: user.email, name, displayName: name, photoURL, createdAt: serverTimestamp(), lastLoginAt: serverTimestamp(), tokens: 500, uploadBonusCount: 0, abuseWarningCount: 0 }); } navigate('/dashboard'); } catch (error) { console.error("Error on login user data update:", error); navigate('/dashboard'); }
+  const updateAndNavigate = async (user: User) => {
+    try {
+        const userDocRef = doc(db, 'users', user.uid);
+        const docSnap = await getDoc(userDocRef);
+        const name = user.displayName || "Anonymous User";
+        const photoURL = user.photoURL || null;
+
+        if (docSnap.exists()) {
+            await updateDoc(userDocRef, {
+                name,
+                displayName: name,
+                email: user.email,
+                photoURL,
+                lastLoginAt: serverTimestamp()
+            });
+        } else {
+            const [firstName, ...lastNameParts] = name.split(' ');
+            const lastName = lastNameParts.join(' ');
+            const initialData = prepareInitialProfileData(user.uid, user.email, name, photoURL, firstName, lastName);
+            await setDoc(userDocRef, {
+                ...initialData,
+                createdAt: serverTimestamp(),
+                lastLoginAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+            });
+        }
+        navigate('/dashboard');
+    } catch (error) {
+        console.error("Error on login user data update:", error);
+        navigate('/dashboard');
+    }
   };
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); setErrorMessage(''); setFormLoading(true); try { const user = await emailSignIn(email, password); if (user) await updateAndNavigate(user); } catch (error: any) { console.error("Login failed", error); if (error.code === "auth/user-not-found" || error.code === "auth/invalid-email") setErrorMessage("No account found with this email."); else if (error.code === "auth/wrong-password" || error.code === "auth/invalid-credential") setErrorMessage("Incorrect email or password."); else setErrorMessage("Login failed. Please try again."); } finally { setFormLoading(false); }
   };
@@ -60,7 +91,6 @@ function Login() {
   const cardShadow = !isIlluminate && document.documentElement.classList.contains('dark') 
     ? '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 20px 40px -10px rgba(128, 90, 213, 0.15)' 
     : '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)';
-
 
   return (
     <div className="min-h-screen font-poppins flex flex-col bg-gray-100 text-gray-900 dark:bg-[#0C0E1A] dark:text-gray-200 illuminate-override">
@@ -85,7 +115,7 @@ function Login() {
         </div>
       </main>
       <footer className="py-8 bg-gray-100 dark:bg-[#0C0E1A]"> 
-        <div className="text-center text-xs text-gray-500 px-4"> {/* Footer text often muted in both light/dark */}
+        <div className="text-center text-xs text-gray-500 px-4">
           <p className="whitespace-nowrap overflow-hidden text-ellipsis sm:whitespace-normal"> 
             By creating or entering an account, you agree to the{' '} 
             <a href="/terms" className="font-medium text-indigo-600 hover:text-indigo-500 dark:text-purple-400 dark:hover:text-purple-300 transition-colors duration-200"> Terms of Service </a>{' '} 
