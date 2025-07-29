@@ -9,9 +9,10 @@ import {
   User,
   onAuthStateChanged
 } from 'firebase/auth';
-import { doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, deleteDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { auth, db, storage } from './firebase';
+import { UserProfileData } from './current-paying-user';
 
 interface UpdateProfileData {
   name?: string;
@@ -28,7 +29,6 @@ export class AuthError extends Error {
   }
 }
 
-// Helper function to reauthenticate user (for non-Google users)
 const reauthenticateUser = async (currentPassword: string) => {
   const user = auth.currentUser;
   if (!user?.email) throw new AuthError('No user email found');
@@ -40,12 +40,12 @@ const reauthenticateUser = async (currentPassword: string) => {
   }
 };
 
-// Get user data from Firestore
-export const getUserData = async (userId: string) => {
+export const getUserData = async (userId: string): Promise<UserProfileData | null> => {
   try {
-    const userDoc = await getDoc(doc(db, 'users', userId));
+    const userDocRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userDocRef);
     if (userDoc.exists()) {
-      return userDoc.data();
+      return userDoc.data() as UserProfileData;
     }
     return null;
   } catch (error) {
@@ -54,40 +54,38 @@ export const getUserData = async (userId: string) => {
   }
 };
 
-// Upload profile picture
 const uploadProfilePicture = async (userId: string, file: File): Promise<string> => {
   const fileExtension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
   const profilePicRef = ref(storage, `profile_pictures/${userId}.${fileExtension}`);
-
   try {
     const snapshot = await uploadBytes(profilePicRef, file);
-    const downloadURL = await getDownloadURL(snapshot.ref);
-    return downloadURL;
+    return await getDownloadURL(snapshot.ref);
   } catch (error) {
     console.error('Error uploading profile picture:', error);
     throw new AuthError('Failed to upload profile picture');
   }
 };
 
-// Delete profile picture
 export const deleteProfilePicture = async (userId: string) => {
   const user = auth.currentUser;
   if (!user) throw new AuthError('No user logged in');
 
   try {
-    // Delete from Storage (try common extensions)
     const possibleExtensions = ['jpg', 'jpeg', 'png'];
     for (const ext of possibleExtensions) {
       const profilePicRef = ref(storage, `profile_pictures/${userId}.${ext}`);
-      await deleteObject(profilePicRef).catch(() => {
-        // Ignore error if file doesn't exist
-      });
+      try {
+          await deleteObject(profilePicRef);
+      } catch (error: any) {
+          if (error.code !== 'storage/object-not-found') {
+              throw error;
+          }
+      }
     }
-
-    // Update auth profile and Firestore document
-    await updateProfile(user, { photoURL: '' });
+    await updateProfile(user, { photoURL: null });
     await updateDoc(doc(db, 'users', userId), {
-      photoURL: ''
+      photoURL: null,
+      updatedAt: serverTimestamp()
     });
   } catch (error) {
     console.error('Error deleting profile picture:', error);
@@ -95,77 +93,71 @@ export const deleteProfilePicture = async (userId: string) => {
   }
 };
 
-// Update user profile information
-export const updateUserProfile = async ({
-  name,
-  email,
-  currentPassword,
-  newPassword,
-  photoFile
-}: UpdateProfileData): Promise<void> => {
+export const updateUserProfile = async (
+  userId: string,
+  updateData: UpdateProfileData
+): Promise<User | null> => {
   const user = auth.currentUser;
-  if (!user) throw new AuthError('No user logged in');
+  if (!user || user.uid !== userId) throw new AuthError('User not authenticated correctly.');
 
   try {
-    // For email or password update (non-Google users), reauthenticate if needed
-    if (email || newPassword) {
-      if (!currentPassword) {
-        throw new AuthError('Current password is required');
-      }
-      await reauthenticateUser(currentPassword);
+    if ((updateData.email || updateData.newPassword) && updateData.currentPassword) {
+      await reauthenticateUser(updateData.currentPassword);
     }
 
-    const updates: Promise<void>[] = [];
-    const firestoreUpdates: Record<string, any> = {};
+    const authUpdates: { displayName?: string; photoURL?: string } = {};
+    const firestoreUpdates: Record<string, any> = { updatedAt: serverTimestamp() };
 
-    // Handle profile picture upload
-    if (photoFile) {
-      const photoURL = await uploadProfilePicture(user.uid, photoFile);
-      updates.push(updateProfile(user, { photoURL }));
+    if (updateData.photoFile) {
+      const photoURL = await uploadProfilePicture(user.uid, updateData.photoFile);
+      authUpdates.photoURL = photoURL;
       firestoreUpdates.photoURL = photoURL;
     }
 
-    // Update display name if provided
-    if (name && name !== user.displayName) {
-      updates.push(updateProfile(user, { displayName: name }));
-      firestoreUpdates.name = name;
+    if (updateData.name && updateData.name !== user.displayName) {
+      authUpdates.displayName = updateData.name;
+      firestoreUpdates.name = updateData.name;
+      firestoreUpdates.displayName = updateData.name;
+    }
+    
+    if (Object.keys(authUpdates).length > 0) {
+        await updateProfile(user, authUpdates);
+    }
+    
+    if (updateData.email && updateData.email !== user.email) {
+      await updateEmail(user, updateData.email);
+      firestoreUpdates.email = updateData.email;
     }
 
-    // Update email if provided
-    if (email && email !== user.email) {
-      updates.push(updateEmail(user, email));
-      firestoreUpdates.email = email;
+    if (updateData.newPassword) {
+      await updatePassword(user, updateData.newPassword);
     }
 
-    // Update password if provided
-    if (newPassword) {
-      updates.push(updatePassword(user, newPassword));
+    if (Object.keys(firestoreUpdates).length > 1) {
+      await updateDoc(doc(db, 'users', user.uid), firestoreUpdates);
     }
+    
+    await user.reload();
+    return auth.currentUser;
 
-    // Update Firestore if there are any changes
-    if (Object.keys(firestoreUpdates).length > 0) {
-      updates.push(updateDoc(doc(db, 'users', user.uid), firestoreUpdates));
-    }
-
-    await Promise.all(updates);
   } catch (error: any) {
     if (error instanceof AuthError) throw error;
     switch (error.code) {
       case 'auth/requires-recent-login':
-        throw new AuthError('Please sign in again to update your profile');
+        throw new AuthError('Please sign in again to perform this action.');
       case 'auth/email-already-in-use':
-        throw new AuthError('Email is already in use');
+        throw new AuthError('This email address is already in use.');
       case 'auth/invalid-email':
-        throw new AuthError('Invalid email address');
+        throw new AuthError('The email address is not valid.');
       case 'auth/weak-password':
-        throw new AuthError('Password should be at least 6 characters');
+        throw new AuthError('Password must be at least 6 characters long.');
       default:
-        throw new AuthError('Failed to update profile');
+        console.error('Update profile error:', error);
+        throw new AuthError('An unexpected error occurred while updating the profile.');
     }
   }
 };
 
-// Sign out user
 export const signOutUser = async (): Promise<void> => {
   try {
     await signOut(auth);
@@ -174,49 +166,34 @@ export const signOutUser = async (): Promise<void> => {
   }
 };
 
-// Delete user account (including deleting the Firestore document for the user)
-// For non-Google users, a current password is required. For Google users, the parameter can be omitted.
 export const deleteUserAccount = async (currentPassword?: string): Promise<void> => {
   const user = auth.currentUser;
   if (!user) throw new AuthError('No user logged in');
 
   try {
-    // For non-Google users, require reauthentication if currentPassword is provided; skip for Google users.
-    const isGoogle = user.providerData?.some((p: any) => p.providerId === 'google.com');
+    const isGoogle = user.providerData?.some((p) => p.providerId === 'google.com');
     if (!isGoogle) {
       if (!currentPassword) {
         throw new AuthError('Current password is required to delete your account');
       }
       await reauthenticateUser(currentPassword);
     }
-
-    // Delete profile picture if exists
-    await deleteProfilePicture(user.uid).catch(() => {
-      // Ignore error if profile picture doesn't exist
-    });
-
-    // Delete the user's Firestore document
+    await deleteProfilePicture(user.uid).catch(() => {});
     await deleteDoc(doc(db, 'users', user.uid));
-    
-    // Then delete the user account from Firebase Authentication
     await deleteUser(user);
   } catch (error: any) {
     if (error instanceof AuthError) throw error;
-    switch (error.code) {
-      case 'auth/requires-recent-login':
-        throw new AuthError('Please sign in again to delete your account');
-      default:
-        throw new AuthError('Failed to delete account');
+    if (error.code === 'auth/requires-recent-login') {
+      throw new AuthError('Please sign in again to delete your account');
     }
+    throw new AuthError('Failed to delete account');
   }
 };
 
-// Get current user
 export const getCurrentUser = (): User | null => {
   return auth.currentUser;
 };
 
-// Subscribe to auth state changes
 export const onAuthStateChange = (callback: (user: User | null) => void) => {
   return onAuthStateChanged(auth, callback);
 };
