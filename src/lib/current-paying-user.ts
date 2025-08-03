@@ -329,28 +329,6 @@ export const onUserProfileSnapshot = (userId: string, callback: (profile: UserPr
   });
 };
 
-const createProfileInTransaction = (
-    transaction: any,
-    profileRef: any,
-    userId: string,
-    userDetails: { email?: string | null; displayName?: string | null; photoURL?: string | null; } = {}
-) => {
-    const initialData = prepareInitialProfileData(
-        userId,
-        userDetails.email,
-        userDetails.displayName,
-        userDetails.photoURL
-    );
-    const fullInitialData = {
-        ...initialData,
-        lastLoginAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-    };
-    transaction.set(profileRef, fullInitialData);
-    return fullInitialData;
-};
-
-
 export const updateUserPointsAndLevel = async (
     userId: string,
     pointsToAdd: number,
@@ -363,12 +341,19 @@ export const updateUserPointsAndLevel = async (
     let newTierAwarded: UserTier | undefined = undefined;
 
     if (!userSnap.exists()) {
-        const initialData = createProfileInTransaction(transaction, userRef, userId, userDetailsForCreation);
         const newPoints = pointsToAdd;
-        initialData.points = newPoints;
-        initialData.level = calculateLevel(newPoints);
-        transaction.update(userRef, { points: newPoints, level: initialData.level });
-        return { newPoints: initialData.points, newLevel: initialData.level, newTier: undefined };
+        const newLevel = calculateLevel(newPoints);
+        const initialData = prepareInitialProfileData(userId, userDetailsForCreation?.email, userDetailsForCreation?.displayName, userDetailsForCreation?.photoURL);
+        
+        const fullInitialData = {
+            ...initialData,
+            points: newPoints,
+            level: newLevel,
+            lastLoginAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        };
+        transaction.set(userRef, fullInitialData);
+        return { newPoints, newLevel, newTier: undefined };
     } else {
         const currentProfileData = userSnap.data() as UserProfileData;
         const currentPoints = currentProfileData.points || 0;
@@ -408,8 +393,9 @@ export const updateUserStreak = async (
     const userSnap = await transaction.get(userRef);
 
     if (!userSnap.exists()) {
-        const initialData = createProfileInTransaction(transaction, userRef, userId, userDetailsForCreation);
+        const initialData = prepareInitialProfileData(userId, userDetailsForCreation?.email, userDetailsForCreation?.displayName, userDetailsForCreation?.photoURL);
         const now = Timestamp.now();
+
         if (streakType === 'overall') {
             initialData.overallStreakCount = 1;
             initialData.lastOverallStreakUpdate = now;
@@ -417,12 +403,13 @@ export const updateUserStreak = async (
             initialData.notesStreakCount = 1;
             initialData.lastNotesStreakUpdate = now;
         }
-        transaction.update(userRef, {
-            overallStreakCount: initialData.overallStreakCount,
-            lastOverallStreakUpdate: initialData.lastOverallStreakUpdate,
-            notesStreakCount: initialData.notesStreakCount,
-            lastNotesStreakUpdate: initialData.lastNotesStreakUpdate,
-        });
+
+        const fullInitialData = {
+            ...initialData,
+            lastLoginAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+        };
+        transaction.set(userRef, fullInitialData);
         return { newStreakCount: 1, streakBroken: false };
     } else {
         const currentProfileData = userSnap.data() as UserProfileData;
@@ -486,9 +473,14 @@ export const addUserBadge = async (
   await runTransaction(db, async (transaction) => {
     const userSnap = await transaction.get(userRef);
     if (!userSnap.exists()) {
-        const initialData = createProfileInTransaction(transaction, userRef, userId, userDetailsForCreation);
+        const initialData = prepareInitialProfileData(userId, userDetailsForCreation?.email, userDetailsForCreation?.displayName, userDetailsForCreation?.photoURL);
         initialData.badges = [badgeId];
-        transaction.update(userRef, { badges: initialData.badges });
+        const fullInitialData = {
+            ...initialData,
+            lastLoginAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        };
+        transaction.set(userRef, fullInitialData);
     } else {
         transaction.update(userRef, {
             badges: arrayUnion(badgeId),
@@ -508,9 +500,14 @@ export const incrementUserProfileCounter = async (
     await runTransaction(db, async (transaction) => {
         const userSnap = await transaction.get(userRef);
         if (!userSnap.exists()) {
-            const initialData = createProfileInTransaction(transaction, userRef, userId, userDetailsForCreation);
+            const initialData = prepareInitialProfileData(userId, userDetailsForCreation?.email, userDetailsForCreation?.displayName, userDetailsForCreation?.photoURL);
             (initialData as any)[counterField] = incrementValue;
-            transaction.update(userRef, { [counterField]: incrementValue });
+            const fullInitialData = {
+                ...initialData,
+                lastLoginAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            };
+            transaction.set(userRef, fullInitialData);
         } else {
             transaction.update(userRef, {
                 [counterField]: increment(incrementValue),
