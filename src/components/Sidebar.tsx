@@ -65,8 +65,9 @@ export function Sidebar({
     const authUnsubscribe = auth.onAuthStateChanged((user) => {
       if (profileListenerUnsubscribe) {
         profileListenerUnsubscribe();
+        profileListenerUnsubscribe = null;
       }
-      
+
       setCurrentUser(user);
       setShowInitialAvatarGlow(false);
       setShowTags(false);
@@ -74,21 +75,6 @@ export function Sidebar({
       if (user) {
         setUserTier('loading');
 
-        profileListenerUnsubscribe = onUserProfileSnapshot(user.uid, (profile) => {
-          if (profile) {
-            setUserTier(profile.activeTier || 'basic');
-          } else {
-            const email = user.email?.toLowerCase();
-            if (email && PREMIUM_EMAILS.map(e => e.toLowerCase()).includes(email)) {
-                setUserTier('premium');
-            } else if (email && PRO_EMAILS.map(e => e.toLowerCase()).includes(email)) {
-                setUserTier('pro');
-            } else {
-                setUserTier('basic');
-            }
-          }
-        });
-        
         const userIsDev = user.email ? DEV_EMAILS.includes(user.email) : false;
         const userIsIntern = user.email ? INTERN_EMAILS.includes(user.email) : false;
         setIsDev(userIsDev);
@@ -96,6 +82,21 @@ export function Sidebar({
         if (userIsDev || userIsIntern) {
           setShowInitialAvatarGlow(true);
         }
+        
+        profileListenerUnsubscribe = onUserProfileSnapshot(user.uid, (profile) => {
+          if (profile) {
+            setUserTier(profile.activeTier || 'basic');
+          } else {
+            const email = user.email?.toLowerCase();
+            if (email && PREMIUM_EMAILS.map(e => e.toLowerCase()).includes(email)) {
+              setUserTier('premium');
+            } else if (email && PRO_EMAILS.map(e => e.toLowerCase()).includes(email)) {
+              setUserTier('pro');
+            } else {
+              setUserTier('basic');
+            }
+          }
+        });
       } else {
         setCurrentUser(null);
         setUserTier('loading');
@@ -111,7 +112,6 @@ export function Sidebar({
       }
     };
   }, []);
-
   
   const handleInitialGlowEnd = () => {
     setShowInitialAvatarGlow(false);
@@ -249,11 +249,7 @@ export function Sidebar({
 {(!isCollapsed || isMobileOpen) && (
   <span className="flex items-center gap-2">
     <span className="whitespace-nowrap">{item.label}</span>
-    {item.isBeta && (
-      <span className="text-[9px] font-bold uppercase tracking-wider bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-1.5 py-0 rounded-full">
-        Beta
-      </span>
-    )}
+    
   </span>
 )}
                   </button>
