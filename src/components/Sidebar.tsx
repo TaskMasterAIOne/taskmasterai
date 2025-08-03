@@ -65,16 +65,18 @@ export function Sidebar({
     const authUnsubscribe = auth.onAuthStateChanged((user) => {
       if (profileListenerUnsubscribe) {
         profileListenerUnsubscribe();
-        profileListenerUnsubscribe = null;
       }
-
+      
       setCurrentUser(user);
       setShowInitialAvatarGlow(false);
       setShowTags(false);
 
       if (user) {
         setUserTier('loading');
-
+        const email = user.email?.toLowerCase();
+        const isHardcodedPremium = email && PREMIUM_EMAILS.map(e => e.toLowerCase()).includes(email);
+        const isHardcodedPro = email && PRO_EMAILS.map(e => e.toLowerCase()).includes(email);
+        
         const userIsDev = user.email ? DEV_EMAILS.includes(user.email) : false;
         const userIsIntern = user.email ? INTERN_EMAILS.includes(user.email) : false;
         setIsDev(userIsDev);
@@ -82,21 +84,23 @@ export function Sidebar({
         if (userIsDev || userIsIntern) {
           setShowInitialAvatarGlow(true);
         }
-        
+
         profileListenerUnsubscribe = onUserProfileSnapshot(user.uid, (profile) => {
           if (profile) {
-            setUserTier(profile.activeTier || 'basic');
-          } else {
-            const email = user.email?.toLowerCase();
-            if (email && PREMIUM_EMAILS.map(e => e.toLowerCase()).includes(email)) {
-              setUserTier('premium');
-            } else if (email && PRO_EMAILS.map(e => e.toLowerCase()).includes(email)) {
-              setUserTier('pro');
+            // Profile exists, use its tier, but override if it's 'basic' for a hardcoded user
+            if (profile.activeTier === 'basic' && (isHardcodedPremium || isHardcodedPro)) {
+              setUserTier(isHardcodedPremium ? 'premium' : 'pro');
             } else {
-              setUserTier('basic');
+              setUserTier(profile.activeTier || 'basic');
             }
+          } else {
+            // No profile yet, determine tier from hardcoded lists
+            if (isHardcodedPremium) setUserTier('premium');
+            else if (isHardcodedPro) setUserTier('pro');
+            else setUserTier('basic');
           }
         });
+
       } else {
         setCurrentUser(null);
         setUserTier('loading');
@@ -112,6 +116,7 @@ export function Sidebar({
       }
     };
   }, []);
+
   
   const handleInitialGlowEnd = () => {
     setShowInitialAvatarGlow(false);
@@ -145,7 +150,7 @@ export function Sidebar({
 
   const sidebarContainerBg = "bg-white dark:bg-[#12141D]";
   const sidebarTextColor = "text-gray-500 dark:text-gray-400";
-  const sidebarBorderColor = "border-transparent dark:border-transparent";
+const sidebarBorderColor = "border-transparent dark:border-transparent";
   const menuItemHoverBg = "hover:bg-gray-100 dark:hover:bg-[#1A1D29]";
   const menuItemHoverText = "hover:text-gray-800 dark:hover:text-gray-100";
   const activeMenuItemBg = "bg-indigo-50 dark:bg-[#635BFF]/20";
@@ -249,7 +254,6 @@ export function Sidebar({
 {(!isCollapsed || isMobileOpen) && (
   <span className="flex items-center gap-2">
     <span className="whitespace-nowrap">{item.label}</span>
-    
   </span>
 )}
                   </button>
