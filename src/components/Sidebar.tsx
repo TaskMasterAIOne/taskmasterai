@@ -87,14 +87,12 @@ export function Sidebar({
 
         profileListenerUnsubscribe = onUserProfileSnapshot(user.uid, (profile) => {
           if (profile) {
-            // Profile exists, use its tier, but override if it's 'basic' for a hardcoded user
             if (profile.activeTier === 'basic' && (isHardcodedPremium || isHardcodedPro)) {
               setUserTier(isHardcodedPremium ? 'premium' : 'pro');
             } else {
               setUserTier(profile.activeTier || 'basic');
             }
           } else {
-            // No profile yet, determine tier from hardcoded lists
             if (isHardcodedPremium) setUserTier('premium');
             else if (isHardcodedPro) setUserTier('pro');
             else setUserTier('basic');
@@ -116,7 +114,6 @@ export function Sidebar({
       }
     };
   }, []);
-
   
   const handleInitialGlowEnd = () => {
     setShowInitialAvatarGlow(false);
@@ -150,7 +147,7 @@ export function Sidebar({
 
   const sidebarContainerBg = "bg-white dark:bg-[#12141D]";
   const sidebarTextColor = "text-gray-500 dark:text-gray-400";
-const sidebarBorderColor = "border-transparent dark:border-transparent";
+  const sidebarBorderColor = "border-transparent dark:border-transparent";
   const menuItemHoverBg = "hover:bg-gray-100 dark:hover:bg-[#1A1D29]";
   const menuItemHoverText = "hover:text-gray-800 dark:hover:text-gray-100";
   const activeMenuItemBg = "bg-indigo-50 dark:bg-[#635BFF]/20";
@@ -203,19 +200,18 @@ const sidebarBorderColor = "border-transparent dark:border-transparent";
       <aside 
         onClick={(e) => e.stopPropagation()}
         className={`fixed top-0 left-0 h-full ${sidebarContainerBg} ${sidebarBorderColor} flex flex-col py-4 px-3 font-poppins border-r z-[60] transition-all duration-300 ease-in-out ${isCollapsed && !isMobileOpen ? "md:w-20" : "md:w-64"} ${isMobileOpen ? "w-64 translate-x-0" : "-translate-x-full md:translate-x-0"} md:h-full`}>
-<div className={`mb-5 flex items-center h-[44px] relative ${isCollapsed && !isMobileOpen ? "justify-center" : "justify-between"}`}>
-    <a href="/" title="TaskMaster AI">
-        {(!isCollapsed || isMobileOpen) ? (
-            <div className="ml-1">
-                <LogoSmall />
-            </div>
-        ) : (
-            <div className="ml-[-15px]">
-                <CollapsedLogoIcon />
-            </div>
-        )}
-    </a>
-
+        <div className={`mb-5 flex items-center h-[44px] relative ${isCollapsed && !isMobileOpen ? "justify-center" : "justify-between"}`}>
+            <a href="/" title="TaskMaster AI">
+                {(!isCollapsed || isMobileOpen) ? (
+                    <div className="ml-1">
+                        <LogoSmall />
+                    </div>
+                ) : (
+                    <div className="ml-[-15px]">
+                        <CollapsedLogoIcon />
+                    </div>
+                )}
+            </a>
             {isMobileOpen && (
                 <button
                     onClick={() => setIsMobileOpen(false)}
@@ -225,23 +221,21 @@ const sidebarBorderColor = "border-transparent dark:border-transparent";
                     <PanelRightOpen className="w-5 h-5" strokeWidth={2} />
                 </button>
             )}
-<button
-    onClick={onToggleCollapse}
-    className={`hidden md:block p-2 rounded-lg transition-all duration-300 ease-in-out z-10 ${sidebarTextColor} ${
-        isCollapsed && !isMobileOpen 
-            ? `absolute top-0 -translate-y-[-3.9px] right-[-5px] translate-x-1/2 ${sidebarContainerBg} hover:scale-110` 
-            : `${menuItemHoverBg} ${menuItemHoverText}`
-    }`}
-    title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
->
-    {isCollapsed 
-        ? <PanelRightClose className="w-5 h-5" strokeWidth={2} /> 
-        : <PanelRightOpen className="w-5 h-5" strokeWidth={2} />
-    }
-</button>
-
+            <button
+                onClick={onToggleCollapse}
+                className={`hidden md:block p-2 rounded-lg transition-all duration-300 ease-in-out z-10 ${sidebarTextColor} ${
+                    isCollapsed && !isMobileOpen 
+                        ? `absolute top-0 -translate-y-[-3.9px] right-[-5px] translate-x-1/2 ${sidebarContainerBg} hover:scale-110` 
+                        : `${menuItemHoverBg} ${menuItemHoverText}`
+                }`}
+                title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+                {isCollapsed 
+                    ? <PanelRightClose className="w-5 h-5" strokeWidth={2} /> 
+                    : <PanelRightOpen className="w-5 h-5" strokeWidth={2} />
+                }
+            </button>
         </div>
-
         <nav className="flex-grow">
           <ul className="flex flex-col gap-1.5">
             {menuItems.map((item) => {
@@ -251,18 +245,17 @@ const sidebarBorderColor = "border-transparent dark:border-transparent";
                 <li key={item.label}>
                   <button onClick={() => handleNavigation(item.path)} className={`w-full flex items-center gap-3 px-2.5 py-2.5 text-sm rounded-lg transition-all duration-200 ease-out transform hover:scale-[1.01] ${sidebarTextColor} ${menuItemHoverBg} ${menuItemHoverText} ${isActive ? `${activeMenuItemBg} ${activeMenuItemText} ${activeMenuItemFontWeight}` : ""}`} title={isCollapsed && !isMobileOpen ? item.label : undefined}>
                     <Icon className="w-5 h-5 min-w-[1.25rem]" strokeWidth={isActive ? 2.5 : 2} />
-{(!isCollapsed || isMobileOpen) && (
-  <span className="flex items-center gap-2">
-    <span className="whitespace-nowrap">{item.label}</span>
-  </span>
-)}
+                    {(!isCollapsed || isMobileOpen) && (
+                      <span className="flex items-center gap-2">
+                        <span className="whitespace-nowrap">{item.label}</span>
+                      </span>
+                    )}
                   </button>
                 </li>
               );
             })}
           </ul>
         </nav>
-
         <div className="mt-auto flex flex-col gap-3 pt-4 ">
           {!isSettingsPage && (userTier === 'basic' || userTier === 'pro') && (
             <button onClick={handleUpgradeClick} className={`mx-auto flex items-center justify-center text-white rounded-lg transition-all duration-200 ease-out hover:opacity-90 active:scale-95 transform hover:scale-[1.02] bg-gradient-to-br from-[#635BFF] to-[#8A85FF] shadow-lg shadow-indigo-500/30 dark:shadow-indigo-500/20 ${isCollapsed && !isMobileOpen ? "w-10 h-10 aspect-square" : "w-full px-4 py-2.5"}`} title={isCollapsed && !isMobileOpen ? (userTier === 'basic' ? "Upgrade to Premium" : "Upgrade to Premium") : undefined}>
@@ -270,7 +263,6 @@ const sidebarBorderColor = "border-transparent dark:border-transparent";
               {(!isCollapsed || isMobileOpen) && ( <span className="text-sm font-medium whitespace-nowrap">{userTier === 'basic' ? "Upgrade to Premium" : "Upgrade to Premium"}</span> )}
             </button>
           )}
-
           <button onClick={() => navigate("/settings")} className={`group w-full rounded-lg transition-colors duration-150 ${userProfileHoverBg} ${isCollapsed && !isMobileOpen ? "flex flex-col items-center justify-center py-2.5" : "flex items-center gap-3 px-3 py-2.5"}`} title={isCollapsed && !isMobileOpen ? `${userName || "User"} - Settings` : undefined}>
             <div className="relative flex-shrink-0">
               <div className={`w-9 h-9 rounded-full overflow-hidden ${avatarDefaultBg} ${initialAvatarGlowClass} flex items-center justify-center`} onAnimationEnd={handleInitialGlowEnd}>
@@ -283,7 +275,6 @@ const sidebarBorderColor = "border-transparent dark:border-transparent";
                 </div>
               )}
             </div>
-
             {isCollapsed && !isMobileOpen && (
               <div className="text-center mt-1">
                   {userTier === 'loading' && (
@@ -300,7 +291,6 @@ const sidebarBorderColor = "border-transparent dark:border-transparent";
                   )}
               </div>
             )}
-
             {(!isCollapsed || isMobileOpen) && (
               <div className="flex flex-col items-start min-w-0 text-left">
                 <span className={`text-sm font-medium truncate max-w-[140px] ${userProfileNameText}`}> {userName || (currentUser ? "User" : "Loading...")} </span>
