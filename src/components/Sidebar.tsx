@@ -17,7 +17,7 @@ import { LogoSmall } from "./LogoSmall";
 import { useLocation, useNavigate } from "react-router-dom";
 import { auth } from "../lib/firebase";
 import { User } from 'firebase/auth';
-import { UserTier, onUserProfileSnapshot } from '../lib/current-paying-user';
+import { UserTier, onUserProfileSnapshot, PREMIUM_EMAILS, PRO_EMAILS } from '../lib/current-paying-user';
 
 interface SidebarProps {
   userName: string;
@@ -59,38 +59,33 @@ export function Sidebar({
   const [showInitialAvatarGlow, setShowInitialAvatarGlow] = useState<boolean>(false);
   const [showTags, setShowTags] = useState<boolean>(false);
 
- // REPLACE the entire useEffect hook with this one:
   useEffect(() => {
     let profileListenerUnsubscribe: (() => void) | null = null;
-    let profileFallbackTimer: NodeJS.Timeout | null = null;
 
     const authUnsubscribe = auth.onAuthStateChanged((user) => {
-      // Clean up listeners from the previous user session
-      if (profileListenerUnsubscribe) profileListenerUnsubscribe();
-      if (profileFallbackTimer) clearTimeout(profileFallbackTimer);
-
+      if (profileListenerUnsubscribe) {
+        profileListenerUnsubscribe();
+      }
+      
       setCurrentUser(user);
       setShowInitialAvatarGlow(false);
       setShowTags(false);
 
       if (user) {
-        setUserTier('loading'); // Always start in a loading state for a new user session
+        setUserTier('loading');
 
         profileListenerUnsubscribe = onUserProfileSnapshot(user.uid, (profile) => {
-          // If we receive profile data, clear any pending fallback timer
-          if (profileFallbackTimer) clearTimeout(profileFallbackTimer);
-
           if (profile) {
-            // We have the profile data, so set the correct tier
             setUserTier(profile.activeTier || 'basic');
           } else {
-            // The profile does not exist yet. This could be a new user.
-            // Wait for a short period before defaulting to 'basic' to avoid UI flicker.
-            profileFallbackTimer = setTimeout(() => {
-              // If the listener hasn't provided a profile after the delay,
-              // it's safe to assume the user is 'basic'.
-              setUserTier('basic');
-            }, 2000); // 2-second grace period
+            const email = user.email?.toLowerCase();
+            if (email && PREMIUM_EMAILS.map(e => e.toLowerCase()).includes(email)) {
+                setUserTier('premium');
+            } else if (email && PRO_EMAILS.map(e => e.toLowerCase()).includes(email)) {
+                setUserTier('pro');
+            } else {
+                setUserTier('basic');
+            }
           }
         });
         
@@ -102,7 +97,6 @@ export function Sidebar({
           setShowInitialAvatarGlow(true);
         }
       } else {
-        // User logged out, reset everything
         setCurrentUser(null);
         setUserTier('loading');
         setIsDev(false);
@@ -110,13 +104,13 @@ export function Sidebar({
       }
     });
 
-    // Cleanup function to run when the component unmounts
     return () => {
       authUnsubscribe();
-      if (profileListenerUnsubscribe) profileListenerUnsubscribe();
-      if (profileFallbackTimer) clearTimeout(profileFallbackTimer);
+      if (profileListenerUnsubscribe) {
+        profileListenerUnsubscribe();
+      }
     };
-  }, []); // Empty dependency array ensures this runs only once.
+  }, []);
 
   
   const handleInitialGlowEnd = () => {
@@ -151,7 +145,7 @@ export function Sidebar({
 
   const sidebarContainerBg = "bg-white dark:bg-[#12141D]";
   const sidebarTextColor = "text-gray-500 dark:text-gray-400";
-const sidebarBorderColor = "border-transparent dark:border-transparent";
+  const sidebarBorderColor = "border-transparent dark:border-transparent";
   const menuItemHoverBg = "hover:bg-gray-100 dark:hover:bg-[#1A1D29]";
   const menuItemHoverText = "hover:text-gray-800 dark:hover:text-gray-100";
   const activeMenuItemBg = "bg-indigo-50 dark:bg-[#635BFF]/20";
