@@ -2589,6 +2589,8 @@ if (notionBlock && user?.uid && isNotionConnected) {
 
 // In Dashboard.tsx, replace the existing main authentication useEffect hook with this:
 
+// In Dashboard.tsx
+
   useEffect(() => {
     const unsubscribeAuth = onFirebaseAuthStateChanged(async (firebaseUser) => {
       // Define all potential unsubscribers at this scope
@@ -2601,20 +2603,26 @@ if (notionBlock && user?.uid && isNotionConnected) {
 
       if (firebaseUser) {
         setUser(firebaseUser);
-        // THE FIX: Set userName immediately from the auth object, just like in Folders.tsx
         setUserName(firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "Learner");
         setUserEmail(firebaseUser.email);
         updateDashboardLastSeen(firebaseUser.uid).catch(console.warn);
 
         unsubProfile = onUserProfileSnapshot(firebaseUser.uid, (profile) => {
+          // This 'profile' can be null briefly for a new user, then will update once created.
           if (profile) {
+            // Only update the streak if the profile has been established for at least a second
+            // This avoids a race condition with the initial profile creation.
+            const profileAgeInMs = Date.now() - (toDateSafe(profile.createdAt)?.getTime() || Date.now());
+            if (profileAgeInMs > 1000) {
+                 updateUserStreak(firebaseUser.uid, { email: firebaseUser.email!, displayName: profile.displayName || "Learner" }).catch(console.error);
+            }
+
             if (previousStreak !== null && profile.overallStreakCount > previousStreak) {
               setStreakIncreased(true);
               setTimeout(() => setStreakIncreased(false), 4000);
             }
             setPreviousStreak(profile.overallStreakCount);
             setUserProfile(profile);
-            updateUserStreak(firebaseUser.uid, { email: firebaseUser.email!, displayName: profile.displayName || "Learner" }).catch(console.error);
           }
         });
 
@@ -2630,8 +2638,7 @@ if (notionBlock && user?.uid && isNotionConnected) {
             setChatUsageCount(0);
           }
         });
-
-                // --- ADD THIS BLOCK TO CHECK NOTION STATUS ---
+        
         getUserData(firebaseUser.uid).then(userData => {
           if (userData && userData.notionAccessData) {
             setIsNotionConnected(true);
@@ -2639,9 +2646,7 @@ if (notionBlock && user?.uid && isNotionConnected) {
             setIsNotionConnected(false);
           }
         });
-        // --- END OF BLOCK ---
 
-        // Fetch page-specific data
         unsubTasks = onCollectionSnapshot('tasks', firebaseUser.uid, setTasks);
         unsubGoals = onCollectionSnapshot('goals', firebaseUser.uid, setGoals);
         unsubEvents = onCollectionSnapshot('events', firebaseUser.uid, (fetchedEvents) => {
@@ -2663,7 +2668,6 @@ if (notionBlock && user?.uid && isNotionConnected) {
         getMemories(firebaseUser.uid).then(setMemories).catch(console.error);
 
       } else {
-        // Reset all state on sign out
         navigate('/login');
         setUser(null);
         setUserName("Learner");
@@ -2680,7 +2684,7 @@ if (notionBlock && user?.uid && isNotionConnected) {
         setIsChatDisabledByLimit(true);
         setUserProfile(null);
         setMemories([]);
-                setIsNotionConnected(false);
+        setIsNotionConnected(false);
         setActiveNotionPage(null);
         setIsNotionSearchModeActive(false);
         setUserContext(null);
