@@ -73,9 +73,10 @@ export function Sidebar({
 
       if (user) {
         setUserTier('loading');
+        
         const email = user.email?.toLowerCase();
-        const isHardcodedPremium = email && PREMIUM_EMAILS.map(e => e.toLowerCase()).includes(email);
-        const isHardcodedPro = email && PRO_EMAILS.map(e => e.toLowerCase()).includes(email);
+        const isHardcodedPremium = email ? PREMIUM_EMAILS.map(e => e.toLowerCase()).includes(email) : false;
+        const isHardcodedPro = email ? PRO_EMAILS.map(e => e.toLowerCase()).includes(email) : false;
         
         const userIsDev = user.email ? DEV_EMAILS.includes(user.email) : false;
         const userIsIntern = user.email ? INTERN_EMAILS.includes(user.email) : false;
@@ -86,16 +87,14 @@ export function Sidebar({
         }
 
         profileListenerUnsubscribe = onUserProfileSnapshot(user.uid, (profile) => {
-          if (profile) {
-            if (profile.activeTier === 'basic' && (isHardcodedPremium || isHardcodedPro)) {
-              setUserTier(isHardcodedPremium ? 'premium' : 'pro');
-            } else {
-              setUserTier(profile.activeTier || 'basic');
-            }
+          if (isHardcodedPremium) {
+            setUserTier('premium');
+          } else if (isHardcodedPro) {
+            setUserTier('pro');
+          } else if (profile) {
+            setUserTier(profile.activeTier || 'basic');
           } else {
-            if (isHardcodedPremium) setUserTier('premium');
-            else if (isHardcodedPro) setUserTier('pro');
-            else setUserTier('basic');
+            setUserTier('basic');
           }
         });
 
