@@ -2593,7 +2593,6 @@ if (notionBlock && user?.uid && isNotionConnected) {
 
   useEffect(() => {
     const unsubscribeAuth = onFirebaseAuthStateChanged(async (firebaseUser) => {
-      // Define all potential unsubscribers at this scope
       let unsubProfile: () => void = () => {};
       let unsubTasks: () => void = () => {};
       let unsubGoals: () => void = () => {};
@@ -2608,12 +2607,13 @@ if (notionBlock && user?.uid && isNotionConnected) {
         updateDashboardLastSeen(firebaseUser.uid).catch(console.warn);
 
         unsubProfile = onUserProfileSnapshot(firebaseUser.uid, (profile) => {
-          // This 'profile' can be null briefly for a new user, then will update once created.
           if (profile) {
-            // Only update the streak if the profile has been established for at least a second
-            // This avoids a race condition with the initial profile creation.
+            // FIX: Check the age of the profile to avoid race conditions on creation.
             const profileAgeInMs = Date.now() - (toDateSafe(profile.createdAt)?.getTime() || Date.now());
-            if (profileAgeInMs > 1000) {
+
+            // Only update the streak if the profile is not brand new (e.g., older than 1.5 seconds).
+            // This prevents a collision with the initial document creation transaction.
+            if (profileAgeInMs > 1500) {
                  updateUserStreak(firebaseUser.uid, { email: firebaseUser.email!, displayName: profile.displayName || "Learner" }).catch(console.error);
             }
 
@@ -2638,7 +2638,7 @@ if (notionBlock && user?.uid && isNotionConnected) {
             setChatUsageCount(0);
           }
         });
-        
+
         getUserData(firebaseUser.uid).then(userData => {
           if (userData && userData.notionAccessData) {
             setIsNotionConnected(true);
