@@ -95,10 +95,10 @@ const toDateSafe = (timestampField: any): Date | null => {
     return null;
 };
 
-export const prepareInitialProfileData = (userId: string, email?: string | null, displayName?: string | null, photoURL?: string | null, firstName?: string | null, lastName?: string | null): Omit<UserProfileData, 'updatedAt' | 'lastLoginAt'> => {
-    const now = Timestamp.now();
-    const initialTier: UserTier = (email && PREMIUM_EMAILS.map(e => e.toLowerCase()).includes(email.toLowerCase())) ? 'premium' :
-                                (email && PRO_EMAILS.map(e => e.toLowerCase()).includes(email.toLowerCase())) ? 'pro' : 'basic';
+export const prepareInitialProfileData = (userId: string, email?: string | null, displayName?: string | null, photoURL?: string | null, firstName?: string | null, lastName?: string | null): Omit<UserProfileData, 'updatedAt' | 'lastLoginAt' | 'createdAt'> => {
+    const lowercasedEmail = email?.toLowerCase();
+    const initialTier: UserTier = (lowercasedEmail && PREMIUM_EMAILS.map(e => e.toLowerCase()).includes(lowercasedEmail)) ? 'premium' :
+                                (lowercasedEmail && PRO_EMAILS.map(e => e.toLowerCase()).includes(lowercasedEmail)) ? 'pro' : 'basic';
     return {
         uid: userId,
         email: email ?? null,
@@ -114,7 +114,6 @@ export const prepareInitialProfileData = (userId: string, email?: string | null,
         notesStreakCount: 0,
         lastNotesStreakUpdate: null,
         badges: [],
-        createdAt: now,
         premiumAwardedUntil: null,
         activeTier: initialTier,
         subscriptionStatus: null,
@@ -133,31 +132,25 @@ export const prepareInitialProfileData = (userId: string, email?: string | null,
 
 export const getUserTier = async (userId: string | null | undefined, emailFromAuth?: string | null): Promise<UserTier> => {
     if (!userId) return 'loading';
-
     try {
         const userRef = doc(db, 'users', userId);
         const docSnap = await getDoc(userRef);
-        
         if (docSnap.exists()) {
             const userProfile = docSnap.data() as UserProfileData;
-            
             if (userProfile.premiumAwardedUntil) {
                 const awardedUntilDate = toDateSafe(userProfile.premiumAwardedUntil);
                 if (awardedUntilDate && awardedUntilDate > new Date()) {
                     return 'premium';
                 }
             }
-            
             if (userProfile.subscriptionStatus === 'active' && (userProfile.activeTier === 'pro' || userProfile.activeTier === 'premium')) {
                 return userProfile.activeTier;
             }
-            
             const currentEmail = (userProfile.email || emailFromAuth)?.toLowerCase();
             if (currentEmail) {
                 if (PREMIUM_EMAILS.map(e => e.toLowerCase()).includes(currentEmail)) return 'premium';
                 if (PRO_EMAILS.map(e => e.toLowerCase()).includes(currentEmail)) return 'pro';
             }
-            
             return userProfile.activeTier || 'basic';
         } else {
              const lowercasedEmail = emailFromAuth?.toLowerCase();
@@ -219,7 +212,6 @@ export const incrementUserChatUsage = async (userId: string): Promise<void> => {
   }
   const currentMonth = new Date().toISOString().slice(0, 7);
   const usageRef = doc(db, `users/${userId}/usage/chat`);
-
   try {
     await runTransaction(db, async (transaction) => {
         const docSnap = await transaction.get(usageRef);
@@ -271,7 +263,6 @@ export const updateUserNoteUsage = async (userId: string, typeToIncrement: 'pdfA
     const updatePath = `noteUsageByMonth.${currentMonth}.${typeToIncrement}`;
     const lastUpdatedPath = `noteUsageByMonth.${currentMonth}.lastUpdated`;
     const now = serverTimestamp();
-
     try {
         await runTransaction(db, async (transaction) => {
             const userSnap = await transaction.get(userRef);
@@ -280,7 +271,6 @@ export const updateUserNoteUsage = async (userId: string, typeToIncrement: 'pdfA
             }
             const currentData = userSnap.data() as UserProfileData;
             const monthUsage = currentData.noteUsageByMonth?.[currentMonth];
-
             if (monthUsage) {
                 transaction.update(userRef, {
                     [updatePath]: increment(1),
@@ -329,43 +319,54 @@ export const onUserProfileSnapshot = (userId: string, callback: (profile: UserPr
   });
 };
 
+const createProfileInTransaction = (
+    transaction: any,
+    profileRef: any,
+    userId: string,
+    userDetails: { email?: string | null; displayName?: string | null; photoURL?: string | null; } = {}
+) => {
+    const initialData = prepareInitialProfileData(
+        userId,
+        userDetails.email,
+        userDetails.displayName,
+        userDetails.photoURL
+    );
+    const now = serverTimestamp();
+    const fullInitialData = {
+        ...initialData,
+        createdAt: now,
+        lastLoginAt: now,
+        updatedAt: now
+    };
+    transaction.set(profileRef, fullInitialData);
+    return fullInitialData;
+};
+
 export const updateUserPointsAndLevel = async (
     userId: string,
     pointsToAdd: number,
     userDetailsForCreation?: { email?: string | null; displayName?: string | null; photoURL?: string | null; }
 ): Promise<{ newPoints: number, newLevel: number, newTier?: UserTier }> => {
   const userRef = doc(db, 'users', userId);
-
   return runTransaction(db, async (transaction) => {
     const userSnap = await transaction.get(userRef);
     let newTierAwarded: UserTier | undefined = undefined;
-
     if (!userSnap.exists()) {
+        const initialData = createProfileInTransaction(transaction, userRef, userId, userDetailsForCreation);
         const newPoints = pointsToAdd;
         const newLevel = calculateLevel(newPoints);
-        const initialData = prepareInitialProfileData(userId, userDetailsForCreation?.email, userDetailsForCreation?.displayName, userDetailsForCreation?.photoURL);
-        
-        const fullInitialData = {
-            ...initialData,
-            points: newPoints,
-            level: newLevel,
-            lastLoginAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-        };
-        transaction.set(userRef, fullInitialData);
-        return { newPoints, newLevel, newTier: undefined };
+        transaction.update(userRef, { points: newPoints, level: newLevel });
+        return { newPoints: initialData.points, newLevel: initialData.level, newTier: undefined };
     } else {
         const currentProfileData = userSnap.data() as UserProfileData;
         const currentPoints = currentProfileData.points || 0;
         const newPoints = currentPoints + pointsToAdd;
         const newLevel = calculateLevel(newPoints);
-
         const updateData: any = {
             points: newPoints,
             level: newLevel,
             updatedAt: serverTimestamp(),
         };
-
         const currentTier = await getUserTier(userId, currentProfileData.email);
         if ( (currentTier === 'basic' || currentTier === 'pro') &&
             (!currentProfileData.premiumAwardedUntil || toDateSafe(currentProfileData.premiumAwardedUntil)! < new Date()) &&
@@ -388,14 +389,11 @@ export const updateUserStreak = async (
     streakType: 'overall' | 'notes' = 'overall'
 ): Promise<{ newStreakCount: number, streakBroken: boolean }> => {
   const userRef = doc(db, 'users', userId);
-
   return runTransaction(db, async (transaction) => {
     const userSnap = await transaction.get(userRef);
-
     if (!userSnap.exists()) {
-        const initialData = prepareInitialProfileData(userId, userDetailsForCreation?.email, userDetailsForCreation?.displayName, userDetailsForCreation?.photoURL);
-        const now = Timestamp.now();
-
+        const initialData = createProfileInTransaction(transaction, userRef, userId, userDetailsForCreation);
+        const now = serverTimestamp();
         if (streakType === 'overall') {
             initialData.overallStreakCount = 1;
             initialData.lastOverallStreakUpdate = now;
@@ -403,13 +401,12 @@ export const updateUserStreak = async (
             initialData.notesStreakCount = 1;
             initialData.lastNotesStreakUpdate = now;
         }
-
-        const fullInitialData = {
-            ...initialData,
-            lastLoginAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-        };
-        transaction.set(userRef, fullInitialData);
+        transaction.update(userRef, {
+            overallStreakCount: initialData.overallStreakCount,
+            lastOverallStreakUpdate: initialData.lastOverallStreakUpdate,
+            notesStreakCount: initialData.notesStreakCount,
+            lastNotesStreakUpdate: initialData.lastNotesStreakUpdate,
+        });
         return { newStreakCount: 1, streakBroken: false };
     } else {
         const currentProfileData = userSnap.data() as UserProfileData;
@@ -417,7 +414,6 @@ export const updateUserStreak = async (
         let lastUpdateRaw: Timestamp | Date | null;
         const now = new Date();
         let streakBroken = false;
-
         if (streakType === 'overall') {
             currentStreak = currentProfileData.overallStreakCount || 0;
             lastUpdateRaw = currentProfileData.lastOverallStreakUpdate;
@@ -425,16 +421,13 @@ export const updateUserStreak = async (
             currentStreak = currentProfileData.notesStreakCount || 0;
             lastUpdateRaw = currentProfileData.lastNotesStreakUpdate;
         }
-
         const lastUpdate = lastUpdateRaw ? toDateSafe(lastUpdateRaw) : null;
         let shouldUpdate = false;
-
         if (lastUpdate) {
             const lastUpdateDate = new Date(lastUpdate.getFullYear(), lastUpdate.getMonth(), lastUpdate.getDate());
             const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
             const diffTime = todayDate.getTime() - lastUpdateDate.getTime();
             const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-
             if (diffDays === 1) {
                 currentStreak++;
                 shouldUpdate = true;
@@ -447,7 +440,6 @@ export const updateUserStreak = async (
             currentStreak = 1;
             shouldUpdate = true;
         }
-
         if (shouldUpdate) {
             const updateData: any = { updatedAt: serverTimestamp() };
             if (streakType === 'overall') {
@@ -473,14 +465,9 @@ export const addUserBadge = async (
   await runTransaction(db, async (transaction) => {
     const userSnap = await transaction.get(userRef);
     if (!userSnap.exists()) {
-        const initialData = prepareInitialProfileData(userId, userDetailsForCreation?.email, userDetailsForCreation?.displayName, userDetailsForCreation?.photoURL);
+        const initialData = createProfileInTransaction(transaction, userRef, userId, userDetailsForCreation);
         initialData.badges = [badgeId];
-        const fullInitialData = {
-            ...initialData,
-            lastLoginAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-        };
-        transaction.set(userRef, fullInitialData);
+        transaction.update(userRef, { badges: initialData.badges });
     } else {
         transaction.update(userRef, {
             badges: arrayUnion(badgeId),
@@ -500,14 +487,9 @@ export const incrementUserProfileCounter = async (
     await runTransaction(db, async (transaction) => {
         const userSnap = await transaction.get(userRef);
         if (!userSnap.exists()) {
-            const initialData = prepareInitialProfileData(userId, userDetailsForCreation?.email, userDetailsForCreation?.displayName, userDetailsForCreation?.photoURL);
+            const initialData = createProfileInTransaction(transaction, userRef, userId, userDetailsForCreation);
             (initialData as any)[counterField] = incrementValue;
-            const fullInitialData = {
-                ...initialData,
-                lastLoginAt: serverTimestamp(),
-                updatedAt: serverTimestamp()
-            };
-            transaction.set(userRef, fullInitialData);
+            transaction.update(userRef, { [counterField]: incrementValue });
         } else {
             transaction.update(userRef, {
                 [counterField]: increment(incrementValue),
@@ -524,7 +506,6 @@ export const calculateLevel = (points: number): number => {
     let level = 1;
     let pointsNeededForNextLevel = base;
     let cumulativePoints = 0;
-
     while (points >= cumulativePoints + pointsNeededForNextLevel) {
         cumulativePoints += pointsNeededForNextLevel;
         level++;
