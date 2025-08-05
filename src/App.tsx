@@ -182,7 +182,7 @@ function TestimonialsSection() {
       <div className="container mx-auto px-5 sm:px-6">
         <div className="text-center mb-16 sm:mb-20">
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 dark:text-white mb-5">
-            Join <span className="text-gray-900 dark:text-white">2,000,000+</span> learners.
+            Join <span className="text-gray-900 dark:text-white">a world of</span> learners.
           </h2>
         </div>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
