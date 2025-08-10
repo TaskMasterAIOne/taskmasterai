@@ -24,11 +24,12 @@ import { ChatControls } from './chat-controls';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 
+
 import {
   onCollectionSnapshot,
   onFirebaseAuthStateChanged,
   updateDashboardLastSeen,
-  geminiApiKey,
+  getGeminiApiKey, // Import the new function
   findItemByName,
   type EventData as FirebaseEventData,
   createEvent as createFirebaseEvent,
@@ -515,6 +516,30 @@ export function Folders() {
 
     const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+
+  // --- ADD THIS NEW STATE AND EFFECT ---
+  const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null
+
+
+ useEffect(() => {
+    const fetchKey = async () => {
+      if (user) {
+        const key = await getGeminiApiKey();
+        if (key && !key.startsWith("ERROR_")) {
+          setGeminiApiKey(key);
+        } else {
+          console.error("Critical: Failed to load Gemini API key for the user in Folders component.");
+          showToast("AI services are currently unavailable due to a configuration error.", "error");
+        }
+      } else {
+        setGeminiApiKey(null);
+      }
+    };
+
+    fetchKey();
+  }, [user]); // This effect runs when the user's auth state changes
+  // --- END OF NEW CODE ---
 
 
     // --- ADD THESE NEW STATE VARIABLES ---
@@ -1351,22 +1376,35 @@ const addPoints = useCallback(async (
     setActivePrompt(prompt);
   };
   
+// src/components/Folders.tsx
+
 const generateChatName = useCallback(async (convId: string, history: ChatMessageData[], currentUser: FirebaseUser | null) => {
+    // FIX: Added !geminiApiKey check to the guard clause
     if (!currentUser || !currentUser.uid || history.length < 2 || !geminiApiKey || !selectedFolder) return;
+    
     const relevantHistory = history.slice(0, Math.min(history.length, 4)).map(m => `${m.role}: ${m.content?.substring(0,100) || ""}`).join("\n");
     const prompt = `Please provide a short 3-5 word title summarizing this study conversation about the folder "${selectedFolder.name}":\n${relevantHistory}\nReturn ONLY the title, with no extra commentary. USE THE SAME LANGUAGE AS PRESENTED IN THE CONVERSATION!`;
+    
     try {
         const nameGenEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${geminiApiKey}`;
         const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 60 }})};
         const response = await fetchWithTimeout(nameGenEndpoint, geminiOptions, 10000);
-        if (!response.ok) { console.warn("Chat name gen API error:", response.status); return; }
+        
+        if (!response.ok) { 
+            console.warn("Chat name gen API error:", response.status); 
+            return; 
+        }
+        
         const responseText = await response.text();
         const parsedResponse = parseGeminiApiResponse(responseText, false);
+        
         if (parsedResponse.text && parsedResponse.text.trim()) {
             await updateChatConversationName(currentUser.uid, convId, parsedResponse.text.trim().substring(0, 50));
         }
-    } catch (error) { console.error("Error in generateChatName:", error); }
-}, [selectedFolder]);
+    } catch (error) { 
+        console.error("Error in generateChatName:", error); 
+    }
+}, [selectedFolder, geminiApiKey]); // Added geminiApiKey to dependency array
 
 const calculatePriority = (itemInput: any): 'high' | 'medium' | 'low' => {
   const itemData = itemInput?.data || itemInput;
@@ -1522,6 +1560,15 @@ const getFileContentAsBase64 = async (fileMeta: { url?: string; type: string; })
 
 const handleChatSubmit = useCallback(async (e?: React.FormEvent, incomingMessage?: string) => {
     e?.preventDefault();
+
+
+     // --- ADD THIS GUARD CLAUSE AT THE TOP ---
+    if (!geminiApiKey) {
+        console.error("Gemini API Key is not available. Aborting chat submission.");
+        showToast("AI service is unavailable. Please check your connection or try again later.", "error");
+        return;
+    }
+    // --- END OF FIX ---
 
     // Stop speech recognition if it's active
     if (listening) {
@@ -3211,15 +3258,23 @@ const handleSubmitTest = useCallback(async () => {
     });
   }, [user, conversationId, showToast]);
 
-  const generateFolderStats = useCallback(async () => {
+// src/components/Folders.tsx
+
+const generateFolderStats = useCallback(async () => {
+    // FIX: Modified guard clause to check for geminiApiKey and provide user feedback
     if (!user || !user.uid || isFolderStatsLoading || !geminiApiKey || !selectedFolder || folderItems.length === 0) {
-        setFolderStats({ analysis: "Select a folder with items and click 'Get Insights' for an AI-powered summary and study suggestions.", readiness_score: 0, suggestions: [] });
-        if (!selectedFolder || folderItems.length === 0) {
+        if (!geminiApiKey) {
+            showToast("AI Analytics is currently unavailable due to a configuration error.", "error");
+        } else if (!selectedFolder || folderItems.length === 0) {
             showToast("Please select a folder with items first.", "info");
+            setFolderStats({ analysis: "Select a folder with items and click 'Get Insights' for an AI-powered summary and study suggestions.", readiness_score: 0, suggestions: [] });
         }
         return;
     }
-    setIsFolderStatsLoading(true); setFolderStats(null);
+
+    setIsFolderStatsLoading(true); 
+    setFolderStats(null);
+    
     const itemsSummary = folderItems.slice(0, 20).map(item => {
         if (item.type === 'flashcard') return `Flashcard: ${item.term.substring(0,30)}... (Topic: ${item.topic || 'N/A'}, Mastery: ${item.masteryLevel || 'new'})`;
         return `Question: ${item.question.substring(0,40)}... (Mastery: ${item.masteryLevel || 'new'})`;
@@ -3261,28 +3316,48 @@ const handleSubmitTest = useCallback(async () => {
         const analysisEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${geminiApiKey}`;
         const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.6 } })};
         const response = await fetchWithTimeout(analysisEndpoint, geminiOptions, 30000);
+        
         if (!response.ok) throw new Error(`API error (${response.status}): ${await response.text()}`);
+        
         const responseText = await response.text();
         const parsedResponse = parseGeminiApiResponse(responseText, false);
-        if (parsedResponse.error || !parsedResponse.text) { throw new Error(parsedResponse.error || "Empty AI response for folder stats."); }
+        
+        if (parsedResponse.error || !parsedResponse.text) { 
+            throw new Error(parsedResponse.error || "Empty AI response for folder stats."); 
+        }
+        
         let analysisJson;
-        try { analysisJson = JSON.parse(parsedResponse.text); }
-        catch(e){
+        try { 
+            analysisJson = JSON.parse(parsedResponse.text); 
+        } catch(e) {
              const jsonBlockResultAnalysis = extractJsonBlocks(parsedResponse.text);
-             if (jsonBlockResultAnalysis.blocks.length > 0) { analysisJson = jsonBlockResultAnalysis.blocks[0]; }
-             else {
-                 try { const fullApiResponse = JSON.parse(responseText); if(fullApiResponse.candidates?.[0]?.content?.parts?.[0]?.text) { analysisJson = JSON.parse(fullApiResponse.candidates[0].content.parts[0].text); } else { throw new Error("Failed to parse analysis JSON from AI response (fallback)"); } }
-                 catch (finalParseError) { console.error("Final attempt to parse analysis JSON failed:", finalParseError, "\nOriginal AI Text:", parsedResponse.text); throw new Error("Failed to parse analysis JSON from AI response"); }
+             if (jsonBlockResultAnalysis.blocks.length > 0) { 
+                 analysisJson = jsonBlockResultAnalysis.blocks[0]; 
+             } else {
+                 try { 
+                     const fullApiResponse = JSON.parse(responseText); 
+                     if(fullApiResponse.candidates?.[0]?.content?.parts?.[0]?.text) { 
+                         analysisJson = JSON.parse(fullApiResponse.candidates[0].content.parts[0].text); 
+                     } else { 
+                         throw new Error("Failed to parse analysis JSON from AI response (fallback)"); 
+                     } 
+                 } catch (finalParseError) { 
+                     console.error("Final attempt to parse analysis JSON failed:", finalParseError, "\nOriginal AI Text:", parsedResponse.text); 
+                     throw new Error("Failed to parse analysis JSON from AI response"); 
+                 }
              }
         }
+        
         const validatedSuggestions = analysisJson.study_suggestions?.map((sugg: any, index: number) => ({ ...sugg, id: sugg.id || `sugg_${Date.now()}_${index}`})) || [];
         setFolderStats({...analysisJson, study_suggestions: validatedSuggestions});
     } catch (error: any) {
         console.error("Error generating folder stats:", error);
         setFolderStats({ readiness_score: 0, text_analysis: "Could not generate folder analytics: " + error.message, study_suggestions: [] });
         showToast("Error generating folder analytics.", "error");
-    } finally { setIsFolderStatsLoading(false); }
-  }, [user, isFolderStatsLoading, selectedFolder, folderItems, userName, userContext, showToast]);
+    } finally { 
+        setIsFolderStatsLoading(false); 
+    }
+}, [user, isFolderStatsLoading, selectedFolder, folderItems, userName, userContext, showToast, geminiApiKey]); // Added geminiApiKey to dependency array
 
   const handleAcceptFolderStatSuggestion = useCallback((suggestion: any) => {
     if (!user || !selectedFolder) return;
