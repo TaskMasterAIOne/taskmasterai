@@ -12,7 +12,7 @@ import remarkGfm from 'remark-gfm';
 import {
   onFirebaseAuthStateChanged,
   updateDashboardLastSeen,
-  geminiApiKey,
+  getGeminiApiKey,
   onCustomTimersSnapshot,
   addCustomTimer,
   updateCustomTimer,
@@ -347,6 +347,30 @@ export function FocusMode() {
   const [userName, setUserName] = useState<string>("Learner");
   const truncatedName = useMemo(() => userName.split(' ')[0] || userName, [userName]);
   const [userTier, setUserTier] = useState<UserTier>('loading');
+
+    // --- ADD THIS NEW STATE AND EFFECT ---
+  const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchKey = async () => {
+      if (user) {
+        const key = await getGeminiApiKey();
+        if (key && !key.startsWith("ERROR_")) {
+          setGeminiApiKey(key);
+        } else {
+          console.error("Critical: Failed to load Gemini API key for Focus Mode component.");
+          showToast("AI services are currently unavailable due to a configuration error.", "error");
+        }
+      } else {
+        setGeminiApiKey(null);
+      }
+    };
+
+    fetchKey();
+  }, [user, showToast]); // Dependency array ensures this runs when the user logs in
+  // --- END OF NEW CODE ---
+
+  
   const [userStreakData, setUserStreakData] = useState<any | null>({ current: 0, longest: 0, lastFocusTimestamp: null });
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   // --- FIX 1: UNIFIED SIDEBAR STATE ---
@@ -1072,6 +1096,14 @@ export function FocusMode() {
 
   const handleChatSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
+        // --- FIX #1: ADD GUARD CLAUSE FOR THE API KEY ---
+    if (!geminiApiKey) {
+      console.error("Gemini API Key is not available. Aborting chat submission.");
+      showToast("AI Assistant is unavailable due to a configuration error.", "error");
+      return;
+    }
+    // --- END OF FIX ---
+    
     const currentMessageContent = chatMessage;
     const currentFilesForUpload = [...selectedFiles];
 
@@ -1294,6 +1326,11 @@ Assistant:`;
     const geminiOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(apiRequestBody) };
 
     try {
+
+           // --- FIX #2: USE THE GEMINI API KEY FROM STATE IN THE URL ---
+      const currentTargetModel = imageGenModeOn ? GEMINI_IMAGE_GEN_MODEL : GEMINI_TEXT_MODEL;
+      const fullApiUrl = `${GEMINI_API_BASE}${currentTargetModel}:generateContent?key=${geminiApiKey}`;
+      
       const response = await fetchWithTimeout(fullApiUrl, geminiOptions);
       const responseText = await response.text();
       const parsedApiResult = parseGeminiApiResponse(responseText, imageGenModeOn);
@@ -1443,7 +1480,18 @@ Assistant:`;
   };
 
   const generateProductivityAnalysis = () => {
-    setIsProductivityAnalysisLoading(true);
+    // --- ADD THIS GUARD CLAUSE ---
+    if (!geminiApiKey) {
+      console.error("Gemini API Key is not available. Aborting analysis.");
+      showToast("AI Analytics is currently unavailable due to a configuration error.", "error");
+      setProductivityAnalysisResult({
+        productivity_score: 0,
+        text_analysis: "Could not generate analysis. The AI service is currently unavailable.",
+        recommended_actions: []
+      });
+      return;
+    }
+    // --- END OF FIX ---
     showToast("Analyzing your focus...", "info");
     setTimeout(() => {
         setProductivityAnalysisResult({
