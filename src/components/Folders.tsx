@@ -519,10 +519,10 @@ export function Folders() {
 
 
   // --- ADD THIS NEW STATE AND EFFECT ---
-  const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null
+  // --- ADD THIS NEW STATE AND EFFECT ---
+  const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
 
-
- useEffect(() => {
+  useEffect(() => {
     const fetchKey = async () => {
       if (user) {
         const key = await getGeminiApiKey();
