@@ -1,3 +1,5 @@
+// src/lib/current-paying-user.ts
+
 import { db } from "./firebase";
 import {
   doc,
