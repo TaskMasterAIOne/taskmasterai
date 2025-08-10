@@ -18,7 +18,7 @@ import {
 } from "lucide-react"
 
 import { geminiEndpoint, streamResponse, extractCandidateText } from "../lib/ai-helpers" 
-import { geminiApiKey as defaultGeminiApiKey } from "../lib/dashboard-firebase"
+import { geminiApiKey} from "../lib/dashboard-firebase"
 import {
   createUserTask,
   createUserGoal,
