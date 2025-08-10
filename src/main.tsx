@@ -33,7 +33,6 @@ import ComingSoon from './components/ComingSoon';
 import { FocusMode } from './components/Focus-Mode';
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
-import { Friends } from './components/Friends';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { Logo } from './components/Logo';
 
@@ -140,7 +139,6 @@ const AppRoutes = () => {
       <Route path="/signup" element={user ? <Navigate to="/dashboard" replace /> : <PageTitle title="Sign Up"><SignUp /></PageTitle>} />
       <Route path="/pricing" element={<PageTitle title="Pricing"><Pricing /></PageTitle>} />
       <Route path="/terms" element={<PageTitle title="Terms of Service"><Terms /></PageTitle>} />
-      <Route path="/friends" element={<PageTitle title="Friends"><Friends /></PageTitle>} />
       <Route path="/settings" element={user ? <PageTitle title="Settings"><Settings /></PageTitle> : <Navigate to="/login" replace />} />
       <Route path="/onboarding" element={<PageTitle title="Welcome"><Onboarding /></PageTitle>} />
       <Route path="/privacy-policy" element={<PageTitle title="Privacy Policy"><PrivacyPolicy /></PageTitle>} />
