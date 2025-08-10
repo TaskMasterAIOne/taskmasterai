@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 
 // Assuming API Key is accessible
-import { geminiApiKey } from '../lib/dashboard-firebase'; // Adjust path as needed
+import { getGeminiApiKey } from '../lib/dashboard-firebase'; // Adjust path as needed
 
 // --- AI Helper Functions (Unchanged) ---
 const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}&alt=sse`;
@@ -197,14 +197,51 @@ const Status = () => {
     }
   }, []);
 
+
+      const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Fetch the key when the component mounts, as the chat is a core feature of this page.
+    const fetchKey = async () => {
+      const key = await getGeminiApiKey();
+      if (key && !key.startsWith("ERROR_")) {
+        setGeminiApiKey(key);
+      } else {
+        console.error("Critical: Failed to load Gemini API key for the Status component.");
+        // We can disable the AI chat button or show an error if the key fails to load.
+        // For now, we'll log the error. The handleChatSubmit function will prevent submission.
+      }
+    };
+
+    fetchKey();
+  }, []); // Empty dependency array means this runs once on mount
+  // --- END OF NEW CODE ---
+
   // Determine overall status
   const hasMajorOutage = serviceStatus.some(service => service.majorIssue);
   const overallStatusText = hasMajorOutage ? "Major Outage" : "All Systems Operational";
   const lastUpdated = "May 22, 2025; 10:20 AM EST";
 
-   // --- AI Chat Submit Handler ---
+// src/components/Status.tsx -> inside the Status() component
+
    const handleChatSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // --- FIX #1: ADD GUARD CLAUSE FOR THE API KEY ---
+    if (!geminiApiKey) {
+        console.error("Gemini API Key is not available. Aborting chat submission.");
+        const errorMsg: any = { 
+            id: `error-no-key-${Date.now()}`, 
+            role: 'assistant', 
+            content: `The AI Assistant is currently unavailable due to a configuration error. Please try again later.`, 
+            error: true,
+        };
+        setChatHistory(prev => [...prev, errorMsg]);
+        setIsChatLoading(false);
+        return;
+    }
+    // --- END OF FIX ---
+
     if (!chatMessage.trim() || isChatLoading) return;
 
     const currentMessage = chatMessage;
@@ -263,6 +300,9 @@ Assistant:`;
     let finalRawResponseText = "";
 
     try {
+        // --- FIX #2: USE THE GEMINI API KEY FROM STATE ---
+        const geminiEndpointWithKey = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}&alt=sse`;
+
         const geminiOptions = {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -278,7 +318,7 @@ Assistant:`;
             })
         };
 
-        await streamResponse(geminiEndpoint, geminiOptions, (rawChunkAccumulated) => {
+        await streamResponse(geminiEndpointWithKey, geminiOptions, (rawChunkAccumulated) => {
             finalRawResponseText = rawChunkAccumulated;
             const currentExtractedText = extractCandidateText(rawChunkAccumulated);
             accumulatedStreamedText = currentExtractedText;
@@ -301,15 +341,7 @@ Assistant:`;
     } finally {
         setIsChatLoading(false);
     }
-   }, [chatMessage, isChatLoading, chatHistory, lastUpdated]);
-
-    useEffect(() => {
-        if (chatEndRef.current && isAiSidebarOpen) {
-            requestAnimationFrame(() => {
-                chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-            });
-        }
-    }, [chatHistory, isAiSidebarOpen]);
+   }, [chatMessage, isChatLoading, chatHistory, lastUpdated, geminiApiKey]); // <-- FIX #3: Add geminiApiKey to dependency array
 
   return (
     <div className="min-h-screen flex flex-col font-poppins bg-white text-gray-800 dark:bg-[#0C0E1A] dark:text-gray-200 illuminate-override">
