@@ -9,7 +9,7 @@ export const ALLOWED_GEMINI_MODELS = [
 
 export function getAllowedGeminiModel(requestedModel: string): string {
   if (!ALLOWED_GEMINI_MODELS.includes(requestedModel)) {
-    console.error(`❌ Blocked attempt to use disallowed Gemini model: ${requestedModel}`);
+    console.error(`❌ Blocked attempt to use disallowed AI model: ${requestedModel}`);
     throw new Error(
       `The requested model "${requestedModel}" is not permitted. Allowed models: ${ALLOWED_GEMINI_MODELS.join(", ")}`
     );
