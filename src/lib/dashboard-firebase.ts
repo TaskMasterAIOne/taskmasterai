@@ -1,7 +1,8 @@
-// src/lib/dashboard-firebase.ts
-
 import { auth, db } from "./firebase"
-import { getFunctions, httpsCallable } from "firebase/functions";
+
+
+export const geminiApiKey = "AIzaSyBnIYpIauKtcCA3CSG56cJ1Ac7fsH28fhk" // Ensure this is not committed if sensitive
+
 import { type User, onAuthStateChanged, createUserWithEmailAndPassword, updateProfile } from "firebase/auth"
 
 import {
@@ -21,53 +22,6 @@ import {
   type DocumentData,
   getDocs,
 } from "firebase/firestore"
-
-// --- NEW SECURE API KEY FETCHER ---
-
-// In-memory cache for the API key to prevent repeated backend calls.
-let cachedGeminiApiKey: string | null = null;
-
-/**
- * Securely fetches the appropriate Gemini API key from the backend based on user tier.
- * This function includes in-memory caching for performance.
- * It is now the single source of truth for obtaining the Gemini API key on the client.
- */
-export const getGeminiApiKey = async (): Promise<string> => {
-    // Return the cached key if it exists
-    if (cachedGeminiApiKey) {
-        return cachedGeminiApiKey;
-    }
-
-    // Ensure there is a logged-in user before proceeding
-    if (!auth.currentUser) {
-        console.error("User not authenticated. Cannot fetch Gemini API key.");
-        return "ERROR_NO_AUTH";
-    }
-
-    try {
-        const functions = getFunctions();
-        const getApiKeyCallable = httpsCallable(functions, 'getGeminiApiKey');
-        
-        // Call the backend function
-        const result = await getApiKeyCallable();
-        const { apiKey } = result.data as { apiKey: string };
-
-        if (!apiKey) {
-            throw new Error("API key was not returned from the backend.");
-        }
-
-        // Cache the fetched key
-        cachedGeminiApiKey = apiKey;
-        return apiKey;
-
-    } catch (error) {
-        console.error("Fatal: Could not fetch Gemini API key from backend:", error);
-        // Return a clearly identifiable error string to make debugging easier.
-        // This prevents the app from crashing but indicates a critical configuration issue.
-        return "ERROR_FETCHING_KEY_FROM_BACKEND";
-    }
-};
-
 
 // Define EventData interface
 export interface EventData {
@@ -166,8 +120,6 @@ export const updateDashboardLastSeen = async (userId: string) => {
 
 export function onFirebaseAuthStateChanged(callback: (user: User | null) => void) {
   return onAuthStateChanged(auth, (user) => {
-    // When auth state changes, clear the cached API key
-    cachedGeminiApiKey = null;
     callback(user)
   })
 }
