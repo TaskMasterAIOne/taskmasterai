@@ -29,7 +29,7 @@ import {
   updateDashboardLastSeen,
   updateItem,
   deleteItem,
-  getGeminiApiKey,
+  geminiApiKey,
   findItemByName,
   type EventData as FirebaseEventData,
   getDailyBriefRefreshStatus, // <-- ADD THIS
@@ -266,9 +266,11 @@ const parseGeminiApiResponse = (responseText: string, isImageGenCall: boolean): 
     }
 };
 
-// FIX: Add apiKey parameter
-const verifyEducationalContent = async (content: FlashcardMessage | QuestionMessage, apiKey: string): Promise<FlashcardMessage | QuestionMessage> => {
-    // This function no longer needs a guard clause, as it will be checked before calling.
+const verifyEducationalContent = async (content: FlashcardMessage | QuestionMessage): Promise<FlashcardMessage | QuestionMessage> => {
+    if (!geminiApiKey) {
+        console.warn("Gemini API key not available for verification.");
+        return content; // Return original content if no key
+    }
 
     const contentType = content.type; // 'flashcard' or 'question'
     const contentJsonString = JSON.stringify(content.data, null, 2);
@@ -292,7 +294,7 @@ const verifyEducationalContent = async (content: FlashcardMessage | QuestionMess
     `;
 
     try {
-        const verificationEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${apiKey}`;
+        const verificationEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${geminiApiKey}`;
         const geminiOptions = {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -779,31 +781,6 @@ export function Dashboard() {
   const [previousStreak, setPreviousStreak] = useState<number | null>(null);
   const [streakIncreased, setStreakIncreased] = useState(false);
 const [isDraggingOver, setIsDraggingOver] = useState(false);
-
-   // --- ADD THIS NEW STATE FOR THE API KEY ---
-  const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
-
-  // --- ADD THIS NEW USEEFFECT TO FETCH THE KEY ---
-  useEffect(() => {
-    const fetchKey = async () => {
-      // Only fetch the key if a user is logged in
-      if (user) {
-        const key = await getGeminiApiKey();
-        // Check for errors from the backend function
-        if (key && !key.startsWith("ERROR_")) {
-          setGeminiApiKey(key);
-        } else {
-          console.error("Critical: Failed to load Gemini API key for the user.");
-          // Optionally, display an error message in the UI
-        }
-      } else {
-        // Clear the key if the user logs out
-        setGeminiApiKey(null);
-      }
-    };
-
-    fetchKey();
-  }, [user]); // This effect runs whenever the user's login state changes
 
   const [userTier, setUserTier] = useState<UserTier>('loading');
   const [chatUsageCount, setChatUsageCount] = useState(0);
@@ -1315,16 +1292,12 @@ const handleDrop = async (e: React.DragEvent) => {
     setActivePrompt(prompt);
   };
 
-// src/components/Dashboard.tsx -> defined outside the component
-
-// FIX: Add apiKey parameter
-const generateChatName = async (convId: string, history: ChatMessageData[], currentUser: FirebaseUser | null, apiKey: string) => {
-    if (!currentUser || !currentUser.uid || history.length < 2) return;
+const generateChatName = async (convId: string, history: ChatMessageData[], currentUser: FirebaseUser | null) => {
+    if (!currentUser || !currentUser.uid || history.length < 2 || !geminiApiKey) return;
     const relevantHistory = history.slice(0, Math.min(history.length, 4)).map(m => `${m.role}: ${m.content?.substring(0,100) || ""}`).join("\n");
     const prompt = `Please provide a short 3-5 word title summarizing the conversation so far:\n${relevantHistory}\nReturn ONLY the title, with no extra commentary. USE THE SAME LANGUAGE AS PRESENTED IN THE CONVERSATION!`;
     try {
-        // FIX: Use the passed-in apiKey
-        const nameGenEndpoint = `${GEMINI_API_BASE}${GEMINI_MINI_MODEL}:generateContent?key=${apiKey}`;
+        const nameGenEndpoint = `${GEMINI_API_BASE}${GEMINI_MINI_MODEL}:generateContent?key=${geminiApiKey}`;
         const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 60 }})};
         const response = await fetchWithTimeout(nameGenEndpoint, geminiOptions, 10000);
         if (!response.ok) { console.warn(`Name gen API failed: ${response.status}`); return; }
@@ -1377,21 +1350,6 @@ const getFileContentAsBase64 = async (fileMeta: { url?: string; type: string; })
 
 const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, incomingFiles?: SelectedFile[]) => {
     e?.preventDefault();
-
-    // --- ADD THIS GUARD CLAUSE AT THE TOP ---
-    if (!geminiApiKey) {
-        console.error("Gemini API Key is not available. Aborting chat submission.");
-        // Optionally, show an error message in the chat history
-        const errorMsg: ChatMessageData = { 
-            id: `error-no-key-${Date.now()}`, 
-            role: 'system', 
-            content: `A configuration error occurred. Unable to connect to the AI service.`, 
-            error: true, 
-            createdAt: new Date() 
-        };
-        setChatHistory(prev => [...prev, errorMsg]);
-        return;
-    }
 
        // ---- THIS IS THE CORE FIX ----
     // If the microphone is running when we submit, stop it and reset its state.
@@ -2200,8 +2158,7 @@ if (notionBlock && user?.uid && isNotionConnected) {
               msg.id === newAssistantLPHId ? { ...msg, isVerifyingContent: true, isLoading: true } : msg
           ));
 
-          // FIX: Pass the geminiApiKey from state to the function
-          educationalContent = await verifyEducationalContent(tempEducationalContent, geminiApiKey);
+          educationalContent = await verifyEducationalContent(tempEducationalContent);
       }
       
       const otherActionBlocks = jsonActionBlocks.filter(b => b.type !== 'notion' && b.type !== 'flashcard' && b.type !== 'question');
@@ -2454,13 +2411,12 @@ if (notionBlock && user?.uid && isNotionConnected) {
             await saveChatMessage(currentConvId, assistantMsgToSave);
         }
       
-       const finalHistoryForName = [...chatHistory.filter(m => m.id !== newAssistantLPHId), finalAssistantMsgDataForUi];
+        const finalHistoryForName = [...chatHistory.filter(m => m.id !== newAssistantLPHId), finalAssistantMsgDataForUi];
         const totalUserMessagesInConv = finalHistoryForName.filter(m => m.role === 'user').length;
         const currentConvInfo = conversationList.find(c => c.id === currentConvId);
 
         if (currentConvId && currentConvInfo?.chatName === "New Chat" && (!hasGeneratedChatName || totalUserMessagesInConv === 1) ) {
-            // FIX: Pass the geminiApiKey from state to the function
-            await generateChatName(currentConvId, finalHistoryForName, user, geminiApiKey);
+            await generateChatName(currentConvId, finalHistoryForName, user);
             setHasGeneratedChatName(true);
         }
 
@@ -2909,22 +2865,6 @@ if (notionBlock && user?.uid && isNotionConnected) {
 
 
   const generateSmartDailyBrief = useCallback(async () => {
-
-      // --- ADD THIS GUARD CLAUSE AT THE TOP ---
-    if (!geminiApiKey) {
-        console.error("Gemini API Key is not available. Aborting chat submission.");
-        // Optionally, show an error message in the chat history
-        const errorMsg: ChatMessageData = { 
-            id: `error-no-key-${Date.now()}`, 
-            role: 'system', 
-            content: `A configuration error occurred. Unable to connect to the AI service.`, 
-            error: true, 
-            createdAt: new Date() 
-        };
-        setChatHistory(prev => [...prev, errorMsg]);
-        return;
-    }
-    
     // Basic guards: ensure user, tier, and content exist before proceeding.
     if (!user || !user.uid || !geminiApiKey || (userTier !== 'pro' && userTier !== 'premium') || smartBriefLoading || (tasks.length === 0 && goals.length === 0 && events.length === 0) ) {
         if (tasks.length === 0 && goals.length === 0 && events.length === 0) {
@@ -3747,19 +3687,8 @@ if (notionBlock && user?.uid && isNotionConnected) {
     const [goalCoachLoading, setGoalCoachLoading] = useState<{[key: string]: boolean}>({});
 
     const fetchGoalCoachTip = async (goalId: string, goalText: string) => {
-
-        // --- ADD THIS GUARD CLAUSE AT THE TOP ---
-        // --- ADD THIS FIX ---
-        if (!geminiApiKey) {
-            console.error("Gemini API Key is not available. Aborting coach tip fetch.");
-            setGoalCoachTip(prev => ({...prev, [goalId]: "AI Coach is unavailable at the moment."}));
-            return;
-        }
-        // --- END OF FIX ---
-        if (!user || goalCoachLoading[goalId]) return;
+        if (!user || !geminiApiKey || goalCoachLoading[goalId]) return;
         setGoalCoachLoading(prev => ({...prev, [goalId]: true}));
-
-
         const prompt = `User's learning goal: "${goalText}". Provide 1-2 very short, actionable coaching tips (as a single string, max 150 chars) to help achieve this. Be encouraging and use simple language. Example: "Break it into daily mini-tasks! You can do it! ✨" or "Schedule 20 mins each day for this. Consistent effort is key! 👍"`;
         try {
             const coachEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${geminiApiKey}`;
@@ -3782,18 +3711,8 @@ if (notionBlock && user?.uid && isNotionConnected) {
     };
 
     const fetchTaskCoachTip = async (taskId: string, taskText: string) => {
-
-        // --- ADD THIS FIX ---
-        if (!geminiApiKey) {
-            console.error("Gemini API Key is not available. Aborting coach tip fetch.");
-            setTaskCoachTip(prev => ({...prev, [taskId]: "AI Coach is unavailable at the moment."}));
-            return;
-        }
-        // --- END OF FIX ---
-        if (!user || taskCoachLoading[taskId]) return;
+        if (!user || !geminiApiKey || taskCoachLoading[taskId]) return;
         setTaskCoachLoading(prev => ({...prev, [taskId]: true}));
-      
-
         const prompt = `User's task: "${taskText}". Provide 1-2 very short, actionable coaching tips (as a single string, max 150 chars) to help complete this. Be encouraging and use simple language. Example: "Focus on the first step. You've got this! 💪" or "Set a timer for 25 minutes and dive in. Small wins matter! ⏳"`;
         try {
             const coachEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${geminiApiKey}`;
@@ -3961,22 +3880,8 @@ if (notionBlock && user?.uid && isNotionConnected) {
     };
 
     const generateProductivityAnalysis = async () => {
-
-        // --- ADD THIS GUARD CLAUSE AT THE TOP ---
-      // --- ADD THIS FIX ---
-        if (!geminiApiKey) {
-            console.error("Gemini API Key is not available. Aborting analysis.");
-            setProductivityAnalysisResult({
-                productivity_score: 0,
-                text_analysis: "Could not generate analysis. The AI service is currently unavailable.",
-                recommended_actions: []
-            });
-            return;
-        }
-        // --- END OF FIX ---
-        if (!user || !user.uid || isProductivityAnalysisLoading) return;
+        if (!user || !user.uid || isProductivityAnalysisLoading || !geminiApiKey) return;
         setIsProductivityAnalysisLoading(true);
-
         setProductivityAnalysisResult(null);
 
         const tasksContext = tasks.map(t => `Task: ${t.data.task}, Completed: ${t.data.completed}, Due: ${(t.data.dueDate?.toDate().toLocaleDateString() || 'N/A')}, Priority: ${calculatePriority(t)}`).join('\n');
