@@ -1,7 +1,32 @@
 import { auth, db } from "./firebase"
 
+// ---- GEMINI MODEL RESTRICTION ----
+export const ALLOWED_GEMINI_MODELS = [
+  "gemini-2.0",
+  "gemini-2.5-flash",
+  "gemini-2.0-flash-preview-image-generation"
+];
 
-export const geminiApiKey = "AIzaSyBnIYpIauKtcCA3CSG56cJ1Ac7fsH28fhk" // Ensure this is not committed if sensitive
+export function getAllowedGeminiModel(requestedModel: string): string {
+  if (!ALLOWED_GEMINI_MODELS.includes(requestedModel)) {
+    console.error(`❌ Blocked attempt to use disallowed Gemini model: ${requestedModel}`);
+    throw new Error(
+      `The requested model "${requestedModel}" is not permitted. Allowed models: ${ALLOWED_GEMINI_MODELS.join(", ")}`
+    );
+  }
+  return requestedModel;
+}
+
+// Ensure API key is only usable through safeModel validation
+export const geminiApiKey = (() => {
+  const key = "AIzaSyBnIYpIauKtcCA3CSG56cJ1Ac7fsH28fhk"; // Don't commit if sensitive
+  return Object.freeze({
+    getKey: (model: string) => {
+      const safeModel = getAllowedGeminiModel(model);
+      return { key, safeModel };
+    }
+  });
+})();
 
 import { type User, onAuthStateChanged, createUserWithEmailAndPassword, updateProfile } from "firebase/auth"
 
@@ -38,16 +63,11 @@ export interface EventData {
 }
 
 // --- NEWLY ADDED CODE FOR SMART DAILY BRIEF ---
-
 export interface DailyBriefStatus {
     count: number;
     lastRefreshDate: string; // YYYY-MM-DD format
 }
 
-/**
- * Fetches the user's daily brief refresh status from Firestore.
- * If the last refresh was not today, it automatically returns a reset count.
- */
 export async function getDailyBriefRefreshStatus(userId: string): Promise<DailyBriefStatus> {
     if (!userId) return { count: 0, lastRefreshDate: '' };
     try {
@@ -56,31 +76,23 @@ export async function getDailyBriefRefreshStatus(userId: string): Promise<DailyB
         if (docSnap.exists()) {
             const data = docSnap.data();
             const todayStr = new Date().toISOString().split('T')[0];
-            
-            // If the last refresh date stored in the DB is not today, the count is effectively 0 for today.
             if (data.dailyBriefStatus?.lastRefreshDate !== todayStr) {
                 return { count: 0, lastRefreshDate: todayStr };
             }
             return data.dailyBriefStatus || { count: 0, lastRefreshDate: '' };
         }
-        // If no document or status exists, return a fresh start.
         return { count: 0, lastRefreshDate: '' };
     } catch (error) {
         console.error("Error fetching daily brief status:", error);
-        // Return a default, non-blocking value on error to avoid breaking the UI.
         return { count: 0, lastRefreshDate: '' };
     }
 }
 
-/**
- * Updates the user's daily brief refresh count in Firestore for the current day.
- */
 export async function updateDailyBriefRefreshStatus(userId: string, newCount: number): Promise<void> {
     if (!userId) return;
     try {
         const userRef = doc(db, "users", userId);
         const todayStr = new Date().toISOString().split('T')[0];
-        // Use setDoc with merge to create or update the dailyBriefStatus object safely.
         await setDoc(userRef, {
             dailyBriefStatus: {
                 count: newCount,
@@ -91,7 +103,6 @@ export async function updateDailyBriefRefreshStatus(userId: string, newCount: nu
         console.error("Could not update daily brief status in Firestore:", error);
     }
 }
-
 // --- END OF NEWLY ADDED CODE ---
 
 export async function getUserData(userId: string): Promise<any | null> {
@@ -228,7 +239,7 @@ export async function createGoal(userId: string, goalText: string, targetDate?: 
   await addDoc(collection(db, "goals"), {
     goal: goalText.trim(),
     userId,
-    targetDate: targetDate instanceof Date ? Timestamp.fromDate(targetDate) : null, // Use targetDate field
+    targetDate: targetDate instanceof Date ? Timestamp.fromDate(targetDate) : null,
     priority,
     createdAt: serverTimestamp(),
     completed: false,
@@ -248,14 +259,13 @@ export async function createEvent(userId: string, eventDetails: { name: string; 
     startDate: Timestamp.fromDate(eventDetails.startDate),
     endDate: Timestamp.fromDate(eventDetails.endDate),
     description: eventDetails.description?.trim() || "",
-    color: eventDetails.color || '#3B82F6', // Default blue e.g.
+    color: eventDetails.color || '#3B82F6',
     linkedTaskIds: eventDetails.linkedTaskIds || [],
     linkedGoalIds: eventDetails.linkedGoalIds || [],
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
 }
-
 
 export async function markItemComplete(collectionName: 'tasks' | 'goals', docId: string) {
     if (!docId || !collectionName) throw new Error("Collection name and item ID required.");
@@ -272,19 +282,15 @@ export async function updateItem(collectionName: 'tasks' | 'goals' | 'customTime
     
     const itemRef = doc(db, collectionName, itemId);
 
-    // Convert Date objects to Timestamps for specified fields
     const dateFieldsToConvert = ['dueDate', 'targetDate', 'startDate', 'endDate', 'recurrenceEndDate'];
     dateFieldsToConvert.forEach(field => {
         if (field in updates) {
             if (updates[field] instanceof Date && !isNaN(updates[field].getTime())) {
                 updates[field] = Timestamp.fromDate(updates[field]);
             } else if (updates[field] === null || updates[field] === undefined || (typeof updates[field] === 'string' && updates[field].trim() === '')) {
-                // If the UI sends null, undefined, or an empty string for a date, store it as null in Firestore
                 updates[field] = null;
             } else if (!(updates[field] instanceof Timestamp)) {
-                // If it's not a Date, not null/undefined/empty, and not already a Timestamp, it's an invalid date format for update.
-                // It's safer to remove it or handle it as an error, rather than letting Firestore potentially fail.
-                console.warn(`Invalid date value provided for ${field} in update for item ${itemId}. Value: `, updates[field], `Type: ${typeof updates[field]}. Field removed from update.`);
+                console.warn(`Invalid date value for ${field} in update for item ${itemId}. Value removed.`);
                 delete updates[field];
             }
         }
@@ -337,7 +343,6 @@ export async function findItemByName(
         );
         const querySnapshot = await getDocs(q);
         if (!querySnapshot.empty) {
-            // Return the first match. You might want to handle multiple matches if they can exist.
             return querySnapshot.docs[0].id;
         }
         return null;
