@@ -427,8 +427,14 @@ export function FocusMode() {
   const truncatedName = useMemo(() => userName.split(' ')[0] || userName, [userName]);
   const [userTier, setUserTier] = useState<UserTier>('loading');
 
-    // --- ADD THIS NEW STATE AND EFFECT ---
+  // --- ADD THIS NEW STATE AND EFFECT ---
   const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
+
+  // Define showToast early to avoid initialization errors
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info', icon?: React.FC<any>) => {
+    // Simple toast implementation
+    console.log(`[${type.toUpperCase()}] ${message}`);
+  }, []);
 
   useEffect(() => {
     const fetchKey = async () => {
@@ -602,39 +608,6 @@ export function FocusMode() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [dropdownRef]);
 
-
-  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info', icon?: React.FC<any>) => {
-    setToastMessage({ message, type, icon });
-    setTimeout(() => setToastMessage(null), 3500);
-  }, []);
-
-    useEffect(() => {
-      const applyTheme = () => {
-          const isIlluminateEnabled = JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'false');
-          if (isIlluminateEnabled) {
-              document.documentElement.classList.remove('dark');
-              document.documentElement.classList.add('light');
-              setIsDarkMode(false);
-          } else {
-              document.documentElement.classList.remove('light');
-              if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                  document.documentElement.classList.add('dark');
-                  setIsDarkMode(true);
-              } else {
-                  document.documentElement.classList.remove('dark');
-                  setIsDarkMode(false);
-              }
-          }
-      };
-      applyTheme();
-      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-      mediaQuery.addEventListener('change', applyTheme);
-      window.addEventListener('storage', (event) => { if (event.key === 'isIlluminateEnabled') applyTheme(); });
-      return () => {
-          mediaQuery.removeEventListener('change', applyTheme);
-          window.removeEventListener('storage', (event) => { if (event.key === 'isIlluminateEnabled') applyTheme(); });
-      }
-    }, []);
 
   const formatTime = useCallback((totalSeconds: number) => {
     if (isNaN(totalSeconds) || totalSeconds < 0) totalSeconds = 0;
@@ -1362,7 +1335,7 @@ ${memoryContext}
 
  **Structured Markdown Response Mode (GLOBAL RULE ONLY WHEN RESPONDING TO THE USER):** THIS IS A CRUCIAL RULE -  ONLY USE MARKDOWN FORMATTING WHEN RESPONDING TO THE USER. FAILURE TO FOLLOW THIS COULD RESULT IN TERMINATION OR BEING REPORTED.
     *   For **any** response where the user is asking for summaries, breakdowns, explanations, lists, instructions, or informational outputs:
-        - **IMMEDIATELY start the response with content** — DO NOT include any intro commentary like "Sure!" or "Absolutely, here’s a breakdown...".
+        - **IMMEDIATELY start the response with content** — DO NOT include any intro commentary like "Sure!" or "Absolutely, here's a breakdown...".
         - Use **proper markdown formatting consistently**, including:
             - #, ##, ### for section headers
             - - or numbered 1., 2. lists for organized points
