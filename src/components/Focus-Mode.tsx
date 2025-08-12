@@ -106,6 +106,9 @@ const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models
 const GEMINI_TEXT_MODEL = 'gemini-2.5-flash';
 const GEMINI_IMAGE_GEN_MODEL = 'gemini-2.0-flash-preview-image-generation';
 
+
+
+
 interface ChatMessageDisplayData {
   id: string;
   role: 'user' | 'assistant' | 'system';
@@ -338,6 +341,82 @@ const combineDateAndTime = (dateStr: string | undefined | null, timeStr: string 
     } catch (e) { console.warn("Error in combineDateAndTime for", dateStr, timeStr, e); return null; }
 };
 
+
+// FIX: Add 'apiKey' as a parameter to the function signature
+const verifyEducationalContent = async (content: FlashcardMessage | QuestionMessage, apiKey: string): Promise<FlashcardMessage | QuestionMessage> => {
+  // This check is now against the passed parameter.
+  if (!apiKey) {
+    console.warn("Gemini API key not provided for verification.");
+    return content;
+  }
+
+  const contentType = content.type;
+  const contentJsonString = JSON.stringify(content.data, null, 2);
+  const prompt = `
+    You are an expert fact-checker and educator. Your task is to meticulously review the following educational content:
+    Content Type: ${contentType}
+    Content Data:
+    \`\`\`json
+    ${contentJsonString}
+    \`\`\`
+    Instructions:
+    1.  For each item, verify the accuracy of the "answer" (for flashcards) or the "correctAnswer" and "explanation" (for quizzes) in relation to the "question".
+    2.  If you find any inaccuracies, correct them directly within the JSON structure.
+    3.  Do NOT add, remove, or rephrase questions.
+    4.  Do NOT change the overall JSON structure or the IDs of the items.
+    5.  Your primary goal is to ensure factual correctness and high-quality educational material.
+    Return ONLY the final, verified (and corrected, if necessary) JSON data for the \`data\` array. Your output MUST be a valid JSON array, and nothing else.
+    `;
+    
+  try {
+    // FIX: Use the passed-in 'apiKey' variable in the URL
+    const verificationEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${apiKey}`;
+    const geminiOptions = {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          temperature: 0.1,
+        }
+      })
+    };
+    const response = await fetchWithTimeout(verificationEndpoint, geminiOptions, 20000);
+    if (!response.ok) {
+      throw new Error(`Verification API error (${response.status})`);
+    }
+    const responseText = await response.text();
+    const parsedResponse = parseGeminiApiResponse(responseText, false);
+    if (parsedResponse.error || !parsedResponse.text) {
+      throw new Error(parsedResponse.error || "Empty AI response during verification.");
+    }
+    let verifiedData;
+    try {
+      verifiedData = JSON.parse(parsedResponse.text);
+      if (!Array.isArray(verifiedData)) {
+        const jsonBlockResult = extractJsonBlocks(parsedResponse.text);
+        if (jsonBlockResult.blocks.length > 0 && Array.isArray(jsonBlockResult.blocks[0])) {
+          verifiedData = jsonBlockResult.blocks[0];
+        } else if (jsonBlockResult.blocks.length > 0 && jsonBlockResult.blocks[0].data && Array.isArray(jsonBlockResult.blocks[0].data)) {
+          verifiedData = jsonBlockResult.blocks[0].data;
+        } else {
+          throw new Error("Parsed data from verification is not a valid array.");
+        }
+      }
+    } catch (e) {
+      console.error("Failed to parse verified JSON:", e, parsedResponse.text);
+      return content;
+    }
+    return {
+      ...content,
+      data: verifiedData,
+    };
+  } catch (error) {
+    console.error("Error during educational content verification:", error);
+    return content;
+  }
+};
 
 export function FocusMode() {
   const navigate = useNavigate();
