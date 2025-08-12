@@ -156,9 +156,29 @@ export const updateDashboardLastSeen = async (userId: string) => {
     if (!userId) return;
     try {
         const userRef = doc(db, "users", userId);
-        await setDoc(userRef, {
-            dashboardLastSeen: Timestamp.now()
-        }, { merge: true });
+        // Use updateDoc first, fallback to setDoc if document doesn't exist
+        try {
+            await updateDoc(userRef, {
+                dashboardLastSeen: Timestamp.now(),
+                updatedAt: serverTimestamp()
+            });
+        } catch (updateError: any) {
+            // If document doesn't exist, create it
+            if (updateError.code === 'not-found') {
+                await setDoc(userRef, {
+                    dashboardLastSeen: Timestamp.now(),
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp()
+                }, { merge: true });
+            } else {
+                // For other errors, try setDoc as fallback
+                console.warn("Update failed, trying setDoc with merge:", updateError);
+                await setDoc(userRef, {
+                    dashboardLastSeen: Timestamp.now(),
+                    updatedAt: serverTimestamp()
+                }, { merge: true });
+            }
+        }
     } catch (error) {
         console.warn("Could not update dashboardLastSeen:", error);
     }
