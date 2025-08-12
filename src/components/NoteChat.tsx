@@ -648,7 +648,6 @@ const NoteChatComponent: React.ForwardRefRenderFunction<NoteChatHandle, NoteChat
     const {
         note,
         onClose,
-        geminiApiKey,
         userName,
         isIlluminateEnabled,
         isBlackoutEnabled,
