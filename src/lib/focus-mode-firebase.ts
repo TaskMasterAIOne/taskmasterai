@@ -21,7 +21,6 @@ import {
 } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
 
-
 const DEFAULT_WORK_SECONDS = 25 * 60;
 const DEFAULT_SHORT_BREAK_SECONDS = 5 * 60;
 const DEFAULT_LONG_BREAK_SECONDS = 15 * 60;
@@ -373,11 +372,18 @@ export const updateUserTotalXp = async (userId: string, xpToAdd: number) => {
         await updateDoc(userProfileRef, {
             totalXp: increment(xpToAdd),
             lastXpEarnedAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
         });
-    } catch (error) {
+    } catch (error: any) {
         console.warn("Failed to update totalXp, attempting to set document:", error);
         try {
-             await setDoc(userProfileRef, { totalXp: xpToAdd, lastXpEarnedAt: serverTimestamp(), createdAt: serverTimestamp() }, { merge: true });
+            // Use setDoc with merge to avoid race conditions
+            await setDoc(userProfileRef, { 
+                totalXp: xpToAdd, 
+                lastXpEarnedAt: serverTimestamp(), 
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            }, { merge: true });
         } catch (setErr) {
             console.error("Failed to set user profile for XP:", setErr);
         }
@@ -438,7 +444,29 @@ export const updateUserStreakOnSessionCompletion = async (userId: string, sessio
             lastFocusTimestamp: sessionCompletedAt,
         };
 
-        await setDoc(userProfileRef, { streaks: updatedStreakData }, { merge: true });
+        // Use updateDoc instead of setDoc to avoid race conditions
+        try {
+            await updateDoc(userProfileRef, { 
+                streaks: updatedStreakData,
+                updatedAt: serverTimestamp()
+            });
+        } catch (updateError: any) {
+            // If update fails due to document not existing, create it
+            if (updateError.code === 'not-found') {
+                await setDoc(userProfileRef, { 
+                    streaks: updatedStreakData,
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp()
+                }, { merge: true });
+            } else {
+                // For other errors, try to use setDoc with merge as fallback
+                console.warn("Update failed, trying setDoc with merge:", updateError);
+                await setDoc(userProfileRef, { 
+                    streaks: updatedStreakData,
+                    updatedAt: serverTimestamp()
+                }, { merge: true });
+            }
+        }
 
     } catch (error) {
         console.error("Error updating user streak:", error);
