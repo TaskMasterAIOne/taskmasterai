@@ -29,7 +29,7 @@ import {
 import { NewNoteModal } from './NewNoteModal';
 import { SplitView } from './SplitView';
 import { NoteChat, NoteChatHandle, ImageData as ChatImageData } from './NoteChat';
-import { getGeminiApiKey } from '../lib/dashboard-firebase';
+import { geminiApiKey } from '../lib/dashboard-firebase';
 import {
     UserTier,
     getUserTier as determineUserTier,
@@ -511,32 +511,6 @@ export function Notes() {
     const [screenshotStartPoint, setScreenshotStartPoint] = useState<{ x: number, y: number } | null>(null);
     const targetPdfPageElementRef = useRef<HTMLElement | null>(null);
 
-
-
-        // --- ADD THIS NEW STATE AND EFFECT ---
-    const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
-
-    useEffect(() => {
-        const fetchKey = async () => {
-            if (user) {
-                const key = await getGeminiApiKey();
-                if (key && !key.startsWith("ERROR_")) {
-                    setGeminiApiKey(key);
-                } else {
-                    console.error("Critical: Failed to load Gemini API key for the user in Notes component.");
-                    // The showToast function is available in this component
-                    showToast("AI services are currently unavailable due to a configuration error.", "error");
-                }
-            } else {
-                // Clear the key if the user logs out or is not present
-                setGeminiApiKey(null);
-            }
-        };
-
-        fetchKey();
-    }, [user, showToast]); // This effect runs when the user's auth state changes
-
-    
     const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info', icon?: React.FC<any>) => {
         setUploadProgress({ progress: type === 'success' ? 100 : 0, status: message, error: type === 'error' ? message : null, icon, type });
         setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null, icon: undefined, type: undefined }), 3500);
