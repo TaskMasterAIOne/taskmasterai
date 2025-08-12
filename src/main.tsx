@@ -24,7 +24,6 @@ import Contact from './components/Contact';
 import { Folders }from './components/Folders';
 import AIChat from './components/AI-Chat';
 import Notes from './components/Notes';
-import SchoolPage from './components/SchoolPage';
 import './index.css';
 import FriendsOutage from './outage-pages/FriendsOutage';
 import Status from './status/Status';
@@ -149,7 +148,6 @@ const AppRoutes = () => {
       <Route path="/folders" element={user ? <PageTitle title="Folders"><Folders /></PageTitle> : <Navigate to="/login" replace />} />
       <Route path="/ai" element={user ? <PageTitle title="AI Chat"><AIChat /></PageTitle> : <Navigate to="/login" replace />} />
       <Route path="/notes" element={user ? <PageTitle title="Notes"><Notes /></PageTitle> : <Navigate to="/login" replace />} />
-      <Route path="/school" element={user ? <PageTitle title="School"><SchoolPage /></PageTitle> : <Navigate to="/login" replace />} />
       <Route path="/" element={<RootTitle><App /></RootTitle>} />
       <Route path="/status" element={<PageTitle title="Status"><Status /></PageTitle>} />
       <Route path="/focus" element={user ? <PageTitle title="Focus"><FocusMode /></PageTitle> : <Navigate to="/login" replace />} />
