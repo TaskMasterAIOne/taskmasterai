@@ -529,7 +529,7 @@ export function Notes() {
                 if (key && !key.startsWith("ERROR_")) {
                     setGeminiApiKey(key);
                 } else {
-                    console.error("Critical: Failed to load Gemini API key for Notes component.");
+                    console.error("Critical: Failed to load API key for Notes component.");
                     // The showToast function is available in this component
                     showToast("AI services are currently unavailable due to a configuration error.", "error");
                 }
