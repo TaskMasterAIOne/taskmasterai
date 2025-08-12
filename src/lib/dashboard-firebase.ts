@@ -22,7 +22,7 @@ import {
   getDocs,
 } from "firebase/firestore"
 
-// --- NEW SECURE API KEY FETCHER ---
+// --- NEW SECURE API KEY FETCHER---
 
 // In-memory cache for the API key to prevent repeated backend calls.
 let cachedGeminiApiKey: string | null = null;
