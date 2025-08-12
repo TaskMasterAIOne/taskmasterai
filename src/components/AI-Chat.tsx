@@ -15,14 +15,8 @@ import 'katex/dist/katex.min.css';
 import { auth } from '../lib/firebase';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { Timestamp } from 'firebase/firestore';
-import { 
-  getGeminiApiKey, // Correctly import the new function
-  onCollectionSnapshot, 
-  findItemByName, 
-  updateItem, 
-  createEvent as createFirebaseEvent, 
-  deleteItem 
-} from '../lib/dashboard-firebase';import { getFunctions, httpsCallable } from 'firebase/functions'; 
+import { geminiApiKey, onCollectionSnapshot, findItemByName, updateItem, createEvent as createFirebaseEvent, deleteItem } from '../lib/dashboard-firebase';
+import { getFunctions, httpsCallable } from 'firebase/functions'; 
 import { getUserData } from '../lib/settings-firebase'; // Ensure this is imported
 import { ProfileModal } from './ProfileModal';
 import { UserTier, BASIC_CHAT_LIMIT, getUserTier, getChatLimitForTier, getCurrentMonthUserChatUsage, incrementUserChatUsage, onUserProfileSnapshot, type UserProfileData, updateUserStreak } from '../lib/current-paying-user';
@@ -182,9 +176,9 @@ const parseGeminiApiResponse = (responseText: string, isImageGenCall: boolean): 
   }
 };
 
-const verifyEducationalContent = async (content: FlashcardMessage | QuestionMessage, apiKey: string): Promise<FlashcardMessage | QuestionMessage> => {
-  if (!apiKey) {
-    console.warn("Gemini API key not provided for verification.");
+const verifyEducationalContent = async (content: FlashcardMessage | QuestionMessage): Promise<FlashcardMessage | QuestionMessage> => {
+  if (!geminiApiKey) {
+    console.warn("Gemini API key not available for verification.");
     return content;
   }
   const contentType = content.type;
@@ -205,7 +199,7 @@ const verifyEducationalContent = async (content: FlashcardMessage | QuestionMess
     Return ONLY the final, verified (and corrected, if necessary) JSON data for the \`data\` array. Your output MUST be a valid JSON array, and nothing else.
     `;
   try {
-    const verificationEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${apiKey}`;
+    const verificationEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${geminiApiKey}`;
     const geminiOptions = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -659,29 +653,6 @@ export function AIChat() {
   const [assistantLoadingPlaceholderId, setAssistantLoadingPlaceholderId] = useState<string | null>(null);
   const [aiActionStatus, setAiActionStatus] = useState<string | null>(null);
 const [isDraggingOver, setIsDraggingOver] = useState(false);
-
-
-    // --- ADD THIS NEW STATE AND EFFECT ---
-  const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchKey = async () => {
-      if (user) {
-        const key = await getGeminiApiKey();
-        if (key && !key.startsWith("ERROR_")) {
-          setGeminiApiKey(key);
-        } else {
-          console.error("Critical: Failed to load Gemini API key for AI Chat component.");
-          // Optionally, display an error in the chat UI
-        }
-      } else {
-        // Clear the key if the user logs out
-        setGeminiApiKey(null);
-      }
-    };
-
-    fetchKey();
-  }, [user]); // This effect runs whenever the user's login state changes
   
   const {
     transcript,
@@ -1079,19 +1050,19 @@ const [isDraggingOver, setIsDraggingOver] = useState(false);
     return [...formattedHistory, { role: 'user', parts: userMessageParts }];
   };
 
-// src/components/AI-Chat.tsx -> outside the AIChat() component
-
-const generateChatName = async (convId: string, history: ChatMessageData[], currentUser: User | null, apiKey: string) => {
-    if (!currentUser || !currentUser.uid || history.length === 0 || !apiKey) {
-        console.warn("generateChatName guard clause triggered. Aborting.", { hasUser: !!currentUser, historyLength: history.length, hasApiKey: !!apiKey });
+const generateChatName = async (convId: string, history: ChatMessageData[], currentUser: User | null) => {
+    // --- FIX START: Relax the history check to run if there is ANY content ---
+    if (!currentUser || !currentUser.uid || history.length === 0 || !geminiApiKey) {
+        console.warn("generateChatName guard clause triggered. Aborting.", { hasUser: !!currentUser, historyLength: history.length });
         return;
     }
+    // --- FIX END ---
 
     const relevantHistory = history.slice(0, Math.min(history.length, 4)).map(m => `${m.role}: ${m.content?.substring(0, 100) || ""}`).join("\n");
     const prompt = `Please provide a short 3-5 word title summarizing the conversation so far:\n${relevantHistory}\nReturn ONLY the title, with no extra commentary. USE THE SAME LANGUAGE AS PRESENTED IN THE CONVERSATION!`;
     
     try {
-        const nameGenEndpoint = `${GEMINI_API_BASE}${GEMINI_MINI_MODEL}:generateContent?key=${apiKey}`;
+        const nameGenEndpoint = `${GEMINI_API_BASE}${GEMINI_MINI_MODEL}:generateContent?key=${geminiApiKey}`;
         const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 60 } }) };
         const response = await fetchWithTimeout(nameGenEndpoint, geminiOptions, 10000);
         if (!response.ok) { 
@@ -1102,8 +1073,11 @@ const generateChatName = async (convId: string, history: ChatMessageData[], curr
         const parsedResponse = parseGeminiApiResponse(responseText, false);
       
         if (parsedResponse.text && parsedResponse.text.trim()) {
+            // Clean up the name by removing potential quotes
             const newName = parsedResponse.text.trim().replace(/["']/g, "").substring(0, 50);
             await updateChatConversationName(convId, newName);
+            // This state update is a signal for the UI, not the primary logic trigger
+            setHasGeneratedChatName(true); 
         } else if (parsedResponse.error) { 
             console.warn("Name gen failed (API/parsing):", parsedResponse.error); 
         }
@@ -1114,21 +1088,7 @@ const generateChatName = async (convId: string, history: ChatMessageData[], curr
 
 const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, incomingFiles?: SelectedFile[]) => {
     e?.preventDefault();
-
-    // --- FIX: Add guard clause for the API key ---
-    if (!geminiApiKey) {
-        console.error("Gemini API Key is not available. Aborting chat submission.");
-        const errorMsg: ChatMessageData = { 
-            id: `error-no-key-${Date.now()}`, 
-            role: 'system', 
-            content: `A configuration error occurred. Unable to connect to the AI service.`, 
-            error: true, 
-            createdAt: new Date() 
-        };
-        setChatHistory(prev => [...prev, errorMsg]);
-        return;
-    }
-    // --- END OF FIX ---
+    // ---- THIS IS THE CORE AUDIO FIX ----
     if (listening) {
         SpeechRecognition.stopListening();
         resetTranscript();
@@ -1687,7 +1647,7 @@ Your ultimate goal is to be a world-class productivity partner for ${truncatedNa
 Assistant:`;
 
       const currentTargetModel = imageGenModeOn ? GEMINI_IMAGE_GEN_MODEL : GEMINI_TEXT_MODEL;
-        const fullApiUrl = `${GEMINI_API_BASE}${currentTargetModel}:generateContent?key=${geminiApiKey}`;
+          const fullApiUrl = `${GEMINI_API_BASE}${currentTargetModel}:generateContent?key=${geminiApiKey}`;
           let apiRequestBody: any;
       
           if (imageGenModeOn) {
@@ -1895,19 +1855,17 @@ Assistant:`;
 }
 
 
-        const educationalBlock = jsonActionBlocks.find(block => block.type === "flashcard" || block.type === "question");
+      const educationalBlock = jsonActionBlocks.find(block => block.type === "flashcard" || block.type === "question");
       const otherActionBlocks = jsonActionBlocks.filter(b => b !== educationalBlock && b !== notionBlock);
 
 
-        if (educationalBlock && user?.uid) {
-            let tempEducationalContent: FlashcardMessage | QuestionMessage;
-            if (educationalBlock.type === "flashcard") { tempEducationalContent = { type: "flashcard", data: educationalBlock.data as FlashcardData[] }; }
-            else { tempEducationalContent = { type: "question", data: educationalBlock.data as QuestionData[] }; }
-            setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? { ...msg, isVerifyingContent: true, isLoading: true } : msg ));
-            
-            // FIX: Pass the geminiApiKey from state to the updated helper function
-            educationalContent = await verifyEducationalContent(tempEducationalContent, geminiApiKey);
-        }
+      if (educationalBlock && user?.uid) {
+        let tempEducationalContent: FlashcardMessage | QuestionMessage;
+        if (educationalBlock.type === "flashcard") { tempEducationalContent = { type: "flashcard", data: educationalBlock.data as FlashcardData[] }; }
+        else { tempEducationalContent = { type: "question", data: educationalBlock.data as QuestionData[] }; }
+        setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? { ...msg, isVerifyingContent: true, isLoading: true } : msg ));
+        educationalContent = await verifyEducationalContent(tempEducationalContent);
+      }
       
       if (!isImageGenModeActive && otherActionBlocks.length > 0 && user?.uid) {
         setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? { ...msg, isLoading: true, isProcessingActions: true } : msg ));
@@ -2083,17 +2041,21 @@ Assistant:`;
       }
       
       
-        const finalHistoryForName = [...chatHistory.filter(m => m.id !== newAssistantLPHId), finalAssistantMsgDataForUi];
-        const conversationJustCreated = isNewConversation;
-        const conversationNeedsRenaming = !isNewConversation && currentConversation?.chatName === 'New Chat';
-        const hasContentToName = finalHistoryForName.some(m => m.role === 'user' && m.content?.trim());
+      const finalHistoryForName = [...chatHistory.filter(m => m.id !== newAssistantLPHId), finalAssistantMsgDataForUi];
 
-        if ((conversationJustCreated || conversationNeedsRenaming) && hasContentToName) {
-            // FIX: Pass the geminiApiKey from state to the updated helper function
-            generateChatName(currentConvId, finalHistoryForName, user, geminiApiKey);
-        }
+      // --- FIX START: This is the robust logic for triggering name generation ---
+      const conversationJustCreated = isNewConversation;
+      const conversationNeedsRenaming = !isNewConversation && currentConversation?.chatName === 'New Chat';
+      const hasContentToName = finalHistoryForName.some(m => m.role === 'user' && m.content?.trim());
 
-    } catch (err: any) {
+      if ((conversationJustCreated || conversationNeedsRenaming) && hasContentToName) {
+        // We call this without `await` so it doesn't block the UI from updating.
+        // The function will run in the background and update the conversation name when ready.
+        generateChatName(currentConvId, finalHistoryForName, user);
+      }
+      // --- FIX END ---
+      
+     } catch (err: any) {
         console.error("CRITICAL ERROR in handleChatSubmit:", err);
         const errorMsgContent = `Sorry, a critical error occurred${err.message ? ': ' + err.message : '.'} Please check the console and try again.`;
         const errorMsgForState: ChatMessageData = { id: newAssistantLPHId, role: 'assistant', content: errorMsgContent, error: true, createdAt: new Date(), isLoading: false };
