@@ -367,25 +367,35 @@ export const calculateXpForSession = (session: FocusSessionData): number => {
 
 export const updateUserTotalXp = async (userId: string, xpToAdd: number) => {
     if (!userId || xpToAdd <= 0) return;
-    const userProfileRef = doc(db, 'users', userId);
-    try {
-        await updateDoc(userProfileRef, {
-            totalXp: increment(xpToAdd),
-            lastXpEarnedAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-        });
-    } catch (error: any) {
-        console.warn("Failed to update totalXp, attempting to set document:", error);
+    
+    const maxRetries = 3;
+    let retryCount = 0;
+    
+    while (retryCount < maxRetries) {
         try {
-            // Use setDoc with merge to avoid race conditions
+            const userProfileRef = doc(db, 'users', userId);
+            
+            // Always use setDoc with merge to avoid race conditions
             await setDoc(userProfileRef, { 
-                totalXp: xpToAdd, 
-                lastXpEarnedAt: serverTimestamp(), 
-                createdAt: serverTimestamp(),
+                totalXp: increment(xpToAdd),
+                lastXpEarnedAt: serverTimestamp(),
                 updatedAt: serverTimestamp()
             }, { merge: true });
-        } catch (setErr) {
-            console.error("Failed to set user profile for XP:", setErr);
+            
+            // If we get here, the operation succeeded
+            break;
+            
+        } catch (error: any) {
+            retryCount++;
+            console.warn(`XP update attempt ${retryCount} failed:`, error);
+            
+            if (retryCount >= maxRetries) {
+                console.error("Max retries reached for XP update:", error);
+                break;
+            }
+            
+            // Wait a bit before retrying (exponential backoff)
+            await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 100));
         }
     }
 };
@@ -404,72 +414,73 @@ const datesAreOnConsecutiveDays = (first: Date, second: Date) => {
 
 export const updateUserStreakOnSessionCompletion = async (userId: string, sessionCompletedAt: Timestamp) => {
     if (!userId) return;
-    const userProfileRef = doc(db, 'users', userId);
-    const today = sessionCompletedAt.toDate();
+    
+    const maxRetries = 3;
+    let retryCount = 0;
+    
+    while (retryCount < maxRetries) {
+        try {
+            const userProfileRef = doc(db, 'users', userId);
+            const today = sessionCompletedAt.toDate();
 
-    try {
-        const docSnap = await getDoc(userProfileRef);
-        let currentStreakData: UserStreakData = { current: 0, longest: 0, lastFocusTimestamp: null };
+            // Always use setDoc with merge to avoid race conditions
+            const docSnap = await getDoc(userProfileRef);
+            let currentStreakData: UserStreakData = { current: 0, longest: 0, lastFocusTimestamp: null };
 
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            if (data.streaks) {
-                currentStreakData = data.streaks as UserStreakData;
-            }
-        }
-
-        let newCurrentStreak = currentStreakData.current;
-        let newLongestStreak = currentStreakData.longest;
-
-        if (currentStreakData.lastFocusTimestamp) {
-            const lastFocusDay = currentStreakData.lastFocusTimestamp.toDate();
-            if (!datesAreOnSameDay(lastFocusDay, today)) {
-                if (datesAreOnConsecutiveDays(lastFocusDay, today)) {
-                    newCurrentStreak += 1;
-                } else {
-                    newCurrentStreak = 1;
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                if (data.streaks) {
+                    currentStreakData = data.streaks as UserStreakData;
                 }
             }
-        } else {
-            newCurrentStreak = 1;
-        }
 
-        if (newCurrentStreak > newLongestStreak) {
-            newLongestStreak = newCurrentStreak;
-        }
+            let newCurrentStreak = currentStreakData.current;
+            let newLongestStreak = currentStreakData.longest;
 
-        const updatedStreakData: UserStreakData = {
-            current: newCurrentStreak,
-            longest: newLongestStreak,
-            lastFocusTimestamp: sessionCompletedAt,
-        };
+            if (currentStreakData.lastFocusTimestamp) {
+                const lastFocusDay = currentStreakData.lastFocusTimestamp.toDate();
+                if (!datesAreOnSameDay(lastFocusDay, today)) {
+                    if (datesAreOnConsecutiveDays(lastFocusDay, today)) {
+                        newCurrentStreak += 1;
+                    } else {
+                        newCurrentStreak = 1;
+                    }
+                }
+            } else {
+                newCurrentStreak = 1;
+            }
 
-        // Use updateDoc instead of setDoc to avoid race conditions
-        try {
-            await updateDoc(userProfileRef, { 
+            if (newCurrentStreak > newLongestStreak) {
+                newLongestStreak = newCurrentStreak;
+            }
+
+            const updatedStreakData: UserStreakData = {
+                current: newCurrentStreak,
+                longest: newLongestStreak,
+                lastFocusTimestamp: sessionCompletedAt,
+            };
+
+            // Always use setDoc with merge to avoid race conditions
+            await setDoc(userProfileRef, { 
                 streaks: updatedStreakData,
                 updatedAt: serverTimestamp()
-            });
-        } catch (updateError: any) {
-            // If update fails due to document not existing, create it
-            if (updateError.code === 'not-found') {
-                await setDoc(userProfileRef, { 
-                    streaks: updatedStreakData,
-                    createdAt: serverTimestamp(),
-                    updatedAt: serverTimestamp()
-                }, { merge: true });
-            } else {
-                // For other errors, try to use setDoc with merge as fallback
-                console.warn("Update failed, trying setDoc with merge:", updateError);
-                await setDoc(userProfileRef, { 
-                    streaks: updatedStreakData,
-                    updatedAt: serverTimestamp()
-                }, { merge: true });
+            }, { merge: true });
+            
+            // If we get here, the operation succeeded
+            break;
+            
+        } catch (error: any) {
+            retryCount++;
+            console.warn(`Streak update attempt ${retryCount} failed:`, error);
+            
+            if (retryCount >= maxRetries) {
+                console.error("Max retries reached for streak update:", error);
+                break;
             }
+            
+            // Wait a bit before retrying (exponential backoff)
+            await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 100));
         }
-
-    } catch (error) {
-        console.error("Error updating user streak:", error);
     }
 };
 
