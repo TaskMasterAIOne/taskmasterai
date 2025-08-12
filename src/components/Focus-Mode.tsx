@@ -261,7 +261,7 @@ const parseGeminiApiResponse = (responseText: string, isImageGenCall: boolean): 
         }
         return { text: textContent, localImageData: imageContent, error: errorMessage, finishReason: reason, sources };
     } catch (err) {
-        console.error("Error parsing Gemini API response:", responseText, err);
+        console.error("Error parsing API response:", responseText, err);
         return { text: null, localImageData: null, error: "Error: Could not process AI response (Invalid format).", finishReason: null };
     }
 };
@@ -346,7 +346,7 @@ const combineDateAndTime = (dateStr: string | undefined | null, timeStr: string 
 const verifyEducationalContent = async (content: FlashcardMessage | QuestionMessage, apiKey: string): Promise<FlashcardMessage | QuestionMessage> => {
   // This check is now against the passed parameter.
   if (!apiKey) {
-    console.warn("Gemini API key not provided for verification.");
+    console.warn("API key not provided for verification.");
     return content;
   }
 
@@ -443,7 +443,7 @@ export function FocusMode() {
         if (key && !key.startsWith("ERROR_")) {
           setGeminiApiKey(key);
         } else {
-          console.error("Critical: Failed to load Gemini API key for Focus Mode component.");
+          console.error("Critical: Failed to load API key.");
           showToast("AI services are currently unavailable due to a configuration error.", "error");
         }
       } else {
@@ -1150,7 +1150,7 @@ export function FocusMode() {
     e?.preventDefault();
         // --- FIX #1: ADD GUARD CLAUSE FOR THE API KEY ---
     if (!geminiApiKey) {
-      console.error("Gemini API Key is not available. Aborting chat submission.");
+      console.error("API Key is not available. Aborting chat submission.");
       showToast("AI Assistant is unavailable due to a configuration error.", "error");
       return;
     }
@@ -1534,7 +1534,7 @@ Assistant:`;
   const generateProductivityAnalysis = () => {
     // --- ADD THIS GUARD CLAUSE ---
     if (!geminiApiKey) {
-      console.error("Gemini API Key is not available. Aborting analysis.");
+      console.error("API Key is not available. Aborting analysis.");
       showToast("AI Analytics is currently unavailable due to a configuration error.", "error");
       setProductivityAnalysisResult({
         productivity_score: 0,
