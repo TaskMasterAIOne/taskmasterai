@@ -1,18 +1,120 @@
-code
-Jsx
-download
-content_copy
-expand_less
-
-import React, { useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import remarkGfm from 'remark-gfm';
+import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import {
-    LayoutDashboard, NotebookText, FolderKanban,
-    Eye, Settings, History, Sparkles
+    LayoutDashboard, NotebookText, CalendarDays, Users, Globe2, FolderKanban,
+    Eye, BrainCircuit, Settings, CheckCircle, AlertTriangle, X, Send,
+    Loader2, History, Clock, Sparkles
 } from 'lucide-react';
 
+// Assuming API Key is accessible
+import { getGeminiApiKey } from '../lib/dashboard-firebase'; // Adjust path as needed
+
+// --- AI Helper Functions (Unchanged) ---
+const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}&alt=sse`;
+
+const streamResponse = async (
+  url: string,
+  options: RequestInit,
+  onStreamUpdate: (textChunk: string) => void,
+) => {
+    try {
+        const response = await fetch(url, { ...options });
+
+        if (!response.ok) {
+            let errorBody = '';
+            try {
+                errorBody = await response.text();
+                const errorJson = JSON.parse(errorBody);
+                if (errorJson?.error?.message) {
+                    throw new Error(`API Error (${response.status}): ${errorJson.error.message}`);
+                }
+            } catch (parseError) { /* Ignore */ }
+            throw new Error(`API Request Failed (${response.status}): ${response.statusText} ${errorBody || ''}`);
+        }
+
+        if (!response.body) {
+            const text = await response.text();
+            onStreamUpdate(text);
+            return text;
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let done = false;
+        let accumulatedRawText = "";
+
+        while (!done) {
+            const { value, done: doneReading } = await reader.read();
+            done = doneReading;
+            if (value) {
+                const rawChunk = decoder.decode(value, { stream: !done });
+                accumulatedRawText += rawChunk;
+                onStreamUpdate(accumulatedRawText);
+            }
+        }
+        return accumulatedRawText;
+
+    } catch (error) {
+        console.error("Streaming Error:", error);
+        throw error;
+    }
+};
+
+const extractCandidateText = (rawResponseText: string): string => {
+    try {
+        let extractedText = "";
+        let potentialJson = "";
+        const lines = rawResponseText.trim().split('\n');
+        const lastDataLine = lines.filter(line => line.startsWith('data:')).pop();
+
+        if (lastDataLine) {
+             potentialJson = lastDataLine.substring(5).trim();
+        } else if (rawResponseText.trim().startsWith('{')) {
+            potentialJson = rawResponseText.trim();
+        }
+
+        if (potentialJson) {
+            try {
+                const parsedJson = JSON.parse(potentialJson);
+                if (parsedJson.candidates?.[0]?.content?.parts?.[0]?.text) {
+                    extractedText = parsedJson.candidates[0].content.parts[0].text;
+                } else if (parsedJson.error?.message) {
+                    console.error("Gemini API Error in response:", parsedJson.error.message);
+                    return `Error: ${parsedJson.error.message}`;
+                } else {
+                    const anyTextPart = parsedJson.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text;
+                    extractedText = anyTextPart || "";
+                }
+            } catch (e) {
+                 const textMatch = rawResponseText.match(/"text":\s*"((?:\\.|[^"\\])*)"/);
+                 extractedText = textMatch ? JSON.parse(`"${textMatch[1]}"`) : "";
+            }
+        } else {
+             if (rawResponseText.includes('"error":')) {
+                 try {
+                     const parsedError = JSON.parse(rawResponseText);
+                     if (parsedError.error?.message) {
+                         console.error("Gemini API Error (direct):", parsedError.error.message);
+                         return `Error: ${parsedError.error.message}`;
+                     }
+                 } catch (e) { /* ignore */ }
+             }
+             extractedText = rawResponseText.replace(/^data:\s*/, '').trim();
+        }
+        return extractedText.replace(/^Assistant:\s*/, '').replace(/^(User|Human):\s*/, '').trim();
+    } catch (err) {
+        console.error("Error *during* extraction logic:", err, "Original text:", rawResponseText);
+        return "";
+    }
+};
+
+// --- Component Data & Constants (Unchanged) ---
 const Logo = () => (
   <Link to="/" className="flex items-center space-x-2 group" aria-label="Go to Homepage">
     <svg
@@ -41,6 +143,7 @@ const serviceStatus = [
     description: "Distraction-free work environment feature. Now available for all users!",
     isNewFeature: true,
   },
+  { name: "AI Chat", icon: BrainCircuit, uptime: "99.87%", majorIssue: null, description: "In-app AI chat, summarization, and generation." },
   { name: "Settings", icon: Settings, uptime: "99.96%", majorIssue: null, description: "User account and application preferences." },
 ];
 
@@ -57,7 +160,17 @@ const incidentHistory = [
 const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { delayChildren: 0.1, staggerChildren: 0.08 } } };
 const itemVariants = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 100 } } };
 
+// Component Start
 const Status = () => {
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const [isAiSidebarOpen, setIsAiSidebarOpen] = useState(false);
+  const [chatMessage, setChatMessage] = useState('');
+  const [chatHistory, setChatHistory] = useState<any[]>([
+     { id: 'ai-status-greet', role: 'assistant', content: "Hi! I'm the Status Page Assistant. Ask me about the current status of our services (including newly launched ones!) or past incidents." }
+  ]);
+  const [isChatLoading, setIsChatLoading] = useState(false);
+
+  // --- Theme Management ---
   useEffect(() => {
     window.scrollTo(0, 0);
     const applyTheme = () => {
@@ -84,12 +197,155 @@ const Status = () => {
     }
   }, []);
 
+
+      const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Fetch the key when the component mounts, as the chat is a core feature of this page.
+    const fetchKey = async () => {
+      const key = await getGeminiApiKey();
+      if (key && !key.startsWith("ERROR_")) {
+        setGeminiApiKey(key);
+      } else {
+        console.error("Critical: Failed to load Gemini API key for the Status component.");
+        // We can disable the AI chat button or show an error if the key fails to load.
+        // For now, we'll log the error. The handleChatSubmit function will prevent submission.
+      }
+    };
+
+    fetchKey();
+  }, []); // Empty dependency array means this runs once on mount
+  // --- END OF NEW CODE ---
+
+  // Determine overall status
   const hasMajorOutage = serviceStatus.some(service => service.majorIssue);
   const overallStatusText = hasMajorOutage ? "Major Outage" : "All Systems Operational";
   const lastUpdated = "May 22, 2025; 10:20 AM EST";
 
+// src/components/Status.tsx -> inside the Status() component
+
+   const handleChatSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // --- FIX #1: ADD GUARD CLAUSE FOR THE API KEY ---
+    if (!geminiApiKey) {
+        console.error("Gemini API Key is not available. Aborting chat submission.");
+        const errorMsg: any = { 
+            id: `error-no-key-${Date.now()}`, 
+            role: 'assistant', 
+            content: `The AI Assistant is currently unavailable due to a configuration error. Please try again later.`, 
+            error: true,
+        };
+        setChatHistory(prev => [...prev, errorMsg]);
+        setIsChatLoading(false);
+        return;
+    }
+    // --- END OF FIX ---
+
+    if (!chatMessage.trim() || isChatLoading) return;
+
+    const currentMessage = chatMessage;
+    setChatMessage('');
+    const userMsg: any = { id: `user-${Date.now()}`, role: 'user', content: currentMessage };
+    setChatHistory(prev => [...prev, userMsg]);
+    setIsChatLoading(true);
+    const assistantMsgId = `assistant-${Date.now()}`;
+    const placeholderMsg: any = { id: assistantMsgId, role: 'assistant', content: "..." };
+    setChatHistory(prev => [...prev, placeholderMsg]);
+
+    const statusContext = serviceStatus.map(s => {
+        let statusString = '';
+        const serviceWithType = s as typeof s & { isNewFeature?: boolean };
+        if (serviceWithType.majorIssue) {
+            statusString = `Major Outage (Issue: ${serviceWithType.majorIssue})`;
+        } else {
+            statusString = `Operational (Uptime: ${serviceWithType.uptime || 'N/A'})`;
+            if (serviceWithType.isNewFeature) {
+                statusString += " - Newly Launched!";
+            }
+        }
+        return `- ${serviceWithType.name}: Status ${statusString}`;
+    }).join('\n');
+
+    const historyContext = incidentHistory.map(inc =>
+        `- Date: ${inc.date}, Title: ${inc.title}, Status: ${inc.status}${inc.resolvedDate ? `, Resolved: ${inc.resolvedDate}` : ''}. Summary: ${inc.description.substring(0, 150)}...`
+    ).join('\n');
+
+    const prompt = `
+You are the TaskMaster Status Page AI Assistant. Your knowledge includes the current service status and past incident history provided below. You cannot access user data or any other part of the TaskMaster application.
+
+**Current Service Status (as of ${lastUpdated}):**
+${statusContext}
+
+**Past Incident History:**
+${historyContext}
+
+**Your Task:**
+1.  Answer user questions about the **current status** of the services listed.
+2.  Answer user questions about **past incidents** listed in the history.
+3.  If asked about something not in your knowledge base, state you don't have information on it.
+4.  If asked for help with specific account issues or anything beyond status, politely state you cannot help and suggest contacting support.
+5.  Keep responses concise and based *strictly* on the provided information.
+
+**Conversation History (Last few turns):**
+${chatHistory.slice(-4).map(m => `${m.role}: ${m.content}`).join('\n')}
+
+**New User Message:**
+user: ${currentMessage}
+
+**Response:**
+Assistant:`;
+
+    let accumulatedStreamedText = "";
+    let finalRawResponseText = "";
+
+    try {
+        // --- FIX #2: USE THE GEMINI API KEY FROM STATE ---
+        const geminiEndpointWithKey = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}&alt=sse`;
+
+        const geminiOptions = {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { temperature: 0.5, maxOutputTokens: 500 },
+                safetySettings: [
+                    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                ],
+            })
+        };
+
+        await streamResponse(geminiEndpointWithKey, geminiOptions, (rawChunkAccumulated) => {
+            finalRawResponseText = rawChunkAccumulated;
+            const currentExtractedText = extractCandidateText(rawChunkAccumulated);
+            accumulatedStreamedText = currentExtractedText;
+            setChatHistory(prev => prev.map(msg =>
+                msg.id === assistantMsgId ? { ...msg, content: accumulatedStreamedText || "..." } : msg
+            ));
+        });
+
+        const finalExtracted = extractCandidateText(finalRawResponseText);
+        setChatHistory(prev => prev.map(msg =>
+             msg.id === assistantMsgId ? { ...msg, content: finalExtracted || accumulatedStreamedText || "Sorry, I couldn't fetch the status details." } : msg
+         ));
+
+    } catch (err: any) {
+        console.error('Status Chat Submit Error:', err);
+        const errorMsgContent = `Sorry, I encountered an error retrieving status information${err.message ? ': ' + err.message : '.'}`;
+        setChatHistory(prev => prev.map(msg =>
+            msg.id === assistantMsgId ? { ...msg, content: errorMsgContent, error: true } : msg
+        ));
+    } finally {
+        setIsChatLoading(false);
+    }
+   }, [chatMessage, isChatLoading, chatHistory, lastUpdated, geminiApiKey]); // <-- FIX #3: Add geminiApiKey to dependency array
+
   return (
     <div className="min-h-screen flex flex-col font-poppins bg-white text-gray-800 dark:bg-[#0C0E1A] dark:text-gray-200 illuminate-override">
+      {/* Static Header */}
       <header className="w-full py-5 sm:py-6 bg-white dark:bg-[#0C0E1A] illuminate-override ">
         <div className="container mx-auto px-5 sm:px-6">
           <nav className="flex items-center justify-between">
@@ -104,6 +360,7 @@ const Status = () => {
         </div>
       </header>
       
+      {/* Main Status Content */}
       <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 pt-8 sm:pt-10 pb-16">
         <div className="max-w-7xl mx-auto">
             <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 dark:text-white mb-2 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
@@ -119,6 +376,7 @@ const Status = () => {
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-10">Last updated: {lastUpdated}</p>
             <hr className="border-gray-200 dark:border-gray-700/60 mb-10"/>
 
+            {/* Service Status Grid */}
             <motion.div
               variants={containerVariants}
               initial="hidden"
@@ -172,6 +430,7 @@ const Status = () => {
               })}
             </motion.div>
 
+            {/* Incident History Section */}
             <motion.div
                 className="mt-16"
                 initial={{ opacity: 0 }}
@@ -217,6 +476,8 @@ const Status = () => {
         </div>
       </main>
 
+
+      {/* Footer */}
       <footer className="bg-white dark:bg-[#0C0E1A] mt-auto illuminate-override illuminate-border-override">
         <div className="container mx-auto px-5 sm:px-6 py-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-5">
@@ -235,6 +496,95 @@ const Status = () => {
           </div>
         </div>
       </footer>
+
+
+       {/* AI Chat Sidebar */}
+        <div
+            aria-hidden={!isAiSidebarOpen}
+            className={`fixed top-0 right-0 h-full w-full max-w-sm md:max-w-md lg:max-w-[440px] z-[60] transform transition-transform duration-300 ease-in-out ${ isAiSidebarOpen ? 'translate-x-0' : 'translate-x-full' } bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-l border-gray-200 dark:border-gray-700/50 flex flex-col shadow-2xl`}
+            role="complementary"
+            aria-labelledby="ai-sidebar-title-status"
+        >
+            {/* Sidebar Header */}
+            <div className="p-4 border-b border-gray-200/80 dark:border-gray-700/50 flex justify-between items-center flex-shrink-0 sticky top-0 bg-white/70 dark:bg-gray-900/70 z-10">
+                <h3 id="ai-sidebar-title-status" className="text-base sm:text-lg font-semibold flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
+                    <BrainCircuit className="w-5 h-5" />
+                    Status Assistant
+                </h3>
+                <button onClick={() => setIsAiSidebarOpen(false)} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-200/50 dark:hover:bg-gray-700/50 p-1 rounded-full transition-colors transform hover:scale-110 active:scale-100" title="Close Chat" aria-label="Close Status AI Sidebar">
+                    <X className="w-5 h-5" />
+                </button>
+            </div>
+
+            {/* Chat History Area */}
+            <div ref={chatEndRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+                {chatHistory.map((message, index) => (
+                    <motion.div
+                      key={message.id || index}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3, delay: index * 0.05 }}
+                      className={`flex ${ message.role === 'user' ? 'justify-end' : 'justify-start' }`}
+                    >
+                    <div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm shadow-md break-words ${ message.role === 'user' ? 'bg-indigo-600 text-white' : message.error ? 'bg-red-50 text-red-900 border border-red-200 dark:bg-red-800/50 dark:text-red-200 dark:border-red-700/50' : 'bg-gray-100 text-gray-800 border border-gray-200 dark:bg-gray-700/80 dark:text-gray-200 dark:border-gray-600/50' }`}>
+                        {message.content && message.content !== "..." && (
+                            <ReactMarkdown
+                                remarkPlugins={[remarkGfm, remarkMath]}
+                                rehypePlugins={[rehypeKatex]}
+                                components={{
+                                    p: ({node, ...props}) => <p className="mb-1 last:mb-0" {...props} />,
+                                    a: ({node, ...props}) => <a className="text-indigo-500 dark:text-indigo-300 hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
+                                    code({node, inline, className, children, ...props}) {
+                                        return !inline ? (
+                                          <pre className="bg-gray-200 dark:bg-gray-900/50 p-2 rounded my-2 overflow-x-auto text-xs"><code className={className} {...props}>{children}</code></pre>
+                                        ) : (
+                                          <code className="bg-gray-300 dark:bg-gray-600/70 px-1 rounded text-xs" {...props}>{children}</code>
+                                        )
+                                    },
+                                    ul: ({node, ...props}) => <ul className="list-disc list-inside my-1" {...props} />,
+                                    ol: ({node, ...props}) => <ol className="list-decimal list-inside my-1" {...props} />,
+                                    li: ({node, ...props}) => <li className="mb-0.5" {...props} />,
+                                }}
+                            >
+                                {message.content}
+                            </ReactMarkdown>
+                        )}
+                        {message.content === "..." && isChatLoading && index === chatHistory.length - 1 && (
+                            <div className="flex space-x-1.5 py-1">
+                                <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce opacity-70"></div>
+                                <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce delay-150 opacity-70"></div>
+                                <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce delay-300 opacity-70"></div>
+                            </div>
+                        )}
+                    </div>
+                    </motion.div>
+                ))}
+            </div>
+
+            {/* Chat Input Form */}
+            <form onSubmit={handleChatSubmit} className="p-3 border-t border-gray-200/80 dark:border-gray-700/50 flex-shrink-0 sticky bottom-0 bg-white/90 dark:bg-gray-900/90">
+                <div className="flex gap-2 items-center">
+                    <input
+                        type="text"
+                        value={chatMessage}
+                        onChange={(e) => setChatMessage(e.target.value)}
+                        placeholder="Ask about service status..."
+                        className="flex-1 bg-gray-100 border border-gray-300 rounded-full px-4 py-2 text-sm text-gray-900 placeholder-gray-500 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-colors duration-150 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100 dark:placeholder-gray-400 disabled:opacity-60"
+                        disabled={isChatLoading}
+                        aria-label="Chat input for status assistant"
+                    />
+                    <button
+                        type="submit"
+                        disabled={isChatLoading || !chatMessage.trim()}
+                        className="bg-indigo-600 text-white p-2 rounded-full hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-100 shadow-sm flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900 focus:ring-indigo-500"
+                        title="Send Message"
+                        aria-label="Send chat message"
+                    >
+                    {isChatLoading ? (<Loader2 className="w-5 h-5 animate-spin"/>) : (<Send className="w-5 h-5" />)}
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
   );
 };
