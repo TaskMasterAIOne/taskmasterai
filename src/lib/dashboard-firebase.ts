@@ -154,33 +154,35 @@ export async function getUserData(userId: string): Promise<any | null> {
 
 export const updateDashboardLastSeen = async (userId: string) => {
     if (!userId) return;
-    try {
-        const userRef = doc(db, "users", userId);
-        // Use updateDoc first, fallback to setDoc if document doesn't exist
+    
+    const maxRetries = 3;
+    let retryCount = 0;
+    
+    while (retryCount < maxRetries) {
         try {
-            await updateDoc(userRef, {
+            const userRef = doc(db, "users", userId);
+            
+            // Always use setDoc with merge to avoid race conditions
+            await setDoc(userRef, {
                 dashboardLastSeen: Timestamp.now(),
                 updatedAt: serverTimestamp()
-            });
-        } catch (updateError: any) {
-            // If document doesn't exist, create it
-            if (updateError.code === 'not-found') {
-                await setDoc(userRef, {
-                    dashboardLastSeen: Timestamp.now(),
-                    createdAt: serverTimestamp(),
-                    updatedAt: serverTimestamp()
-                }, { merge: true });
-            } else {
-                // For other errors, try setDoc as fallback
-                console.warn("Update failed, trying setDoc with merge:", updateError);
-                await setDoc(userRef, {
-                    dashboardLastSeen: Timestamp.now(),
-                    updatedAt: serverTimestamp()
-                }, { merge: true });
+            }, { merge: true });
+            
+            // If we get here, the operation succeeded
+            break;
+            
+        } catch (error: any) {
+            retryCount++;
+            console.warn(`Dashboard last seen update attempt ${retryCount} failed:`, error);
+            
+            if (retryCount >= maxRetries) {
+                console.warn("Max retries reached for dashboardLastSeen update:", error);
+                break;
             }
+            
+            // Wait a bit before retrying (exponential backoff)
+            await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 100));
         }
-    } catch (error) {
-        console.warn("Could not update dashboardLastSeen:", error);
     }
 };
 
