@@ -18,8 +18,7 @@ import { FlashcardsQuestions } from './FlashcardsQuestions';
 import { User } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { Timestamp } from 'firebase/firestore';
-import { geminiApiKey, onCollectionSnapshot, findItemByName, updateItem, createEvent as createFirebaseEvent, deleteItem } from '../lib/dashboard-firebase';
-import { onUserProfileSnapshot, type UserProfileData, updateUserStreak } from '../lib/current-paying-user';
+import { getGeminiApiKey, onCollectionSnapshot, findItemByName, updateItem, createEvent as createFirebaseEvent, deleteItem } from '../lib/dashboard-firebase';import { onUserProfileSnapshot, type UserProfileData, updateUserStreak } from '../lib/current-paying-user';
 import { saveUserContext, onUserContextChange, type UserContext } from '../lib/ai-context-firebase';
 import { saveMemory, getMemories, updateMemory, deleteMemory, type Memory } from '../lib/ai-memories-firebase';
 import { createUserTask, createUserGoal, createUserPlan, updateUserTask, updateUserGoal, deleteUserTask, deleteUserGoal } from '../lib/ai-actions-firebase';
@@ -92,7 +91,6 @@ interface PdfContextSegment {
 interface NoteChatProps {
     note: Note;
     onClose: () => void;
-    geminiApiKey: string;
     userName: string;
     isIlluminateEnabled: boolean;
     isBlackoutEnabled: boolean;
@@ -684,7 +682,25 @@ const NoteChatComponent: React.ForwardRefRenderFunction<NoteChatHandle, NoteChat
     const [activePrompt, setActivePrompt] = useState<string>('');
     const [aiActionStatus, setAiActionStatus] = useState<string | null>(null);
 
+ // --- ADD THIS BLOCK ---
+    const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
 
+    useEffect(() => {
+        const fetchKey = async () => {
+            if (user) { // Assuming 'user' state is available in this component
+                const key = await getGeminiApiKey();
+                if (key && !key.startsWith("ERROR_")) {
+                    setGeminiApiKey(key);
+                } else {
+                    console.error("Critical: Failed to load Gemini API key for NoteChat component.");
+                    // Optionally display an error in the chat UI
+                    setChatHistory(prev => [...prev, { id: 'key-error', role: 'system', content: 'AI services are unavailable due to a configuration error.', error: true }]);
+                }
+            }
+        };
+        fetchKey();
+    }, [user]);
+    // --- END OF BLOCK ---
 
 const navigate = useNavigate();
 const functions = getFunctions();
@@ -1033,6 +1049,13 @@ Just ask to get started.
             forceSearchMode = false,
             pdfContextSegmentsForThisMessage?: PdfContextSegment[]
         ) => {
+            // --- ADD THIS GUARD CLAUSE ---
+            if (!geminiApiKey) {
+                setChatHistory(prev => [...prev, { id: `err-no-key-${Date.now()}`, role: 'assistant', content: 'Error: AI service is not available. Please check your connection.', error: true }]);
+                setIsChatLoading(false);
+                return;
+            }
+            // --- END OF FIX ---
             const isUsingImageGenModel = forceImageGenMode || isImageGenModeActive;
             const isUsingSearch = forceSearchMode || isSearchModeActive;
             const currentFiles = filesToSend || [];
@@ -1854,12 +1877,15 @@ if (notionBlock && user?.uid && isNotionConnected) {
                     } catch(e) {/* fail silently, let text display */ }
                 }
 
-                if (educationalBlock && user?.uid) {
+               if (educationalBlock && user?.uid) {
                     let tempContent: FlashcardMessage | QuestionMessage;
                     if (educationalBlock.type === "flashcard") { tempContent = { type: "flashcard", data: educationalBlock.data as FlashcardData[] }; }
                     else { tempContent = { type: "question", data: educationalBlock.data as QuestionData[] }; }
                     setChatHistory(prev => prev.map(msg => msg.id === newLoadingMsgId ? { ...msg, isVerifyingContent: true, isLoading: true } : msg ));
+                    
+                    // --- THIS IS THE FIX ---
                     const verifiedContent = await verifyEducationalContent(tempContent, geminiApiKey);
+                    
                     assistantFinalMessage.flashcard = verifiedContent.type === 'flashcard' ? verifiedContent : undefined;
                     assistantFinalMessage.question = verifiedContent.type === 'question' ? verifiedContent : undefined;
                     if (!cleanedText.trim()) assistantFinalMessage.content = verifiedContent.type === 'flashcard' ? "Here are some flashcards, verified for accuracy:" : "Here's a quiz, verified for accuracy:";
