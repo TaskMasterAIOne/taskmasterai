@@ -56,7 +56,6 @@ import { User as FirebaseUser } from 'firebase/auth';
 import { getDoc, doc, serverTimestamp, Timestamp, updateDoc } from 'firebase/firestore';
 import { getCurrentUser } from '../lib/settings-firebase';
 import { PriorityBadge } from './PriorityBadge';
-import { TaskAnalytics } from './TaskAnalytics';
 
 import {
   createChatConversation,
@@ -5037,14 +5036,6 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                 </div>
             </section>
 
-            <section className={`my-6 animate-fadeIn delay-600 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
-                 <TaskAnalytics
-                    tasks={tasks}
-                    goals={goals}
-                    userContext={userContext}
-                    onUpdateData={updateItem as any}
-                 />
-            </section>
         </div>
       </main>
 
