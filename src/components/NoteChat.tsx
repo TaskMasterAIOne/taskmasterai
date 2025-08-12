@@ -397,7 +397,7 @@ function extractJsonBlocks(text: string): { blocks: any[], cleanedText: string, 
 
 const verifyEducationalContent = async (content: FlashcardMessage | QuestionMessage, apiKey: string): Promise<FlashcardMessage | QuestionMessage> => {
     if (!apiKey) {
-      console.warn("Gemini API key not available for verification.");
+      console.warn("API key not available for verification.");
       return content;
     }
     const contentType = content.type;
@@ -691,7 +691,7 @@ const NoteChatComponent: React.ForwardRefRenderFunction<NoteChatHandle, NoteChat
                 if (key && !key.startsWith("ERROR_")) {
                     setGeminiApiKey(key);
                 } else {
-                    console.error("Critical: Failed to load Gemini API key for NoteChat component.");
+                    console.error("Critical: Failed to load API key.");
                     // Optionally display an error in the chat UI
                     setChatHistory(prev => [...prev, { id: 'key-error', role: 'system', content: 'AI services are unavailable due to a configuration error.', error: true }]);
                 }
