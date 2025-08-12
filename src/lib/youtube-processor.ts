@@ -1,7 +1,6 @@
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { storage } from './firebase';
 import { v4 as uuidv4 } from 'uuid';
-import { geminiApiKey } from './dashboard-firebase';
 
 interface ProcessedYouTube {
     title: string;
