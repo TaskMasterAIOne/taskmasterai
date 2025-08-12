@@ -266,82 +266,80 @@ const parseGeminiApiResponse = (responseText: string, isImageGenCall: boolean): 
     }
 };
 
-// FIX: Add apiKey parameter
+// FIX: Add 'apiKey' as a parameter to the function signature
 const verifyEducationalContent = async (content: FlashcardMessage | QuestionMessage, apiKey: string): Promise<FlashcardMessage | QuestionMessage> => {
-    // This function no longer needs a guard clause, as it will be checked before calling.
+  // This check is now against the passed parameter.
+  if (!apiKey) {
+    console.warn("Gemini API key not provided for verification.");
+    return content;
+  }
 
-    const contentType = content.type; // 'flashcard' or 'question'
-    const contentJsonString = JSON.stringify(content.data, null, 2);
-
-    const prompt = `
+  const contentType = content.type;
+  const contentJsonString = JSON.stringify(content.data, null, 2);
+  const prompt = `
     You are an expert fact-checker and educator. Your task is to meticulously review the following educational content:
     Content Type: ${contentType}
     Content Data:
     \`\`\`json
     ${contentJsonString}
     \`\`\`
-
     Instructions:
     1.  For each item, verify the accuracy of the "answer" (for flashcards) or the "correctAnswer" and "explanation" (for quizzes) in relation to the "question".
     2.  If you find any inaccuracies, correct them directly within the JSON structure.
     3.  Do NOT add, remove, or rephrase questions.
     4.  Do NOT change the overall JSON structure or the IDs of the items.
     5.  Your primary goal is to ensure factual correctness and high-quality educational material.
-
     Return ONLY the final, verified (and corrected, if necessary) JSON data for the \`data\` array. Your output MUST be a valid JSON array, and nothing else.
     `;
-
-    try {
-        const verificationEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${apiKey}`;
-        const geminiOptions = {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: {
-                    responseMimeType: "application/json",
-                    temperature: 0.1, // Low temperature for factual, deterministic output
-                }
-            })
-        };
-        const response = await fetchWithTimeout(verificationEndpoint, geminiOptions, 20000); // 20-second timeout
-        if (!response.ok) {
-            throw new Error(`Verification API error (${response.status})`);
+    
+  try {
+    // FIX: Use the passed-in 'apiKey' variable in the URL
+    const verificationEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${apiKey}`;
+    const geminiOptions = {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          temperature: 0.1,
         }
-        const responseText = await response.text();
-        const parsedResponse = parseGeminiApiResponse(responseText, false);
-
-        if (parsedResponse.error || !parsedResponse.text) {
-            throw new Error(parsedResponse.error || "Empty AI response during verification.");
-        }
-
-        let verifiedData;
-        try {
-            verifiedData = JSON.parse(parsedResponse.text);
-            if (!Array.isArray(verifiedData)) {
-                const jsonBlockResult = extractJsonBlocks(parsedResponse.text);
-                if (jsonBlockResult.blocks.length > 0 && Array.isArray(jsonBlockResult.blocks[0])) {
-                     verifiedData = jsonBlockResult.blocks[0];
-                } else if (jsonBlockResult.blocks.length > 0 && jsonBlockResult.blocks[0].data && Array.isArray(jsonBlockResult.blocks[0].data)) {
-                     verifiedData = jsonBlockResult.blocks[0].data;
-                } else {
-                    throw new Error("Parsed data from verification is not a valid array.");
-                }
-            }
-        } catch (e) {
-            console.error("Failed to parse verified JSON:", e, parsedResponse.text);
-            return content; // Return original on parsing failure
-        }
-
-        return {
-            ...content,
-            data: verifiedData,
-        };
-
-    } catch (error) {
-        console.error("Error during educational content verification:", error);
-        return content; // On error, return the original unverified content
+      })
+    };
+    const response = await fetchWithTimeout(verificationEndpoint, geminiOptions, 20000);
+    if (!response.ok) {
+      throw new Error(`Verification API error (${response.status})`);
     }
+    const responseText = await response.text();
+    const parsedResponse = parseGeminiApiResponse(responseText, false);
+    if (parsedResponse.error || !parsedResponse.text) {
+      throw new Error(parsedResponse.error || "Empty AI response during verification.");
+    }
+    let verifiedData;
+    try {
+      verifiedData = JSON.parse(parsedResponse.text);
+      if (!Array.isArray(verifiedData)) {
+        const jsonBlockResult = extractJsonBlocks(parsedResponse.text);
+        if (jsonBlockResult.blocks.length > 0 && Array.isArray(jsonBlockResult.blocks[0])) {
+          verifiedData = jsonBlockResult.blocks[0];
+        } else if (jsonBlockResult.blocks.length > 0 && jsonBlockResult.blocks[0].data && Array.isArray(jsonBlockResult.blocks[0].data)) {
+          verifiedData = jsonBlockResult.blocks[0].data;
+        } else {
+          throw new Error("Parsed data from verification is not a valid array.");
+        }
+      }
+    } catch (e) {
+      console.error("Failed to parse verified JSON:", e, parsedResponse.text);
+      return content;
+    }
+    return {
+      ...content,
+      data: verifiedData,
+    };
+  } catch (error) {
+    console.error("Error during educational content verification:", error);
+    return content;
+  }
 };
 
 function extractJsonBlocks(text: string): { blocks: any[], cleanedText: string, originalText: string } {
