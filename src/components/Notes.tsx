@@ -516,6 +516,12 @@ export function Notes() {
         // --- ADD THIS NEW STATE AND EFFECT ---
     const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
 
+    // Define showToast early to avoid initialization errors
+    const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info', icon?: React.FC<any>) => {
+        setUploadProgress({ progress: type === 'success' ? 100 : 0, status: message, error: type === 'error' ? message : null, icon, type });
+        setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null, icon: undefined, type: undefined }), 3500);
+    }, []);
+
     useEffect(() => {
         const fetchKey = async () => {
             if (user) {
@@ -523,12 +529,11 @@ export function Notes() {
                 if (key && !key.startsWith("ERROR_")) {
                     setGeminiApiKey(key);
                 } else {
-                    console.error("Critical: Failed to load Gemini API key for the user in Notes component.");
+                    console.error("Critical: Failed to load Gemini API key for Notes component.");
                     // The showToast function is available in this component
                     showToast("AI services are currently unavailable due to a configuration error.", "error");
                 }
             } else {
-                // Clear the key if the user logs out or is not present
                 setGeminiApiKey(null);
             }
         };
@@ -537,20 +542,6 @@ export function Notes() {
     }, [user, showToast]); // This effect runs when the user's auth state changes
 
     
-    const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info', icon?: React.FC<any>) => {
-        setUploadProgress({ progress: type === 'success' ? 100 : 0, status: message, error: type === 'error' ? message : null, icon, type });
-        setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null, icon: undefined, type: undefined }), 3500);
-    }, []);
-
-    const podcastTextObjects = useMemo(() => {
-        if (!selectedNote) return { title: "", contentHtml: "", keyPoints: [] };
-        return {
-            title: selectedNote.title,
-            contentHtml: selectedNote.content || "",
-            keyPoints: selectedNote.keyPoints || [],
-        };
-    }, [selectedNote]);
-
     const handlePodcastStop = useCallback(() => {
         const audioEl = audioPlayerRef.current;
         if (audioEl) {
@@ -2140,6 +2131,15 @@ useEffect(() => {
         public: "bg-cyan-100 text-cyan-700 dark:bg-cyan-700/30 dark:text-cyan-300 border-cyan-200 dark:border-cyan-600",
         custom: "bg-indigo-100 text-indigo-700 dark:bg-indigo-700/30 dark:text-indigo-300 border-indigo-200 dark:border-indigo-600",
     };
+
+    const podcastTextObjects = useMemo(() => {
+        if (!selectedNote) return { title: "", contentHtml: "", keyPoints: [] };
+        return {
+            title: selectedNote.title,
+            contentHtml: selectedNote.content || "",
+            keyPoints: selectedNote.keyPoints || [],
+        };
+    }, [selectedNote]);
 
     return (
         <div className={`flex h-screen overflow-hidden bg-[#F7F8FA] dark:bg-[#0C0E1A] text-gray-900 dark:text-gray-100 font-poppins`}>
