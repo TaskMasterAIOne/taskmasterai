@@ -529,7 +529,7 @@ export function Folders() {
         if (key && !key.startsWith("ERROR_")) {
           setGeminiApiKey(key);
         } else {
-          console.error("Critical: Failed to load Gemini API key for the user in Folders component.");
+          console.error("Critical: Failed to load API key for the user in Folders component.");
           showToast("AI services are currently unavailable due to a configuration error.", "error");
         }
       } else {
@@ -1564,7 +1564,7 @@ const handleChatSubmit = useCallback(async (e?: React.FormEvent, incomingMessage
 
      // --- ADD THIS GUARD CLAUSE AT THE TOP ---
     if (!geminiApiKey) {
-        console.error("Gemini API Key is not available. Aborting chat submission.");
+        console.error("API Key is not available. Aborting chat submission.");
         showToast("AI service is unavailable. Please check your connection or try again later.", "error");
         return;
     }
