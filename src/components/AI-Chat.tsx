@@ -182,11 +182,14 @@ const parseGeminiApiResponse = (responseText: string, isImageGenCall: boolean): 
   }
 };
 
+// FIX: Add 'apiKey' as a parameter to the function signature
 const verifyEducationalContent = async (content: FlashcardMessage | QuestionMessage, apiKey: string): Promise<FlashcardMessage | QuestionMessage> => {
+  // This check is now against the passed parameter.
   if (!apiKey) {
     console.warn("Gemini API key not provided for verification.");
     return content;
   }
+
   const contentType = content.type;
   const contentJsonString = JSON.stringify(content.data, null, 2);
   const prompt = `
@@ -204,7 +207,9 @@ const verifyEducationalContent = async (content: FlashcardMessage | QuestionMess
     5.  Your primary goal is to ensure factual correctness and high-quality educational material.
     Return ONLY the final, verified (and corrected, if necessary) JSON data for the \`data\` array. Your output MUST be a valid JSON array, and nothing else.
     `;
+    
   try {
+    // FIX: Use the passed-in 'apiKey' variable in the URL
     const verificationEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${apiKey}`;
     const geminiOptions = {
       method: "POST",
