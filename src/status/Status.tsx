@@ -16,7 +16,6 @@ import {
 import { getGeminiApiKey } from '../lib/dashboard-firebase'; // Adjust path as needed
 
 // --- AI Helper Functions (Unchanged) ---
-const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}&alt=sse`;
 
 const streamResponse = async (
   url: string,
