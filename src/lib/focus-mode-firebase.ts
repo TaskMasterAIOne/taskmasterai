@@ -21,7 +21,6 @@ import {
 } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
 
-export { geminiApiKey } from './dashboard-firebase';
 
 const DEFAULT_WORK_SECONDS = 25 * 60;
 const DEFAULT_SHORT_BREAK_SECONDS = 5 * 60;
