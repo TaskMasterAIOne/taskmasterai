@@ -249,9 +249,7 @@ const DEFAULT_SHORT_BREAK_SECONDS = 5 * 60;
 const DEFAULT_LONG_BREAK_SECONDS = 15 * 60;
 const DEFAULT_CYCLES_GOAL = 4;
 
-const SUPPORTED_FILE_TYPES = "image/jpeg,image/png,image/webp,image/gif,image/svg+xml,application/pdf,text/plain,.md,.txt,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.rtf";
-const MAX_FILE_SIZE_MB = 20;
-const CHAT_HISTORY_LENGTH_FOR_PROMPT = 10;
+
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
