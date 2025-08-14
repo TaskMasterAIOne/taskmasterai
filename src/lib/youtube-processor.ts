@@ -1,6 +1,12 @@
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { storage } from './firebase';
 import { v4 as uuidv4 } from 'uuid';
+import { 
+    getGeminiProxy, 
+    extractCandidateText, 
+    AI_CONFIGS, 
+    PROMPT_TEMPLATES 
+} from './processors';
 
 interface ProcessedYouTube {
     title: string;
@@ -22,20 +28,14 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 3, de
                 await sleep(delayMs * (attempt + 1));
                 continue;
             }
-            return response;
-        }
-        catch (error) {
-            if (attempt === retries - 1) throw error;
-            await sleep(delayMs * (attempt + 1));
+            catch (error) {
+                if (attempt === retries - 1) throw error;
+                await sleep(delayMs * (attempt + 1));
+            }
         }
     }
     throw new Error(`Max retries reached for ${url}`);
 }
-
-const extractCandidateText = (responseText: string): string => {
-    try { const jsonResponse = JSON.parse(responseText); if (jsonResponse?.candidates?.[0]?.content?.parts?.[0]?.text) { return jsonResponse.candidates[0].content.parts[0].text; } if (jsonResponse?.error?.message) { return `Error: ${jsonResponse.error.message}`; } if (jsonResponse?.promptFeedback?.blockReason) { return `Error: Request blocked for reason: ${jsonResponse.promptFeedback.blockReason}`;} return "Error: No text found in AI response."; }
-    catch (err) { if (responseText.toLowerCase().includes("api key not valid")) return "Error: Invalid API Key."; return "Error: Could not parse AI response."; }
-};
 
 function getVideoId(url: string): string | null {
     const regex = /(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/; const match = url.match(regex); return match ? match[1] : null;
@@ -59,15 +59,12 @@ interface YouTubeCaptionListResponse { kind: string; etag: string; items: YouTub
 export async function processYouTube(
     url: string,
     userId: string,
-    apiKey: string,
     onProgress: (progress: number) => void
 ): Promise<ProcessedYouTube> {
     const safeProgress = typeof onProgress === 'function' ? onProgress : () => {};
-    const currentGeminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    const geminiProxyCallable = getGeminiProxy();
 
-    if (!apiKey) { throw new Error('Gemini API Key missing.'); }
-    const placeholderKeys = ['YOUR_YOUTUBE_API_KEY', 'YOUR_ACTUAL_YOUTUBE_API_KEY_HERE'];
-    if (!YOUTUBE_API_KEY || placeholderKeys.includes(YOUTUBE_API_KEY) ) {
+    if (!YOUTUBE_API_KEY || ['YOUR_YOUTUBE_API_KEY', 'YOUR_ACTUAL_YOUTUBE_API_KEY_HERE'].includes(YOUTUBE_API_KEY) ) {
         throw new Error('YouTube API Key missing/invalid. Please set a valid key in youtube-processor.ts.');
     }
 
@@ -109,157 +106,39 @@ export async function processYouTube(
         baseTranscriptContent = fetchedTranscriptText.trim() ? fetchedTranscriptText : videoDescription;
         if (!baseTranscriptContent.trim()) { baseTranscriptContent = "No transcript or description available."; }
 
-        const titlePrompt = `Analyze the following video transcript. Generate a concise, descriptive title for the video. The title should be no more than 5 words. Do not add any extra text or quotation marks. TRANSCRIPT: """${baseTranscriptContent.slice(0, 4000)}""" TITLE:`;
-        const titleOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: titlePrompt }] }], generationConfig: { temperature: 0.3, maxOutputTokens: 8192 } }) };
-        const titleResponse = await fetchWithRetry(currentGeminiEndpoint, titleOptions);
-        let title = extractCandidateText(await titleResponse.text()).replace(/["']/g, "").trim() || videoInfo.title;
+        // Use centralized prompt templates and AI configs
+        const titlePrompt = PROMPT_TEMPLATES.TITLE_GENERATION(baseTranscriptContent.slice(0, 4000), videoInfo.title);
+        const titleResult = await geminiProxyCallable({ 
+            contents: [{ parts: [{ text: titlePrompt }] }], 
+            generationConfig: AI_CONFIGS.TITLE_GENERATION 
+        });
+        let title = extractCandidateText(JSON.stringify(titleResult.data)).replace(/["']/g, "").trim() || videoInfo.title;
         safeProgress(40);
         
-        const notePrompt = `🧠 ROLE:
-You are a world-class academic note-writer and subject matter expert across multiple disciplines. Your job is to generate extraordinarily high-quality, university-level study notes based on the given source. These notes must be richly informative, pedagogically structured, and visually engaging — the kind of content students rely on to **truly understand** and **retain** complex material.
-
-🏆 OUTPUT GOAL:
-Produce an exhaustive, highly structured, and visually appealing set of study notes. These notes should:
-- Provide complete conceptual clarity.
-- Feel like premium textbook content, but better organized and more digestible.
-- Be optimized for fast learning and deep understanding.
-- Include visuals (emojis), structure (headings, lists, tables), and clarity-enhancing elements.
-
-This is not summarization. This is **intelligent expansion and transformation** of the topic into gold-standard academic material.
-
-📌 CORE RULES FOR CONTENT CREATION:
-
-1. 🧠 USE OF SOURCE:
-   - Use the input text **only** to identify the topic and subtopics.
-   - Then **draw on your own extensive academic knowledge** to build comprehensive notes.
-   - Do **not repeat or rephrase** the raw text. Instead, generate rich, fresh content based on the topic.
-   - Assume your reader is a student looking to master the topic at a high level.
-   - IF THE SOURCE TEXT IS ABOUT INSTRUCTIONS ABOUT AN EXAM OR TEST, LIKE FOR EXAMPLE, IF THE SOURCE TEXT IS SOMETHING ABOUT THE AP STATISTICS EXAM FORMAT, YOU MUST MAKE THE NOTES ABOUT AP STATISTICS THE COURSE ITSELF -> MEANING YOU MUST EXPLAIN ABOUT THE CONTENT OF THAT COURSE LIKE THE ACTUAL MATERIALS AND TERMS, NOT ANYTHING TO DO WITH THE ACTUAL STRUCTURE OF THE EXAM. THIS APPLIES NOT JUST FOR EXAMS, BUT TESTS, AND ANY OTHER MATERIAL LIKE THAT. FAILURE TO DO THIS MAY RESULT IN TERMINATION.
-
-2. 💡 TONE AND STYLE:
-   - Clear, confident, instructional tone.
-   - Never vague or generic — always detailed, specific, and content-dense.
-   - Use academic language, but make it engaging.
-   - Do NOT include any meta-commentary, process explanation, or references to yourself, the AI, or the user. 
-
-3. ✨ VISUAL STRUCTURE & ENGAGEMENT:
-   - Use clean, hierarchical formatting.
-   - **<h1>** for major sections (main concepts/themes).
-   - **<h2>** for subtopics, examples, methods, or related ideas.
-   - Use <p> for full paragraphs of explanation.
-   - Use <ul>/<ol> for steps, lists, or key points.
-   - Use <blockquote> for important insights or definitions.
-   - Use <table> for comparisons, categorizations, or structured data.
-   - Add **bold** and *italic* formatting for emphasis and clarity.
-   - Use spacing and indentation naturally to guide the eye.
-
-4. 🌟 EMOJI USAGE:
-   - Use emojis strategically and sparingly to:
-     - Highlight or introduce new sections 💡
-     - Mark warnings or key ideas ⚠️
-     - Show processes or steps 🔁➡️
-     - Represent topics visually 🧬🔢📊🌍🧪
-   - DO NOT overuse emojis. They must aid reading, not distract from it.
-   - DO NOT repeat the same emoji repeatedly in one section.
-
-5. 📚 CONTENT QUALITY EXPECTATIONS:
-   - Define all important terms clearly and completely.
-   - Explain each concept thoroughly, including background, usage, and implications.
-   - Provide examples, analogies, or applications where useful.
-   - Connect ideas across the topic to show relationships and frameworks.
-   - If the topic is mathematical or logical, include formulas and walk through their meaning.
-
-6. 🔣 MATH FORMAT — LaTeX ONLY:
-   - Any math expressions, logic, chemistry, physics, etc. must use proper LaTeX syntax.
-   - Inline math → wrap in single dollar signs: $...$
-   - Block equations → wrap in double dollar signs: $$...$$
-   - Do not describe math — express it cleanly in LaTeX for clarity and rendering.
-
-7. 🧼 FORMATTING RULES (STRICT):
-   ✅ ALLOWED TAGS ONLY:
-     - <h1>, <h2>, <p>, <strong>, <em>, <ul>, <ol>, <li>, <blockquote>, <table>, <thead>, <tbody>, <tr>, <th>, <td> 
-
-   🚫 DO NOT USE:
-     - <html>, <head>, <body>, <div>, <span>, <style>, <script>, or any inline styles like style="..." or class="..."
-     - No markdown formatting. HTML only.
-     - No links unless they are part of academic citation, which is rare and discouraged.
-     - No embedded media — the result must be copy-pasteable into a rich text editor.
-     - No <h3> or higher tags. MAX is <h2>. 
-
-8. ❗ ABSOLUTELY PROHIBITED:
-   - Do NOT refer to yourself, your process, or the original source.
-   - Do NOT include commentary like “Here’s what we can learn…” or “Let’s break this down…”
-   - Do NOT explain what you’re doing — just do it.
-   - Do NOT wrap your output in triple backticks or any markdown syntax.
-
-9. 📄 FINAL OUTPUT:
-   - Output ONLY the HTML content. It should begin immediately with a valid HTML tag such as <h1> or <p>.
-   - The entire response must be a single, continuous HTML document — clean, readable, structured, and content-rich.
-
-Transcript from "${videoInfo.title}":
----
-${baseTranscriptContent}
----
-Your Response (Raw, clean HTML):`;
-        const noteOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: notePrompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 65536 } }) };
-        const noteResponse = await fetchWithRetry(currentGeminiEndpoint, noteOptions);
-        let content = extractCandidateText(await noteResponse.text());
+        const notePrompt = PROMPT_TEMPLATES.NOTE_GENERATION(baseTranscriptContent, videoInfo.title);
+        const noteResult = await geminiProxyCallable({ 
+            contents: [{ parts: [{ text: notePrompt }] }], 
+            generationConfig: AI_CONFIGS.NOTE_GENERATION 
+        });
+        let content = extractCandidateText(JSON.stringify(noteResult.data));
         if (content.startsWith("Error:")) { content = `<p><strong>Error generating note:</strong> ${content}</p>`; }
         safeProgress(60);
 
-        const keyPointsPrompt = `You are a precision extractor. List 5-10 of the most critical takeaways from the text. DO NOT write about the instructions; focus ONLY on the subject matter.
-
-RULES:
-1.  Output a list only.
-2.  Every point MUST begin with \`* \`.
-3.  One point per line, under 25 words.
-4.  No extra text. Start with the first asterisk.
-
-    FOR MATH USE THIS:
-
-Equations → LaTeX $…$ inline, $$…$$ display).  
-   - ALL mathematics, logic, etc. that can be written in LaTeX, must be written in LaTeX.
-
-YOU MUST ALWYAYS USE THAT LATEX FOR MATH ONLY.
-
-Source Text:
----
-${baseTranscriptContent}
----
-Your Response:
-* `;
-        const kpOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: keyPointsPrompt }] }], generationConfig: { temperature: 0.3, maxOutputTokens: 65536 } }) };
-        const kpResponse = await fetchWithRetry(currentGeminiEndpoint, kpOptions);
-        let keyPoints = (extractCandidateText(await kpResponse.text())).split('\n').map(l => l.trim().replace(/^(\*|-|\d+\.)\s*/, '')).filter(p => p.length > 5 && !p.toLowerCase().includes("primary task"));
+        const keyPointsPrompt = PROMPT_TEMPLATES.KEY_POINTS(baseTranscriptContent, content);
+        const kpResult = await geminiProxyCallable({ 
+            contents: [{ parts: [{ text: keyPointsPrompt }] }], 
+            generationConfig: AI_CONFIGS.KEY_POINTS 
+        });
+        let keyPoints = (extractCandidateText(JSON.stringify(kpResult.data))).split('\n').map(l => l.trim().replace(/^(\*|-|\d+\.)\s*/, '')).filter(p => p.length > 5 && !p.toLowerCase().includes("primary task"));
         if (keyPoints.length === 0) { keyPoints.push("Key point generation failed."); }
         safeProgress(75);
 
-        const flashcardsPrompt = `Generate 10-15 high-quality flashcards from the transcript.
-
-RULES:
-1.  Use this block structure:
-    Front: [Front text]
-    Back: [Back text]
-2.  Separate each block with a line containing only: \`---FLASHCARD_DIVIDER---\`
-3.  No extra text. Start with "Front:".
-
-
-    FOR MATH USE THIS:
-
-Equations → LaTeX $…$ inline, $$…$$ display).  
-   - ALL mathematics, logic, etc. that can be written in LaTeX, must be written in LaTeX.
-
-YOU MUST ALWYAYS USE THAT LATEX FOR MATH ONLY.
-
-Transcript:
----
-${baseTranscriptContent}
----
-Your Response:
-Front:`;
-        const fcOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: flashcardsPrompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 65536 } }) };
-        const fcResponse = await fetchWithRetry(currentGeminiEndpoint, fcOptions);
-        const fcRawText = extractCandidateText(await fcResponse.text());
+        const flashcardsPrompt = PROMPT_TEMPLATES.FLASHCARDS(baseTranscriptContent, content);
+        const fcResult = await geminiProxyCallable({ 
+            contents: [{ parts: [{ text: flashcardsPrompt }] }], 
+            generationConfig: AI_CONFIGS.FLASHCARDS 
+        });
+        const fcRawText = extractCandidateText(JSON.stringify(fcResult.data));
         let flashcards: ProcessedYouTube['flashcards'] = [];
         if (!fcRawText.startsWith("Error:")) {
              fcRawText.split(/---FLASHCARD_DIVIDER---/i).forEach(block => {
@@ -271,36 +150,12 @@ Front:`;
         }
         safeProgress(85);
 
-        const questionsPrompt = `Generate exactly 10 MCQs from the transcript.
-
-RULES:
-1.  Use this 7-line block structure:
-    Question: [Question]
-    A) [Option A]
-    B) [Option B]
-    C) [Option C]
-    D) [Option D]
-    Correct: [Letter]
-    Explanation: [Explanation]
-2.  Separate each block with a line containing only: \`---DIVIDER---\`
-3.  No extra text. Start with "Question:".
-
-    FOR MATH USE THIS:
-
-Equations → LaTeX $…$ inline, $$…$$ display).  
-   - ALL mathematics, logic, etc. that can be written in LaTeX, must be written in LaTeX.
-
-YOU MUST ALWYAYS USE THAT LATEX FOR MATH ONLY.
-
-Transcript:
----
-${baseTranscriptContent}
----
-Your Response:
-Question:`;
-        const qOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: questionsPrompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 65536 } }) };
-        const qResponse = await fetchWithRetry(currentGeminiEndpoint, qOptions);
-        const qRawText = extractCandidateText(await qResponse.text());
+        const questionsPrompt = PROMPT_TEMPLATES.QUESTIONS(baseTranscriptContent, content);
+        const qResult = await geminiProxyCallable({ 
+            contents: [{ parts: [{ text: questionsPrompt }] }], 
+            generationConfig: AI_CONFIGS.QUESTIONS 
+        });
+        const qRawText = extractCandidateText(JSON.stringify(qResult.data));
         let questions: ProcessedYouTube['questions'] = [];
         if (!qRawText.startsWith("Error:")) {
             qRawText.split(/---DIVIDER---/i).forEach(block => {
