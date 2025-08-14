@@ -1496,65 +1496,9 @@ export function FocusMode() {
     setIsContextDialogOpen(false); 
   };
 
-  const triggerFileSelect = () => fileInputRef.current?.click();
 
-  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!event.target.files || event.target.files.length === 0) return;
-    const filesArray = Array.from(event.target.files);
-    const newSelectedFiles: SelectedFile[] = [];
-    for (const file of filesArray) {
-      if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) { 
-        alert(`File ${file.name} is too large (max ${MAX_FILE_SIZE_MB}MB).`); 
-        continue; 
-      }
-      try { 
-        newSelectedFiles.push(await readFileAsSelectedFile(file)); 
-      }
-      catch (error) { 
-        console.error("Error reading file:", file.name, error); 
-        alert(`Error reading file ${file.name}.`); 
-      }
-    }
-    setSelectedFiles(prev => [...prev, ...newSelectedFiles].slice(0, 5));
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
+ 
 
-  const handleRemoveFile = (fileName: string) => { 
-    setSelectedFiles(prev => prev.filter(f => { 
-      if (f.name === fileName && f.localPreviewUrl) { 
-        URL.revokeObjectURL(f.localPreviewUrl); 
-      } 
-      return f.name !== fileName; 
-    })); 
-  };
-
-  const handlePaste = async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    if (isImageGenModeActive || isSearchModeActive || selectedFiles.length >= 5) return;
-    const items = event.clipboardData?.items; 
-    if (!items) return;
-    const filesToProcess: File[] = [];
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].kind === 'file') {
-        const file = items[i].getAsFile();
-        if (file && SUPPORTED_FILE_TYPES.split(',').some(type => type.trim() === file.type || file.name.endsWith(type.trim())) && file.size <= MAX_FILE_SIZE_MB * 1024 * 1024) { 
-          filesToProcess.push(file); 
-        }
-      }
-    }
-    if (filesToProcess.length > 0) {
-      event.preventDefault();
-      const newSelectedFiles: SelectedFile[] = [];
-      for (const file of filesToProcess) {
-        try { 
-          newSelectedFiles.push(await readFileAsSelectedFile(file)); 
-        }
-        catch (error) { 
-          console.error("Error reading pasted file:", file.name, error); 
-        }
-      }
-      setSelectedFiles(prev => [...prev, ...newSelectedFiles].slice(0, 5));
-    }
-  };
 
   const handleToggleImageGenMode = () => { 
     setIsImageGenModeActive(prev => { 
@@ -1571,20 +1515,7 @@ export function FocusMode() {
     }); 
   };
 
-  const handleToggleSearchMode = () => { 
-    setIsSearchModeActive(prev => { 
-      if (!prev) { 
-        setIsImageGenModeActive(false); 
-        if (selectedFiles.length > 0) { 
-          selectedFiles.forEach(sf => { 
-            if (sf.localPreviewUrl) URL.revokeObjectURL(sf.localPreviewUrl); 
-          }); 
-          setSelectedFiles([]); 
-        } 
-      } 
-      return !prev; 
-    }); 
-  };
+
 
   const handleToggleNotionSearchMode = () => {
     if (!isNotionConnected) {
@@ -1658,33 +1589,7 @@ export function FocusMode() {
     setIsDraggingOver(false);
   };
 
-  const handleDrop = async (e: React.DragEvent) => {
-    handleDragEvents(e);
-    setIsDraggingOver(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleFileDrop(e.dataTransfer.files);
-      return;
-    }
-    const html = e.dataTransfer.getData('text/html');
-    if (html) {
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = html;
-      const img = tempDiv.querySelector('img');
-      if (img && img.src) {
-        const newSelectedFile = await urlToSelectedFile(img.src);
-        if (newSelectedFile) setSelectedFiles(prev => [...prev, newSelectedFile].slice(0, 5));
-        return;
-      }
-    }
-    const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
-    if (url && (url.startsWith('http') || url.startsWith('data:image'))) {
-      const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
-      if (imageExtensions.some(ext => url.toLowerCase().includes(ext)) || url.startsWith('data:image')) {
-        const newSelectedFile = await urlToSelectedFile(url);
-        if (newSelectedFile) setSelectedFiles(prev => [...prev, newSelectedFile].slice(0, 5));
-      }
-    }
-  };
+
 
   const urlToSelectedFile = async (url: string): Promise<SelectedFile | null> => {
     // Handle base64 data URLs directly
@@ -2440,24 +2345,9 @@ Assistant:`;
     }
   }, [isImageGenModeActive, selectedFiles.length, showToast]);
 
-  const handleDragEvents = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-  }, []);
 
-  const handleDragEnter = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDraggingOver(true);
-  }, []);
 
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDraggingOver(false);
-  }, []);
 
-  const handleStyleSelect = useCallback((style: 'default' | 'illuminate' | 'blackout') => {
-    setActiveStyle(style);
-    setIsIlluminateEnabled(style === 'illuminate');
-  }, []);
   useEffect(() => { if (SpeechRecognition) { setIsAudioSupported(true); const recognition = new SpeechRecognition(); recognition.continuous = true; recognition.interimResults = true; recognition.lang = 'en-US'; recognition.onresult = (event: any) => { let interim = ''; let final = ''; for (let i = event.resultIndex; i < event.results.length; ++i) { if (event.results[i].isFinal) final += event.results[i][0].transcript; else interim += event.results[i][0].transcript; } setChatMessage(prev => prev + final + interim); }; recognition.onend = () => { if (recognitionStoppedManually.current) setIsRecording(false); else if (isRecording) { try { recognition.start(); } catch(e) { console.error("Could not restart recognition:", e); setIsRecording(false); }} else setIsRecording(false); }; recognition.onerror = (event: any) => { console.error("Speech recognition error:", event.error, event.message); let msg = "Speech error."; if (event.error === 'network') msg="Network error with speech."; else if(event.error === 'no-speech') msg="No speech detected."; else if(event.error === 'not-allowed' || event.error === 'service-not-allowed') msg="Mic access denied."; showToast(msg, "error", Mic); setIsRecording(false);}; recognitionRef.current = recognition; } else setIsAudioSupported(false); }, [isRecording, showToast]);
   const handleToggleRecording = () => { if (!isAudioSupported || !recognitionRef.current) return; const currentlyRecording = isRecording; setIsRecording(!currentlyRecording); if (currentlyRecording) { recognitionStoppedManually.current = true; recognitionRef.current.stop(); } else { recognitionStoppedManually.current = false; setChatMessage(''); try { recognitionRef.current.start(); } catch(e) { console.error("Speech recognition could not start:", e); showToast("Mic error.", "error"); setIsRecording(false); } } };
 
