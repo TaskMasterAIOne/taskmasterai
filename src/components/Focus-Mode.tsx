@@ -1500,36 +1500,10 @@ export function FocusMode() {
  
 
 
-  const handleToggleImageGenMode = () => { 
-    setIsImageGenModeActive(prev => { 
-      if (!prev) { 
-        setIsSearchModeActive(false); 
-        if (selectedFiles.length > 0) { 
-          selectedFiles.forEach(sf => { 
-            if (sf.localPreviewUrl) URL.revokeObjectURL(sf.localPreviewUrl); 
-          }); 
-          setSelectedFiles([]); 
-        } 
-      } 
-      return !prev; 
-    }); 
-  };
+  
 
 
 
-  const handleToggleNotionSearchMode = () => {
-    if (!isNotionConnected) {
-      navigate('/settings');
-      return;
-    }
-    setIsNotionSearchModeActive(prev => {
-      if (!prev) {
-        setIsImageGenModeActive(false);
-        setIsSearchModeActive(false);
-      }
-      return !prev;
-    });
-  };
 
   const handleStyleSelect = (style: string, prompt: string) => {
     setActiveStyle(style as 'default' | 'illuminate' | 'blackout');
