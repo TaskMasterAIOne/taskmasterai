@@ -757,44 +757,7 @@ export function FocusMode() {
   const [productivityAnalysisResult, setProductivityAnalysisResult] = useState<ProductivityAnalysis | null>(null);
   const [activePrompt, setActivePrompt] = useState<string>('');
 
-  // Quick actions for AI chat
-  const quickActions = useMemo(() => [
-    'Create a Task', 'Create a Goal', 'Create a Plan', 'Analyze my items', 'Set a Reminder', 
-    'Start a Timer for 5 minutes', 'Track My Progress', 'Brainstorm Ideas', 'Review My Goals', 
-    'Generate a Report', 'Organize My Notes', 'Suggest Improvements', 'Create a Checklist', 
-    'Prioritize My Tasks', 'Find a Solution', 'Log My Activity', 'Plan My Day', 
-    'Break Down a Project', 'Summarize Information', 'Set a Deadline', 'Optimize My Workflow', 
-    'Compare My Options', 'Visualize My Data', 'Sync My Calendar', 'Reflect on Progress'
-  ], []);
-
-  const quickActionIcons: Record<string, JSX.Element> = useMemo(() => ({
-    'Create a Task': <CheckCircle className="w-4 h-4 inline-block scale-90 md:scale-100" />,
-    'Create a Goal': <Target className="w-4 h-4 inline-block scale-90 md:scale-100" />,
-    'Create a Plan': <Calendar className="w-4 h-4 inline-block scale-90 md:scale-100" />,
-    'Analyze my items': <BarChart3 className="w-4 h-4 inline-block scale-90 md:scale-100" />,
-    'Set a Reminder': <Bell className="w-4 h-4 inline-block scale-90 md:scale-100" />,
-    'Start a Timer for 5 minutes': <TimerIcon className="w-4 h-4 inline-block scale-90 md:scale-100" />,
-    'Track My Progress': <TrendingUp className="w-4 h-4 inline-block scale-90 md:scale-100" />,
-    'Brainstorm Ideas': <Lightbulb className="w-4 h-4 inline-block scale-90 md:scale-100" />,
-    'Review My Goals': <Target className="w-4 h-4 inline-block scale-90 md:scale-100" />,
-    'Generate a Report': <FileText className="w-4 h-4 inline-block scale-90 md:scale-100" />,
-    'Organize My Notes': <Notebook className="w-4 h-4 inline-block scale-90 md:scale-100" />,
-    'Suggest Improvements': <Wand className="w-4 h-4 inline-block scale-90 md:scale-100" />,
-    'Create a Checklist': <ListChecks className="w-4 h-4 inline-block scale-90 md:scale-100" />,
-    'Prioritize My Tasks': <SortAsc className="w-4 h-4 inline-block scale-90 md:scale-100" />,
-    'Find a Solution': <Search className="w-4 h-4 inline-block scale-90 md:scale-100" />,
-    'Log My Activity': <ClipboardIcon className="w-4 h-4 inline-block scale-90 md:scale-100" />,
-    'Plan My Day': <Sun className="w-4 h-4 inline-block scale-90 md:scale-100" />,
-    'Break Down a Project': <Layers className="w-4 h-4 inline-block scale-90 md:scale-100" />,
-    'Summarize Information': <AlignLeft className="w-4 h-4 inline-block scale-90 md:scale-100" />,
-    'Set a Deadline': <Hourglass className="w-4 h-4 inline-block scale-90 md:scale-100" />,
-    'Optimize My Workflow': <Settings className="w-4 h-4 inline-block scale-90 md:scale-100" />,
-    'Compare My Options': <Columns className="w-4 h-4 inline-block scale-90 md:scale-100" />,
-    'Visualize My Data': <BarChart3 className="w-4 h-4 inline-block scale-90 md:scale-100" />,
-    'Sync My Calendar': <CalendarCheck className="w-4 h-4 inline-block scale-90 md:scale-100" />,
-    'Reflect on Progress': <Eye className="w-4 h-4 inline-block scale-90 md:scale-100" />
-  }), []);
-
+  
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
