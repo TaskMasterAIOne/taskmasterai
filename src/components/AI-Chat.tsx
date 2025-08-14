@@ -1421,7 +1421,7 @@ ${activeNotionPage ? `
    - **BAD:**{"findText": "## Action Items"}
 
 // --- [PAGE CREATION & SEARCH] ---
-   - To **CREATE** a brand new page: Use \`createNotionPage\`. If the user does not specify where to put it (a parent page or database), you **MUST** ask them first. See the "Page Creation Behavior" below.
+   - To **CREATE** a brand new page: Use \`createNotionPage\`. If the user does not specify where to put it (a parent page or a database), you **MUST** ask them first. See the "Page Creation Behavior" below.
    - To **SEARCH** for pages or read a specific one:
      - Use \`searchNotion\` to find a list of pages. Payload: \`{"query": string}\`.
 
@@ -1719,7 +1719,6 @@ Assistant:`;
               };
           }
 
-      try {
           // --- THIS IS THE NEW LOGIC ---
           const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
           
@@ -1889,7 +1888,7 @@ Assistant:`;
             setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? { ...msg, isVerifyingContent: true, isLoading: true } : msg ));
             
                                 // FIX: Pass the geminiApiKey from state to the updated helper function
-                    educationalContent = await verifyEducationalContent(tempEducationalContent);
+                    educationalContent = await verifyEducationalContent(tempEducationalContent, "YOUR_API_KEY"); // You need to manage your API key securely
         }
       
       if (!isImageGenModeActive && otherActionBlocks.length > 0 && user?.uid) {
@@ -2072,8 +2071,8 @@ Assistant:`;
         const hasContentToName = finalHistoryForName.some(m => m.role === 'user' && m.content?.trim());
 
         if ((conversationJustCreated || conversationNeedsRenaming) && hasContentToName) {
-                                // FIX: Pass the geminiApiKey from state to the updated helper function
-                    generateChatName(currentConvId, finalHistoryForName, user);
+                    // FIX: Pass the geminiApiKey from state to the updated helper function
+                    generateChatName(currentConvId, finalHistoryForName, user, "YOUR_API_KEY"); // You need to manage your API key securely
         }
 
     } catch (err: any) {
