@@ -90,6 +90,8 @@ import { User } from 'firebase/auth';
 import { Timestamp } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { ContextDialog } from './context-dialog';
+import { ChatControls } from './chat-controls';
+import { IntegrationsControl } from './integrations-control';
 import { saveUserContext, onUserContextChange, type UserContext } from '../lib/ai-context-firebase';
 import { AMBIENT_SOUND_FILES, type AmbientSound as AmbientSoundFile } from '../lib/ambientSounds';
 import {
@@ -560,6 +562,11 @@ export function FocusMode() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [aiActionStatus, setAiActionStatus] = useState<string | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [activeStyle, setActiveStyle] = useState<'default' | 'illuminate' | 'blackout'>('default');
+  const [isIlluminateEnabled, setIsIlluminateEnabled] = useState(false);
+  const [isNotionConnected, setIsNotionConnected] = useState(false);
+  const [isNotionSearchModeActive, setIsNotionSearchModeActive] = useState(false);
 
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -1532,8 +1539,73 @@ Assistant:`;
   const triggerFileSelect = () => fileInputRef.current?.click();
   const handleRemoveFile = (fileName: string) => { setSelectedFiles(prev => prev.filter(f => { if (f.name === fileName && f.localPreviewUrl) URL.revokeObjectURL(f.localPreviewUrl); return f.name !== fileName; })); };
   const handlePaste = async (event: React.ClipboardEvent<HTMLTextAreaElement>) => { if (isImageGenModeActive || selectedFiles.length >= 5) return; const items = event.clipboardData?.items; if (!items) return; const filesToProcess: File[] = []; for (let i = 0; i < items.length; i++) { if (items[i].kind === 'file') { const file = items[i].getAsFile(); if (file && SUPPORTED_FILE_TYPES.split(',').some(type => type.trim() === file.type || file.name.endsWith(type.trim())) && file.size <= MAX_FILE_SIZE_MB * 1024 * 1024) filesToProcess.push(file); } } if (filesToProcess.length > 0) { event.preventDefault(); const newPastedFiles: SelectedFile[] = []; for (const file of filesToProcess) { try { newPastedFiles.push(await readFileAsSelectedFile(file)); } catch (error) { console.error("Error reading pasted file:", file.name, error); }} setSelectedFiles(prev => [...prev, ...newPastedFiles].slice(0, 5)); } };
-  const handleToggleImageGenMode = () => { setIsImageGenModeActive(prev => { const nextState = !prev; if (nextState) { setIsSearchModeActive(false); if (selectedFiles.length > 0) { selectedFiles.forEach(sf => { if (sf.localPreviewUrl) URL.revokeObjectURL(sf.localPreviewUrl); }); setSelectedFiles([]); } } return nextState; }); };
-  const handleToggleSearchMode = () => { setIsSearchModeActive(prev => { const nextState = !prev; if (nextState) { setIsImageGenModeActive(false); if (selectedFiles.length > 0) { selectedFiles.forEach(sf => { if (sf.localPreviewUrl) URL.revokeObjectURL(sf.localPreviewUrl); }); setSelectedFiles([]); } } return nextState; }); };
+  const handleToggleImageGenMode = () => { setIsImageGenModeActive(prev => { const nextState = !prev; if (nextState) { setIsSearchModeActive(false); setIsNotionSearchModeActive(false); if (selectedFiles.length > 0) { selectedFiles.forEach(sf => { if (sf.localPreviewUrl) URL.revokeObjectURL(sf.localPreviewUrl); }); setSelectedFiles([]); } } return nextState; }); };
+  const handleToggleSearchMode = () => { setIsSearchModeActive(prev => { const nextState = !prev; if (nextState) { setIsImageGenModeActive(false); setIsNotionSearchModeActive(false); if (selectedFiles.length > 0) { selectedFiles.forEach(sf => { if (sf.localPreviewUrl) URL.revokeObjectURL(sf.localPreviewUrl); }); setSelectedFiles([]); } } return nextState; }); };
+  const handleToggleNotionSearchMode = () => {
+    if (!isNotionConnected) {
+      showToast("Notion integration not connected. Please connect your Notion account first.", "error");
+      return;
+    }
+    setIsNotionSearchModeActive(prev => {
+      const nextState = !prev;
+      if (nextState) {
+        setIsSearchModeActive(false);
+        setIsImageGenModeActive(false);
+        if (selectedFiles.length > 0) {
+          selectedFiles.forEach(sf => {
+            if (sf.localPreviewUrl) URL.revokeObjectURL(sf.localPreviewUrl);
+          });
+          setSelectedFiles([]);
+        }
+      }
+      return nextState;
+    });
+  };
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingOver(false);
+    
+    if (isImageGenModeActive || selectedFiles.length >= 5) return;
+    
+    const files = Array.from(e.dataTransfer.files);
+    const validFiles = files.filter(file => 
+      SUPPORTED_FILE_TYPES.split(',').some(type => 
+        type.trim() === file.type || file.name.endsWith(type.trim())
+      ) && file.size <= MAX_FILE_SIZE_MB * 1024 * 1024
+    );
+    
+    if (validFiles.length > 0) {
+      validFiles.forEach(async (file) => {
+        try {
+          const selectedFile = await readFileAsSelectedFile(file);
+          setSelectedFiles(prev => [...prev, selectedFile].slice(0, 5));
+        } catch (error) {
+          console.error("Error reading dropped file:", file.name, error);
+          showToast(`Error reading file ${file.name}.`, "error");
+        }
+      });
+    }
+  }, [isImageGenModeActive, selectedFiles.length, showToast]);
+
+  const handleDragEvents = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+  }, []);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingOver(false);
+  }, []);
+
+  const handleStyleSelect = useCallback((style: 'default' | 'illuminate' | 'blackout') => {
+    setActiveStyle(style);
+    setIsIlluminateEnabled(style === 'illuminate');
+  }, []);
   useEffect(() => { if (SpeechRecognition) { setIsAudioSupported(true); const recognition = new SpeechRecognition(); recognition.continuous = true; recognition.interimResults = true; recognition.lang = 'en-US'; recognition.onresult = (event: any) => { let interim = ''; let final = ''; for (let i = event.resultIndex; i < event.results.length; ++i) { if (event.results[i].isFinal) final += event.results[i][0].transcript; else interim += event.results[i][0].transcript; } setChatMessage(prev => prev + final + interim); }; recognition.onend = () => { if (recognitionStoppedManually.current) setIsRecording(false); else if (isRecording) { try { recognition.start(); } catch(e) { console.error("Could not restart recognition:", e); setIsRecording(false); }} else setIsRecording(false); }; recognition.onerror = (event: any) => { console.error("Speech recognition error:", event.error, event.message); let msg = "Speech error."; if (event.error === 'network') msg="Network error with speech."; else if(event.error === 'no-speech') msg="No speech detected."; else if(event.error === 'not-allowed' || event.error === 'service-not-allowed') msg="Mic access denied."; showToast(msg, "error", Mic); setIsRecording(false);}; recognitionRef.current = recognition; } else setIsAudioSupported(false); }, [isRecording, showToast]);
   const handleToggleRecording = () => { if (!isAudioSupported || !recognitionRef.current) return; const currentlyRecording = isRecording; setIsRecording(!currentlyRecording); if (currentlyRecording) { recognitionStoppedManually.current = true; recognitionRef.current.stop(); } else { recognitionStoppedManually.current = false; setChatMessage(''); try { recognitionRef.current.start(); } catch(e) { console.error("Speech recognition could not start:", e); showToast("Mic error.", "error"); setIsRecording(false); } } };
 
@@ -1637,15 +1709,126 @@ Assistant:`;
                         ))}
                      </div>
                      <div className="p-3 border-t border-gray-200 dark:border-gray-700/80 bg-gray-50 dark:bg-gray-800/50 flex-shrink-0">
+                       {/* Usage display moved above chatbox */}
+                       {userTier !== 'premium' && userTier !== 'loading' && (
+                           <div className="pt-2 text-xs text-center mb-3">
+                               <span className="text-gray-500 dark:text-gray-400">Messages: {chatUsageCount} / {currentChatLimitDisplay}</span>
+                               {isChatDisabledByLimit && <span className="text-red-500 dark:text-red-400 ml-1 font-medium">(Limit Reached)</span>}
+                               {!isChatDisabledByLimit && userTier === 'basic' && (
+                                   <Link to="/pricing" className="ml-1 font-medium text-indigo-500 dark:text-indigo-400 hover:underline">
+                                       <Crown className="w-3 h-3 inline mr-0.5"/>Upgrade
+                                   </Link>
+                               )}
+                           </div>
+                       )}
+                       
                        <form onSubmit={handleChatSubmit}>
-                           <div className="bg-white dark:bg-gray-900/70 border border-gray-300 dark:border-gray-600 rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-400 dark:focus-within:ring-indigo-600 transition-all duration-200 flex flex-col">
-                               <textarea ref={textareaRef} rows={1} value={chatMessage} onChange={(e) => setChatMessage(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSubmit(); } }} placeholder={isRecording ? "Listening..." : "Ask your AI..."} className="w-full bg-transparent text-gray-800 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 p-3 text-sm focus:ring-0 focus:outline-none border-0 resize-none overflow-y-auto max-h-36" disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading' || !conversationId}/>
-                               <div className="flex justify-between items-center px-2 py-1">
-                                   <div className="flex items-center gap-0.5">
-                                       <button type="button" onClick={handleToggleSearchMode} disabled={isChatLoading || isChatDisabledByLimit || !conversationId} className={`p-2 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isSearchModeActive ? 'text-blue-700 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80'}`} title="Search"><Globe className="w-4 h-4" /></button>
-                                       <button type="button" onClick={handleToggleImageGenMode} disabled={isChatLoading || isChatDisabledByLimit || !conversationId} className={`p-2 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isImageGenModeActive ? 'text-purple-700 dark:text-purple-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80'}`} title="Generate Image"><ImageIcon className="w-4 h-4" /></button>
+                           <div 
+                               onDrop={handleDrop}
+                               onDragOver={handleDragEvents}
+                               onDragEnter={handleDragEnter}
+                               onDragLeave={handleDragLeave}
+                               className={`relative bg-[#F7F8FA] dark:bg-[#161922] rounded-2xl shadow-sm transition-all duration-200 flex flex-col ${isDraggingOver ? 'ring-2 ring-indigo-400 dark:ring-indigo-600 ring-offset-2 ring-offset-white dark:ring-offset-[#12141D]' : 'focus-within:ring-2 focus-within:ring-indigo-400 dark:focus-within:ring-indigo-600'}`}
+                           >
+                               <AnimatePresence>
+                               {isDraggingOver && (
+                                   <motion.div 
+                                       initial={{ opacity: 0 }}
+                                       animate={{ opacity: 1 }}
+                                       exit={{ opacity: 0 }}
+                                       className="absolute inset-0 bg-indigo-50/90 dark:bg-indigo-900/90 z-10 flex items-center justify-center rounded-2xl pointer-events-none border-2 border-dashed border-indigo-400"
+                                   >
+                                       <div className="text-center">
+                                           <ImageIcon className="w-8 h-8 text-indigo-500 dark:text-indigo-400 mx-auto mb-2"/>
+                                           <p className="font-semibold text-indigo-600 dark:text-indigo-300">Drop files to attach</p>
+                                       </div>
+                                   </motion.div>
+                               )}
+                               </AnimatePresence>
+                               
+                               <AnimatePresence>
+                                   {aiActionStatus && (
+                                       <motion.div
+                                           initial={{ opacity: 0, height: 0 }}
+                                           animate={{ opacity: 1, height: 'auto' }}
+                                           exit={{ opacity: 0, height: 0 }}
+                                           className="text-center text-sm p-2 text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600/50"
+                                       >
+                                           {aiActionStatus}
+                                       </motion.div>
+                                   )}
+                               </AnimatePresence>
+                               
+                               <textarea 
+                                   ref={textareaRef} 
+                                   rows={1} 
+                                   value={chatMessage} 
+                                   onChange={(e) => setChatMessage(e.target.value)} 
+                                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSubmit(); } }} 
+                                   onPaste={handlePaste}
+                                   placeholder={
+                                       isRecording ? "Listening..." :
+                                       isImageGenModeActive ? "Describe the image to generate..." :
+                                       isNotionSearchModeActive ? "Search your Notion..." :
+                                       !conversationId ? "Start a new chat to begin..." :
+                                       "Ask anything..."
+                                   } 
+                                   className="w-full bg-transparent text-gray-800 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 p-3.5 text-sm focus:ring-0 focus:outline-none border-0 resize-none overflow-y-auto max-h-44 leading-relaxed" 
+                                   disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading' || !conversationId}
+                               />
+                               <div className="flex justify-between items-center px-2 py-1.5 mt-1">
+                                   <div className="flex items-center gap-1">
+                                       <input type="file" ref={fileInputRef} onChange={handleFileSelect} multiple accept={SUPPORTED_FILE_TYPES} className="hidden" disabled={isImageGenModeActive || isSearchModeActive || isNotionSearchModeActive || isChatLoading || isChatDisabledByLimit || !conversationId} />
+                                       <button type="button" onClick={triggerFileSelect} disabled={isImageGenModeActive || isSearchModeActive || isNotionSearchModeActive || isChatLoading || isChatDisabledByLimit || !conversationId} className="p-2 rounded-lg transition-colors duration-150 text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600 disabled:cursor-not-allowed" title="Attach Files">
+                                           <Plus className="w-4 h-4" />
+                                       </button>
+                                       <button type="button" onClick={handleToggleSearchMode} disabled={isChatLoading || isChatDisabledByLimit || isNotionSearchModeActive || !conversationId} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isSearchModeActive ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'}`} title={isSearchModeActive ? "Disable Search" : "Enable Search"}>
+                                           <Globe className="w-4 h-4" />
+                                           <span className="hidden sm:inline">Search</span>
+                                       </button>
+                                       <button type="button" onClick={handleToggleImageGenMode} disabled={isChatLoading || isChatDisabledByLimit || isNotionSearchModeActive || !conversationId} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isImageGenModeActive ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'}`} title={isImageGenModeActive ? "Switch to Normal" : "Generate Image"}>
+                                           <ImageIcon className="w-4 h-4" />
+                                           <span className="hidden sm:inline">Image</span>
+                                       </button>
+                                       <ChatControls
+                                           onStyleSelect={handleStyleSelect}
+                                           activeStyle={activeStyle}
+                                           isIlluminateEnabled={isIlluminateEnabled}
+                                           isBlackoutEnabled={isDarkMode && !isIlluminateEnabled}
+                                       />
+                                       <IntegrationsControl
+                                           isNotionConnected={isNotionConnected}
+                                           isNotionSearchModeActive={isNotionSearchModeActive}
+                                           onToggleNotionSearchMode={handleToggleNotionSearchMode}
+                                       />
                                    </div>
-                                   <button type="submit" disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading' || !conversationId || !chatMessage.trim()} className="p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-indigo-500 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20">{isChatLoading ? <Loader2 className="w-5 h-5 animate-spin"/> : <Send className="w-5 h-5" />}</button>
+                                   <div className="flex items-center">
+                                       <AnimatePresence mode="wait" initial={false}>
+                                           <motion.div
+                                               key={(chatMessage.trim() || selectedFiles.length > 0 || (isImageGenModeActive && chatMessage.trim())) ? 'send' : 'mic'}
+                                               initial={{ opacity: 0, y: 5 }}
+                                               animate={{ opacity: 1, y: 0 }}
+                                               exit={{ opacity: 0, y: -5 }}
+                                               transition={{ duration: 0.15 }}
+                                           >
+                                               {(chatMessage.trim() || selectedFiles.length > 0 || (isImageGenModeActive && chatMessage.trim())) ? (
+                                                   <button type="submit" disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading' || !conversationId} className="p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-indigo-500 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20" title="Send" aria-label="Send chat message">
+                                                       {isChatLoading ? <Loader2 className="w-5 h-5 animate-spin"/> : <Send className="w-5 h-5" />}
+                                                   </button>
+                                               ) : (
+                                                   <button 
+                                                       type="button" 
+                                                       onClick={handleToggleRecording} 
+                                                       disabled={isChatLoading || isChatDisabledByLimit || !conversationId || !isAudioSupported} 
+                                                       className={`p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isRecording ? 'text-red-500 bg-red-100 dark:bg-red-500/20 animate-pulse' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/70'}`} 
+                                                       title={!isAudioSupported ? "Browser not supported" : isRecording ? "Stop Recording" : "Start Recording"}
+                                                   >
+                                                       {isRecording ? <StopCircle className="w-5 h-5"/> : <Mic className="w-5 h-5" />}
+                                                   </button>
+                                               )}
+                                           </motion.div>
+                                       </AnimatePresence>
+                                   </div>
                                </div>
                            </div>
                        </form>
