@@ -29,7 +29,7 @@ import {
 import { NewNoteModal } from './NewNoteModal';
 import { SplitView } from './SplitView';
 import { NoteChat, NoteChatHandle, ImageData as ChatImageData } from './NoteChat';
-import { getGeminiApiKey } from '../lib/dashboard-firebase';
+
 import {
     UserTier,
     getUserTier as determineUserTier,
@@ -514,7 +514,7 @@ export function Notes() {
 
 
         // --- ADD THIS NEW STATE AND EFFECT ---
-    const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
+
 
     // Define showToast early to avoid initialization errors
     const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info', icon?: React.FC<any>) => {
@@ -522,24 +522,7 @@ export function Notes() {
         setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null, icon: undefined, type: undefined }), 3500);
     }, []);
 
-    useEffect(() => {
-        const fetchKey = async () => {
-            if (user) {
-                const key = await getGeminiApiKey();
-                if (key && !key.startsWith("ERROR_")) {
-                    setGeminiApiKey(key);
-                } else {
-                    console.error("Critical: Failed to load API key for Notes component.");
-                    // The showToast function is available in this component
-                    showToast("AI services are currently unavailable due to a configuration error.", "error");
-                }
-            } else {
-                setGeminiApiKey(null);
-            }
-        };
 
-        fetchKey();
-    }, [user, showToast]); // This effect runs when the user's auth state changes
 
     
     const handlePodcastStop = useCallback(() => {
@@ -1297,7 +1280,7 @@ useEffect(() => {
     }, [notes, isMobile, handleSelectNote]);
 
        const handleChatWithNote = useCallback((note: Note | null, keepPdfOpen: boolean = false) => {
-        if (!note || !geminiApiKey) {
+        if (!note) {
              showToast('Chat requires API key setup.', 'error');
              return;
         }
