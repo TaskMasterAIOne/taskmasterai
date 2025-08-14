@@ -7,16 +7,16 @@ import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 
 const universityLogos = [
-  { name: "Oxford", src: { light: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/oxford.svg?alt=media&token=712ed46d-5d02-4835-8b15-85941eb5db73", dark: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/oxford.svg?alt=media&token=712ed46d-5d02-4835-8b15-85941eb5db73" }, alt: "University of Oxford Logo" },
-  { name: "MIT", src: { light: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/mit.svg?alt=media&token=168b1ae1-e90e-46ac-bc58-feb8d46b852c", dark: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/mit.svg?alt=media&token=168b1ae1-e90e-46ac-bc58-feb8d46b852c" }, alt: "MIT Logo" },
-  { name: "Princeton", src: { light: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/pricinton-black-text-removebg-preview.png?alt=media&token=c3c8070e-f5bc-4d74-9fcc-0ff52a10052d", dark: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/princeton.png?alt=media&token=593fa335-53b0-4d6f-97f0-410e54069425" }, alt: "Princeton University Logo" },
-  { name: "UT Austin", src: { light: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/utaustin.svg?alt=media&token=988de05d-403d-47c6-9073-3da63aa3ce56", dark: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/utaustin.svg?alt=media&token=988de05d-403d-47c6-9073-3da63aa3ce56" }, alt: "University of Texas at Austin Logo" },
-  { name: "Duke", src: { light: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/duke.svg?alt=media&token=57027fc4-51ab-48c4-ad4f-534bef685311", dark: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/duke.svg?alt=media&token=57027fc4-51ab-48c4-ad4f-534bef685311" }, alt: "Duke University Logo" },
-  { name: "Harvard", src: { light: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/harvard.png?alt=media&token=ca63f868-d97c-42dc-a6fd-bcf6a88ca8b1", dark: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/harvard%20(2).png?alt=media&token=bc675261-2d71-4b37-8a38-f9f266a1f08e" }, alt: "Harvard University Logo" },
-  { name: "Georgia Tech", src: { light: "https://yunzhi.netlify.app/authors/admin/gatech-logo-cropped.png", dark: "https://yunzhi.netlify.app/authors/admin/gatech-logo-cropped.png" }, alt: "Georgia Tech University Logo" },
-  { name: "Rice", src: { light: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/ricelogo.png?alt=media&token=1247209e-9df6-492c-8129-1e9b6c1403c1", dark: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/ricelogo.png?alt=media&token=1247209e-9df6-492c-8129-1e9b6c1403c1" }, alt: "Rice University Logo" },
-  { name: "Yale", src: { light: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/yale.svg?alt=media&token=b4335183-5d2b-4c7f-83fe-e9d3437b7578", dark: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/yale.svg?alt=media&token=b4335183-5d2b-4c7f-83fe-e9d3437b7578" }, alt: "Yale University Logo" },
-  { name: "Johns Hopkins", src: { light: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/jhulogo.png?alt=media&token=f3dc5ef0-8b1c-4645-94dd-f10fdf8fe3bf", dark: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/jhulogo.png?alt=media&token=f3dc5ef0-8b1c-4645-94dd-f10fdf8fe3bf" }, alt: "Johns Hopkins University Logo" },
+  { name: "Oxford", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/oxford.svg?alt=media&token=712ed46d-5d02-4835-8b15-85941eb5db73", alt: "University of Oxford Logo" },
+  { name: "MIT", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/mit.svg?alt=media&token=168b1ae1-e90e-46ac-bc58-feb8d46b852c", alt: "MIT Logo" },
+  { name: "Princeton", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/princeton.png?alt=media&token=593fa335-53b0-4d6f-97f0-410e54069425", alt: "Princeton University Logo" },
+  { name: "UT Austin", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/utaustin.svg?alt=media&token=988de05d-403d-47c6-9073-3da63aa3ce56", alt: "University of Texas at Austin Logo" },
+  { name: "Duke", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/duke.svg?alt=media&token=57027fc4-51ab-48c4-ad4f-534bef685311", alt: "Duke University Logo" },
+  { name: "Harvard", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/harvard%20(2).png?alt=media&token=bc675261-2d71-4b37-8a38-f9f266a1f08e", alt: "Harvard University Logo" },
+  { name: "Georgia Tech", src: "https://yunzhi.netlify.app/authors/admin/gatech-logo-cropped.png", alt: "Georgia Tech University Logo" },
+  { name: "Rice", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/ricelogo.png?alt=media&token=1247209e-9df6-492c-8129-1e9b6c1403c1", alt: "Rice University Logo" },
+  { name: "Yale", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/yale.svg?alt=media&token=b4335183-5d2b-4c7f-83fe-e9d3437b7578", alt: "Yale University Logo" },
+  { name: "Johns Hopkins", src: "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/jhulogo.png?alt=media&token=f3dc5ef0-8b1c-4645-94dd-f10fdf8fe3bf", alt: "Johns Hopkins University Logo" },
 ];
 
 const testimonials = [
@@ -45,47 +45,47 @@ const testimonials = [
 
 const features = [
   {
-    icon: <Edit3 className="w-8 h-8 text-indigo-500 dark:text-indigo-400" />,
+    icon: <Edit3 className="w-8 h-8 text-indigo-400" />,
     title: "Rich Notes",
     description: "Our notes include tables, diagrams, emojis, equations, and markdown formatting for clarity.",
     illustration: (
-        <div className="mt-5 p-4 bg-gray-100 dark:bg-gray-800/70 rounded-xl border border-gray-200 dark:border-gray-700/90 text-sm shadow-inner">
-          <code className="text-green-600 dark:text-green-400 block text-center text-base font-mono">
-            <span className="text-purple-600 dark:text-purple-400">∂u</span>/<span className="text-purple-600 dark:text-purple-400">∂t</span> + u ⋅ ∇u = -∇p + μ∇²u + f
+        <div className="mt-5 p-4 bg-gray-800/70 rounded-xl border border-gray-700/90 text-sm shadow-inner">
+          <code className="text-green-400 block text-center text-base font-mono">
+            <span className="text-purple-400">∂u</span>/<span className="text-purple-400">∂t</span> + u ⋅ ∇u = -∇p + μ∇²u + f
           </code>
         </div>
       ),
   },
   {
-    icon: <Zap className="w-8 h-8 text-purple-500 dark:text-purple-400" />,
+    icon: <Zap className="w-8 h-8 text-purple-400" />,
     title: "Multimodality",
     description: "Create comprehensive notes instantly from any audio, video, or PDF document.",
     illustration: (
       <div className="mt-5 flex justify-around items-center space-x-4 py-2.5">
-        <Youtube className="w-11 h-11 text-red-600/90 dark:text-red-500/90 opacity-80 hover:opacity-100 transition-opacity duration-200 transform hover:scale-110" />
-        <Mic className="w-11 h-11 text-blue-600/90 dark:text-blue-500/90 opacity-80 hover:opacity-100 transition-opacity duration-200 transform hover:scale-110" />
-        <FileTextIcon className="w-11 h-11 text-purple-600/90 dark:text-purple-500/90 opacity-80 hover:opacity-100 transition-opacity duration-200 transform hover:scale-110" />
+        <Youtube className="w-11 h-11 text-red-500/90 opacity-80 hover:opacity-100 transition-opacity duration-200 transform hover:scale-110" />
+        <Mic className="w-11 h-11 text-blue-500/90 opacity-80 hover:opacity-100 transition-opacity duration-200 transform hover:scale-110" />
+        <FileTextIcon className="w-11 h-11 text-purple-500/90 opacity-80 hover:opacity-100 transition-opacity duration-200 transform hover:scale-110" />
       </div>
     ),
   },
   {
-    icon: <Brain className="w-8 h-8 text-pink-500 dark:text-pink-400" />,
+    icon: <Brain className="w-8 h-8 text-pink-400" />,
     title: "Flashcards & Quizzes",
     description: "Reinforce your learning with AI-generated flashcards and quizzes tailored to your notes.",
     illustration: (
         <div className="mt-5 flex justify-around items-center space-x-4 py-2.5">
-            <BookOpen className="w-11 h-11 text-yellow-600/90 dark:text-yellow-500/90 opacity-80 hover:opacity-100 transition-opacity duration-200 transform hover:scale-110" />
-            <CheckCircle className="w-11 h-11 text-green-600/90 dark:text-green-500/90 opacity-80 hover:opacity-100 transition-opacity duration-200 transform hover:scale-110" />
+            <BookOpen className="w-11 h-11 text-yellow-500/90 opacity-80 hover:opacity-100 transition-opacity duration-200 transform hover:scale-110" />
+            <CheckCircle className="w-11 h-11 text-green-500/90 opacity-80 hover:opacity-100 transition-opacity duration-200 transform hover:scale-110" />
         </div>
     ),
   },
   {
-    icon: <MessageCircle className="w-8 h-8 text-teal-500 dark:text-teal-400" />,
+    icon: <MessageCircle className="w-8 h-8 text-teal-400" />,
     title: "Chatbot",
     description: "Chat with your uploaded content to get context-dependent answers and deepen understanding.",
     illustration: (
-        <div className="mt-5 p-3 bg-gray-100 dark:bg-gray-800/70 rounded-xl shadow-inner">
-            <input type="text" placeholder="Ask anything..." className="w-full bg-gray-200 dark:bg-gray-700/80 text-gray-800 dark:text-gray-200 placeholder-gray-500 px-4 py-3 rounded-full text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 border-transparent transition-all" />
+        <div className="mt-5 p-3 bg-gray-800/70 rounded-xl shadow-inner">
+            <input type="text" placeholder="Ask anything..." className="w-full bg-gray-700/80 text-gray-200 placeholder-gray-500 px-4 py-3 rounded-full text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 border-transparent transition-all" />
         </div>
     ),
   },
@@ -93,7 +93,7 @@ const features = [
 
 const NotionIcon = (props) => (
   <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" {...props}>
-    <path className="fill-black dark:fill-white" d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z"/>
+    <path className="fill-white" d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z"/>
   </svg>
 );
 
@@ -126,7 +126,7 @@ const GoogleCalendarIcon = (props) => (
 );
 
 
-function TrustedBySection({ isDarkMode }) {
+function TrustedBySection() {
   const duplicatedLogos = [...universityLogos, ...universityLogos, ...universityLogos, ...universityLogos, ...universityLogos, ...universityLogos];
 
   return (
@@ -149,9 +149,9 @@ function TrustedBySection({ isDarkMode }) {
           }
         `}
       </style>
-      <section id="trusted-by" className="w-full pt-12 sm:pt-16 pb-12 sm:pb-16 bg-white dark:bg-[#0C0E1A]">
+      <section id="trusted-by" className="w-full pt-12 sm:pt-16 pb-12 sm:pb-16 bg-[#0C0E1A]">
         <div className="container mx-auto px-5 sm:px-6">
-          <h2 className="text-center text-base sm:text-lg font-medium text-gray-500 dark:text-gray-400 mb-12">
+          <h2 className="text-center text-base sm:text-lg font-medium text-gray-400 mb-12">
             Trusted by students at leading institutions
           </h2>
           <div
@@ -162,7 +162,7 @@ function TrustedBySection({ isDarkMode }) {
               {duplicatedLogos.map((logo, index) => (
                 <div key={`${logo.alt}-${index}`} className="px-10 sm:px-14 flex-shrink-0 flex justify-center items-center h-12">
                   <img
-                    src={isDarkMode ? logo.src.dark : logo.src.light}
+                    src={logo.src}
                     alt={logo.alt}
                     className="h-8 sm:h-12 max-w-none opacity-60 hover:opacity-100 transition-opacity duration-300"
                   />
@@ -178,30 +178,30 @@ function TrustedBySection({ isDarkMode }) {
 
 function TestimonialsSection() {
   return (
-    <section className="py-20 sm:py-28 bg-white dark:bg-[#0C0E1A]">
+    <section className="py-20 sm:py-28 bg-[#0C0E1A]">
       <div className="container mx-auto px-5 sm:px-6">
         <div className="text-center mb-16 sm:mb-20">
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 dark:text-white mb-5">
-            Join <span className="text-gray-900 dark:text-white">a world of</span> learners.
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-5">
+            Join <span className="text-white">a world of</span> learners.
           </h2>
         </div>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
           {testimonials.map((testimonial, index) => (
             <div 
               key={index} 
-              className="bg-white dark:bg-[#12141D] p-7 rounded-2xl border border-gray-200 dark:border-gray-700/60 shadow-xl flex flex-col hover:border-purple-500/50 transition-colors duration-300 transform hover:-translate-y-1"
+              className="bg-[#12141D] p-7 rounded-2xl border border-gray-700/60 shadow-xl flex flex-col hover:border-purple-500/50 transition-colors duration-300 transform hover:-translate-y-1"
             >
               <div className="flex mb-4">
                 {[...Array(5)].map((_, i) => (
-                  <Star key={i} className={`w-5 h-5 ${i < testimonial.stars ? 'text-yellow-400 fill-yellow-400' : 'text-gray-400 dark:text-gray-600'}`} />
+                  <Star key={i} className={`w-5 h-5 ${i < testimonial.stars ? 'text-yellow-400 fill-yellow-400' : 'text-gray-600'}`} />
                 ))}
               </div>
-              <p className="text-gray-600 dark:text-gray-300 italic text-base leading-relaxed mb-7 flex-grow">"{testimonial.quote}"</p>
-              <div className="flex items-center mt-auto pt-4 border-t border-gray-200 dark:border-gray-700/60">
+              <p className="text-gray-300 italic text-base leading-relaxed mb-7 flex-grow">"{testimonial.quote}"</p>
+              <div className="flex items-center mt-auto pt-4 border-t border-gray-700/60">
                 <img src={testimonial.avatar} alt={testimonial.name} className="w-10 h-12 mr-3 "/>
                 <div>
-                  <h3 className="font-semibold text-gray-900 dark:text-white text-lg">{testimonial.name}</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">{testimonial.role}</p>
+                  <h3 className="font-semibold text-white text-lg">{testimonial.name}</h3>
+                  <p className="text-sm text-gray-400">{testimonial.role}</p>
                 </div>
               </div>
             </div>
@@ -223,12 +223,12 @@ function AgenticSection() {
                 transition={{ duration: 0.6, ease: "easeOut" }}
             >
                 <div className="inline-flex items-center gap-3 sm:gap-4 mb-5">
-                    <span className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 bg-gray-100 dark:bg-gray-800/60 rounded-xl">
+                    <span className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 bg-gray-800/60 rounded-xl">
                         {icon}
                     </span>
-                    <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{title}</h3>
+                    <h3 className="text-2xl sm:text-3xl font-bold text-white">{title}</h3>
                 </div>
-                <p className="text-base md:text-lg text-gray-500 dark:text-gray-400 leading-relaxed">
+                <p className="text-base md:text-lg text-gray-400 leading-relaxed">
                     {description}
                 </p>
             </motion.div>
@@ -246,21 +246,21 @@ function AgenticSection() {
 
     const agenticFeatures = [
         {
-            icon: <Pencil className="w-6 h-6 sm:w-7 sm:h-7 text-yellow-500 dark:text-yellow-400" />,
+            icon: <Pencil className="w-6 h-6 sm:w-7 sm:h-7 text-yellow-400" />,
             title: "Notes",
             description: "Turn your ideas into clean, organized notes. Whether you're adding a thought, tweaking a paragraph, or clearing up something confusing, TaskMaster makes it easy to shape your notes the way you want.",
             illustration: (
-                <div className="p-4 sm:p-6 bg-white dark:bg-[#12141D] rounded-2xl shadow-2xl backdrop-blur-md relative overflow-hidden transition-all duration-300 group hover:border-yellow-500/60 hover:-translate-y-1 border border-gray-200 dark:border-transparent">
+                <div className="p-4 sm:p-6 bg-[#12141D] rounded-2xl shadow-2xl backdrop-blur-md relative overflow-hidden transition-all duration-300 group hover:border-yellow-500/60 hover:-translate-y-1 border border-transparent">
                     <div className="absolute -inset-px rounded-2xl bg-gradient-to-r from-yellow-500/10 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-40 blur-xl -z-10"></div>
-                    <div className="bg-indigo-100 dark:bg-indigo-600/20 text-indigo-800 dark:text-indigo-200 p-3 rounded-xl text-sm mb-4 sm:mb-5 shadow-inner">
+                    <div className="bg-indigo-600/20 text-indigo-200 p-3 rounded-xl text-sm mb-4 sm:mb-5 shadow-inner">
                         <p>"Simplify the photosynthesis section and add a real-world analogy."</p>
                     </div>
-                    <div className="bg-yellow-50 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-200 rounded-xl p-3 sm:p-4 shadow-lg transition-all duration-300 group-hover:shadow-yellow-500/20 dark:group-hover:shadow-yellow-900/40">
+                    <div className="bg-yellow-900/40 text-yellow-200 rounded-xl p-3 sm:p-4 shadow-lg transition-all duration-300 group-hover:shadow-yellow-900/40">
                         <p className="text-sm">
                             Okay, I can simplify that for you. I'll rewrite the section on photosynthesis for clarity and add a helpful real-world analogy.
                         </p>
                         <div className="mt-4 pt-3 flex justify-end">
-                            <div className="bg-yellow-200 dark:bg-yellow-800/40 hover:bg-yellow-300 dark:hover:bg-yellow-800/60 text-yellow-800 dark:text-yellow-100 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors duration-200 transform group-hover:scale-105 cursor-pointer">
+                            <div className="bg-yellow-800/40 hover:bg-yellow-800/60 text-yellow-100 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors duration-200 transform group-hover:scale-105 cursor-pointer">
                                 <Check className="w-4 h-4" />
                                 <span>Apply Update</span>
                             </div>
@@ -270,25 +270,25 @@ function AgenticSection() {
             )
         },
         {
-            icon: <Layers className="w-6 h-6 sm:w-7 sm:h-7 text-sky-500 dark:text-sky-400" />,
+            icon: <Layers className="w-6 h-6 sm:w-7 sm:h-7 text-sky-400" />,
             title: "Study Materials",
             description: "TaskMaster instantly creates flashcards and quizzes right there in the chat so you can focus on what matters and learn faster.",
             illustration: (
-                <div className="p-4 sm:p-6 bg-white dark:bg-[#12141D] rounded-2xl shadow-2xl backdrop-blur-md relative overflow-hidden transition-all duration-300 hover:border-sky-500/60 hover:-translate-y-1 group border border-gray-200 dark:border-transparent">
+                <div className="p-4 sm:p-6 bg-[#12141D] rounded-2xl shadow-2xl backdrop-blur-md relative overflow-hidden transition-all duration-300 hover:border-sky-500/60 hover:-translate-y-1 group border border-transparent">
                     <div className="absolute -inset-px rounded-2xl bg-gradient-to-l from-sky-500/10 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-40 blur-xl -z-10"></div>
                      <div className="mb-4">
-                        <h4 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                            <Bot className="w-4 h-4 text-sky-500 dark:text-sky-400" />
+                        <h4 className="font-semibold text-white flex items-center gap-2">
+                            <Bot className="w-4 h-4 text-sky-400" />
                             Create Flashcards
                         </h4>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Alright! Generating flashcards...</p>
+                        <p className="text-sm text-gray-400 mt-1">Alright! Generating flashcards...</p>
                     </div>
-                    <div className="relative min-h-[160px] sm:min-h-[170px] bg-gray-100 dark:bg-black/30 p-4 rounded-lg overflow-hidden flex items-center justify-center">
+                    <div className="relative min-h-[160px] sm:min-h-[170px] bg-black/30 p-4 rounded-lg overflow-hidden flex items-center justify-center">
                         <motion.div className="flex justify-center items-center h-full space-x-[-80px] sm:space-x-[-60px]" initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.6 }} variants={{ animate: { transition: { staggerChildren: 0.2, delayChildren: 0.3 } } }}>
                             {[ { term: "Chlorophyll", def: "The green pigment that captures sunlight." }, { term: "ATP", def: "The energy currency of the cell." }, { term: "Glucose", def: "The sugar food produced by the plant." }, ].map((card, i) => (
-                                <motion.div key={card.term} className="w-36 h-24 sm:w-44 sm:h-28 bg-sky-100 dark:bg-sky-900/50 border border-sky-200 dark:border-sky-500/60 rounded-lg p-2 sm:p-3 text-center flex flex-col justify-center shadow-lg backdrop-blur-sm" style={{ rotate: i === 0 ? -8 : i === 1 ? 2 : 10 }} variants={{ initial: { opacity: 0, y: 25, scale: 0.9, rotate: i === 0 ? -15 : i === 1 ? 5 : 15 }, animate: { opacity: 1, y: 0, scale: 1, rotate: i === 0 ? -8 : i === 1 ? 2 : 10, transition: { type: 'spring', stiffness: 200, damping: 15 } }, }}>
-                                    <h4 className="font-bold text-sm text-gray-900 dark:text-white mb-1">{card.term}</h4>
-                                    <p className="text-xs text-sky-700 dark:text-sky-200 leading-snug">{card.def}</p>
+                                <motion.div key={card.term} className="w-36 h-24 sm:w-44 sm:h-28 bg-sky-900/50 border border-sky-500/60 rounded-lg p-2 sm:p-3 text-center flex flex-col justify-center shadow-lg backdrop-blur-sm" style={{ rotate: i === 0 ? -8 : i === 1 ? 2 : 10 }} variants={{ initial: { opacity: 0, y: 25, scale: 0.9, rotate: i === 0 ? -15 : i === 1 ? 5 : 15 }, animate: { opacity: 1, y: 0, scale: 1, rotate: i === 0 ? -8 : i === 1 ? 2 : 10, transition: { type: 'spring', stiffness: 200, damping: 15 } }, }}>
+                                    <h4 className="font-bold text-sm text-white mb-1">{card.term}</h4>
+                                    <p className="text-xs text-sky-200 leading-snug">{card.def}</p>
                                 </motion.div>
                             ))}
                         </motion.div>
@@ -297,29 +297,29 @@ function AgenticSection() {
             )
         },
         {
-            icon: <FolderPlus className="w-6 h-6 sm:w-7 sm:h-7 text-green-500 dark:text-green-400" />,
+            icon: <FolderPlus className="w-6 h-6 sm:w-7 sm:h-7 text-green-400" />,
             title: "Folders",
             description: "TaskMaster automatically adds flashcards and quizzes straight to your folders, keeping everything organized without you having to do a thing.",
             illustration: (
-                <div className="p-4 sm:p-6 bg-white dark:bg-[#12141D] rounded-2xl shadow-2xl backdrop-blur-md relative overflow-hidden transition-all duration-300 hover:border-green-500/60 hover:-translate-y-1 group border border-gray-200 dark:border-transparent">
+                <div className="p-4 sm:p-6 bg-[#12141D] rounded-2xl shadow-2xl backdrop-blur-md relative overflow-hidden transition-all duration-300 hover:border-green-500/60 hover:-translate-y-1 group border border-transparent">
                     <div className="absolute -inset-px rounded-2xl bg-gradient-to-r from-green-500/10 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-40 blur-xl -z-10"></div>
                      <div className="mb-4">
-                        <h4 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                            <Bot className="w-4 h-4 text-green-500 dark:text-green-400" />
+                        <h4 className="font-semibold text-white flex items-center gap-2">
+                            <Bot className="w-4 h-4 text-green-400" />
                             Add new flashcards to my folder
                         </h4>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Sure! Let me organize those new flashcards...</p>
+                        <p className="text-sm text-gray-400 mt-1">Sure! Let me organize those new flashcards...</p>
                     </div>
-                    <div className="relative min-h-[160px] sm:min-h-[170px] bg-gray-100 dark:bg-black/30 p-4 rounded-lg overflow-hidden flex items-center justify-center">
+                    <div className="relative min-h-[160px] sm:min-h-[170px] bg-black/30 p-4 rounded-lg overflow-hidden flex items-center justify-center">
                         <motion.div className="flex flex-col justify-center items-center h-full" initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.8 }}>
-                            <motion.div variants={{ initial: { scale: 0, opacity: 0 }, animate: { scale: 1, opacity: 1, transition: { delay: 0.3, type: 'spring' } }, }} className="flex items-center gap-2 p-3 rounded-lg bg-gray-200 dark:bg-gray-800">
-                                <Layers className="w-5 h-5 text-sky-500 dark:text-sky-400" />
-                                <span className="text-sm font-semibold text-gray-900 dark:text-white">3 new flashcards</span>
+                            <motion.div variants={{ initial: { scale: 0, opacity: 0 }, animate: { scale: 1, opacity: 1, transition: { delay: 0.3, type: 'spring' } }, }} className="flex items-center gap-2 p-3 rounded-lg bg-gray-800">
+                                <Layers className="w-5 h-5 text-sky-400" />
+                                <span className="text-sm font-semibold text-white">3 new flashcards</span>
                             </motion.div>
-                            <motion.div className="w-1 h-8 bg-gray-300 dark:bg-gray-600/50 my-1" variants={{ initial: { scaleY: 0, originY: 0 }, animate: { scaleY: 1, transition: { delay: 0.7, duration: 0.3 } }, }} />
-                            <motion.div className="flex items-center gap-2.5 p-3 rounded-lg bg-green-100 dark:bg-green-900/60" variants={{ initial: { scale: 0.8, opacity: 0 }, animate: { scale: 1, opacity: 1, transition: { delay: 1 } }, }}>
-                                <FolderPlus className="w-5 h-5 text-green-500 dark:text-green-400" />
-                                <span className="text-sm font-semibold text-gray-900 dark:text-white">Biology Midterm</span>
+                            <motion.div className="w-1 h-8 bg-gray-600/50 my-1" variants={{ initial: { scaleY: 0, originY: 0 }, animate: { scaleY: 1, transition: { delay: 0.7, duration: 0.3 } }, }} />
+                            <motion.div className="flex items-center gap-2.5 p-3 rounded-lg bg-green-900/60" variants={{ initial: { scale: 0.8, opacity: 0 }, animate: { scale: 1, opacity: 1, transition: { delay: 1 } }, }}>
+                                <FolderPlus className="w-5 h-5 text-green-400" />
+                                <span className="text-sm font-semibold text-white">Biology Midterm</span>
                                 <motion.span className="ml-1 bg-green-400 text-green-950 text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full" variants={{ initial: { scale: 0 }, animate: { scale: [0, 1.2, 1], transition: { delay: 1.3, duration: 0.4 } }, }}>+3</motion.span>
                             </motion.div>
                         </motion.div>
@@ -330,11 +330,11 @@ function AgenticSection() {
     ];
 
     return (
-        <section id="agentic-ai" className="py-20 sm:py-24 bg-white dark:bg-[#0C0E1A]">
+        <section id="agentic-ai" className="py-20 sm:py-24 bg-[#0C0E1A]">
             <div className="container mx-auto px-5 sm:px-6">
                 <div className="text-center mb-16 sm:mb-20">
                     <motion.h2
-                        className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 dark:text-white mb-5"
+                        className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-5"
                         initial={{ opacity: 0, y: 20 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true, amount: 0.5 }}
@@ -346,7 +346,7 @@ function AgenticSection() {
                         </span>
                     </motion.h2>
                     <motion.p
-                        className="text-base sm:text-lg text-gray-500 dark:text-gray-400 max-w-3xl mx-auto"
+                        className="text-base sm:text-lg text-gray-400 max-w-3xl mx-auto"
                         initial={{ opacity: 0, y: 20 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true, amount: 0.5 }}
@@ -379,11 +379,11 @@ function AgenticSection() {
 
 function FeaturesGridSection() {
   return (
-    <section id="features" className="py-20 sm:py-28 bg-gray-50 dark:bg-[#0C0E1A]">
+    <section id="features" className="py-20 sm:py-28 bg-[#0C0E1A]">
       <div className="container mx-auto px-5 sm:px-6">
         <div className="text-center mb-16 sm:mb-20">
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 dark:text-white mb-5">Everything You Need to Excel</h2>
-          <p className="text-base sm:text-lg text-gray-500 dark:text-gray-400 max-w-5xl mx-auto">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-5">Everything You Need to Excel</h2>
+          <p className="text-base sm:text-lg text-gray-400 max-w-5xl mx-auto">
             A suite of powerful tools to streamline your workflow and boost your understanding.
           </p>
         </div>
@@ -391,15 +391,15 @@ function FeaturesGridSection() {
           {features.map((feature, index) => (
             <div 
               key={index} 
-              className="bg-white dark:bg-[#12141D] p-8 rounded-2xl border border-gray-200 dark:border-transparent shadow-xl hover:border-purple-500/60 transition-all duration-300 group transform hover:-translate-y-1"
+              className="bg-[#12141D] p-8 rounded-2xl border border-transparent shadow-xl hover:border-purple-500/60 transition-all duration-300 group transform hover:-translate-y-1"
             >
               <div className="flex items-center mb-5">
-                <div className="p-4 rounded-full bg-gray-100 dark:bg-gray-700/70 mr-5 group-hover:bg-purple-100 dark:group-hover:bg-purple-500/25 transition-colors duration-300">
+                <div className="p-4 rounded-full bg-gray-700/70 mr-5 group-hover:bg-purple-500/25 transition-colors duration-300">
                     {feature.icon}
                 </div>
-                <h3 className="text-2xl font-semibold text-gray-900 dark:text-white">{feature.title}</h3>
+                <h3 className="text-2xl font-semibold text-white">{feature.title}</h3>
               </div>
-              <p className="text-gray-500 dark:text-gray-400 text-base leading-relaxed mb-6">{feature.description}</p>
+              <p className="text-gray-400 text-base leading-relaxed mb-6">{feature.description}</p>
               {feature.illustration && <div className="min-h-[90px] flex items-center justify-center">{feature.illustration}</div>}
             </div>
           ))}
@@ -410,16 +410,22 @@ function FeaturesGridSection() {
 }
 
 export function LearningSuperchargedSection() {
-    const FeatureShowcase = ({ icon, title, description, children, reverse = false }) => (
+    const FeatureShowcase = ({ icon, title, description, children, reverse = false }: { 
+        icon: React.ReactNode; 
+        title: string; 
+        description: string; 
+        children: React.ReactNode; 
+        reverse?: boolean; 
+    }) => (
         <div className={`grid lg:grid-cols-2 gap-12 lg:gap-16 items-center`}>
             <div className={`lg:col-span-1 ${reverse ? 'lg:order-last' : ''}`}>
                 <div className="inline-flex items-center gap-3 mb-5">
-                    <span className="flex items-center justify-center w-12 h-12 bg-gray-100 dark:bg-gray-800/60 rounded-xl">
+                    <span className="flex items-center justify-center w-12 h-12 bg-gray-800/60 rounded-xl">
                         {icon}
                     </span>
-                    <h3 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">{title}</h3>
+                    <h3 className="text-2xl md:text-3xl font-bold text-white">{title}</h3>
                 </div>
-                <p className="text-base md:text-lg text-gray-500 dark:text-gray-400 leading-relaxed">
+                <p className="text-base md:text-lg text-gray-400 leading-relaxed">
                     {description}
                 </p>
             </div>
@@ -436,97 +442,97 @@ export function LearningSuperchargedSection() {
     ];
 
     return (
-        <section id="learning-supercharged" className="py-24 sm:py-32 bg-white dark:bg-[#0C0E1A]">
+        <section id="learning-supercharged" className="py-24 sm:py-32 bg-[#0C0E1A]">
             <div className="container mx-auto px-5 sm:px-6">
                 <div className="text-center mb-24">
-                    <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 dark:text-white mb-5">
+                    <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-5">
                         Learning, <span className="bg-gradient-to-r from-[#635BFF] to-[#8A85FF] italic bg-clip-text text-transparent">Supercharged.</span>
                     </h2>
-                    <p className="text-base sm:text-lg text-gray-500 dark:text-gray-400 max-w-4xl mx-auto">
-                        This isn’t just another tool — it’s your study partner, working with you every step of the way.
+                    <p className="text-base sm:text-lg text-gray-400 max-w-4xl mx-auto">
+                        This isn't just another tool — it's your study partner, working with you every step of the way.
                     </p>
                 </div>
                 
                 <div className="space-y-24 lg:space-y-32">
                     <FeatureShowcase
-                        icon={<BrainCircuit className="w-7 h-7 text-teal-500 dark:text-teal-400" />}
+                        icon={<BrainCircuit className="w-7 h-7 text-teal-400" />}
                         title="Universal Context"
                         description="TaskMaster keeps track of your context and always responds with you in mind—no need to repeat yourself."
                     >
-                        <div className="p-6 bg-white dark:bg-[#12141D] rounded-2xl shadow-2xl backdrop-blur-md relative overflow-hidden border border-gray-200 dark:border-transparent">
-                            <div className="absolute -inset-px rounded-2xl bg-gradient-to-r from-teal-500/10 dark:from-teal-500/20 via-transparent to-transparent opacity-50 blur-xl -z-10"></div>
-                            <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-5">Universal Context</h4>
+                        <div className="p-6 bg-[#12141D] rounded-2xl shadow-2xl backdrop-blur-md relative overflow-hidden border border-transparent">
+                            <div className="absolute -inset-px rounded-2xl bg-gradient-to-r from-teal-500/20 via-transparent to-transparent opacity-50 blur-xl -z-10"></div>
+                            <h4 className="text-lg font-semibold text-white mb-5">Universal Context</h4>
                             <div className="space-y-4">
-                                <div className="p-4 rounded-xl bg-gray-100 dark:bg-black/40 ">
-                                    <label className="text-xs font-semibold text-teal-600 dark:text-teal-400/80 tracking-wider uppercase">Your Role / Primary Area of Study</label>
-                                    <p className="text-gray-700 dark:text-gray-300 mt-1">College student majoring in CS & Business.</p>
+                                <div className="p-4 rounded-xl bg-black/40">
+                                    <label className="text-xs font-semibold text-teal-400/80 tracking-wider uppercase">Your Role / Primary Area of Study</label>
+                                    <p className="text-gray-300 mt-1">College student majoring in CS & Business.</p>
                                 </div>
-                                <div className="p-4 rounded-xl bg-gray-100 dark:bg-black/40 ">
-                                    <label className="text-xs font-semibold text-teal-600 dark:text-teal-400/80 tracking-wider uppercase">Current Short-Term Focus</label>
-                                    <p className="text-gray-700 dark:text-gray-300 mt-1">Preparing for upcoming SATs and final exams.</p>
+                                <div className="p-4 rounded-xl bg-black/40">
+                                    <label className="text-xs font-semibold text-teal-400/80 tracking-wider uppercase">Current Short-Term Focus</label>
+                                    <p className="text-gray-300 mt-1">Preparing for upcoming SATs and final exams.</p>
                                 </div>
-                                <div className="p-4 rounded-xl bg-gray-100 dark:bg-black/40 ">
-                                    <label className="text-xs font-semibold text-teal-600 dark:text-teal-400/80 tracking-wider uppercase">Main Long-Term Ambitions or Goals</label>
-                                    <p className="text-gray-700 dark:text-gray-300 mt-1">Get a job at a top tech company.</p>
+                                <div className="p-4 rounded-xl bg-black/40">
+                                    <label className="text-xs font-semibold text-teal-400/80 tracking-wider uppercase">Main Long-Term Ambitions or Goals</label>
+                                    <p className="text-gray-300 mt-1">Get a job at a top tech company.</p>
                                 </div>
-                                <div className="p-4 rounded-xl bg-gray-100 dark:bg-black/40 ">
-                                    <label className="text-xs font-semibold text-teal-600 dark:text-teal-400/80 tracking-wider uppercase">Other</label>
-                                    <p className="text-gray-700 dark:text-gray-300 mt-1">I learn best with real-world examples and analogies.</p>
+                                <div className="p-4 rounded-xl bg-black/40">
+                                    <label className="text-xs font-semibold text-teal-400/80 tracking-wider uppercase">Other</label>
+                                    <p className="text-gray-300 mt-1">I learn best with real-world examples and analogies.</p>
                                 </div>
                             </div>
                         </div>
                     </FeatureShowcase>
 
                     <FeatureShowcase
-                        icon={<DatabaseBackup className="w-7 h-7 text-pink-500 dark:text-pink-400" />}
+                        icon={<DatabaseBackup className="w-7 h-7 text-pink-400" />}
                         title="Personal Memories"
                         description="TaskMaster dynamically learns and remembers key facts about your preferences, learning style, and other important details, tailoring its responses and suggestions for you."
                         reverse={true}
                     >
-                        <div className="p-6 bg-white dark:bg-[#12141D] rounded-2xl shadow-2xl backdrop-blur-md relative overflow-hidden border border-gray-200 dark:border-transparent">
-                            <div className="absolute -inset-px rounded-2xl bg-gradient-to-l from-pink-500/10 dark:from-pink-500/20 via-transparent to-transparent opacity-50 blur-xl -z-10"></div>
-                            <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-5">Memories</h4>
+                        <div className="p-6 bg-[#12141D] rounded-2xl shadow-2xl backdrop-blur-md relative overflow-hidden border border-transparent">
+                            <div className="absolute -inset-px rounded-2xl bg-gradient-to-l from-pink-500/20 via-transparent to-transparent opacity-50 blur-xl -z-10"></div>
+                            <h4 className="text-lg font-semibold text-white mb-5">Memories</h4>
                             <div className="space-y-3">
-                                <div className="flex justify-between items-center bg-gray-100 dark:bg-black/40 p-3 rounded-lg border border-transparent transition-all hover:border-pink-300 dark:hover:border-pink-500/50">
-                                    <p className="text-sm text-gray-700 dark:text-gray-300">Prefers visual explanations for complex topics.</p>
-                                    <div className="flex gap-3 text-gray-400 dark:text-gray-600"><Edit className="w-4 h-4" /> <Trash2 className="w-4 h-4" /></div>
+                                <div className="flex justify-between items-center bg-black/40 p-3 rounded-lg border border-transparent transition-all hover:border-pink-500/50">
+                                    <p className="text-sm text-gray-300">Prefers visual explanations for complex topics.</p>
+                                    <div className="flex gap-3 text-gray-600"><Edit className="w-4 h-4" /> <Trash2 className="w-4 h-4" /></div>
                                 </div>
-                                 <div className="flex justify-between items-center bg-gray-100 dark:bg-black/40 p-3 rounded-lg border border-transparent transition-all hover:border-pink-300 dark:hover:border-pink-500/50">
-                                    <p className="text-sm text-gray-700 dark:text-gray-300">Loves analogies related to video games.</p>
-                                    <div className="flex gap-3 text-gray-400 dark:text-gray-600"><Edit className="w-4 h-4" /> <Trash2 className="w-4 h-4" /></div>
+                                 <div className="flex justify-between items-center bg-black/40 p-3 rounded-lg border border-transparent transition-all hover:border-pink-500/50">
+                                    <p className="text-sm text-gray-300">Loves analogies related to video games.</p>
+                                    <div className="flex gap-3 text-gray-600"><Edit className="w-4 h-4" /> <Trash2 className="w-4 h-4" /></div>
                                 </div>
-                                 <div className="flex justify-between items-center bg-gray-100 dark:bg-black/40 p-3 rounded-lg border border-transparent transition-all hover:border-pink-300 dark:hover:border-pink-500/50">
-                                    <p className="text-sm text-gray-700 dark:text-gray-300">Has an important meeting every Friday at 10 AM.</p>
-                                    <div className="flex gap-3 text-gray-400 dark:text-gray-600"><Edit className="w-4 h-4" /> <Trash2 className="w-4 h-4" /></div>
+                                 <div className="flex justify-between items-center bg-black/40 p-3 rounded-lg border border-transparent transition-all hover:border-pink-500/50">
+                                    <p className="text-sm text-gray-300">Has an important meeting every Friday at 10 AM.</p>
+                                    <div className="flex gap-3 text-gray-600"><Edit className="w-4 h-4" /> <Trash2 className="w-4 h-4" /></div>
                                 </div>
-                                 <div className="flex justify-between items-center bg-gray-100 dark:bg-black/40 p-3 rounded-lg shadow-lg shadow-pink-500/5 dark:shadow-pink-500/10">
-                                    <p className="text-sm text-gray-800 dark:text-white">Wants a weekly project recap on Mondays.</p>
-                                    <div className="flex gap-3 text-gray-500 dark:text-gray-400"><Edit className="w-4 h-4" /> <Trash2 className="w-4 h-4" /></div>
+                                 <div className="flex justify-between items-center bg-black/40 p-3 rounded-lg shadow-lg shadow-pink-500/10">
+                                    <p className="text-sm text-white">Wants a weekly project recap on Mondays.</p>
+                                    <div className="flex gap-3 text-gray-400"><Edit className="w-4 h-4" /> <Trash2 className="w-4 h-4" /></div>
                                 </div>
                             </div>
                         </div>
                     </FeatureShowcase>
                     
                     <FeatureShowcase
-                        icon={<Palette className="w-7 h-7 text-indigo-500 dark:text-indigo-400" />}
+                        icon={<Palette className="w-7 h-7 text-indigo-400" />}
                         title="Custom Styles"
-                        description="Why settle for a generic chatbot? Customize TaskMaster’s personality, tone, and style to build your perfect tutor."
+                        description="Why settle for a generic chatbot? Customize TaskMaster's personality, tone, and style to build your perfect tutor."
                     >
-                         <div className="p-6 bg-white dark:bg-[#12141D] rounded-2xl shadow-2xl backdrop-blur-md relative overflow-hidden border border-gray-200 dark:border-transparent">
-                             <div className="absolute -inset-px rounded-2xl bg-gradient-to-r from-indigo-500/10 dark:from-indigo-500/20 via-transparent to-transparent opacity-50 blur-xl -z-10"></div>
-                            <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-5">Style Selector</h4>
+                         <div className="p-6 bg-[#12141D] rounded-2xl shadow-2xl backdrop-blur-md relative overflow-hidden border border-transparent">
+                             <div className="absolute -inset-px rounded-2xl bg-gradient-to-r from-indigo-500/20 via-transparent to-transparent opacity-50 blur-xl -z-10"></div>
+                            <h4 className="text-lg font-semibold text-white mb-5">Style Selector</h4>
                             <div className="space-y-3">
                                 {styles.map((style, i) => (
-                                    <div key={i} className={`p-4 rounded-xl border transition-all duration-300 ${i === 0 ? 'border-indigo-500/80 bg-gray-50 dark:bg-black/50' : 'border-gray-200 dark:border-gray-800/80 bg-transparent dark:bg-black/30 hover:bg-gray-50 dark:hover:bg-black/40'}`}>
+                                    <div key={i} className={`p-4 rounded-xl border transition-all duration-300 ${i === 0 ? 'border-indigo-500/80 bg-black/50' : 'border-gray-800/80 bg-black/30 hover:bg-black/40'}`}>
                                         <div className="flex items-center">
                                             <span className={`w-3 h-3 rounded-full mr-3 ${style.color}`}></span>
-                                            <h5 className={`font-semibold ${i === 0 ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>{style.name}</h5>
+                                            <h5 className={`font-semibold ${i === 0 ? 'text-white' : 'text-gray-300'}`}>{style.name}</h5>
                                         </div>
-                                        <p className="text-sm text-gray-500 dark:text-gray-500 pl-6 mt-1">{style.prompt}</p>
+                                        <p className="text-sm text-gray-500 pl-6 mt-1">{style.prompt}</p>
                                     </div>
                                 ))}
                             </div>
-                            <button className="w-full mt-5 py-3 text-sm font-semibold bg-gray-100 hover:bg-gray-200 text-indigo-600 border border-gray-300 dark:bg-indigo-900/40 dark:hover:bg-indigo-900/60 dark:text-indigo-300 dark:border-indigo-800/80 rounded-lg transition-colors">
+                            <button className="w-full mt-5 py-3 text-sm font-semibold bg-indigo-900/40 hover:bg-indigo-900/60 text-indigo-300 border border-indigo-800/80 rounded-lg transition-colors">
                                 + Create New Style
                             </button>
                         </div>
@@ -537,7 +543,7 @@ export function LearningSuperchargedSection() {
     );
 }
 
-const DesmosIcon = ({ className }) => (
+const DesmosIcon = ({ className }: { className?: string }) => (
     <svg id="Desmos_Logo" data-name="Desmos Logo" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink" viewBox="-10 0 276 276" className={className} preserveAspectRatio="xMidYMid meet">
         <defs>
             <linearGradient id="desmos-linear-gradient" y1="1080" x2="1" y2="1080" gradientTransform="matrix(0, 202, 202, 0, -217488, 439)" gradientUnits="userSpaceOnUse"><stop offset="0" stopColor="#158f48"/><stop offset="1" stopColor="#0f6733"/></linearGradient>
@@ -551,25 +557,25 @@ const DesmosIcon = ({ className }) => (
     </svg>
 );
 
-const KhanAcademyIcon = ({ className }) => (
+const KhanAcademyIcon = ({ className }: { className?: string }) => (
     <svg viewBox="-10 0 276 276" version="1.1" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid" className={className}>
         <g> <path d="M16.2524996,57.1547059 C6.70984964,63.1945026 0.660185591,73.4605992 0,84.7347053 L0,191.114703 C0.660185591,202.388809 6.70984964,212.654905 16.2524996,218.694702 L111.698997,272.081701 C121.951702,277.105311 133.951292,277.105311 144.203997,272.081701 L239.748994,218.694702 C249.291644,212.654905 255.341308,202.388809 256.001494,191.114703 L256.001494,84.7347053 C255.341308,73.4605992 249.291644,63.1945026 239.748994,57.1547059 L144.302497,3.76770718 C134.049792,-1.25590239 122.050202,-1.25590239 111.797497,3.76770718 L16.2524996,57.1547059 Z" fill="#14BF96"> </path> <path d="M226.057495,111.526705 C173.064496,111.526705 133.467497,155.457704 133.467497,209.337202 L133.467497,211.602702 L122.829497,211.602702 L122.829497,209.337202 C122.829497,155.457704 83.4294981,111.723705 30.0411256,111.526705 C30.0411256,114.875705 30.0411256,118.323205 30.0411256,121.376704 C29.8270913,162.138126 54.9627136,198.741876 93.0824978,213.178702 C104.410162,217.33234 116.378824,219.466029 128.443997,219.482702 C140.605396,219.466096 152.67111,217.332931 164.100996,213.178702 C202.16354,198.686189 227.244797,162.10445 227.04371,121.376704 C226.549995,118.224705 226.352995,114.875705 226.057495,111.526705 Z" fill="#FFFFFF"> </path> <circle fill="#FFFFFF" cx="128.049997" cy="86.1137053" r="29.5499993"> </circle> </g>
     </svg>
 );
 
-const CanvasIcon = ({ className }) => (
+const CanvasIcon = ({ className }: { className?: string }) => (
     <svg fill="#E72429" viewBox="0 0 1920 1920" xmlns="http://www.w3.org/2000/svg" className={className}>
         <path d="M958.568 277.97C1100.42 277.97 1216.48 171.94 1233.67 34.3881 1146.27 12.8955 1054.57 0 958.568 0 864.001 0 770.867 12.8955 683.464 34.3881 700.658 171.94 816.718 277.97 958.568 277.97ZM35.8207 682.031C173.373 699.225 279.403 815.285 279.403 957.136 279.403 1098.99 173.373 1215.05 35.8207 1232.24 12.8953 1144.84 1.43262 1051.7 1.43262 957.136 1.43262 862.569 12.8953 769.434 35.8207 682.031ZM528.713 957.142C528.713 1005.41 489.581 1044.55 441.31 1044.55 393.038 1044.55 353.907 1005.41 353.907 957.142 353.907 908.871 393.038 869.74 441.31 869.74 489.581 869.74 528.713 908.871 528.713 957.142ZM1642.03 957.136C1642.03 1098.99 1748.06 1215.05 1885.61 1232.24 1908.54 1144.84 1920 1051.7 1920 957.136 1920 862.569 1908.54 769.434 1885.61 682.031 1748.06 699.225 1642.03 815.285 1642.03 957.136ZM1567.51 957.142C1567.51 1005.41 1528.38 1044.55 1480.11 1044.55 1431.84 1044.55 1392.71 1005.41 1392.71 957.142 1392.71 908.871 1431.84 869.74 1480.11 869.74 1528.38 869.74 1567.51 908.871 1567.51 957.142ZM958.568 1640.6C816.718 1640.6 700.658 1746.63 683.464 1884.18 770.867 1907.11 864.001 1918.57 958.568 1918.57 1053.14 1918.57 1146.27 1907.11 1233.67 1884.18 1216.48 1746.63 1100.42 1640.6 958.568 1640.6ZM1045.98 1480.11C1045.98 1528.38 1006.85 1567.51 958.575 1567.51 910.304 1567.51 871.172 1528.38 871.172 1480.11 871.172 1431.84 910.304 1392.71 958.575 1392.71 1006.85 1392.71 1045.98 1431.84 1045.98 1480.11ZM1045.98 439.877C1045.98 488.148 1006.85 527.28 958.575 527.28 910.304 527.28 871.172 488.148 871.172 439.877 871.172 391.606 910.304 352.474 958.575 352.474 1006.85 352.474 1045.98 391.606 1045.98 439.877ZM1441.44 1439.99C1341.15 1540.29 1333.98 1697.91 1418.52 1806.8 1579 1712.23 1713.68 1577.55 1806.82 1418.5 1699.35 1332.53 1541.74 1339.7 1441.44 1439.99ZM1414.21 1325.37C1414.21 1373.64 1375.08 1412.77 1326.8 1412.77 1278.53 1412.77 1239.4 1373.64 1239.4 1325.37 1239.4 1277.1 1278.53 1237.97 1326.8 1237.97 1375.08 1237.97 1414.21 1277.1 1414.21 1325.37ZM478.577 477.145C578.875 376.846 586.039 219.234 501.502 110.339 341.024 204.906 206.338 339.592 113.203 498.637 220.666 584.607 378.278 576.01 478.577 477.145ZM679.155 590.32C679.155 638.591 640.024 677.723 591.752 677.723 543.481 677.723 504.349 638.591 504.349 590.32 504.349 542.048 543.481 502.917 591.752 502.917 640.024 502.917 679.155 542.048 679.155 590.32ZM1440 475.712C1540.3 576.01 1697.91 583.174 1806.8 498.637 1712.24 338.159 1577.55 203.473 1418.51 110.339 1332.54 217.801 1341.13 375.413 1440 475.712ZM1414.21 590.32C1414.21 638.591 1375.08 677.723 1326.8 677.723 1278.53 677.723 1239.4 638.591 1239.4 590.32 1239.4 542.048 1278.53 502.917 1326.8 502.917 1375.08 502.917 1414.21 542.048 1414.21 590.32ZM477.145 1438.58C376.846 1338.28 219.234 1331.12 110.339 1415.65 204.906 1576.13 339.593 1710.82 498.637 1805.39 584.607 1696.49 577.443 1538.88 477.145 1438.58ZM679.155 1325.37C679.155 1373.64 640.024 1412.77 591.752 1412.77 543.481 1412.77 504.349 1373.64 504.349 1325.37 504.349 1277.1 543.481 1237.97 591.752 1237.97 640.024 1237.97 679.155 1277.1 679.155 1325.37Z"></path>
     </svg>
 );
 
-const GoogleClassroomIcon = ({ className }) => (
+const GoogleClassroomIcon = ({ className }: { className?: string }) => (
     <svg version="1.1" id="Livello_1" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 578.9 500" enableBackground="new 0 0 578.9 500" xmlSpace="preserve" className={className}>
         <g> <path fill="#0F9D58" d="M52.6,52.6h473.7v394.7H52.6V52.6z"/> <path fill="#57BB8A" d="M394.7,263.2c16.4,0,29.6-13.3,29.6-29.6s-13.3-29.6-29.6-29.6s-29.6,13.3-29.6,29.6 S378.4,263.2,394.7,263.2L394.7,263.2z M394.7,282.9c-31.7,0-65.8,16.8-65.8,37.6v21.6h131.6v-21.6 C460.5,299.7,426.4,282.9,394.7,282.9z M184.2,263.2c16.4,0,29.6-13.3,29.6-29.6s-13.3-29.6-29.6-29.6s-29.6,13.3-29.6,29.6 S167.9,263.2,184.2,263.2L184.2,263.2z M184.2,282.9c-31.7,0-65.8,16.8-65.8,37.6v21.6H250v-21.6 C250,299.7,215.9,282.9,184.2,282.9z"/> <path fill="#F7F7F7" d="M289.5,236.8c21.8,0,39.5-17.7,39.4-39.5c0-21.8-17.7-39.5-39.5-39.4c-21.8,0-39.4,17.7-39.4,39.5 C250,219.2,267.7,236.8,289.5,236.8z M289.5,263.2c-44.4,0-92.1,23.6-92.1,52.6v26.3h184.2v-26.3 C381.6,286.7,333.9,263.2,289.5,263.2z"/> <path fill="#F1F1F1" d="M342.1,421.1h118.4v26.3H342.1V421.1z"/> <path fill="#F4B400" d="M539.5,0h-500C17.7,0,0,17.7,0,39.5v421.1C0,482.3,17.7,500,39.5,500h500c21.8,0,39.5-17.7,39.5-39.5V39.5 C578.9,17.7,561.3,0,539.5,0z M526.3,447.4H52.6V52.6h473.7V447.4z"/> <path opacity="0.2" fill="#FFFFFF" enableBackground="new    " d="M539.5,0h-500C17.7,0,0,17.7,0,39.5v3.3C0,21,17.7,3.3,39.5,3.3 h500c21.8,0,39.5,17.7,39.5,39.5v-3.3C578.9,17.7,561.3,0,539.5,0z"/> <path opacity="0.2" fill="#BF360C" enableBackground="new    " d="M539.5,496.7h-500C17.7,496.7,0,479,0,457.2v3.3 C0,482.3,17.7,500,39.5,500h500c21.8,0,39.5-17.7,39.5-39.5v-3.3C578.9,479,561.3,496.7,539.5,496.7z"/> <linearGradient id="gc-grad-1" gradientUnits="userSpaceOnUse" x1="154.8649" y1="295.747" x2="154.8649" y2="282.6343" gradientTransform="matrix(12.992 0 0 -4 -1584.6235 1631.0867)"> <stop offset="0" style={{stopColor:'#BF360C',stopOpacity:'0.2'}}/> <stop offset="1" style={{stopColor:'#BF360C',stopOpacity:'2.000000e-02'}}/> </linearGradient> <path fill="url(#gc-grad-1)" d="M460.3,447.4H341.9l52.6,52.6h118.3L460.3,447.4z"/> <path opacity="0.2" fill="#263238" enableBackground="new    " d="M52.6,49.3h473.7v3.3H52.6V49.3z"/> <path opacity="0.2" fill="#FFFFFF" enableBackground="new    " d="M52.6,447.4h473.7v3.3H52.6V447.4z"/> <radialGradient id="gc-grad-2" cx="131.4012" cy="367.2001" r="18.1966" gradientTransform="matrix(38.0002 0 0 -38 -4973.3276 13965.3232)" gradientUnits="userSpaceOnUse"> <stop offset="0" style={{stopColor:'#FFFFFF',stopOpacity:'0.1'}}/> <stop offset="1" style={{stopColor:'#FFFFFF',stopOpacity:'0'}}/> </radialGradient> <path fill="url(#gc-grad-2)" d="M539.5,0h-500C17.7,0,0,17.7,0,39.5v421.1C0,482.3,17.7,500,39.5,500h500 c21.8,0,39.5-17.7,39.5-39.5V39.5C578.9,17.7,561.3,0,539.5,0z"/> </g>
     </svg>
 );
 
-const LogoIcon = ({ className }) => (
+const LogoIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <linearGradient id="logo-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -594,25 +600,25 @@ const integrations = [
 export function IntegrationsSection() {
     const cardVariants = {
         offscreen: { y: 50, opacity: 0 },
-        onscreen: { y: 0, opacity: 1, transition: { type: "spring", bounce: 0.4, duration: 0.8 } }
+        onscreen: { y: 0, opacity: 1, transition: { type: "spring" as const, bounce: 0.4, duration: 0.8 } }
     };
 
     return (
-        <section className="py-24 sm:py-32 bg-white dark:bg-[#0C0E1A] overflow-hidden">
+        <section className="py-24 sm:py-32 bg-[#0C0E1A] overflow-hidden">
             <div className="container mx-auto px-5 sm:px-6">
                 <div className="text-center mb-16 lg:mb-24">
-                    <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 dark:text-white mb-5">
+                    <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-5">
                         Your Apps, <span className="bg-gradient-to-r from-[#635BFF] to-[#8A85FF] italic bg-clip-text text-transparent">Combined.</span>
                     </h2>
-                    <p className="text-base sm:text-lg text-gray-500 dark:text-gray-400 max-w-3xl mx-auto">
+                    <p className="text-base sm:text-lg text-gray-400 max-w-3xl mx-auto">
                         Connect your apps so TaskMaster learns you better and responds smarter.
                     </p>
                 </div>
 
                 <div className="relative h-[350px] lg:h-[400px] w-full flex items-center justify-center mb-24">
-                    <div className="absolute w-[350px] h-[350px] lg:w-[400px] lg:h-[400px] bg-indigo-200 dark:bg-indigo-900/40 rounded-full blur-3xl"></div>
+                    <div className="absolute w-[350px] h-[350px] lg:w-[400px] lg:h-[400px] bg-indigo-900/40 rounded-full blur-3xl"></div>
                     <motion.div
-                        className="relative w-[320px] h-[320px] lg:w-[380px] lg:h-[380px] bg-white/50 dark:bg-[#12141D]/50 backdrop-blur-xl border border-gray-200 dark:border-white/10 rounded-full"
+                        className="relative w-[320px] h-[320px] lg:w-[380px] lg:h-[380px] bg-[#12141D]/50 backdrop-blur-xl border border-white/10 rounded-full"
                         initial={{ opacity: 0, scale: 0.8 }}
                         whileInView={{ opacity: 1, scale: 1 }}
                         transition={{ duration: 0.7, ease: "easeOut" }}
@@ -651,7 +657,7 @@ export function IntegrationsSection() {
         transition={{ duration: 0.4, delay: 0.3, ease: "easeOut" }}
         viewport={{ once: true, amount: 0.8 }}
     >
-        <div className="flex items-center justify-center w-20 h-20 lg:w-24 lg:h-24 bg-white dark:bg-[#0C0E1A] border-2 border-indigo-300 dark:border-indigo-500/50 rounded-full shadow-lg">
+        <div className="flex items-center justify-center w-20 h-20 lg:w-24 lg:h-24 bg-[#0C0E1A] border-2 border-indigo-500/50 rounded-full shadow-lg">
             <LogoIcon className="w-10 h-10 lg:w-12 lg:h-12" />
         </div>
     </motion.div>
@@ -664,11 +670,11 @@ export function IntegrationsSection() {
                                 transition={{ duration: 0.4, delay: 0.6 + index * 0.1, ease: "easeOut" }}
                                 viewport={{ once: true, amount: 0.8 }}
                             >
-                                <div className={`flex items-center justify-center w-16 h-16 lg:w-20 lg:h-20 bg-white/80 dark:bg-[#12141D]/80 backdrop-blur-lg border border-gray-200 dark:border-gray-700/80 rounded-full transition-all duration-300 ${isComingSoon ? 'grayscale hover:grayscale-0' : ''}`}>
+                                <div className={`flex items-center justify-center w-16 h-16 lg:w-20 lg:h-20 bg-[#12141D]/80 backdrop-blur-lg border border-gray-700/80 rounded-full transition-all duration-300 ${isComingSoon ? 'grayscale hover:grayscale-0' : ''}`}>
                                     <Icon className="w-8 h-8 lg:w-10 lg:h-10" />
                                 </div>
                                 {isComingSoon && (
-                                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-max px-3 py-1.5 bg-gray-800 text-white dark:bg-gray-900 dark:text-white text-sm font-medium rounded-md shadow-lg opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200 ease-in-out pointer-events-none">
+                                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-max px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-md shadow-lg opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200 ease-in-out pointer-events-none">
                                         Coming Soon
                                     </div>
                                 )}
@@ -679,49 +685,49 @@ export function IntegrationsSection() {
 
                 <div className="grid md:grid-cols-2 lg:grid-cols-2 gap-8">
                     <motion.div variants={cardVariants} initial="offscreen" whileInView="onscreen" viewport={{ once: true, amount: 0.5 }}>
-                        <div className="h-full bg-gray-50 dark:bg-[#12141D] p-8 rounded-2xl border border-gray-200 dark:border-gray-700/60 shadow-xl hover:border-blue-400 dark:hover:border-blue-500/60 transition-colors duration-300 transform hover:-translate-y-1">
+                        <div className="h-full bg-[#12141D] p-8 rounded-2xl border border-gray-700/60 shadow-xl hover:border-blue-500/60 transition-colors duration-300 transform hover:-translate-y-1">
                             <div className="flex items-center gap-4 mb-5">
                                 <GoogleDriveIcon className="w-10 h-10" />
-                                <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Google Drive</h3>
+                                <h3 className="text-2xl font-bold text-white">Google Drive</h3>
                             </div>
-                            <p className="text-gray-500 dark:text-gray-400 leading-relaxed">
+                            <p className="text-gray-400 leading-relaxed">
                                 TaskMaster can read your files to give smarter responses and can even organize or update them for you.
                             </p>
                         </div>
                     </motion.div>
                     <motion.div variants={cardVariants} initial="offscreen" whileInView="onscreen" viewport={{ once: true, amount: 0.5 }}>
-                       <div className="h-full bg-gray-50 dark:bg-[#12141D] p-8 rounded-2xl border border-gray-200 dark:border-gray-700/60 shadow-xl hover:border-gray-400 dark:hover:border-gray-400/60 transition-colors duration-300 transform hover:-translate-y-1">
+                       <div className="h-full bg-[#12141D] p-8 rounded-2xl border border-gray-700/60 shadow-xl hover:border-gray-400/60 transition-colors duration-300 transform hover:-translate-y-1">
                             <div className="flex items-center gap-4 mb-5">
                                 <NotionIcon className="w-10 h-10" />
-                                <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Notion</h3>
+                                <h3 className="text-2xl font-bold text-white">Notion</h3>
                             </div>
-                            <p className="text-gray-500 dark:text-gray-400 leading-relaxed">
+                            <p className="text-gray-400 leading-relaxed">
                                 TaskMaster can pull insights from your Notion workspace and can even update or create pages to match your needs.
                             </p>
                         </div>
                     </motion.div>
                     <motion.div variants={cardVariants} initial="offscreen" whileInView="onscreen" viewport={{ once: true, amount: 0.5 }}>
-                       <div className="h-full bg-gray-50 dark:bg-[#12141D] p-8 rounded-2xl border border-gray-200 dark:border-gray-700/60 shadow-xl hover:border-green-400 dark:hover:border-green-500/60 transition-colors duration-300 transform hover:-translate-y-1">
+                       <div className="h-full bg-[#12141D] p-8 rounded-2xl border border-gray-700/60 shadow-xl hover:border-green-500/60 transition-colors duration-300 transform hover:-translate-y-1">
                             <div className="flex items-center gap-4 mb-5">
                                 <GoogleCalendarIcon className="w-10 h-10" />
-                                <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Google Calendar</h3>
+                                <h3 className="text-2xl font-bold text-white">Google Calendar</h3>
                             </div>
-                            <p className="text-gray-500 dark:text-gray-400 leading-relaxed">
+                            <p className="text-gray-400 leading-relaxed">
                                 TaskMaster can understand your schedule and can even plan tasks or events around your day.
                             </p>
                         </div>
                     </motion.div>
                     <motion.div variants={cardVariants} initial="offscreen" whileInView="onscreen" viewport={{ once: true, amount: 0.5 }}>
-                       <div className="h-full bg-gray-50 dark:bg-[#12141D] p-8 rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-700/80 flex flex-col justify-center items-center text-center shadow-xl transform hover:-translate-y-1 transition-transform duration-300">
-                            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">And Many More...</h3>
-                            <p className="text-gray-500 dark:text-gray-400 leading-relaxed mb-6">
+                       <div className="h-full bg-[#12141D] p-8 rounded-2xl border-2 border-dashed border-gray-700/80 flex flex-col justify-center items-center text-center shadow-xl transform hover:-translate-y-1 transition-transform duration-300">
+                            <h3 className="text-2xl font-bold text-white mb-4">And Many More...</h3>
+                            <p className="text-gray-400 leading-relaxed mb-6">
                                 We're constantly expanding our ecosystem. Integrations for leading educational and creative platforms are coming soon.
                             </p>
                             <div className="flex items-center justify-center gap-4">
-                                <CanvasIcon className="w-8 h-8 text-gray-400 dark:text-gray-500" />
-                                <DesmosIcon className="w-8 h-8 text-gray-400 dark:text-gray-500" />
-                                <KhanAcademyIcon className="w-8 h-8 text-gray-400 dark:text-gray-500" />
-                                <GoogleClassroomIcon className="w-8 h-8 text-gray-400 dark:text-gray-500" />
+                                <CanvasIcon className="w-8 h-8 text-gray-500" />
+                                <DesmosIcon className="w-8 h-8 text-gray-500" />
+                                <KhanAcademyIcon className="w-8 h-8 text-gray-500" />
+                                <GoogleClassroomIcon className="w-8 h-8 text-gray-500" />
                             </div>
                         </div>
                     </motion.div>
@@ -734,41 +740,11 @@ export function IntegrationsSection() {
 function App() {
   const { user } = useAuth();
   const [showScrollIndicator, setShowScrollIndicator] = useState(true);
-  const [isDarkMode, setIsDarkMode] = useState(false);
 
-  const lightModeImage = "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/Screenshot%202025-07-19%20at%2011.49.54%E2%80%AFPM.png?alt=media&token=ab0ad6ad-e2a0-461b-be22-40dbe21bc0cc";
-  const darkModeImage = "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/Screenshot%202025-07-19%20at%2011.54.26%E2%80%AFPM.png?alt=media&token=37abe8fa-1e27-4881-b854-7164d91ca521";
-
+  // Force dark mode - remove all theme logic
   useEffect(() => {
-    const applyTheme = () => {
-        const savedTheme = localStorage.getItem('appTheme') || 'system';
-        document.documentElement.classList.remove('light', 'dark');
-
-        if (savedTheme === 'dark') {
-            document.documentElement.classList.add('dark');
-            setIsDarkMode(true);
-        } else if (savedTheme === 'light') {
-            document.documentElement.classList.add('light');
-            setIsDarkMode(false);
-        } else {
-            if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                document.documentElement.classList.add('dark');
-                setIsDarkMode(true);
-            } else {
-                document.documentElement.classList.add('light');
-                setIsDarkMode(false);
-            }
-        }
-    };
-
-    applyTheme();
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    mediaQuery.addEventListener('change', applyTheme);
-    window.addEventListener('storage', (event) => { if (event.key === 'appTheme') applyTheme(); });
-    return () => {
-        mediaQuery.removeEventListener('change', applyTheme);
-        window.removeEventListener('storage', (event) => { if (event.key === 'appTheme') applyTheme(); });
-    }
+    document.documentElement.classList.remove('light');
+    document.documentElement.classList.add('dark');
   }, []);
 
   useEffect(() => {
@@ -781,7 +757,7 @@ function App() {
 
   const headerVariants = {
     hidden: { opacity: 0, y: -30 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } }
+    visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' as const } }
   };
 
   const heroContainerVariants = {
@@ -801,7 +777,7 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#0C0E1A] text-gray-800 dark:text-gray-200 font-poppins selection:bg-purple-600 selection:text-white">
+    <div className="min-h-screen bg-[#0C0E1A] text-gray-200 font-poppins selection:bg-purple-600 selection:text-white">
       <Analytics />
       <SpeedInsights />
         <motion.header
@@ -829,7 +805,7 @@ function App() {
 
 
         <main className="overflow-x-hidden">
-            <section className="relative min-h-screen flex flex-col pt-40 sm:pt-52 bg-white dark:bg-[#0C0E1A] overflow-hidden">
+            <section className="relative min-h-screen flex flex-col pt-40 sm:pt-52 bg-[#0C0E1A] overflow-hidden">
                 <div className="flex-grow flex items-center justify-center">
                     <div className="container mx-auto px-5 sm:px-6 relative z-10">
                         <div className="grid lg:grid-cols-5 gap-x-16 gap-y-16 items-center">
@@ -840,7 +816,7 @@ function App() {
                             animate="visible"
                         >
                             <motion.h1 
-                                className="text-5xl md:text-1xl lg:text-[3.8rem] font-bold mb-9 leading-snug tracking-tight text-gray-900 dark:text-white"
+                                className="text-5xl md:text-1xl lg:text-[3.8rem] font-bold mb-9 leading-snug tracking-tight text-white"
                                 variants={heroItemVariants}
                             >
                                 <span className="block bg-gradient-to-r from-[#635BFF] to-[#8A85FF] bg-clip-text text-transparent">The AI tutor</span>
@@ -859,7 +835,7 @@ function App() {
                             </motion.div>
                             
                             <motion.p 
-                            className="text-base sm:text-lg md:text-xl text-gray-500 dark:text-gray-400 max-w-xl mx-auto lg:mx-0"
+                            className="text-base sm:text-lg md:text-xl text-gray-400 max-w-xl mx-auto lg:mx-0"
                             variants={heroItemVariants}
                             >
                               Any audio, video, or PDF → Instant notes, flashcards, quizzes, and agent.
@@ -874,17 +850,27 @@ function App() {
                             transition={{ duration: 0.7, delay: 0.35, ease: "easeOut" }}
                         >
                             <div className="absolute -inset-3 rounded-2xl bg-gradient-to-r from-indigo-600/80 via-purple-600/80 to-pink-600/80 opacity-20 blur-2xl"></div>
-                            <img
-                                src={isDarkMode ? darkModeImage : lightModeImage}
-                                alt="TaskMaster AI Product Screenshot" 
-                                className="relative rounded-2xl shadow-2xl border-2 border-gray-200 dark:border-gray-700/70 w-full"
+                            <video
+                                src="https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/TaskMaster%20AI%20Demo%20Video%20(1).mp4?alt=media&token=257d12b1-16b9-4552-9a3d-b3e306fa0f98"
+                                autoPlay
+                                loop
+                                muted
+                                playsInline
+                                preload="metadata"
+                                style={{ 
+                                    filter: 'brightness(1.1) contrast(1.1)'
+                                }}
+                                className="relative rounded-2xl shadow-2xl border-2 border-gray-700/70 w-full h-auto max-h-[600px] object-cover pointer-events-none"
+                                onLoadedMetadata={(e) => {
+                                    e.target.playbackRate = 1.75;
+                                }}
                             />
                         </motion.div>
                         </div>
                     </div>
                 </div>
                 {/* TrustedBySection has its own theme-aware background */}
-                <TrustedBySection isDarkMode={isDarkMode} />
+                <TrustedBySection />
             </section>
             
             <TestimonialsSection />
@@ -893,13 +879,13 @@ function App() {
             <IntegrationsSection/>
         </main>
 
-        <footer className="bg-white dark:bg-[#0C0E1A] mt-16 ">
+        <footer className="bg-[#0C0E1A] mt-16 ">
           <div className="container mx-auto px-5 sm:px-6 py-10">
             <div className="flex flex-col md:flex-row items-center justify-between gap-5">
               <div className="flex items-center space-x-4">
-                <a href="/privacy-policy" className="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Privacy Policy</a>
-                <span className="text-gray-300 dark:text-gray-700 hidden sm:inline">|</span>
-                <a href="/terms" className="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Terms & Conditions</a>
+                <a href="/privacy-policy" className="text-sm text-gray-500 hover:text-indigo-400 transition-colors">Privacy Policy</a>
+                <span className="text-gray-700 hidden sm:inline">|</span>
+                <a href="/terms" className="text-sm text-gray-500 hover:text-indigo-400 transition-colors">Terms & Conditions</a>
               </div>
               <p className="text-sm text-gray-500 text-center md:text-right">
                 © {new Date().getFullYear()} TaskMaster AI. All rights reserved.
