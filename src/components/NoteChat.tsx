@@ -107,9 +107,7 @@ export interface NoteChatHandle {
     focusInput: () => void;
 }
 
-const GEMINI_TEXT_MODEL = 'gemini-2.5-flash';
-const GEMINI_IMAGE_GEN_MODEL = 'gemini-2.0-flash-preview-image-generation';
-const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
+// SECURE: API calls now go through the geminiProxy function
 
 const toDateSafe = (value: any): Date | null => {
   if (!value) return null;
@@ -395,11 +393,7 @@ function extractJsonBlocks(text: string): { blocks: any[], cleanedText: string, 
     return { blocks: extractedBlocks, cleanedText: remainingText.trim(), originalText: text };
 }
 
-const verifyEducationalContent = async (content: FlashcardMessage | QuestionMessage, apiKey: string): Promise<FlashcardMessage | QuestionMessage> => {
-    if (!apiKey) {
-      console.warn("API key not available for verification.");
-      return content;
-    }
+const verifyEducationalContent = async (content: FlashcardMessage | QuestionMessage): Promise<FlashcardMessage | QuestionMessage> => {
     const contentType = content.type;
     const contentJsonString = JSON.stringify(content.data, null, 2);
     const prompt = `
@@ -418,29 +412,31 @@ const verifyEducationalContent = async (content: FlashcardMessage | QuestionMess
       Return ONLY the final, verified (and corrected, if necessary) JSON data for the \`data\` array. Your output MUST be a valid JSON array, and nothing else.
       `;
     try {
-      const verificationEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${apiKey}`;
-      const geminiOptions = {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            responseMimeType: "application/json",
-            temperature: 0.1,
-          }
-        })
+      // SECURE: Use the geminiProxy function
+      const functions = getFunctions();
+      const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+      
+      const apiRequestBody = {
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          temperature: 0.1,
+        },
+        isImageGen: false
       };
-      const response = await fetchWithRetry(verificationEndpoint, geminiOptions, 2, 20000);
-      const responseText = await response.text();
-      const parsedResponse = parseGeminiApiResponse(responseText, false);
-      if (parsedResponse.error || !parsedResponse.text) {
-        throw new Error(parsedResponse.error || "Empty AI response during verification.");
+      
+      const result = await geminiProxyCallable(apiRequestBody);
+      const responseData = result.data as any;
+      
+      if (responseData.error || !responseData.text) {
+        throw new Error(responseData.error || "Empty AI response during verification.");
       }
+      
       let verifiedData;
       try {
-        verifiedData = JSON.parse(parsedResponse.text);
+        verifiedData = JSON.parse(responseData.text);
         if (!Array.isArray(verifiedData)) {
-          const jsonBlockResult = extractJsonBlocks(parsedResponse.text);
+          const jsonBlockResult = extractJsonBlocks(responseData.text);
           if (jsonBlockResult.blocks.length > 0 && Array.isArray(jsonBlockResult.blocks[0])) {
             verifiedData = jsonBlockResult.blocks[0];
           } else if (jsonBlockResult.blocks.length > 0 && jsonBlockResult.blocks[0].data && Array.isArray(jsonBlockResult.blocks[0].data)) {
@@ -450,9 +446,10 @@ const verifyEducationalContent = async (content: FlashcardMessage | QuestionMess
           }
         }
       } catch (e) {
-        console.error("Failed to parse verified JSON:", e, parsedResponse.text);
+        console.error("Failed to parse verified JSON:", e, responseData.text);
         return content;
       }
+      
       return {
         ...content,
         data: verifiedData,
