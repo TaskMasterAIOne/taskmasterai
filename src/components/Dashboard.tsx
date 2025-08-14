@@ -29,7 +29,6 @@ import {
   updateDashboardLastSeen,
   updateItem,
   deleteItem,
-  getGeminiApiKey,
   findItemByName,
   type EventData as FirebaseEventData,
   getDailyBriefRefreshStatus, // <-- ADD THIS
@@ -777,30 +776,7 @@ export function Dashboard() {
   const [streakIncreased, setStreakIncreased] = useState(false);
 const [isDraggingOver, setIsDraggingOver] = useState(false);
 
-   // --- ADD THIS NEW STATE FOR THE API KEY ---
-  const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
-
-  // --- ADD THIS NEW USEEFFECT TO FETCH THE KEY ---
-  useEffect(() => {
-    const fetchKey = async () => {
-      // Only fetch the key if a user is logged in
-      if (user) {
-        const key = await getGeminiApiKey();
-        // Check for errors from the backend function
-        if (key && !key.startsWith("ERROR_")) {
-          setGeminiApiKey(key);
-        } else {
-          console.error("Critical: Failed to load API key for the user.");
-          // Optionally, display an error message in the UI
-        }
-      } else {
-        // Clear the key if the user logs out
-        setGeminiApiKey(null);
-      }
-    };
-
-    fetchKey();
-  }, [user]); // This effect runs whenever the user's login state changes
+ 
 
   const [userTier, setUserTier] = useState<UserTier>('loading');
   const [chatUsageCount, setChatUsageCount] = useState(0);
@@ -1375,21 +1351,6 @@ const getFileContentAsBase64 = async (fileMeta: { url?: string; type: string; })
 const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, incomingFiles?: SelectedFile[]) => {
     e?.preventDefault();
 
-    // --- ADD THIS GUARD CLAUSE AT THE TOP ---
-    if (!geminiApiKey) {
-        console.error("API Key is not available. Aborting chat submission.");
-        // Optionally, show an error message in the chat history
-        const errorMsg: ChatMessageData = { 
-            id: `error-no-key-${Date.now()}`, 
-            role: 'system', 
-            content: `A configuration error occurred. Unable to connect to the AI service.`, 
-            error: true, 
-            createdAt: new Date() 
-        };
-        setChatHistory(prev => [...prev, errorMsg]);
-        return;
-    }
-
        // ---- THIS IS THE CORE FIX ----
     // If the microphone is running when we submit, stop it and reset its state.
     if (listening) {
@@ -1938,8 +1899,6 @@ YOU MUST ALWYAYS USE THAT LATEX FOR MATH ONLY.
 Your ultimate goal is to be a world-class productivity partner for ${truncatedName}. Adhere strictly to these protocols to provide a seamless and effective experience.
 Assistant:`;
 
-  const currentTargetModel = imageGenModeOn ? GEMINI_IMAGE_GEN_MODEL : GEMINI_TEXT_MODEL;
-    const fullApiUrl = `${GEMINI_API_BASE}${currentTargetModel}:generateContent?key=${geminiApiKey}`;
     let apiRequestBody: any;
 
     if (imageGenModeOn) {
@@ -2006,12 +1965,23 @@ Assistant:`;
         };
     }
 
-    const geminiOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(apiRequestBody) };
-
     try {
-         const response = await fetchWithTimeout(fullApiUrl, geminiOptions);
-        const responseText = await response.text();
-        const parsedApiResult = parseGeminiApiResponse(responseText, imageGenModeOn);
+        // --- THIS IS THE NEW LOGIC ---
+        const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+        
+        const apiRequestBodyForProxy = {
+            contents: apiRequestBody.contents,
+            generationConfig: apiRequestBody.generationConfig,
+            tools: apiRequestBody.tools || [],
+            systemInstruction: apiRequestBody.systemInstruction,
+            isImageGen: imageGenModeOn
+        };
+
+        const result = await geminiProxyCallable(apiRequestBodyForProxy);
+        const responseData = result.data as any; // The data is now the direct response from Gemini
+
+        // Now, parse the responseData as if it came from Google
+        const parsedApiResult = parseGeminiApiResponse(JSON.stringify(responseData), imageGenModeOn);
         
         let contentToProcess = parsedApiResult.text || "";
         const sources = parsedApiResult.sources || [];
@@ -2197,8 +2167,8 @@ if (notionBlock && user?.uid && isNotionConnected) {
               msg.id === newAssistantLPHId ? { ...msg, isVerifyingContent: true, isLoading: true } : msg
           ));
 
-          // FIX: Pass the geminiApiKey from state to the function
-          educationalContent = await verifyEducationalContent(tempEducationalContent, geminiApiKey);
+                  // FIX: Pass the geminiApiKey from state to the function
+        educationalContent = await verifyEducationalContent(tempEducationalContent);
       }
       
       const otherActionBlocks = jsonActionBlocks.filter(b => b.type !== 'notion' && b.type !== 'flashcard' && b.type !== 'question');
@@ -2456,8 +2426,8 @@ if (notionBlock && user?.uid && isNotionConnected) {
         const currentConvInfo = conversationList.find(c => c.id === currentConvId);
 
         if (currentConvId && currentConvInfo?.chatName === "New Chat" && (!hasGeneratedChatName || totalUserMessagesInConv === 1) ) {
-            // FIX: Pass the geminiApiKey from state to the function
-            await generateChatName(currentConvId, finalHistoryForName, user, geminiApiKey);
+                    // FIX: Pass the geminiApiKey from state to the function
+        await generateChatName(currentConvId, finalHistoryForName, user);
             setHasGeneratedChatName(true);
         }
 
@@ -2906,24 +2876,9 @@ if (notionBlock && user?.uid && isNotionConnected) {
 
 
   const generateSmartDailyBrief = useCallback(async () => {
-
-      // --- ADD THIS GUARD CLAUSE AT THE TOP ---
-    if (!geminiApiKey) {
-        console.error(" API Key is not available. Aborting chat submission.");
-        // Optionally, show an error message in the chat history
-        const errorMsg: ChatMessageData = { 
-            id: `error-no-key-${Date.now()}`, 
-            role: 'system', 
-            content: `A configuration error occurred. Unable to connect to the AI service.`, 
-            error: true, 
-            createdAt: new Date() 
-        };
-        setChatHistory(prev => [...prev, errorMsg]);
-        return;
-    }
     
     // Basic guards: ensure user, tier, and content exist before proceeding.
-    if (!user || !user.uid || !geminiApiKey || (userTier !== 'pro' && userTier !== 'premium') || smartBriefLoading || (tasks.length === 0 && goals.length === 0 && events.length === 0) ) {
+    if (!user || !user.uid || (userTier !== 'pro' && userTier !== 'premium') || smartBriefLoading || (tasks.length === 0 && goals.length === 0 && events.length === 0) ) {
         if (tasks.length === 0 && goals.length === 0 && events.length === 0) {
             setSmartDailyBrief(prev => ({
                 ...(prev || { summaryText: "", pendingTasksCount: 0, suggestedActions: [] }),
@@ -3046,12 +3001,22 @@ if (notionBlock && user?.uid && isNotionConnected) {
     `;
 
     try {
-        const briefEndpoint = `${GEMINI_API_BASE}${GEMINI_MINI_MODEL}:generateContent?key=${geminiApiKey}`;
-        const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.7 } })};
-        const response = await fetchWithTimeout(briefEndpoint, geminiOptions, 25000);
-        if (!response.ok) throw new Error(`API error (${response.status})`);
-        const responseText = await response.text();
-        const parsedResponse = parseGeminiApiResponse(responseText, false);
+        // --- THIS IS THE NEW LOGIC ---
+        const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+        
+        const apiRequestBody = {
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { responseMimeType: "application/json", temperature: 0.7 },
+            tools: [],
+            systemInstruction: undefined,
+            isImageGen: false
+        };
+
+        const result = await geminiProxyCallable(apiRequestBody);
+        const responseData = result.data as any; // The data is now the direct response from Gemini
+
+        // Now, parse the responseData as if it came from Google
+        const parsedResponse = parseGeminiApiResponse(JSON.stringify(responseData), false);
 
         if (parsedResponse.error || !parsedResponse.text) {
             throw new Error(parsedResponse.error || "Empty AI response for brief.");
@@ -3125,7 +3090,7 @@ if (notionBlock && user?.uid && isNotionConnected) {
     } finally {
         setSmartBriefLoading(false);
     }
-  }, [user, userTier, geminiApiKey, smartBriefLoading, tasks, goals, events, userProfile, userContext, smartBriefItemsSignature]);
+  }, [user, userTier, smartBriefLoading, tasks, goals, events, userProfile, userContext, smartBriefItemsSignature]);
 
     useEffect(() => {
     if (user && (userTier === 'pro' || userTier === 'premium') && !smartBriefLoading) {
@@ -3744,27 +3709,28 @@ if (notionBlock && user?.uid && isNotionConnected) {
     const [goalCoachLoading, setGoalCoachLoading] = useState<{[key: string]: boolean}>({});
 
     const fetchGoalCoachTip = async (goalId: string, goalText: string) => {
-
-        // --- ADD THIS GUARD CLAUSE AT THE TOP ---
-        // --- ADD THIS FIX ---
-        if (!geminiApiKey) {
-            console.error("API Key is not available. Aborting coach tip fetch.");
-            setGoalCoachTip(prev => ({...prev, [goalId]: "AI Coach is unavailable at the moment."}));
-            return;
-        }
-        // --- END OF FIX ---
         if (!user || goalCoachLoading[goalId]) return;
         setGoalCoachLoading(prev => ({...prev, [goalId]: true}));
 
-
         const prompt = `User's learning goal: "${goalText}". Provide 1-2 very short, actionable coaching tips (as a single string, max 150 chars) to help achieve this. Be encouraging and use simple language. Example: "Break it into daily mini-tasks! You can do it! ✨" or "Schedule 20 mins each day for this. Consistent effort is key! 👍"`;
         try {
-            const coachEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${geminiApiKey}`;
-            const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }]})};
-            const response = await fetchWithTimeout(coachEndpoint, geminiOptions, 15000);
-            if (!response.ok) throw new Error(`API error (${response.status})`);
-            const responseText = await response.text();
-            const parsedResponse = parseGeminiApiResponse(responseText, false);
+            // --- THIS IS THE NEW LOGIC ---
+            const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+            
+            const apiRequestBody = {
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: undefined,
+                tools: [],
+                systemInstruction: undefined,
+                isImageGen: false
+            };
+
+            const result = await geminiProxyCallable(apiRequestBody);
+            const responseData = result.data as any; // The data is now the direct response from Gemini
+
+            // Now, parse the responseData as if it came from Google
+            const parsedResponse = parseGeminiApiResponse(JSON.stringify(responseData), false);
+            
             if (parsedResponse.error || !parsedResponse.text) {
                  setGoalCoachTip(prev => ({...prev, [goalId]: "Keep breaking it down and track your progress!"}));
             } else {
@@ -3779,26 +3745,28 @@ if (notionBlock && user?.uid && isNotionConnected) {
     };
 
     const fetchTaskCoachTip = async (taskId: string, taskText: string) => {
-
-        // --- ADD THIS FIX ---
-        if (!geminiApiKey) {
-            console.error(" API Key is not available. Aborting coach tip fetch.");
-            setTaskCoachTip(prev => ({...prev, [taskId]: "AI Coach is unavailable at the moment."}));
-            return;
-        }
-        // --- END OF FIX ---
         if (!user || taskCoachLoading[taskId]) return;
         setTaskCoachLoading(prev => ({...prev, [taskId]: true}));
       
-
         const prompt = `User's task: "${taskText}". Provide 1-2 very short, actionable coaching tips (as a single string, max 150 chars) to help complete this. Be encouraging and use simple language. Example: "Focus on the first step. You've got this! 💪" or "Set a timer for 25 minutes and dive in. Small wins matter! ⏳"`;
         try {
-            const coachEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${geminiApiKey}`;
-            const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }]})};
-            const response = await fetchWithTimeout(coachEndpoint, geminiOptions, 15000);
-            if (!response.ok) throw new Error(`API error (${response.status})`);
-            const responseText = await response.text();
-            const parsedResponse = parseGeminiApiResponse(responseText, false);
+            // --- THIS IS THE NEW LOGIC ---
+            const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+            
+            const apiRequestBody = {
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: undefined,
+                tools: [],
+                systemInstruction: undefined,
+                isImageGen: false
+            };
+
+            const result = await geminiProxyCallable(apiRequestBody);
+            const responseData = result.data as any; // The data is now the direct response from Gemini
+
+            // Now, parse the responseData as if it came from Google
+            const parsedResponse = parseGeminiApiResponse(JSON.stringify(responseData), false);
+            
             if (parsedResponse.error || !parsedResponse.text) {
                  setTaskCoachTip(prev => ({...prev, [taskId]: "One step at a time. You can do this!"}));
             } else {
@@ -3958,19 +3926,6 @@ if (notionBlock && user?.uid && isNotionConnected) {
     };
 
     const generateProductivityAnalysis = async () => {
-
-        // --- ADD THIS GUARD CLAUSE AT THE TOP ---
-      // --- ADD THIS FIX ---
-        if (!geminiApiKey) {
-            console.error(" API Key is not available. Aborting analysis.");
-            setProductivityAnalysisResult({
-                productivity_score: 0,
-                text_analysis: "Could not generate analysis. The AI service is currently unavailable.",
-                recommended_actions: []
-            });
-            return;
-        }
-        // --- END OF FIX ---
         if (!user || !user.uid || isProductivityAnalysisLoading) return;
         setIsProductivityAnalysisLoading(true);
 
@@ -4016,12 +3971,22 @@ if (notionBlock && user?.uid && isNotionConnected) {
         `;
 
         try {
-            const analysisEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${geminiApiKey}`;
-            const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.6 } })};
-            const response = await fetchWithTimeout(analysisEndpoint, geminiOptions, 30000);
-            if (!response.ok) throw new Error(`API error (${response.status})`);
-            const responseText = await response.text();
-            const parsedResponse = parseGeminiApiResponse(responseText, false);
+            // --- THIS IS THE NEW LOGIC ---
+            const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+            
+            const apiRequestBody = {
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { responseMimeType: "application/json", temperature: 0.6 },
+                tools: [],
+                systemInstruction: undefined,
+                isImageGen: false
+            };
+
+            const result = await geminiProxyCallable(apiRequestBody);
+            const responseData = result.data as any; // The data is now the direct response from Gemini
+
+            // Now, parse the responseData as if it came from Google
+            const parsedResponse = parseGeminiApiResponse(JSON.stringify(responseData), false);
 
             if (parsedResponse.error || !parsedResponse.text) {
                 throw new Error(parsedResponse.error || "Empty AI response for analysis.");
@@ -5304,7 +5269,7 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
            </div>
          )}
         {aiChatSidebarTab === 'analytics' && ( <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent bg-white dark:bg-[#0C0E1A]">
-            <button onClick={generateProductivityAnalysis} disabled={isProductivityAnalysisLoading || !user || !geminiApiKey} className="w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 shadow-sm bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 disabled:opacity-70 transform hover:scale-[1.02] active:scale-[0.98]">
+            <button onClick={generateProductivityAnalysis} disabled={isProductivityAnalysisLoading || !user} className="w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 shadow-sm bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 disabled:opacity-70 transform hover:scale-[1.02] active:scale-[0.98]">
                 <BarChart3 className="w-4 h-4" />
                 {isProductivityAnalysisLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : "Get Insights"}
             </button>
