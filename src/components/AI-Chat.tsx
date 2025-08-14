@@ -37,10 +37,7 @@ import { ChatControls } from './chat-controls';
 
 
 
-const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
-const GEMINI_TEXT_MODEL = 'gemini-2.5-flash';
-const GEMINI_MINI_MODEL = 'gemini-2.0-flash';
-const GEMINI_IMAGE_GEN_MODEL = 'gemini-2.0-flash-preview-image-generation';
+// SECURE: API calls now go through the geminiProxy function
 
 const SUPPORTED_FILE_TYPES = "image/jpeg,image/png,image/webp,image/gif,image/svg+xml,application/pdf,text/plain,.md,.txt,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.rtf";
 const MAX_FILE_SIZE_MB = 20;
@@ -181,14 +178,8 @@ const parseGeminiApiResponse = (responseText: string, isImageGenCall: boolean): 
   }
 };
 
-// FIX: Add 'apiKey' as a parameter to the function signature
-const verifyEducationalContent = async (content: FlashcardMessage | QuestionMessage, apiKey: string): Promise<FlashcardMessage | QuestionMessage> => {
-  // This check is now against the passed parameter.
-  if (!apiKey) {
-    console.warn("API key not provided for verification.");
-    return content;
-  }
-
+// SECURE: Use the geminiProxy function instead of direct API calls
+const verifyEducationalContent = async (content: FlashcardMessage | QuestionMessage): Promise<FlashcardMessage | QuestionMessage> => {
   const contentType = content.type;
   const contentJsonString = JSON.stringify(content.data, null, 2);
   const prompt = `
@@ -208,33 +199,31 @@ const verifyEducationalContent = async (content: FlashcardMessage | QuestionMess
     `;
     
   try {
-    // FIX: Use the passed-in 'apiKey' variable in the URL
-    const verificationEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${apiKey}`;
-    const geminiOptions = {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseMimeType: "application/json",
-          temperature: 0.1,
-        }
-      })
+    // SECURE: Use the geminiProxy function
+    const functions = getFunctions();
+    const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+    
+    const apiRequestBody = {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        responseMimeType: "application/json",
+        temperature: 0.1,
+      },
+      isImageGen: false
     };
-    const response = await fetchWithTimeout(verificationEndpoint, geminiOptions, 20000);
-    if (!response.ok) {
-      throw new Error(`Verification API error (${response.status})`);
+    
+    const result = await geminiProxyCallable(apiRequestBody);
+    const responseData = result.data as any;
+    
+    if (responseData.error || !responseData.text) {
+      throw new Error(responseData.error || "Empty AI response during verification.");
     }
-    const responseText = await response.text();
-    const parsedResponse = parseGeminiApiResponse(responseText, false);
-    if (parsedResponse.error || !parsedResponse.text) {
-      throw new Error(parsedResponse.error || "Empty AI response during verification.");
-    }
+    
     let verifiedData;
     try {
-      verifiedData = JSON.parse(parsedResponse.text);
+      verifiedData = JSON.parse(responseData.text);
       if (!Array.isArray(verifiedData)) {
-        const jsonBlockResult = extractJsonBlocks(parsedResponse.text);
+        const jsonBlockResult = extractJsonBlocks(responseData.text);
         if (jsonBlockResult.blocks.length > 0 && Array.isArray(jsonBlockResult.blocks[0])) {
           verifiedData = jsonBlockResult.blocks[0];
         } else if (jsonBlockResult.blocks.length > 0 && jsonBlockResult.blocks[0].data && Array.isArray(jsonBlockResult.blocks[0].data)) {
@@ -244,9 +233,10 @@ const verifyEducationalContent = async (content: FlashcardMessage | QuestionMess
         }
       }
     } catch (e) {
-      console.error("Failed to parse verified JSON:", e, parsedResponse.text);
+      console.error("Failed to parse verified JSON:", e, responseData.text);
       return content;
     }
+    
     return {
       ...content,
       data: verifiedData,
@@ -1066,9 +1056,9 @@ const [isDraggingOver, setIsDraggingOver] = useState(false);
 
 // src/components/AI-Chat.tsx -> outside the AIChat() component
 
-const generateChatName = async (convId: string, history: ChatMessageData[], currentUser: User | null, apiKey: string) => {
-    if (!currentUser || !currentUser.uid || history.length === 0 || !apiKey) {
-        console.warn("generateChatName guard clause triggered. Aborting.", { hasUser: !!currentUser, historyLength: history.length, hasApiKey: !!apiKey });
+const generateChatName = async (convId: string, history: ChatMessageData[], currentUser: User | null) => {
+    if (!currentUser || !currentUser.uid || history.length === 0) {
+        console.warn("generateChatName guard clause triggered. Aborting.", { hasUser: !!currentUser, historyLength: history.length });
         return;
     }
 
@@ -1076,21 +1066,27 @@ const generateChatName = async (convId: string, history: ChatMessageData[], curr
     const prompt = `Please provide a short 3-5 word title summarizing the conversation so far:\n${relevantHistory}\nReturn ONLY the title, with no extra commentary. USE THE SAME LANGUAGE AS PRESENTED IN THE CONVERSATION!`;
     
     try {
-        const nameGenEndpoint = `${GEMINI_API_BASE}${GEMINI_MINI_MODEL}:generateContent?key=${apiKey}`;
-        const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 60 } }) };
-        const response = await fetchWithTimeout(nameGenEndpoint, geminiOptions, 10000);
-        if (!response.ok) { 
-            console.warn(`Name gen API failed: ${response.status}`); 
-            return; 
-        }
-        const responseText = await response.text();
-        const parsedResponse = parseGeminiApiResponse(responseText, false);
+        // SECURE: Use the geminiProxy function
+        const functions = getFunctions();
+        const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+        
+        const apiRequestBody = {
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { 
+                temperature: 0.5, 
+                maxOutputTokens: 60 
+            },
+            isImageGen: false
+        };
+        
+        const result = await geminiProxyCallable(apiRequestBody);
+        const responseData = result.data as any;
       
-        if (parsedResponse.text && parsedResponse.text.trim()) {
-            const newName = parsedResponse.text.trim().replace(/["']/g, "").substring(0, 50);
+        if (responseData.text && responseData.text.trim()) {
+            const newName = responseData.text.trim().replace(/["']/g, "").substring(0, 50);
             await updateChatConversationName(convId, newName);
-        } else if (parsedResponse.error) { 
-            console.warn("Name gen failed (API/parsing):", parsedResponse.error); 
+        } else if (responseData.error) { 
+            console.warn("Name gen failed (API/parsing):", responseData.error); 
         }
     } catch (error) { 
         console.error("Error in generateChatName:", error); 
@@ -1421,7 +1417,7 @@ ${activeNotionPage ? `
    - **BAD:**{"findText": "## Action Items"}
 
 // --- [PAGE CREATION & SEARCH] ---
-   - To **CREATE** a brand new page: Use \`createNotionPage\`. If the user does not specify where to put it (a parent page or a database), you **MUST** ask them first. See the "Page Creation Behavior" below.
+   - To **CREATE** a brand new page: Use \`createNotionPage\`. If the user does not specify where to put it (a parent page or database), you **MUST** ask them first. See the "Page Creation Behavior" below.
    - To **SEARCH** for pages or read a specific one:
      - Use \`searchNotion\` to find a list of pages. Payload: \`{"query": string}\`.
 
@@ -1719,6 +1715,7 @@ Assistant:`;
               };
           }
 
+      try {
           // --- THIS IS THE NEW LOGIC ---
           const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
           
@@ -1888,7 +1885,7 @@ Assistant:`;
             setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? { ...msg, isVerifyingContent: true, isLoading: true } : msg ));
             
                                 // FIX: Pass the geminiApiKey from state to the updated helper function
-                    educationalContent = await verifyEducationalContent(tempEducationalContent, "YOUR_API_KEY"); // You need to manage your API key securely
+                    educationalContent = await verifyEducationalContent(tempEducationalContent);
         }
       
       if (!isImageGenModeActive && otherActionBlocks.length > 0 && user?.uid) {
@@ -2071,8 +2068,8 @@ Assistant:`;
         const hasContentToName = finalHistoryForName.some(m => m.role === 'user' && m.content?.trim());
 
         if ((conversationJustCreated || conversationNeedsRenaming) && hasContentToName) {
-                    // FIX: Pass the geminiApiKey from state to the updated helper function
-                    generateChatName(currentConvId, finalHistoryForName, user, "YOUR_API_KEY"); // You need to manage your API key securely
+                                // FIX: Pass the geminiApiKey from state to the updated helper function
+                    generateChatName(currentConvId, finalHistoryForName, user);
         }
 
     } catch (err: any) {
