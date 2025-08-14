@@ -12,105 +12,9 @@ import {
     Loader2, History, Clock, Sparkles
 } from 'lucide-react';
 
-// Assuming API Key is accessible
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
-// --- AI Helper Functions (Unchanged) ---
-
-const streamResponse = async (
-  url: string,
-  options: RequestInit,
-  onStreamUpdate: (textChunk: string) => void,
-) => {
-    try {
-        const response = await fetch(url, { ...options });
-
-        if (!response.ok) {
-            let errorBody = '';
-            try {
-                errorBody = await response.text();
-                const errorJson = JSON.parse(errorBody);
-                if (errorJson?.error?.message) {
-                    throw new Error(`API Error (${response.status}): ${errorJson.error.message}`);
-                }
-            } catch (parseError) { /* Ignore */ }
-            throw new Error(`API Request Failed (${response.status}): ${response.statusText} ${errorBody || ''}`);
-        }
-
-        if (!response.body) {
-            const text = await response.text();
-            onStreamUpdate(text);
-            return text;
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder("utf-8");
-        let done = false;
-        let accumulatedRawText = "";
-
-        while (!done) {
-            const { value, done: doneReading } = await reader.read();
-            done = doneReading;
-            if (value) {
-                const rawChunk = decoder.decode(value, { stream: !done });
-                accumulatedRawText += rawChunk;
-                onStreamUpdate(accumulatedRawText);
-            }
-        }
-        return accumulatedRawText;
-
-    } catch (error) {
-        console.error("Streaming Error:", error);
-        throw error;
-    }
-};
-
-const extractCandidateText = (rawResponseText: string): string => {
-    try {
-        let extractedText = "";
-        let potentialJson = "";
-        const lines = rawResponseText.trim().split('\n');
-        const lastDataLine = lines.filter(line => line.startsWith('data:')).pop();
-
-        if (lastDataLine) {
-             potentialJson = lastDataLine.substring(5).trim();
-        } else if (rawResponseText.trim().startsWith('{')) {
-            potentialJson = rawResponseText.trim();
-        }
-
-        if (potentialJson) {
-            try {
-                const parsedJson = JSON.parse(potentialJson);
-                if (parsedJson.candidates?.[0]?.content?.parts?.[0]?.text) {
-                    extractedText = parsedJson.candidates[0].content.parts[0].text;
-                } else if (parsedJson.error?.message) {
-                    console.error("Gemini API Error in response:", parsedJson.error.message);
-                    return `Error: ${parsedJson.error.message}`;
-                } else {
-                    const anyTextPart = parsedJson.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text;
-                    extractedText = anyTextPart || "";
-                }
-            } catch (e) {
-                 const textMatch = rawResponseText.match(/"text":\s*"((?:\\.|[^"\\])*)"/);
-                 extractedText = textMatch ? JSON.parse(`"${textMatch[1]}"`) : "";
-            }
-        } else {
-             if (rawResponseText.includes('"error":')) {
-                 try {
-                     const parsedError = JSON.parse(rawResponseText);
-                     if (parsedError.error?.message) {
-                         console.error("Gemini API Error (direct):", parsedError.error.message);
-                         return `Error: ${parsedError.error.message}`;
-                     }
-                 } catch (e) { /* ignore */ }
-             }
-             extractedText = rawResponseText.replace(/^data:\s*/, '').trim();
-        }
-        return extractedText.replace(/^Assistant:\s*/, '').replace(/^(User|Human):\s*/, '').trim();
-    } catch (err) {
-        console.error("Error *during* extraction logic:", err, "Original text:", rawResponseText);
-        return "";
-    }
-};
+// --- REMOVED: Old AI helper functions no longer needed ---
 
 // --- Component Data & Constants (Unchanged) ---
 const Logo = () => (
@@ -196,24 +100,7 @@ const Status = () => {
   }, []);
 
 
-      const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Fetch the key when the component mounts, as the chat is a core feature of this page.
-    const fetchKey = async () => {
-      const key = await getGeminiApiKey();
-      if (key && !key.startsWith("ERROR_")) {
-        setGeminiApiKey(key);
-      } else {
-        console.error("Critical: Failed to load Gemini API key for the Status component.");
-        // We can disable the AI chat button or show an error if the key fails to load.
-        // For now, we'll log the error. The handleChatSubmit function will prevent submission.
-      }
-    };
-
-    fetchKey();
-  }, []); // Empty dependency array means this runs once on mount
-  // --- END OF NEW CODE ---
 
   // Determine overall status
   const hasMajorOutage = serviceStatus.some(service => service.majorIssue);
@@ -225,20 +112,7 @@ const Status = () => {
    const handleChatSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // --- FIX #1: ADD GUARD CLAUSE FOR THE API KEY ---
-    if (!geminiApiKey) {
-        console.error("Gemini API Key is not available. Aborting chat submission.");
-        const errorMsg: any = { 
-            id: `error-no-key-${Date.now()}`, 
-            role: 'assistant', 
-            content: `The AI Assistant is currently unavailable due to a configuration error. Please try again later.`, 
-            error: true,
-        };
-        setChatHistory(prev => [...prev, errorMsg]);
-        setIsChatLoading(false);
-        return;
-    }
-    // --- END OF FIX ---
+
 
     if (!chatMessage.trim() || isChatLoading) return;
 
@@ -298,36 +172,25 @@ Assistant:`;
     let finalRawResponseText = "";
 
     try {
-        // --- FIX #2: USE THE GEMINI API KEY FROM STATE ---
-        const geminiEndpointWithKey = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}&alt=sse`;
-
-        const geminiOptions = {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 0.5, maxOutputTokens: 500 },
-                safetySettings: [
-                    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-                    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-                    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-                    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-                ],
-            })
+        // --- THIS IS THE NEW LOGIC ---
+        const geminiProxyCallable = httpsCallable(getFunctions(), 'geminiProxy');
+        
+        const apiRequestBody = {
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.5, maxOutputTokens: 500 },
+            tools: [],
+            systemInstruction: undefined,
+            isImageGen: false
         };
 
-        await streamResponse(geminiEndpointWithKey, geminiOptions, (rawChunkAccumulated) => {
-            finalRawResponseText = rawChunkAccumulated;
-            const currentExtractedText = extractCandidateText(rawChunkAccumulated);
-            accumulatedStreamedText = currentExtractedText;
-            setChatHistory(prev => prev.map(msg =>
-                msg.id === assistantMsgId ? { ...msg, content: accumulatedStreamedText || "..." } : msg
-            ));
-        });
+        const result = await geminiProxyCallable(apiRequestBody);
+        const responseData = result.data as any; // The data is now the direct response from Gemini
 
-        const finalExtracted = extractCandidateText(finalRawResponseText);
+        // Extract the text from the response
+        const finalExtracted = responseData.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I couldn't fetch the status details.";
+        
         setChatHistory(prev => prev.map(msg =>
-             msg.id === assistantMsgId ? { ...msg, content: finalExtracted || accumulatedStreamedText || "Sorry, I couldn't fetch the status details." } : msg
+             msg.id === assistantMsgId ? { ...msg, content: finalExtracted } : msg
          ));
 
     } catch (err: any) {
@@ -339,7 +202,7 @@ Assistant:`;
     } finally {
         setIsChatLoading(false);
     }
-   }, [chatMessage, isChatLoading, chatHistory, lastUpdated, geminiApiKey]); // <-- FIX #3: Add geminiApiKey to dependency array
+   }, [chatMessage, isChatLoading, chatHistory, lastUpdated]);
 
   return (
     <div className="min-h-screen flex flex-col font-poppins bg-white text-gray-800 dark:bg-[#0C0E1A] dark:text-gray-200 illuminate-override">
