@@ -352,10 +352,6 @@ const renderContent = () => {
       case 'ai':
         return (
            <div className="space-y-3 animate-fadeIn">
-            <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
-              <Info className="w-4 h-4" />
-              <span>Use Ctrl+Enter (or Cmd+Enter on Mac) to submit quickly</span>
-            </div>
             <label className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1`}>Text to Process</label>
             <textarea 
               value={aiText} 
@@ -370,10 +366,7 @@ const renderContent = () => {
       case 'pdf':
         return (
           <div className="animate-fadeIn">
-            <div className="mb-3 text-xs text-gray-600 dark:text-gray-400 text-center">
-              <Info className="w-4 h-4 inline mr-1" />
-              Drag and drop or click to upload a PDF file
-            </div>
+
             <div
               onClick={() => fileInputRef.current?.click()}
               onDragEnter={handleDragEnter}
@@ -399,10 +392,7 @@ const renderContent = () => {
       case 'youtube':
         return (
            <div className="space-y-3 animate-fadeIn">
-            <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
-              <Info className="w-4 h-4" />
-              <span>Use Ctrl+Enter (or Cmd+Enter on Mac) to submit quickly</span>
-            </div>
+
             <label className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1`}>YouTube URL</label>
             <input
               type="url"
