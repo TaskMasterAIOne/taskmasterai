@@ -1320,7 +1320,7 @@ useEffect(() => {
             addUserBadge(user.uid, 'firstChatWithNote', { email: user.email!, displayName: userName });
             showToast("Badge Unlocked: Note Conversationalist!", "info", MessageCircle);
         }
-    }, [selectedNote?.id, showSplitView, showPdfViewer, isMobile, togglePdfViewer, geminiApiKey, user, userProfile, userName, showToast, activePodcast, handlePodcastStop]);
+    }, [selectedNote?.id, showSplitView, showPdfViewer, isMobile, togglePdfViewer, user, userProfile, userName, showToast, activePodcast, handlePodcastStop]);
 
 
     const handleCloseChatOverlay = useCallback(() => setIsChatOverlayVisible(false), []);
