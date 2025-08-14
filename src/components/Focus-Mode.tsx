@@ -496,30 +496,8 @@ function extractJsonBlocks(text: string): { blocks: any[], cleanedText: string }
   return { blocks: extractedBlocks, cleanedText: remainingText.trim() };
 }
 
-const readFileAsSelectedFile = (file: File): Promise<SelectedFile> => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        const localPreviewUrl = URL.createObjectURL(file);
-        reader.onload = () => {
-            const base64String = (reader.result as string).split(',')[1];
-            if (!base64String) {
-                URL.revokeObjectURL(localPreviewUrl);
-                reject(new Error("Failed to read file content."));
-                return;
-            }
-            resolve({ name: file.name, type: file.type, size: file.size, base64Data: base64String, fileObject: file, localPreviewUrl });
-        };
-        reader.onerror = (error) => {
-            URL.revokeObjectURL(localPreviewUrl);
-            reject(error);
-        };
-        reader.readAsDataURL(file);
-    });
-};
 
-function formatBytes(bytes: number, decimals = 2): string {
-  if (bytes === 0) return '0 Bytes'; const k = 1024; const dm = decimals < 0 ? 0 : decimals; const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']; const i = Math.floor(Math.log(bytes) / Math.log(k)); return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
-}
+
 
 const toDateSafe = (value: any): Date | null => {
     if (!value) return null;
