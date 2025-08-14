@@ -5116,6 +5116,19 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                     <div ref={chatEndRef} />
                 </div>
                 <div className="p-3  bg-white dark:bg-[#0C0E1A] flex-shrink-0">
+                    {/* Usage display moved above chatbox */}
+                    {userTier !== 'premium' && userTier !== 'loading' && (
+                        <div className="pt-2 text-xs text-center mb-3">
+                            <span className="text-gray-500 dark:text-gray-400">Messages: {chatUsageCount} / {currentChatLimitDisplay}</span>
+                            {isChatDisabledByLimit && <span className="text-red-500 dark:text-red-400 ml-1 font-medium">(Limit Reached)</span>}
+                            {!isChatDisabledByLimit && userTier === 'basic' && (
+                                <Link to="/pricing" className="ml-1 font-medium text-indigo-500 dark:text-indigo-400 hover:underline">
+                                    <Crown className="w-3 h-3 inline mr-0.5"/>Upgrade
+                                </Link>
+                            )}
+                        </div>
+                    )}
+                    
                     {selectedFiles.length > 0 && !isImageGenModeActive && !isSearchModeActive && (
                         <div className="mb-2 flex flex-wrap gap-1.5 p-1.5 max-h-16 overflow-y-auto scrollbar-thin border border-dashed rounded-lg border-gray-300 dark:border-gray-600">
                             {selectedFiles.map(file => (
@@ -5237,7 +5250,6 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
         </div>
     </div>
 </form>
-                     {userTier !== 'premium' && userTier !== 'loading' && (<div className="pt-2 text-xs text-center"> <span className="text-gray-500 dark:text-gray-400">Usage: {chatUsageCount} / {currentChatLimitDisplay}</span> {isChatDisabledByLimit && <span className="text-red-500 dark:text-red-400 ml-1 font-medium">(Limit Reached)</span>} {!isChatDisabledByLimit && userTier === 'basic' && <Link to="/pricing" className="ml-1 font-medium text-indigo-500 dark:text-indigo-400 hover:underline"><Crown className="w-3 h-3 inline mr-0.5"/>Upgrade</Link>}</div>)}
                 </div>
             </>
         )}
