@@ -28,10 +28,10 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 3, de
                 await sleep(delayMs * (attempt + 1));
                 continue;
             }
-            catch (error) {
-                if (attempt === retries - 1) throw error;
-                await sleep(delayMs * (attempt + 1));
-            }
+            return response;
+        } catch (error) {
+            if (attempt === retries - 1) throw error;
+            await sleep(delayMs * (attempt + 1));
         }
     }
     throw new Error(`Max retries reached for ${url}`);
