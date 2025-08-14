@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 
 // Assuming API Key is accessible
-import { getGeminiApiKey } from '../lib/dashboard-firebase'; // Adjust path as needed
 
 // --- AI Helper Functions (Unchanged) ---
 
