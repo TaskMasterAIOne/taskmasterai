@@ -5,7 +5,7 @@ import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognitio
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Menu, Search, Bell, Moon, Sun, PlusCircle, Edit, Trash, CheckCircle, MessageCircle, Crown, RotateCcw, X, TimerIcon, Send, ChevronLeft, ChevronRight, Calendar, Clock, MoreHorizontal, ArrowUpRight, Bookmark, BookOpen, Lightbulb, Award, TrendingUp, Target as GoalIcon, Layers, Clipboard as ClipboardIcon, AlertCircle, ThumbsUp, ThumbsDown, BrainCircuit, ArrowRight, Flag, Filter, Tag, BarChart3, PieChart, ChevronDown, Folder, ListChecks, Paperclip, ImageIcon, Settings, FileText, Users, Columns, Eye, AlignLeft, UserCheck, Hourglass, Notebook, Wand, SortAsc, CalendarCheck, Bot, Loader2, Check, Info, Download, User as UserIcon, Link as LinkIcon, Zap, SlidersHorizontal, BookCopy, ListTodo, Maximize, Minimize, CalendarDays, Brain, Mic, Video, FileQuestion, Sparkles, Play, CalendarRange,
-  GraduationCap, Milestone, BarChart, ShieldCheck, Plus, User as UserIconLucide, PackagePlus, InfoIcon, Palette, MessageSquarePlus, Edit3, Flame, Trophy, Lock, Globe, StopCircle, Edit2, Share, Trash2, Goal, BarChart2, LayoutDashboard
+  GraduationCap, Milestone, BarChart, ShieldCheck, Plus, User as UserIconLucide, PackagePlus, InfoIcon, Palette, MessageSquarePlus, Edit3, Flame, Trophy, Lock, Globe, StopCircle, Edit2, Share, Trash2, Goal, BarChart2, LayoutDashboard, CheckSquare, Square
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
@@ -21,7 +21,8 @@ import {
   updateItem, 
   createEvent as createFirebaseEvent, 
   deleteItem 
-} from '../lib/dashboard-firebase';import { getFunctions, httpsCallable } from 'firebase/functions'; 
+} from '../lib/dashboard-firebase';
+import { getFunctions, httpsCallable } from 'firebase/functions'; 
 import { getUserData } from '../lib/settings-firebase'; // Ensure this is imported
 import { ProfileModal } from './ProfileModal';
 import { UserTier, BASIC_CHAT_LIMIT, getUserTier, getChatLimitForTier, getCurrentMonthUserChatUsage, incrementUserChatUsage, onUserProfileSnapshot, type UserProfileData, updateUserStreak } from '../lib/current-paying-user';
@@ -37,7 +38,7 @@ import { ChatControls } from './chat-controls';
 
 
 
-// SECURE: API calls now go through the geminiProxy function
+
 
 const SUPPORTED_FILE_TYPES = "image/jpeg,image/png,image/webp,image/gif,image/svg+xml,application/pdf,text/plain,.md,.txt,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.rtf";
 const MAX_FILE_SIZE_MB = 20;
@@ -80,23 +81,7 @@ export interface ChatMessageData {
 }
 interface SelectedFile { name: string; type: string; size: number; base64Data: string; fileObject: File; localPreviewUrl: string; }
 
-const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 45000) => {
-  const controller = new AbortController();
-  const { signal } = controller;
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-  try {
-    const response = await fetch(url, { ...options, signal });
-    clearTimeout(timeoutId);
-    return response;
-  } catch (error) {
-    clearTimeout(timeoutId);
-    if ((error as Error).name === 'AbortError') {
-      console.warn('Fetch timed out:', url);
-      throw new Error('Request timed out');
-    }
-    throw error;
-  }
-};
+
 
 const toDateSafe = (value: any): Date | null => {
   if (!value) return null;
@@ -178,7 +163,6 @@ const parseGeminiApiResponse = (responseText: string, isImageGenCall: boolean): 
   }
 };
 
-// SECURE: Use the geminiProxy function instead of direct API calls
 const verifyEducationalContent = async (content: FlashcardMessage | QuestionMessage): Promise<FlashcardMessage | QuestionMessage> => {
   const contentType = content.type;
   const contentJsonString = JSON.stringify(content.data, null, 2);
@@ -199,8 +183,7 @@ const verifyEducationalContent = async (content: FlashcardMessage | QuestionMess
     `;
     
   try {
-    // SECURE: Use the geminiProxy function
-    const functions = getFunctions();
+    // SECURE: Use the geminiProxy function instead of direct API calls
     const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
     
     const apiRequestBody = {
@@ -236,7 +219,6 @@ const verifyEducationalContent = async (content: FlashcardMessage | QuestionMess
       console.error("Failed to parse verified JSON:", e, responseData.text);
       return content;
     }
-    
     return {
       ...content,
       data: verifiedData,
@@ -655,7 +637,6 @@ export function AIChat() {
 const [isDraggingOver, setIsDraggingOver] = useState(false);
 
 
-    // --- ADD THIS NEW STATE AND EFFECT ---
 
   
   const {
@@ -1066,8 +1047,7 @@ const generateChatName = async (convId: string, history: ChatMessageData[], curr
     const prompt = `Please provide a short 3-5 word title summarizing the conversation so far:\n${relevantHistory}\nReturn ONLY the title, with no extra commentary. USE THE SAME LANGUAGE AS PRESENTED IN THE CONVERSATION!`;
     
     try {
-        // SECURE: Use the geminiProxy function
-        const functions = getFunctions();
+        // SECURE: Use the geminiProxy function instead of direct API calls
         const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
         
         const apiRequestBody = {
@@ -1081,7 +1061,7 @@ const generateChatName = async (convId: string, history: ChatMessageData[], curr
         
         const result = await geminiProxyCallable(apiRequestBody);
         const responseData = result.data as any;
-      
+        
         if (responseData.text && responseData.text.trim()) {
             const newName = responseData.text.trim().replace(/["']/g, "").substring(0, 50);
             await updateChatConversationName(convId, newName);
@@ -1493,10 +1473,10 @@ Actions: createTask, updateTask, deleteTask, createGoal, updateGoal, deleteGoal,
  */
 
 // ✅ When to Save a Memory:
-- If the user **explicitly asks to remember something** (e.g., “remember that...” or “don’t forget...”)
+- If the user **explicitly asks to remember something** (e.g., "remember that... or "don't forget...")
 - If the user **repeats a key fact or behavior more than once** across sessions (e.g., studying for SAT, working on a startup, recurring tasks)
 - If the user sets a **named goal**, **event**, **habit**, or mentions a detail tied to identity, preference, or long-term objective
-- If the user shows **strong emotional or motivational investment** in a fact (e.g., “This is super important to me.”)
+- If the user shows **strong emotional or motivational investment** in a fact (e.g., "This is super important to me.")
 
 // ❌ When NOT to Save a Memory:
 - One-off facts not tied to identity, tasks, goals, or patterns
@@ -1505,9 +1485,9 @@ Actions: createTask, updateTask, deleteTask, createGoal, updateGoal, deleteGoal,
 
 // ✅ Pattern Recognition Behavior:
 - If the user frequently references the same context (e.g., "I need help with time blocking", "SAT prep", "gym goals"):
-  → Propose saving it: “Would you like me to remember that you're focused on [topic] right now?”
+  → Propose saving it: "Would you like me to remember that you're focused on [topic] right now?"
 - Track recurring actions/phrases across sessions. For example:
-  → User mentions “flashcards” in 3 separate chats → YOU should proactively say: “You often mention flashcards — want me to help track your study topics or make a deck?”
+  → User mentions "flashcards" in 3 separate chats → YOU should proactively say: "You often mention flashcards — want me to help track your study topics or make a deck?"
 - Recognize user workflow sequences (e.g., "task planning every Sunday", or "weekly SAT review") and offer auto-assistance.
 
 
@@ -1517,7 +1497,7 @@ Actions: createTask, updateTask, deleteTask, createGoal, updateGoal, deleteGoal,
 // -------------------------------------------------------------------------------------------------
 
 // Types of memory YOU should maintain:
-1. **Identity Memories**: Name, age, timezone, preferred tone (e.g., “Call me ___; “I prefer short responses”)
+1. **Identity Memories**: Name, age, timezone, preferred tone (e.g., "Call me ___; "I prefer short responses")
 2. **Goal Memories**: Academic, fitness, personal development, startup or project milestones
 3. **Study/Work Patterns**: Subjects or areas frequently referenced, performance issues, productivity gaps
 4. **Preferences & Style**: Favorite tools, format preferences (e.g., minimal, no-fluff), dislike for platforms (e.g., "Notion is too hard")
@@ -1561,13 +1541,13 @@ MAJOR CRITICAL INSTRUCTION: YOU SHOULD DECIDE WHEN TO SAVE OR UPDATE A MEMORY BA
  * THIS IS VERY STRICT. YOU MUST ALWAYS DO THIS. PLEASE ENSURE THAT YOU ALWAYS KEEP MEMORIES IN YOUR CONTEXT. YOUR AIM SHOULD BE TO RELY ON MEMMORIES TO HELP WITH YOUR UNDERSTAND OF THE USER. MEMORIES SHOULD ALSO CORRELATE WITH TIME. USE THE CURRENT DATE AND TIME TO YOUR ADVANTAGE! FOR EXAMPLE. IF A USER HAD TOLD YOU TO REMEMEBR THAT THEY HAVE A CLASS FROM A CERTAIN TIME EVERYDAY, AND BASED ON THE CURRENT TIME AND DATE THAT PARTICULAR CLASS WAS COMING UP, THEN YOU SHOULD USE YOUR MEMORIES ABOUT THEM TO REMIND THEM ABOUT THAT CLASS ; THIS IS JUST AN EXAMPLE, BUT IT APPLIES TO ANY USE CASE. THIS IS A VERY STRICT INSTRUCTION. FAILURE TO FOLLOW THIS COULD RESULT IN TERMINATION OR BEING REPORTED.
  */
 
-- Example 1: If memory says user is studying for SAT, and they ask “make me flashcards,” default to SAT unless clarified otherwise
+- Example 1: If memory says user is studying for SAT, and they ask "make me flashcards," default to SAT unless clarified otherwise
 - Example 2: If user prefers brief responses, auto-trim explanations unless long form is requested
 - Example 3: If the user frequently asks about their goals, start each new week by offering a quick goal check-in
 - Example 4: If memory says a user wants a recap every monday, then (if the day is monday) provide the recap for them.
 
 // Memory Aware Fallbacks:
-- If unsure whether something should be saved or referenced, default to **clarify**: “Should I remember this for the future?”
+- If unsure whether something should be saved or referenced, default to **clarify**: "Should I remember this for the future?"
 
 
 // -------------------------------------------------------------------------------------------------
@@ -1582,9 +1562,9 @@ MAJOR CRITICAL INSTRUCTION: YOU SHOULD DECIDE WHEN TO SAVE OR UPDATE A MEMORY BA
      - **Payload**: \`{ "memory_identifier": string, "new_content"?: string }\` (The identifier can be the content of the memory or its internal ref ID if you have it).
 
 // Always provide a friendly confirmation:
-- “Got it — I’ve updated your memory.”
-- “That’s been forgotten.”
-- “Okay, I’ll remember that for the future.”
+- "Got it — I've updated your memory."
+- "That's been forgotten."
+- "Okay, I'll remember that for the future."
 
 // DO NOT list memory ID values in user responses
 // DO NOT reveal the existence of memory unless asked directly
@@ -1624,7 +1604,7 @@ MAJOR CRITICAL INSTRUCTION: YOU SHOULD DECIDE WHEN TO SAVE OR UPDATE A MEMORY BA
 
  **Structured Markdown Response Mode (GLOBAL RULE ONLY WHEN RESPONDING TO THE USER):** THIS IS A CRUCIAL RULE -  ONLY USE MARKDOWN FORMATTING WHEN RESPONDING TO THE USER. FAILURE TO FOLLOW THIS COULD RESULT IN TERMINATION OR BEING REPORTED.
     *   For **any** response where the user is asking for summaries, breakdowns, explanations, lists, instructions, or informational outputs:
-        - **IMMEDIATELY start the response with content** — DO NOT include any intro commentary like "Sure!" or "Absolutely, here’s a breakdown...".
+        - **IMMEDIATELY start the response with content** — DO NOT include any intro commentary like "Sure!" or "Absolutely, here's a breakdown...".
         - Use **proper markdown formatting consistently**, including:
             - #, ##, ### for section headers
             - - or numbered 1., 2. lists for organized points
@@ -1653,6 +1633,7 @@ YOU MUST ALWYAYS USE THAT LATEX FOR MATH ONLY.
 
 Your ultimate goal is to be a world-class productivity partner for ${truncatedName}. Adhere strictly to these protocols to provide a seamless and effective experience.
 Assistant:`;
+
 
           let apiRequestBody: any;
       
@@ -1715,23 +1696,20 @@ Assistant:`;
               };
           }
 
-      try {
-          // --- THIS IS THE NEW LOGIC ---
-          const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
-          
-          const apiRequestBodyForProxy = {
-              contents: apiRequestBody.contents,
-              generationConfig: apiRequestBody.generationConfig,
-              tools: apiRequestBody.tools || [],
-              systemInstruction: apiRequestBody.systemInstruction,
-              isImageGen: imageGenModeOn
-          };
-
-          const result = await geminiProxyCallable(apiRequestBodyForProxy);
-          const responseData = result.data as any; // The data is now the direct response from Gemini
-
-          // Now, parse the responseData as if it came from Google
-          const parsedApiResult = parseGeminiApiResponse(JSON.stringify(responseData), imageGenModeOn);
+      // SECURE: Use the geminiProxy function instead of direct API calls
+      const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+      
+      // Add isImageGen flag to the request
+      const requestBodyForProxy = {
+          ...apiRequestBody,
+          isImageGen: imageGenModeOn
+      };
+      
+      const result = await geminiProxyCallable(requestBodyForProxy);
+      const responseData = result.data as any;
+      
+      // Parse the response from the proxy
+      const parsedApiResult = parseGeminiApiResponse(JSON.stringify(responseData), imageGenModeOn);
       
       let contentToProcess = parsedApiResult.text || "";
       const sources = parsedApiResult.sources || [];
@@ -1884,8 +1862,7 @@ Assistant:`;
             else { tempEducationalContent = { type: "question", data: educationalBlock.data as QuestionData[] }; }
             setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? { ...msg, isVerifyingContent: true, isLoading: true } : msg ));
             
-                                // FIX: Pass the geminiApiKey from state to the updated helper function
-                    educationalContent = await verifyEducationalContent(tempEducationalContent);
+            educationalContent = await verifyEducationalContent(tempEducationalContent);
         }
       
       if (!isImageGenModeActive && otherActionBlocks.length > 0 && user?.uid) {
@@ -2068,8 +2045,7 @@ Assistant:`;
         const hasContentToName = finalHistoryForName.some(m => m.role === 'user' && m.content?.trim());
 
         if ((conversationJustCreated || conversationNeedsRenaming) && hasContentToName) {
-                                // FIX: Pass the geminiApiKey from state to the updated helper function
-                    generateChatName(currentConvId, finalHistoryForName, user);
+            generateChatName(currentConvId, finalHistoryForName, user);
         }
 
     } catch (err: any) {
