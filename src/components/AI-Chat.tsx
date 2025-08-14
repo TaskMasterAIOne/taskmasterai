@@ -16,7 +16,6 @@ import { auth } from '../lib/firebase';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { Timestamp } from 'firebase/firestore';
 import { 
-  getGeminiApiKey, // Correctly import the new function
   onCollectionSnapshot, 
   findItemByName, 
   updateItem, 
@@ -667,26 +666,7 @@ const [isDraggingOver, setIsDraggingOver] = useState(false);
 
 
     // --- ADD THIS NEW STATE AND EFFECT ---
-  const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchKey = async () => {
-      if (user) {
-        const key = await getGeminiApiKey();
-        if (key && !key.startsWith("ERROR_")) {
-          setGeminiApiKey(key);
-        } else {
-          console.error("Critical: Failed to load API key.");
-          // Optionally, display an error in the chat UI
-        }
-      } else {
-        // Clear the key if the user logs out
-        setGeminiApiKey(null);
-      }
-    };
-
-    fetchKey();
-  }, [user]); // This effect runs whenever the user's login state changes
   
   const {
     transcript,
@@ -1120,20 +1100,7 @@ const generateChatName = async (convId: string, history: ChatMessageData[], curr
 const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, incomingFiles?: SelectedFile[]) => {
     e?.preventDefault();
 
-    // --- FIX: Add guard clause for the API key ---
-    if (!geminiApiKey) {
-        console.error("API Key is not available. Aborting chat submission.");
-        const errorMsg: ChatMessageData = { 
-            id: `error-no-key-${Date.now()}`, 
-            role: 'system', 
-            content: `A configuration error occurred. Unable to connect to the AI service.`, 
-            error: true, 
-            createdAt: new Date() 
-        };
-        setChatHistory(prev => [...prev, errorMsg]);
-        return;
-    }
-    // --- END OF FIX ---
+
     if (listening) {
         SpeechRecognition.stopListening();
         resetTranscript();
@@ -1691,8 +1658,6 @@ YOU MUST ALWYAYS USE THAT LATEX FOR MATH ONLY.
 Your ultimate goal is to be a world-class productivity partner for ${truncatedName}. Adhere strictly to these protocols to provide a seamless and effective experience.
 Assistant:`;
 
-      const currentTargetModel = imageGenModeOn ? GEMINI_IMAGE_GEN_MODEL : GEMINI_TEXT_MODEL;
-        const fullApiUrl = `${GEMINI_API_BASE}${currentTargetModel}:generateContent?key=${geminiApiKey}`;
           let apiRequestBody: any;
       
           if (imageGenModeOn) {
@@ -1754,10 +1719,23 @@ Assistant:`;
               };
           }
 
-      const geminiOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(apiRequestBody) };
-      const response = await fetchWithTimeout(fullApiUrl, geminiOptions);
-      const responseText = await response.text();
-      const parsedApiResult = parseGeminiApiResponse(responseText, imageGenModeOn);
+      try {
+          // --- THIS IS THE NEW LOGIC ---
+          const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+          
+          const apiRequestBodyForProxy = {
+              contents: apiRequestBody.contents,
+              generationConfig: apiRequestBody.generationConfig,
+              tools: apiRequestBody.tools || [],
+              systemInstruction: apiRequestBody.systemInstruction,
+              isImageGen: imageGenModeOn
+          };
+
+          const result = await geminiProxyCallable(apiRequestBodyForProxy);
+          const responseData = result.data as any; // The data is now the direct response from Gemini
+
+          // Now, parse the responseData as if it came from Google
+          const parsedApiResult = parseGeminiApiResponse(JSON.stringify(responseData), imageGenModeOn);
       
       let contentToProcess = parsedApiResult.text || "";
       const sources = parsedApiResult.sources || [];
@@ -1910,8 +1888,8 @@ Assistant:`;
             else { tempEducationalContent = { type: "question", data: educationalBlock.data as QuestionData[] }; }
             setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? { ...msg, isVerifyingContent: true, isLoading: true } : msg ));
             
-            // FIX: Pass the geminiApiKey from state to the updated helper function
-            educationalContent = await verifyEducationalContent(tempEducationalContent, geminiApiKey);
+                                // FIX: Pass the geminiApiKey from state to the updated helper function
+                    educationalContent = await verifyEducationalContent(tempEducationalContent);
         }
       
       if (!isImageGenModeActive && otherActionBlocks.length > 0 && user?.uid) {
@@ -2094,8 +2072,8 @@ Assistant:`;
         const hasContentToName = finalHistoryForName.some(m => m.role === 'user' && m.content?.trim());
 
         if ((conversationJustCreated || conversationNeedsRenaming) && hasContentToName) {
-            // FIX: Pass the geminiApiKey from state to the updated helper function
-            generateChatName(currentConvId, finalHistoryForName, user, geminiApiKey);
+                                // FIX: Pass the geminiApiKey from state to the updated helper function
+                    generateChatName(currentConvId, finalHistoryForName, user);
         }
 
     } catch (err: any) {
