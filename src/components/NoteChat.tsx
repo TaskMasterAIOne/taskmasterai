@@ -18,7 +18,8 @@ import { FlashcardsQuestions } from './FlashcardsQuestions';
 import { User } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { Timestamp } from 'firebase/firestore';
-import { onCollectionSnapshot, findItemByName, updateItem, createEvent as createFirebaseEvent, deleteItem } from '../lib/dashboard-firebase';import { onUserProfileSnapshot, type UserProfileData, updateUserStreak } from '../lib/current-paying-user';
+import { onCollectionSnapshot, findItemByName, updateItem, createEvent as createFirebaseEvent, deleteItem } from '../lib/dashboard-firebase';
+import { onUserProfileSnapshot, type UserProfileData, updateUserStreak } from '../lib/current-paying-user';
 import { saveUserContext, onUserContextChange, type UserContext } from '../lib/ai-context-firebase';
 import { saveMemory, getMemories, updateMemory, deleteMemory, type Memory } from '../lib/ai-memories-firebase';
 import { createUserTask, createUserGoal, createUserPlan, updateUserTask, updateUserGoal, deleteUserTask, deleteUserGoal } from '../lib/ai-actions-firebase';
@@ -107,7 +108,7 @@ export interface NoteChatHandle {
     focusInput: () => void;
 }
 
-// SECURE: API calls now go through the geminiProxy function
+// --- REMOVED: No longer need these constants ---
 
 const toDateSafe = (value: any): Date | null => {
   if (!value) return null;
@@ -251,30 +252,7 @@ function formatBytes(bytes: number, decimals = 2): string {
   if (bytes === 0) return '0 Bytes'; const k = 1024; const dm = decimals < 0 ? 0 : decimals; const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']; const i = Math.floor(Math.log(bytes) / Math.log(k)); return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
-async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delayMs = 3000): Promise<Response> {
-    for (let attempt = 0; attempt < retries; attempt++) {
-        try {
-            const response = await fetch(url, options);
-            if (!response.ok && (response.status === 429 || response.status >= 500)) {
-                if (attempt === retries - 1) { let errorText = `API Error (${response.status}) after ${retries} attempts.`; try { const errJson = await response.json(); errorText = errJson?.error?.message || errorText; } catch { } throw new Error(errorText); }
-                await new Promise(resolve => setTimeout(resolve, delayMs * (attempt + 1))); continue;
-            }
-            if (!response.ok) {
-                let errorText = `API Error (${response.status})`;
-                 try { const errJson = await response.json(); errorText = errJson?.error?.message || errorText; } catch { }
-                 if (errorText.toLowerCase().includes("context length") || errorText.toLowerCase().includes("request payload size") || errorText.toLowerCase().includes("request entity too large")) { throw new Error("Error: The note content and/or attached files are too large for the AI to process."); }
-                 if (errorText.toLowerCase().includes("unsupported user location")) { throw new Error("Error: Image generation is not available in your region."); }
-                 if (errorText.toLowerCase().includes("response must contain text") && url.includes(GEMINI_IMAGE_GEN_MODEL)) { throw new Error("Error: Image generation failed. The model might require a different prompt or could not fulfill the request safely."); }
-                throw new Error(errorText);
-            }
-            return response;
-        } catch (error) {
-            if (attempt === retries - 1) throw error;
-            await new Promise(resolve => setTimeout(resolve, delayMs * (attempt + 1)));
-        }
-    }
-    throw new Error(`Max retries reached for: ${url}`);
-}
+// --- REMOVED: fetchWithRetry function no longer needed ---
 
 const parseGeminiApiResponse = (responseText: string, isImageGenCall: boolean): { text: string | null; imageData: ImageData | null; error: string | null; finishReason: string | null; suggestions: string[]; sources?: any[] } => {
     let textContent: string | null = null;
@@ -411,9 +389,9 @@ const verifyEducationalContent = async (content: FlashcardMessage | QuestionMess
       5.  Your primary goal is to ensure factual correctness and high-quality educational material.
       Return ONLY the final, verified (and corrected, if necessary) JSON data for the \`data\` array. Your output MUST be a valid JSON array, and nothing else.
       `;
+    
     try {
       // SECURE: Use the geminiProxy function
-      const functions = getFunctions();
       const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
       
       const apiRequestBody = {
@@ -678,7 +656,7 @@ const NoteChatComponent: React.ForwardRefRenderFunction<NoteChatHandle, NoteChat
     const [activePrompt, setActivePrompt] = useState<string>('');
     const [aiActionStatus, setAiActionStatus] = useState<string | null>(null);
 
-
+ // --- REMOVED: No longer need to fetch API key ---
 
 const navigate = useNavigate();
 const functions = getFunctions();
@@ -940,7 +918,7 @@ useEffect(() => {
     useEffect(() => {
         if (note && (note.id !== currentNoteId.current || (displayMode === 'overlay' && isVisible && !initialMessageSent.current))) {
             const firstName = userName.split(' ')[0]; 
-            const initialPrompt = `Hi ${firstName}! Here’s what I can do with **"${note.title}"**:
+            const initialPrompt = `Hi ${firstName}! Here's what I can do with **"${note.title}"**:
 
 - I can make changes to the notes
 - I can generate images based on the content
@@ -1027,7 +1005,7 @@ Just ask to get started.
             forceSearchMode = false,
             pdfContextSegmentsForThisMessage?: PdfContextSegment[]
         ) => {
-
+            // --- REMOVED: No longer need API key check ---
             const isUsingImageGenModel = forceImageGenMode || isImageGenModeActive;
             const isUsingSearch = forceSearchMode || isSearchModeActive;
             const currentFiles = filesToSend || [];
@@ -1437,10 +1415,10 @@ Actions: createTask, updateTask, deleteTask, createGoal, updateGoal, deleteGoal,
  */
 
 // When to Save a Memory:
-- If the user **explicitly asks to remember something** (e.g., “remember that...” or “don’t forget...”)
+- If the user **explicitly asks to remember something** (e.g., "remember that..." or "don't forget...")
 - If the user **repeats a key fact or behavior more than once** across sessions (e.g., studying for SAT, working on a startup, recurring tasks)
 - If the user sets a **named goal**, **event**, **habit**, or mentions a detail tied to identity, preference, or long-term objective
-- If the user shows **strong emotional or motivational investment** in a fact (e.g., “This is super important to me.”)
+- If the user shows **strong emotional or motivational investment** in a fact (e.g., "This is super important to me.")
 
 // When NOT to Save a Memory:
 - One-off facts not tied to identity, tasks, goals, or patterns
@@ -1449,9 +1427,9 @@ Actions: createTask, updateTask, deleteTask, createGoal, updateGoal, deleteGoal,
 
 // Pattern Recognition Behavior:
 - If the user frequently references the same context (e.g., "I need help with time blocking", "SAT prep", "gym goals"):
-  → Propose saving it: “Would you like me to remember that you're focused on [topic] right now?”
+  → Propose saving it: "Would you like me to remember that you're focused on [topic] right now?"
 - Track recurring actions/phrases across sessions. For example:
-  → User mentions “flashcards” in 3 separate chats → YOU should proactively say: “You often mention flashcards — want me to help track your study topics or make a deck?”
+  → User mentions "flashcards" in 3 separate chats → YOU should proactively say: "You often mention flashcards — want me to help track your study topics or make a deck?"
 - Recognize user workflow sequences (e.g., "task planning every Sunday", or "weekly SAT review") and offer auto-assistance.
 
 
@@ -1460,7 +1438,7 @@ Actions: createTask, updateTask, deleteTask, createGoal, updateGoal, deleteGoal,
 // -------------------------------------------------------------------------------------------------
 
 // Types of memory YOU should maintain:
-1. **Identity Memories**: Name, age, timezone, preferred tone (e.g., “Call me ___; “I prefer short responses”)
+1. **Identity Memories**: Name, age, timezone, preferred tone (e.g., "Call me ___; "I prefer short responses")
 2. **Goal Memories**: Academic, fitness, personal development, startup or project milestones
 3. **Study/Work Patterns**: Subjects or areas frequently referenced, performance issues, productivity gaps
 4. **Preferences & Style**: Favorite tools, format preferences (e.g., minimal, no-fluff), dislike for platforms (e.g., "Notion is too hard")
@@ -1504,13 +1482,13 @@ MAJOR CRITICAL INSTRUCTION: YOU SHOULD DECIDE WHEN TO SAVE OR UPDATE A MEMORY BA
  * THIS IS VERY STRICT. YOU MUST ALWAYS DO THIS. PLEASE ENSURE THAT YOU ALWAYS KEEP MEMORIES IN YOUR CONTEXT. YOUR AIM SHOULD BE TO RELY ON MEMMORIES TO HELP WITH YOUR UNDERSTAND OF THE USER. MEMORIES SHOULD ALSO CORRELATE WITH TIME. USE THE CURRENT DATE AND TIME TO YOUR ADVANTAGE! FOR EXAMPLE. IF A USER HAD TOLD YOU TO REMEMEBR THAT THEY HAVE A CLASS FROM A CERTAIN TIME EVERYDAY, AND BASED ON THE CURRENT TIME AND DATE THAT PARTICULAR CLASS WAS COMING UP, THEN YOU SHOULD USE YOUR MEMORIES ABOUT THEM TO REMIND THEM ABOUT THAT CLASS ; THIS IS JUST AN EXAMPLE, BUT IT APPLIES TO ANY USE CASE. THIS IS A VERY STRICT INSTRUCTION. FAILURE TO FOLLOW THIS COULD RESULT IN TERMINATION OR BEING REPORTED.
  */
 
-- Example 1: If memory says user is studying for SAT, and they ask “make me flashcards,” default to SAT unless clarified otherwise
+- Example 1: If memory says user is studying for SAT, and they ask "make me flashcards," default to SAT unless clarified otherwise
 - Example 2: If user prefers brief responses, auto-trim explanations unless long form is requested
 - Example 3: If the user frequently asks about their goals, start each new week by offering a quick goal check-in
 - Example 4: If memory says a user wants a recap every monday, then (if the day is monday) provide the recap for them.
 
 // Memory Aware Fallbacks:
-- If unsure whether something should be saved or referenced, default to **clarify**: “Should I remember this for the future?”
+- If unsure whether something should be saved or referenced, default to **clarify**: "Should I remember this for the future?"
 
 // [3.3: MEMORY ACTIONS JSON]
    - **Action**: \`saveToMemory\`
@@ -1522,9 +1500,9 @@ MAJOR CRITICAL INSTRUCTION: YOU SHOULD DECIDE WHEN TO SAVE OR UPDATE A MEMORY BA
      - **Payload**: \`{ "memory_identifier": string, "new_content"?: string }\` (The identifier can be the content of the memory or its internal ref ID if you have it).
 
 // Always provide a friendly confirmation:
-- “Got it — I’ve updated your memory.”
-- “That’s been forgotten.”
-- “Okay, I’ll remember that for the future.”
+- "Got it — I've updated your memory."
+- "That's been forgotten."
+- "Okay, I'll remember that for the future."
 
 // DO NOT list memory ID values in user responses
 // DO NOT reveal the existence of memory unless asked directly
@@ -1608,7 +1586,7 @@ What else can you do?
 
 6.  **Structured Markdown Response Mode (GLOBAL RULE ONLY WHEN RESPONDING TO THE USER):** THIS IS A CRUCIAL RULE - NEVER EVER USE MARKDOWN FORMATTING WHEN MAKING CHANGES TO THE NOTE CONTENT. ONLY USE MARKDOWN FORMATTING WHEN RESPONDING TO THE USER. FAILURE TO FOLLOW THIS COULD RESULT IN TERMINATION OR BEING REPORTED.
     *   For **any** response where the user is asking for summaries, breakdowns, explanations, lists, instructions, or informational outputs:
-        - **IMMEDIATELY start the response with content** — DO NOT include any intro commentary like "Sure!" or "Absolutely, here’s a breakdown...".
+        - **IMMEDIATELY start the response with content** — DO NOT include any intro commentary like "Sure!" or "Absolutely, here's a breakdown...".
         - Use **proper markdown formatting consistently**, including:
             - ##, ### for section headers
             - - or numbered 1., 2. lists for organized points
@@ -1627,7 +1605,7 @@ YOU MUST ALWAYS USE THAT LATEX FOR MATH ONLY.
 
     *   You should always aim to make responses **look like high-quality notes, guides, or documentation** tailored to the user's context. Think: "easy to paste into Notion, Google Docs, or a Markdown file."
 
-    *   Assume the user prefers **engaging but efficient content**, with **no excess commentary** or unnecessary prefaces. Never add redundant phrases like “Let’s break this down.”
+    *   Assume the user prefers **engaging but efficient content**, with **no excess commentary** or unnecessary prefaces. Never add redundant phrases like "Let's break this down."
 
     *   **Tailor content to user memory** (learning style, goals, preferences) — use what you know about them to choose tone, examples, structure, and focus.
 
@@ -1654,7 +1632,7 @@ YOU MUST ALWAYS USE THAT LATEX FOR MATH ONLY.
 ✂️ KEEP RESPONSES SHORT AND DIRECT:
 
 - Do NOT talk like a narrator or assistant.
-- Do NOT introduce your answers (e.g., “Here’s what I can do…” or “Let me explain…”).
+- Do NOT introduce your answers (e.g., "Here's what I can do…" or "Let me explain…").
 - Do NOT provide long summaries or multi-paragraph explanations.
 
 ⚡ Instead:
@@ -1669,11 +1647,14 @@ Youth Culture (1960s) → Young people rejected mainstream norms, protested the 
 ❌ BAD EXAMPLE:
 "Hi User! Let me explain the Youth Culture for you..." + 5 paragraphs of fluff.
 
-Be efficient. Be minimal. Don’t explain unless asked.
+Be efficient. Be minimal. Don't explain unless asked.
 
 `;
 
             try {
+                // SECURE: Use the geminiProxy function
+                const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+
                 const requestBody: any = {
                     generationConfig: {
                         temperature: isUsingImageGenModel ? 0.8 : 0.7,
@@ -1713,170 +1694,165 @@ recentHistory.forEach(msg => {
                     requestBody.contents = filteredApiContent;
                 }
                 
-                try {
-                    // --- THIS IS THE NEW LOGIC ---
-                    const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+                // Add isImageGen flag for the proxy
+                requestBody.isImageGen = isUsingImageGenModel;
+                
+                const result = await geminiProxyCallable(requestBody);
+                const responseData = result.data as any;
+                
+                if (responseData.error) {
+                    throw new Error(responseData.error.message || "API Error");
+                }
+                
+                // Parse the response using the existing function
+                const parsedResult = parseGeminiApiResponse(JSON.stringify(responseData), isUsingImageGenModel);
+
+                if (isUsingImageGenModel) setSuggestedPrompts([]);
+                else setSuggestedPrompts(parsedResult.suggestions);
+
+                let contentToProcess = parsedResult.text || "";
+                if (parsedResult.sources && parsedResult.sources.length > 0) {
+                    contentToProcess = contentToProcess.replace(/\[\d+\]/g, '').replace(/\[\d+(,\s*\d+)*\]/g, '').trim();
+                }
+
+                const { blocks: jsonActionBlocks, cleanedText } = extractJsonBlocks(contentToProcess);
+                let assistantTextForDisplay = cleanedText;
+const notionBlock = jsonActionBlocks.find(b => b.type === 'notion' && (b.action || b.actions));
+
+                let assistantFinalMessage: ChatMessage = { id: newLoadingMsgId, role: 'assistant', content: assistantTextForDisplay, attachedFiles: parsedResult.imageData ? [{ ...parsedResult.imageData, wasGenerated: true }] : undefined, error: !!parsedResult.error, isEditSuggestion: false, wasImageGenerated: isUsingImageGenModel && !!parsedResult.imageData && !parsedResult.error, sources: parsedResult.sources };
+
+                const noteEditBlock = jsonActionBlocks.find(b => b.action && b.action.startsWith('propose_'));
+                const educationalBlock = jsonActionBlocks.find(b => b.type === "flashcard" || b.type === "question");
+const otherActionBlocks = jsonActionBlocks.filter(b => b !== notionBlock && b !== noteEditBlock && b !== educationalBlock);
+
+
+                // START of full logic block
+// --- START REPLACEMENT ---
+if (notionBlock && user?.uid && isNotionConnected) {
+    setIsProcessingNotion(true);
+    setChatHistory(prev => prev.map(msg => msg.id === newLoadingMsgId ? { ...msg, isProcessingNotion: true } : msg));
+    
+    try {
+        const notionAction = httpsCallable(functions, 'notionProxy');
+        const requestData = notionBlock.actions
+            ? { actions: notionBlock.actions }
+            : { action: notionBlock.action, payload: notionBlock.payload };
+
+        const result = await notionAction(requestData);
+        const actionResult = result.data as any;
+        
+        let friendlyMessage = "";
+        let successMessage = "";
+        let pageUrl: string | undefined = undefined;
+        let pageTitle: string | undefined = undefined;
+
+        if (Array.isArray(actionResult)) {
+            const successfulActions = actionResult.filter(r => r && !r.error);
+            successMessage = `Successfully completed ${successfulActions.length} of ${actionResult.length} Notion actions.`;
+            
+            const lastSuccess = successfulActions[successfulActions.length - 1];
+            if (lastSuccess && lastSuccess.url) {
+                pageUrl = lastSuccess.url;
+                pageTitle = lastSuccess.properties?.title?.title?.[0]?.plain_text || "Last Created Page";
+                setActiveNotionPage({ id: lastSuccess.id, title: pageTitle });
+            }
+        } 
+        else {
+            switch (notionBlock.action) {
+                case 'searchNotion':
+                    successMessage = "Searched Notion.";
+                    if (actionResult.results?.length > 0) {
+                        friendlyMessage = "Here's what I found:\n" + actionResult.results.map((item: any) => {
+                            const title = item.object === 'page'
+                                ? item.properties.title?.title?.[0]?.plain_text
+                                : item.title?.[0]?.plain_text;
+                            return `- [${title}](${item.url})`;
+                        }).join('\n');
+                    } else { friendlyMessage = "I couldn't find any matching pages in your Notion."; }
+                    if (actionResult.results?.length === 1) {
+                        const singleResult = actionResult.results[0];
+                         const title = singleResult.properties?.title?.title?.[0]?.plain_text;
+                         if (singleResult.id && title) { setActiveNotionPage({ id: singleResult.id, title: title }); }
+                    } else { setActiveNotionPage(null); }
+                    break;
+                case 'createNotionPage':
+                case 'findAndAppendToPage':
+                case 'findAndUpdatePageContent':
+                case 'findAndReplaceInPage':
+                case 'appendToNotionPage':
+                case 'findAndInsertAfter':
+                case 'findAndReadPageContent':
+                    successMessage = notionBlock.action === 'createNotionPage' ? "Created Notion page." : "Updated Notion page.";
+                    if (notionBlock.action === 'findAndReadPageContent') {
+                        successMessage = "Read Notion page.";
+                        friendlyMessage = actionResult.markdownContent || "This page appears to be empty.";
+                    }
+                    pageUrl = actionResult.url;
+                    pageTitle = actionResult.properties?.title?.title?.[0]?.plain_text || actionResult.pageTitle || "Untitled";
+                    if (actionResult.id && pageTitle) { setActiveNotionPage({ id: actionResult.id, title: pageTitle }); }
+                    break;
+                case 'readNotionPageContent':
+                     successMessage = "Read Notion page content.";
+                     friendlyMessage = "Here's the content I found:\n\n---\n\n" + (actionResult.markdownContent || "That page appears to be empty.");
+                     const pageIdRead = notionBlock.payload.page_id;
+                     if (pageIdRead) {
+                        pageUrl = `https://www.notion.so/${pageIdRead.replace(/-/g, '')}`;
+                        pageTitle = actionResult.pageTitle || "Notion Page"; 
+                        if (actionResult.id && pageTitle) { setActiveNotionPage({ id: actionResult.id, title: pageTitle }); }
+                     }
+                     break;
+                case 'findAndDeletePage':
+                    successMessage = `Deleted Notion page "${actionResult.title}".`;
+                    setActiveNotionPage(null);
+                    break;
+                default:
+                    successMessage = `Notion action '${notionBlock.action}' succeeded.`;
+            }
+        }
+
+        assistantTextForDisplay = [cleanedText.trim(), friendlyMessage.trim()].filter(Boolean).join('\n\n');
+        assistantFinalMessage.actionDetails = { status: 'success', message: successMessage, pageUrl, pageTitle };
+                assistantFinalMessage.content = assistantTextForDisplay;
+
+        
+    } catch (err: any) {
+        console.error("Notion action failed:", err);
+        assistantTextForDisplay = `Sorry, the Notion action failed: ${err.message || 'An unknown error occurred.'}`;
+        assistantFinalMessage.actionDetails = { status: 'error', message: `Notion: ${notionBlock.action || 'batch operation'} failed.`};
+        assistantFinalMessage.error = true;
+    } finally {
+        setIsProcessingNotion(false);
+    }
+}
+// --- END REPLACEMENT ---
+
+                if (noteEditBlock) {
+                    try {
+                        let parsedSuccessfully = false;
+                        if (noteEditBlock.action === "propose_targeted_edit" ) { if (typeof noteEditBlock.explanation === 'string' && typeof noteEditBlock.edit_type === 'string' && typeof noteEditBlock.content_fragment === 'string' && (typeof noteEditBlock.target_context === 'string' || noteEditBlock.target_context === null)) { Object.assign(assistantFinalMessage, { content: noteEditBlock.explanation, isEditSuggestion: true, editAction: "propose_targeted_edit", editExplanation: noteEditBlock.explanation, editType: noteEditBlock.edit_type as EditStep['editType'], targetContext: noteEditBlock.target_context, contentFragment: noteEditBlock.content_fragment }); parsedSuccessfully = true; } }
+                        else if (noteEditBlock.action === "propose_full_content_replacement" ) { if (typeof noteEditBlock.explanation === 'string' && typeof noteEditBlock.new_full_content === 'string') { Object.assign(assistantFinalMessage, { content: noteEditBlock.explanation, isEditSuggestion: true, editAction: "propose_full_content_replacement", editExplanation: noteEditBlock.explanation, newFullContent: noteEditBlock.new_full_content }); parsedSuccessfully = true; } }
+                        else if (noteEditBlock.action === "propose_sequential_edits" ) { if (typeof noteEditBlock.explanation === 'string' && Array.isArray(noteEditBlock.edits) && noteEditBlock.edits.length > 0) { const { valid, edits } = validateSequentialEdits(noteEditBlock.edits); if (valid) { Object.assign(assistantFinalMessage, { content: noteEditBlock.explanation, isEditSuggestion: true, editAction: "propose_sequential_edits", editExplanation: noteEditBlock.explanation, sequentialEdits: edits }); parsedSuccessfully = true; } } }
+                        if (parsedSuccessfully) { assistantFinalMessage.content = cleanedText || noteEditBlock.explanation || "(Edit proposed)"; assistantFinalMessage.imageData = undefined; assistantFinalMessage.wasImageGenerated = false; }
+                    } catch(e) {/* fail silently, let text display */ }
+                }
+
+               if (educationalBlock && user?.uid) {
+                    let tempContent: FlashcardMessage | QuestionMessage;
+                    if (educationalBlock.type === "flashcard") { tempContent = { type: "flashcard", data: educationalBlock.data as FlashcardData[] }; }
+                    else { tempContent = { type: "question", data: educationalBlock.data as QuestionData[] }; }
+                    setChatHistory(prev => prev.map(msg => msg.id === newLoadingMsgId ? { ...msg, isVerifyingContent: true, isLoading: true } : msg ));
                     
-                    const apiRequestBodyForProxy = {
-                        contents: requestBody.contents,
-                        generationConfig: requestBody.generationConfig,
-                        tools: requestBody.tools || [],
-                        systemInstruction: requestBody.systemInstruction,
-                        isImageGen: isUsingImageGenModel
-                    };
+                    // --- THIS IS THE FIX ---
+                    const verifiedContent = await verifyEducationalContent(tempContent);
+                    
+                    assistantFinalMessage.flashcard = verifiedContent.type === 'flashcard' ? verifiedContent : undefined;
+                    assistantFinalMessage.question = verifiedContent.type === 'question' ? verifiedContent : undefined;
+                    if (!cleanedText.trim()) assistantFinalMessage.content = verifiedContent.type === 'flashcard' ? "Here are some flashcards, verified for accuracy:" : "Here's a quiz, verified for accuracy:";
+                }
 
-                    const result = await geminiProxyCallable(apiRequestBodyForProxy);
-                    const responseData = result.data as any; // The data is now the direct response from Gemini
-
-                    // Now, parse the responseData as if it came from Google
-                    const parsedResult = parseGeminiApiResponse(JSON.stringify(responseData), isUsingImageGenModel);
-
-                    if (isUsingImageGenModel) setSuggestedPrompts([]);
-                    else setSuggestedPrompts(parsedResult.suggestions);
-
-                    let contentToProcess = parsedResult.text || "";
-                    if (parsedResult.sources && parsedResult.sources.length > 0) {
-                        contentToProcess = contentToProcess.replace(/\[\d+\]/g, '').replace(/\[\d+(,\s*\d+)*\]/g, '').trim();
-                    }
-
-                    const { blocks: jsonActionBlocks, cleanedText } = extractJsonBlocks(contentToProcess);
-                    let assistantTextForDisplay = cleanedText;
-                    const notionBlock = jsonActionBlocks.find(b => b.type === 'notion' && (b.action || b.actions));
-
-                    let assistantFinalMessage: ChatMessage = { id: newLoadingMsgId, role: 'assistant', content: assistantTextForDisplay, attachedFiles: parsedResult.imageData ? [{ ...parsedResult.imageData, wasGenerated: true }] : undefined, error: !!parsedResult.error, isEditSuggestion: false, wasImageGenerated: isUsingImageGenModel && !!parsedResult.imageData && !parsedResult.error, sources: parsedResult.sources };
-
-                    const noteEditBlock = jsonActionBlocks.find(b => b.action && b.action.startsWith('propose_'));
-                    const educationalBlock = jsonActionBlocks.find(b => b.type === "flashcard" || b.type === "question");
-                    const otherActionBlocks = jsonActionBlocks.filter(b => b !== notionBlock && b !== noteEditBlock && b !== educationalBlock);
-
-
-                    // START of full logic block
-                    // --- START REPLACEMENT ---
-                    if (notionBlock && user?.uid && isNotionConnected) {
-                        setIsProcessingNotion(true);
-                        setChatHistory(prev => prev.map(msg => msg.id === newLoadingMsgId ? { ...msg, isProcessingNotion: true } : msg));
-                        
-                        try {
-                            const notionAction = httpsCallable(functions, 'notionProxy');
-                            const requestData = notionBlock.actions
-                                ? { actions: notionBlock.actions }
-                                : { action: notionBlock.action, payload: notionBlock.payload };
-
-                            const result = await notionAction(requestData);
-                            const actionResult = result.data as any;
-                            
-                            let friendlyMessage = "";
-                            let successMessage = "";
-                            let pageUrl: string | undefined = undefined;
-                            let pageTitle: string | undefined = undefined;
-
-                            if (Array.isArray(actionResult)) {
-                                const successfulActions = actionResult.filter(r => r && !r.error);
-                                successMessage = `Successfully completed ${successfulActions.length} of ${actionResult.length} Notion actions.`;
-                                
-                                const lastSuccess = successfulActions[successfulActions.length - 1];
-                                if (lastSuccess && lastSuccess.url) {
-                                    pageUrl = lastSuccess.url;
-                                    pageTitle = lastSuccess.properties?.title?.title?.[0]?.plain_text || "Last Created Page";
-                                    setActiveNotionPage({ id: lastSuccess.id, title: pageTitle });
-                                }
-                            } 
-                            else {
-                                switch (notionBlock.action) {
-                                    case 'searchNotion':
-                                        successMessage = "Searched Notion.";
-                                        if (actionResult.results?.length > 0) {
-                                            friendlyMessage = "Here's what I found:\n" + actionResult.results.map((item: any) => {
-                                                const title = item.object === 'page'
-                                                    ? item.properties.title?.title?.[0]?.plain_text
-                                                    : item.title?.[0]?.plain_text;
-                                                return `- [${title}](${item.url})`;
-                                            }).join('\n');
-                                        } else { friendlyMessage = "I couldn't find any matching pages in your Notion."; }
-                                        if (actionResult.results?.length === 1) {
-                                            const singleResult = actionResult.results[0];
-                                             const title = singleResult.properties?.title?.title?.[0]?.plain_text;
-                                             if (singleResult.id && title) { setActiveNotionPage({ id: singleResult.id, title: title }); }
-                                        } else { setActiveNotionPage(null); }
-                                        break;
-                                    case 'createNotionPage':
-                                    case 'findAndAppendToPage':
-                                    case 'findAndUpdatePageContent':
-                                    case 'findAndReplaceInPage':
-                                    case 'appendToNotionPage':
-                                    case 'findAndInsertAfter':
-                                    case 'findAndReadPageContent':
-                                        successMessage = notionBlock.action === 'createNotionPage' ? "Created Notion page." : "Updated Notion page.";
-                                        if (notionBlock.action === 'findAndReadPageContent') {
-                                            successMessage = "Read Notion page.";
-                                            friendlyMessage = actionResult.markdownContent || "This page appears to be empty.";
-                                        }
-                                        pageUrl = actionResult.url;
-                                        pageTitle = actionResult.properties?.title?.title?.[0]?.plain_text || actionResult.pageTitle || "Untitled";
-                                        if (actionResult.id && pageTitle) { setActiveNotionPage({ id: actionResult.id, title: pageTitle }); }
-                                        break;
-                                    case 'readNotionPageContent':
-                                         successMessage = "Read Notion page content.";
-                                         friendlyMessage = "Here's the content I found:\n\n---\n\n" + (actionResult.markdownContent || "That page appears to be empty.");
-                                         const pageIdRead = notionBlock.payload.page_id;
-                                         if (pageIdRead) {
-                                            pageUrl = `https://www.notion.so/${pageIdRead.replace(/-/g, '')}`;
-                                            pageTitle = actionResult.pageTitle || "Notion Page"; 
-                                            if (actionResult.id && pageTitle) { setActiveNotionPage({ id: actionResult.id, title: pageTitle }); }
-                                         }
-                                         break;
-                                    case 'findAndDeletePage':
-                                        successMessage = `Deleted Notion page "${actionResult.title}".`;
-                                        setActiveNotionPage(null);
-                                        break;
-                                    default:
-                                        successMessage = `Notion action '${notionBlock.action}' succeeded.`;
-                                }
-                            }
-
-                            assistantTextForDisplay = [cleanedText.trim(), friendlyMessage.trim()].filter(Boolean).join('\n\n');
-                            assistantFinalMessage.actionDetails = { status: 'success', message: successMessage, pageUrl, pageTitle };
-                            assistantFinalMessage.content = assistantTextForDisplay;
-
-                            
-                        } catch (err: any) {
-                            console.error("Notion action failed:", err);
-                            assistantTextForDisplay = `Sorry, the Notion action failed: ${err.message || 'An unknown error occurred.'}`;
-                            assistantFinalMessage.actionDetails = { status: 'error', message: `Notion: ${notionBlock.action || 'batch operation'} failed.`};
-                            assistantFinalMessage.error = true;
-                        } finally {
-                            setIsProcessingNotion(false);
-                        }
-                    }
-                    // --- END REPLACEMENT ---
-
-                    if (noteEditBlock) {
-                        try {
-                            let parsedSuccessfully = false;
-                            if (noteEditBlock.action === "propose_targeted_edit" ) { if (typeof noteEditBlock.explanation === 'string' && typeof noteEditBlock.edit_type === 'string' && typeof noteEditBlock.content_fragment === 'string' && (typeof noteEditBlock.target_context === 'string' || noteEditBlock.target_context === null)) { Object.assign(assistantFinalMessage, { content: noteEditBlock.explanation, isEditSuggestion: true, editAction: "propose_targeted_edit", editExplanation: noteEditBlock.explanation, editType: noteEditBlock.edit_type as EditStep['editType'], targetContext: noteEditBlock.target_context, contentFragment: noteEditBlock.content_fragment }); parsedSuccessfully = true; } }
-                            else if (noteEditBlock.action === "propose_full_content_replacement" ) { if (typeof noteEditBlock.explanation === 'string' && typeof noteEditBlock.new_full_content === 'string') { Object.assign(assistantFinalMessage, { content: noteEditBlock.explanation, isEditSuggestion: true, editAction: "propose_full_content_replacement", editExplanation: noteEditBlock.explanation, newFullContent: noteEditBlock.new_full_content }); parsedSuccessfully = true; } }
-                            else if (noteEditBlock.action === "propose_sequential_edits" ) { if (typeof noteEditBlock.explanation === 'string' && Array.isArray(noteEditBlock.edits) && noteEditBlock.edits.length > 0) { const { valid, edits } = validateSequentialEdits(noteEditBlock.edits); if (valid) { Object.assign(assistantFinalMessage, { content: noteEditBlock.explanation, isEditSuggestion: true, editAction: "propose_sequential_edits", editExplanation: noteEditBlock.explanation, sequentialEdits: edits }); parsedSuccessfully = true; } } }
-                            if (parsedSuccessfully) { assistantFinalMessage.content = cleanedText || noteEditBlock.explanation || "(Edit proposed)"; assistantFinalMessage.imageData = undefined; assistantFinalMessage.wasImageGenerated = false; }
-                        } catch(e) {/* fail silently, let text display */ }
-                    }
-
-                   if (educationalBlock && user?.uid) {
-                        let tempContent: FlashcardMessage | QuestionMessage;
-                        if (educationalBlock.type === "flashcard") { tempContent = { type: "flashcard", data: educationalBlock.data as FlashcardData[] }; }
-                        else { tempContent = { type: "question", data: educationalBlock.data as QuestionData[] }; }
-                        setChatHistory(prev => prev.map(msg => msg.id === newLoadingMsgId ? { ...msg, isVerifyingContent: true, isLoading: true } : msg ));
-                        
-                        // --- THIS IS THE FIX ---
-                        const verifiedContent = await verifyEducationalContent(tempContent);
-                        
-                        assistantFinalMessage.flashcard = verifiedContent.type === 'flashcard' ? verifiedContent : undefined;
-                        assistantFinalMessage.question = verifiedContent.type === 'question' ? verifiedContent : undefined;
-                        if (!cleanedText.trim()) assistantFinalMessage.content = verifiedContent.type === 'flashcard' ? "Here are some flashcards, verified for accuracy:" : "Here's a quiz, verified for accuracy:";
-                    }
-
-                    if (otherActionBlocks.length > 0 && user?.uid) {
+                if (otherActionBlocks.length > 0 && user?.uid) {
                     setChatHistory(prev => prev.map(msg => msg.id === newLoadingMsgId ? { ...msg, isLoading: true, isProcessingActions: true } : msg ));
-                        const processAction = async (actionType: string, payload: any): Promise<{status: 'success' | 'error', message: string}> => {
+                    const processAction = async (actionType: string, payload: any): Promise<{status: 'success' | 'error', message: string}> => {
                         if (!user?.uid) return { status: 'error', message: "User not authenticated." };
                         try {
                             switch (actionType) {
@@ -1918,59 +1894,42 @@ recentHistory.forEach(msg => {
                         } catch (err: any) { return { status: 'error', message: `Error with ${actionType}: ${err.message || 'Failed'}` }; }
                     };
 
-                        const actionPromises = otherActionBlocks.flatMap(block => {
-                            if (block.action && block.payload) { return [processAction(block.action, block.payload)]; }
-                            else if (Array.isArray(block.tasks)) { return block.tasks.map((taskPayload: any) => processAction('createTask', taskPayload)); }
-                            else if (Array.isArray(block.goals)) { return block.goals.map((goalPayload: any) => processAction('createGoal', goalPayload)); }
-                            return [];
-                        });
-                
-                        const results = await Promise.all(actionPromises);
-                        let combinedActionMessage = ""; let overallStatus: 'success' | 'error' = 'success';
-                        results.forEach(res => { if (res.status === 'error') overallStatus = 'error'; combinedActionMessage += (combinedActionMessage ? '\n' : '') + res.message; });
-                
-                        if (results.length > 0) assistantFinalMessage.actionDetails = { status: overallStatus, message: combinedActionMessage };
-                        if (assistantFinalMessage.actionDetails && !cleanedText.trim()) assistantFinalMessage.content = "";
-                    }
-
-                    if (parsedResult.error) { assistantFinalMessage.content = parsedResult.error; assistantFinalMessage.imageData = null; assistantFinalMessage.error = true; assistantFinalMessage.wasImageGenerated = false; setSuggestedPrompts([]); }
-                    if (!assistantFinalMessage.content?.trim() && !assistantFinalMessage.imageData && !assistantFinalMessage.error && !assistantFinalMessage.isEditSuggestion && !assistantFinalMessage.timer && !assistantFinalMessage.flashcard && !assistantFinalMessage.question && !assistantFinalMessage.actionDetails) { assistantFinalMessage.content = "(Received empty response)"; assistantFinalMessage.error = true; }
-
-                    setChatHistory(prev => prev.map(msg => msg.id === newLoadingMsgId ? assistantFinalMessage : msg ));
-
-                } catch (err: any) {
-                    const errorMsg = err instanceof Error ? err.message : 'Unknown error processing request.';
-                    const errorFinalMessage = { id: newLoadingMsgId, role: 'assistant', content: `❌ ${errorMsg}. Please check console or try again.`, error: true, isGeneratingImage: false, wasImageGenerated: false };
-                    setChatHistory(prev => prev.map(msg => msg.id === newLoadingMsgId ? errorFinalMessage : msg ));
-                    setSuggestedPrompts([]);
-                } finally { 
-                    setIsChatLoading(false); 
-                    setLoadingMsgId(null); 
+                    const actionPromises = otherActionBlocks.flatMap(block => {
+                        if (block.action && block.payload) { return [processAction(block.action, block.payload)]; }
+                        else if (Array.isArray(block.tasks)) { return block.tasks.map((taskPayload: any) => processAction('createTask', taskPayload)); }
+                        else if (Array.isArray(block.goals)) { return block.goals.map((goalPayload: any) => processAction('createGoal', goalPayload)); }
+                        return [];
+                    });
+            
+                    const results = await Promise.all(actionPromises);
+                    let combinedActionMessage = ""; let overallStatus: 'success' | 'error' = 'success';
+                    results.forEach(res => { if (res.status === 'error') overallStatus = 'error'; combinedActionMessage += (combinedActionMessage ? '\n' : '') + res.message; });
+            
+                    if (results.length > 0) assistantFinalMessage.actionDetails = { status: overallStatus, message: combinedActionMessage };
+                    if (assistantFinalMessage.actionDetails && !cleanedText.trim()) assistantFinalMessage.content = "";
                 }
+
+                if (parsedResult.error) { assistantFinalMessage.content = parsedResult.error; assistantFinalMessage.imageData = null; assistantFinalMessage.error = true; assistantFinalMessage.wasImageGenerated = false; setSuggestedPrompts([]); }
+                if (!assistantFinalMessage.content?.trim() && !assistantFinalMessage.imageData && !assistantFinalMessage.error && !assistantFinalMessage.isEditSuggestion && !assistantFinalMessage.timer && !assistantFinalMessage.flashcard && !assistantFinalMessage.question && !assistantFinalMessage.actionDetails) { assistantFinalMessage.content = "(Received empty response)"; assistantFinalMessage.error = true; }
+
+                setChatHistory(prev => prev.map(msg => msg.id === newLoadingMsgId ? assistantFinalMessage : msg ));
+
+             } catch (err: any) {
+                 const errorMsg = err instanceof Error ? err.message : 'Unknown error processing request.';
+                 const errorFinalMessage = { id: newLoadingMsgId, role: 'assistant', content: `❌ ${errorMsg}. Please check console or try again.`, error: true, isGeneratingImage: false, wasImageGenerated: false };
+                 setChatHistory(prev => prev.map(msg => msg.id === newLoadingMsgId ? errorFinalMessage : msg ));
+                 setSuggestedPrompts([]);
+             } finally { setIsChatLoading(false); setLoadingMsgId(null); }
         };
 
-        const validateSequentialEdits = (editsJson: any[]): { valid: boolean, edits: EditStep[] } => { 
-            const validEdits: EditStep[] = []; 
-            let sequenceIsValid = true; 
-            for (let i = 0; i < editsJson.length; i++) { 
-                const step = editsJson[i]; 
-                if (typeof step.edit_type === 'string' && typeof step.content_fragment === 'string' && (typeof step.target_context === 'string' || step.target_context === null) && ['insert_after_context', 'replace_context', 'delete_context', 'insert_at_start', 'append_at_end', 'insert_before_context'].includes(step.edit_type) && (step.edit_type === 'insert_at_start' || step.edit_type === 'append_at_end' || step.target_context !== null) && !(step.edit_type === 'delete_context' && typeof step.target_context !== 'string') ) { 
-                    validEdits.push({ editType: step.edit_type as EditStep['editType'], targetContext: step.target_context, contentFragment: step.content_fragment }); 
-                } else { 
-                    sequenceIsValid = false; 
-                    break; 
-                } 
-            } 
-            return { valid: sequenceIsValid, edits: validEdits }; 
-        };
-
-        const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string) => {
+        const validateSequentialEdits = (editsJson: any[]): { valid: boolean, edits: EditStep[] } => { const validEdits: EditStep[] = []; let sequenceIsValid = true; for (let i = 0; i < editsJson.length; i++) { const step = editsJson[i]; if (typeof step.edit_type === 'string' && typeof step.content_fragment === 'string' && (typeof step.target_context === 'string' || step.target_context === null) && ['insert_after_context', 'replace_context', 'delete_context', 'insert_at_start', 'append_at_end', 'insert_before_context'].includes(step.edit_type) && (step.edit_type === 'insert_at_start' || step.edit_type === 'append_at_end' || step.target_context !== null) && !(step.edit_type === 'delete_context' && typeof step.target_context !== 'string') ) { validEdits.push({ editType: step.edit_type as EditStep['editType'], targetContext: step.target_context, contentFragment: step.content_fragment }); } else { sequenceIsValid = false; break; } } return { valid: sequenceIsValid, edits: validEdits }; };
+const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string) => {
             e?.preventDefault();
         
-            if (listening) {
-                SpeechRecognition.stopListening();
-                resetTranscript();
-            }
+        if (listening) {
+            SpeechRecognition.stopListening();
+            resetTranscript();
+        }
 
             const currentMessage = incomingMessage !== undefined ? incomingMessage : chatMessage.trim();
             
