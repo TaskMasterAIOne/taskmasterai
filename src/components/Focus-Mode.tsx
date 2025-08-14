@@ -2,12 +2,16 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 import {
-  Play, Pause, PlusCircle, Edit, Trash, Moon, CheckCircle, Paperclip, Trophy, Target, MessageCircle, BrainCircuit, ZapOff, Crown, RotateCcw, X, TimerIcon, Send, Settings2, SkipForward, Zap, Link2, StickyNote, History, Volume2, VolumeX, Maximize2, Brain, Coffee, Smile, Meh, Frown, TrendingUp, BookOpen, Award, Headphones, Wind, SunDim, Star as StarIcon, Flame, Volume1, Waves, CloudRain, Music2 as LofiIcon, Bird as ForestIcon, Flame as FireplaceIcon, Search, Globe, ImageIcon, Palette, Folder as FolderIconLucide, ChevronDown, ChevronRight, User as UserIcon, Loader2, Info as InfoIcon, Download, Users, Columns, Eye, AlignLeft, UserCheck, Hourglass, Notebook, Wand, SortAsc, CalendarCheck, Bot, CalendarDays,  Mic, Video, FileQuestion, Sparkles, Layers, PackagePlus, MessageSquarePlus, Edit3, SlidersHorizontal, BookCopy, ListTodo, Maximize, Minimize, Target as GoalIcon, CalendarRange, ArrowUpRight, Link as LinkLucideIcon, Plus, FileText, StopCircle, MoreHorizontal, BarChart3, AlertCircle, Circle, ShieldCheck, BatteryCharging
+  Play, Pause, PlusCircle, Edit, Trash, Moon, CheckCircle, Paperclip, Trophy, Target, MessageCircle, BrainCircuit, ZapOff, Crown, RotateCcw, X, TimerIcon, Send, Settings2, SkipForward, Zap, Link2, StickyNote, History, Volume2, VolumeX, Maximize2, Brain, Coffee, Smile, Meh, Frown, TrendingUp, BookOpen, Award, Headphones, Wind, SunDim, Star as StarIcon, Flame, Volume1, Waves, CloudRain, Music2 as LofiIcon, Bird as ForestIcon, Flame as FireplaceIcon, Search, Globe, ImageIcon, Palette, Folder as FolderIconLucide, ChevronDown, ChevronRight, User as UserIcon, Loader2, Info as InfoIcon, Download, Users, Columns, Eye, AlignLeft, UserCheck, Hourglass, Notebook, Wand, SortAsc, CalendarCheck, Bot, CalendarDays,  Mic, Video, FileQuestion, Sparkles, Layers, PackagePlus, MessageSquarePlus, Edit3, SlidersHorizontal, BookCopy, ListTodo, Maximize, Minimize, Target as GoalIcon, CalendarRange, ArrowUpRight, Link as LinkLucideIcon, Plus, FileText, StopCircle, MoreHorizontal, BarChart3, AlertCircle, Circle, ShieldCheck, BatteryCharging, CheckSquare, Square
 } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 import {
   onFirebaseAuthStateChanged,
@@ -94,6 +98,106 @@ import { ChatControls } from './chat-controls';
 import { IntegrationsControl } from './integrations-control';
 import { saveUserContext, onUserContextChange, type UserContext } from '../lib/ai-context-firebase';
 import { AMBIENT_SOUND_FILES, type AmbientSound as AmbientSoundFile } from '../lib/ambientSounds';
+
+// Constants
+const SUPPORTED_FILE_TYPES = "image/jpeg,image/png,image/webp,image/gif,image/svg+xml,application/pdf,text/plain,.md,.txt,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.rtf";
+const MAX_FILE_SIZE_MB = 20;
+const CHAT_HISTORY_LENGTH_FOR_PROMPT = 10;
+
+// Interfaces
+interface TimerMessage { type: 'timer'; duration: number; id: string; }
+interface FlashcardData { id: string; question: string; answer: string; topic: string; }
+interface QuestionData { id: string; question: string; options: string[]; correctAnswer: number; explanation: string; }
+interface FlashcardMessage { type: 'flashcard'; data: FlashcardData[]; }
+interface QuestionMessage { type: 'question'; data: QuestionData[]; }
+interface LocalImageData { base64: string; type: string; name: string; }
+
+export interface ChatMessageData {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  createdAt?: any;
+  timer?: TimerMessage;
+  flashcard?: FlashcardMessage;
+  question?: QuestionMessage;
+  error?: boolean;
+  actionDetails?: {
+    status: 'success' | 'error';
+    message?: string;
+    pageUrl?: string;
+    pageTitle?: string;
+  };
+  localImageData?: LocalImageData;
+  imageUrl?: string;
+  imageMeta?: FirebaseImageMeta;
+  isGeneratingImage?: boolean;
+  wasImageGenerated?: boolean;
+  isSearching?: boolean;
+  attachedFilesMeta?: Array<{ name: string; type: string; size: number; url?: string; base64Data?: string; localPreviewUrl?: string; storagePath?: string }>;
+  localPlaceholderId?: string;
+  isLoading?: boolean;
+  isVerifyingContent?: boolean;
+  isProcessingActions?: boolean;
+  sources?: any[];
+  isProcessingNotion?: boolean;
+}
+
+interface SelectedFile { name: string; type: string; size: number; base64Data: string; fileObject: File; localPreviewUrl: string; }
+
+// Notion icon component
+const NotionIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" {...props}>
+    <path className="fill-black dark:fill-white" d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z"/>
+  </svg>
+);
+
+// Utility functions
+const toDateSafe = (value: any): Date | null => {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (value instanceof Timestamp) return value.toDate();
+  if (typeof value === 'string' || typeof value === 'number') {
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof value === 'object' && 'seconds' in value && 'nanoseconds' in value && typeof value.seconds === 'number' && typeof value.nanoseconds === 'number') {
+    try {
+      return new Timestamp(value.seconds, value.nanoseconds).toDate();
+    } catch (e) { console.warn("toDateSafe error converting object:", e); return null; }
+  }
+  return null;
+};
+
+const formatBytes = (bytes: number, decimals = 2): string => {
+  if (bytes === 0) return '0 Bytes'; 
+  const k = 1024; 
+  const dm = decimals < 0 ? 0 : decimals; 
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']; 
+  const i = Math.floor(Math.log(bytes) / Math.log(k)); 
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+};
+
+const readFileAsSelectedFile = (file: File): Promise<SelectedFile> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    const localPreviewUrl = URL.createObjectURL(file);
+    reader.onload = () => {
+      const base64String = (reader.result as string).split(',')[1];
+      if (!base64String) {
+        URL.revokeObjectURL(localPreviewUrl);
+        reject(new Error("Failed to read file content."));
+        return;
+      }
+      resolve({ name: file.name, type: file.type, size: file.size, base64Data: base64String, fileObject: file, localPreviewUrl });
+    };
+    reader.onerror = (error) => {
+      URL.revokeObjectURL(localPreviewUrl);
+      reject(error);
+    };
+    reader.readAsDataURL(file);
+  });
+};
+
 import {
   saveMemory,
   getMemories,
@@ -175,6 +279,118 @@ const FOCUS_BADGES_CONFIG: { [key: string]: { name: string, description: string,
   focus_sound_explorer: { name: "Sonic Explorer", description: "Tried 3 different ambient sounds.", icon: Headphones, unlock_criteria_text: "Try 3 ambient sounds", condition: (p) => (p.soundsExploredCount || 0) >= 3 },
   focus_early_bird: { name: "Early Bird Focus", description: "Completed a focus session before 8 AM.", icon: SunDim, unlock_criteria_text: "Focus before 8 AM", condition: (p,fs) => fs?.status === 'completed' && fs.endTime && toDateSafe(fs.endTime)!.getHours() < 8 },
   focus_night_owl: { name: "Night Owl Focus", description: "Completed a focus session after 10 PM.", icon: Moon, unlock_criteria_text: "Focus after 10 PM", condition: (p,fs) => fs?.status === 'completed' && fs.endTime && toDateSafe(fs.endTime)!.getHours() >= 22 },
+};
+
+// AssistantMessageContent component for proper message rendering
+const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessageDisplayData, isDarkMode: boolean }) => {
+  const proseClassFocus = `prose prose-sm max-w-none prose-p:mb-3 prose-p:last:mb-0 prose-p:leading-relaxed prose-ul:my-3 prose-ul:space-y-2 prose-ol:my-3 prose-ol:space-y-2 prose-li:pl-1 prose-code:text-xs prose-code:px-1 prose-code:py-0.5 prose-pre:text-xs prose-pre:my-2 prose-pre:p-2 prose-pre:leading-relaxed
+    ${isDarkMode
+        ? 'prose-invert prose-a:text-[#8A85FF] hover:prose-a:text-indigo-300 prose-code:bg-gray-700/70 prose-code:text-pink-400 prose-pre:bg-black/60'
+        : 'prose-a:text-[#635BFF] hover:prose-a:text-indigo-700 prose-code:bg-gray-200/70 prose-code:text-pink-600 prose-pre:bg-gray-800/80 prose-pre:text-white/90'
+    }`;
+
+  return (
+    <>
+      {message.content && (
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          className={proseClassFocus}
+          components={{
+            a: ({ node, ...props }) => {
+              const textContent = node?.children?.[0]?.type === 'text' ? (node.children[0] as any).value : '';
+              const citationMatch = textContent.match(/^\[(\d+)\]$/);
+              if (citationMatch && props.href) {
+                return (
+                  <sup className="inline-block mx-0.5 align-super">
+                    <a href={props.href} target="_blank" rel="noopener noreferrer" className="text-[#635BFF] dark:text-[#8A85FF] no-underline hover:underline font-medium" title={`Source: ${props.href}`}>
+                      [{citationMatch[1]}]
+                    </a>
+                  </sup>
+                );
+              }
+              return <a target="_blank" rel="noopener noreferrer" {...props} />;
+            },
+            li: ({ node, children, ...props }) => {
+              const isTaskListItem = typeof (node?.children?.[0] as any)?.checked === 'boolean';
+              if (isTaskListItem) {
+                const checked = (node!.children[0] as any).checked;
+                const restOfChildren = React.Children.toArray(children).slice(1);
+                return (
+                  <li className="flex items-start my-1 list-none -ml-4" {...props}>
+                    <span className="mr-1.5 mt-[2px] flex-shrink-0">
+                      {checked ? <CheckSquare className="w-3.5 h-3.5 text-current" /> : <Square className="w-3.5 h-3.5 text-current opacity-60" />}
+                    </span>
+                    <div className="flex-grow">{restOfChildren}</div>
+                  </li>
+                );
+              }
+              return <li {...props}>{children}</li>;
+            },
+          }}
+        >
+          {message.content}
+        </ReactMarkdown>
+      )}
+
+      {message.actionDetails && (
+        <div className={`mt-2 pt-2 border-t border-dashed ${message.actionDetails.status === 'success' ? 'border-green-300 dark:border-green-700/60' : 'border-red-300 dark:border-red-700/60'}`}>
+          <div className={`flex items-center gap-1.5 text-xs font-medium ${message.actionDetails.status === 'success' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+            {message.actionDetails.status === 'success' ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+            <span className="whitespace-pre-wrap">{message.actionDetails.message}</span>
+          </div>
+
+          {/* Notion button for successful actions */}
+          {message.actionDetails.status === 'success' && (message.actionDetails as any).pageUrl && (
+            <div className="mt-2">
+              <a
+                href={(message.actionDetails as any).pageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-200/50 dark:bg-gray-700/50 px-2.5 py-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+              >
+                <NotionIcon className="w-3.5 h-3.5" />
+                <span>View "{(message.actionDetails as any).pageTitle || "Page"}" in Notion</span>
+                <ArrowUpRight className="w-3 h-3" />
+              </a>
+            </div>
+          )}
+        </div>
+      )}
+      
+      {message.sources && message.sources.length > 0 && (
+        <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700/70">
+          <h4 className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">{message.sources.length} sources found</h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {message.sources.sort((a,b) => a.number - b.number).map(source => {
+              let hostname = "source.com";
+              try {
+                hostname = new URL(source.url).hostname.replace('www.', '');
+              } catch (e) {
+                hostname = source.url.split('/')[2] || source.url;
+              }
+              return (
+                <a
+                  href={source.url}
+                  key={source.number}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block bg-gray-100/70 dark:bg-[#1A1D29] p-2 rounded-lg border border-gray-200 dark:border-gray-700/80 hover:bg-gray-200/70 dark:hover:bg-gray-700/60 transition-colors duration-150"
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">
+                      {source.number}
+                    </span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">{hostname}</span>
+                  </div>
+                  <p className="text-xs text-gray-700 dark:text-gray-200 line-clamp-2">{source.title}</p>
+                </a>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </>
+  );
 };
 
 
@@ -473,6 +689,8 @@ export function FocusMode() {
   const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isFsChatOpen, setIsFsChatOpen] = useState(false);
+  const [isConversationListOpen, setIsConversationListOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<{ message: string, onConfirm: () => void, onCancel?: () => void } | null>(null);
 
   const [activeSession, setActiveSession] = useState<FocusSessionData | null>(null);
   const activeSessionRef = useRef<FocusSessionData | null>(null);
@@ -501,6 +719,9 @@ export function FocusMode() {
   const [userProductivityItems, setUserProductivityItems] = useState<LinkableProductivityItem[]>([]);
   const [allFolders, setAllFolders] = useState<FolderData[]>([]);
   const [allSubFolders, setAllSubFolders] = useState<{ [parentId: string]: FolderData[] }>({});
+  const [tasks, setTasks] = useState<Array<{ id: string; data: any }>>([]);
+  const [goals, setGoals] = useState<Array<{ id: string; data: any }>>([]);
+  const [events, setEvents] = useState<Array<{ id: string; data: any }>>([]);
   const [expandedFoldersForLink, setExpandedFoldersForLink] = useState<Set<string>>(new Set());
 
 
@@ -551,6 +772,10 @@ export function FocusMode() {
 
   const [isRecording, setIsRecording] = useState(false);
   const [isAudioSupported, setIsAudioSupported] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [transcript, setTranscript] = useState('');
+  const [browserSupportsSpeechRecognition, setBrowserSupportsSpeechRecognition] = useState(false);
+  const [isMicrophoneAvailable, setIsMicrophoneAvailable] = useState(false);
   const recognitionRef = useRef<any>(null);
   const recognitionStoppedManually = useRef(false);
 
@@ -563,16 +788,59 @@ export function FocusMode() {
   const [aiActionStatus, setAiActionStatus] = useState<string | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [assistantLoadingPlaceholderId, setAssistantLoadingPlaceholderId] = useState<string | null>(null);
   const [activeStyle, setActiveStyle] = useState<'default' | 'illuminate' | 'blackout'>('default');
   const [isIlluminateEnabled, setIsIlluminateEnabled] = useState(false);
   const [isNotionConnected, setIsNotionConnected] = useState(false);
   const [isNotionSearchModeActive, setIsNotionSearchModeActive] = useState(false);
+  const [notionActionStatus, setNotionActionStatus] = useState<string | null>(null);
+  const [isProcessingNotion, setIsProcessingNotion] = useState(false);
+  const [activeNotionPage, setActiveNotionPage] = useState<{ id: string, title: string } | null>(null);
 
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const [isProductivityAnalysisLoading, setIsProductivityAnalysisLoading] = useState(false);
   const [productivityAnalysisResult, setProductivityAnalysisResult] = useState<ProductivityAnalysis | null>(null);
+  const [activePrompt, setActivePrompt] = useState<string>('');
+
+  // Quick actions for AI chat
+  const quickActions = useMemo(() => [
+    'Create a Task', 'Create a Goal', 'Create a Plan', 'Analyze my items', 'Set a Reminder', 
+    'Start a Timer for 5 minutes', 'Track My Progress', 'Brainstorm Ideas', 'Review My Goals', 
+    'Generate a Report', 'Organize My Notes', 'Suggest Improvements', 'Create a Checklist', 
+    'Prioritize My Tasks', 'Find a Solution', 'Log My Activity', 'Plan My Day', 
+    'Break Down a Project', 'Summarize Information', 'Set a Deadline', 'Optimize My Workflow', 
+    'Compare My Options', 'Visualize My Data', 'Sync My Calendar', 'Reflect on Progress'
+  ], []);
+
+  const quickActionIcons: Record<string, JSX.Element> = useMemo(() => ({
+    'Create a Task': <CheckCircle className="w-4 h-4 inline-block scale-90 md:scale-100" />,
+    'Create a Goal': <Target className="w-4 h-4 inline-block scale-90 md:scale-100" />,
+    'Create a Plan': <Calendar className="w-4 h-4 inline-block scale-90 md:scale-100" />,
+    'Analyze my items': <BarChart3 className="w-4 h-4 inline-block scale-90 md:scale-100" />,
+    'Set a Reminder': <Bell className="w-4 h-4 inline-block scale-90 md:scale-100" />,
+    'Start a Timer for 5 minutes': <TimerIcon className="w-4 h-4 inline-block scale-90 md:scale-100" />,
+    'Track My Progress': <TrendingUp className="w-4 h-4 inline-block scale-90 md:scale-100" />,
+    'Brainstorm Ideas': <Lightbulb className="w-4 h-4 inline-block scale-90 md:scale-100" />,
+    'Review My Goals': <Target className="w-4 h-4 inline-block scale-90 md:scale-100" />,
+    'Generate a Report': <FileText className="w-4 h-4 inline-block scale-90 md:scale-100" />,
+    'Organize My Notes': <Notebook className="w-4 h-4 inline-block scale-90 md:scale-100" />,
+    'Suggest Improvements': <Wand className="w-4 h-4 inline-block scale-90 md:scale-100" />,
+    'Create a Checklist': <ListChecks className="w-4 h-4 inline-block scale-90 md:scale-100" />,
+    'Prioritize My Tasks': <SortAsc className="w-4 h-4 inline-block scale-90 md:scale-100" />,
+    'Find a Solution': <Search className="w-4 h-4 inline-block scale-90 md:scale-100" />,
+    'Log My Activity': <ClipboardIcon className="w-4 h-4 inline-block scale-90 md:scale-100" />,
+    'Plan My Day': <Sun className="w-4 h-4 inline-block scale-90 md:scale-100" />,
+    'Break Down a Project': <Layers className="w-4 h-4 inline-block scale-90 md:scale-100" />,
+    'Summarize Information': <AlignLeft className="w-4 h-4 inline-block scale-90 md:scale-100" />,
+    'Set a Deadline': <Hourglass className="w-4 h-4 inline-block scale-90 md:scale-100" />,
+    'Optimize My Workflow': <Settings className="w-4 h-4 inline-block scale-90 md:scale-100" />,
+    'Compare My Options': <Columns className="w-4 h-4 inline-block scale-90 md:scale-100" />,
+    'Visualize My Data': <BarChart3 className="w-4 h-4 inline-block scale-90 md:scale-100" />,
+    'Sync My Calendar': <CalendarCheck className="w-4 h-4 inline-block scale-90 md:scale-100" />,
+    'Reflect on Progress': <Eye className="w-4 h-4 inline-block scale-90 md:scale-100" />
+  }), []);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -712,6 +980,11 @@ export function FocusMode() {
         unsubCustomTimers = onCustomTimersSnapshot(firebaseUser.uid, setCustomTimers);
         unsubFolders = onFoldersSnapshot(firebaseUser.uid, null, (folders) => setAllFolders(folders));
         getAllUserProductivityItems(firebaseUser.uid, true).then(setUserProductivityItems);
+        
+        // Set up listeners for tasks, goals, and events
+        const unsubTasks = onCollectionSnapshot('tasks', firebaseUser.uid, setTasks);
+        const unsubGoals = onCollectionSnapshot('goals', firebaseUser.uid, setGoals);
+        const unsubEvents = onCollectionSnapshot('events', firebaseUser.uid, setEvents);
         unsubFocusSessions = onUserFocusSessionsSnapshot(firebaseUser.uid, (sessions) => {
           const currentActive = sessions.find(s => ['running', 'paused', 'break_running', 'break_paused'].includes(s.status)) || null;
           setActiveSession(currentActive);
@@ -749,6 +1022,9 @@ export function FocusMode() {
         unsubFocusSessions();
         unsubConversations();
         unsubContext();
+        unsubTasks();
+        unsubGoals();
+        unsubEvents();
       };
     });
 
@@ -785,6 +1061,117 @@ export function FocusMode() {
     }
   }, [user, location.state, navigate, stopNotificationSound, selectedAmbientSoundInfo, ambientVolume, handleReset]);
 
+  // AI Chat useEffect hooks
+  useEffect(() => {
+    setIsChatDisabledByLimit(userTier !== 'premium' && chatUsageCount >= chatLimit && chatLimit !== Infinity);
+  }, [chatUsageCount, chatLimit, userTier]);
+
+  useEffect(() => {
+    if (!conversationId) {
+      setChatHistory([]);
+      setHasGeneratedChatName(false);
+      setSelectedFiles([]);
+      setIsImageGenModeActive(false);
+      setIsSearchModeActive(false);
+      setAssistantLoadingPlaceholderId(null);
+      return;
+    }
+
+    const unsubMessages = onChatMessagesSnapshot(conversationId, (messagesFromDb: FirebaseChatMessage[]) => {
+      const uiMessages = messagesFromDb.map(dbMsg => ({
+        ...dbMsg,
+        id: dbMsg.id || `fb-msg-${Date.now()}`,
+        isLoading: false,
+      }));
+
+      setChatHistory(currentLocalHistory => {
+        const localLoadingMessage = currentLocalHistory.find(m => m.isLoading);
+        if (localLoadingMessage && !uiMessages.find(m => m.id === localLoadingMessage.id)) {
+          return [...uiMessages, localLoadingMessage];
+        }
+        return uiMessages;
+      });
+    });
+
+    return () => unsubMessages();
+  }, [conversationId]);
+
+  useEffect(() => {
+    if (chatEndRef.current) {
+      requestAnimationFrame(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }));
+    }
+  }, [chatHistory, isChatLoading]);
+
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (ta) {
+      ta.style.height = 'auto';
+      ta.style.height = `${ta.scrollHeight}px`;
+    }
+  }, [chatMessage]);
+
+  useEffect(() => {
+    const applyTheme = () => {
+      const illuminate = JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'false');
+      setIsIlluminateEnabled(illuminate);
+
+      if (illuminate) {
+        document.documentElement.classList.remove('dark');
+        document.documentElement.classList.add('light');
+        setIsDarkMode(false);
+      } else {
+        document.documentElement.classList.remove('light');
+        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          document.documentElement.classList.add('dark');
+          setIsDarkMode(true);
+        } else {
+          document.documentElement.classList.remove('dark');
+          setIsDarkMode(false);
+        }
+      }
+    };
+    applyTheme();
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    mediaQuery.addEventListener('change', applyTheme);
+    window.addEventListener('storage', (event) => { if (event.key === 'isIlluminateEnabled') applyTheme(); });
+    return () => { mediaQuery.removeEventListener('change', applyTheme); window.removeEventListener('storage', (event) => { if (event.key === 'isIlluminateEnabled') applyTheme(); }); }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('isSidebarCollapsed', JSON.stringify(isSidebarCollapsed));
+  }, [isSidebarCollapsed]);
+
+  useEffect(() => {
+    const applyTheme = () => {
+      const savedTheme = localStorage.getItem('appTheme') || 'system';
+      document.documentElement.classList.remove('light', 'dark');
+
+      if (savedTheme === 'dark') {
+        document.documentElement.classList.add('dark');
+        setIsDarkMode(true);
+      } else if (savedTheme === 'light') {
+        document.documentElement.classList.add('light');
+        setIsDarkMode(false);
+      } else { // 'system'
+        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          document.documentElement.classList.add('dark');
+          setIsDarkMode(true);
+        } else {
+          document.documentElement.classList.add('light');
+          setIsDarkMode(false);
+        }
+      }
+    };
+
+    applyTheme();
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    mediaQuery.addEventListener('change', applyTheme);
+    window.addEventListener('storage', (event) => { if (event.key === 'appTheme') applyTheme(); });
+    return () => {
+      mediaQuery.removeEventListener('change', applyTheme);
+      window.removeEventListener('storage', (event) => { if (event.key === 'appTheme') applyTheme(); });
+    }
+  }, []);
 
   useEffect(() => {
     if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; }
@@ -1025,7 +1412,409 @@ export function FocusMode() {
     }
   };
 
+  // AI Chat utility functions and handlers
+  const formatItemsForChatContext = (): string => {
+    if (!user) return "User data not available.";
+    const lines: string[] = [`Current items for ${truncatedName}:\n`];
+    const formatLine = (item: any, type: string, nameField: string, dateField: string, colorField?: string) => {
+      const name = item.data[nameField] || 'Untitled';
+      const dateValue = item.data[dateField];
+      let itemDate: Date | null = toDateSafe(dateValue);
+      let detailsString = '';
+      if (itemDate && !isNaN(itemDate.getTime())) {
+        const dateStr = itemDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const timeStr = (itemDate.getHours() === 0 && itemDate.getMinutes() === 0) ? '' : ' ' + itemDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        detailsString += ` (${type === 'Event' ? 'Starts' : 'Due'}: ${dateStr}${timeStr})`;
+      }
+      if (type === 'Event' && item.data.endDate) {
+        let endDateVal: Date | null = toDateSafe(item.data.endDate);
+        if (endDateVal && !isNaN(endDateVal.getTime())) {
+          const endDateStr = endDateVal.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          const endTimeStr = (endDateVal.getHours() === 0 && endDateVal.getMinutes() === 0 && endDateVal.toLocaleDateString() === itemDate?.toLocaleDateString()) ? '' : ' ' + endDateVal.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+          detailsString += ` to ${endDateStr}${endTimeStr}`;
+        }
+      }
+      if (type !== 'Event') { detailsString += ` [Priority: ${calculatePriority(item)}]`; }
+      if (item.data.recurring) { detailsString += ` [Recurs ${item.data.recurrenceType}]`; }
+      const completed = item.data.completed ? '[Completed]' : '[Pending]';
+      detailsString += ` ${completed}`;
+      if (type === 'Event' && colorField && item.data[colorField]) { detailsString += ` [Color: ${item.data[colorField]}]`; }
+      return `${type}: ${name}${detailsString}`;
+    };
+    [...tasks.map(t => ({ item: t, type: 'Task' })), ...goals.map(g => ({ item: g, type: 'Goal' })), ...events.map(e => ({ item: e, type: 'Event' }))]
+      .filter(({ item }) => !item.data.completed)
+      .forEach(({ item, type }) => {
+        if (type === 'Task') lines.push(formatLine(item, 'Task', 'task', 'dueDate'));
+        else if (type === 'Goal') lines.push(formatLine(item, 'Goal', 'goal', 'targetDate'));
+        else if (type === 'Event') lines.push(formatLine(item, 'Event', 'name', 'startDate', 'color'));
+      });
+    if (lines.length === 1) return `No active tasks, goals, or upcoming non-completed events found for ${truncatedName}.`;
+    return lines.join('\n');
+  };
+
+  const calculatePriority = (itemInput: any): 'high' | 'medium' | 'low' => {
+    const itemData = itemInput?.data || itemInput;
+    if (!itemData) return 'low';
+    if (itemData.priority) return itemData.priority;
+    if (!itemData.dueDate && !itemData.targetDate) return 'low';
+    let itemDateToConsider: Date | Timestamp | null = itemData.dueDate || itemData.targetDate;
+    let dueDate: Date | null = null;
+    if (itemDateToConsider?.toDate) { dueDate = itemDateToConsider.toDate(); }
+    else if (itemDateToConsider instanceof Date) { dueDate = itemDateToConsider; }
+    else if (typeof itemDateToConsider === 'string' || typeof itemDateToConsider === 'number') {
+      try { dueDate = new Date(itemDateToConsider); if (isNaN(dueDate.getTime())) dueDate = null; }
+      catch (e) { dueDate = null; }
+    }
+    if (!dueDate) return 'low';
+    const now = new Date();
+    const dueDateNormalized = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+    const nowDateNormalized = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const diffTime = dueDateNormalized.getTime() - nowDateNormalized.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    if (diffDays < 0) return 'high';
+    if (diffDays <= 1) return 'high';
+    if (diffDays <= 3) return 'medium';
+    return 'low';
+  };
+
+  const createChatPromptContents = (userMessage: string, filesDataForPrompt: SelectedFile[], currentHistory: ChatMessageDisplayData[]): FirebaseChatMessage[] => {
+    const formattedHistory: FirebaseChatMessage[] = currentHistory.map(msg => {
+      const parts: any[] = [];
+      if (typeof msg.content === 'string') { parts.push({ text: msg.content }); }
+      if (msg.role === 'user' && msg.attachedFilesMeta) {
+        msg.attachedFilesMeta.forEach(file => { if (file.base64Data && (file.type.startsWith('image/') || file.type === 'application/pdf' || file.type === 'text/plain' || file.name.endsWith('.md'))) { parts.push({ inline_data: { mime_type: file.type, data: file.base64Data } }); } });
+      }
+      if (parts.length === 0) { parts.push({ text: "" }); }
+      return { role: msg.role === 'assistant' ? 'model' : 'user', parts };
+    });
+    const userMessageParts: any[] = [{ text: userMessage }];
+    if (filesDataForPrompt.length > 0) {
+      filesDataForPrompt.forEach(sf => { if (sf.type.startsWith('image/') || sf.type === 'application/pdf' || sf.type === 'text/plain' || sf.name.endsWith('.md')) { userMessageParts.push({ inline_data: { mime_type: sf.type, data: sf.base64Data } }); } });
+    }
+    return [...formattedHistory, { role: 'user', parts: userMessageParts }];
+  };
+
+  const generateChatName = async (convId: string, history: ChatMessageDisplayData[], currentUser: User | null) => {
+    if (!currentUser || !currentUser.uid || history.length === 0) {
+      console.warn("generateChatName guard clause triggered. Aborting.", { hasUser: !!currentUser, historyLength: history.length });
+      return;
+    }
+
+    const relevantHistory = history.slice(0, Math.min(history.length, 4)).map(m => `${m.role}: ${m.content?.substring(0, 100) || ""}`).join("\n");
+    const prompt = `Please provide a short 3-5 word title summarizing the conversation so far:\n${relevantHistory}\nReturn ONLY the title, with no extra commentary. USE THE SAME LANGUAGE AS PRESENTED IN THE CONVERSATION!`;
+    
+    try {
+      const functions = getFunctions();
+      const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+      
+      const apiRequestBody = {
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { 
+          temperature: 0.5, 
+          maxOutputTokens: 60 
+        },
+        isImageGen: false
+      };
+      
+      const result = await geminiProxyCallable(apiRequestBody);
+      const responseData = result.data as any;
+      
+      if (responseData.text && responseData.text.trim()) {
+        const newName = responseData.text.trim().replace(/["']/g, "").substring(0, 50);
+        await updateChatConversationName(convId, newName);
+      } else if (responseData.error) { 
+        console.warn("Name gen failed (API/parsing):", responseData.error); 
+      }
+    } catch (error) { 
+      console.error("Error in generateChatName:", error); 
+    }
+  };
+
   const handleSessionNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => { setSessionNotes(e.target.value); };
+
+  // AI Chat handlers
+  const handleNewConversation = async () => { 
+    if (!user || !user.uid) return; 
+    const newConvId = await createChatConversation(user.uid, 'New Chat'); 
+    if (newConvId) { 
+      setConversationId(newConvId); 
+    } 
+  };
+
+  const handleSelectConversation = (convId: string) => { 
+    if (conversationId === convId) return; 
+    setConversationId(convId); 
+    const selConv = conversationList.find(c => c.id === convId); 
+    setHasGeneratedChatName(selConv ? selConv.chatName !== "New Chat" : false); 
+    setIsConversationListOpen(false); 
+  };
+
+  const handleRenameConversation = async (conv: any) => { 
+    setOpenDropdownId(null); 
+    const newName = window.prompt('Enter new chat name:', conv.chatName); 
+    if (newName?.trim()) await updateChatConversationName(conv.id, newName.trim()); 
+  };
+
+  const handleDeleteConversationClick = (conv: any) => {
+    setOpenDropdownId(null);
+    setConfirmAction({
+      message: `Delete "${conv.chatName}"? This cannot be undone.`,
+      onConfirm: async () => {
+        await deleteChatConversation(user.uid!, conv.id);
+        if (conversationId === conv.id) setConversationId(null);
+        setConfirmAction(null);
+      },
+      onCancel: () => setConfirmAction(null)
+    });
+  };
+
+  const handleQuickActionClick = (action: string) => { 
+    setChatMessage(action); 
+    textareaRef.current?.focus(); 
+  };
+
+  const handleSaveContext = async (context: Partial<UserContext>) => { 
+    if (!user || !user.uid) return; 
+    await saveUserContext(user.uid, context); 
+    setIsContextDialogOpen(false); 
+  };
+
+  const triggerFileSelect = () => fileInputRef.current?.click();
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!event.target.files || event.target.files.length === 0) return;
+    const filesArray = Array.from(event.target.files);
+    const newSelectedFiles: SelectedFile[] = [];
+    for (const file of filesArray) {
+      if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) { 
+        alert(`File ${file.name} is too large (max ${MAX_FILE_SIZE_MB}MB).`); 
+        continue; 
+      }
+      try { 
+        newSelectedFiles.push(await readFileAsSelectedFile(file)); 
+      }
+      catch (error) { 
+        console.error("Error reading file:", file.name, error); 
+        alert(`Error reading file ${file.name}.`); 
+      }
+    }
+    setSelectedFiles(prev => [...prev, ...newSelectedFiles].slice(0, 5));
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleRemoveFile = (fileName: string) => { 
+    setSelectedFiles(prev => prev.filter(f => { 
+      if (f.name === fileName && f.localPreviewUrl) { 
+        URL.revokeObjectURL(f.localPreviewUrl); 
+      } 
+      return f.name !== fileName; 
+    })); 
+  };
+
+  const handlePaste = async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (isImageGenModeActive || isSearchModeActive || selectedFiles.length >= 5) return;
+    const items = event.clipboardData?.items; 
+    if (!items) return;
+    const filesToProcess: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].kind === 'file') {
+        const file = items[i].getAsFile();
+        if (file && SUPPORTED_FILE_TYPES.split(',').some(type => type.trim() === file.type || file.name.endsWith(type.trim())) && file.size <= MAX_FILE_SIZE_MB * 1024 * 1024) { 
+          filesToProcess.push(file); 
+        }
+      }
+    }
+    if (filesToProcess.length > 0) {
+      event.preventDefault();
+      const newSelectedFiles: SelectedFile[] = [];
+      for (const file of filesToProcess) {
+        try { 
+          newSelectedFiles.push(await readFileAsSelectedFile(file)); 
+        }
+        catch (error) { 
+          console.error("Error reading pasted file:", file.name, error); 
+        }
+      }
+      setSelectedFiles(prev => [...prev, ...newSelectedFiles].slice(0, 5));
+    }
+  };
+
+  const handleToggleImageGenMode = () => { 
+    setIsImageGenModeActive(prev => { 
+      if (!prev) { 
+        setIsSearchModeActive(false); 
+        if (selectedFiles.length > 0) { 
+          selectedFiles.forEach(sf => { 
+            if (sf.localPreviewUrl) URL.revokeObjectURL(sf.localPreviewUrl); 
+          }); 
+          setSelectedFiles([]); 
+        } 
+      } 
+      return !prev; 
+    }); 
+  };
+
+  const handleToggleSearchMode = () => { 
+    setIsSearchModeActive(prev => { 
+      if (!prev) { 
+        setIsImageGenModeActive(false); 
+        if (selectedFiles.length > 0) { 
+          selectedFiles.forEach(sf => { 
+            if (sf.localPreviewUrl) URL.revokeObjectURL(sf.localPreviewUrl); 
+          }); 
+          setSelectedFiles([]); 
+        } 
+      } 
+      return !prev; 
+    }); 
+  };
+
+  const handleToggleNotionSearchMode = () => {
+    if (!isNotionConnected) {
+      navigate('/settings');
+      return;
+    }
+    setIsNotionSearchModeActive(prev => {
+      if (!prev) {
+        setIsImageGenModeActive(false);
+        setIsSearchModeActive(false);
+      }
+      return !prev;
+    });
+  };
+
+  const handleStyleSelect = (style: string, prompt: string) => {
+    setActiveStyle(style as 'default' | 'illuminate' | 'blackout');
+    setActivePrompt(prompt);
+  };
+
+  const handleFileDrop = async (files: FileList) => {
+    if (!files || files.length === 0 || isImageGenModeActive || isSearchModeActive || isChatLoading || isChatDisabledByLimit) return;
+    
+    const filesArray = Array.from(files);
+    const newSelectedFiles: SelectedFile[] = [];
+
+    for (const file of filesArray) {
+      if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+        alert(`File ${file.name} is too large (max ${MAX_FILE_SIZE_MB}MB).`);
+        continue;
+      }
+
+      const isSupported = SUPPORTED_FILE_TYPES.split(',').some(supportedType => {
+        const trimmedType = supportedType.trim();
+        if (trimmedType.startsWith('.')) {
+          return file.name.toLowerCase().endsWith(trimmedType);
+        }
+        return file.type === trimmedType;
+      });
+
+      if (!isSupported) {
+        alert(`File type for ${file.name} (${file.type || 'unknown'}) is not supported.`);
+        continue;
+      }
+
+      try {
+        newSelectedFiles.push(await readFileAsSelectedFile(file));
+      } catch (error) {
+        console.error("Error reading file:", file.name, error);
+      }
+    }
+    if (newSelectedFiles.length > 0) {
+      setSelectedFiles(prev => [...prev, ...newSelectedFiles].slice(0, 5));
+    }
+  };
+
+  const handleDragEvents = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    handleDragEvents(e);
+    if (!isImageGenModeActive && !isSearchModeActive && !isChatLoading && !isChatDisabledByLimit) {
+      setIsDraggingOver(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    handleDragEvents(e);
+    setIsDraggingOver(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    handleDragEvents(e);
+    setIsDraggingOver(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFileDrop(e.dataTransfer.files);
+      return;
+    }
+    const html = e.dataTransfer.getData('text/html');
+    if (html) {
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = html;
+      const img = tempDiv.querySelector('img');
+      if (img && img.src) {
+        const newSelectedFile = await urlToSelectedFile(img.src);
+        if (newSelectedFile) setSelectedFiles(prev => [...prev, newSelectedFile].slice(0, 5));
+        return;
+      }
+    }
+    const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
+    if (url && (url.startsWith('http') || url.startsWith('data:image'))) {
+      const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
+      if (imageExtensions.some(ext => url.toLowerCase().includes(ext)) || url.startsWith('data:image')) {
+        const newSelectedFile = await urlToSelectedFile(url);
+        if (newSelectedFile) setSelectedFiles(prev => [...prev, newSelectedFile].slice(0, 5));
+      }
+    }
+  };
+
+  const urlToSelectedFile = async (url: string): Promise<SelectedFile | null> => {
+    // Handle base64 data URLs directly
+    if (url.startsWith('data:')) {
+      try {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const fileName = `pasted-image-${Date.now()}.${blob.type.split('/')[1] || 'png'}`;
+        const file = new File([blob], fileName, { type: blob.type });
+        return await readFileAsSelectedFile(file);
+      } catch (error) {
+        console.error("Error converting data URL to file:", error);
+        alert("Could not process the dragged image data.");
+        return null;
+      }
+    }
+
+    // Handle regular http/https URLs
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image. Status: ${response.status}`);
+      }
+      const blob = await response.blob();
+
+      let fileName = `dragged-image-${Date.now()}`;
+      try {
+        const urlPath = new URL(url).pathname;
+        const lastSegment = urlPath.substring(urlPath.lastIndexOf('/') + 1);
+        if (lastSegment) {
+          fileName = lastSegment.split('?')[0];
+        }
+      } catch (e) { /* Ignore invalid URL for naming */ }
+      
+      const extension = blob.type.split('/')[1];
+      if (extension && !fileName.toLowerCase().endsWith(`.${extension}`)) {
+        fileName += `.${extension}`;
+      }
+
+      const file = new File([blob], fileName, { type: blob.type });
+      return await readFileAsSelectedFile(file);
+    } catch (error) {
+      console.error("Error converting URL to file:", error);
+      alert("Could not fetch the dragged image. This may be due to security restrictions (CORS) on the source website.");
+      return null;
+    }
+  };
   const handleSaveSessionNotes = async () => { if (activeSession && activeSession.id && user && !['completed', 'cancelled'].includes(activeSession.status)) await addNoteToFocusSession(activeSession.id, sessionNotes || null); };
   const handleSessionGoalTextChange = (e: React.ChangeEvent<HTMLInputElement>) => { setSessionGoalText(e.target.value); if (activeSession && activeSession.id && !['completed', 'cancelled'].includes(activeSession.status)) updateFocusSession(activeSession.id, { sessionGoalText: e.target.value || null }); };
 
@@ -2124,10 +2913,34 @@ Assistant:`;
                                 <div className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm shadow-sm break-words ${message.role === 'user' ? 'bg-indigo-500 text-white' : message.error ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200 border border-red-200 dark:border-red-700/60' : message.role === 'system' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-100 border border-yellow-200 dark:border-yellow-700/60 text-center mx-auto' : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700/70'}`}>
                                     {message.isLoading && (
                                         <div className="flex flex-col items-center gap-1.5 text-gray-500 dark:text-gray-400 p-1">
-                                            {message.isVerifyingContent ? (<div className="flex flex-col items-center gap-2 text-sm text-gray-600 dark:text-gray-400 p-2"><ShieldCheck className="w-7 h-7 text-green-500 animate-pulse" /><span className="font-medium">Ensuring accuracy...</span></div>
-                                            ) : message.isSearching ? (<div className="text-left w-full text-sm"><div className="flex items-center gap-2 font-medium"><Globe className="w-4 h-4 animate-spin" /><span>Searching the web...</span></div></div>
-                                            ) : message.isGeneratingImage ? (<div className="flex items-center gap-2 text-sm"><Palette className="w-4 h-4 animate-pulse text-purple-500" /><span>Creating image...</span></div>
-                                            ) : (<div className="flex space-x-0.5 p-1"><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce"></div><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div></div>
+                                            {(message as any).isProcessingNotion ? (
+                                                <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                                                    <NotionIcon className="w-4 h-4 animate-pulse" />
+                                                    <span>Working with Notion...</span>
+                                                </div>
+                                            ) : message.isVerifyingContent ? (
+                                                <div className="flex flex-col items-center gap-2 text-sm text-gray-600 dark:text-gray-400 p-2">
+                                                    <ShieldCheck className="w-7 h-7 text-green-500 animate-pulse" />
+                                                    <span className="font-medium">Ensuring accuracy...</span>
+                                                </div>
+                                            ) : message.isSearching ? (
+                                                <div className="text-left w-full text-sm">
+                                                    <div className="flex items-center gap-2 font-medium">
+                                                        <Globe className="w-4 h-4 animate-spin" />
+                                                        <span>Searching the web...</span>
+                                                    </div>
+                                                </div>
+                                            ) : message.isGeneratingImage ? (
+                                                <div className="flex items-center gap-2 text-sm">
+                                                    <Palette className="w-4 h-4 animate-pulse text-purple-500" />
+                                                    <span>Creating image...</span>
+                                                </div>
+                                            ) : (
+                                                <div className="flex space-x-0.5 p-1">
+                                                    <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce"></div>
+                                                    <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div>
+                                                    <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div>
+                                                </div>
                                             )}
                                         </div>
                                     )}
