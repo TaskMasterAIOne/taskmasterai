@@ -29,7 +29,6 @@ import {
   onCollectionSnapshot,
   onFirebaseAuthStateChanged,
   updateDashboardLastSeen,
-  getGeminiApiKey, // Import the new function
   findItemByName,
   type EventData as FirebaseEventData,
   createEvent as createFirebaseEvent,
@@ -518,28 +517,7 @@ export function Folders() {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
 
-  // --- ADD THIS NEW STATE AND EFFECT ---
-  // --- ADD THIS NEW STATE AND EFFECT ---
-  const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchKey = async () => {
-      if (user) {
-        const key = await getGeminiApiKey();
-        if (key && !key.startsWith("ERROR_")) {
-          setGeminiApiKey(key);
-        } else {
-          console.error("Critical: Failed to load API key for the user in Folders component.");
-          showToast("AI services are currently unavailable due to a configuration error.", "error");
-        }
-      } else {
-        setGeminiApiKey(null);
-      }
-    };
-
-    fetchKey();
-  }, [user]); // This effect runs when the user's auth state changes
-  // --- END OF NEW CODE ---
 
 
     // --- ADD THESE NEW STATE VARIABLES ---
@@ -1379,24 +1357,28 @@ const addPoints = useCallback(async (
 // src/components/Folders.tsx
 
 const generateChatName = useCallback(async (convId: string, history: ChatMessageData[], currentUser: FirebaseUser | null) => {
-    // FIX: Added !geminiApiKey check to the guard clause
-    if (!currentUser || !currentUser.uid || history.length < 2 || !geminiApiKey || !selectedFolder) return;
+    if (!currentUser || !currentUser.uid || history.length < 2 || !selectedFolder) return;
     
     const relevantHistory = history.slice(0, Math.min(history.length, 4)).map(m => `${m.role}: ${m.content?.substring(0,100) || ""}`).join("\n");
     const prompt = `Please provide a short 3-5 word title summarizing this study conversation about the folder "${selectedFolder.name}":\n${relevantHistory}\nReturn ONLY the title, with no extra commentary. USE THE SAME LANGUAGE AS PRESENTED IN THE CONVERSATION!`;
     
     try {
-        const nameGenEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${geminiApiKey}`;
-        const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 60 }})};
-        const response = await fetchWithTimeout(nameGenEndpoint, geminiOptions, 10000);
+        // --- THIS IS THE NEW LOGIC ---
+        const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
         
-        if (!response.ok) { 
-            console.warn("Chat name gen API error:", response.status); 
-            return; 
-        }
-        
-        const responseText = await response.text();
-        const parsedResponse = parseGeminiApiResponse(responseText, false);
+        const apiRequestBody = {
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.5, maxOutputTokens: 60 },
+            tools: [],
+            systemInstruction: undefined,
+            isImageGen: false
+        };
+
+        const result = await geminiProxyCallable(apiRequestBody);
+        const responseData = result.data as any; // The data is now the direct response from Gemini
+
+        // Now, parse the responseData as if it came from Google
+        const parsedResponse = parseGeminiApiResponse(JSON.stringify(responseData), false);
         
         if (parsedResponse.text && parsedResponse.text.trim()) {
             await updateChatConversationName(currentUser.uid, convId, parsedResponse.text.trim().substring(0, 50));
@@ -1404,7 +1386,7 @@ const generateChatName = useCallback(async (convId: string, history: ChatMessage
     } catch (error) { 
         console.error("Error in generateChatName:", error); 
     }
-}, [selectedFolder, geminiApiKey]); // Added geminiApiKey to dependency array
+}, [selectedFolder]);
 
 const calculatePriority = (itemInput: any): 'high' | 'medium' | 'low' => {
   const itemData = itemInput?.data || itemInput;
@@ -1562,13 +1544,7 @@ const handleChatSubmit = useCallback(async (e?: React.FormEvent, incomingMessage
     e?.preventDefault();
 
 
-     // --- ADD THIS GUARD CLAUSE AT THE TOP ---
-    if (!geminiApiKey) {
-        console.error("API Key is not available. Aborting chat submission.");
-        showToast("AI service is unavailable. Please check your connection or try again later.", "error");
-        return;
-    }
-    // --- END OF FIX ---
+
 
     // Stop speech recognition if it's active
     if (listening) {
@@ -2033,8 +2009,6 @@ Your primary goal is to be a world-class assistant. Adhere strictly to these pro
 Assistant:`;
 
     let apiRequestBody: any;
-    const currentModel = imageGenModeOn ? GEMINI_IMAGE_GEN_MODEL : GEMINI_TEXT_MODEL;
-    const fullApiUrl = `${GEMINI_API_BASE}${currentModel}:generateContent?key=${geminiApiKey}`;
 
     if (imageGenModeOn) {
         apiRequestBody = {
@@ -2117,12 +2091,23 @@ Assistant:`;
         }
     }
     
-    const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(apiRequestBody)};
-
     try {
-      const response = await fetchWithTimeout(fullApiUrl, geminiOptions);
-      const responseText = await response.text();
-      const parsedApiResult = parseGeminiApiResponse(responseText, imageGenModeOn);
+        // --- THIS IS THE NEW LOGIC ---
+        const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+        
+        const apiRequestBodyForProxy = {
+            contents: apiRequestBody.contents,
+            generationConfig: apiRequestBody.generationConfig,
+            tools: apiRequestBody.tools || [],
+            systemInstruction: apiRequestBody.systemInstruction,
+            isImageGen: imageGenModeOn
+        };
+
+        const result = await geminiProxyCallable(apiRequestBodyForProxy);
+        const responseData = result.data as any; // The data is now the direct response from Gemini
+
+        // Now, parse the responseData as if it came from Google
+        const parsedApiResult = parseGeminiApiResponse(JSON.stringify(responseData), imageGenModeOn);
       const sources = parsedApiResult.sources || [];
       let contentToProcess = parsedApiResult.text || "";
       if (sources.length > 0) {
@@ -3261,11 +3246,8 @@ const handleSubmitTest = useCallback(async () => {
 // src/components/Folders.tsx
 
 const generateFolderStats = useCallback(async () => {
-    // FIX: Modified guard clause to check for geminiApiKey and provide user feedback
-    if (!user || !user.uid || isFolderStatsLoading || !geminiApiKey || !selectedFolder || folderItems.length === 0) {
-        if (!geminiApiKey) {
-            showToast("AI Analytics is currently unavailable due to a configuration error.", "error");
-        } else if (!selectedFolder || folderItems.length === 0) {
+    if (!user || !user.uid || isFolderStatsLoading || !selectedFolder || folderItems.length === 0) {
+        if (!selectedFolder || folderItems.length === 0) {
             showToast("Please select a folder with items first.", "info");
             setFolderStats({ analysis: "Select a folder with items and click 'Get Insights' for an AI-powered summary and study suggestions.", readiness_score: 0, suggestions: [] });
         }
@@ -3313,14 +3295,22 @@ const generateFolderStats = useCallback(async () => {
     }
     `;
     try {
-        const analysisEndpoint = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${geminiApiKey}`;
-        const geminiOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.6 } })};
-        const response = await fetchWithTimeout(analysisEndpoint, geminiOptions, 30000);
+        // --- THIS IS THE NEW LOGIC ---
+        const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
         
-        if (!response.ok) throw new Error(`API error (${response.status}): ${await response.text()}`);
-        
-        const responseText = await response.text();
-        const parsedResponse = parseGeminiApiResponse(responseText, false);
+        const apiRequestBody = {
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { responseMimeType: "application/json", temperature: 0.6 },
+            tools: [],
+            systemInstruction: undefined,
+            isImageGen: false
+        };
+
+        const result = await geminiProxyCallable(apiRequestBody);
+        const responseData = result.data as any; // The data is now the direct response from Gemini
+
+        // Now, parse the responseData as if it came from Google
+        const parsedResponse = parseGeminiApiResponse(JSON.stringify(responseData), false);
         
         if (parsedResponse.error || !parsedResponse.text) { 
             throw new Error(parsedResponse.error || "Empty AI response for folder stats."); 
@@ -3357,7 +3347,7 @@ const generateFolderStats = useCallback(async () => {
     } finally { 
         setIsFolderStatsLoading(false); 
     }
-}, [user, isFolderStatsLoading, selectedFolder, folderItems, userName, userContext, showToast, geminiApiKey]); // Added geminiApiKey to dependency array
+    }, [user, isFolderStatsLoading, selectedFolder, folderItems, userName, userContext, showToast]);
 
   const handleAcceptFolderStatSuggestion = useCallback((suggestion: any) => {
     if (!user || !selectedFolder) return;
@@ -4406,7 +4396,7 @@ return (
             )}
             {aiChatSidebarTab === 'analytics' && ( 
                 <div className="flex-1 overflow-y-auto p-3 space-y-2.5 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent bg-white dark:bg-[#0C0E1A]">
-                    <button onClick={generateFolderStats} disabled={isFolderStatsLoading || !user || !geminiApiKey || !selectedFolder} className="w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 shadow-sm bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 disabled:opacity-70 transform hover:scale-[1.02] active:scale-[0.98]"><BarChart3 className="w-4 h-4" />{isFolderStatsLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : "Get Folder Analytics"}</button>
+                    <button onClick={generateFolderStats} disabled={isFolderStatsLoading || !user || !selectedFolder} className="w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 shadow-sm bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 disabled:opacity-70 transform hover:scale-[1.02] active:scale-[0.98]"><BarChart3 className="w-4 h-4" />{isFolderStatsLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : "Get Folder Analytics"}</button>
                     {folderStats && (
                         <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700/70 animate-fadeIn shadow-sm">
                             <h4 className="text-md font-semibold mb-2 text-indigo-500 dark:text-indigo-400">Readiness Score: {folderStats.readiness_score}%</h4>
