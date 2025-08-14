@@ -18,7 +18,7 @@ import { FlashcardsQuestions } from './FlashcardsQuestions';
 import { User } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { Timestamp } from 'firebase/firestore';
-import { getGeminiApiKey, onCollectionSnapshot, findItemByName, updateItem, createEvent as createFirebaseEvent, deleteItem } from '../lib/dashboard-firebase';import { onUserProfileSnapshot, type UserProfileData, updateUserStreak } from '../lib/current-paying-user';
+import { onCollectionSnapshot, findItemByName, updateItem, createEvent as createFirebaseEvent, deleteItem } from '../lib/dashboard-firebase';import { onUserProfileSnapshot, type UserProfileData, updateUserStreak } from '../lib/current-paying-user';
 import { saveUserContext, onUserContextChange, type UserContext } from '../lib/ai-context-firebase';
 import { saveMemory, getMemories, updateMemory, deleteMemory, type Memory } from '../lib/ai-memories-firebase';
 import { createUserTask, createUserGoal, createUserPlan, updateUserTask, updateUserGoal, deleteUserTask, deleteUserGoal } from '../lib/ai-actions-firebase';
@@ -681,25 +681,7 @@ const NoteChatComponent: React.ForwardRefRenderFunction<NoteChatHandle, NoteChat
     const [activePrompt, setActivePrompt] = useState<string>('');
     const [aiActionStatus, setAiActionStatus] = useState<string | null>(null);
 
- // --- ADD THIS BLOCK ---
-    const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
 
-    useEffect(() => {
-        const fetchKey = async () => {
-            if (user) { // Assuming 'user' state is available in this component
-                const key = await getGeminiApiKey();
-                if (key && !key.startsWith("ERROR_")) {
-                    setGeminiApiKey(key);
-                } else {
-                    console.error("Critical: Failed to load API key.");
-                    // Optionally display an error in the chat UI
-                    setChatHistory(prev => [...prev, { id: 'key-error', role: 'system', content: 'AI services are unavailable due to a configuration error.', error: true }]);
-                }
-            }
-        };
-        fetchKey();
-    }, [user]);
-    // --- END OF BLOCK ---
 
 const navigate = useNavigate();
 const functions = getFunctions();
@@ -1048,13 +1030,7 @@ Just ask to get started.
             forceSearchMode = false,
             pdfContextSegmentsForThisMessage?: PdfContextSegment[]
         ) => {
-            // --- ADD THIS GUARD CLAUSE ---
-            if (!geminiApiKey) {
-                setChatHistory(prev => [...prev, { id: `err-no-key-${Date.now()}`, role: 'assistant', content: 'Error: AI service is not available. Please check your connection.', error: true }]);
-                setIsChatLoading(false);
-                return;
-            }
-            // --- END OF FIX ---
+
             const isUsingImageGenModel = forceImageGenMode || isImageGenModeActive;
             const isUsingSearch = forceSearchMode || isSearchModeActive;
             const currentFiles = filesToSend || [];
@@ -1062,7 +1038,7 @@ Just ask to get started.
 
             if ((!messageContent && currentFiles.length === 0 && !isUsingImageGenModel && !isUsingSearch && !collectedPdfContextText) ||
                 (!messageContent && (isUsingImageGenModel || isUsingSearch)) ||
-                isChatLoading || !geminiApiKey || !note || !user ) return;
+                isChatLoading || !note || !user ) return;
 
             if (isChatLimitReached && userTier !== 'premium') {
                 setChatHistory(prev => [...prev, { id: `limit-${Date.now()}`, role: 'assistant', content: `You've reached your ${currentChatLimit === Infinity ? 'monthly' : currentChatLimit} chat message limit. Upgrade for more interactions!`, error: true }]);
@@ -1701,9 +1677,6 @@ Be efficient. Be minimal. Don’t explain unless asked.
 `;
 
             try {
-                const targetModel = isUsingImageGenModel ? GEMINI_IMAGE_GEN_MODEL : GEMINI_TEXT_MODEL;
-                const fullGeminiEndpoint = `${GEMINI_API_BASE}${targetModel}:generateContent?key=${geminiApiKey}`;
-
                 const requestBody: any = {
                     generationConfig: {
                         temperature: isUsingImageGenModel ? 0.8 : 0.7,
@@ -1743,9 +1716,23 @@ recentHistory.forEach(msg => {
                     requestBody.contents = filteredApiContent;
                 }
                 
-                const response = await fetchWithRetry(fullGeminiEndpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody) });
-                const responseText = await response.text();
-                const parsedResult = parseGeminiApiResponse(responseText, isUsingImageGenModel);
+                try {
+                    // --- THIS IS THE NEW LOGIC ---
+                    const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+                    
+                    const apiRequestBodyForProxy = {
+                        contents: requestBody.contents,
+                        generationConfig: requestBody.generationConfig,
+                        tools: requestBody.tools || [],
+                        systemInstruction: requestBody.systemInstruction,
+                        isImageGen: isUsingImageGenModel
+                    };
+
+                    const result = await geminiProxyCallable(apiRequestBodyForProxy);
+                    const responseData = result.data as any; // The data is now the direct response from Gemini
+
+                    // Now, parse the responseData as if it came from Google
+                    const parsedResult = parseGeminiApiResponse(JSON.stringify(responseData), isUsingImageGenModel);
 
                 if (isUsingImageGenModel) setSuggestedPrompts([]);
                 else setSuggestedPrompts(parsedResult.suggestions);
@@ -1883,7 +1870,7 @@ if (notionBlock && user?.uid && isNotionConnected) {
                     setChatHistory(prev => prev.map(msg => msg.id === newLoadingMsgId ? { ...msg, isVerifyingContent: true, isLoading: true } : msg ));
                     
                     // --- THIS IS THE FIX ---
-                    const verifiedContent = await verifyEducationalContent(tempContent, geminiApiKey);
+                    const verifiedContent = await verifyEducationalContent(tempContent);
                     
                     assistantFinalMessage.flashcard = verifiedContent.type === 'flashcard' ? verifiedContent : undefined;
                     assistantFinalMessage.question = verifiedContent.type === 'question' ? verifiedContent : undefined;
