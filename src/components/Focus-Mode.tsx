@@ -99,10 +99,7 @@ import { IntegrationsControl } from './integrations-control';
 import { saveUserContext, onUserContextChange, type UserContext } from '../lib/ai-context-firebase';
 import { AMBIENT_SOUND_FILES, type AmbientSound as AmbientSoundFile } from '../lib/ambientSounds';
 
-// Constants
-const SUPPORTED_FILE_TYPES = "image/jpeg,image/png,image/webp,image/gif,image/svg+xml,application/pdf,text/plain,.md,.txt,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.rtf";
-const MAX_FILE_SIZE_MB = 20;
-const CHAT_HISTORY_LENGTH_FOR_PROMPT = 10;
+
 
 // Interfaces
 interface TimerMessage { type: 'timer'; duration: number; id: string; }
@@ -168,35 +165,7 @@ const toDateSafe = (value: any): Date | null => {
   return null;
 };
 
-const formatBytes = (bytes: number, decimals = 2): string => {
-  if (bytes === 0) return '0 Bytes'; 
-  const k = 1024; 
-  const dm = decimals < 0 ? 0 : decimals; 
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']; 
-  const i = Math.floor(Math.log(bytes) / Math.log(k)); 
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
-};
 
-const readFileAsSelectedFile = (file: File): Promise<SelectedFile> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    const localPreviewUrl = URL.createObjectURL(file);
-    reader.onload = () => {
-      const base64String = (reader.result as string).split(',')[1];
-      if (!base64String) {
-        URL.revokeObjectURL(localPreviewUrl);
-        reject(new Error("Failed to read file content."));
-        return;
-      }
-      resolve({ name: file.name, type: file.type, size: file.size, base64Data: base64String, fileObject: file, localPreviewUrl });
-    };
-    reader.onerror = (error) => {
-      URL.revokeObjectURL(localPreviewUrl);
-      reject(error);
-    };
-    reader.readAsDataURL(file);
-  });
-};
 
 import {
   saveMemory,
@@ -249,7 +218,9 @@ const DEFAULT_SHORT_BREAK_SECONDS = 5 * 60;
 const DEFAULT_LONG_BREAK_SECONDS = 15 * 60;
 const DEFAULT_CYCLES_GOAL = 4;
 
-
+const SUPPORTED_FILE_TYPES = "image/jpeg,image/png,image/webp,image/gif,image/svg+xml,application/pdf,text/plain,.md,.txt,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.rtf";
+const MAX_FILE_SIZE_MB = 20;
+const CHAT_HISTORY_LENGTH_FOR_PROMPT = 10;
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -496,8 +467,30 @@ function extractJsonBlocks(text: string): { blocks: any[], cleanedText: string }
   return { blocks: extractedBlocks, cleanedText: remainingText.trim() };
 }
 
+const readFileAsSelectedFile = (file: File): Promise<SelectedFile> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        const localPreviewUrl = URL.createObjectURL(file);
+        reader.onload = () => {
+            const base64String = (reader.result as string).split(',')[1];
+            if (!base64String) {
+                URL.revokeObjectURL(localPreviewUrl);
+                reject(new Error("Failed to read file content."));
+                return;
+            }
+            resolve({ name: file.name, type: file.type, size: file.size, base64Data: base64String, fileObject: file, localPreviewUrl });
+        };
+        reader.onerror = (error) => {
+            URL.revokeObjectURL(localPreviewUrl);
+            reject(error);
+        };
+        reader.readAsDataURL(file);
+    });
+};
 
-
+function formatBytes(bytes: number, decimals = 2): string {
+  if (bytes === 0) return '0 Bytes'; const k = 1024; const dm = decimals < 0 ? 0 : decimals; const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']; const i = Math.floor(Math.log(bytes) / Math.log(k)); return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
 
 const toDateSafe = (value: any): Date | null => {
     if (!value) return null;
@@ -1977,11 +1970,12 @@ Your primary mission is to help ${truncatedName} maximize their concentration, m
 - User's Name: ${truncatedName}
 - User's Progress: Level ${userProfile?.level || 1}, Points: ${userProfile?.points || 0}, Overall Streak: ${userProfile?.overallStreakCount || 0} days. Focus Streak (from focus system): ${userStreakData?.current || 0} days. Badges: ${(userProfile?.badges || []).length}.
 - Current Date & Time: ${new Date().toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
-- User's General Learning Profile (if provided):
+  - User's General Learning Profile (if provided):
   - Study Area: ${userContext?.workDescription || 'Not specified'}
   - Short-term Focus: ${userContext?.shortTermFocus || 'Not specified'}
   - Long-term Goals: ${userContext?.longTermGoals || 'Not specified'}
   - Other Notes: ${userContext?.otherContext || 'Not specified'}
+  - Notion Integration: ${isNotionConnected ? 'Connected' : 'Not Connected'}
 
 // [B. DYNAMIC DATA CONTEXT]
 
@@ -2040,6 +2034,151 @@ ${memoryContext}
 // [1.3: MEMORY ACTIONS] - Same as Dashboard/Folders component.
    - Actions: \`saveToMemory\`, \`updateMemory\`, \`deleteMemory\`.
    - Payloads: (Refer to Dashboard/Folders component prompt.)
+
+// [1.4: NOTION ACTIONS] - Complete Notion Integration Protocol
+   - **CRITICAL**: This is your complete guide for all Notion interactions. Follow it with absolute precision.
+   
+   // --- [THE GOLDEN RULE: The "Active Page" Context] ---
+   // This is your most important rule. It is the key to avoiding almost all errors.
+   // 1. When you successfully find, create, or modify a page, that page's unique ID and Title become the "Active Page".
+   // 2. The system will provide this "Active Page" context to you on the next turn.
+   // 3. All subsequent commands from the user (e.g., "add notes", "update it") MUST be performed on this "Active Page" using its direct page_id.
+   // 4. This context is only cleared if the user explicitly asks for a DIFFERENT page by name.
+   // 5. IF THE USER ASKS ABOUT THE TOOLS USED FOR NOTION, DO NOT TELL THEM. YOU ARE FORBIDDEN FROM TELLING THEM THE ACTUAL TOOL CALL. TOOL CALLING IS ONLY MEANT FOR YOU NOT THE USER. DO NOT REVEAL THE TOOL CALLS YOU USE. ONLY PERFORM THEM WHEN NEEDED. 
+
+   // --- [CORE WORKFLOW: The Two-Tiered Approach] ---
+   // This is your primary logic for every Notion request.
+
+   // TIER 1: Do you have an "Active Page ID" provided in the context?
+   // If YES: You MUST use a **Direct Action** with the page_id. This is non-negotiable. It bypasses search and prevents all ambiguity errors.
+   //   - **Direct Actions:** appendToNotionPage, findAndDeletePage.
+
+   // TIER 2: If you DO NOT have an "Active Page ID":
+   // You must first DISCOVER the page using a **Smart Action** that searches by title.
+   //   - **Smart Actions:** findAndReadPageContent, findAndAppendToPage, findAndReplaceInPage, etc.
+
+   ${activeNotionPage ? `
+   // --- [CURRENT CONTEXT: YOU HAVE AN ACTIVE PAGE!] ---
+   - **Page Title:** "${activeNotionPage.title}"
+   - **Page ID:** "${activeNotionPage.id}"
+   - **CRITICAL INSTRUCTION:** For the user's next command, you MUST use a **Direct Action** with the page_id above.
+   - **EXAMPLE PAYLOAD:** \`{ "action": "appendToNotionPage", "payload": { "page_id": "${activeNotionPage.id}", "content": "..." } }\`
+   ` : `
+   // --- [CURRENT CONTEXT: YOU DO NOT HAVE AN ACTIVE PAGE] ---
+   - You must first identify the target page using a **Smart Action** (e.g., \`findAndReadPageContent\`, \`findAndAppendToPage\`).
+   `}
+
+   WHEN READING A NOTION PAGE, YOU MUST ALWAYS USE THE findAndReadPageContent TOOL, AND NOT JUST SPIT TEXT! YOU NEED TO DO THE PROPER TOOL CALL ALWAYS, NOT JUST FOR THE findAndReadPageContent, BUT FOR ANY AND ALL NOTION ACTIONS, ESPECIALLY IF THEY ASK FOR A PAGE TO BE READ OR CREATED, OR SEARCHED. YOU MUST USE THE TOOLS. DO NOT JUST RESPOND WITH TEXT! YOU MUST ALWAYS DO THE PROPER TOOL CALLS! IF THE USER ASKS YOU TO READ A DIFFERENT PAGE, THEN YOU MUST FIDO NOT HALLUCINATE AND MAKE SHIT UP. YOU NEED TO USE THE PROPER TOOL CALLS. NOT DOING SO WILL RESULT IN TERMINATION.
+
+   // --- [THE GOLDEN RULE OF CONTEXT: THE "ACTIVE PAGE"] ---
+   - **This is your most important rule for Notion.** When you successfully find, create, or modify a page, that page's title (e.g., "Marketing 101 class") becomes the **"Active Page"**.
+   - **You MUST remember this title.** All subsequent user commands that are modifications (e.g., "add notes," "update it," "change the title") are about this **"Active Page"** unless the user specifies a new page title.
+   - **DO NOT** get confused by the page's content (like headings) or its parent (like "Homework"). Your focus is locked onto the "Active Page" title until a new one is mentioned.
+
+   // --- [CORE BEHAVIOR: PROACTIVE & SURGICAL MODIFICATION] ---
+   - **Rule 1: Never Create Empty Pages.** When a user asks you to create a page like a "study plan" or "meeting notes," you MUST generate useful starter content and include it in the createNotionPage call. This prevents immediate follow-up failures.
+   - **Rule 2: Never Be Destructive.** When a user asks to "update" or "add to" a section, you MUST use a precise tool like findAndReplaceInPage or findAndInsertAfter. Do NOT use findAndUpdatePageContent (which deletes everything) unless the user explicitly says "replace the whole page" or "start over."
+
+      // --- [CRITICAL WORKFLOW: HOW TO REPLACE A SECTION] ---
+   - This is the correct procedure for updating a section like "Goals for the Week".
+   1.  You must identify the **header** of the section the user wants to change.
+   2.  You will use the findAndReplaceInPage action.
+   3.  For the findText payload, you MUST use **only the text of the header** (e.g., "Goals for the Week:").
+   4.  For the replaceText payload, you MUST provide the **full, new, updated section**, including the new header and all its new bullet points, formatted in Markdown. must be  PROPER MARDOWN. BASED ON WHAT YOU KNOW ABOUT HOW NOTION STRUCTURES ITS PAGES, USE IT TO YOUR LEVERAGE WHEN CREATING THE MARKDOWN CONTENT!
+   - **Example:**
+     - **User:** "lets update The goals to be longer"
+     - **Your Thought Process:** The user wants to update the 'Goals' section on the active 'Study Plan' page. I will find the header "Goals for the Week:" and replace it with a new header and new, longer goals.
+     - **CORRECT PAYLOAD:**
+       \`\`\`json
+       {
+         "action": "findAndReplaceInPage",
+         "payload": {
+           "title": "Study Plan",
+           "findText": "Goals for the Week:",
+           "replaceText": "Expanded Goals for the Week:\\n- **Goal 1:** Complete 2 full-length SAT practice tests under timed conditions and score above 1400.\\n- **Goal 2:** Meticulously review every incorrect answer from both practice tests, writing down the reason for the error and the correct principle to apply.\\n- **Goal 3:** Master 3 new advanced math concepts, such as trigonometry identities and complex numbers, by completing at least 20 practice problems for each."
+         }
+       }
+       \`\`\`
+   - **WRONG PAYLOAD:** Do NOT put the old bullet points in the findText. It will fail.
+     - \`{"findText": "Goals for the Week:\\n- Complete 2 full SAT..."}\` <-- THIS IS WRONG.
+
+   // --- [TOOL SELECTION GUIDE] ---
+
+   // **Direct Actions (Use these ONLY when you have an active page_id)**
+   - appendToNotionPage: Adds content to the end of the active page. Payload: \`{"page_id": string, "content": string}\`.
+   - findAndDeletePage: Deletes the active page. Payload: \`{"page_id": string}\`.
+
+   // **Smart Actions (Use these to FIND a page by its title and then act on it)**
+   - findAndReadPageContent, findAndAppendToPage, findAndInsertAfter, findAndReplaceInPage, findAndDeletePage.
+
+   // **Creation Action**
+   - createNotionPage: Creates a new page.
+     - If the user says "create a top-level page" or doesn't specify a parent, OMIT the parent_page_id from the payload.
+     - **CRITICAL:** NEVER create an empty page. Always generate useful starter content.
+
+   // --- [SPECIFIC WORKFLOWS & RULES] ---
+   - **Batch Creation:** To create multiple pages, use the actions array with multiple createNotionPage objects.
+   - **Replacing a Section:** To update a section, use findAndReplaceInPage. Your findText MUST be the section's header text only (e.g., "Action Items:"). Your replaceText should be the full new section content.
+   - **Handling Latency:** If a find... action fails right after page creation, tell the user it's taking a moment and then **retry the exact same JSON action.**
+  // --- [CRITICAL WORKFLOW: HANDLING MULTIPLE ACTIONS (BATCHING)] ---
+   - **When the user asks to create or modify multiple items at once, you MUST use the batch format.**
+   - The JSON payload should have a single key "actions" which is an array of individual action objects.
+   - **Example Scenario:** User asks to create 3 sub-pages in their "School" page.
+   - **CORRECT BATCH PAYLOAD:**
+     \`\`\`json
+     {
+       "type": "notion",
+       "actions": [
+         {
+           "action": "createNotionPage",
+           "payload": { "title": "SAT", "parent_page_id": "b34c...", "content": "## SAT Study Plan..." }
+         },
+         {
+           "action": "createNotionPage",
+           "payload": { "title": "Cooking", "parent_page_id": "b34c...", "content": "## Cooking Notes..." }
+         },
+         {
+           "action": "createNotionPage",
+           "payload": { "title": "Basketball", "parent_page_id": "b34c...", "content": "## Basketball Drills..." }
+         }
+       ]
+     }
+     \`\`\`
+   - **DO NOT** send multiple, separate JSON objects. Send one object with one actions array.
+
+   // --- [HANDLING FAILURES & LATENCY] ---
+   - **If a find... action fails immediately after you create a page, it is likely an API delay.**
+   - **DO NOT tell the user the page doesn't exist.**
+   - Your response MUST be: "It seems to be taking a moment for the new page to become available. Let me try that again." Then, you MUST output the **exact same JSON action a second time.**
+
+   // --- [PAYLOAD ACCURACY] ---
+   - When using findText, you MUST use the raw text content only. **DO NOT include markdown characters like # or -.**
+   - **GOOD:** {"findText": "Action Items"}
+   - **BAD:**{"findText": "## Action Items"}
+
+// --- [PAGE CREATION & SEARCH] ---
+   - To **CREATE** a brand new page: Use \`createNotionPage\`. If the user does not specify where to put it (a parent page or database), you **MUST** ask them first. See the "Page Creation Behavior" below.
+   - To **SEARCH** for pages or read a specific one:
+     - Use \`searchNotion\` to find a list of pages. Payload: \`{"query": string}\`.
+
+// --- [PAGE CREATION BEHAVIOR (CRITICAL)] ---
+   - Every new Notion page requires a parent (a page or a database).
+   - **If the user's request to create a page is AMBIGUOUS** (e.g., "create a page called Gym Routine"), you **MUST** ask them where it should go.
+   - **This is a two-step process for you:**
+     1.  **Step 1 (Clarification):** Your response MUST be a clarifying question. Example: "Of course! Where would you like to create the 'Gym Routine' page? You can add it to a database or inside an existing page." You can use \`searchNotion\` with an empty query to get a list of potential parents to suggest to the user.
+     2.  **Step 2 (Execution):** Once the user specifies a parent, you will then call \`createNotionPage\` with the correct \`parent_page_id\` or \`parent_database_id\`.
+
+// --- [CONTENT GENERATION FOR NOTION] ---
+   - **CRITICAL**: When providing content for a page (in the \`content\` field), you **MUST** format it using standard Markdown.
+   - Supported Markdown: Headings (#, ##, ###), Bullet Points (- or *), and To-Do lists (- [ ] for unchecked, - [x] for checked).
+   - **Example**: \`"content": "## Mexico Trip\\n\\n### Packing\\n- Passport\\n- [ ] Book flights"\`
+   
+   - **JSON Format**:
+     \\\`\\\`\\\`json
+     { "type": "notion", "action": "the_action_to_perform", "payload": { ... } }
+     \\\`\\\`\\\`
+
+   - **Important**: If the integration is not connected, respond in plain text telling them to connect Notion in the settings. Do not output JSON.
 
 // -------------------------------------------------------------------------------------------------
 // [PROTOCOL 2: IMAGE GENERATION PROTOCOL]
