@@ -67,8 +67,7 @@ import './Editor.scss';
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
-const GEMINI_TEXT_MODEL = 'gemini-2.5-flash';
-const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
+// SECURE: API calls now go through the geminiProxy function
 
 interface SunEditorWrapperProps {
   initialContent?: string;
@@ -1478,12 +1477,11 @@ useEffect(() => {
 
 
    const handleCreateAINote = async (text: string, onProgress: (progress: number) => void) => {
-    const currentApiKey = geminiApiKey;
-    if (!user || !currentApiKey) { throw new Error('AI features not available.'); }
+    if (!user) { throw new Error('AI features not available.'); }
     if (!checkNoteLimit('pdfAi')) { throw new Error('AI note creation limit reached.'); }
     
     try {
-        const aiNoteData = await processTextToAINoteData(text, user.uid, currentApiKey, onProgress);
+        const aiNoteData = await processTextToAINoteData(text, user.uid, onProgress);
         const newNoteId = await saveNote({ ...aiNoteData, isPublic: false });
         
         await incrementUsageAndCounters('pdfAi', true);
@@ -1504,12 +1502,11 @@ useEffect(() => {
 };
 
 const handlePDFUpload = async (file: File, onProgress: (progress: number) => void) => {
-    const currentApiKey = geminiApiKey;
-    if (!user || !currentApiKey) { throw new Error('AI features not available.'); }
+    if (!user) { throw new Error('AI features not available.'); }
     if (!checkNoteLimit('pdfAi')) { throw new Error('PDF processing limit reached.'); }
 
     try {
-        const processedData: ProcessedPDF = await processPDF(file, user.uid, currentApiKey, onProgress);
+        const processedData: ProcessedPDF = await processPDF(file, user.uid, onProgress);
         
         const noteToSave: Omit<FirebaseNoteData, 'id' | 'createdAt' | 'updatedAt'> = {
             title: processedData.title,
@@ -1525,31 +1522,26 @@ const handlePDFUpload = async (file: File, onProgress: (progress: number) => voi
         };
         const newNoteId = await saveNote(noteToSave);
 
-        await incrementUsageAndCounters('pdfAi');
+        await incrementUsageAndCounters('pdfAi', true);
         const newNoteDoc = await getNoteById(newNoteId);
         if (newNoteDoc) { handleSelectNote(newNoteDoc as Note); }
-
+        
         showToast('PDF Note Created!', 'success', Check);
-        addPointsAndCheckBadges(5, 'pdf');
-        if (user && userProfile && !(userProfile.badges || []).includes('firstPdfNote')) {
-            addUserBadge(user.uid, 'firstPdfNote', { email: user.email!, displayName: userName });
-            showToast("Badge Unlocked: PDF Powerhouse!", "info", FileText);
-        }
+        addPointsAndCheckBadges(5, 'personal');
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to process PDF';
         showToast(errorMessage, 'error', AlertTriangle);
-        throw error;
+        throw error; // Re-throw to be caught by the modal
     }
 };
 
 
 const handleYoutubeLink = async (url: string, onProgress: (progress: number) => void) => {
-    const currentApiKey = geminiApiKey;
-    if (!user || !currentApiKey) { throw new Error('AI features not available.'); }
+    if (!user) { throw new Error('AI features not available.'); }
     if (!checkNoteLimit('youtube')) { throw new Error('YouTube processing limit reached.'); }
 
     try {
-        const processedData = await processYouTube(url, user.uid, currentApiKey, onProgress);
+        const processedData = await processYouTube(url, user.uid, onProgress);
         
         const noteToSave: Omit<FirebaseNoteData, 'id' | 'createdAt' | 'updatedAt'> = {
             title: processedData.title,
@@ -1565,18 +1557,18 @@ const handleYoutubeLink = async (url: string, onProgress: (progress: number) => 
         };
         const newNoteId = await saveNote(noteToSave);
 
-        await incrementUsageAndCounters('youtube');
+        await incrementUsageAndCounters('youtube', true);
         const newNoteDoc = await getNoteById(newNoteId);
         if (newNoteDoc) { handleSelectNote(newNoteDoc as Note); }
 
-        showToast('YouTube Note Created!', 'success', Check);
+        showToast('YouTube Note Created!', 'success', Youtube);
         addPointsAndCheckBadges(5, 'youtube');
         if (user && userProfile && !(userProfile.badges || []).includes('firstYoutubeNote')) {
             addUserBadge(user.uid, 'firstYoutubeNote', { email: user.email!, displayName: userName });
-            showToast("Badge Unlocked: Video Virtuoso!", "info", Youtube);
+            showToast("Badge Unlocked: YouTube Scholar!", "info", Youtube);
         }
     } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Failed to process YouTube';
+        const errorMessage = error instanceof Error ? error.message : 'Failed to process YouTube link';
         showToast(errorMessage, 'error', AlertTriangle);
         throw error;
     }
@@ -1636,7 +1628,7 @@ const handleYoutubeLink = async (url: string, onProgress: (progress: number) => 
     };
 
     const handleStartAIPodcast = async () => {
-    if (!selectedNote || !geminiApiKey) {
+    if (!selectedNote) {
         showToast('Please select a note.', 'error'); return;
     }
     if (userTier !== 'premium') {
@@ -1723,19 +1715,18 @@ ${contentHtml.replace(/<[^>]+>/g, '\n')}
 **FINAL MANDATE:** Review all directives. Your mission is to produce a flawless script. The formatting must be perfect. The conversation must be authentic. The illusion must not be broken. Generate only the script. Begin now.
 `;
         
-        const scriptGenApiUrl = `${GEMINI_API_BASE}${GEMINI_TEXT_MODEL}:generateContent?key=${geminiApiKey}`;
+        const functions = getFunctions();
+        const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+        
         const scriptGenBody = {
             contents: [{ role: "user", parts: [{ text: scriptGenPrompt }] }],
             generationConfig: { temperature: 0.75, maxOutputTokens: 8192, topP: 0.95 }
         };
 
-        const scriptResponse = await fetchWithRetry(scriptGenApiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(scriptGenBody)
-        });
-        const scriptResponseText = await scriptResponse.text();
-        const parsedScriptResult = parseGeminiResponse(scriptResponseText);
+        const result = await geminiProxyCallable(scriptGenBody);
+        const scriptResponseData = result.data as any; // The data is now the direct response from Gemini
+
+        const parsedScriptResult = parseGeminiResponse(JSON.stringify(scriptResponseData));
 
         if (parsedScriptResult.error || !parsedScriptResult.text) {
             throw new Error(parsedScriptResult.error || "Failed to generate podcast script from note.");
@@ -1744,24 +1735,21 @@ ${contentHtml.replace(/<[^>]+>/g, '\n')}
         const podcastScript = parsedScriptResult.text;
 
         const textProcessingResult: PodcastTextProcessResult = await processTextForPodcast(
-            title, podcastScript, [], podcastPlaybackSettings, PREDEFINED_PODCAST_SPEAKERS
+            podcastScript,
+            { id: podcastPlaybackSettings.speaker1Id!, voiceId: speaker1Profile?.elevenLabsVoiceId! },
+            speaker2Profile ? { id: podcastPlaybackSettings.speaker2Id!, voiceId: speaker2Profile.elevenLabsVoiceId! } : undefined
         );
 
-        if (textProcessingResult.error || !textProcessingResult.processedSegments || textProcessingResult.processedSegments.length === 0) {
-            throw new Error(textProcessingResult.error || 'No valid segments were processed from the script.');
+        if (textProcessingResult.error || !textProcessingResult.processedSegments) {
+            throw new Error(textProcessingResult.error || "Failed to process script for podcast generation.");
         }
 
-await triggerPodcastGenerationFn(
-    {
-        noteId: selectedNote.id,
-        segments: textProcessingResult.processedSegments,
-    },
-    { timeout: 300000 } // Add this options object
-);
+        await triggerPodcastGeneration(selectedNote.id, textProcessingResult.processedSegments, podcastPlaybackSettings);
+        showToast("Your podcast is being generated!", 'success');
 
     } catch (error: any) {
-        console.error("Error triggering podcast generation:", error);
-        showToast(error.message || 'Failed to start podcast generation.', 'error', AlertTriangle);
+        showToast(error.message || "Failed to start podcast generation.", 'error');
+    } finally {
         setIsPodcastProcessing(false);
     }
 };
@@ -1826,9 +1814,7 @@ useEffect(() => {
 
 
     const handleRegenerateQuestions = async () => {
-        const currentApiKey = geminiApiKey;
-
-        if (!selectedNote || !currentApiKey || isRegeneratingQuestions || !user) return;
+        if (!selectedNote || isRegeneratingQuestions || !user) return;
 
         if (userTier !== 'premium' && !checkNoteLimit('pdfAi')) {
             showToast('Monthly AI Note limit reached.', 'error');
@@ -1838,7 +1824,7 @@ useEffect(() => {
         setIsRegeneratingQuestions(true);
         showToast('Regenerating questions...', 'info');
         try {
-            await regenerateStudyQuestions(selectedNote.id, selectedNote.content, currentApiKey);
+            await regenerateStudyQuestions(selectedNote.id, selectedNote.content);
             setQuestionAnswers({});
 
             if (userTier !== 'premium') {
@@ -1847,7 +1833,8 @@ useEffect(() => {
             addPointsAndCheckBadges(3);
             showToast('Questions regenerated!', 'success');
         } catch (error) {
-            showToast(error instanceof Error ? error.message : 'Failed to regenerate questions', 'error');
+            console.error("Error regenerating questions:", error);
+            showToast('Failed to regenerate questions.', 'error');
         } finally {
             setIsRegeneratingQuestions(false);
         }
@@ -1901,7 +1888,7 @@ useEffect(() => {
         }
     };
 
-    const showSideBySideChat = selectedNote?.type === 'pdf' && showPdfViewer && !!selectedNote.sourceUrl && !!user && !!geminiApiKey && !isMobile;
+    const showSideBySideChat = selectedNote?.type === 'pdf' && showPdfViewer && !!selectedNote.sourceUrl && !!user && !isMobile;
 
     const handlePdfTextSelection = useCallback(() => {
         if (!pdfViewerContainerRef.current || !showPdfViewer || isScreenshotModeActive) {
@@ -2275,7 +2262,7 @@ useEffect(() => {
                              </div>
                              <div className={`w-1.5 cursor-col-resize flex items-center justify-center flex-shrink-0 bg-gray-300 dark:bg-gray-700 hover:bg-gray-400 dark:hover:bg-gray-600 ${isResizingPdfChatSplit ? '!bg-indigo-500' : ''}`} onMouseDown={handleResizeMouseDown} title="Drag to resize panels"><GripVertical className={`w-4 h-4 pointer-events-none text-gray-600 dark:text-gray-400`} /></div>
                              <div className="h-full flex flex-col overflow-hidden" style={{ width: `${100 - pdfChatSplitRatio}%` }}>
-                                 {selectedNote && geminiApiKey && user && ( <NoteChat ref={noteChatRef} key={`chat-inline-${selectedNote.id}`} note={selectedNote} onClose={() => togglePdfViewer(false)} geminiApiKey={geminiApiKey} userName={userName} isIlluminateEnabled={!isDarkMode} isBlackoutEnabled={false} isVisible={true} onUpdateNoteContent={handleUpdateNoteContentFromChat} onAddImageToNoteRequest={handleAddImageToNoteRequest} displayMode="inline" userTier={userTier} /> )}
+                                 {selectedNote && user && ( <NoteChat ref={noteChatRef} key={`chat-inline-${selectedNote.id}`} note={selectedNote} onClose={() => togglePdfViewer(false)} userName={userName} isIlluminateEnabled={!isDarkMode} isBlackoutEnabled={false} isVisible={true} onUpdateNoteContent={handleUpdateNoteContentFromChat} onAddImageToNoteRequest={handleAddImageToNoteRequest} displayMode="inline" userTier={userTier} /> )}
                              </div>
                         </div>
 ) : isSideBySideNoteChatVisible && selectedNote && !isMobile ? (
@@ -2298,7 +2285,7 @@ useEffect(() => {
                             </>
                         )}
                         <button onClick={handleEditNote} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60`} title="Edit"><Edit2 className="w-4 h-4" /></button>
-                        {geminiApiKey && <button onClick={() => handleChatWithNote(selectedNote)} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60`} title="Chat with AI"><MessageCircle className="w-4 h-4" /></button>}
+                        <button onClick={() => handleChatWithNote(selectedNote)} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60`} title="Chat with AI"><MessageCircle className="w-4 h-4" /></button>
                         {selectedNote.type === 'pdf' && selectedNote.sourceUrl && !isMobile && (
                             <button
                                 onClick={() => togglePdfViewer(true)}
@@ -2397,7 +2384,7 @@ useEffect(() => {
                         <div id="study-questions-section" className={`mt-8 pt-6 border-t border-gray-200 dark:border-gray-700/50`}>
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
                                 <h3 className={`text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100`}><BookOpen className={`w-5 h-5 text-purple-500 dark:text-purple-400`} />Study Questions</h3>
-                                {geminiApiKey && <button onClick={handleRegenerateQuestions} disabled={isRegeneratingQuestions || !geminiApiKey} className={`bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-md text-xs flex items-center gap-1.5 ${isRegeneratingQuestions || !geminiApiKey ? 'opacity-50 cursor-not-allowed' : ''}`} title={!geminiApiKey ? "API Key required" : "Regenerate"}> {isRegeneratingQuestions ? (<> <Loader2 className="w-3.5 h-3.5 animate-spin" /> Regenerating... </>) : (<> <RefreshCw className="w-3.5 h-3.5" /> Regenerate </>)} </button>}
+                                <button onClick={handleRegenerateQuestions} disabled={isRegeneratingQuestions} className={`bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-md text-xs flex items-center gap-1.5 ${isRegeneratingQuestions ? 'opacity-50 cursor-not-allowed' : ''}`} title="Regenerate"> {isRegeneratingQuestions ? (<> <Loader2 className="w-3.5 h-3.5 animate-spin" /> Regenerating... </>) : (<> <RefreshCw className="w-3.5 h-3.5" /> Regenerate </>)} </button>
                             </div>
                             <div className="space-y-5">
                                 {selectedNote.questions.map((q, index) => {
@@ -2471,13 +2458,12 @@ useEffect(() => {
             <GripVertical className={`w-4 h-4 pointer-events-none text-gray-600 dark:text-gray-400`} />
         </div>
         <div className="h-full flex flex-col overflow-hidden border-l border-gray-200 dark:border-gray-700/50" style={{ width: `${100 - noteChatSplitRatio}%` }}>
-            {geminiApiKey && user && (
+            {user && (
                 <NoteChat
                     ref={noteChatRef}
                     key={`chat-inline-note-${selectedNote.id}`}
                     note={selectedNote}
                     onClose={handleCloseSideBySideNoteChat}
-                    geminiApiKey={geminiApiKey}
                     userName={userName}
                     isIlluminateEnabled={!isDarkMode}
                     isBlackoutEnabled={false}
@@ -2655,7 +2641,7 @@ useEffect(() => {
         </>
     )}
     <button onClick={handleEditNote} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60`} title="Edit"><Edit2 className="w-4 h-4" /></button>
-    {geminiApiKey && <button onClick={() => handleChatWithNote(selectedNote)} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60`} title="Chat with AI"><MessageCircle className="w-4 h-4" /></button>}
+    <button onClick={() => handleChatWithNote(selectedNote)} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60`} title="Chat with AI"><MessageCircle className="w-4 h-4" /></button>
     {selectedNote.type === 'pdf' && selectedNote.sourceUrl && !isMobile && (
         <button
             onClick={() => togglePdfViewer(true)}
@@ -2936,7 +2922,7 @@ useEffect(() => {
     <div id="study-questions-section" className={`mt-8 pt-6 border-t border-gray-200 dark:border-gray-700/50`}>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
             <h3 className={`text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100`}><BookOpen className={`w-5 h-5 text-purple-500 dark:text-purple-400`} />Study Questions</h3>
-            {geminiApiKey && <button onClick={handleRegenerateQuestions} disabled={isRegeneratingQuestions || !geminiApiKey} className={`bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-md text-xs flex items-center gap-1.5 ${isRegeneratingQuestions || !geminiApiKey ? 'opacity-50 cursor-not-allowed' : ''}`} title={!geminiApiKey ? "API Key required" : "Regenerate"}> {isRegeneratingQuestions ? (<> <Loader2 className="w-3.5 h-3.5 animate-spin" /> Regenerating... </>) : (<> <RefreshCw className="w-3.5 h-3.5" /> Regenerate </>)} </button>}
+            <button onClick={handleRegenerateQuestions} disabled={isRegeneratingQuestions} className={`bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-md text-xs flex items-center gap-1.5 ${isRegeneratingQuestions ? 'opacity-50 cursor-not-allowed' : ''}`} title="Regenerate"> {isRegeneratingQuestions ? (<> <Loader2 className="w-3.5 h-3.5 animate-spin" /> Regenerating... </>) : (<> <RefreshCw className="w-3.5 h-3.5" /> Regenerate </>)} </button>
         </div>
         <div className="space-y-5">
             {selectedNote.questions.map((q, index) => {
@@ -3250,8 +3236,8 @@ useEffect(() => {
                 </SimpleModal>
             )}
 
-            {chatNoteForOverlay && user && geminiApiKey && (
-                 <NoteChat key={`chat-overlay-${chatNoteForOverlay.id}`} ref={noteChatRef} note={chatNoteForOverlay} onClose={handleCloseChatOverlay} geminiApiKey={geminiApiKey} userName={userName} isIlluminateEnabled={!isDarkMode} isBlackoutEnabled={false} isVisible={isChatOverlayVisible} onUpdateNoteContent={handleUpdateNoteContentFromChat} onAddImageToNoteRequest={handleAddImageToNoteRequest} displayMode="overlay" userTier={userTier}/>
+            {chatNoteForOverlay && user && (
+                 <NoteChat key={`chat-overlay-${chatNoteForOverlay.id}`} ref={noteChatRef} note={chatNoteForOverlay} onClose={handleCloseChatOverlay} userName={userName} isIlluminateEnabled={!isDarkMode} isBlackoutEnabled={false} isVisible={isChatOverlayVisible} onUpdateNoteContent={handleUpdateNoteContentFromChat} onAddImageToNoteRequest={handleAddImageToNoteRequest} displayMode="overlay" userTier={userTier}/>
             )}
              {isMobile && !showNotesListOnMobile && ( <button onClick={() => setShowNotesListOnMobile(true)} className={`fixed bottom-4 right-4 z-30 p-3 rounded-full shadow-lg bg-indigo-500 hover:bg-indigo-600 text-white transform hover:scale-110 active:scale-100 ${isChatOverlayVisible ? 'bottom-16' : 'bottom-4'}`} title="Show Notes" > <List className="w-5 h-5" /> </button> )}
              {uploadProgress.status && (
