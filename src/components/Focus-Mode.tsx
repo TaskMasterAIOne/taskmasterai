@@ -12,7 +12,6 @@ import remarkGfm from 'remark-gfm';
 import {
   onFirebaseAuthStateChanged,
   updateDashboardLastSeen,
-  getGeminiApiKey,
   onCustomTimersSnapshot,
   addCustomTimer,
   updateCustomTimer,
@@ -89,6 +88,7 @@ import {
 import { auth } from '../lib/firebase';
 import { User } from 'firebase/auth';
 import { Timestamp } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { ContextDialog } from './context-dialog';
 import { saveUserContext, onUserContextChange, type UserContext } from '../lib/ai-context-firebase';
 import { AMBIENT_SOUND_FILES, type AmbientSound as AmbientSoundFile } from '../lib/ambientSounds';
@@ -427,33 +427,11 @@ export function FocusMode() {
   const truncatedName = useMemo(() => userName.split(' ')[0] || userName, [userName]);
   const [userTier, setUserTier] = useState<UserTier>('loading');
 
-  // --- ADD THIS NEW STATE AND EFFECT ---
-  const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
-
   // Define showToast early to avoid initialization errors
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info', icon?: React.FC<any>) => {
     // Simple toast implementation
     console.log(`[${type.toUpperCase()}] ${message}`);
   }, []);
-
-  useEffect(() => {
-    const fetchKey = async () => {
-      if (user) {
-        const key = await getGeminiApiKey();
-        if (key && !key.startsWith("ERROR_")) {
-          setGeminiApiKey(key);
-        } else {
-          console.error("Critical: Failed to load API key.");
-          showToast("AI services are currently unavailable due to a configuration error.", "error");
-        }
-      } else {
-        setGeminiApiKey(null);
-      }
-    };
-
-    fetchKey();
-  }, [user, showToast]); // Dependency array ensures this runs when the user logs in
-  // --- END OF NEW CODE ---
 
   
   const [userStreakData, setUserStreakData] = useState<any | null>({ current: 0, longest: 0, lastFocusTimestamp: null });
@@ -1148,13 +1126,7 @@ export function FocusMode() {
 
   const handleChatSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
-        // --- FIX #1: ADD GUARD CLAUSE FOR THE API KEY ---
-    if (!geminiApiKey) {
-      console.error("API Key is not available. Aborting chat submission.");
-      showToast("AI Assistant is unavailable due to a configuration error.", "error");
-      return;
-    }
-    // --- END OF FIX ---
+
     
     const currentMessageContent = chatMessage;
     const currentFilesForUpload = [...selectedFiles];
@@ -1365,7 +1337,6 @@ Be a world-class Focus Coach for ${truncatedName}.
 Assistant:`;
 
     const currentTargetModel = imageGenModeOn ? GEMINI_IMAGE_GEN_MODEL : GEMINI_TEXT_MODEL;
-    const fullApiUrl = `${GEMINI_API_BASE}${currentTargetModel}:generateContent?key=${geminiApiKey}`;
     let apiRequestBody: any;
 
     if (imageGenModeOn) {
@@ -1375,17 +1346,23 @@ Assistant:`;
         apiRequestBody = { contents: geminiFormattedContents, generationConfig: { temperature: 0.7, maxOutputTokens: 8192 }, tools: searchModeOn ? [{ "google_search": {} }] : [], systemInstruction: { parts: [{ text: systemInstructionText }] } };
     }
 
-    const geminiOptions = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(apiRequestBody) };
-
     try {
+        // --- THIS IS THE NEW LOGIC ---
+        const geminiProxyCallable = httpsCallable(getFunctions(), 'geminiProxy');
+        
+        const apiRequestBodyForProxy = {
+            contents: apiRequestBody.contents,
+            generationConfig: apiRequestBody.generationConfig,
+            tools: apiRequestBody.tools || [],
+            systemInstruction: apiRequestBody.systemInstruction,
+            isImageGen: imageGenModeOn
+        };
 
-           // --- FIX #2: USE THE GEMINI API KEY FROM STATE IN THE URL ---
-      const currentTargetModel = imageGenModeOn ? GEMINI_IMAGE_GEN_MODEL : GEMINI_TEXT_MODEL;
-      const fullApiUrl = `${GEMINI_API_BASE}${currentTargetModel}:generateContent?key=${geminiApiKey}`;
-      
-      const response = await fetchWithTimeout(fullApiUrl, geminiOptions);
-      const responseText = await response.text();
-      const parsedApiResult = parseGeminiApiResponse(responseText, imageGenModeOn);
+        const result = await geminiProxyCallable(apiRequestBodyForProxy);
+        const responseData = result.data as any; // The data is now the direct response from Gemini
+
+        // Now, parse the responseData as if it came from Google
+        const parsedApiResult = parseGeminiApiResponse(JSON.stringify(responseData), imageGenModeOn);
       let contentToProcess = parsedApiResult.text || ""; const sources = parsedApiResult.sources || []; if (sources.length > 0) contentToProcess = contentToProcess.replace(/\[\d+\]/g, '').replace(/\[\d+(,\s*\d+)*\]/g, '').trim();
       const { blocks: jsonActionBlocks, cleanedText } = extractJsonBlocks(contentToProcess);
       let assistantTextForDisplay = cleanedText;
@@ -1532,18 +1509,6 @@ Assistant:`;
   };
 
   const generateProductivityAnalysis = () => {
-    // --- ADD THIS GUARD CLAUSE ---
-    if (!geminiApiKey) {
-      console.error("API Key is not available. Aborting analysis.");
-      showToast("AI Analytics is currently unavailable due to a configuration error.", "error");
-      setProductivityAnalysisResult({
-        productivity_score: 0,
-        text_analysis: "Could not generate analysis. The AI service is currently unavailable.",
-        recommended_actions: []
-      });
-      return;
-    }
-    // --- END OF FIX ---
     showToast("Analyzing your focus...", "info");
     setTimeout(() => {
         setProductivityAnalysisResult({
@@ -2061,7 +2026,7 @@ Assistant:`;
                 </div>
             )}
             {aiChatSidebarTab === 'analytics' && ( <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent">
-                <button onClick={generateProductivityAnalysis} disabled={isProductivityAnalysisLoading || !user || !geminiApiKey} className="w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 shadow-sm bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 disabled:opacity-70 transform hover:scale-[1.02] active:scale-[0.98]">
+                <button onClick={generateProductivityAnalysis} disabled={isProductivityAnalysisLoading || !user} className="w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 shadow-sm bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 disabled:opacity-70 transform hover:scale-[1.02] active:scale-[0.98]">
                     <BarChart3 className="w-4 h-4" />
                     {isProductivityAnalysisLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : "Get Insights"}
                 </button>
