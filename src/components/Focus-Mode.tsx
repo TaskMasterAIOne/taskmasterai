@@ -148,22 +148,6 @@ const NotionIcon = (props: React.SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
-// Utility functions
-const toDateSafe = (value: any): Date | null => {
-  if (!value) return null;
-  if (value instanceof Date) return value;
-  if (value instanceof Timestamp) return value.toDate();
-  if (typeof value === 'string' || typeof value === 'number') {
-    const d = new Date(value);
-    return isNaN(d.getTime()) ? null : d;
-  }
-  if (typeof value === 'object' && 'seconds' in value && 'nanoseconds' in value && typeof value.seconds === 'number' && typeof value.nanoseconds === 'number') {
-    try {
-      return new Timestamp(value.seconds, value.nanoseconds).toDate();
-    } catch (e) { console.warn("toDateSafe error converting object:", e); return null; }
-  }
-  return null;
-};
 
 
 
@@ -1446,23 +1430,6 @@ export function FocusMode() {
     return 'low';
   };
 
-  const createChatPromptContents = (userMessage: string, filesDataForPrompt: SelectedFile[], currentHistory: ChatMessageDisplayData[]): FirebaseChatMessage[] => {
-    const formattedHistory: FirebaseChatMessage[] = currentHistory.map(msg => {
-      const parts: any[] = [];
-      if (typeof msg.content === 'string') { parts.push({ text: msg.content }); }
-      if (msg.role === 'user' && msg.attachedFilesMeta) {
-        msg.attachedFilesMeta.forEach(file => { if (file.base64Data && (file.type.startsWith('image/') || file.type === 'application/pdf' || file.type === 'text/plain' || file.name.endsWith('.md'))) { parts.push({ inline_data: { mime_type: file.type, data: file.base64Data } }); } });
-      }
-      if (parts.length === 0) { parts.push({ text: "" }); }
-      return { role: msg.role === 'assistant' ? 'model' : 'user', parts };
-    });
-    const userMessageParts: any[] = [{ text: userMessage }];
-    if (filesDataForPrompt.length > 0) {
-      filesDataForPrompt.forEach(sf => { if (sf.type.startsWith('image/') || sf.type === 'application/pdf' || sf.type === 'text/plain' || sf.name.endsWith('.md')) { userMessageParts.push({ inline_data: { mime_type: sf.type, data: sf.base64Data } }); } });
-    }
-    return [...formattedHistory, { role: 'user', parts: userMessageParts }];
-  };
-
   const generateChatName = async (convId: string, history: ChatMessageDisplayData[], currentUser: User | null) => {
     if (!currentUser || !currentUser.uid || history.length === 0) {
       console.warn("generateChatName guard clause triggered. Aborting.", { hasUser: !!currentUser, historyLength: history.length });
@@ -1502,27 +1469,8 @@ export function FocusMode() {
   const handleSessionNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => { setSessionNotes(e.target.value); };
 
   // AI Chat handlers
-  const handleNewConversation = async () => { 
-    if (!user || !user.uid) return; 
-    const newConvId = await createChatConversation(user.uid, 'New Chat'); 
-    if (newConvId) { 
-      setConversationId(newConvId); 
-    } 
-  };
 
-  const handleSelectConversation = (convId: string) => { 
-    if (conversationId === convId) return; 
-    setConversationId(convId); 
-    const selConv = conversationList.find(c => c.id === convId); 
-    setHasGeneratedChatName(selConv ? selConv.chatName !== "New Chat" : false); 
-    setIsConversationListOpen(false); 
-  };
 
-  const handleRenameConversation = async (conv: any) => { 
-    setOpenDropdownId(null); 
-    const newName = window.prompt('Enter new chat name:', conv.chatName); 
-    if (newName?.trim()) await updateChatConversationName(conv.id, newName.trim()); 
-  };
 
   const handleDeleteConversationClick = (conv: any) => {
     setOpenDropdownId(null);
