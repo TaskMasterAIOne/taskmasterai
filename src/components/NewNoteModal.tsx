@@ -9,7 +9,8 @@ import {
   Sparkles,
   Briefcase,
   Text,
-  Loader2
+  Loader2,
+  Info
 } from 'lucide-react';
 import {
     UserTier,
@@ -39,6 +40,16 @@ const formatEtr = (ms: number): string => {
     return `about ${minutes} minute${minutes > 1 ? 's' : ''}`;
 };
 
+// Helper function to validate YouTube URLs
+const isValidYouTubeUrl = (url: string): boolean => {
+  const urlPattern = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$/;
+  return urlPattern.test(url.trim());
+};
+
+// Helper function to validate PDF files
+const isValidPDFFile = (file: File): boolean => {
+  return file.type.includes('pdf') || file.name.toLowerCase().endsWith('.pdf');
+};
 
 export function NewNoteModal({
   onClose,
@@ -152,20 +163,26 @@ export function NewNoteModal({
   }
 
   const handleCreatePersonalNoteSubmit = () => {
-    if (!title.trim() || !content.trim()) return;
+    if (!title.trim() || !content.trim()) {
+      setError("Please provide both title and content for your note.");
+      return;
+    }
     executeAction(() => onCreatePersonalNote(title.trim(), content.trim(), tags));
   };
 
   const handleCreateAINoteSubmit = () => {
-    if (!aiText.trim()) return;
+    if (!aiText.trim()) {
+      setError("Please provide text to process.");
+      return;
+    }
     if (!checkNoteLimit('pdfAi')) return;
     executeAction(() => onCreateAINote(aiText.trim(), handleProgressUpdate));
   };
 
   const processPDFFile = (file: File) => {
     if (!file) return;
-    if (!file.type.includes('pdf')) {
-      setError("Invalid file type. Please select a PDF.");
+    if (!isValidPDFFile(file)) {
+      setError("Invalid file type. Please select a PDF file.");
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
@@ -183,9 +200,11 @@ export function NewNoteModal({
   };
 
   const handleYoutubeLinkSubmit = () => {
-    if (!youtubeUrl.trim()) return;
-    const urlPattern = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$/;
-    if (!urlPattern.test(youtubeUrl.trim())) {
+    if (!youtubeUrl.trim()) {
+      setError("Please enter a YouTube URL.");
+      return;
+    }
+    if (!isValidYouTubeUrl(youtubeUrl)) {
       setError("Please enter a valid YouTube URL.");
       return;
     }
@@ -217,6 +236,13 @@ export function NewNoteModal({
     const files = event.dataTransfer.files;
     if (files && files.length > 0) {
       processPDFFile(files[0]);
+    }
+  };
+
+  const handleKeyPress = (event: React.KeyboardEvent, action: () => void) => {
+    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      action();
     }
   };
 
@@ -276,11 +302,23 @@ const renderContent = () => {
           <div className="space-y-3 animate-fadeIn">
             <div>
               <label className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1`}>Title</label>
-              <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Note title..." className={`w-full bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500`} />
+              <input 
+                type="text" 
+                value={title} 
+                onChange={(e) => setTitle(e.target.value)} 
+                placeholder="Note title..." 
+                className={`w-full bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500`} 
+              />
             </div>
             <div>
               <label className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1`}>Content</label>
-              <textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="Note content..." rows={8} className={`w-full bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 min-h-[150px]`} />
+              <textarea 
+                value={content} 
+                onChange={(e) => setContent(e.target.value)} 
+                placeholder="Note content..." 
+                rows={8} 
+                className={`w-full bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 min-h-[150px]`} 
+              />
             </div>
             <div>
               <label className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1`}>Tags (Optional, max 5)</label>
@@ -314,20 +352,35 @@ const renderContent = () => {
       case 'ai':
         return (
            <div className="space-y-3 animate-fadeIn">
+            <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+              <Info className="w-4 h-4" />
+              <span>Use Ctrl+Enter (or Cmd+Enter on Mac) to submit quickly</span>
+            </div>
             <label className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1`}>Text to Process</label>
-            <textarea value={aiText} onChange={(e) => setAiText(e.target.value)} placeholder="Paste or type any text here to turn it into a structured note with key points, flashcards, and a quiz..." rows={8} className={`w-full bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 min-h-[150px]`} />
+            <textarea 
+              value={aiText} 
+              onChange={(e) => setAiText(e.target.value)} 
+              onKeyDown={(e) => handleKeyPress(e, handleCreateAINoteSubmit)}
+              placeholder="Paste or type any text here to turn it into a structured note with key points, flashcards, and a quiz..." 
+              rows={8} 
+              className={`w-full bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 min-h-[150px]`} 
+            />
           </div>
         );
       case 'pdf':
         return (
           <div className="animate-fadeIn">
+            <div className="mb-3 text-xs text-gray-600 dark:text-gray-400 text-center">
+              <Info className="w-4 h-4 inline mr-1" />
+              Drag and drop or click to upload a PDF file
+            </div>
             <div
               onClick={() => fileInputRef.current?.click()}
               onDragEnter={handleDragEnter}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
-              className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors
+              className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer
                 ${isDraggingOver
                   ? `border-indigo-500 bg-indigo-50 dark:bg-indigo-700/20`
                   : `border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50`
@@ -346,11 +399,16 @@ const renderContent = () => {
       case 'youtube':
         return (
            <div className="space-y-3 animate-fadeIn">
+            <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+              <Info className="w-4 h-4" />
+              <span>Use Ctrl+Enter (or Cmd+Enter on Mac) to submit quickly</span>
+            </div>
             <label className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1`}>YouTube URL</label>
             <input
               type="url"
               value={youtubeUrl}
               onChange={(e) => setYoutubeUrl(e.target.value)}
+              onKeyDown={(e) => handleKeyPress(e, handleYoutubeLinkSubmit)}
               placeholder="https://www.youtube.com/watch?v=..."
               className={`w-full bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500`} />
           </div>
