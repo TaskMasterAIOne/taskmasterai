@@ -3733,7 +3733,7 @@ return (
                         ) : (
                           <stat.icon className={`w-5 h-5 sm:w-6 sm:h-6 mx-auto mb-0.5 ${stat.color}`} />
                         )}
-                        <p className={`text-xl sm:text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r ${stat.gradient} ${stat.label === 'Streak' ? 'mt-0.5' : ''}`}>{stat.value}</p>
+                        <p className={`text-xl sm:text-2xl font-semibold text-transparent bg-clip-text bg-gradient-to-r ${stat.gradient} ${stat.label === 'Streak' ? 'mt-0.5' : ''}`}>{stat.value}</p>
                         <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">{stat.label}</p>
                       </motion.div>
                     );
@@ -3757,7 +3757,7 @@ return (
                   <div className="flex items-center justify-center gap-2">
                     <Gift className="w-5 h-5 sm:w-6 sm:h-6 text-amber-500 dark:text-amber-400 flex-shrink-0" />
                     <p className="text-xs sm:text-sm font-medium text-amber-700 dark:text-amber-200 leading-tight">
-                      Collect {pointsNeededForPremium} more points to earn <span className="font-bold text-amber-800 dark:text-amber-100">1 FREE week of Premium</span>!
+                      Collect {pointsNeededForPremium} more points to earn <span className="font-semibold text-amber-800 dark:text-amber-100">1 FREE week of Premium</span>!
                     </p>
                   </div>
                 </motion.div>
@@ -4752,7 +4752,7 @@ return (
                  <div key={testModeScore === null && !showTestReview ? 'test_questions_mode' : 'test_score_review_mode'}>
                     {testModeScore !== null && showTestReview ? (
                         <div className="space-y-3 max-w-xl mx-auto">
-                            <h4 className="text-xl font-bold mb-3 text-center">Test Review - Score: {testModeScore}%</h4>
+                            <h4 className="text-xl font-semibold mb-3 text-center">Test Review - Score: {testModeScore}%</h4>
                              {itemsForCurrentModeSession.filter(i => i.type === 'flashcard').map((item, idx) => {
                                 const userAnswer = testModeAnswers[item.id] || "";
                                 const isCorrect = userAnswer.trim().toLowerCase() === (item as Flashcard).definition.trim().toLowerCase();
@@ -4769,7 +4769,7 @@ return (
                     ) : testModeScore !== null && !showTestReview ? ( 
                          <div className="text-center py-6">
                             <Award className={`w-16 h-16 mx-auto mb-3 ${testModeScore >= 80 ? 'text-yellow-400' : testModeScore >=50 ? 'text-indigo-400' : 'text-red-400'}`}/>
-                            <h4 className="text-2xl font-bold mb-1">Test Score: {testModeScore}%</h4>
+                            <h4 className="text-2xl font-semibold mb-1">Test Score: {testModeScore}%</h4>
                             <p className="text-xs text-gray-600 dark:text-gray-300 mb-4">You answered {Math.round(testModeScore/100 * itemsForCurrentModeSession.filter(i=>i.type==='flashcard').length)} out of {itemsForCurrentModeSession.filter(i=>i.type==='flashcard').length} correctly.</p>
                             <div className="flex gap-3 justify-center">
                                 <button onClick={() => {setShowTestReview(false); setTestModeScore(null); setTestModeAnswers({}); setCurrentStudyIndex(0); handleStartStudyMode('test');}} className="px-5 py-2 text-md rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white transition-colors">Try Again</button>
@@ -4818,7 +4818,7 @@ return (
                  <div key={quizModeScore === null && !showQuizReview ? `quiz_question_mode_${currentItemFromSession.id}` : 'quiz_score_review_mode'}>
                     {quizModeScore !== null && showQuizReview ? (
                         <div className="space-y-3 max-w-xl mx-auto">
-                            <h4 className="text-xl font-bold mb-3 text-center">Quiz Review - Score: {quizModeScore}%</h4>
+                            <h4 className="text-xl font-semibold mb-3 text-center">Quiz Review - Score: {quizModeScore}%</h4>
                             {itemsForCurrentModeSession.filter(i=>i.type==='question').map((item, idx) => {
                                 const questionItem = item as Question;
                                 const userAnswerIndex = quizModeAnswers[item.id];
@@ -4842,7 +4842,7 @@ return (
                     ) : quizModeScore !== null && !showQuizReview ? ( 
                          <div className="text-center py-6">
                             <Award className={`w-16 h-16 mx-auto mb-3 ${quizModeScore >= 80 ? 'text-yellow-400' : quizModeScore >=50 ? 'text-indigo-400' : 'text-red-400'}`}/>
-                            <h4 className="text-2xl font-bold mb-1">Quiz Score: {quizModeScore}%</h4>
+                            <h4 className="text-2xl font-semibold mb-1">Quiz Score: {quizModeScore}%</h4>
                              <p className="text-xs text-gray-600 dark:text-gray-300 mb-4">You answered {Math.round(quizModeScore/100 * itemsForCurrentModeSession.filter(i=>i.type==='question').length)} out of {itemsForCurrentModeSession.filter(i=>i.type==='question').length} correctly.</p>
                              <div className="flex gap-3 justify-center">
                                 <button onClick={() => {setShowQuizReview(false); setQuizModeScore(null); setQuizModeAnswers({}); setCurrentStudyIndex(0); handleStartStudyMode('quiz');}} className="px-5 py-2 text-md rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white transition-colors">Try Again</button>
@@ -4865,7 +4865,7 @@ return (
                                     className={`w-full text-left p-3 rounded-lg border-2 text-sm transition-all duration-150 transform hover:scale-[1.01]
                                     ${quizModeAnswers[currentItemFromSession!.id!] === i ? 'bg-indigo-100 dark:bg-indigo-700/40 border-indigo-500 dark:border-indigo-500 ring-2 ring-indigo-500 dark:ring-indigo-400 text-indigo-700 dark:text-indigo-200 font-semibold'
                                                                             : 'bg-white dark:bg-gray-800/80 hover:bg-indigo-50 dark:hover:bg-indigo-700/20 border-gray-300 dark:border-gray-600 hover:border-indigo-400 dark:hover:border-indigo-500 text-gray-700 dark:text-gray-200'}`}>
-                                    <span className="mr-2 font-bold">{String.fromCharCode(65 + i)}.</span>{opt}
+                                    <span className="mr-2 font-semibold">{String.fromCharCode(65 + i)}.</span>{opt}
                                 </button>
                             ))}
                         </div>
