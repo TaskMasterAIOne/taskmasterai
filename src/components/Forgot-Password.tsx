@@ -69,7 +69,7 @@ function ForgotPassword() {
           
           {!isSubmitted ? (
             <>
-              <h2 className="text-3xl font-bold text-center text-gray-900 dark:text-white mb-2 illuminate-text-override">Reset Password</h2>
+              <h2 className="text-3xl font-semibold text-center text-gray-900 dark:text-white mb-2 illuminate-text-override">Reset Password</h2>
               <p className="text-center text-gray-600 dark:text-gray-400 mb-8 text-sm illuminate-subtext-override">
                 Enter your email to get a reset link.
               </p>
@@ -108,7 +108,7 @@ function ForgotPassword() {
               <div className="w-16 h-16 bg-green-100 dark:bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Mail className="w-8 h-8 text-green-600 dark:text-green-400" />
               </div>
-              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2 illuminate-text-override">Check your inbox</h3>
+              <h3 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2 illuminate-text-override">Check your inbox</h3>
               <p className="text-gray-600 dark:text-gray-400 mb-8 text-sm max-w-xs mx-auto illuminate-subtext-override whitespace-nowrap overflow-hidden text-ellipsis">
                 We've sent a password reset link to <span className="font-medium text-gray-800 dark:text-gray-200">{email}</span>.
               </p>
