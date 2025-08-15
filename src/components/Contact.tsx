@@ -390,7 +390,7 @@ function Contact() {
       >
         <div className="max-w-2xl mx-auto">
           <div className="text-center mb-12 sm:mb-16">
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-500 via-indigo-500 to-pink-500 dark:from-purple-400 dark:via-indigo-400 dark:to-pink-400 mb-3">
+            <h1 className="text-3xl sm:text-4xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-purple-500 via-indigo-500 to-pink-500 dark:from-purple-400 dark:via-indigo-400 dark:to-pink-400 mb-3">
               Contact Us
             </h1>
             <p className="text-base text-gray-600 dark:text-gray-400 max-w-xl mx-auto">
