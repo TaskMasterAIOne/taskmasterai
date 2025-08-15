@@ -206,7 +206,7 @@ export default function Partner() {
                 <div className="bg-[#635bff] rounded-3xl p-8 md:p-12 shadow-2xl max-w-5xl mx-auto ">
                     <div className="grid md:grid-cols-2 gap-12 items-center">
                         <div className="flex flex-col space-y-8">
-                            <h2 className="text-3xl md:text-4xl font-bold text-white">The Job</h2>
+                            <h2 className="text-3xl md:text-4xl font-semibold text-white">The Job</h2>
                             {jobDetails.map((item, index) => (
                                 <motion.div key={index} className="flex items-start space-x-5" initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, delay: index * 0.15 }} viewport={{ once: true, amount: 0.5 }}>
                                     <div className="flex-shrink-0 bg-[#4E46DC] rounded-xl p-3 ">{item.icon}</div>
@@ -233,12 +233,12 @@ export default function Partner() {
 
         <section className="py-20 lg:py-28">
           <div className="container mx-auto px-6 text-center">
-            <h2 className="text-3xl md:text-5xl font-bold text-white mb-20">Why Become a TaskPartner?</h2>
+            <h2 className="text-3xl md:text-5xl font-semibold text-white mb-20">Why Become a TaskPartner?</h2>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
               {perks.map((perk, i) => (
                 <motion.div key={perk.title} className="bg-[#635bff] p-8 rounded-2xl text-left hover:bg-indigo-500/80 hover:-translate-y-1 transition-all duration-300" initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: i * 0.05 }} viewport={{ once: true, amount: 0.3 }}>
                   <div className="bg-[#4E46DC] inline-block p-3 rounded-xl mb-5">{perk.icon}</div>
-                  <h3 className="text-xl font-bold text-white mb-2">{perk.title}</h3>
+                  <h3 className="text-xl font-semibold text-white mb-2">{perk.title}</h3>
                   <p className="text-gray-300 text-base leading-relaxed">{perk.description}</p>
                 </motion.div>
               ))}
@@ -248,7 +248,7 @@ export default function Partner() {
         
         <section className="py-20 lg:py-28">
           <div className="container mx-auto px-6 text-center">
-            <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">Example Videos</h2>
+            <h2 className="text-3xl md:text-5xl font-semibold text-white mb-4">Example Videos</h2>
             <p className="text-lg text-gray-300 mb-16">Viral videos made by our partners.</p>
             <div className="grid md:grid-cols-2 gap-8 md:gap-12 max-w-3xl mx-auto">
                 <VideoPlayer src="https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/gpavideo.mp4?alt=media&token=77ed2591-7dcc-47ca-bb84-5e270030d0ef" />
@@ -259,7 +259,7 @@ export default function Partner() {
 
         <section className="py-20 lg:py-28">
           <div className="container mx-auto px-6 text-center max-w-3xl">
-            <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">Referrals</h2>
+            <h2 className="text-4xl md:text-5xl font-semibold text-white mb-4">Referrals</h2>
             <p className="text-lg text-gray-300 max-w-2xl mx-auto mb-8">
               Are you an existing creator in our program? Earn a <strong className="text-white font-semibold">$50</strong> bonus for every friend you refer who gets accepted as a TaskPartner.
             </p>
@@ -275,7 +275,7 @@ export default function Partner() {
                     <AnimatePresence mode="wait">
                         {formStep === 0 && (
                             <motion.div key="start" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="text-center">
-                                <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">Ready to Apply?</h2>
+                                <h2 className="text-3xl md:text-5xl font-semibold text-white mb-4">Ready to Apply?</h2>
                                 <p className="text-lg text-gray-300 max-w-2xl mx-auto mb-8">Join our creator program and start earning today.</p>
                                 <button onClick={() => setFormStep(1)} className="inline-block bg-white text-[#635bff] rounded-full px-10 py-4 text-lg font-semibold shadow-lg transition-all duration-300 transform hover:scale-105 focus:outline-none">
                                     Start Application
@@ -307,7 +307,7 @@ export default function Partner() {
                                         <form onSubmit={handleSubmit} className="w-full">
                                             {formStep === 1 && (
                                                 <motion.div key={1} custom={direction} variants={carouselVariants} initial="enter" animate="center" exit="exit" className="space-y-6">
-                                                    <h2 className="text-2xl sm:text-3xl font-bold text-white text-center mb-2">Let's start with the basics</h2>
+                                                    <h2 className="text-2xl sm:text-3xl font-semibold text-white text-center mb-2">Let's start with the basics</h2>
                                                     <p className="text-gray-300 text-center mb-8">Tell us a little about yourself.</p>
                                                     <FormInput icon={<User className="w-5 h-5 text-gray-300"/>} type="text" name="name" placeholder="Full Name" value={formData.name} onChange={handleInputChange} required />
                                                     <FormInput icon={<Mail className="w-5 h-5 text-gray-300"/>} type="email" name="email" placeholder="Email Address" value={formData.email} onChange={handleInputChange} required />
@@ -316,7 +316,7 @@ export default function Partner() {
                                             )}
                                             {formStep === 2 && (
                                                 <motion.div key={2} custom={direction} variants={carouselVariants} initial="enter" animate="center" exit="exit" className="space-y-6">
-                                                    <h2 className="text-2xl sm:text-3xl font-bold text-white text-center mb-2">Your Social Presence</h2>
+                                                    <h2 className="text-2xl sm:text-3xl font-semibold text-white text-center mb-2">Your Social Presence</h2>
                                                     <p className="text-gray-300 text-center mb-8">Where do you create content?</p>
                                                     <FormInput icon={<AtSign className="w-5 h-5 text-gray-300"/>} type="text" name="tiktokHandle" placeholder="TikTok Handle (e.g., @yourhandle)" value={formData.tiktokHandle} onChange={handleInputChange} required />
                                                     <FormInput icon={<Instagram className="w-5 h-5 text-gray-300"/>} type="text" name="instagramHandle" placeholder="Instagram Handle (Optional)" value={formData.instagramHandle} onChange={handleInputChange} />
@@ -325,7 +325,7 @@ export default function Partner() {
                                             )}
                                             {formStep === 3 && (
                                                 <motion.div key={3} custom={direction} variants={carouselVariants} initial="enter" animate="center" exit="exit" className="space-y-6">
-                                                    <h2 className="text-2xl sm:text-3xl font-bold text-white text-center mb-2">Partnership Details</h2>
+                                                    <h2 className="text-2xl sm:text-3xl font-semibold text-white text-center mb-2">Partnership Details</h2>
                                                     <p className="text-gray-300 text-center mb-8">Just a few more questions.</p>
                                                     <FormInput icon={<Tag className="w-5 h-5 text-gray-300"/>} type="text" name="creatorCode" placeholder="Desired Creator Code" value={formData.creatorCode} onChange={handleInputChange} required />
                                                     <FormTextarea icon={<MessageSquare className="w-5 h-5 text-gray-300"/>} name="whyPartner" placeholder="Why do you want to be a TaskPartner?" value={formData.whyPartner} onChange={handleInputChange} rows={4} required></FormTextarea>
@@ -338,7 +338,7 @@ export default function Partner() {
                                             {formStep === 4 && (
                                                 <motion.div key={4} custom={direction} variants={carouselVariants} initial="enter" animate="center" exit="exit" className="text-center py-12 flex flex-col items-center justify-center">
                                                     <CheckCircle className="w-20 h-20 text-white mx-auto mb-6"/>
-                                                    <h3 className="text-2xl sm:text-3xl font-bold text-white mb-3">Application Received!</h3>
+                                                    <h3 className="text-2xl sm:text-3xl font-semibold text-white mb-3">Application Received!</h3>
                                                     <p className="text-gray-300 max-w-sm mx-auto">We'll get back to you within 3–5 business days.</p>
                                                     <button type="button" onClick={resetForm} className="mt-8 bg-white text-[#635bff] font-semibold py-3 px-8 rounded-xl hover:bg-gray-200 transition-colors focus:outline-none">Done</button>
                                                 </motion.div>
@@ -346,7 +346,7 @@ export default function Partner() {
                                             {formStep === 5 && (
                                                 <motion.div key={5} custom={direction} variants={carouselVariants} initial="enter" animate="center" exit="exit" className="text-center py-12 flex flex-col items-center justify-center">
                                                     <AlertTriangle className="w-20 h-20 text-red-400 mx-auto mb-6"/>
-                                                    <h3 className="text-2xl sm:text-3xl font-bold text-white mb-3">Submission Failed</h3>
+                                                    <h3 className="text-2xl sm:text-3xl font-semibold text-white mb-3">Submission Failed</h3>
                                                     <p className="text-gray-300 max-w-sm mx-auto">{formError || "Something went wrong."}</p>
                                                     <button type="button" onClick={() => { setDirection(-1); setFormStep(3); }} className="mt-8 bg-white text-[#635bff] font-semibold py-3 px-8 rounded-xl hover:bg-gray-200 transition-colors focus:outline-none">Try Again</button>
                                                 </motion.div>
@@ -363,7 +363,7 @@ export default function Partner() {
 
         <footer className="py-24">
           <div className="container mx-auto px-6 text-center">
-            <h3 className="font-bold text-white mb-4">Follow Our Socials</h3>
+            <h3 className="font-semibold text-white mb-4">Follow Our Socials</h3>
             <div className="flex flex-col space-y-4 max-w-md mx-auto">
               <a href="https://www.instagram.com/taskmasteroneai/" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between bg-[#635bff] text-white p-4 rounded-xl hover:bg-indigo-500 transition-colors">
                 <div className="flex items-center space-x-3">
@@ -421,12 +421,12 @@ export default function Partner() {
         {referralSuccess ? (
           <div className="text-center py-12 flex flex-col items-center justify-center min-h-[400px]">
             <CheckCircle className="w-20 h-20 text-white mx-auto mb-6"/>
-            <h3 className="text-2xl font-bold text-white mb-3">Referral Sent!</h3>
+            <h3 className="text-2xl font-semibold text-white mb-3">Referral Sent!</h3>
             <p className="text-gray-300 max-w-sm mx-auto">Thank you! If your friend is accepted, you'll receive your bonus.</p>
           </div>
         ) : (
           <form onSubmit={handleReferralSubmit} className="space-y-6">
-            <h2 className="text-3xl font-bold text-white text-center mb-2">Refer a Friend</h2>
+            <h2 className="text-3xl font-semibold text-white text-center mb-2">Refer a Friend</h2>
             <p className="text-gray-300 text-center mb-6 whitespace-nowrap">Enter your creator email and your friend's info.</p>
             
             <FormInput icon={<Mail className="w-5 h-5 text-gray-300"/>} type="email" name="referrerEmail" placeholder="Your Creator Email Address" value={referralFormData.referrerEmail} onChange={handleReferralInputChange} required />
