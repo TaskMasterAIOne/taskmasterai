@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Play, Pause, PlusCircle, Edit, Trash, Moon, CheckCircle, Paperclip, Trophy, Target, MessageCircle, BrainCircuit, ZapOff, Crown, RotateCcw, X, TimerIcon, Send, Settings2, SkipForward, Zap, Link2, StickyNote, History, Volume2, VolumeX, Maximize2, Brain, Coffee, Smile, Meh, Frown, TrendingUp, BookOpen, Award, Headphones, Wind, SunDim, Star as StarIcon, Flame, Volume1, Waves, CloudRain, Music2 as LofiIcon, Bird as ForestIcon, Flame as FireplaceIcon, Search, Globe, ImageIcon, Palette, Folder as FolderIconLucide, ChevronDown, ChevronRight, User as UserIcon, Loader2, Info as InfoIcon, Download, Users, Columns, Eye, AlignLeft, UserCheck, Hourglass, Notebook, Wand, SortAsc, CalendarCheck, Bot, CalendarDays,  Mic, Video, FileQuestion, Sparkles, Layers, PackagePlus, MessageSquarePlus, Edit3, SlidersHorizontal, BookCopy, ListTodo, Maximize, Minimize, Target as GoalIcon, CalendarRange, ArrowUpRight, Link as LinkLucideIcon, Plus, FileText, StopCircle, MoreHorizontal, BarChart3, AlertCircle, Circle, ShieldCheck, BatteryCharging, CheckSquare, Square
+  Play, Pause, PlusCircle, Edit, Trash, Moon, CheckCircle, Paperclip, Trophy, Target, MessageCircle, BrainCircuit, ZapOff, Crown, RotateCcw, X, TimerIcon, Send, Settings2, SkipForward, Zap, Link2, StickyNote, History, Volume2, VolumeX, Maximize2, Brain, Coffee, Smile, Meh, Frown, TrendingUp, BookOpen, Award, Headphones, Wind, SunDim, Star as StarIcon, Flame, Volume1, Waves, CloudRain, Music2 as LofiIcon, Bird as ForestIcon, Flame as FireplaceIcon, Search, Globe, ImageIcon, Palette, Folder as FolderIconLucide, ChevronDown, ChevronRight, User as UserIcon, Loader2, Info as InfoIcon, Download, Users, Columns, Eye, AlignLeft, UserCheck, Hourglass, Notebook, Wand, SortAsc, CalendarCheck, Bot, CalendarDays,  Mic, Video, FileQuestion, Sparkles, Layers, PackagePlus, MessageSquarePlus, Edit3, SlidersHorizontal, BookCopy, ListTodo, Maximize, Minimize, Target as GoalIcon, CalendarRange, ArrowUpRight, Link as LinkLucideIcon, Plus, FileText, StopCircle, MoreHorizontal, BarChart3, AlertCircle, Circle, ShieldCheck, BatteryCharging, CheckSquare, Square, Clock
 } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import ReactMarkdown from 'react-markdown';
@@ -579,6 +579,131 @@ const verifyEducationalContent = async (content: FlashcardMessage | QuestionMess
 };
 
 export function FocusMode() {
+  const [user, setUser] = useState<User | null>(null);
+  const [userName, setUserName] = useState<string>("User");
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  // Theme effect
+  useEffect(() => {
+    const applyTheme = () => {
+      const isIlluminateEnabled = JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'false');
+      if (isIlluminateEnabled) {
+        document.documentElement.classList.remove('dark');
+        document.documentElement.classList.add('light');
+      } else {
+        document.documentElement.classList.remove('light');
+        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      }
+    };
+    applyTheme();
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    mediaQuery.addEventListener('change', applyTheme);
+    window.addEventListener('storage', (event) => { if (event.key === 'isIlluminateEnabled') applyTheme(); });
+    return () => { mediaQuery.removeEventListener('change', applyTheme); window.removeEventListener('storage', applyTheme); };
+  }, []);
+
+  // Auth effect
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      setUser(user);
+      if (user) {
+        setUserName(user.displayName || user.email || "User");
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Focus Mode is currently under maintenance
+  return (
+    <div className="min-h-screen bg-gray-100 dark:bg-[#0A0B0F] font-poppins illuminate-override">
+      {user && (
+        <Sidebar
+          userName={userName}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          isMobileOpen={isMobileSidebarOpen}
+          setIsMobileOpen={setIsMobileSidebarOpen}
+        />
+      )}
+      
+      <div className={`transition-all duration-300 ${user ? (isSidebarCollapsed ? 'md:ml-20' : 'md:ml-64') : ''} min-h-screen flex items-center justify-center p-4`}>
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className="max-w-lg w-full bg-white dark:bg-[#16181D] rounded-3xl shadow-2xl p-10 text-center border border-gray-200 dark:border-gray-700/50"
+        >
+          <motion.div 
+            initial={{ scale: 0.8 }}
+            animate={{ scale: 1 }}
+            transition={{ duration: 0.5, ease: "easeOut", delay: 0.2 }}
+            className="w-20 h-20 mx-auto mb-8 bg-gradient-to-br from-yellow-100 to-orange-100 dark:from-yellow-900/30 dark:to-orange-900/30 rounded-full flex items-center justify-center shadow-lg"
+          >
+            <Settings2 className="w-10 h-10 text-yellow-600 dark:text-yellow-400" />
+          </motion.div>
+          
+          <motion.h1 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3, duration: 0.5 }}
+            className="text-3xl font-semibold text-gray-900 dark:text-white mb-4"
+          >
+            Under Maintenance
+          </motion.h1>
+          
+          <motion.p 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.4, duration: 0.5 }}
+            className="text-gray-600 dark:text-gray-400 mb-8 leading-relaxed text-lg"
+          >
+            Focus is currently being enhanced to provide you with an even better experience. 
+          </motion.p>
+          
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5, duration: 0.5 }}
+            className="space-y-4"
+          >
+            <Link 
+              to="/status"
+              className="block w-full px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-full font-semibold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 active:translate-y-0"
+            >
+              View Status Page
+            </Link>
+            
+            <Link 
+              to="/dashboard"
+              className="block w-full px-8 py-4 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-full font-semibold transition-all duration-300 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 active:translate-y-0"
+            >
+              Return to Dashboard
+            </Link>
+          </motion.div>
+          
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.6, duration: 0.5 }}
+            className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700/50"
+          >
+            <p className="text-sm text-gray-500 dark:text-gray-500 flex items-center justify-center gap-2">
+              <Clock className="w-4 h-4" />
+              Estimated downtime: 1-2 days
+            </p>
+          </motion.div>
+        </motion.div>
+      </div>
+    </div>
+  );
+}
+
+export function FocusModeOriginal() {
   const navigate = useNavigate();
   const location = useLocation();
   const [user, setUser] = useState<User | null>(null);
