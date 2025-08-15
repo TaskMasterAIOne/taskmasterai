@@ -181,7 +181,7 @@ function TestimonialsSection() {
     <section className="py-20 sm:py-28 bg-[#0C0E1A]">
       <div className="container mx-auto px-5 sm:px-6">
         <div className="text-center mb-16 sm:mb-20">
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-5">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-semibold text-white mb-5">
             Join <span className="text-white">a world of</span> learners.
           </h2>
         </div>
@@ -226,7 +226,7 @@ function AgenticSection() {
                     <span className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 bg-gray-800/60 rounded-xl">
                         {icon}
                     </span>
-                    <h3 className="text-2xl sm:text-3xl font-bold text-white">{title}</h3>
+                    <h3 className="text-2xl sm:text-3xl font-semibold text-white">{title}</h3>
                 </div>
                 <p className="text-base md:text-lg text-gray-400 leading-relaxed">
                     {description}
@@ -287,7 +287,7 @@ function AgenticSection() {
                         <motion.div className="flex justify-center items-center h-full space-x-[-80px] sm:space-x-[-60px]" initial="initial" whileInView="animate" viewport={{ once: true, amount: 0.6 }} variants={{ animate: { transition: { staggerChildren: 0.2, delayChildren: 0.3 } } }}>
                             {[ { term: "Chlorophyll", def: "The green pigment that captures sunlight." }, { term: "ATP", def: "The energy currency of the cell." }, { term: "Glucose", def: "The sugar food produced by the plant." }, ].map((card, i) => (
                                 <motion.div key={card.term} className="w-36 h-24 sm:w-44 sm:h-28 bg-sky-900/50 border border-sky-500/60 rounded-lg p-2 sm:p-3 text-center flex flex-col justify-center shadow-lg backdrop-blur-sm" style={{ rotate: i === 0 ? -8 : i === 1 ? 2 : 10 }} variants={{ initial: { opacity: 0, y: 25, scale: 0.9, rotate: i === 0 ? -15 : i === 1 ? 5 : 15 }, animate: { opacity: 1, y: 0, scale: 1, rotate: i === 0 ? -8 : i === 1 ? 2 : 10, transition: { type: 'spring', stiffness: 200, damping: 15 } }, }}>
-                                    <h4 className="font-bold text-sm text-white mb-1">{card.term}</h4>
+                                    <h4 className="font-semibold text-sm text-white mb-1">{card.term}</h4>
                                     <p className="text-xs text-sky-200 leading-snug">{card.def}</p>
                                 </motion.div>
                             ))}
@@ -320,7 +320,7 @@ function AgenticSection() {
                             <motion.div className="flex items-center gap-2.5 p-3 rounded-lg bg-green-900/60" variants={{ initial: { scale: 0.8, opacity: 0 }, animate: { scale: 1, opacity: 1, transition: { delay: 1 } }, }}>
                                 <FolderPlus className="w-5 h-5 text-green-400" />
                                 <span className="text-sm font-semibold text-white">Biology Midterm</span>
-                                <motion.span className="ml-1 bg-green-400 text-green-950 text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full" variants={{ initial: { scale: 0 }, animate: { scale: [0, 1.2, 1], transition: { delay: 1.3, duration: 0.4 } }, }}>+3</motion.span>
+                                <motion.span className="ml-1 bg-green-400 text-green-950 text-xs font-semibold w-5 h-5 flex items-center justify-center rounded-full" variants={{ initial: { scale: 0 }, animate: { scale: [0, 1.2, 1], transition: { delay: 1.3, duration: 0.4 } }, }}>+3</motion.span>
                             </motion.div>
                         </motion.div>
                     </div>
@@ -334,7 +334,7 @@ function AgenticSection() {
             <div className="container mx-auto px-5 sm:px-6">
                 <div className="text-center mb-16 sm:mb-20">
                     <motion.h2
-                        className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-5"
+                        className="text-3xl sm:text-4xl lg:text-5xl font-semibold text-white mb-5"
                         initial={{ opacity: 0, y: 20 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true, amount: 0.5 }}
@@ -353,7 +353,7 @@ function AgenticSection() {
                         transition={{ duration: 0.5, delay: 0.1 }}
                     >
                         TaskMaster doesn't just respond, it{' '}
-                        <span className="font-bold bg-[#8A85FF] bg-clip-text text-transparent">
+                        <span className="font-semibold bg-[#8A85FF] bg-clip-text text-transparent">
                             acts
                         </span>
                         . It's your proactive partner that edits your notes, creates study materials, and organizes them for you, all from a single chat.
@@ -382,7 +382,7 @@ function FeaturesGridSection() {
     <section id="features" className="py-20 sm:py-28 bg-[#0C0E1A]">
       <div className="container mx-auto px-5 sm:px-6">
         <div className="text-center mb-16 sm:mb-20">
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-5">Everything You Need to Excel</h2>
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-semibold text-white mb-5">Everything You Need to Excel</h2>
           <p className="text-base sm:text-lg text-gray-400 max-w-5xl mx-auto">
             A suite of powerful tools to streamline your workflow and boost your understanding.
           </p>
@@ -423,7 +423,7 @@ export function LearningSuperchargedSection() {
                     <span className="flex items-center justify-center w-12 h-12 bg-gray-800/60 rounded-xl">
                         {icon}
                     </span>
-                    <h3 className="text-2xl md:text-3xl font-bold text-white">{title}</h3>
+                    <h3 className="text-2xl md:text-3xl font-semibold text-white">{title}</h3>
                 </div>
                 <p className="text-base md:text-lg text-gray-400 leading-relaxed">
                     {description}
@@ -445,7 +445,7 @@ export function LearningSuperchargedSection() {
         <section id="learning-supercharged" className="py-24 sm:py-32 bg-[#0C0E1A]">
             <div className="container mx-auto px-5 sm:px-6">
                 <div className="text-center mb-24">
-                    <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-5">
+                    <h2 className="text-3xl sm:text-4xl lg:text-5xl font-semibold text-white mb-5">
                         Learning, <span className="bg-gradient-to-r from-[#635BFF] to-[#8A85FF] italic bg-clip-text text-transparent">Supercharged.</span>
                     </h2>
                     <p className="text-base sm:text-lg text-gray-400 max-w-4xl mx-auto">
@@ -607,7 +607,7 @@ export function IntegrationsSection() {
         <section className="py-24 sm:py-32 bg-[#0C0E1A] overflow-hidden">
             <div className="container mx-auto px-5 sm:px-6">
                 <div className="text-center mb-16 lg:mb-24">
-                    <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-5">
+                    <h2 className="text-3xl sm:text-4xl lg:text-5xl font-semibold text-white mb-5">
                         Your Apps, <span className="bg-gradient-to-r from-[#635BFF] to-[#8A85FF] italic bg-clip-text text-transparent">Combined.</span>
                     </h2>
                     <p className="text-base sm:text-lg text-gray-400 max-w-3xl mx-auto">
@@ -688,7 +688,7 @@ export function IntegrationsSection() {
                         <div className="h-full bg-[#12141D] p-8 rounded-2xl border border-gray-700/60 shadow-xl hover:border-blue-500/60 transition-colors duration-300 transform hover:-translate-y-1">
                             <div className="flex items-center gap-4 mb-5">
                                 <GoogleDriveIcon className="w-10 h-10" />
-                                <h3 className="text-2xl font-bold text-white">Google Drive</h3>
+                                <h3 className="text-2xl font-semibold text-white">Google Drive</h3>
                             </div>
                             <p className="text-gray-400 leading-relaxed">
                                 TaskMaster can read your files to give smarter responses and can even organize or update them for you.
@@ -699,7 +699,7 @@ export function IntegrationsSection() {
                        <div className="h-full bg-[#12141D] p-8 rounded-2xl border border-gray-700/60 shadow-xl hover:border-gray-400/60 transition-colors duration-300 transform hover:-translate-y-1">
                             <div className="flex items-center gap-4 mb-5">
                                 <NotionIcon className="w-10 h-10" />
-                                <h3 className="text-2xl font-bold text-white">Notion</h3>
+                                <h3 className="text-2xl font-semibold text-white">Notion</h3>
                             </div>
                             <p className="text-gray-400 leading-relaxed">
                                 TaskMaster can pull insights from your Notion workspace and can even update or create pages to match your needs.
@@ -710,7 +710,7 @@ export function IntegrationsSection() {
                        <div className="h-full bg-[#12141D] p-8 rounded-2xl border border-gray-700/60 shadow-xl hover:border-green-500/60 transition-colors duration-300 transform hover:-translate-y-1">
                             <div className="flex items-center gap-4 mb-5">
                                 <GoogleCalendarIcon className="w-10 h-10" />
-                                <h3 className="text-2xl font-bold text-white">Google Calendar</h3>
+                                <h3 className="text-2xl font-semibold text-white">Google Calendar</h3>
                             </div>
                             <p className="text-gray-400 leading-relaxed">
                                 TaskMaster can understand your schedule and can even plan tasks or events around your day.
@@ -719,7 +719,7 @@ export function IntegrationsSection() {
                     </motion.div>
                     <motion.div variants={cardVariants} initial="offscreen" whileInView="onscreen" viewport={{ once: true, amount: 0.5 }}>
                        <div className="h-full bg-[#12141D] p-8 rounded-2xl border-2 border-dashed border-gray-700/80 flex flex-col justify-center items-center text-center shadow-xl transform hover:-translate-y-1 transition-transform duration-300">
-                            <h3 className="text-2xl font-bold text-white mb-4">And Many More...</h3>
+                            <h3 className="text-2xl font-semibold text-white mb-4">And Many More...</h3>
                             <p className="text-gray-400 leading-relaxed mb-6">
                                 We're constantly expanding our ecosystem. Integrations for leading educational and creative platforms are coming soon.
                             </p>
@@ -816,7 +816,7 @@ function App() {
                             animate="visible"
                         >
                             <motion.h1 
-                                className="text-5xl md:text-1xl lg:text-[3.8rem] font-bold mb-9 leading-snug tracking-tight text-white"
+                                className="text-5xl md:text-1xl lg:text-[3.8rem] font-semibold mb-9 leading-snug tracking-tight text-white"
                                 variants={heroItemVariants}
                             >
                                 <span className="block bg-gradient-to-r from-[#635BFF] to-[#8A85FF] bg-clip-text text-transparent">The AI tutor</span>
