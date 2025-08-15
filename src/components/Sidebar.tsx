@@ -1,10 +1,9 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Settings,
   FileText,
   ZapOff,
-  Bot,
   Crown,
   CircleUserRound,
   PanelRightClose,
@@ -125,7 +124,7 @@ export function Sidebar({
     { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
     { label: "Folders", icon: Folders, path: "/folders" },
     { label: "Notes", icon: FileText, path: "/notes" },
-    { label: "Focus", icon: ZapOff, path: "/focus" },
+    { label: "Focus", icon: ZapOff, path: "/focus", isUnderMaintenance: true },
     { label: "AI Chat", icon: MessageCircle, path: "/ai" },
     { label: "Settings", icon: Settings, path: "/settings" },
   ];
@@ -240,13 +239,19 @@ export function Sidebar({
             {menuItems.map((item) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.path;
+              const isUnderMaintenance = (item as any).isUnderMaintenance;
               return (
                 <li key={item.label}>
-                  <button onClick={() => handleNavigation(item.path)} className={`w-full flex items-center gap-3 px-2.5 py-2.5 text-sm rounded-lg transition-all duration-200 ease-out transform hover:scale-[1.01] ${sidebarTextColor} ${menuItemHoverBg} ${menuItemHoverText} ${isActive ? `${activeMenuItemBg} ${activeMenuItemText} ${activeMenuItemFontWeight}` : ""}`} title={isCollapsed && !isMobileOpen ? item.label : undefined}>
+                  <button onClick={() => handleNavigation(item.path)} className={`w-full flex items-center gap-3 px-2.5 py-2.5 text-sm rounded-lg transition-all duration-200 ease-out transform hover:scale-[1.01] ${sidebarTextColor} ${menuItemHoverBg} ${menuItemHoverText} ${isActive ? `${activeMenuItemBg} ${activeMenuItemText} ${activeMenuItemFontWeight}` : ""} ${isUnderMaintenance ? 'opacity-70' : ''}`} title={isCollapsed && !isMobileOpen ? item.label : undefined}>
                     <Icon className="w-5 h-5 min-w-[1.25rem]" strokeWidth={isActive ? 2.5 : 2} />
                     {(!isCollapsed || isMobileOpen) && (
                       <span className="flex items-center gap-2">
                         <span className="whitespace-nowrap">{item.label}</span>
+                        {isUnderMaintenance && (
+                          <span className="px-1.5 py-0.5 text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 rounded-full font-medium">
+                            ⚠️
+                          </span>
+                        )}
                       </span>
                     )}
                   </button>
