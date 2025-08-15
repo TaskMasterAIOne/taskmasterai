@@ -340,7 +340,7 @@ Preferred Usage Style: ${usageStyleText}
               
               {step === 0 && (
                  <div className="text-center max-w-3xl mx-auto">
-                  <h1 className="text-3xl sm:text-4xl font-bold mb-3">Welcome to TaskMaster AI</h1>
+                  <h1 className="text-3xl sm:text-4xl font-semibold mb-3">Welcome to TaskMaster AI</h1>
                   <p className="text-gray-500 dark:text-gray-400 mx-auto mb-8 sm:mb-12">Your personal AI learning companion for any subject.</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="md:col-span-2 lg:col-span-3 bg-white dark:bg-[#161922] p-4 sm:p-5 rounded-xl border border-gray-200 dark:border-gray-700/50 flex flex-col sm:flex-row items-start sm:items-center gap-4">
@@ -361,7 +361,7 @@ Preferred Usage Style: ${usageStyleText}
               {[1, 2, 3, 4, 5, 7].includes(step) && <div className="max-w-3xl mx-auto w-full">
                 {step === 1 && (
                   <div className="text-center">
-                    <h1 className="text-2xl sm:text-4xl font-bold mb-3">What do you want to learn?</h1>
+                    <h1 className="text-2xl sm:text-4xl font-semibold mb-3">What do you want to learn?</h1>
                     <p className="text-gray-500 dark:text-gray-400 mx-auto mb-8">This will help us tailor your experience. Select one or more goals.</p>
                     <div className="bg-white dark:bg-[#161922] p-4 sm:p-8 rounded-2xl border border-gray-200 dark:border-gray-700/50 space-y-6">
                       <div className="text-left">
@@ -386,7 +386,7 @@ Preferred Usage Style: ${usageStyleText}
                 )}
                 {[2, 3, 4].includes(step) && (
                   <div className="text-center">
-                      <h1 className="text-2xl sm:text-4xl font-bold mb-3">{step === 2 ? 'Why are you learning this?' : step === 3 ? 'What level are you at?' : 'How do you plan to use TaskMaster?'}</h1>
+                      <h1 className="text-2xl sm:text-4xl font-semibold mb-3">{step === 2 ? 'Why are you learning this?' : step === 3 ? 'What level are you at?' : 'How do you plan to use TaskMaster?'}</h1>
                       <p className="text-gray-500 dark:text-gray-400 max-w-xl mx-auto mb-8">{step === 2 ? "Understanding your 'why' helps us personalize your journey." : step === 3 ? `Help us understand your current knowledge level in your subjects.` : 'Understanding your style helps make a better learning companion.'}</p>
                       <div className="bg-white dark:bg-[#161922] p-4 sm:p-8 rounded-2xl border border-gray-200 dark:border-gray-700/50 space-y-4">
                           {step === 2 && motivationOptions.map(option => (<div key={option.id}><RadioCard option={option} selected={formData.motivation === option.id} onSelect={(id) => handleChange('motivation', id)} hasDescription={false} />{option.id === 'other' && formData.motivation === 'other' && <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-3 ml-10"><input type="text" value={formData.otherMotivation} onChange={(e) => handleChange('otherMotivation', e.target.value)} placeholder="Please specify your motivation" className="w-full bg-gray-100 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" /></motion.div>}</div>))}
@@ -397,7 +397,7 @@ Preferred Usage Style: ${usageStyleText}
                 )}
                 {step === 5 && (
                   <div className="text-center">
-                    <h1 className="text-2xl sm:text-4xl font-bold mb-3">Set Your Universal Context</h1>
+                    <h1 className="text-2xl sm:text-4xl font-semibold mb-3">Set Your Universal Context</h1>
                     <p className="text-gray-500 dark:text-gray-400 mx-auto mb-8">This helps TaskMaster provide perfectly aligned responses without you repeating yourself.</p>
                      <div className="bg-white dark:bg-[#161922] p-4 sm:p-8 rounded-2xl border border-gray-200 dark:border-gray-700/50 space-y-5 text-left">
                        <div><label htmlFor="role" className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-2 block">Your Role / Primary Area of Study</label><textarea id="role" value={formData.role} onChange={e => handleChange('role', e.target.value)} placeholder="e.g., College student majoring in CS..." rows={2} className="w-full bg-gray-100 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 resize-none"></textarea></div>
@@ -409,7 +409,7 @@ Preferred Usage Style: ${usageStyleText}
                 )}
                  {step === 7 && (
                   <div className="text-center">
-                    <h1 className="text-2xl sm:text-4xl font-bold mb-3">Your Learning Style is Ready!</h1>
+                    <h1 className="text-2xl sm:text-4xl font-semibold mb-3">Your Learning Style is Ready!</h1>
                     <p className="text-gray-500 dark:text-gray-400 max-w-xl mx-auto mb-8">We've crafted a personalized experience based on your preferences.</p>
                     <div className="bg-white dark:bg-[#161922] p-4 sm:p-8 rounded-2xl border border-gray-200 dark:border-gray-700/50">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
@@ -422,7 +422,7 @@ Preferred Usage Style: ${usageStyleText}
               
               {step === 6 && (
                 <div className="text-center">
-                    <h1 className="text-2xl sm:text-4xl font-bold mb-3">Complete Your TaskMaster Experience</h1>
+                    <h1 className="text-2xl sm:text-4xl font-semibold mb-3">Complete Your TaskMaster Experience</h1>
                     <p className="text-gray-500 dark:text-gray-400 mx-auto mb-8"></p>
                     <div className="flex justify-center mb-8">
                         <div className="bg-gray-200 dark:bg-[#161922] p-1.5 rounded-full flex border border-gray-300 dark:border-gray-700/60">
