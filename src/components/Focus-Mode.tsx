@@ -206,7 +206,6 @@ const SUPPORTED_FILE_TYPES = "image/jpeg,image/png,image/webp,image/gif,image/sv
 const MAX_FILE_SIZE_MB = 20;
 const CHAT_HISTORY_LENGTH_FOR_PROMPT = 10;
 
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 
 const MINDFUL_BREAK_SUGGESTIONS = [
@@ -2345,11 +2344,11 @@ Assistant:`;
           {isFullscreen ? (
             <motion.div key="fullscreen-content" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1, transition: { duration: 0.3, ease: "circOut" } }} exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.2, ease: "circIn" } }} className={`w-full h-full flex flex-col items-center justify-between p-6 sm:p-8 selection:bg-indigo-500 selection:text-white ${fsBgColor} ${fsTextColor}`}>
               <div className="w-full max-w-6xl mx-auto flex justify-between items-center pt-2">
-                <div className="text-left"><h1 className="text-2xl sm:text-3xl font-bold flex items-center"><TimerIcon className={`w-7 h-7 sm:w-8 sm:h-8 mr-2.5 ${isDarkMode ? 'text-indigo-400' : 'text-indigo-600'}`} /> Focus Session</h1> {activeSession?.sessionGoalText && <p className={`text-sm sm:text-base italic mt-1.5 ${fsSubtleTextColor}`}>Goal: {activeSession.sessionGoalText}</p>}</div>
+                <div className="text-left"><h1 className="text-2xl sm:text-3xl font-semibold flex items-center"><TimerIcon className={`w-7 h-7 sm:w-8 sm:h-8 mr-2.5 ${isDarkMode ? 'text-indigo-400' : 'text-indigo-600'}`} /> Focus Session</h1> {activeSession?.sessionGoalText && <p className={`text-sm sm:text-base italic mt-1.5 ${fsSubtleTextColor}`}>Goal: {activeSession.sessionGoalText}</p>}</div>
                 <button onClick={toggleFullscreen} className={`p-2.5 rounded-full transition-colors ${fsIconColor}`} title="Exit Fullscreen"><X className="w-6 h-6 sm:w-7 sm:h-7" /></button>
               </div>
               <div className="flex flex-col items-center justify-center flex-grow w-full text-center">
-                <motion.div key={timeLeft + (activeSession?.status || 'idle') + "-fullscreen"} initial={{ opacity: 0.8, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className={`text-7xl sm:text-8xl md:text-9xl lg:text-[10rem] xl:text-[12rem] font-mono font-bold mb-4 tabular-nums transition-colors duration-300 ${(activeSession?.status === 'break_running' || activeSession?.status === 'break_paused') ? (isDarkMode ? 'text-green-400' : 'text-green-600') : (isDarkMode ? 'text-indigo-400' : 'text-indigo-600')}`}>{formatTime(timeLeft)}</motion.div>
+                <motion.div key={timeLeft + (activeSession?.status || 'idle') + "-fullscreen"} initial={{ opacity: 0.8, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className={`text-7xl sm:text-8xl md:text-9xl lg:text-[10rem] xl:text-[12rem] font-mono font-semibold mb-4 tabular-nums transition-colors duration-300 ${(activeSession?.status === 'break_running' || activeSession?.status === 'break_paused') ? (isDarkMode ? 'text-green-400' : 'text-green-600') : (isDarkMode ? 'text-indigo-400' : 'text-indigo-600')}`}>{formatTime(timeLeft)}</motion.div>
                 <div className="mb-3 text-base sm:text-lg min-h-[24px] font-medium">{activeSession?.status === 'running' && <span className={`${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>Focusing on: {activeSession.linkedItemName || activeSession.timerName || "Work"}</span>} {activeSession?.status === 'paused' && <span className={`italic ${fsSubtleTextColor}`}>Paused: {activeSession.linkedItemName || activeSession.timerName || "Work"}</span>} {(activeSession?.status === 'break_running' || activeSession?.status === 'break_paused') && <span className={`${isDarkMode ? 'text-green-300' : 'text-green-700'}`}>{activeSession.isLongBreakNext ? 'Long Break' : 'Short Break'} {activeSession.status === 'break_paused' && '(Paused)'}</span>} {(!activeSession || ['idle', 'completed', 'cancelled'].includes(activeSession.status)) && <span className={`italic ${fsSubtleTextColor}`}>Ready to start a new session.</span>}</div>
                 {activeSession?.type === 'pomodoro' && (activeSession.status === 'running' || activeSession.status === 'paused' || activeSession.status === 'break_running' || activeSession.status === 'break_paused') && <p className={`${fsSubtleTextColor} text-sm sm:text-base mb-6`}>Cycle {displayCycleNumber} of {activeSession.pomodoroCyclesGoal || pomodoroCyclesGoalSetting}</p>}
                 <AnimatePresence>{currentMindfulSuggestion && (activeSession?.status === 'break_running' || activeSession?.status === 'break_paused') && (<motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }} className={`p-3.5 my-4 rounded-lg text-sm italic max-w-md backdrop-blur-sm ${isDarkMode ? 'bg-green-500/10 text-green-300 border border-green-500/30' : 'bg-green-500/10 text-green-700 border border-green-500/20'}`}><Coffee className="w-4 h-4 inline mr-2" /> {currentMindfulSuggestion}</motion.div>)}</AnimatePresence>
@@ -2521,13 +2520,13 @@ Assistant:`;
             <motion.div key="normal-content" initial="initial" animate="animate" exit="exit" variants={fullscreenContentVariants} className="w-full">
               <header className="mb-6">
                 <div className="flex items-center justify-between">
-                  <h1 className={`text-2xl md:text-3xl font-bold flex items-center ${headingClass}`}><ZapOff className={`w-7 h-7 mr-2.5 ${primaryAccentText}`} /> Focus</h1>
+                  <h1 className={`text-2xl md:text-3xl font-semibold flex items-center ${headingClass}`}><ZapOff className={`w-7 h-7 mr-2.5 ${primaryAccentText}`} /> Focus</h1>
                   <div className="flex items-center gap-2"> <button onClick={() => setShowSettingsModal(true)} className={`p-2 rounded-full ${iconColor}`} title="Timer Settings"><Settings2 className="w-5 h-5" /></button> <button onClick={toggleFullscreen} className={`p-2 rounded-full ${iconColor}`} title="Enter Fullscreen"><Maximize2 className="w-5 h-5" /></button></div>
                 </div>
               </header>
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <motion.div layout className={`lg:col-span-2 flex flex-col items-center justify-center text-center ${cardClass} rounded-xl p-6 shadow-xl min-h-[500px]`}>
-                  <motion.div key={timeLeft + (activeSession?.status || 'idle') + "-normal"} initial={{ opacity: 0.8, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }} className={`text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-mono font-bold mb-4 tabular-nums transition-colors duration-300 ${(activeSession?.status === 'break_running' || activeSession?.status === 'break_paused') ? (isDarkMode ? 'text-green-400' : 'text-green-500') : primaryAccentText}`}>{formatTime(timeLeft)}</motion.div>
+                  <motion.div key={timeLeft + (activeSession?.status || 'idle') + "-normal"} initial={{ opacity: 0.8, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }} className={`text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-mono font-semibold mb-4 tabular-nums transition-colors duration-300 ${(activeSession?.status === 'break_running' || activeSession?.status === 'break_paused') ? (isDarkMode ? 'text-green-400' : 'text-green-500') : primaryAccentText}`}>{formatTime(timeLeft)}</motion.div>
                   <div className="mb-1 text-sm min-h-[20px] font-medium">{activeSession?.status === 'running' && <span className={`${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>Focusing on: {activeSession.linkedItemName || activeSession.timerName || "Work"}</span>} {activeSession?.status === 'paused' && <span className={`italic ${subheadingClass}`}>Paused: {activeSession.linkedItemName || activeSession.timerName || "Work"}</span>} {(activeSession?.status === 'break_running' || activeSession?.status === 'break_paused') && <span className={`${isDarkMode ? 'text-green-300' : 'text-green-600'}`}>{activeSession.isLongBreakNext ? 'Long Break' : 'Short Break'} {activeSession.status === 'break_paused' && '(Paused)'}</span>} {(!activeSession || ['idle', 'completed', 'cancelled'].includes(activeSession.status)) && <span className={`italic ${subheadingClass}`}>Ready to start a new session.</span>}</div>
                   {activeSession?.sessionGoalText && <p className={`text-xs italic mt-0.5 mb-2 ${subheadingClass}`}>Goal: {activeSession.sessionGoalText}</p>}
                   {activeSession?.type === 'pomodoro' && (activeSession.status === 'running' || activeSession.status === 'paused' || activeSession.status === 'break_running' || activeSession.status === 'break_paused') && <p className={`${subheadingClass} text-xs mb-4`}>Cycle {displayCycleNumber} of {activeSession.pomodoroCyclesGoal || pomodoroCyclesGoalSetting}</p>}
@@ -2628,7 +2627,7 @@ Assistant:`;
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 dark:bg-black/60 backdrop-blur-sm">
                   <motion.div initial="hidden" animate="visible" exit="exit" variants={modalVariants} className={`${cardClass} rounded-xl p-6 w-full max-w-md`}>
                       <div className="flex justify-between items-center mb-6">
-                          <h3 className={`text-xl font-bold ${headingClass}`}>Pomodoro Settings</h3>
+                          <h3 className={`text-xl font-semibold ${headingClass}`}>Pomodoro Settings</h3>
                           <button onClick={() => setShowSettingsModal(false)} className={iconColor}><X className="w-5 h-5"/></button>
                       </div>
                       <div className="space-y-4">
@@ -2660,7 +2659,7 @@ Assistant:`;
                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 dark:bg-black/60 backdrop-blur-sm">
                   <motion.div initial="hidden" animate="visible" exit="exit" variants={modalVariants} className={`${cardClass} rounded-xl p-6 w-full max-w-md`}>
                       <div className="flex justify-between items-center mb-6">
-                          <h3 className={`text-xl font-bold ${headingClass}`}>{editingCustomTimer ? 'Edit' : 'Add'} Timer</h3>
+                          <h3 className={`text-xl font-semibold ${headingClass}`}>{editingCustomTimer ? 'Edit' : 'Add'} Timer</h3>
                           <button onClick={() => setShowCustomTimerModal(false)} className={iconColor}><X className="w-5 h-5"/></button>
                       </div>
                       <div className="space-y-4">
@@ -2695,7 +2694,7 @@ Assistant:`;
           {showPreFocusModal && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 dark:bg-black/60 backdrop-blur-sm">
                   <motion.div initial="hidden" animate="visible" exit="exit" variants={modalVariants} className={`${cardClass} rounded-xl p-6 w-full max-w-lg text-center`}>
-                      <h3 className={`text-2xl font-bold mb-2 ${headingClass}`}>Ready to Focus?</h3>
+                      <h3 className={`text-2xl font-semibold mb-2 ${headingClass}`}>Ready to Focus?</h3>
                       <p className={`text-sm mb-6 ${subheadingClass}`}>A quick check-in can improve your session.</p>
                       <div className="space-y-5 my-8">
                           <div>
@@ -2725,7 +2724,7 @@ Assistant:`;
           {showPostSessionModal && completedSessionForFeedback && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 dark:bg-black/60 backdrop-blur-sm">
                   <motion.div initial="hidden" animate="visible" exit="exit" variants={modalVariants} className={`${cardClass} rounded-xl p-6 w-full max-w-lg`}>
-                      <h3 className={`text-2xl font-bold mb-2 ${headingClass}`}>Session Complete!</h3>
+                      <h3 className={`text-2xl font-semibold mb-2 ${headingClass}`}>Session Complete!</h3>
                       <p className={`text-sm mb-6 ${subheadingClass}`}>How did it go? Your feedback helps you improve.</p>
                       {completedSessionForFeedback.sessionGoalText && (
                           <div className="mb-6 p-4 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/60">
