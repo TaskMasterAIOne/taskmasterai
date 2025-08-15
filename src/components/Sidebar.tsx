@@ -269,8 +269,8 @@ export function Sidebar({
               </div>
               {areDevOrInternTagsVisible && (
                 <div className="absolute flex items-center gap-0.5 animate-fade-in-tags -top-1.5 -right-2">
-                  {isDev && ( <span className="px-1 py-0.5 text-[8px] font-bold text-white bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full shadow select-none" title="Developer">DEV</span> )}
-                  {isIntern && ( <span className="px-1 py-0.5 text-[8px] font-bold text-white bg-gradient-to-br from-teal-500 to-green-600 rounded-full shadow select-none" title="Intern">INT</span> )}
+                  {isDev && ( <span className="px-1 py-0.5 text-[8px] font-semibold text-white bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full shadow select-none" title="Developer">DEV</span> )}
+                  {isIntern && ( <span className="px-1 py-0.5 text-[8px] font-semibold text-white bg-gradient-to-br from-teal-500 to-green-600 rounded-full shadow select-none" title="Intern">INT</span> )}
                 </div>
               )}
             </div>
