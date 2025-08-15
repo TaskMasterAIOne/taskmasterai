@@ -436,14 +436,14 @@ Preferred Usage Style: ${usageStyleText}
                             const Icon = plan.icon;
                             return (
                                 <div key={plan.id} onClick={() => setSelectedPlan(plan.id as any)} className={`relative bg-white dark:bg-[#161922] rounded-2xl p-6 flex flex-col border-2 transition-all cursor-pointer ${selectedPlan === plan.id ? 'border-indigo-500 shadow-lg' : 'border-gray-200 dark:border-gray-700 hover:border-indigo-400/50'}`}>
-                                    {plan.recommended && isYearly && <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-yellow-400 text-black text-xs font-bold px-3 py-1 rounded-full z-10">RECOMMENDED</div>}
+                                    {plan.recommended && isYearly && <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-yellow-400 text-black text-xs font-semibold px-3 py-1 rounded-full z-10">RECOMMENDED</div>}
                                     <div className="flex-grow">
                                       <h3 className={`text-xl font-semibold text-gray-800 dark:text-gray-100 mb-2 flex items-center gap-2 ${plan.recommended && isYearly ? 'pt-2' : ''}`}>
                                         {Icon && <Icon className={plan.id === 'premium' ? "text-yellow-500 dark:text-yellow-400" : "text-purple-500 dark:text-purple-400"} />}
                                         {plan.name}
                                       </h3>
                                       <div className="my-4">
-                                          <span className="text-4xl font-bold text-left text-gray-800 dark:text-white">
+                                          <span className="text-4xl font-semibold text-left text-gray-800 dark:text-white">
                                               {plan.id === 'basic' ? plan.price : (isYearly ? plan.priceYearly : plan.priceMonthly)}
                                           </span>
                                           <span className="text-gray-500 text-left dark:text-gray-400 text-sm"> {plan.id === 'basic' ? plan.priceSuffix : '/ month'}</span>
