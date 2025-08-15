@@ -2,7 +2,6 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 import {
   Play, Pause, PlusCircle, Edit, Trash, Moon, CheckCircle, Paperclip, Trophy, Target, MessageCircle, BrainCircuit, ZapOff, Crown, RotateCcw, X, TimerIcon, Send, Settings2, SkipForward, Zap, Link2, StickyNote, History, Volume2, VolumeX, Maximize2, Brain, Coffee, Smile, Meh, Frown, TrendingUp, BookOpen, Award, Headphones, Wind, SunDim, Star as StarIcon, Flame, Volume1, Waves, CloudRain, Music2 as LofiIcon, Bird as ForestIcon, Flame as FireplaceIcon, Search, Globe, ImageIcon, Palette, Folder as FolderIconLucide, ChevronDown, ChevronRight, User as UserIcon, Loader2, Info as InfoIcon, Download, Users, Columns, Eye, AlignLeft, UserCheck, Hourglass, Notebook, Wand, SortAsc, CalendarCheck, Bot, CalendarDays,  Mic, Video, FileQuestion, Sparkles, Layers, PackagePlus, MessageSquarePlus, Edit3, SlidersHorizontal, BookCopy, ListTodo, Maximize, Minimize, Target as GoalIcon, CalendarRange, ArrowUpRight, Link as LinkLucideIcon, Plus, FileText, StopCircle, MoreHorizontal, BarChart3, AlertCircle, Circle, ShieldCheck, BatteryCharging, CheckSquare, Square
 } from 'lucide-react';
@@ -726,7 +725,6 @@ export function FocusMode() {
   const [isAudioSupported, setIsAudioSupported] = useState(false);
   const [listening, setListening] = useState(false);
   const [transcript, setTranscript] = useState('');
-  const [browserSupportsSpeechRecognition, setBrowserSupportsSpeechRecognition] = useState(false);
   const [isMicrophoneAvailable, setIsMicrophoneAvailable] = useState(false);
   const recognitionRef = useRef<any>(null);
   const recognitionStoppedManually = useRef(false);
@@ -2284,7 +2282,6 @@ Assistant:`;
 
 
 
-  useEffect(() => { if (SpeechRecognition) { setIsAudioSupported(true); const recognition = new SpeechRecognition(); recognition.continuous = true; recognition.interimResults = true; recognition.lang = 'en-US'; recognition.onresult = (event: any) => { let interim = ''; let final = ''; for (let i = event.resultIndex; i < event.results.length; ++i) { if (event.results[i].isFinal) final += event.results[i][0].transcript; else interim += event.results[i][0].transcript; } setChatMessage(prev => prev + final + interim); }; recognition.onend = () => { if (recognitionStoppedManually.current) setIsRecording(false); else if (isRecording) { try { recognition.start(); } catch(e) { console.error("Could not restart recognition:", e); setIsRecording(false); }} else setIsRecording(false); }; recognition.onerror = (event: any) => { console.error("Speech recognition error:", event.error, event.message); let msg = "Speech error."; if (event.error === 'network') msg="Network error with speech."; else if(event.error === 'no-speech') msg="No speech detected."; else if(event.error === 'not-allowed' || event.error === 'service-not-allowed') msg="Mic access denied."; showToast(msg, "error", Mic); setIsRecording(false);}; recognitionRef.current = recognition; } else setIsAudioSupported(false); }, [isRecording, showToast]);
   const handleToggleRecording = () => { if (!isAudioSupported || !recognitionRef.current) return; const currentlyRecording = isRecording; setIsRecording(!currentlyRecording); if (currentlyRecording) { recognitionStoppedManually.current = true; recognitionRef.current.stop(); } else { recognitionStoppedManually.current = false; setChatMessage(''); try { recognitionRef.current.start(); } catch(e) { console.error("Speech recognition could not start:", e); showToast("Mic error.", "error"); setIsRecording(false); } } };
 
 
