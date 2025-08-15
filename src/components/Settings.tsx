@@ -794,7 +794,7 @@ const handleNotionConnect = () => {
       <main className={`transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} pt-6`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-20">
             <div className="mb-6 sm:mb-8">
-              <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2 text-gray-800 dark:text-gray-100">
+              <h1 className="text-xl sm:text-2xl font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100">
                 <SettingsIcon className="w-5 h-5 sm:w-6 sm:h-6 text-[#635BFF]" />Settings
               </h1>
               <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">Manage your account settings and preferences</p>
@@ -979,7 +979,7 @@ const handleNotionConnect = () => {
                                 className="bg-gray-50 dark:bg-gray-800/50 p-2.5 rounded-lg text-center shadow-sm border border-gray-200 dark:border-gray-700/50"
                             >
                                 <stat.icon className={`w-5 h-5 mx-auto mb-0.5 ${stat.color}`} />
-                                <p className={`text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r ${stat.gradient}`}>{stat.value}</p>
+                                <p className={`text-xl font-semibold text-transparent bg-clip-text bg-gradient-to-r ${stat.gradient}`}>{stat.value}</p>
                                 <p className="text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider">{stat.label}</p>
                             </div>
                         ))}
