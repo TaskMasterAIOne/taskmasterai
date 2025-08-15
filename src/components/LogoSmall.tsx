@@ -22,7 +22,7 @@ export function LogoSmall() {
       {/* 
         - Gradient updated to bg-gradient-to-br from-[#635BFF] to-[#8A85FF]
       */}
-      <span className="text-lg font-bold bg-gradient-to-br from-[#635BFF] to-[#8A85FF] bg-clip-text text-transparent">
+      <span className="text-lg font-semibold bg-gradient-to-br from-[#635BFF] to-[#8A85FF] bg-clip-text text-transparent">
         TaskMaster AI
       </span>
     </div>
