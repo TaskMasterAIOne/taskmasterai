@@ -104,7 +104,7 @@ export function IntegrationsControl({
                         {item.name}
                     </p>
                     {item.beta && (
-                        <span className="bg-cyan-100/70 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                        <span className="bg-cyan-100/70 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 text-[10px] font-semibold px-1.5 py-0.5 rounded-full">
                             BETA
                         </span>
                     )}
