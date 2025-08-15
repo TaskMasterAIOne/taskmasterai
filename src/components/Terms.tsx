@@ -58,7 +58,7 @@ function Terms() {
 
       <main className="flex-grow pt-8 sm:pt-10 pb-16">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-4xl">
-          <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 dark:text-white mb-4 illuminate-text-override">Terms of Service</h1>
+          <h1 className="text-4xl sm:text-5xl font-semibold text-gray-900 dark:text-white mb-4 illuminate-text-override">Terms of Service</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-10 illuminate-subtext-override">Last updated: March 10, 2024</p>
           <hr className="border-gray-200 dark:border-gray-700 mb-10 illuminate-border-override"/>
 
