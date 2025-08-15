@@ -2395,7 +2395,7 @@ useEffect(() => {
                                     return (
                                         <div key={key} className={`p-4 md:p-5 rounded-xl transition-colors duration-300 ${answered ? (isCorrect ? 'bg-green-500/10' : 'bg-red-500/10') : 'bg-gray-50 dark:bg-[#1A1D29]'}`}>
                                             <p className={`text-gray-800 dark:text-gray-200 font-medium mb-4 leading-relaxed`}>
-                                                <span className="text-indigo-500 dark:text-indigo-400 font-bold mr-2">{index + 1}.</span>
+                                                <span className="text-indigo-500 dark:text-indigo-400 font-semibold mr-2">{index + 1}.</span>
                                                 <RenderWithLatex text={q.question} />
                                             </p>
                                             <div className="space-y-3">
@@ -2933,7 +2933,7 @@ useEffect(() => {
                 return (
                     <div key={key} className={`p-4 md:p-5 rounded-xl transition-colors duration-300 ${answered ? (isCorrect ? 'bg-green-500/10' : 'bg-red-500/10') : 'bg-gray-50 dark:bg-[#1A1D29]'}`}>
 <p className={`text-gray-800 dark:text-gray-200 font-medium mb-4 leading-relaxed`}>
-    <span className="text-indigo-500 dark:text-indigo-400 font-bold mr-2">{index + 1}.</span>
+    <span className="text-indigo-500 dark:text-indigo-400 font-semibold mr-2">{index + 1}.</span>
     <RenderWithLatex text={q.question} />
 </p>
                         <div className="space-y-3">
@@ -3020,7 +3020,7 @@ useEffect(() => {
                                     <div className="flex items-center justify-center gap-1.5">
                                         <Gift className="w-4 h-4 text-amber-500 dark:text-amber-400 flex-shrink-0" />
                                         <p className="text-[10px] font-medium text-amber-700 dark:text-amber-200 leading-tight">
-                                            Collect {pointsNeededForPremium} more points to earn <span className="font-bold">1 FREE week of Premium</span>!
+                                            Collect {pointsNeededForPremium} more points to earn <span className="font-semibold">1 FREE week of Premium</span>!
                                         </p>
                                     </div>
                                 </div>
@@ -3036,7 +3036,7 @@ useEffect(() => {
                                     ].map(stat => (
                                         <div key={stat.label} className="p-1.5 rounded-md bg-[#F7F8FA] dark:bg-[#0C0E1A] shadow-sm ">
                                             <stat.icon className={`w-4 h-4 mx-auto mb-0.5 ${stat.color}`} />
-                                            <p className="text-sm font-bold text-gray-700 dark:text-gray-100">{stat.value}</p>
+                                            <p className="text-sm font-semibold text-gray-700 dark:text-gray-100">{stat.value}</p>
                                             <p className="text-[9px] text-gray-500 dark:text-gray-400 uppercase">{stat.label}</p>
                                         </div>
                                     ))}
@@ -3071,7 +3071,7 @@ useEffect(() => {
                                         ].map(stat => (
                                             <div key={stat.label} className="p-1.5 rounded-md bg-white dark:bg-slate-800/60 shadow-sm border border-gray-200 dark:border-gray-700/60">
                                                 <stat.icon className={`w-4 h-4 mx-auto mb-0.5 ${stat.color}`} />
-                                                <p className="text-sm font-bold text-gray-700 dark:text-gray-100">{stat.value}</p>
+                                                <p className="text-sm font-semibold text-gray-700 dark:text-gray-100">{stat.value}</p>
                                                 <p className="text-[9px] text-gray-500 dark:text-gray-400 uppercase">{stat.label}</p>
                                             </div>
                                         ))}
@@ -3087,7 +3087,7 @@ useEffect(() => {
                                         <div className="flex items-center justify-center gap-1">
                                             <Gift className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 flex-shrink-0" />
                                             <p className="text-[9px] font-medium text-amber-700 dark:text-amber-200 leading-tight">
-                                                Collect {pointsNeededForPremium} more points for <span className="font-bold">1 FREE week of Premium</span>!
+                                                Collect {pointsNeededForPremium} more points for <span className="font-semibold">1 FREE week of Premium</span>!
                                             </p>
                                         </div>
                                     </div>
