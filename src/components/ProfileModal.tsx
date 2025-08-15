@@ -154,7 +154,7 @@ export const ProfileModal = ({ isOpen, onClose, userProfile, userName }: Profile
                             {...statCardAnimation}
                         >
                             <stat.icon className={`w-5 h-5 mx-auto mb-0.5 ${stat.color}`} />
-                            <p className={`text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r ${stat.gradient}`}>{stat.value}</p>
+                            <p className={`text-xl font-semibold text-transparent bg-clip-text bg-gradient-to-r ${stat.gradient}`}>{stat.value}</p>
                             <p className="text-[9px] sm:text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider">{stat.label}</p>
                         </motion.div>
                     ))}
