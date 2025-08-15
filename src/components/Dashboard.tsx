@@ -3579,7 +3579,7 @@ if (notionBlock && user?.uid && isNotionConnected) {
                         <span className={`text-xs font-semibold ${isToday ? 'text-[#635BFF] dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}>
                             {date.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase()}
                         </span>
-                        <span className={`text-xl font-bold ${isToday ? 'text-[#635BFF] dark:text-white' : 'text-gray-700 dark:text-gray-200'}`}>
+                        <span className={`text-xl font-semibold ${isToday ? 'text-[#635BFF] dark:text-white' : 'text-gray-700 dark:text-gray-200'}`}>
                             {date.getDate()}
                         </span>
                     </div>
@@ -4263,8 +4263,8 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
             <div className="flex-grow">
               <div className="flex items-center gap-2.5">
                 {React.cloneElement(greetingInfo.icon, { className: `w-6 h-6 opacity-80 ${greetingInfo.color.replace('text-', 'text-white/80 dark:text-')}` })}
-                <h1 className="text-xl sm:text-2xl font-bold">
-                  {greetingInfo.greeting}, <span className="font-bold">{truncatedName}!</span>
+                <h1 className="text-xl sm:text-2xl font-semibold">
+                  {greetingInfo.greeting}, <span className="font-semibold">{truncatedName}!</span>
                 </h1>
               </div>
             </div>
@@ -4277,7 +4277,7 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                 ].map(stat => (
                   <div key={stat.label} className="flex items-center gap-2 bg-white/15 dark:bg-black/15 backdrop-blur-sm rounded-full px-3 py-1.5 text-xs sm:text-sm" title={`${stat.label}: ${stat.value}`}>
                     <stat.icon className="w-4 h-4 opacity-80" />
-                    <span className="font-bold">{stat.value}</span>
+                    <span className="font-semibold">{stat.value}</span>
                     <span className="opacity-80 hidden md:inline">{stat.label}</span>
                   </div>
                 ))}
@@ -4289,19 +4289,19 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                                 animate={{ y: -25, scale: 1, opacity: [0, 1, 1, 0] }}
                                 exit={{ y: -30, scale: 0, opacity: 0 }}
                                 transition={{ duration: 1.5, times: [0, 0.2, 0.8, 1], ease: "easeOut" }}
-                                className="absolute -top-4 left-1/2 -translate-x-1/2 text-sm font-bold text-orange-400 flex items-center"
+                                className="absolute -top-4 left-1/2 -translate-x-1/2 text-sm font-semibold text-orange-400 flex items-center"
                             >
                                 <Flame className="w-4 h-4 mr-0.5" /> +1
                             </motion.div>
                         )}
                     </AnimatePresence>
                     <Flame className="w-4 h-4 opacity-80" />
-                    <span className="font-bold">{userProfile.overallStreakCount}</span>
+                    <span className="font-semibold">{userProfile.overallStreakCount}</span>
                     <span className="opacity-80 hidden md:inline">Streak</span>
                 </div>
                  <div className="flex items-center gap-2 bg-white/15 dark:bg-black/15 backdrop-blur-sm rounded-full px-3 py-1.5 text-xs sm:text-sm" title={`Badges: ${(userProfile.badges || []).length}`}>
                     <Trophy className="w-4 h-4 opacity-80" />
-                    <span className="font-bold">{(userProfile.badges || []).length}</span>
+                    <span className="font-semibold">{(userProfile.badges || []).length}</span>
                     <span className="opacity-80 hidden md:inline">Badges</span>
                   </div>
                 <button onClick={() => setShowProfileModal(true)} className="flex items-center gap-2 bg-white/15 dark:bg-black/15 backdrop-blur-sm rounded-full px-3 py-1.5 text-xs sm:text-sm group" title="View Full Profile">
