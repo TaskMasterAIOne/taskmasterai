@@ -258,7 +258,7 @@ function Pricing() {
 
       <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 w-full max-w-screen-2xl z-10">
         <div className="text-center mb-16">
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-500 via-indigo-500 to-pink-500 dark:from-purple-400 dark:via-indigo-400 dark:to-pink-400 mb-3 pb-2">
+          <h1 className="text-3xl sm:text-4xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-purple-500 via-indigo-500 to-pink-500 dark:from-purple-400 dark:via-indigo-400 dark:to-pink-400 mb-3 pb-2">
             Pricing Plans
           </h1>
         </div>
@@ -293,7 +293,7 @@ function Pricing() {
                     <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">Basic</h3>
                     <p className="text-gray-500 dark:text-gray-400 mb-1 text-xs">For light users and trying things out.</p>
                     <div className="my-4">
-                        <span className="text-4xl font-extrabold text-indigo-600 dark:text-indigo-400">Free</span>
+                        <span className="text-4xl font-semibold text-indigo-600 dark:text-indigo-400">Free</span>
                         <span className="text-gray-500 dark:text-gray-400 text-sm"> / forever</span>
                     </div>
                     <ul className="space-y-2 mb-6">
@@ -311,7 +311,7 @@ function Pricing() {
             <div className={`${planCardBaseStyle} border-2 border-indigo-500 relative shadow-[0_0_15px_-3px_rgba(99,102,241,0.5)] hover:shadow-[0_0_25px_0px_rgba(99,102,241,0.6)]`}>
                 {isYearly && (
                 <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
-                    <span className="inline-block bg-yellow-400 text-black text-xs font-bold px-4 py-1.5 rounded-full shadow-md">
+                    <span className="inline-block bg-yellow-400 text-black text-xs font-semibold px-4 py-1.5 rounded-full shadow-md">
                     {recommendationText}
                     </span>
                 </div>
@@ -320,7 +320,7 @@ function Pricing() {
                     <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center"><Crown className="w-5 h-5 text-yellow-400 mr-2" />Premium</h3>
                     <p className="text-gray-500 dark:text-gray-400 mb-1 text-xs">Best value for unlimited access.</p>
                     <div className="my-4">
-                        <span className="text-4xl font-extrabold text-indigo-600 dark:text-indigo-400">{premiumPriceText}</span>
+                        <span className="text-4xl font-semibold text-indigo-600 dark:text-indigo-400">{premiumPriceText}</span>
                         <span className="text-gray-500 dark:text-gray-400 text-sm">{priceSuffix}</span>
                         <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">{premiumBillingText}</p>
                     </div>
@@ -366,7 +366,7 @@ function Pricing() {
                     <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center"><Gem className="w-4 h-4 text-purple-500 dark:text-purple-400 mr-2" />Pro</h3>
                     <p className="text-gray-500 dark:text-gray-400 mb-1 text-xs">For students and regular usage.</p>
                     <div className="my-4">
-                        <span className="text-4xl font-extrabold text-indigo-600 dark:text-indigo-400">{proPriceText}</span>
+                        <span className="text-4xl font-semibold text-indigo-600 dark:text-indigo-400">{proPriceText}</span>
                         <span className="text-gray-500 dark:text-gray-400 text-sm">{priceSuffix}</span>
                         <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">{proBillingText}</p>
                     </div>
