@@ -274,7 +274,7 @@ function SignUp() {
             className="w-full max-w-md bg-white dark:bg-[#12141D] p-8 sm:p-10 rounded-2xl border border-gray-300 dark:border-gray-700/50 shadow-2xl"
             style={{ boxShadow: cardShadow }} 
         >
-          <h2 className="text-3xl font-bold text-center text-gray-900 dark:text-white mb-2">Sign Up</h2>
+          <h2 className="text-3xl font-semibold text-center text-gray-900 dark:text-white mb-2">Sign Up</h2>
           <p className="text-center text-gray-600 dark:text-gray-400 mb-8 text-sm whitespace-nowrap"> Learn in minutes. No credit card required. </p>
           
           <GoogleSignUp /> 
