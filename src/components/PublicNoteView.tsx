@@ -782,7 +782,7 @@ export function PublicNoteView() {
                                             return (
                                                 <div key={key} className={`p-4 md:p-5 rounded-xl bg-gray-50 dark:bg-[#1A1D29]`}>
                                                     <p className={`text-gray-800 dark:text-gray-200 font-medium mb-4 leading-relaxed`}>
-                                                        <span className="text-indigo-500 dark:text-indigo-400 font-bold mr-2">{index + 1}.</span>
+                                                        <span className="text-indigo-500 dark:text-indigo-400 font-semibold mr-2">{index + 1}.</span>
                                                         <RenderWithLatex text={q.question} />
                                                     </p>
                                                     <div className="space-y-3">
