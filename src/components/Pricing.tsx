@@ -297,9 +297,9 @@ function Pricing() {
                         <span className="text-gray-500 dark:text-gray-400 text-sm"> / forever</span>
                     </div>
                     <ul className="space-y-2 mb-6">
-                        <FeatureItem text="2 PDF and Text Notes per month" />
-                        <FeatureItem text="1 YouTube Notes per month" />
-                        <FeatureItem text="10 AI Chat Interactions per month" />
+                        <FeatureItem text="5 PDF and Text Notes per month" />
+                        <FeatureItem text="3 YouTube Notes per month" />
+                        <FeatureItem text="25 AI Chat Interactions per month" />
                     </ul>
                 </div>
                 <a href={basicButtonInfo.redirectTo || '#'}
@@ -371,9 +371,9 @@ function Pricing() {
                         <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">{proBillingText}</p>
                     </div>
                     <ul className="space-y-2 mb-6">
-                        <FeatureItem text="10 PDF and Text Notes per month" />
-                        <FeatureItem text="5 YouTube Notes per month" />
-                        <FeatureItem text="200 AI Chat Interactions per Month" />
+                        <FeatureItem text="25 PDF and Text Notes per month" />
+                        <FeatureItem text="15 YouTube Notes per month" />
+                        <FeatureItem text="500 AI Chat Interactions per Month" />
                         <FeatureItem text="Limited Access to Smart Daily Brief" />
                     </ul>
                 </div>
