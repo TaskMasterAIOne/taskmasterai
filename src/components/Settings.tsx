@@ -933,8 +933,8 @@ const handleNotionConnect = () => {
                         {userCurrentTier === 'basic' && (<p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Your free plan includes basic access to core features.</p>)}
 
                         <ul className="list-disc list-outside pl-5 space-y-1.5 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-                          {userCurrentTier === 'basic' && (<><li>2 PDF/Text Notes per month</li><li>1 YouTube Note per month</li><li>10 AI Chat Interactions per month</li></>)}
-                          {userCurrentTier === 'pro' && (<><li>10 PDF/Text Notes per month</li><li>5 YouTube Notes per month</li><li>200 AI Chat Interactions per month</li><li>Limited access to Smart Daily Brief</li></>)}
+                          {userCurrentTier === 'basic' && (<><li>5 PDF/Text Notes per month</li><li>3 YouTube Note per month</li><li>25 AI Chat Interactions per month</li></>)}
+                          {userCurrentTier === 'pro' && (<><li>25 PDF/Text Notes per month</li><li>15 YouTube Notes per month</li><li>500 AI Chat Interactions per month</li><li>Limited access to Smart Daily Brief</li></>)}
                           {userCurrentTier === 'premium' && (<><li>Unlimited PDF & Text Notes</li><li>Unlimited YouTube Notes</li><li>Unlimited AI Chat Interactions</li><li>Unlimited Smart Daily Brief</li><li>Unlimited Podcasts</li><li>Priority Support</li></>)}
                         </ul>
                       </div>
