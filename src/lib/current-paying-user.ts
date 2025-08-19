@@ -32,7 +32,7 @@ export const NOTE_LIMITS = {
 export const BASIC_CHAT_LIMIT = 25;
 export const PRO_CHAT_LIMIT = 500;
 export const BRIEF_REFRESH_LIMIT_PRO = 20;
-export const POINTS_FOR_FREE_PREMIUM = 1000;
+export const POINTS_FOR_FREE_PREMIUM = 200;
 
 export interface ChatUsageData {
     count: number;
