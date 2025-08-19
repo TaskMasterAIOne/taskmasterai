@@ -24,14 +24,14 @@ export const PRO_EMAILS = ["srinibaj10@gmail.com"];
 export type UserTier = 'basic' | 'pro' | 'premium' | 'loading';
 
 export const NOTE_LIMITS = {
-    basic: { pdfAi: 2, youtube: 1 },
-    pro: { pdfAi: 10, youtube: 5 },
+    basic: { pdfAi: 5, youtube: 3 },
+    pro: { pdfAi: 25, youtube: 15 },
     premium: { pdfAi: Infinity, youtube: Infinity },
     loading: { pdfAi: 0, youtube: 0 },
 };
-export const BASIC_CHAT_LIMIT = 10;
-export const PRO_CHAT_LIMIT = 200;
-export const BRIEF_REFRESH_LIMIT_PRO = 10;
+export const BASIC_CHAT_LIMIT = 25;
+export const PRO_CHAT_LIMIT = 500;
+export const BRIEF_REFRESH_LIMIT_PRO = 20;
 export const POINTS_FOR_FREE_PREMIUM = 1000;
 
 export interface ChatUsageData {
