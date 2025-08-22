@@ -113,44 +113,48 @@ const UnderMaintenance = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 font-poppins bg-[#F9FAFB] dark:bg-[#0A0B0F] text-gray-800 dark:text-gray-200">
-      <div className="absolute top-8 sm:top-12">
+      <div className="absolute top-8 sm:top-12 left-1/2 transform -translate-x-1/2">
         <Logo />
       </div>
 
       <div className="w-full max-w-7xl mx-auto flex-grow flex flex-col items-center justify-center">
-        <div className="w-full grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+        <div className="w-full grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 lg:gap-12 items-stretch lg:items-center">
           
           <motion.div 
-            className="w-full max-w-md mx-auto"
+            className="w-full lg:col-span-2 order-2 lg:order-1"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, ease: "easeOut", delay: 0.1 }}
           >
-            <div ref={cardRef} className="w-full bg-white dark:bg-[#16181D] p-8 sm:p-10 rounded-2xl border border-gray-200 dark:border-gray-700/50 shadow-lg text-left">
-              <div className="flex items-center gap-4 mb-4">
-                <Wrench className="w-10 h-10 text-indigo-500 dark:text-indigo-400 flex-shrink-0" />
-                <h1 className="text-4xl font-semibold text-gray-900 dark:text-white">
+            <div ref={cardRef} className="w-full h-full bg-white dark:bg-[#16181D] p-6 sm:p-8 lg:p-10 rounded-2xl border border-gray-200 dark:border-gray-700/50 shadow-lg text-left flex flex-col justify-center min-h-[280px] sm:min-h-[350px] lg:min-h-[465px]">
+              <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
+                <Wrench className="w-8 sm:w-10 h-8 sm:h-10 text-indigo-500 dark:text-indigo-400 flex-shrink-0" />
+                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-semibold text-gray-900 dark:text-white whitespace-nowrap">
                   Under Maintenance
                 </h1>
               </div>
-              <p className="mb-6 text-base text-gray-500 dark:text-gray-400">
+              <p className="mb-4 sm:mb-6 text-sm sm:text-base text-gray-500 dark:text-gray-400 leading-relaxed">
                 We're currently performing scheduled maintenance. We should be back online shortly. Thank you for your patience!
               </p>
-              <div className="bg-gray-100 dark:bg-gray-800/60 text-sm text-gray-500 dark:text-gray-400 rounded-lg px-4 py-3 text-center">
+              <div className="bg-gray-100 dark:bg-gray-800/60 text-xs sm:text-sm text-gray-500 dark:text-gray-400 rounded-lg px-3 sm:px-4 py-2 sm:py-3 text-center mb-3 sm:mb-4">
                 Estimated Downtime: <span className="font-semibold text-gray-700 dark:text-gray-300">3-4 days</span>
               </div>
+              <Link to="/status" className="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 sm:py-3 px-4 sm:px-6 rounded-xl transition-colors duration-200 shadow-lg hover:shadow-xl text-sm sm:text-base">
+                <AlertTriangle className="w-4 sm:w-5 h-4 sm:h-5" />
+                Check System Status
+              </Link>
             </div>
           </motion.div>
 
           <motion.div 
-              className="relative w-full max-w-2xl mx-auto"
+              className="relative w-full lg:col-span-3 order-1 lg:order-2 mt-16 sm:mt-8 lg:mt-0"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.25, ease: "easeOut" }}
           >
-            <div ref={mediaRef} className="w-full flex items-center justify-center">
+            <div ref={mediaRef} className="w-full flex items-center justify-center min-h-[200px] sm:min-h-[280px] lg:min-h-0">
               <div className="relative w-full h-full">
-                <div className="absolute -inset-3 rounded-2xl bg-gradient-to-r from-indigo-600/80 via-purple-600/80 to-pink-600/80 opacity-20 blur-2xl"></div>
+                <div className="absolute -inset-2 sm:-inset-4 rounded-2xl bg-gradient-to-r from-indigo-600/80 via-purple-600/80 to-pink-600/80 opacity-20 blur-xl sm:blur-2xl"></div>
                 {isDarkMode ? (
                     <video
                         src={darkModeVideo}
@@ -160,14 +164,14 @@ const UnderMaintenance = () => {
                         playsInline
                         preload="metadata"
                         style={{ filter: 'brightness(1.1) contrast(1.1)' }}
-                        className="relative rounded-2xl shadow-2xl border-2 border-gray-700/70 w-full h-full object-cover pointer-events-none"
+                        className="relative rounded-xl sm:rounded-2xl shadow-xl sm:shadow-2xl border border-gray-700/70 sm:border-2 w-full h-auto object-contain pointer-events-none"
                         onLoadedMetadata={(e) => { (e.target as HTMLVideoElement).playbackRate = 1.75; }}
                     />
                 ) : (
                     <img
                         src={lightModeImage}
                         alt="TaskMaster AI Product Screenshot" 
-                        className="relative rounded-2xl shadow-2xl border-2 border-gray-200 w-full h-full object-cover"
+                        className="relative rounded-xl sm:rounded-2xl shadow-xl sm:shadow-2xl border border-gray-200 sm:border-2 w-full h-auto object-contain"
                     />
                 )}
               </div>
@@ -175,27 +179,27 @@ const UnderMaintenance = () => {
           </motion.div>
 
         </div>
-
-        <div className="mt-24 text-center w-full">
-            <h3 className="font-semibold text-gray-800 dark:text-white mb-5">In the meantime, check us out!</h3>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <a href="https://www.instagram.com/taskmasteroneai/?hl=en" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between bg-white dark:bg-[#2A2D35] text-gray-800 dark:text-white p-4 rounded-xl hover:bg-gray-100 dark:hover:bg-[#3A3D45] transition-colors shadow-md w-full max-w-xs">
-                    <div className="flex items-center space-x-3">
-                        <Instagram className="w-6 h-6 text-pink-500"/>
-                        <span className="font-semibold text-lg">Instagram</span>
-                    </div>
-                    <ArrowRight className="w-5 h-5 text-gray-400 dark:text-gray-500"/>
-                </a>
-                <a href="https://www.tiktok.com/@taskmasterai" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between bg-white dark:bg-[#2A2D35] text-gray-800 dark:text-white p-4 rounded-xl hover:bg-gray-100 dark:hover:bg-[#3A3D45] transition-colors shadow-md w-full max-w-xs">
-                    <div className="flex items-center space-x-3">
-                        <div className="w-6 h-6 flex items-center justify-center">
-                            <img src="https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/tiktok-logo.png?alt=media&token=de834810-541b-4761-a6b5-113bc57d40a8" alt="TikTok Logo" className="w-5 h-5 object-contain" />
-                        </div>
-                        <span className="font-semibold text-lg">TikTok</span>
-                    </div>
-                    <ArrowRight className="w-5 h-5 text-gray-400 dark:text-gray-500"/>
-                </a>
+      </div>
+      
+      <div className="mt-16 text-center w-full">
+        <h3 className="font-semibold text-gray-800 dark:text-white mb-5">In the meantime, check us out!</h3>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+          <a href="https://www.instagram.com/taskmasteroneai/?hl=en" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between bg-white dark:bg-[#2A2D35] text-gray-800 dark:text-white p-4 rounded-xl hover:bg-gray-100 dark:hover:bg-[#3A3D45] transition-colors shadow-md w-full max-w-xs">
+            <div className="flex items-center space-x-3">
+              <Instagram className="w-6 h-6 text-pink-500"/>
+              <span className="font-semibold text-lg">Instagram</span>
             </div>
+            <ArrowRight className="w-5 h-5 text-gray-400 dark:text-gray-500"/>
+          </a>
+          <a href="https://www.tiktok.com/@taskmasterai" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between bg-white dark:bg-[#2A2D35] text-gray-800 dark:text-white p-4 rounded-xl hover:bg-gray-100 dark:hover:bg-[#3A3D45] transition-colors shadow-md w-full max-w-xs">
+            <div className="flex items-center space-x-3">
+              <div className="w-6 h-6 flex items-center justify-center">
+                <img src="https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/tiktok-logo.png?alt=media&token=de834810-541b-4761-a6b5-113bc57d40a8" alt="TikTok Logo" className="w-5 h-5 object-contain" />
+              </div>
+              <span className="font-semibold text-lg">TikTok</span>
+            </div>
+            <ArrowRight className="w-5 h-5 text-gray-400 dark:text-gray-500"/>
+          </a>
         </div>
       </div>
       
@@ -206,7 +210,34 @@ const UnderMaintenance = () => {
   );
 };
 
-const NotFound = () => { /* ... existing NotFound component ... */ };
+const NotFound = () => (
+  <div className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 font-poppins bg-[#F9FAFB] dark:bg-[#0A0B0F] text-gray-800 dark:text-gray-200">
+    <div className="absolute top-8 sm:top-12 left-1/2 transform -translate-x-1/2">
+      <Logo />
+    </div>
+    
+    <div className="text-center max-w-md mx-auto">
+      <div className="mb-8">
+        <h1 className="text-6xl font-bold text-indigo-600 dark:text-indigo-400 mb-4">404</h1>
+        <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">Page Not Found</h2>
+        <p className="text-gray-500 dark:text-gray-400 mb-8 whitespace-nowrap">
+          The page you're looking for doesn't exist or has been moved.
+        </p>
+      </div>
+      
+      <Link 
+        to="/" 
+        className="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-xl transition-colors duration-200 shadow-lg hover:shadow-xl"
+      >
+        Go Back Home
+      </Link>
+    </div>
+    
+    <p className="absolute bottom-8 text-sm text-gray-500 dark:text-gray-500">
+      &copy; {new Date().getFullYear()} TaskMaster AI. All Rights Reserved.
+    </p>
+  </div>
+);
 const PageTitle = ({ title, children }: { title: string; children: React.ReactNode }) => ( <> <Helmet> <title>{title} | TaskMaster AI</title> </Helmet> {children} </> );
 const RootTitle = ({ children }: { children: React.ReactNode }) => ( <> <Helmet> <title>TaskMaster AI</title> </Helmet> {children} </> );
 
@@ -217,7 +248,25 @@ const AppRoutes = () => {
   if (maintenanceMode) {
     return (
         <Routes>
-            <Route path="*" element={<PageTitle title="Under Maintenance"><UnderMaintenance /></PageTitle>} />
+            <Route path="/status" element={<PageTitle title="Status"><Status /></PageTitle>} />
+            <Route path="/login" element={<PageTitle title="Under Maintenance"><UnderMaintenance /></PageTitle>} />
+            <Route path="/signup" element={<PageTitle title="Under Maintenance"><UnderMaintenance /></PageTitle>} />
+            <Route path="/pricing" element={<PageTitle title="Under Maintenance"><UnderMaintenance /></PageTitle>} />
+            <Route path="/terms" element={<PageTitle title="Under Maintenance"><UnderMaintenance /></PageTitle>} />
+            <Route path="/privacy-policy" element={<PageTitle title="Under Maintenance"><UnderMaintenance /></PageTitle>} />
+            <Route path="/partner" element={<PageTitle title="Under Maintenance"><UnderMaintenance /></PageTitle>} />
+            <Route path="/forgot-password" element={<PageTitle title="Under Maintenance"><UnderMaintenance /></PageTitle>} />
+            <Route path="/dashboard" element={<PageTitle title="Under Maintenance"><UnderMaintenance /></PageTitle>} />
+            <Route path="/contact" element={<PageTitle title="Under Maintenance"><UnderMaintenance /></PageTitle>} />
+            <Route path="/folders" element={<PageTitle title="Under Maintenance"><UnderMaintenance /></PageTitle>} />
+            <Route path="/ai" element={<PageTitle title="Under Maintenance"><UnderMaintenance /></PageTitle>} />
+            <Route path="/notes" element={<PageTitle title="Under Maintenance"><UnderMaintenance /></PageTitle>} />
+            <Route path="/focus" element={<PageTitle title="Under Maintenance"><UnderMaintenance /></PageTitle>} />
+            <Route path="/public-note/:noteId" element={<PageTitle title="Under Maintenance"><UnderMaintenance /></PageTitle>} />
+            <Route path="/onboarding" element={<PageTitle title="Under Maintenance"><UnderMaintenance /></PageTitle>} />
+            <Route path="/settings" element={<PageTitle title="Under Maintenance"><UnderMaintenance /></PageTitle>} />
+            <Route path="/" element={<PageTitle title="Under Maintenance"><UnderMaintenance /></PageTitle>} />
+            <Route path="*" element={<PageTitle title="404 Not Found"><NotFound /></PageTitle>} />
         </Routes>
     );
   }
