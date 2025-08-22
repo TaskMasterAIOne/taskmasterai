@@ -21,7 +21,7 @@ import ForgotPassword from './components/Forgot-Password';
 import PrivacyPolicy from './components/Privacy-Policy';
 import { Dashboard } from './components/Dashboard';
 import Contact from './components/Contact';
-import { Folders }from './components/Folders';
+import { Folders } from './components/Folders';
 import AIChat from './components/AI-Chat';
 import Notes from './components/Notes';
 import './index.css';
@@ -32,13 +32,11 @@ import ComingSoon from './components/ComingSoon';
 import { FocusMode } from './components/Focus-Mode';
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
-// Corrected: Replaced 'Tool' with 'Wrench'
-import { Loader2, AlertTriangle, Wrench } from 'lucide-react';
+import { Loader2, AlertTriangle, Wrench, Instagram, ArrowRight } from 'lucide-react';
 import { Logo } from './components/Logo';
 
 const DefaultHelmet = () => (
   <Helmet>
-    {/* Correctly formatted script tags for react-helmet-async */}
     <script async src="https://www.googletagmanager.com/gtag/js?id=AW-17070659093"></script>
     <script>
       {`
@@ -51,7 +49,6 @@ const DefaultHelmet = () => (
   </Helmet>
 );
 
-// Centralized Theme Management
 const ThemeProvider = ({ children }) => {
   useEffect(() => {
     const applyTheme = () => {
@@ -83,69 +80,112 @@ const ThemeProvider = ({ children }) => {
   return <>{children}</>;
 };
 
+const VideoPlayer = ({ src }) => (
+    <div className="aspect-[9/16] w-full max-w-[280px] mx-auto bg-indigo-500/80 dark:bg-[#635bff] rounded-3xl p-2 border-2 border-indigo-400/50 dark:border-[#635bff]/50 shadow-xl shadow-indigo-500/30 dark:shadow-[#8a85ff]/40">
+      <video
+        src={src}
+        autoPlay
+        loop
+        muted
+        playsInline
+        className="w-full h-full rounded-2xl object-cover"
+      ></video>
+    </div>
+);
 
 const UnderMaintenance = () => {
   const isIlluminate = document.documentElement.classList.contains('light');
 
   return (
-    <div className={`min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 font-poppins bg-gray-100 text-gray-800 dark:bg-[#0A0B0F] dark:text-gray-200 illuminate-override`}>
-      <div className="absolute top-6 sm:top-8 w-full flex justify-center">
-        <Logo />
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 font-poppins bg-gray-100 dark:bg-[#0A0B0F] text-gray-800 dark:text-gray-200 illuminate-override">
+      <div className="w-full max-w-7xl mx-auto flex flex-col items-center">
+        <div className="mb-10">
+            <Logo />
+        </div>
+
+        <div className="w-full grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+          {/* Left Column: Maintenance Card */}
+          <motion.div
+            className="w-full"
+            initial={{ opacity: 0, x: -30 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+          >
+            <div
+              className="w-full max-w-xl mx-auto bg-white dark:bg-[#16181D] p-8 sm:p-10 rounded-2xl border border-gray-300 dark:border-gray-700/50 shadow-2xl text-center illuminate-card-override"
+              style={{
+                boxShadow: !isIlluminate && document.documentElement.classList.contains('dark')
+                  ? '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 20px 40px -10px rgba(128, 90, 213, 0.1)'
+                  : '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 20px 40px -10px rgba(0, 0, 0, 0.05)'
+              }}
+            >
+              <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.5, ease: "easeOut" }}>
+                <Wrench className="w-16 h-16 mx-auto mb-6 text-indigo-500 dark:text-indigo-400 illuminate-icon-override" />
+              </motion.div>
+              <motion.h1 className="text-4xl sm:text-5xl font-semibold text-gray-900 dark:text-white mb-4 illuminate-text-override" initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2, duration: 0.4, ease: "easeOut" }}>
+                Under Maintenance
+              </motion.h1>
+              <motion.p className="mb-6 text-base text-gray-600 dark:text-gray-400 illuminate-subtext-override" initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3, duration: 0.4, ease: "easeOut" }}>
+                We're currently performing scheduled maintenance. We should be back online shortly. Thank you for your patience!
+              </motion.p>
+              <motion.div className="bg-gray-100 dark:bg-gray-800/60 text-sm text-gray-500 dark:text-gray-400 rounded-lg px-4 py-2 inline-block" initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.4, duration: 0.4, ease: "easeOut" }}>
+                Estimated Downtime: <span className="font-semibold text-gray-700 dark:text-gray-300">3-4 days</span>
+              </motion.div>
+            </div>
+          </motion.div>
+
+          {/* Right Column: Video and Socials */}
+          <motion.div
+            className="w-full"
+            initial={{ opacity: 0, x: 30 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6, ease: "easeOut", delay: 0.2 }}
+          >
+            <div className="flex flex-col items-center">
+              <VideoPlayer src="https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/TaskMaster%20AI%20Demo%20Video%20(1).mp4?alt=media&token=257d12b1-16b9-4552-9a3d-b3e306fa0f98" />
+              <div className="mt-8 text-center w-full max-w-xs">
+                <h3 className="font-semibold text-gray-800 dark:text-white mb-4">In the meantime, check us out!</h3>
+                <div className="flex flex-col space-y-3">
+                  <a href="https://www.instagram.com/taskmasteroneai/?hl=en" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between bg-white dark:bg-[#2A2D35] text-gray-800 dark:text-white p-4 rounded-xl hover:bg-gray-200 dark:hover:bg-[#3A3D45] transition-colors shadow-md">
+                    <div className="flex items-center space-x-3">
+                      <Instagram className="w-6 h-6 text-pink-500"/>
+                      <span className="font-semibold">Instagram</span>
+                    </div>
+                    <ArrowRight className="w-5 h-5 text-gray-400 dark:text-gray-500"/>
+                  </a>
+                  <a href="https://www.tiktok.com/@taskmasterai" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between bg-white dark:bg-[#2A2D35] text-gray-800 dark:text-white p-4 rounded-xl hover:bg-gray-200 dark:hover:bg-[#3A3D45] transition-colors shadow-md">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-6 h-6 flex items-center justify-center">
+                        <img src="https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/tiktok-logo.png?alt=media&token=de834810-541b-4761-a6b5-113bc57d40a8" alt="TikTok Logo" className="w-5 h-5 object-contain" />
+                      </div>
+                      <span className="font-semibold">TikTok</span>
+                    </div>
+                    <ArrowRight className="w-5 h-5 text-gray-400 dark:text-gray-500"/>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+
+        <p className="mt-20 text-xs text-gray-500 dark:text-gray-600 illuminate-footertext-override">
+          &copy; {new Date().getFullYear()} TaskMaster AI. All Rights Reserved.
+        </p>
       </div>
-      <div
-        className={`w-full max-w-md bg-white dark:bg-[#16181D] p-8 sm:p-10 rounded-2xl border border-gray-300 dark:border-gray-700/50 shadow-2xl text-center illuminate-card-override`}
-        style={{
-          boxShadow: !isIlluminate && document.documentElement.classList.contains('dark')
-            ? '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 20px 40px -10px rgba(128, 90, 213, 0.1)'
-            : '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 20px 40px -10px rgba(0, 0, 0, 0.05)'
-        }}
-      >
-        <motion.div
-          initial={{ scale: 0.5, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: 0.5, ease: "easeOut" }}
-        >
-          {/* Corrected: Using the Wrench icon */}
-          <Wrench className="w-16 h-16 mx-auto mb-6 text-indigo-500 dark:text-indigo-400 illuminate-icon-override" />
-        </motion.div>
-        <motion.h1
-          className="text-4xl sm:text-5xl font-semibold text-gray-900 dark:text-white mb-3 illuminate-text-override"
-          initial={{ y: -20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.2, duration: 0.4, ease: "easeOut" }}
-        >
-          Under Maintenance
-        </motion.h1>
-        <motion.p
-          className="mb-8 text-sm sm:text-base text-gray-600 dark:text-gray-400 illuminate-subtext-override"
-          initial={{ y: -20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.4, duration: 0.4, ease: "easeOut" }}
-        >
-          We're currently performing scheduled maintenance. We should be back online shortly. Thank you for your patience!
-        </motion.p>
-      </div>
-      <p className="mt-8 text-xs text-gray-500 dark:text-gray-600 illuminate-footertext-override">
-        &copy; {new Date().getFullYear()} TaskMaster AI. All Rights Reserved.
-      </p>
     </div>
   );
 };
 
-
 const NotFound = () => {
-  // Removed theme logic from here as it's now handled by ThemeProvider
   const isIlluminate = document.documentElement.classList.contains('light');
-
   return (
     <div className={`min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 font-poppins bg-gray-100 text-gray-800 dark:bg-[#0A0B0F] dark:text-gray-200 illuminate-override`}>
       <div className="absolute top-6 sm:top-8 w-full flex justify-center"> <Link to="/" aria-label="Go to Homepage"> <Logo /> </Link> </div>
-      <div className={`w-full max-w-md bg-white dark:bg-[#16181D] p-8 sm:p-10 rounded-2xl border border-gray-300 dark:border-gray-700/50 shadow-2xl text-center illuminate-card-override`}
-           style={{ boxShadow: !isIlluminate && document.documentElement.classList.contains('dark') ? '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 20px 40px -10px rgba(128, 90, 213, 0.1)' : '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 20px 40px -10px rgba(0, 0, 0, 0.05)' }} >
+      <div className={`w-full max-w-md bg-white dark:bg-[#16181D] p-8 sm:p-10 rounded-2xl border border-gray-300 dark:border-gray-700/50 shadow-2xl text-center illuminate-card-override`} style={{ boxShadow: !isIlluminate && document.documentElement.classList.contains('dark') ? '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 20px 40px -10px rgba(128, 90, 213, 0.1)' : '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 20px 40px -10px rgba(0, 0, 0, 0.05)' }} >
         <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.5, ease: "easeOut" }} >
           <AlertTriangle className="w-16 h-16 mx-auto mb-6 text-yellow-500 dark:text-yellow-400 illuminate-icon-override" />
         </motion.div>
-        <motion.h1 className="text-6xl sm:text-7xl font-semibold text-gray-900 dark:text-white mb-3 illuminate-text-override" initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2, duration: 0.4, ease: "easeOut" }} > 404 </motion.h1>
+        <motion.h1 className="text-6xl sm:text-7xl font-extrabold text-gray-900 dark:text-white mb-3 illuminate-text-override" initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2, duration: 0.4, ease: "easeOut" }} > 404 </motion.h1>
         <motion.h2 className="text-2xl sm:text-3xl font-semibold text-gray-900 dark:text-white mb-4 illuminate-text-override" initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3, duration: 0.4, ease: "easeOut" }} > Page Not Found </motion.h2>
         <motion.p className="mb-8 text-sm sm:text-base text-gray-600 dark:text-gray-400 illuminate-subtext-override" initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.4, duration: 0.4, ease: "easeOut" }} > Oops! This page doesn't exist. </motion.p>
         <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.5, duration: 0.4, ease: "easeOut" }} >
@@ -162,8 +202,7 @@ const RootTitle = ({ children }: { children: React.ReactNode }) => ( <> <Helmet>
 
 const AppRoutes = () => {
   const { user, loading: authIsLoading } = useAuth();
-  // Removed theme logic from here as it's now handled by ThemeProvider
-
+  
   // Set to true to enable maintenance mode for all routes
   const maintenanceMode = true;
 
