@@ -80,8 +80,9 @@ const ThemeProvider = ({ children }) => {
   return <>{children}</>;
 };
 
+// Updated: VideoPlayer now uses aspect-video for a horizontal layout
 const VideoPlayer = ({ src }) => (
-    <div className="aspect-[9/16] w-full max-w-[280px] mx-auto bg-indigo-500/80 dark:bg-[#635bff] rounded-3xl p-2 border-2 border-indigo-400/50 dark:border-[#635bff]/50 shadow-xl shadow-indigo-500/30 dark:shadow-[#8a85ff]/40">
+    <div className="aspect-video w-full max-w-lg mx-auto bg-indigo-500/80 dark:bg-[#635bff] rounded-3xl p-2 border-2 border-indigo-400/50 dark:border-[#635bff]/50 shadow-xl shadow-indigo-500/30 dark:shadow-[#8a85ff]/40">
       <video
         src={src}
         autoPlay
@@ -103,16 +104,18 @@ const UnderMaintenance = () => {
             <Logo />
         </div>
 
-        <div className="w-full grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+        {/* Updated: Added lg:items-stretch to make columns equal height */}
+        <div className="w-full grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 lg:items-stretch">
           {/* Left Column: Maintenance Card */}
           <motion.div
-            className="w-full"
+            className="w-full h-full"
             initial={{ opacity: 0, x: -30 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.6, ease: "easeOut" }}
           >
+            {/* Updated: Card now fills height and centers content */}
             <div
-              className="w-full max-w-xl mx-auto bg-white dark:bg-[#16181D] p-8 sm:p-10 rounded-2xl border border-gray-300 dark:border-gray-700/50 shadow-2xl text-center illuminate-card-override"
+              className="w-full max-w-xl mx-auto bg-white dark:bg-[#16181D] p-8 sm:p-10 rounded-2xl border border-gray-300 dark:border-gray-700/50 shadow-2xl text-center illuminate-card-override h-full flex flex-col justify-center"
               style={{
                 boxShadow: !isIlluminate && document.documentElement.classList.contains('dark')
                   ? '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 20px 40px -10px rgba(128, 90, 213, 0.1)'
@@ -136,12 +139,13 @@ const UnderMaintenance = () => {
 
           {/* Right Column: Video and Socials */}
           <motion.div
-            className="w-full"
+            className="w-full h-full"
             initial={{ opacity: 0, x: 30 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.6, ease: "easeOut", delay: 0.2 }}
           >
-            <div className="flex flex-col items-center">
+            {/* Updated: Container now fills height and centers content */}
+            <div className="h-full flex flex-col justify-center items-center">
               <VideoPlayer src="https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/TaskMaster%20AI%20Demo%20Video%20(1).mp4?alt=media&token=257d12b1-16b9-4552-9a3d-b3e306fa0f98" />
               <div className="mt-8 text-center w-full max-w-xs">
                 <h3 className="font-semibold text-gray-800 dark:text-white mb-4">In the meantime, check us out!</h3>
@@ -203,7 +207,6 @@ const RootTitle = ({ children }: { children: React.ReactNode }) => ( <> <Helmet>
 const AppRoutes = () => {
   const { user, loading: authIsLoading } = useAuth();
   
-  // Set to true to enable maintenance mode for all routes
   const maintenanceMode = true;
 
   if (maintenanceMode) {
