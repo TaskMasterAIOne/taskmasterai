@@ -109,7 +109,7 @@ const UnderMaintenance = () => {
           <Wrench className="w-16 h-16 mx-auto mb-6 text-indigo-500 dark:text-indigo-400 illuminate-icon-override" />
         </motion.div>
         <motion.h1
-          className="text-4xl sm:text-5xl font-extrabold text-gray-900 dark:text-white mb-3 illuminate-text-override"
+          className="text-4xl sm:text-5xl font-semibold text-gray-900 dark:text-white mb-3 illuminate-text-override"
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.2, duration: 0.4, ease: "easeOut" }}
@@ -145,7 +145,7 @@ const NotFound = () => {
         <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.5, ease: "easeOut" }} >
           <AlertTriangle className="w-16 h-16 mx-auto mb-6 text-yellow-500 dark:text-yellow-400 illuminate-icon-override" />
         </motion.div>
-        <motion.h1 className="text-6xl sm:text-7xl font-extrabold text-gray-900 dark:text-white mb-3 illuminate-text-override" initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2, duration: 0.4, ease: "easeOut" }} > 404 </motion.h1>
+        <motion.h1 className="text-6xl sm:text-7xl font-semibold text-gray-900 dark:text-white mb-3 illuminate-text-override" initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2, duration: 0.4, ease: "easeOut" }} > 404 </motion.h1>
         <motion.h2 className="text-2xl sm:text-3xl font-semibold text-gray-900 dark:text-white mb-4 illuminate-text-override" initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3, duration: 0.4, ease: "easeOut" }} > Page Not Found </motion.h2>
         <motion.p className="mb-8 text-sm sm:text-base text-gray-600 dark:text-gray-400 illuminate-subtext-override" initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.4, duration: 0.4, ease: "easeOut" }} > Oops! This page doesn't exist. </motion.p>
         <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.5, duration: 0.4, ease: "easeOut" }} >
