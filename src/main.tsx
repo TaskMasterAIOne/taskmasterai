@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useState } from 'react';
+import { StrictMode, useEffect, useState, useLayoutEffect, useRef } from 'react';
 import 'regenerator-runtime/runtime';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
@@ -53,13 +53,11 @@ const ThemeProvider = ({ children }) => {
   useEffect(() => {
     const applyTheme = () => {
       const isIlluminateEnabled = JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'false');
-      // Force light mode if illuminate is on
       if (isIlluminateEnabled) {
         document.documentElement.classList.remove('dark');
         document.documentElement.classList.add('light');
         return;
       }
-      // Otherwise, respect system preference
       document.documentElement.classList.remove('light', 'dark');
       const savedTheme = localStorage.getItem('appTheme') || 'system';
       if (savedTheme === 'dark' || (savedTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
@@ -84,22 +82,29 @@ const ThemeProvider = ({ children }) => {
 
 const UnderMaintenance = () => {
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const mediaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Observer to detect theme changes on the html element
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.attributeName === 'class') {
-          const isDark = (mutation.target as HTMLElement).classList.contains('dark');
-          setIsDarkMode(isDark);
-        }
-      });
+    const observer = new MutationObserver(() => {
+      setIsDarkMode(document.documentElement.classList.contains('dark'));
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    setIsDarkMode(document.documentElement.classList.contains('dark'));
+    return () => observer.disconnect();
+  }, []);
+
+  useLayoutEffect(() => {
+    const cardNode = cardRef.current;
+    const mediaNode = mediaRef.current;
+    if (!cardNode || !mediaNode) return;
+
+    const observer = new ResizeObserver(() => {
+        const cardHeight = cardNode.getBoundingClientRect().height;
+        mediaNode.style.height = `${cardHeight}px`;
     });
 
-    observer.observe(document.documentElement, { attributes: true });
-    // Set initial state
-    setIsDarkMode(document.documentElement.classList.contains('dark'));
-
+    observer.observe(cardNode);
     return () => observer.disconnect();
   }, []);
   
@@ -115,18 +120,19 @@ const UnderMaintenance = () => {
       <div className="w-full max-w-7xl mx-auto flex-grow flex flex-col items-center justify-center">
         <div className="w-full grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
           
-          {/* Left Column: Maintenance Card */}
           <motion.div 
             className="w-full max-w-md mx-auto"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, ease: "easeOut", delay: 0.1 }}
           >
-            <div className="w-full bg-white dark:bg-[#16181D] p-8 sm:p-10 rounded-2xl border border-gray-200 dark:border-gray-700/50 shadow-lg text-left">
-              <Wrench className="w-10 h-10 mb-5 text-indigo-500 dark:text-indigo-400" />
-              <h1 className="text-4xl font-semibold text-gray-900 dark:text-white mb-4">
-                Under Maintenance
-              </h1>
+            <div ref={cardRef} className="w-full bg-white dark:bg-[#16181D] p-8 sm:p-10 rounded-2xl border border-gray-200 dark:border-gray-700/50 shadow-lg text-left">
+              <div className="flex items-center gap-4 mb-4">
+                <Wrench className="w-10 h-10 text-indigo-500 dark:text-indigo-400 flex-shrink-0" />
+                <h1 className="text-4xl font-semibold text-gray-900 dark:text-white">
+                  Under Maintenance
+                </h1>
+              </div>
               <p className="mb-6 text-base text-gray-500 dark:text-gray-400">
                 We're currently performing scheduled maintenance. We should be back online shortly. Thank you for your patience!
               </p>
@@ -136,38 +142,41 @@ const UnderMaintenance = () => {
             </div>
           </motion.div>
 
-          {/* Right Column: Media Display */}
           <motion.div 
-              className="relative w-full max-w-xl mx-auto"
+              className="relative w-full max-w-2xl mx-auto"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.25, ease: "easeOut" }}
           >
-              <div className="absolute -inset-3 rounded-2xl bg-gradient-to-r from-indigo-600/80 via-purple-600/80 to-pink-600/80 opacity-20 blur-2xl"></div>
-              {isDarkMode ? (
-                  <video
-                      src={darkModeVideo}
-                      autoPlay
-                      loop
-                      muted
-                      playsInline
-                      preload="metadata"
-                      style={{ filter: 'brightness(1.1) contrast(1.1)' }}
-                      className="relative rounded-2xl shadow-2xl border-2 border-gray-700/70 w-full h-auto object-cover pointer-events-none"
-                      onLoadedMetadata={(e) => { (e.target as HTMLVideoElement).playbackRate = 1.75; }}
-                  />
-              ) : (
-                  <img
-                      src={lightModeImage}
-                      alt="TaskMaster AI Product Screenshot" 
-                      className="relative rounded-2xl shadow-2xl border-2 border-gray-200 dark:border-gray-700/70 w-full"
-                  />
-              )}
+            <div ref={mediaRef} className="w-full flex items-center justify-center">
+              <div className="relative w-full h-full">
+                <div className="absolute -inset-3 rounded-2xl bg-gradient-to-r from-indigo-600/80 via-purple-600/80 to-pink-600/80 opacity-20 blur-2xl"></div>
+                {isDarkMode ? (
+                    <video
+                        src={darkModeVideo}
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        preload="metadata"
+                        style={{ filter: 'brightness(1.1) contrast(1.1)' }}
+                        className="relative rounded-2xl shadow-2xl border-2 border-gray-700/70 w-full h-full object-cover pointer-events-none"
+                        onLoadedMetadata={(e) => { (e.target as HTMLVideoElement).playbackRate = 1.75; }}
+                    />
+                ) : (
+                    <img
+                        src={lightModeImage}
+                        alt="TaskMaster AI Product Screenshot" 
+                        className="relative rounded-2xl shadow-2xl border-2 border-gray-200 w-full h-full object-cover"
+                    />
+                )}
+              </div>
+            </div>
           </motion.div>
 
         </div>
 
-        <div className="mt-16 text-center w-full">
+        <div className="mt-24 text-center w-full">
             <h3 className="font-semibold text-gray-800 dark:text-white mb-5">In the meantime, check us out!</h3>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <a href="https://www.instagram.com/taskmasteroneai/?hl=en" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between bg-white dark:bg-[#2A2D35] text-gray-800 dark:text-white p-4 rounded-xl hover:bg-gray-100 dark:hover:bg-[#3A3D45] transition-colors shadow-md w-full max-w-xs">
