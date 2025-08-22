@@ -32,7 +32,7 @@ import ComingSoon from './components/ComingSoon';
 import { FocusMode } from './components/Focus-Mode';
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
-import { Loader2, AlertTriangle } from 'lucide-react';
+import { Loader2, AlertTriangle, Tool } from 'lucide-react';
 import { Logo } from './components/Logo';
 
 const DefaultHelmet = () => (
@@ -50,31 +50,85 @@ const DefaultHelmet = () => (
   </Helmet>
 );
 
-const NotFound = () => {
+const applyTheme = () => {
+  const isIlluminateEnabled = JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'false');
+  if (isIlluminateEnabled) {
+    document.documentElement.classList.remove('dark');
+    document.documentElement.classList.add('light');
+  } else {
+    document.documentElement.classList.remove('light');
+    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }
+};
+
+const ThemeProvider = ({ children }) => {
   useEffect(() => {
-    const applyTheme = () => {
-      const isIlluminateEnabled = JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'false');
-      if (isIlluminateEnabled) {
-        document.documentElement.classList.remove('dark');
-        document.documentElement.classList.add('light');
-      } else {
-        document.documentElement.classList.remove('light');
-        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-          document.documentElement.classList.add('dark');
-        } else {
-          document.documentElement.classList.remove('dark');
-        }
-      }
-    };
     applyTheme();
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     mediaQuery.addEventListener('change', applyTheme);
     window.addEventListener('storage', (event) => { if (event.key === 'isIlluminateEnabled') applyTheme(); });
-    return () => { mediaQuery.removeEventListener('change', applyTheme); window.removeEventListener('storage', applyTheme); }
+    return () => {
+      mediaQuery.removeEventListener('change', applyTheme);
+      window.removeEventListener('storage', applyTheme);
+    };
   }, []);
 
+  return <>{children}</>;
+};
+
+const UnderMaintenance = () => {
   const isIlluminate = document.documentElement.classList.contains('light');
 
+  return (
+    <div className={`min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 font-poppins bg-gray-100 text-gray-800 dark:bg-[#0A0B0F] dark:text-gray-200 illuminate-override`}>
+      <div className="absolute top-6 sm:top-8 w-full flex justify-center">
+        <Logo />
+      </div>
+      <div
+        className={`w-full max-w-md bg-white dark:bg-[#16181D] p-8 sm:p-10 rounded-2xl border border-gray-300 dark:border-gray-700/50 shadow-2xl text-center illuminate-card-override`}
+        style={{
+          boxShadow: !isIlluminate && document.documentElement.classList.contains('dark')
+            ? '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 20px 40px -10px rgba(128, 90, 213, 0.1)'
+            : '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 20px 40px -10px rgba(0, 0, 0, 0.05)'
+        }}
+      >
+        <motion.div
+          initial={{ scale: 0.5, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+        >
+          <Tool className="w-16 h-16 mx-auto mb-6 text-indigo-500 dark:text-indigo-400 illuminate-icon-override" />
+        </motion.div>
+        <motion.h1
+          className="text-4xl sm:text-5xl font-extrabold text-gray-900 dark:text-white mb-3 illuminate-text-override"
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.2, duration: 0.4, ease: "easeOut" }}
+        >
+          Under Maintenance
+        </motion.h1>
+        <motion.p
+          className="mb-8 text-sm sm:text-base text-gray-600 dark:text-gray-400 illuminate-subtext-override"
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.4, duration: 0.4, ease: "easeOut" }}
+        >
+          We're currently performing scheduled maintenance. We should be back online shortly. Thank you for your patience!
+        </motion.p>
+      </div>
+      <p className="mt-8 text-xs text-gray-500 dark:text-gray-600 illuminate-footertext-override">
+        &copy; {new Date().getFullYear()} TaskMaster AI. All Rights Reserved.
+      </p>
+    </div>
+  );
+};
+
+const NotFound = () => {
+  const isIlluminate = document.documentElement.classList.contains('light');
   return (
     <div className={`min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 font-poppins bg-gray-100 text-gray-800 dark:bg-[#0A0B0F] dark:text-gray-200 illuminate-override`}>
       <div className="absolute top-6 sm:top-8 w-full flex justify-center"> <Link to="/" aria-label="Go to Homepage"> <Logo /> </Link> </div>
@@ -101,28 +155,15 @@ const RootTitle = ({ children }: { children: React.ReactNode }) => ( <> <Helmet>
 const AppRoutes = () => {
   const { user, loading: authIsLoading } = useAuth();
 
-  useEffect(() => {
-    const applyTheme = () => {
-      const isIlluminateEnabled = JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'false');
-      if (isIlluminateEnabled) {
-        document.documentElement.classList.remove('dark');
-        document.documentElement.classList.add('light');
-      } else {
-        document.documentElement.classList.remove('light');
-        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-          document.documentElement.classList.add('dark');
-        } else {
-          document.documentElement.classList.remove('dark');
-        }
-      }
-    };
-    applyTheme();
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    mediaQuery.addEventListener('change', applyTheme);
-    window.addEventListener('storage', (event) => { if (event.key === 'isIlluminateEnabled') applyTheme(); });
-    return () => { mediaQuery.removeEventListener('change', applyTheme); window.removeEventListener('storage', applyTheme); };
-  }, []);
+  const maintenanceMode = true; // Set to true to enable maintenance mode
 
+  if (maintenanceMode) {
+    return (
+        <Routes>
+            <Route path="*" element={<PageTitle title="Under Maintenance"><UnderMaintenance /></PageTitle>} />
+        </Routes>
+    );
+  }
 
   if (authIsLoading) {
     return (
@@ -158,6 +199,20 @@ const AppRoutes = () => {
 };
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode> <HelmetProvider> <DefaultHelmet /> <BrowserRouter> <AuthProvider> <Analytics /> <SpeedInsights /> <AppRoutes /> </AuthProvider> </BrowserRouter> </HelmetProvider> </StrictMode>
+  <StrictMode>
+    <HelmetProvider>
+      <DefaultHelmet />
+      <BrowserRouter>
+        <AuthProvider>
+          <ThemeProvider>
+            <Analytics />
+            <SpeedInsights />
+            <AppRoutes />
+          </ThemeProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </HelmetProvider>
+  </StrictMode>
 );
+
 export {};
