@@ -165,7 +165,7 @@ const AppRoutes = () => {
   // Removed theme logic from here as it's now handled by ThemeProvider
 
   // Set to true to enable maintenance mode for all routes
-  const maintenanceMode = false;
+  const maintenanceMode = true;
 
   if (maintenanceMode) {
     return (
