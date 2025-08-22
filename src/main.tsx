@@ -32,7 +32,8 @@ import ComingSoon from './components/ComingSoon';
 import { FocusMode } from './components/Focus-Mode';
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
-import { Loader2, AlertTriangle, Tool } from 'lucide-react';
+// Corrected: Replaced 'Tool' with 'Wrench'
+import { Loader2, AlertTriangle, Wrench } from 'lucide-react';
 import { Logo } from './components/Logo';
 
 const DefaultHelmet = () => (
@@ -50,27 +51,29 @@ const DefaultHelmet = () => (
   </Helmet>
 );
 
-const applyTheme = () => {
-  const isIlluminateEnabled = JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'false');
-  if (isIlluminateEnabled) {
-    document.documentElement.classList.remove('dark');
-    document.documentElement.classList.add('light');
-  } else {
-    document.documentElement.classList.remove('light');
-    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }
-};
-
+// Centralized Theme Management
 const ThemeProvider = ({ children }) => {
   useEffect(() => {
+    const applyTheme = () => {
+      const isIlluminateEnabled = JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'false');
+      if (isIlluminateEnabled) {
+        document.documentElement.classList.remove('dark');
+        document.documentElement.classList.add('light');
+      } else {
+        document.documentElement.classList.remove('light');
+        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      }
+    };
+
     applyTheme();
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     mediaQuery.addEventListener('change', applyTheme);
     window.addEventListener('storage', (event) => { if (event.key === 'isIlluminateEnabled') applyTheme(); });
+
     return () => {
       mediaQuery.removeEventListener('change', applyTheme);
       window.removeEventListener('storage', applyTheme);
@@ -79,6 +82,7 @@ const ThemeProvider = ({ children }) => {
 
   return <>{children}</>;
 };
+
 
 const UnderMaintenance = () => {
   const isIlluminate = document.documentElement.classList.contains('light');
@@ -101,7 +105,8 @@ const UnderMaintenance = () => {
           animate={{ scale: 1, opacity: 1 }}
           transition={{ duration: 0.5, ease: "easeOut" }}
         >
-          <Tool className="w-16 h-16 mx-auto mb-6 text-indigo-500 dark:text-indigo-400 illuminate-icon-override" />
+          {/* Corrected: Using the Wrench icon */}
+          <Wrench className="w-16 h-16 mx-auto mb-6 text-indigo-500 dark:text-indigo-400 illuminate-icon-override" />
         </motion.div>
         <motion.h1
           className="text-4xl sm:text-5xl font-extrabold text-gray-900 dark:text-white mb-3 illuminate-text-override"
@@ -127,8 +132,11 @@ const UnderMaintenance = () => {
   );
 };
 
+
 const NotFound = () => {
+  // Removed theme logic from here as it's now handled by ThemeProvider
   const isIlluminate = document.documentElement.classList.contains('light');
+
   return (
     <div className={`min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 font-poppins bg-gray-100 text-gray-800 dark:bg-[#0A0B0F] dark:text-gray-200 illuminate-override`}>
       <div className="absolute top-6 sm:top-8 w-full flex justify-center"> <Link to="/" aria-label="Go to Homepage"> <Logo /> </Link> </div>
@@ -154,8 +162,10 @@ const RootTitle = ({ children }: { children: React.ReactNode }) => ( <> <Helmet>
 
 const AppRoutes = () => {
   const { user, loading: authIsLoading } = useAuth();
+  // Removed theme logic from here as it's now handled by ThemeProvider
 
-  const maintenanceMode = true; // Set to true to enable maintenance mode
+  // Set to true to enable maintenance mode for all routes
+  const maintenanceMode = false;
 
   if (maintenanceMode) {
     return (
