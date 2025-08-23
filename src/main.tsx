@@ -243,7 +243,7 @@ const RootTitle = ({ children }: { children: React.ReactNode }) => ( <> <Helmet>
 
 const AppRoutes = () => {
   const { user, loading: authIsLoading } = useAuth();
-  const maintenanceMode = true;
+  const maintenanceMode = false;
 
   if (maintenanceMode) {
     return (
