@@ -39,7 +39,7 @@ const CollapsedLogoIcon = () => (
 );
 
 const DEV_EMAILS = ["bajinsrinivasr@lexington1.net"];
-const INTERN_EMAILS = ["poojarameshkumar789@gmail.com", "ali.ahsan.a214@gmail.com", "amrish.naranappa@gmail.com", "navaneeth.ravindranath@gmail.com", "Goduwin_Ravi@yahoo.com", "gautham.paddu@outlook.com", "Isha.kandhaluram@gmail.com"];
+const INTERN_EMAILS = ["poojarameshkumar789@gmail.com", "ali.ahsan.a214@gmail.com", "amrish.naranappa@gmail.com", "navaneeth.ravindranath@gmail.com", "Goduwin_Ravi@yahoo.com", "gautham.paddu@outlook.com", "Isha.kandhaluram@gmail.com", "rithikrt1@gmail.com", "Mithun.kutuva@gmail.com", "rickmrreddy@gmail.com", "shankartkraj@gmail.com", "akaash.chirravuri@gmail.com" ];
 
 export function Sidebar({
   userName,
