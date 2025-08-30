@@ -15,7 +15,7 @@ import {
 } from "firebase/firestore";
 
 export const PREMIUM_EMAILS = [
-    "bajinsrinivasr@lexington1.net", "akaash.chirravuri@gmail.com", "rithikrt1@gmail.com", "Mithun.kutuva@gmail.com", "rickmrreddy@gmail.com", "shankartkraj@gmail.com",  "1cosmic20@gmail.com", "amlitha@gmail.com", "suryar9108@gmail.com", "poojarameshkumar789@gmail.com", "achallapureddy@gmail.com", "ali.ahsan.a214@gmail.com", "amrish.naranappa@gmail.com",
+    "bajinsrinivasr@lexington1.net", "draco77654@gmail.com", "akaash.chirravuri@gmail.com", "rithikrt1@gmail.com", "Mithun.kutuva@gmail.com", "rickmrreddy@gmail.com", "shankartkraj@gmail.com",  "1cosmic20@gmail.com", "amlitha@gmail.com", "suryar9108@gmail.com", "poojarameshkumar789@gmail.com", "achallapureddy@gmail.com", "ali.ahsan.a214@gmail.com", "amrish.naranappa@gmail.com",
     "navaneeth.ravindranath@gmail.com", "Goduwin_Ravi@yahoo.com", "gautham.paddu@outlook.com", "Isha.kandhaluram@gmail.com", "learner@example.com"
 ];
 
