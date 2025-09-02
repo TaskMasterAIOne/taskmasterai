@@ -5,7 +5,9 @@ import { BrowserRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
 import { HelmetProvider, Helmet } from 'react-helmet-async';
 
 import { pdfjs } from 'react-pdf';
-pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
+
+// Use react-pdf's bundled worker to avoid version conflicts
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 import { motion } from 'framer-motion';
 import App from './App';

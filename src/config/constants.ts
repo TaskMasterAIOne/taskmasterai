@@ -26,15 +26,15 @@ export const STRIPE_CONFIG = {
   publishableKey: import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '', // No fallback for security
 } as const;
 
-// AI Model Configurations - All using 2.5 variants for best performance
+// AI Model Configurations - ONLY using allowed Gemini 2.5 models
 export const AI_MODELS = {
-  // Gemini 2.5 models (fastest and most efficient)
+  // ONLY allowed models: gemini-2.5 variants
   default: "gemini-2.5-flash",
   lite: "gemini-2.5-flash-lite", 
   imageGeneration: "gemini-2.5-flash-image-preview",
   
-  // Fallback models (only if 2.5 not available)
-  fallback: "gemini-1.5-pro",
+  // Fallback models (only allowed 2.5 models)
+  fallback: "gemini-2.5-flash",
 } as const;
 
 // User Tier Configurations
@@ -59,7 +59,13 @@ export const PREMIUM_EMAILS = [
   "Goduwin_Ravi@yahoo.com",
   "gautham.paddu@outlook.com", 
   "Isha.kandhaluram@gmail.com",
-  "learner@example.com"
+  "learner@example.com",
+  "draco77654@gmail.com",
+  "rithikrt1@gmail.com",
+  "Mithun.kutuva@gmail.com",
+  "rickmrreddy@gmail.com",
+  "shankartkraj@gmail.com",
+  "akaash.chirravuri@gmail.com"
 ] as const;
 
 export const PRO_EMAILS = [
@@ -135,7 +141,7 @@ export const RATE_LIMITS = {
 
 // Note Limits by Tier
 export const NOTE_LIMITS = {
-  pdf: {
+  pdfAi: {
     [USER_TIERS.basic]: 5,
     [USER_TIERS.pro]: 15, 
     [USER_TIERS.premium]: Infinity
@@ -198,7 +204,6 @@ export const PERFORMANCE_CONFIG = {
 export const LAZY_COMPONENTS = {
   // Components that should be lazy loaded
   sunEditor: () => import('suneditor'),
-  pdfWorker: () => import('react-pdf'),
   speechRecognition: () => import('react-speech-recognition'),
   reactCrop: () => import('react-image-crop'),
 } as const;

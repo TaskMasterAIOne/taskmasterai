@@ -5,16 +5,12 @@
 import { httpsCallable } from 'firebase/functions';
 import { getFunctions } from 'firebase/functions';
 import { processPDF, ProcessedPDF } from './pdf-processor';
-import { processYouTube, ProcessedYouTube } from './youtube-processor';
+import { processYouTube } from './youtube-processor';
 import { processTextForPodcast, PodcastTextProcessResult, SpeakerProfileForProcessor, PodcastPlaybackSettingsForProcessor } from './podcast-processor';
-import { AI_MODELS } from '../config/constants';
-import { checkRateLimit, recordUsage } from './rate-limiter';
-import { getUserTier } from './current-paying-user';
 
 // Re-export all processor types for easy importing
 export type {
     ProcessedPDF,
-    ProcessedYouTube,
     PodcastTextProcessResult,
     SpeakerProfileForProcessor,
     PodcastPlaybackSettingsForProcessor
@@ -49,43 +45,81 @@ export const getGeminiProxy = () => {
 export const extractCandidateText = (responseText: string): string => {
     try {
         const jsonResponse = JSON.parse(responseText);
+        
+        // Check for errors first
         if (jsonResponse?.error?.message) {
             return `Error: ${jsonResponse.error.message}`;
         }
-        if (jsonResponse?.candidates?.[0]?.content?.parts?.[0]?.text) {
-            return jsonResponse.candidates[0].content.parts[0].text;
-        }
+        
         if (jsonResponse?.promptFeedback?.blockReason) {
             return `Error: Request blocked for reason: ${jsonResponse.promptFeedback.blockReason}`;
         }
+        
+        // Try to extract text from the response
+        if (jsonResponse?.candidates?.[0]?.content?.parts?.[0]?.text) {
+            return jsonResponse.candidates[0].content.parts[0].text;
+        }
+        
+        // Check for alternative response structures
+        if (jsonResponse?.candidates?.[0]?.content?.parts) {
+            const parts = jsonResponse.candidates[0].content.parts;
+            for (const part of parts) {
+                if (part.text && part.text.trim()) {
+                    return part.text;
+                }
+            }
+        }
+        
+        // Check if response has a different structure
+        if (jsonResponse?.text) {
+            return jsonResponse.text;
+        }
+        
+        // Log the actual response structure for debugging
+        console.error('Unexpected AI response structure:', JSON.stringify(jsonResponse, null, 2));
+        
         return "Error: No text found in the expected AI response structure.";
     } catch (err) {
-        if (responseText.toLowerCase().includes("api key not valid")) return "Error: Invalid API Key.";
+        console.error('Error parsing AI response:', err);
+        console.error('Raw response:', responseText);
+        
+        if (responseText.toLowerCase().includes("api key not valid")) {
+            return "Error: Invalid API Key.";
+        }
+        
+        if (responseText.toLowerCase().includes("quota")) {
+            return "Error: API quota exceeded.";
+        }
+        
+        if (responseText.toLowerCase().includes("rate limit")) {
+            return "Error: Rate limit exceeded.";
+        }
+        
         return "Error: Could not parse the AI response.";
     }
 };
 
-// Common AI processing configurations
+// Common AI processing configurations - Optimized for speed
 export const AI_CONFIGS = {
     TITLE_GENERATION: {
         temperature: 0.3,
-        maxOutputTokens: 8192
+        maxOutputTokens: 1024  // Reduced from 8192 for faster response
     },
     NOTE_GENERATION: {
         temperature: 0.6,
-        maxOutputTokens: 65536
+        maxOutputTokens: 16384  // Reduced from 65536 for faster response
     },
     KEY_POINTS: {
         temperature: 0.4,
-        maxOutputTokens: 65536
+        maxOutputTokens: 4096   // Reduced from 65536 for faster response
     },
     FLASHCARDS: {
         temperature: 0.5,
-        maxOutputTokens: 65536
+        maxOutputTokens: 8192   // Reduced from 65536 for faster response
     },
     QUESTIONS: {
         temperature: 0.6,
-        maxOutputTokens: 65536
+        maxOutputTokens: 8192   // Reduced from 65536 for faster response
     }
 } as const;
 
@@ -255,15 +289,46 @@ ${content.slice(0, 30000)}
 Your Response (Must follow the strict "Front/Back/Divider" format):
 Front:`,
 
-    QUESTIONS: (text: string, content?: string) => 
+    TOPICS: (text: string, content?: string) => 
+        `**AI Persona:** You are "TopicMaster Pro," an expert in content analysis and educational organization. Your specialty is identifying and organizing the key topics and themes within educational content to create a comprehensive learning structure.
+
+**Core Objective:** Generate **exactly 5** distinct, well-defined topics that comprehensively cover the main themes and concepts in the provided text.
+
+**CRITICAL FORMATTING RULES:**
+1. **BLOCK DIVIDER:** Each of the 5 topic blocks MUST be separated by a single line containing exactly this text: \`---DIVIDER---\`. This is mandatory.
+2. **FIXED 3-LINE STRUCTURE:** Every single block MUST adhere to the following rigid 3-line format:
+   Line 1: \`Topic: [Clear, concise topic name (max 60 characters)]\`
+   Line 2: \`ID: [topic-id-using-kebab-case]\`
+   Line 3: \`Description: [Brief description explaining what this topic covers (max 200 characters)]\`
+
+**CONTENT GUIDELINES:**
+- **Comprehensive Coverage:** The 5 topics should collectively cover all major themes in the content
+- **Distinct and Non-Overlapping:** Each topic should be clearly distinct from the others
+- **Balanced Distribution:** Topics should represent roughly equal amounts of content
+- **Educational Value:** Focus on topics that would be valuable for student learning and assessment
+- **Clear Naming:** Use clear, descriptive names that students will understand
+
+**Example of a PERFECT First Block:**
+Topic: Fundamental Programming Concepts
+ID: fundamental-programming
+Description: Basic programming principles including variables, data types, control structures, and basic algorithms
+
+Source Text:
+---
+${text}${content ? `\n\nProcessed Content:\n${content}` : ''}
+---
+
+Generate exactly 5 topics following the format above:`,
+
+    QUESTIONS: (text: string, content?: string, topics?: string) => 
         `**AI Persona:** You are "QuizMaster Pro," an expert in pedagogical assessment. Your specialty is creating high-quality, unambiguous multiple-choice questions (MCQs) that accurately test a student's understanding of source material. You are precise, methodical, and your output is flawlessly formatted.
 
-**Core Objective:** Generate **exactly 10** distinct, high-quality multiple-choice questions based on the core subject matter of the provided text.
+**Core Objective:** Generate **exactly 10** distinct, high-quality multiple-choice questions based on the core subject matter of the provided text${topics ? '. Distribute questions evenly across the provided topics.' : ''}.
 
 **CRITICAL, NON-NEGOTIABLE, AND EXTREMELY STRICT FORMATTING RULES:**
 Your entire output must consist of **exactly 10** question blocks. You must not fail to provide 10 blocks.
 1.  **BLOCK DIVIDER:** Each of the 10 question blocks MUST be separated by a single line containing exactly this text: \`---DIVIDER---\`. This is mandatory.
-2.  **FIXED 7-LINE STRUCTURE:** Every single block MUST adhere to the following rigid 7-line format without any deviation. Each item must be on a new line.
+2.  **FIXED 9-LINE STRUCTURE:** Every single block MUST adhere to the following rigid 9-line format without any deviation. Each item must be on a new line.
     Line 1: \`Question: [The full text of the question]\`
     Line 2: \`A) [Text for option A]\`
     Line 3: \`B) [Text for option B]\`
@@ -271,11 +336,13 @@ Your entire output must consist of **exactly 10** question blocks. You must not 
     Line 5: \`D) [Text for option D]\`
     Line 6: \`Correct: [A single uppercase letter: A, B, C, or D]\`
     Line 7: \`Explanation: [A clear and concise explanation for why the correct answer is right, and bonus points if you explain why others are wrong.]\`
+    Line 8: \`TopicID: [The topic ID this question relates to${topics ? ' from the provided topics' : ' or "general" if no specific topic'}]\`
+    Line 9: \`Hint: [A helpful hint that guides toward the correct answer without giving it away directly]\`
 3.  **NO EXTRA TEXT or DEVIATION:**
     - Do NOT number the questions (e.g., "1. Question:").
     - Do NOT add any introductory text, titles, or concluding summaries.
     - Your response must start immediately with \`Question:\` on the first line of the first block.
-    - Do NOT ever deviate from the 7-line structure.
+    - Do NOT ever deviate from the 9-line structure.
 
 **CONTENT GUIDELINES:**
 - **Relevance:** Questions MUST test the actual subject matter. AVOID "meta" questions about the document itself (e.g., "What did the author say on page 3?").
@@ -293,6 +360,8 @@ C) To create and enact laws
 D) To command the armed forces
 Correct: C
 Explanation: The legislative branch, consisting of the Senate and House of Representatives, is responsible for writing, debating, and passing bills to become laws. Enforcing laws is the executive branch, and interpreting them is the judicial branch.
+TopicID: government-structure
+Hint: Think about what Congress does when they meet in session - what is their primary job function?
 
     FOR MATH USE THIS:
 Equations → LaTeX $…$ inline, $$…$$ display).  
@@ -310,15 +379,104 @@ Note Content:
 ${content.slice(0, 30000)}
 ---` : ''}
 
-Your Response (Must be 10 blocks in the strict 7-line format):
+${topics ? `Available Topics:
+---
+${topics}
+---
+
+` : ''}Your Response (Must be 10 blocks in the strict 9-line format):
 Question:`
 } as const;
+
+// Topic parsing function
+export const parseTopicsResponse = (responseText: string): Array<{id: string, name: string, description: string}> => {
+    const topics: Array<{id: string, name: string, description: string}> = [];
+    
+    if (responseText.startsWith("Error:")) {
+        return topics;
+    }
+    
+    responseText.split(/---DIVIDER---/i).forEach(block => {
+        const topicMatch = block.match(/Topic:\s*([\s\S]*?)\s*ID:/i);
+        const idMatch = block.match(/ID:\s*([\s\S]*?)\s*Description:/i);
+        const descMatch = block.match(/Description:\s*([\s\S]*)$/i);
+        
+        if (topicMatch && idMatch && descMatch) {
+            const name = topicMatch[1].trim();
+            const id = idMatch[1].trim();
+            const description = descMatch[1].trim();
+            
+            if (name && id && description) {
+                topics.push({ id, name, description });
+            }
+        }
+    });
+    
+    return topics;
+};
+
+// Enhanced question parsing function with topic and hint support
+export const parseQuestionsWithTopics = (responseText: string): Array<{
+    id: string,
+    question: string,
+    options: string[],
+    correctAnswer: number,
+    explanation: string,
+    topicId: string,
+    hint?: string
+}> => {
+    const questions: Array<{
+        id: string,
+        question: string,
+        options: string[],
+        correctAnswer: number,
+        explanation: string,
+        topicId: string,
+        hint?: string
+    }> = [];
+    
+    if (responseText.startsWith("Error:")) {
+        return questions;
+    }
+    
+    responseText.split(/---DIVIDER---/i).forEach((block, index) => {
+        const qM = block.match(/Question:\s*([\s\S]*?)\s*A\)/i);
+        const oM = block.match(/A\)\s*([\s\S]*?)\s*B\)\s*([\s\S]*?)\s*C\)\s*([\s\S]*?)\s*D\)\s*([\s\S]*?)\s*Correct:/is);
+        const cM = block.match(/Correct:\s*([A-D])/i);
+        const eM = block.match(/Explanation:\s*([\s\S]*?)\s*TopicID:/i);
+        const tM = block.match(/TopicID:\s*([\s\S]*?)\s*Hint:/i);
+        const hM = block.match(/Hint:\s*([\s\S]*)$/i);
+        
+        if (qM && oM && cM && eM && tM) {
+            const question = qM[1].trim();
+            const options = [oM[1], oM[2], oM[3], oM[4]].map(opt => opt.trim());
+            const correctLetter = cM[1].toUpperCase();
+            const correctAnswer = ['A', 'B', 'C', 'D'].indexOf(correctLetter);
+            const explanation = eM[1].trim();
+            const topicId = tM[1].trim();
+            const hint = hM ? hM[1].trim() : undefined;
+            
+            if (question && options.every(opt => opt) && correctAnswer !== -1 && explanation && topicId) {
+                questions.push({
+                    id: `q-${index + 1}`,
+                    question,
+                    options,
+                    correctAnswer,
+                    explanation,
+                    topicId,
+                    hint
+                });
+            }
+        }
+    });
+    
+    return questions;
+};
 
 // Helper function to make AI calls with proper error handling
 export const makeAICall = async (
     prompt: string, 
-    config: typeof AI_CONFIGS[keyof typeof AI_CONFIGS],
-    onProgress?: (progress: number) => void
+    config: typeof AI_CONFIGS[keyof typeof AI_CONFIGS]
 ) => {
     const geminiProxy = getGeminiProxy();
     
@@ -341,6 +499,96 @@ export const makeAICall = async (
     }
 };
 
+// Fallback content for when AI calls fail
+const getFallbackContent = (key: string): string => {
+    switch (key) {
+        case 'title':
+            return 'Untitled Note';
+        case 'content':
+            return '<p>Content generation failed. Please try again or contact support.</p>';
+        case 'keyPoints':
+            return '* Content processing failed\n* Please try again\n* Contact support if issue persists';
+        case 'flashcards':
+            return 'Front: Content processing failed\nBack: Please try again or contact support';
+        case 'questions':
+            return 'Question: Content processing failed\nA) Try again\nB) Contact support\nC) Check your connection\nD) Verify your account\nCorrect: A\nExplanation: Please try processing the content again.';
+        default:
+            return 'Processing failed. Please try again.';
+    }
+};
+
+// Parallel AI processing for faster note creation
+export const makeParallelAICalls = async (
+    calls: Array<{
+        prompt: string;
+        config: typeof AI_CONFIGS[keyof typeof AI_CONFIGS];
+        key: string;
+    }>,
+    onProgress?: (progress: number) => void
+) => {
+    const geminiProxy = getGeminiProxy();
+    const results: Record<string, string> = {};
+    const DEBUG_MODE = false; // Set to true for debugging
+    
+    try {
+        // Execute all AI calls in parallel with individual error handling
+        const promises = calls.map(async (call) => {
+            try {
+                const result = await geminiProxy({
+                    contents: [{ parts: [{ text: call.prompt }] }],
+                    generationConfig: call.config
+                });
+                
+                // Debug logging for troubleshooting
+                if (DEBUG_MODE) {
+                    console.log(`AI call result for ${call.key}:`, result);
+                }
+                
+                const extractedText = extractCandidateText(JSON.stringify(result.data));
+                
+                if (extractedText.startsWith("Error:")) {
+                    console.error(`AI call failed for ${call.key}:`, extractedText);
+                    // Return a fallback value instead of throwing
+                    return { key: call.key, result: getFallbackContent(call.key) };
+                }
+                
+                if (!extractedText || extractedText.trim().length === 0) {
+                    console.error(`Empty response for ${call.key}:`, result);
+                    // Return a fallback value instead of throwing
+                    return { key: call.key, result: getFallbackContent(call.key) };
+                }
+                
+                return { key: call.key, result: extractedText };
+            } catch (callError) {
+                console.error(`Error in AI call for ${call.key}:`, callError);
+                // Return a fallback value instead of throwing
+                return { key: call.key, result: getFallbackContent(call.key) };
+            }
+        });
+        
+        // Wait for all calls to complete (some may return fallback values)
+        const responses = await Promise.all(promises);
+        
+        // Update progress as calls complete
+        if (onProgress) {
+            responses.forEach((_, index) => {
+                onProgress(Math.round(((index + 1) / responses.length) * 100));
+            });
+        }
+        
+        // Organize results by key
+        responses.forEach(({ key, result }) => {
+            results[key] = result;
+        });
+        
+        return results;
+    } catch (error) {
+        console.error('Parallel AI processing error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown parallel AI processing error';
+        throw new Error(errorMessage);
+    }
+};
+
 // Export a default object with all the main functions
 export default {
     // Core processor functions
@@ -352,6 +600,7 @@ export default {
     getGeminiProxy,
     extractCandidateText,
     makeAICall,
+    makeParallelAICalls,
     
     // Constants
     AI_CONFIGS,

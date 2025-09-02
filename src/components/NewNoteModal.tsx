@@ -124,6 +124,9 @@ export function NewNoteModal({
   userTier,
   noteUsage
 }: NewNoteModalProps) {
+  // Ensure noteUsage has default values to prevent undefined access errors
+  const safeNoteUsage = noteUsage || { pdfAi: 0, youtube: 0 };
+  
   const [mode, setMode] = useState<'select' | 'personal' | 'ai' | 'pdf' | 'youtube'>('select');
   const [title, setTitle] = useState('');
   const [tags, setTags] = useState<string[]>([]);
@@ -175,9 +178,20 @@ export function NewNoteModal({
     }
     if (userTier === 'premium') return true;
 
-    const limits = NOTE_LIMITS[userTier];
-    const currentCount = noteUsage[noteType];
-    const limit = limits[noteType];
+    // Safety check: ensure noteUsage exists
+    if (!safeNoteUsage) {
+        console.warn('Note usage data not available, allowing operation');
+        return true;
+    }
+
+    // Safety check: ensure userTier is valid
+    if (!userTier || !NOTE_LIMITS.pdfAi[userTier] || !NOTE_LIMITS.youtube[userTier]) {
+        console.warn('Invalid user tier, allowing operation');
+        return true;
+    }
+
+    const currentCount = safeNoteUsage[noteType] || 0;
+    const limit = noteType === 'pdfAi' ? NOTE_LIMITS.pdfAi[userTier] : NOTE_LIMITS.youtube[userTier];
 
     if (currentCount >= limit) {
         const typeName = noteType === 'pdfAi' ? 'PDF/AI Text Note' : 'YouTube Note';

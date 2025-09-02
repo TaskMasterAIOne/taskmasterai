@@ -5,7 +5,10 @@ import {
     getGeminiProxy, 
     extractCandidateText, 
     AI_CONFIGS, 
-    PROMPT_TEMPLATES 
+    PROMPT_TEMPLATES,
+    makeParallelAICalls,
+    parseTopicsResponse,
+    parseQuestionsWithTopics
 } from './processors';
 import { API_CONFIG, EXTERNAL_APIS, FILE_CONFIG } from '../config/constants';
 
@@ -13,7 +16,20 @@ interface ProcessedYouTube {
     title: string;
     content: string;
     keyPoints: string[];
-    questions: { question: string; options: string[]; correctAnswer: number; explanation: string; }[];
+    questions: {
+        id: string;
+        question: string;
+        options: string[];
+        correctAnswer: number;
+        explanation: string;
+        topicId: string;
+        hint?: string;
+    }[];
+    topics: {
+        id: string;
+        name: string;
+        description: string;
+    }[];
     flashcards?: { front: string; back: string; }[];
     sourceUrl: string;
 }
@@ -66,7 +82,7 @@ export async function processYouTube(
     const geminiProxyCallable = getGeminiProxy();
 
     if (!YOUTUBE_API_KEY || ['YOUR_YOUTUBE_API_KEY', 'YOUR_ACTUAL_YOUTUBE_API_KEY_HERE'].includes(YOUTUBE_API_KEY) ) {
-        throw new Error('YouTube API Key missing/invalid. Please set a valid key in youtube-processor.ts.');
+        throw new Error('YouTube API Key missing/invalid. Please configure a valid key in your environment variables.');
     }
 
     let baseTranscriptContent = '';
@@ -105,77 +121,93 @@ export async function processYouTube(
         safeProgress(30);
 
         baseTranscriptContent = fetchedTranscriptText.trim() ? fetchedTranscriptText : videoDescription;
-        if (!baseTranscriptContent.trim()) { baseTranscriptContent = "No transcript or description available."; }
+        if (!baseTranscriptContent.trim()) { 
+            throw new Error('No transcript or description available for this video. Please try a different video or ensure the video has captions enabled.'); 
+        }
 
-        // Use centralized prompt templates and AI configs
-        const titlePrompt = PROMPT_TEMPLATES.TITLE_GENERATION(baseTranscriptContent.slice(0, 4000), videoInfo.title);
-        const titleResult = await geminiProxyCallable({ 
-            contents: [{ parts: [{ text: titlePrompt }] }], 
-            generationConfig: AI_CONFIGS.TITLE_GENERATION 
-        });
-        let title = extractCandidateText(JSON.stringify(titleResult.data)).replace(/["']/g, "").trim() || videoInfo.title;
+        // Use parallel AI processing for faster note creation
         safeProgress(40);
         
-        const notePrompt = PROMPT_TEMPLATES.NOTE_GENERATION(baseTranscriptContent, videoInfo.title);
-        const noteResult = await geminiProxyCallable({ 
-            contents: [{ parts: [{ text: notePrompt }] }], 
-            generationConfig: AI_CONFIGS.NOTE_GENERATION 
-        });
-        let content = extractCandidateText(JSON.stringify(noteResult.data));
-        if (content.startsWith("Error:")) { content = `<p><strong>Error generating note:</strong> ${content}</p>`; }
-        safeProgress(60);
+        const aiCalls = [
+            {
+                key: 'title',
+                prompt: PROMPT_TEMPLATES.TITLE_GENERATION(baseTranscriptContent.slice(0, 4000), videoInfo.title),
+                config: AI_CONFIGS.TITLE_GENERATION
+            },
+            {
+                key: 'content',
+                prompt: PROMPT_TEMPLATES.NOTE_GENERATION(baseTranscriptContent, videoInfo.title),
+                config: AI_CONFIGS.NOTE_GENERATION
+            },
+            {
+                key: 'keyPoints',
+                prompt: PROMPT_TEMPLATES.KEY_POINTS(baseTranscriptContent),
+                config: AI_CONFIGS.KEY_POINTS
+            },
+            {
+                key: 'flashcards',
+                prompt: PROMPT_TEMPLATES.FLASHCARDS(baseTranscriptContent),
+                config: AI_CONFIGS.FLASHCARDS
+            },
+            {
+                key: 'topics',
+                prompt: PROMPT_TEMPLATES.TOPICS(baseTranscriptContent),
+                config: AI_CONFIGS.QUESTIONS
+            },
+            {
+                key: 'questions',
+                prompt: PROMPT_TEMPLATES.QUESTIONS(baseTranscriptContent),
+                config: AI_CONFIGS.QUESTIONS
+            }
+        ];
 
-        const keyPointsPrompt = PROMPT_TEMPLATES.KEY_POINTS(baseTranscriptContent, content);
-        const kpResult = await geminiProxyCallable({ 
-            contents: [{ parts: [{ text: keyPointsPrompt }] }], 
-            generationConfig: AI_CONFIGS.KEY_POINTS 
+        const aiResults = await makeParallelAICalls(aiCalls, (progress) => {
+            safeProgress(40 + Math.round(progress * 0.5)); // 40-90% range
         });
-        let keyPoints = (extractCandidateText(JSON.stringify(kpResult.data))).split('\n').map(l => l.trim().replace(/^(\*|-|\d+\.)\s*/, '')).filter(p => p.length > 5 && !p.toLowerCase().includes("primary task"));
-        if (keyPoints.length === 0) { keyPoints.push("Key point generation failed."); }
-        safeProgress(75);
 
-        const flashcardsPrompt = PROMPT_TEMPLATES.FLASHCARDS(baseTranscriptContent, content);
-        const fcResult = await geminiProxyCallable({ 
-            contents: [{ parts: [{ text: flashcardsPrompt }] }], 
-            generationConfig: AI_CONFIGS.FLASHCARDS 
-        });
-        const fcRawText = extractCandidateText(JSON.stringify(fcResult.data));
+        // Process results
+        let title = aiResults.title.replace(/["']/g, "").trim() || videoInfo.title;
+        
+        let content = aiResults.content;
+        if (content.startsWith("Error:")) { 
+            content = `<p><strong>Error generating note:</strong> ${content}</p>`; 
+        }
+
+        let keyPoints = aiResults.keyPoints.split('\n')
+            .map(l => l.trim().replace(/^(\*|-|\d+\.)\s*/, ''))
+            .filter(p => p.length > 5 && !p.toLowerCase().includes("primary task"));
+        if (keyPoints.length === 0) { 
+            keyPoints.push("Key point generation failed."); 
+        }
+
+        // Process flashcards
+        const fcRawText = aiResults.flashcards;
         let flashcards: ProcessedYouTube['flashcards'] = [];
         if (!fcRawText.startsWith("Error:")) {
-             fcRawText.split(/---FLASHCARD_DIVIDER---/i).forEach(block => {
+            fcRawText.split(/---FLASHCARD_DIVIDER---/i).forEach(block => {
                 const match = block.trim().match(/^(?:Front:\s*)?([\s\S]*?)\s*\nBack:\s*([\s\S]*)$/is);
                 if (match && match[1] && match[2] && match[1].trim() && match[2].trim()) {
                     flashcards.push({ front: match[1].trim(), back: match[2].trim() });
                 }
             });
         }
-        safeProgress(85);
+        
+        // Process topics
+        const topicsRawText = aiResults.topics;
+        let topics: ProcessedYouTube['topics'] = [];
+        if (!topicsRawText.startsWith("Error:")) {
+            topics = parseTopicsResponse(topicsRawText);
+        }
 
-        const questionsPrompt = PROMPT_TEMPLATES.QUESTIONS(baseTranscriptContent, content);
-        const qResult = await geminiProxyCallable({ 
-            contents: [{ parts: [{ text: questionsPrompt }] }], 
-            generationConfig: AI_CONFIGS.QUESTIONS 
-        });
-        const qRawText = extractCandidateText(JSON.stringify(qResult.data));
+        // Process questions with topics and hints
+        const qRawText = aiResults.questions;
         let questions: ProcessedYouTube['questions'] = [];
         if (!qRawText.startsWith("Error:")) {
-            qRawText.split(/---DIVIDER---/i).forEach(block => {
-                const qM = block.match(/Question:\s*([\s\S]*?)\s*A\)/i);
-                const oM = block.match(/A\)\s*([\s\S]*?)\s*B\)\s*([\s\S]*?)\s*C\)\s*([\s\S]*?)\s*D\)\s*([\s\S]*?)\s*Correct:/is);
-                const cM = block.match(/Correct:\s*([A-D])/i);
-                const eM = block.match(/Explanation:\s*([\s\S]*)$/i);
-                if (qM && oM && cM && eM) {
-                    const oL = [oM[1], oM[2], oM[3], oM[4]].map(o => o.trim());
-                    const cL = cM[1].toUpperCase();
-                    if (oL.every(o => o) && ['A', 'B', 'C', 'D'].includes(cL)) {
-                        questions.push({ question: qM[1].trim(), options: oL, correctAnswer: ['A', 'B', 'C', 'D'].indexOf(cL), explanation: eM[1].trim() });
-                    }
-                }
-            });
+            questions = parseQuestionsWithTopics(qRawText);
         }
         safeProgress(100);
 
-        return { title, content, keyPoints, questions, flashcards, sourceUrl: youtubeVideoUrl };
+        return { title, content, keyPoints, questions, topics, flashcards, sourceUrl: youtubeVideoUrl };
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown YouTube processing error.';

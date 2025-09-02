@@ -3,7 +3,7 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useScrollLock } from '../hooks/useScrollLock';
 import {
     FileText, Mic, Plus, Search,
-    AlertTriangle, X, ChevronRight, ChevronLeft, FileQuestion, BookOpen,
+    AlertTriangle, AlertCircle, X, ChevronRight, ChevronLeft, FileQuestion, BookOpen,
     Sparkles, BadgeCheck, Loader2, Save, Edit2, Check, Pencil, MessageCircle, Globe,
     Lock, Trash2, RefreshCw, SplitSquareVertical, List, Briefcase,
     Share2, ClipboardCopy, Eye, ZoomIn, ZoomOut, RotateCcw, Crown,
@@ -11,7 +11,7 @@ import {
     Layers, Download, Camera, Trash, ArrowLeft,
     Award, TrendingUp, Flame, PanelRightOpen,
     Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Speaker, ChevronDown, RotateCw as FlipIcon, Gift,
-    Notebook
+    Notebook, Lightbulb
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -92,6 +92,26 @@ import {
     addPodcastToNote, deletePodcastFromNote,
     NoteData as FirebaseNoteData, Podcast, PodcastSegment, Flashcard
 } from '../lib/notes-firebase';
+
+// Quiz types
+interface QuizTopic {
+    id: string;
+    name: string;
+    description: string;
+    difficulty: 'beginner' | 'intermediate' | 'advanced';
+    estimatedQuestions: number;
+}
+
+interface QuizQuestion {
+    id: string;
+    topicId: string;
+    question: string;
+    options: string[];
+    correctAnswer: number;
+    explanation: string;
+    hint?: string;
+    difficulty: 'easy' | 'medium' | 'hard';
+}
 import { NewNoteModal } from './NewNoteModal';
 import { SplitView } from './SplitView';
 import { NoteChat, NoteChatHandle, ImageData as ChatImageData } from './NoteChat';
@@ -111,8 +131,8 @@ import {
     POINTS_FOR_FREE_PREMIUM
 } from '../lib/current-paying-user';
 import { pdfjs, Document, Page } from 'react-pdf';
-import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
-import 'react-pdf/dist/esm/Page/TextLayer.css';
+import 'react-pdf/dist/Page/AnnotationLayer.css';
+import 'react-pdf/dist/Page/TextLayer.css';
 import html2canvas from 'html2canvas';
 import { getFunctions, httpsCallable, HttpsCallableResult } from 'firebase/functions';
 import {
@@ -131,7 +151,8 @@ import { en } from 'suneditor/src/lang';
 import 'suneditor/dist/css/suneditor.min.css';
 
 
-pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+// Use react-pdf's bundled worker to avoid version conflicts
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 // SECURE: API calls now go through the geminiProxy function
 
@@ -537,6 +558,17 @@ export function Notes() {
     const [currentFlashcardIndex, setCurrentFlashcardIndex] = useState(0);
     const [isFlashcardFlipped, setIsFlashcardFlipped] = useState(false);
     const [showPodcastSection, setShowPodcastSection] = useState(false);
+    const [isReviewMode, setIsReviewMode] = useState(false);
+    const [reviewComments, setReviewComments] = useState<string>('');
+    const [isGeneratingReview, setIsGeneratingReview] = useState(false);
+
+    const [isQuizMode, setIsQuizMode] = useState(false);
+    const [currentQuizQuestion, setCurrentQuizQuestion] = useState(0);
+    const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
+
+    const [quizAnswers, setQuizAnswers] = useState<{[key: string]: number | null}>({});
+    const [showQuizHint, setShowQuizHint] = useState<{[key: string]: boolean}>({});
+    const [showQuizAnswer, setShowQuizAnswer] = useState<{[key: string]: boolean}>({});
 
     const [activePodcast, setActivePodcast] = useState<Podcast | null>(null);
     const [isPodcastPlaying, setIsPodcastPlaying] = useState(false);
@@ -559,6 +591,8 @@ export function Notes() {
     });
 
     const [questionAnswers, setQuestionAnswers] = useState<{[key: string]: number | null}>({});
+    const [incorrectAnswers, setIncorrectAnswers] = useState<{[key: string]: number[]}>({});
+
     const mainContentAreaRef = useRef<HTMLDivElement>(null);
     const noteContentRef = useRef<HTMLDivElement>(null);
     const [numPages, setNumPages] = useState<number | null>(null);
@@ -1199,9 +1233,26 @@ useEffect(() => {
         }
         if (userTier === 'premium') return true;
 
-        const limits = NOTE_LIMITS[userTier];
+        // Safety check: ensure userTier is valid and has limits
+        if (!userTier || userTier === 'loading') {
+            console.warn('Invalid user tier for note limits:', userTier);
+            return false;
+        }
+
+        // Access the correct limits based on noteType and userTier
+        // Only basic, pro, and premium tiers have limits defined
+        if (userTier !== 'basic' && userTier !== 'pro' && userTier !== 'premium') {
+            console.warn('Unsupported user tier for note limits:', userTier);
+            return false;
+        }
+
+        const limit = NOTE_LIMITS[noteType][userTier];
+        if (limit === undefined) {
+            console.warn('No limit found for note type and user tier:', noteType, userTier);
+            return false;
+        }
+
         const currentCount = userProfile?.noteUsageByMonth?.[usageMonth]?.[noteType] ?? 0;
-        const limit = limits[noteType];
 
         if (currentCount >= limit) {
             const typeName = noteType === 'pdfAi' ? 'PDF/AI Text Note' : 'YouTube Note';
@@ -1720,6 +1771,99 @@ const handleYoutubeLink = async (url: string, onProgress: (progress: number) => 
     const handleAddFlashcard = () => setEditFlashcards([...editFlashcards, { front: '', back: '' }]);
     const handleRemoveFlashcard = (index: number) => setEditFlashcards(editFlashcards.filter((_, i) => i !== index));
 
+    const handleGenerateReview = async () => {
+        if (!selectedNote || !user) return;
+        
+        setIsGeneratingReview(true);
+        showToast('Analyzing document...', 'info');
+        
+        try {
+            const response = await fetch('/api/generate-review', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    content: selectedNote.content,
+                    title: selectedNote.title,
+                    type: selectedNote.type,
+                    userId: user.uid
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to generate review');
+            }
+
+            const data = await response.json();
+            setReviewComments(data.review);
+            setIsReviewMode(true);
+            showToast('Review generated successfully!', 'success');
+        } catch (error) {
+            showToast('Failed to generate review', 'error');
+        } finally {
+            setIsGeneratingReview(false);
+        }
+    };
+
+
+
+
+
+
+
+    const handleQuizAnswerSelect = useCallback((questionId: string, answerIndex: number) => {
+        setQuizAnswers(prev => ({
+            ...prev,
+            [questionId]: answerIndex
+        }));
+    }, []);
+
+    const handleShowQuizHint = useCallback((questionId: string) => {
+        setShowQuizHint(prev => ({
+            ...prev,
+            [questionId]: !prev[questionId]
+        }));
+    }, []);
+
+    const handleShowQuizAnswer = useCallback((questionId: string) => {
+        setShowQuizAnswer(prev => ({
+            ...prev,
+            [questionId]: !prev[questionId]
+        }));
+    }, []);
+
+    // Optimized flashcard navigation handlers
+    const handleFlashcardReset = useCallback(() => {
+        setCurrentFlashcardIndex(0);
+        setIsFlashcardFlipped(false);
+    }, []);
+
+    const handleFlashcardShuffle = useCallback(() => {
+        if (selectedNote?.flashcards?.length) {
+            setCurrentFlashcardIndex(Math.floor(Math.random() * selectedNote.flashcards.length));
+            setIsFlashcardFlipped(false);
+        }
+    }, [selectedNote?.flashcards?.length]);
+
+    const handleFlashcardPrevious = useCallback(() => {
+        setCurrentFlashcardIndex(prev => Math.max(0, prev - 1));
+        setIsFlashcardFlipped(false);
+    }, []);
+
+    const handleFlashcardNext = useCallback(() => {
+        setCurrentFlashcardIndex(prev => {
+            const maxIndex = (selectedNote?.flashcards?.length || 1) - 1;
+            return Math.min(maxIndex, prev + 1);
+        });
+        setIsFlashcardFlipped(false);
+    }, [selectedNote?.flashcards?.length]);
+
+    const handleFlashcardGoTo = useCallback((index: number) => {
+        setCurrentFlashcardIndex(index);
+        setIsFlashcardFlipped(false);
+    }, []);
+
     const handlePlayPodcast = (podcast: Podcast) => {
         if (activePodcast?.id === podcast.id) {
             handlePodcastPlayPause();
@@ -1957,7 +2101,26 @@ useEffect(() => {
         }
     };
 
-    const handleAnswerSelect = useCallback((questionKey: string, selectedOption: number) => setQuestionAnswers(prev => ({ ...prev, [questionKey]: selectedOption })), []);
+    const handleAnswerSelect = useCallback((questionKey: string, selectedOption: number) => {
+        setQuestionAnswers(prev => ({ ...prev, [questionKey]: selectedOption }));
+        
+        // Track incorrect answers for hint system
+        if (selectedNote?.questions) {
+            const questionIndex = parseInt(questionKey.split('-').pop() || '0');
+            const question = selectedNote.questions[questionIndex];
+            if (question && selectedOption !== question.correctAnswer) {
+                setIncorrectAnswers(prev => {
+                    const current = prev[questionKey] || [];
+                    if (!current.includes(selectedOption)) {
+                        return { ...prev, [questionKey]: [...current, selectedOption] };
+                    }
+                    return prev;
+                });
+            }
+        }
+    }, [selectedNote?.questions]);
+
+
 
     const onDocumentLoadSuccess = ({ numPages: nextNumPages }: { numPages: number }) => {
         setNumPages(nextNumPages);
@@ -2295,7 +2458,7 @@ useEffect(() => {
 <button
     onClick={() => setIsScreenshotModeActive(!isScreenshotModeActive)}
     className={`p-1.5 rounded-md flex items-center gap-1 text-xs text-white shadow-sm hover:shadow-md transition-colors ${isScreenshotModeActive
-        ? 'bg-[var(--status-error)] hover:bg-[var(--status-error)]/80'   // Cancel button color
+        ? 'bg-[var(--status-error)] hover:bg-[var(--status-error)]'   // Cancel button color
         : 'bg-[var(--bg-accent)] hover:bg-[var(--bg-accent-secondary)]'   // Snip button color
     }`}
     title={isScreenshotModeActive ? "Cancel Screenshot Mode" : "Capture PDF Area"}
@@ -2418,117 +2581,459 @@ useEffect(() => {
                         <button onClick={() => handleDeleteNote(selectedNote.id)} className={`p-1.5 rounded-full text-[var(--status-error)] hover:bg-[var(--status-error)]/10`} title="Delete"><Trash2 className="w-4 h-4" /></button>
                     </div>
                 </div>
+                {/* Navigation buttons for side-by-side mode */}
+                <div className={`px-4 md:px-6 mb-4 flex-shrink-0`}>
+                    {/* Desktop View: Full-width buttons */}
+                    <div className={`hidden sm:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3`}>
+                        {(selectedNote.questions && selectedNote.questions.length > 0) && (
+                            <button onClick={() => handleScrollToSection('study-questions-section')} className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 bg-purple-50 dark:bg-purple-700/20 hover:bg-purple-100 dark:hover:bg-purple-700/30 shadow-sm `} >
+                                <div className={`p-2 rounded-full bg-purple-100 dark:bg-purple-700/30 text-purple-600 dark:text-purple-300`}> <BookOpen className="w-5 h-5" /> </div>
+                                <div> <span className={`block font-semibold text-sm text-[var(--text-primary)]`}>Quiz</span> <span className={`block text-xs text-[var(--text-secondary)]`}>Test your knowledge</span> </div>
+                            </button>
+                        )}
+                        {(selectedNote.flashcards && selectedNote.flashcards.length > 0) && (
+                            <button onClick={() => handleScrollToSection('flashcards-section')} className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 bg-indigo-50 dark:bg-indigo-700/20 hover:bg-indigo-100 dark:hover:bg-indigo-700/30 shadow-sm `} >
+                                <div className={`p-2 rounded-full bg-indigo-100 dark:bg-indigo-700/30 text-indigo-600 dark:text-indigo-300`}> <Layers className="w-5 h-5" /> </div>
+                                <div> <span className={`block font-semibold text-sm text-[var(--text-primary)]`}>Flashcards</span> <span className={`block text-xs text-[var(--text-secondary)]`}>Review key terms</span> </div>
+                            </button>
+                        )}
+                        <button
+                            onClick={handlePodcastToggle}
+                            className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 bg-teal-50 dark:bg-teal-700/20 hover:bg-teal-100 dark:hover:bg-teal-700/30 shadow-sm  ${userTier !== 'premium' ? 'opacity-70' : ''}`}
+                        >
+                            <div className={`p-2 rounded-full bg-teal-100 dark:bg-teal-700/30 text-teal-600 dark:text-teal-300`}>
+                                <PodcastIcon className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-1.5">
+                                    <span className="font-semibold text-sm text-[var(--text-primary)]">Podcast</span>
+                                    {userTier !== 'premium' && (<Lock className="w-4 h-4 text-[var(--text-muted)] relative translate-y-[-0.5px]" />)}
+                                </div>
+                                <span className="block text-xs text-[var(--text-secondary)]">{showPodcastSection ? 'Close Player' : 'Listen to your notes'}</span>
+                            </div>
+                        </button>
+                    </div>
+
+                    {/* Mobile View: Icon-only buttons */}
+                    <div className={`flex sm:hidden items-center justify-center gap-4`}>
+                        {(selectedNote.questions && selectedNote.questions.length > 0) && (
+                            <button onClick={() => handleScrollToSection('study-questions-section')} className={`p-3 rounded-full transition-all duration-150 flex items-center justify-center bg-purple-50 dark:bg-purple-700/20 hover:bg-purple-100 dark:hover:bg-purple-700/30 shadow-sm`} title="Quiz">
+                                <BookOpen className="w-5 h-5 text-purple-600 dark:text-purple-300" />
+                            </button>
+                        )}
+                        {(selectedNote.flashcards && selectedNote.flashcards.length > 0) && (
+                            <button onClick={() => handleScrollToSection('flashcards-section')} className={`p-3 rounded-full transition-all duration-150 flex items-center justify-center bg-indigo-50 dark:bg-indigo-700/20 hover:bg-indigo-100 dark:hover:bg-indigo-700/30 shadow-sm`} title="Flashcards">
+                                <Layers className="w-5 h-5 text-indigo-600 dark:text-indigo-300" />
+                            </button>
+                        )}
+                        <button
+                            onClick={handlePodcastToggle}
+                            className={`relative p-3 rounded-full transition-all duration-150 flex items-center justify-center bg-teal-50 dark:bg-teal-700/20 hover:bg-teal-100 dark:hover:bg-teal-700/30 shadow-sm ${userTier !== 'premium' ? 'opacity-70' : ''}`}
+                            title="Podcast"
+                        >
+                            <PodcastIcon className="w-5 h-5 text-teal-600 dark:text-teal-300" />
+                            {userTier !== 'premium' && (
+                                <Lock className="w-3 h-3 absolute bottom-1 right-1 bg-white dark:bg-[var(--bg-card)] rounded-full p-0.5 text-[var(--text-muted)]" />
+                            )}
+                        </button>
+                    </div>
+                </div>
+                
                 <div ref={noteContentRef} className={`flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-[var(--scrollbar-thumb)] dark:scrollbar-thumb-[var(--scrollbar-thumb-dark)] px-4 md:px-6 bg-[var(--bg-primary)]`}>
                     <div className="py-1">
                         <KatexRenderer htmlContent={selectedNote.content} />
                     </div>
 
-                    {selectedNote.keyPoints && selectedNote.keyPoints.length > 0 && (
-                        <div className={`mt-8 pt-6 border-t border-[var(--border-primary)]`}>
-                            <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 text-[var(--text-primary)]`}> <BadgeCheck className={`w-5 h-5 text-[var(--text-primary)]`} /> Key Points </h3>
-                            <div className={`space-y-3`}> {selectedNote.keyPoints.map((point, index) => (
-                                <div key={index} className="flex items-start p-3 rounded-lg bg-[var(--bg-card)] border border-[var(--border-primary)] shadow-sm">
-                                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-[var(--bg-accent)]/10 text-[var(--bg-accent)] flex items-center justify-center text-xs font-semibold mr-3 mt-0.5">{index + 1}</div>
-                                    <p className="text-sm text-[var(--text-secondary)] leading-relaxed"><RenderWithLatex text={point} /></p>
+
+
+                    {isReviewMode && reviewComments && (
+                        <div id="review-section" className="my-8 pt-6 border-t border-[var(--border-primary)]">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3">
+                                <h3 className="text-lg font-semibold flex items-center gap-2 text-[var(--text-primary)]">
+                                    <Eye className="w-5 h-5 text-[var(--bg-accent)]" />
+                                    Document Review
+                                </h3>
+                                <button
+                                    onClick={() => setIsReviewMode(false)}
+                                    className="px-3 py-1.5 text-xs font-medium bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-secondary)] rounded-md transition-colors"
+                                >
+                                    Close Review
+                                </button>
                                 </div>
-                            ))} </div>
+                            <div className="p-6 rounded-2xl bg-gradient-to-br from-[var(--bg-accent)] to-[var(--bg-accent-secondary)]">
+                                <div className="flex items-start gap-3 mb-4">
+                                    <div className="w-8 h-8 rounded-full bg-[var(--bg-accent)] flex items-center justify-center flex-shrink-0">
+                                        <span className="text-white text-sm">🤖</span>
+                                    </div>
+                                    <div>
+                                        <h4 className="font-semibold text-[var(--text-primary)] mb-1">TaskMaster Analysis</h4>
+                                        <p className="text-sm text-[var(--text-secondary)]">Detailed feedback and suggestions for your document</p>
+                                    </div>
+                                </div>
+                                <div className="prose prose-sm max-w-none">
+                                    <div className="text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">
+                                        {reviewComments}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     )}
 
                     {selectedNote.flashcards && selectedNote.flashcards.length > 0 && (
                         <div id="flashcards-section" className="my-8 pt-6 border-t border-[var(--border-primary)]">
-                            <div className="flex justify-between items-center mb-4">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
+                                <div className="flex items-center gap-3">
                                 <h3 className="text-lg font-semibold flex items-center gap-2 text-[var(--text-primary)]">
-                                    <Layers className="w-5 h-5 text-indigo-500 dark:text-indigo-400" /> Flashcards
+                                        <Layers className="w-5 h-5 text-[var(--bg-accent)]" /> 
+                                        Flashcards
                                 </h3>
+                                    <div className="flex items-center gap-2 px-2 py-1 bg-[var(--bg-highlight)] rounded-full">
+                                        <span className="text-xs font-medium text-[var(--text-secondary)]">
+                                            {currentFlashcardIndex + 1} of {selectedNote.flashcards.length}
+                                        </span>
                             </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={handleFlashcardReset}
+                                        className="px-3 py-1.5 text-xs font-medium bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-secondary)] rounded-md transition-colors"
+                                    >
+                                        Reset
+                                    </button>
+                                    <button
+                                        onClick={handleFlashcardShuffle}
+                                        className="px-3 py-1.5 text-xs font-medium bg-[var(--bg-accent)] hover:bg-[var(--bg-accent-secondary)] text-white rounded-md transition-colors"
+                                    >
+                                        Shuffle
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div className="relative">
                             <AnimatePresence mode="wait">
                                 <motion.div
                                     key={currentFlashcardIndex}
-                                    initial={{ opacity: 0, y: isFlashcardFlipped ? -10: 10 }}
-                                    animate={{ opacity: 1, y:0 }}
-                                    exit={{ opacity: 0, y: isFlashcardFlipped ? 10: -10}}
-                                    transition={{ duration: 0.2 }}
+                                        initial={{ opacity: 0, scale: 0.95 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        exit={{ opacity: 0, scale: 0.95 }}
+                                        transition={{ duration: 0.3, ease: "easeInOut" }}
                                 >
                                     <motion.div
-                                        className="relative min-h-[280px] cursor-pointer [perspective:1000px]"
+                                            className="relative min-h-[320px] cursor-pointer [perspective:1000px] group"
                                         onClick={() => setIsFlashcardFlipped(!isFlashcardFlipped)}
                                     >
                                         <motion.div
-                                            className="absolute inset-0 p-6 rounded-lg shadow-lg flex flex-col justify-center items-center text-center bg-indigo-500 dark:bg-indigo-700 text-white [backface-visibility:hidden]"
+                                                className="absolute inset-0 p-8 rounded-2xl shadow-theme-medium flex flex-col justify-center items-center text-center bg-gradient-to-br from-[var(--bg-accent)] to-[var(--bg-accent-secondary)] [backface-visibility:hidden] border border-[var(--border-primary)]"
                                             animate={{ rotateX: isFlashcardFlipped ? -180 : 0 }}
-                                            transition={{ type: "spring", stiffness: 200, damping: 20, duration: 0.5 }}
-                                        >
-                                            <p className="text-xs uppercase tracking-wider mb-2 opacity-80">Term</p>
-                                            <p className="text-xl font-medium leading-tight">
+                                                transition={{ type: "spring", stiffness: 200, damping: 20, duration: 0.6 }}
+                                            >
+                                                <div className="absolute top-4 left-4 px-2 py-1 bg-white/20 rounded-full">
+                                                    <p className="text-xs font-medium uppercase tracking-wider text-white">Term</p>
+                                                </div>
+                                                <div className="max-w-full">
+                                                    <p className="text-xl font-medium leading-relaxed break-words text-white">
                                                 <RenderWithLatex text={selectedNote.flashcards[currentFlashcardIndex].front} />
                                             </p>
+                                                </div>
+                                                <div className="absolute bottom-4 right-4 opacity-60 group-hover:opacity-100 transition-opacity">
+                                                    <FlipIcon className="w-5 h-5" />
+                                                </div>
                                         </motion.div>
                                         <motion.div
-                                            className="absolute inset-0 p-6 rounded-lg shadow-lg flex flex-col justify-center items-center text-center bg-purple-500 dark:bg-purple-700 text-white [backface-visibility:hidden] [transform:rotateX(180deg)]"
+                                                className="absolute inset-0 p-8 rounded-2xl shadow-theme-medium flex flex-col justify-center items-center text-center bg-gradient-to-br from-[var(--bg-header)] to-[var(--bg-header-secondary)] [backface-visibility:hidden] [transform:rotateX(180deg)] border border-[var(--border-primary)]"
                                             animate={{ rotateX: isFlashcardFlipped ? 0 : 180 }}
-                                            transition={{ type: "spring", stiffness: 200, damping: 20, duration: 0.5 }}
-                                        >
-                                            <p className="text-xs uppercase tracking-wider mb-2 opacity-80">Definition</p>
-                                            <p className="text-xl font-medium leading-tight">
+                                                transition={{ type: "spring", stiffness: 200, damping: 20, duration: 0.6 }}
+                                            >
+                                                <div className="absolute top-4 left-4 px-2 py-1 bg-white/20 rounded-full">
+                                                    <p className="text-xs font-medium uppercase tracking-wider text-white">Definition</p>
+                                                </div>
+                                                <div className="max-w-full">
+                                                    <p className="text-xl font-medium leading-relaxed break-words text-white">
                                                 <RenderWithLatex text={selectedNote.flashcards[currentFlashcardIndex].back} />
                                             </p>
+                                                </div>
+                                                <div className="absolute bottom-4 right-4 opacity-60 group-hover:opacity-100 transition-opacity">
+                                                    <FlipIcon className="w-5 h-5" />
+                                                </div>
                                         </motion.div>
                                     </motion.div>
                                 </motion.div>
                             </AnimatePresence>
-                            <div className="flex items-center justify-between mt-4">
-                                <button
-                                    onClick={() => { setCurrentFlashcardIndex(prev => Math.max(0, prev - 1)); setIsFlashcardFlipped(false); }}
-                                    disabled={currentFlashcardIndex === 0}
-                                    className="p-2 rounded-full bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)]"
-                                > <ChevronLeft className="w-5 h-5" /> </button>
-                                <span className="text-sm text-[var(--text-secondary)]"> {currentFlashcardIndex + 1} / {selectedNote.flashcards.length} </span>
-                                <button
-                                    onClick={() => { setCurrentFlashcardIndex(prev => Math.min(selectedNote.flashcards!.length - 1, prev + 1)); setIsFlashcardFlipped(false); }}
-                                    disabled={currentFlashcardIndex === selectedNote.flashcards.length - 1}
-                                    className="p-2 rounded-full bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)]"
-                                > <ChevronRight className="w-5 h-5" /> </button>
                             </div>
-                            <button onClick={() => setIsFlashcardFlipped(!isFlashcardFlipped)} className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-secondary)]">
-                                <FlipIcon className="w-4 h-4" /> Flip Card
+                            
+                            <div className="flex items-center justify-between mt-6">
+                                <button
+                                    onClick={handleFlashcardPrevious}
+                                    disabled={currentFlashcardIndex === 0}
+                                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)] transition-colors"
+                                >
+                                    <ChevronLeft className="w-4 h-4" />
+                                    <span className="text-sm font-medium">Previous</span>
+                                </button>
+                                
+                                <button
+                                    onClick={() => setIsFlashcardFlipped(!isFlashcardFlipped)} 
+                                    className="flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-medium bg-[var(--bg-accent)] hover:bg-[var(--bg-accent-secondary)] text-white transition-colors"
+                                >
+                                    <FlipIcon className="w-4 h-4" />
+                                    {isFlashcardFlipped ? 'Show Term' : 'Show Answer'}
+                                </button>
+                                
+                                <button
+                                    onClick={handleFlashcardNext}
+                                    disabled={currentFlashcardIndex === (selectedNote.flashcards?.length || 1) - 1}
+                                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)] transition-colors"
+                                >
+                                    <span className="text-sm font-medium">Next</span>
+                                    <ChevronRight className="w-4 h-4" />
                             </button>
+                            </div>
+                            
+                            <div className="mt-4 flex justify-center">
+                                <div className="flex gap-1">
+                                    {selectedNote.flashcards.map((_, index) => (
+                                        <button
+                                            key={index}
+                                            onClick={() => handleFlashcardGoTo(index)}
+                                            className={`w-2 h-2 rounded-full transition-colors ${
+                                                index === currentFlashcardIndex 
+                                                    ? 'bg-[var(--bg-accent)]' 
+                                                    : 'bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)]'
+                                            }`}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
                         </div>
                     )}
 
-                    {selectedNote.questions && selectedNote.questions.length > 0 && (
-                        <div id="study-questions-section" className={`mt-8 pt-6 border-t border-[var(--border-primary)]`}>
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
-                                <h3 className={`text-lg font-semibold flex items-center gap-2 text-[var(--text-primary)]`}><BookOpen className={`w-5 h-5 text-purple-500 dark:text-purple-400`} />Study Questions</h3>
-                                <button onClick={handleRegenerateQuestions} disabled={isRegeneratingQuestions} className={`bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded-md text-xs flex items-center gap-1.5 ${isRegeneratingQuestions ? 'opacity-50 cursor-not-allowed' : ''}`} title="Regenerate"> {isRegeneratingQuestions ? (<> <Loader2 className="w-3.5 h-3.5 animate-spin" /> Regenerating... </>) : (<> <RefreshCw className="w-3.5 h-3.5" /> Regenerate </>)} </button>
+
+
+
+
+                    {/* Podcast Section for side-by-side mode */}
+                    <AnimatePresence>
+                    {showPodcastSection && (
+                        <motion.div
+                                id="podcast-section-wrapper"
+                           initial={{ opacity: 0, height: 0 }}
+                           animate={{ opacity: 1, height: 'auto' }}
+                           exit={{ opacity: 0, height: 0 }}
+                           transition={{ duration: 0.3, ease: "easeInOut" }}
+                           className="overflow-hidden"
+                        >
+                        {isPodcastProcessing && (
+                            <div className="my-6 p-4 rounded-lg bg-[var(--bg-highlight)] text-center">
+                                <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mx-auto mb-2" />
+                                <p className="text-sm font-medium text-[var(--text-primary)]">Crafting your podcast...</p>
+                                <p className="text-xs text-[var(--text-muted)]">This may take 5-10 min. Please wait.</p>
                             </div>
-                            <div className="space-y-5">
-                                {selectedNote.questions.map((q, index) => {
+                        )}
+                        
+                        {activePodcast && (
+                            <div id="podcast-player-section" className="my-6 p-4 rounded-lg shadow-lg bg-gradient-to-br from-indigo-500 to-purple-600 dark:from-indigo-700 dark:to-purple-800 text-white">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center">
+                                        <Speaker size={24} className="mr-3 opacity-80" />
+                                        <h3 className="text-lg font-semibold truncate">{selectedNote.title} - Podcast</h3>
+                                    </div>
+                                    <button onClick={handlePodcastStop} className="p-1 text-white/70 hover:text-white rounded-full hover:bg-white/10"><X size={18}/></button>
+                                </div>
+
+                                <audio ref={audioPlayerRef} className="hidden" controls={false} />
+
+                                <>
+                                    <div className="w-full space-y-2 mb-3">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max={podcastDuration || 100}
+                                            value={podcastCurrentTime}
+                                            onChange={handlePodcastSeek}
+                                            className="w-full h-2 bg-white/30 rounded-lg appearance-none cursor-pointer accent-white"
+                                        />
+                                        <div className="flex justify-between text-xs opacity-80">
+                                            <span>{formatPodcastTime(podcastCurrentTime)}</span>
+                                            <span>{formatPodcastTime(podcastDuration)}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center justify-center space-x-4">
+                                        <button 
+                                            onClick={handleSkipBackSegment} 
+                                            className="p-2 text-white/70 hover:text-white rounded-full hover:bg-white/10 transition-colors" 
+                                            disabled={!activePodcast || (audioPlayerRef.current?.currentTime || 0) < 1}
+                                        >
+                                            <SkipBack size={20} />
+                                        </button>
+                                        <button 
+                                            onClick={handlePodcastPlayPause} 
+                                            className="p-3 bg-white/20 hover:bg-white/30 rounded-full transition-colors"
+                                        >
+                                            {isPodcastPlaying ? <Pause size={24} /> : <Play size={24} />}
+                                        </button>
+                                        <button 
+                                            onClick={handleSkipForwardSegment} 
+                                            className="p-2 text-white/70 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+                                            disabled={!activePodcast || (audioPlayerRef.current?.currentTime || 0) >= activePodcast.totalDuration - 1}
+                                        >
+                                            <SkipForward size={20} />
+                                        </button>
+                                    </div>
+                                </>
+                            </div>
+                        )}
+                        
+                        {selectedNote.podcasts && selectedNote.podcasts.length > 0 && (
+                            <div className="my-6 space-y-4">
+                                <h3 className="text-lg font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                                    <PodcastIcon className="w-5 h-5 text-teal-600" />
+                                    Generated Podcasts
+                                </h3>
+                                <div className="space-y-3">
+                                    {selectedNote.podcasts.sort((a, b) => toDateSafe(b.createdAt)!.getTime() - toDateSafe(a.createdAt)!.getTime()).map(p => (
+                                        <div key={p.id} className="p-3 rounded-lg bg-[var(--bg-highlight)] border border-[var(--border-primary)] flex items-center justify-between gap-3">
+                                            <div className="flex items-center gap-3">
+                                                <button onClick={() => handlePlayPodcast(p)} className="p-2 rounded-full bg-teal-100 dark:bg-teal-700/30 text-teal-600 dark:text-teal-300 hover:bg-teal-200 dark:hover:bg-teal-700/50">
+                                                    {activePodcast?.id === p.id && isPodcastPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+                                                </button>
+                                                <div>
+                                                    <p className="text-sm font-medium text-[var(--text-primary)]">
+                                                        Podcast from {toDateSafe(p.createdAt)?.toLocaleString()}
+                                                    </p>
+                                                    <p className="text-xs text-[var(--text-muted)]">
+                                                        {p.settings.speaker2Id ? `${PREDEFINED_PODCAST_SPEAKERS.find(s=>s.id===p.settings.speaker1Id)?.name} & ${PREDEFINED_PODCAST_SPEAKERS.find(s=>s.id===p.settings.speaker2Id)?.name}` : PREDEFINED_PODCAST_SPEAKERS.find(s=>s.id===p.settings.speaker1Id)?.name}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <button onClick={() => handleDeletePodcast(p.id)} className="p-1.5 text-[var(--text-muted)] hover:text-red-500 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30">
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        </motion.div>
+                    )}
+                    </AnimatePresence>
+
+                    {selectedNote?.questions && selectedNote.questions.length > 0 && (
+                        <div id="study-questions-section" className={`mt-8 pt-6 border-t border-[var(--border-primary)]`}>
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
+                                <div className="flex items-center gap-3">
+                                    <h3 className={`text-lg font-semibold flex items-center gap-2 text-[var(--text-primary)]`}>
+                                        <BookOpen className={`w-5 h-5 text-[var(--bg-accent)]`} />
+                                        Study Questions
+                                    </h3>
+                                    <div className="flex items-center gap-2 px-2 py-1 bg-[var(--bg-highlight)] rounded-full">
+                                        <span className="text-xs font-medium text-[var(--text-secondary)]">
+                                            {Object.keys(questionAnswers).filter(key => selectedNote.questions?.some((_, i) => `${selectedNote?.id}-${i}` === key)).length} of {selectedNote.questions?.length || 0} answered
+                                        </span>
+                            </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button 
+                                        onClick={() => setQuestionAnswers({})}
+                                        className="px-3 py-1.5 text-xs font-medium bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-secondary)] rounded-md transition-colors"
+                                    >
+                                        Reset All
+                                    </button>
+                                    <button 
+                                        onClick={handleRegenerateQuestions} 
+                                        disabled={isRegeneratingQuestions} 
+                                        className={`px-3 py-1.5 text-xs font-medium rounded-md flex items-center gap-1.5 transition-colors ${isRegeneratingQuestions ? 'opacity-50 cursor-not-allowed bg-[var(--bg-highlight)] text-[var(--text-secondary)]' : 'bg-[var(--bg-accent)] hover:bg-[var(--bg-accent-secondary)] text-white'}`}
+                                    >
+                                        {isRegeneratingQuestions ? (
+                                            <>
+                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                Regenerating...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <RefreshCw className="w-3.5 h-3.5" />
+                                                Regenerate
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div className="space-y-6">
+                                {selectedNote.questions?.map((q, index) => {
                                     const key = `${selectedNote?.id}-${index}`;
                                     const answer = questionAnswers[key];
                                     const answered = answer != null;
                                     const isCorrect = answered && answer === q.correctAnswer;
+                                    const hasBeenIncorrect = incorrectAnswers[key] && incorrectAnswers[key].length > 0;
+                                    
                                     return (
-                                        <div key={key} className={`p-4 md:p-5 rounded-xl transition-colors duration-300 ${answered ? (isCorrect ? 'bg-[var(--status-success)]/10' : 'bg-[var(--status-error)]/10') : 'bg-[var(--bg-highlight)]'}`}>
-                                            <p className={`text-[var(--text-primary)] font-medium mb-4 leading-relaxed`}>
-                                                <span className="text-indigo-500 dark:text-indigo-400 font-semibold mr-2">{index + 1}.</span>
+                                        <motion.div 
+                                            key={key} 
+                                            initial={{ opacity: 0, y: 20 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ duration: 0.3, delay: index * 0.1 }}
+                                                                        className="p-6 rounded-2xl transition-all duration-300 bg-[var(--bg-card)]"
+                                        >
+                                            <div className="flex items-start gap-4 mb-5">
+                                                <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
+                                                    answered 
+                                                        ? (isCorrect 
+                                                            ? 'bg-[var(--status-success)] text-white' 
+                                                            : 'bg-[var(--status-error)] text-white'
+                                                        ) 
+                                                        : 'bg-[var(--bg-accent)] text-white'
+                                                }`}>
+                                                    {index + 1}
+                                                </div>
+                                                <div className="flex-1">
+                                                    <p className={`text-[var(--text-primary)] font-medium leading-relaxed mb-4`}>
                                                 <RenderWithLatex text={q.question} />
                                             </p>
+                                                </div>
+                                            </div>
+
+                                            {/* Hint System for Previously Incorrect Answers */}
+                                            {hasBeenIncorrect && !answered && (
+                                                <div className="mb-4 p-3 rounded-lg bg-[var(--status-warning)]/10 border border-[var(--status-warning)]/20">
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <AlertCircle className="w-4 h-4 text-[var(--status-warning)]" />
+                                                        <span className="text-sm font-medium text-[var(--status-warning)]">
+                                                            You've answered this question incorrectly before
+                                                        </span>
+                                                    </div>
+                                                    {q.hint && (
+                                                        <details className="text-sm">
+                                                            <summary className="cursor-pointer text-[var(--status-warning)] hover:text-[var(--status-warning)]/80 font-medium">
+                                                                Show Hint
+                                                            </summary>
+                                                            <div className="mt-2 text-[var(--text-secondary)] italic">
+                                                                <RenderWithLatex text={q.hint} />
+                                                            </div>
+                                                        </details>
+                                                    )}
+                                                </div>
+                                            )}
+                                            
                                             <div className="space-y-3">
                                                 {q.options.map((opt, idx) => {
                                                     const sel = answer === idx;
                                                     const cor = idx === q.correctAnswer;
 
                                                     let stateClasses = '';
+                                                    let iconClasses = '';
+                                                    
                                                     if (answered) {
                                                         if (sel) {
                                                             stateClasses = cor
-                                                                ? `bg-[var(--status-success)]/10 text-[var(--status-success)] font-semibold border-[var(--status-success)]/30 cursor-default`
-                                                                : `bg-[var(--status-error)]/10 text-[var(--status-error)] font-semibold border-[var(--status-error)]/30 cursor-default`;
+                                                                ? `bg-[var(--status-success)] text-white cursor-default`
+                                                                : `bg-[var(--status-error)] text-white cursor-default`;
+                                                            iconClasses = cor ? 'text-white' : 'text-white';
                                                         } else if (cor) {
-                                                            stateClasses = `bg-[var(--status-success)]/10 text-[var(--status-success)] border-[var(--status-success)]/30 cursor-default`;
+                                            stateClasses = `bg-[var(--status-success)] text-white border-[var(--status-success)] cursor-default`;
+                                            iconClasses = 'text-white';
                                                         } else {
-                                                            stateClasses = `bg-[var(--bg-highlight)] text-[var(--text-muted)] border-transparent cursor-default opacity-70`;
+                                                            stateClasses = `bg-[var(--bg-highlight)] text-[var(--text-muted)] border-[var(--border-primary)] cursor-default opacity-70`;
                                                         }
                                                     } else {
                                                         stateClasses = `bg-[var(--bg-primary)] border-[var(--border-primary)] hover:border-[var(--bg-accent)] hover:bg-[var(--interactive-hover)] focus:ring-2 focus:ring-[var(--interactive-focus)] focus:outline-none text-[var(--text-secondary)]`;
@@ -2539,28 +3044,261 @@ useEffect(() => {
                                                             key={idx}
                                                             onClick={() => !answered && handleAnswerSelect(key, idx)}
                                                             disabled={answered}
-                                                            className={`w-full text-left p-3 rounded-lg transition-all duration-200 text-sm flex items-center justify-between group border ${stateClasses}`}
+                                                            className={`w-full text-left p-4 rounded-xl transition-all duration-300 ease-in-out text-sm flex items-center justify-between group ${stateClasses}`}
                                                         >
-                                                            <span><RenderWithLatex text={opt} /></span>
-                                                            <div className={`flex-shrink-0 ml-4 w-6 h-6 flex items-center justify-center rounded-full transition-colors
-                                                                ${answered && (sel || cor) ? (cor ? 'bg-green-500/20 border-green-500/30' : 'bg-red-500/20 border-red-500/30') : 'bg-[var(--bg-highlight)] border-[var(--border-primary)]'}
-                                                            `}>
-                                                                {answered && sel && (cor ? <Check className="w-4 h-4 text-green-600" /> : <X className="w-4 h-4 text-red-600" />)}
-                                                                {answered && !sel && cor && <Check className="w-4 h-4 text-green-600" />}
+                                                            <div className="flex items-center gap-3">
+                                                                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs font-semibold ${
+                                                                    answered && (sel || cor)
+                                                                        ? (cor ? 'bg-[var(--status-success)] border-[var(--status-success)] text-white' : 'bg-[var(--status-error)] border-[var(--status-error)] text-white')
+                                                                        : 'bg-[var(--bg-highlight)] border-[var(--border-primary)] text-[var(--text-secondary)]'
+                                                                }`}>
+                                                                    {String.fromCharCode(65 + idx)}
                                                             </div>
+                                                                <span className="flex-1"><RenderWithLatex text={opt} /></span>
+                                                            </div>
+                                                            {answered && (sel || cor) && (
+                                                                <div className={`flex-shrink-0 ml-4 ${iconClasses}`}>
+                                                                    {cor ? <Check className="w-5 h-5" /> : <X className="w-5 h-5" />}
+                                                                </div>
+                                                            )}
                                                         </button>
                                                     );
                                                 })}
                                             </div>
+                                            
                                             {answered && q.explanation && (
-                                                <div className={`mt-4 p-3 rounded-lg text-sm leading-relaxed ${isCorrect ? 'bg-[var(--status-success)]/10 text-[var(--status-success)]' : 'bg-[var(--status-error)]/10 text-[var(--status-error)]'}`}>
-                                                    <strong className="font-semibold">Explanation: </strong><RenderWithLatex text={q.explanation} />
+                                                <motion.div 
+                                                    initial={{ opacity: 0, height: 0, y: -10 }}
+                                                    animate={{ opacity: 1, height: 'auto', y: 0 }}
+                                                    exit={{ opacity: 0, height: 0, y: -10 }}
+                                                    transition={{ duration: 0.4, ease: "easeInOut" }}
+                                                    className="mt-5 p-4 rounded-xl text-sm leading-relaxed bg-[var(--status-warning)] text-white border border-[var(--status-warning)]"
+                                                >
+                                                    <div className="flex items-start gap-2">
+                                                        <div className="w-5 h-5 rounded-full bg-[var(--status-warning)] flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                            <span className="text-white text-xs">💡</span>
                                                 </div>
+                                                        <div>
+                                                            <strong className="font-semibold block mb-1">Explanation:</strong>
+                                                            <RenderWithLatex text={q.explanation} />
+                                                        </div>
+                                                    </div>
+                                                </motion.div>
                                             )}
-                                        </div>
+                                        </motion.div>
                                     );
                                 })}
+                                        </div>
+                        </div>
+                    )}
+
+
+
+
+                    {/* Quiz Questions */}
+                    {isQuizMode && quizQuestions.length > 0 && (
+                        <div id="quiz-questions-section" className="my-8 pt-6 border-t border-[var(--border-primary)]">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
+                                <div className="flex items-center gap-3">
+                                    <h3 className="text-lg font-semibold flex items-center gap-2 text-[var(--text-primary)]">
+                                        <FileQuestion className="w-5 h-5 text-[var(--bg-accent)]" />
+                                        Quiz Questions
+                                    </h3>
+                                    <div className="flex items-center gap-2 px-2 py-1 bg-[var(--bg-highlight)] rounded-full">
+                                        <span className="text-xs font-medium text-[var(--text-secondary)]">
+                                            Question {currentQuizQuestion + 1} of {quizQuestions.length}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => {
+                                            setQuizQuestions([]);
+                                            setCurrentQuizQuestion(0);
+                                            setQuizAnswers({});
+                                            setShowQuizHint({});
+                                            setShowQuizAnswer({});
+                                        }}
+                                        className="px-3 py-1.5 text-xs font-medium bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-secondary)] rounded-md transition-colors"
+                                    >
+                                        Exit Quiz
+                                    </button>
+                                </div>
                             </div>
+                            
+                            {quizQuestions.length > 0 && (
+                                <div className="space-y-6">
+                                    {quizQuestions.map((question, index) => {
+                                        if (index !== currentQuizQuestion) return null;
+                                        
+                                        const answer = quizAnswers[question.id];
+                                        const answered = answer !== null;
+                                        const isCorrect = answered && answer === question.correctAnswer;
+
+                                        
+                                        return (
+                                            <motion.div
+                                                key={question.id}
+                                                initial={{ opacity: 0, x: 20 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                transition={{ duration: 0.3 }}
+                                                className="p-6 rounded-2xl bg-[var(--bg-card)]"
+                                            >
+                                                <div className="flex items-start gap-4 mb-5">
+                                                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[var(--bg-accent)] text-white flex items-center justify-center text-sm font-semibold">
+                                                        {index + 1}
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center gap-2 mb-2">
+
+                                                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                                                question.difficulty === 'easy' ? 'bg-[var(--status-success)]/10 text-[var(--status-success)]' :
+                                                                question.difficulty === 'medium' ? 'bg-[var(--status-warning)]/10 text-[var(--status-warning)]' :
+                                                                'bg-[var(--status-error)]/10 text-[var(--status-error)]'
+                                                            }`}>
+                                                                {question.difficulty}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-[var(--text-primary)] font-medium leading-relaxed mb-4">
+                                                            <RenderWithLatex text={question.question} />
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="space-y-3 mb-4">
+                                                    {question.options.map((option, optIndex) => {
+                                                        const isSelected = answer === optIndex;
+                                                        const isCorrectOption = optIndex === question.correctAnswer;
+                                                        
+                                                        let stateClasses = '';
+                                                        if (answered) {
+                                                            if (isSelected) {
+                                                                stateClasses = isCorrectOption
+                                                                    ? 'bg-[var(--status-success)] text-white border-[var(--status-success)]'
+                                                                    : 'bg-[var(--status-error)] text-white border-[var(--status-error)]';
+                                                            } else if (isCorrectOption) {
+                                                                stateClasses = 'bg-[var(--status-success)] text-white border-[var(--status-success)]';
+                                                            } else {
+                                                                stateClasses = 'bg-[var(--bg-highlight)] text-[var(--text-muted)] border-[var(--border-primary)] opacity-70';
+                                                            }
+                                                        } else {
+                                                            stateClasses = 'bg-[var(--bg-primary)] border-[var(--border-primary)] hover:border-[var(--bg-accent)] hover:bg-[var(--interactive-hover)] text-[var(--text-secondary)]';
+                                                        }
+
+                                                        return (
+                                                            <button
+                                                                key={optIndex}
+                                                                onClick={() => !answered && handleQuizAnswerSelect(question.id, optIndex)}
+                                                                disabled={answered}
+                                                                className={`w-full text-left p-4 rounded-xl transition-all duration-300 ease-in-out text-sm flex items-center justify-between group ${stateClasses}`}
+                                                            >
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs font-semibold ${
+                                                                        answered && (isSelected || isCorrectOption)
+                                                                            ? (isCorrectOption ? 'bg-[var(--status-success)] border-[var(--status-success)] text-white' : 'bg-[var(--status-error)] border-[var(--status-error)] text-white')
+                                                                            : 'bg-[var(--bg-highlight)] border-[var(--border-primary)] text-[var(--text-secondary)]'
+                                                                    }`}>
+                                                                        {String.fromCharCode(65 + optIndex)}
+                                                                    </div>
+                                                                    <span className="flex-1"><RenderWithLatex text={option} /></span>
+                                                                </div>
+                                                                {answered && (isSelected || isCorrectOption) && (
+                                                                    <div className={`flex-shrink-0 ml-4 text-white`}>
+                                                                        {isCorrectOption ? <Check className="w-5 h-5" /> : <X className="w-5 h-5" />}
+                                                                    </div>
+                                                                )}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                                
+                                                <div className="flex items-center gap-2 mb-4">
+                                                    {question.hint && (
+                                                        <button
+                                                            onClick={() => handleShowQuizHint(question.id)}
+                                                            className="px-3 py-1.5 text-xs font-medium bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-secondary)] rounded-md transition-colors flex items-center gap-1"
+                                                        >
+                                                            <Lightbulb className="w-3 h-3" />
+                                                            {showQuizHint[question.id] ? 'Hide Hint' : 'Show Hint'}
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        onClick={() => handleShowQuizAnswer(question.id)}
+                                                        className="px-3 py-1.5 text-xs font-medium bg-[var(--bg-accent)] hover:bg-[var(--bg-accent-secondary)] text-white rounded-md transition-colors flex items-center gap-1"
+                                                    >
+                                                        <Eye className="w-3 h-3" />
+                                                        {showQuizAnswer[question.id] ? 'Hide Answer' : 'Show Answer'}
+                                                    </button>
+                                                </div>
+                                                
+                                                {showQuizHint[question.id] && question.hint && (
+                                                    <motion.div
+                                                        initial={{ opacity: 0, height: 0 }}
+                                                        animate={{ opacity: 1, height: 'auto' }}
+                                                        transition={{ duration: 0.3 }}
+                                                        className="mb-4 p-3 rounded-lg bg-[var(--status-info)] text-white"
+                                                    >
+                                                        <strong className="font-semibold">Hint:</strong> {question.hint}
+                                                    </motion.div>
+                                                )}
+                                                
+                                                {showQuizAnswer[question.id] && (
+                                                    <motion.div
+                                                        initial={{ opacity: 0, height: 0 }}
+                                                        animate={{ opacity: 1, height: 'auto' }}
+                                                        transition={{ duration: 0.3 }}
+                                                        className="mb-4 p-4 rounded-xl text-sm leading-relaxed bg-[var(--status-warning)] text-white border border-[var(--status-warning)]"
+                                                    >
+                                                        <div className="flex items-start gap-2">
+                                                            <div className="w-5 h-5 rounded-full bg-[var(--status-warning)] flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                                <span className="text-white text-xs">💡</span>
+                                                            </div>
+                                                            <div>
+                                                                <strong className="font-semibold block mb-1">Explanation:</strong>
+                                                                <RenderWithLatex text={question.explanation} />
+                                                            </div>
+                                                        </div>
+                                                    </motion.div>
+                                                )}
+                                            </motion.div>
+                                        );
+                                    })}
+                                    
+                                    <div className="flex items-center justify-between">
+                                        <button
+                                            onClick={() => setCurrentQuizQuestion(prev => Math.max(0, prev - 1))}
+                                            disabled={currentQuizQuestion === 0}
+                                            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)] transition-colors"
+                                        >
+                                            <ChevronLeft className="w-4 h-4" />
+                                            <span className="text-sm font-medium">Previous</span>
+                                        </button>
+                                        
+                                        <div className="flex gap-1">
+                                            {quizQuestions.map((_, index) => (
+                                                <button
+                                                    key={index}
+                                                    onClick={() => setCurrentQuizQuestion(index)}
+                                                    className={`w-2 h-2 rounded-full transition-colors ${
+                                                        index === currentQuizQuestion 
+                                                            ? 'bg-[var(--bg-accent)]' 
+                                                            : 'bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)]'
+                                                    }`}
+                                                />
+                                            ))}
+                                        </div>
+                                        
+                                        <button
+                                            onClick={() => setCurrentQuizQuestion(prev => Math.min(quizQuestions.length - 1, prev + 1))}
+                                            disabled={currentQuizQuestion === quizQuestions.length - 1}
+                                            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)] transition-colors"
+                                        >
+                                            <span className="text-sm font-medium">Next</span>
+                                            <ChevronRight className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
@@ -2960,116 +3698,257 @@ useEffect(() => {
     </div>
 
 
-    {selectedNote.keyPoints && selectedNote.keyPoints.length > 0 && (
-    <div className={`mt-8 pt-6 border-t border-[var(--border-primary)]`}>
-        <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 text-[var(--text-primary)]`}> <BadgeCheck className={`w-5 h-5 text-[var(--text-primary)]`} /> Key Points </h3>
-        <div className={`space-y-3`}> {selectedNote.keyPoints.map((point, index) => (
-                         <div key={index} className="flex items-start p-3 rounded-lg bg-[var(--bg-card)] border border-[var(--border-primary)] shadow-sm">
-                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-700/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center text-xs font-semibold mr-3 mt-0.5">{index + 1}</div>
-                <p className="text-sm text-[var(--text-secondary)] leading-relaxed"><RenderWithLatex text={point} /></p>
-            </div>
-        ))} </div>
-    </div>
-    )}
+
 
     {selectedNote.flashcards && selectedNote.flashcards.length > 0 && (
         <div id="flashcards-section" className="my-8 pt-6 border-t border-[var(--border-primary)]">
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
+                <div className="flex items-center gap-3">
                 <h3 className="text-lg font-semibold flex items-center gap-2 text-[var(--text-primary)]">
-                    <Layers className="w-5 h-5 text-indigo-500 dark:text-indigo-400" /> Flashcards
+                        <Layers className="w-5 h-5 text-[var(--bg-accent)]" /> 
+                        Flashcards
                 </h3>
+                    <div className="flex items-center gap-2 px-2 py-1 bg-[var(--bg-highlight)] rounded-full">
+                        <span className="text-xs font-medium text-[var(--text-secondary)]">
+                            {currentFlashcardIndex + 1} of {selectedNote.flashcards.length}
+                        </span>
             </div>
+                </div>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={handleFlashcardReset}
+                        className="px-3 py-1.5 text-xs font-medium bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-secondary)] rounded-md transition-colors"
+                    >
+                        Reset
+                    </button>
+                    <button
+                        onClick={handleFlashcardShuffle}
+                        className="px-3 py-1.5 text-xs font-medium bg-[var(--bg-accent)] hover:bg-[var(--bg-accent-secondary)] text-white rounded-md transition-colors"
+                    >
+                        Shuffle
+                    </button>
+                </div>
+            </div>
+            
+            <div className="relative">
             <AnimatePresence mode="wait">
                 <motion.div
                     key={currentFlashcardIndex}
-                    initial={{ opacity: 0, y: isFlashcardFlipped ? -10: 10 }}
-                    animate={{ opacity: 1, y:0 }}
-                    exit={{ opacity: 0, y: isFlashcardFlipped ? 10: -10}}
-                    transition={{ duration: 0.2 }}
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ duration: 0.3, ease: "easeInOut" }}
                 >
                     <motion.div
-                        className="relative min-h-[280px] cursor-pointer [perspective:1000px]"
+                            className="relative min-h-[320px] cursor-pointer [perspective:1000px] group"
                         onClick={() => setIsFlashcardFlipped(!isFlashcardFlipped)}
                     >
                         <motion.div
-                            className="absolute inset-0 p-6 rounded-lg shadow-lg flex flex-col justify-center items-center text-center bg-indigo-500 dark:bg-indigo-700 text-white [backface-visibility:hidden]"
+                                className="absolute inset-0 p-8 rounded-2xl shadow-theme-medium flex flex-col justify-center items-center text-center bg-gradient-to-br from-[var(--bg-accent)] to-[var(--bg-accent-secondary)] [backface-visibility:hidden] border border-[var(--border-primary)]"
                             animate={{ rotateX: isFlashcardFlipped ? -180 : 0 }}
-                            transition={{ type: "spring", stiffness: 200, damping: 20, duration: 0.5 }}
-                        >
-                            <p className="text-xs uppercase tracking-wider mb-2 opacity-80">Term</p>
-<p className="text-xl font-medium leading-tight">
+                                transition={{ type: "spring", stiffness: 200, damping: 20, duration: 0.6 }}
+                            >
+                                <div className="absolute top-4 left-4 px-2 py-1 bg-white/20 rounded-full">
+                                    <p className="text-xs font-medium uppercase tracking-wider text-white">Term</p>
+                                </div>
+                                <div className="max-w-full">
+                                    <p className="text-xl font-medium leading-relaxed break-words text-white">
     <RenderWithLatex text={selectedNote.flashcards[currentFlashcardIndex].front} />
 </p>
+                                </div>
+                                <div className="absolute bottom-4 right-4 opacity-60 group-hover:opacity-100 transition-opacity">
+                                    <FlipIcon className="w-5 h-5" />
+                                </div>
                         </motion.div>
                         <motion.div
-                            className="absolute inset-0 p-6 rounded-lg shadow-lg flex flex-col justify-center items-center text-center bg-purple-500 dark:bg-purple-700 text-white [backface-visibility:hidden] [transform:rotateX(180deg)]"
+                                className="absolute inset-0 p-8 rounded-2xl shadow-theme-medium flex flex-col justify-center items-center text-center bg-gradient-to-br from-[var(--bg-header)] to-[var(--bg-header-secondary)] [backface-visibility:hidden] [transform:rotateX(180deg)] border border-[var(--border-primary)]"
                             animate={{ rotateX: isFlashcardFlipped ? 0 : 180 }}
-                            transition={{ type: "spring", stiffness: 200, damping: 20, duration: 0.5 }}
-                        >
-                            <p className="text-xs uppercase tracking-wider mb-2 opacity-80">Definition</p>
-<p className="text-xl font-medium leading-tight">
+                                transition={{ type: "spring", stiffness: 200, damping: 20, duration: 0.6 }}
+                            >
+                                <div className="absolute top-4 left-4 px-2 py-1 bg-white/20 rounded-full">
+                                    <p className="text-xs font-medium uppercase tracking-wider text-white">Definition</p>
+                                </div>
+                                <div className="max-w-full">
+                                    <p className="text-xl font-medium leading-relaxed break-words text-white">
     <RenderWithLatex text={selectedNote.flashcards[currentFlashcardIndex].back} />
 </p>
+                                </div>
+                                <div className="absolute bottom-4 right-4 opacity-60 group-hover:opacity-100 transition-opacity">
+                                    <FlipIcon className="w-5 h-5" />
+                                </div>
                         </motion.div>
                     </motion.div>
                 </motion.div>
             </AnimatePresence>
-            <div className="flex items-center justify-between mt-4">
-                <button
-                    onClick={() => { setCurrentFlashcardIndex(prev => Math.max(0, prev - 1)); setIsFlashcardFlipped(false); }}
-                    disabled={currentFlashcardIndex === 0}
-                    className="p-2 rounded-full bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)]"
-                > <ChevronLeft className="w-5 h-5" /> </button>
-                <span className="text-sm text-[var(--text-secondary)]"> {currentFlashcardIndex + 1} / {selectedNote.flashcards.length} </span>
-                <button
-                    onClick={() => { setCurrentFlashcardIndex(prev => Math.min(selectedNote.flashcards!.length - 1, prev + 1)); setIsFlashcardFlipped(false); }}
-                    disabled={currentFlashcardIndex === selectedNote.flashcards.length - 1}
-                    className="p-2 rounded-full bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)]"
-                > <ChevronRight className="w-5 h-5" /> </button>
             </div>
-            <button onClick={() => setIsFlashcardFlipped(!isFlashcardFlipped)} className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-secondary)]">
-                <FlipIcon className="w-4 h-4" /> Flip Card
+            
+            <div className="flex items-center justify-between mt-6">
+                <button
+                    onClick={handleFlashcardPrevious}
+                    disabled={currentFlashcardIndex === 0}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)] transition-colors"
+                >
+                    <ChevronLeft className="w-4 h-4" />
+                    <span className="text-sm font-medium">Previous</span>
+                </button>
+                
+                <button
+                    onClick={() => setIsFlashcardFlipped(!isFlashcardFlipped)} 
+                    className="flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-medium bg-[var(--bg-accent)] hover:bg-[var(--bg-accent-secondary)] text-white transition-colors"
+                >
+                    <FlipIcon className="w-4 h-4" />
+                    {isFlashcardFlipped ? 'Show Term' : 'Show Answer'}
+                </button>
+                
+                <button
+                    onClick={handleFlashcardNext}
+                    disabled={currentFlashcardIndex === (selectedNote.flashcards?.length || 1) - 1}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)] transition-colors"
+                >
+                    <span className="text-sm font-medium">Next</span>
+                    <ChevronRight className="w-4 h-4" />
             </button>
+            </div>
+            
+            <div className="mt-4 flex justify-center">
+                <div className="flex gap-1">
+                    {selectedNote.flashcards.map((_, index) => (
+                        <button
+                            key={index}
+                            onClick={() => handleFlashcardGoTo(index)}
+                            className={`w-2 h-2 rounded-full transition-colors ${
+                                index === currentFlashcardIndex 
+                                    ? 'bg-[var(--bg-accent)]' 
+                                    : 'bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)]'
+                            }`}
+                        />
+                    ))}
+                </div>
+            </div>
         </div>
     )}
 
 
-    {selectedNote.questions && selectedNote.questions.length > 0 && (
+
+    {selectedNote?.questions && selectedNote.questions.length > 0 && (
     <div id="study-questions-section" className={`mt-8 pt-6 border-t border-[var(--border-primary)]`}>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
-            <h3 className={`text-lg font-semibold flex items-center gap-2 text-[var(--text-primary)]`}><BookOpen className={`w-5 h-5 text-purple-500 dark:text-purple-400`} />Study Questions</h3>
-            <button onClick={handleRegenerateQuestions} disabled={isRegeneratingQuestions} className={`bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded-md text-xs flex items-center gap-1.5 ${isRegeneratingQuestions ? 'opacity-50 cursor-not-allowed' : ''}`} title="Regenerate"> {isRegeneratingQuestions ? (<> <Loader2 className="w-3.5 h-3.5 animate-spin" /> Regenerating... </>) : (<> <RefreshCw className="w-3.5 h-3.5" /> Regenerate </>)} </button>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
+                <div className="flex items-center gap-3">
+                    <h3 className={`text-lg font-semibold flex items-center gap-2 text-[var(--text-primary)]`}>
+                        <BookOpen className={`w-5 h-5 text-[var(--bg-accent)]`} />
+                        Study Questions
+                    </h3>
+                    <div className="flex items-center gap-2 px-2 py-1 bg-[var(--bg-highlight)] rounded-full">
+                        <span className="text-xs font-medium text-[var(--text-secondary)]">
+                            {Object.keys(questionAnswers).filter(key => selectedNote.questions?.some((_, i) => `${selectedNote?.id}-${i}` === key)).length} of {selectedNote.questions?.length || 0} answered
+                        </span>
         </div>
-        <div className="space-y-5">
-            {selectedNote.questions.map((q, index) => {
+                </div>
+                <div className="flex items-center gap-2">
+                    <button 
+                        onClick={() => setQuestionAnswers({})}
+                        className="px-3 py-1.5 text-xs font-medium bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-secondary)] rounded-md transition-colors"
+                    >
+                        Reset All
+                    </button>
+                    <button 
+                        onClick={handleRegenerateQuestions} 
+                        disabled={isRegeneratingQuestions} 
+                        className={`px-3 py-1.5 text-xs font-medium rounded-md flex items-center gap-1.5 transition-colors ${isRegeneratingQuestions ? 'opacity-50 cursor-not-allowed bg-[var(--bg-highlight)] text-[var(--text-secondary)]' : 'bg-[var(--bg-accent)] hover:bg-[var(--bg-accent-secondary)] text-white'}`}
+                    >
+                        {isRegeneratingQuestions ? (
+                            <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                Regenerating...
+                            </>
+                        ) : (
+                            <>
+                                <RefreshCw className="w-3.5 h-3.5" />
+                                Regenerate
+                            </>
+                        )}
+                    </button>
+                </div>
+            </div>
+            
+            <div className="space-y-6">
+            {selectedNote.questions?.map((q, index) => {
                 const key = `${selectedNote?.id}-${index}`;
                 const answer = questionAnswers[key];
                 const answered = answer != null;
                 const isCorrect = answered && answer === q.correctAnswer;
+                const hasBeenIncorrect = incorrectAnswers[key] && incorrectAnswers[key].length > 0;
+                    
                 return (
-                    <div key={key} className={`p-4 md:p-5 rounded-xl transition-colors duration-300 ${answered ? (isCorrect ? 'bg-[var(--status-success)]/10' : 'bg-[var(--status-error)]/10') : 'bg-[var(--bg-card)]'}`}>
-<p className={`text-[var(--text-primary)] font-medium mb-4 leading-relaxed`}>
-    <span className="text-indigo-500 dark:text-indigo-400 font-semibold mr-2">{index + 1}.</span>
+                        <motion.div 
+                            key={key} 
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.3, delay: index * 0.1 }}
+                            className="p-6 rounded-2xl transition-all duration-300 bg-[var(--bg-card)]"
+                        >
+                            <div className="flex items-start gap-4 mb-5">
+                                <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
+                                    answered 
+                                        ? (isCorrect 
+                                            ? 'bg-[var(--status-success)] text-white' 
+                                            : 'bg-[var(--status-error)] text-white'
+                                        ) 
+                                        : 'bg-[var(--bg-accent)] text-white'
+                                }`}>
+                                    {index + 1}
+                                </div>
+                                <div className="flex-1">
+                                    <p className={`text-[var(--text-primary)] font-medium leading-relaxed mb-4`}>
     <RenderWithLatex text={q.question} />
 </p>
+                                </div>
+                            </div>
+
+                            {/* Hint System for Previously Incorrect Answers - Side by Side Mode */}
+                            {hasBeenIncorrect && !answered && (
+                                <div className="mb-4 p-3 rounded-lg bg-[var(--status-warning)]/10 border border-[var(--status-warning)]/20">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <AlertCircle className="w-4 h-4 text-[var(--status-warning)]" />
+                                        <span className="text-sm font-medium text-[var(--status-warning)]">
+                                            You've answered this question incorrectly before
+                                        </span>
+                                    </div>
+                                    {q.hint && (
+                                        <details className="text-sm">
+                                            <summary className="cursor-pointer text-[var(--status-warning)] hover:text-[var(--status-warning)]/80 font-medium">
+                                                Show Hint
+                                            </summary>
+                                            <div className="mt-2 text-[var(--text-secondary)] italic">
+                                                <RenderWithLatex text={q.hint} />
+                                            </div>
+                                        </details>
+                                    )}
+                                </div>
+                            )}
+                            
                         <div className="space-y-3">
                             {q.options.map((opt, idx) => {
                                 const sel = answer === idx;
                                 const cor = idx === q.correctAnswer;
 
                                 let stateClasses = '';
+                                    let iconClasses = '';
+                                    
                                 if (answered) {
                                     if (sel) {
                                         stateClasses = cor
-                                            ? `bg-green-100 dark:bg-green-500/20 text-green-800 dark:text-white font-semibold border-green-300 dark:border-green-500/50 cursor-default`
-                                            : `bg-red-100 dark:bg-red-500/20 text-red-800 dark:text-white font-semibold border-red-300 dark:border-red-500/50 cursor-default`;
+                                            ? `bg-[var(--status-success)] text-white cursor-default`
+                                            : `bg-[var(--status-error)] text-white cursor-default`;
+                                                            iconClasses = cor ? 'text-white' : 'text-white';
                                     } else if (cor) {
-                                        stateClasses = `bg-green-100 dark:bg-green-500/20 text-green-800 dark:text-white border-green-300 dark:border-green-500/50 cursor-default`;
+                                        stateClasses = `bg-[var(--status-success)] text-white border-[var(--status-success)] cursor-default`;
+                                                            iconClasses = 'text-white';
                                     } else {
-                                        stateClasses = `bg-[var(--bg-highlight)] text-[var(--text-muted)] border-transparent cursor-default opacity-70`;
+                                        stateClasses = `bg-[var(--bg-highlight)] text-[var(--text-muted)] border-[var(--border-primary)] cursor-default opacity-70`;
                                     }
                                 } else {
-                                    stateClasses = `bg-[var(--bg-primary)] border-[var(--border-primary)] hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 focus:ring-2 focus:ring-indigo-400 focus:outline-none text-[var(--text-secondary)]`;
+                                    stateClasses = `bg-[var(--bg-primary)] border-[var(--border-primary)] hover:border-[var(--bg-accent)] hover:bg-[var(--interactive-hover)] focus:ring-2 focus:ring-[var(--interactive-focus)] focus:outline-none text-[var(--text-secondary)]`;
                                 }
 
                                 return (
@@ -3077,28 +3956,262 @@ useEffect(() => {
                                         key={idx}
                                         onClick={() => !answered && handleAnswerSelect(key, idx)}
                                         disabled={answered}
-                                        className={`w-full text-left p-3 rounded-lg transition-all duration-200 text-sm flex items-center justify-between group border ${stateClasses}`}
-                                    >
-                                        <span><RenderWithLatex text={opt} /></span>
-                                        <div className={`flex-shrink-0 ml-4 w-6 h-6 flex items-center justify-center rounded-full transition-colors
-                                            ${answered && (sel || cor) ? (cor ? 'bg-green-500/20 border-green-500/30' : 'bg-red-500/20 border-red-500/30') : 'bg-[var(--bg-highlight)] border-[var(--border-primary)]'}
-                                        `}>
-                                            {answered && sel && (cor ? <Check className="w-4 h-4 text-green-600" /> : <X className="w-4 h-4 text-red-600" />)}
-                                            {answered && !sel && cor && <Check className="w-4 h-4 text-green-600" />}
+                                            className={`w-full text-left p-4 rounded-xl transition-all duration-300 ease-in-out text-sm flex items-center justify-between group ${stateClasses}`}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs font-semibold ${
+                                                    answered && (sel || cor)
+                                                        ? (cor ? 'bg-[var(--status-success)] border-[var(--status-success)] text-white' : 'bg-[var(--status-error)] border-[var(--status-error)] text-white')
+                                                        : 'bg-[var(--bg-highlight)] border-[var(--border-primary)] text-[var(--text-secondary)]'
+                                                }`}>
+                                                    {String.fromCharCode(65 + idx)}
                                         </div>
+                                                <span className="flex-1"><RenderWithLatex text={opt} /></span>
+                                            </div>
+                                            {answered && (sel || cor) && (
+                                                <div className={`flex-shrink-0 ml-4 ${iconClasses}`}>
+                                                    {cor ? <Check className="w-5 h-5" /> : <X className="w-5 h-5" />}
+                                                </div>
+                                            )}
                                     </button>
                                 );
                             })}
                         </div>
+                            
                         {answered && q.explanation && (
-<div className={`mt-4 p-3 rounded-lg text-sm leading-relaxed ${isCorrect ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'}`}>
-    <strong className="font-semibold">Explanation: </strong><RenderWithLatex text={q.explanation} />
+                                <motion.div 
+                                    initial={{ opacity: 0, height: 0, y: -10 }}
+                                    animate={{ opacity: 1, height: 'auto', y: 0 }}
+                                    exit={{ opacity: 0, height: 0, y: -10 }}
+                                    transition={{ duration: 0.4, ease: "easeInOut" }}
+                                    className="mt-5 p-4 rounded-xl text-sm leading-relaxed bg-[var(--status-warning)] text-white border border-[var(--status-warning)]"
+                                >
+                                    <div className="flex items-start gap-2">
+                                        <div className="w-5 h-5 rounded-full bg-[var(--status-warning)] flex items-center justify-center flex-shrink-0 mt-0.5">
+                                            <span className="text-white text-xs">💡</span>
 </div>
-                        )}
+                                        <div>
+                                            <strong className="font-semibold block mb-1">Explanation:</strong>
+                                            <RenderWithLatex text={q.explanation} />
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </motion.div>
+                    );
+                })}
                     </div>
-                );
-            })}
         </div>
+    )}
+
+
+
+
+
+    {/* Quiz Questions - Main Mode */}
+    {isQuizMode && quizQuestions.length > 0 && (
+        <div id="quiz-questions-section" className="my-8 pt-6 border-t border-[var(--border-primary)]">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
+                <div className="flex items-center gap-3">
+                    <h3 className="text-lg font-semibold flex items-center gap-2 text-[var(--text-primary)]">
+                        <FileQuestion className="w-5 h-5 text-[var(--bg-accent)]" />
+                        Quiz Questions
+                    </h3>
+                    <div className="flex items-center gap-2 px-2 py-1 bg-[var(--bg-highlight)] rounded-full">
+                        <span className="text-xs font-medium text-[var(--text-secondary)]">
+                            Question {currentQuizQuestion + 1} of {quizQuestions.length}
+                        </span>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => {
+                            setQuizQuestions([]);
+                            setCurrentQuizQuestion(0);
+                            setQuizAnswers({});
+                            setShowQuizHint({});
+                            setShowQuizAnswer({});
+                        }}
+                        className="px-3 py-1.5 text-xs font-medium bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-secondary)] rounded-md transition-colors"
+                    >
+                        Exit Quiz
+                    </button>
+                </div>
+            </div>
+            
+            {quizQuestions.length > 0 && (
+                <div className="space-y-6">
+                    {quizQuestions.map((question, index) => {
+                        if (index !== currentQuizQuestion) return null;
+                        
+                        const answer = quizAnswers[question.id];
+                        const answered = answer !== null;
+                        const isCorrect = answered && answer === question.correctAnswer;
+
+                        
+                        return (
+                            <motion.div
+                                key={question.id}
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ duration: 0.3 }}
+                                className="p-6 rounded-2xl bg-[var(--bg-card)]"
+                            >
+                                <div className="flex items-start gap-4 mb-5">
+                                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[var(--bg-accent)] text-white flex items-center justify-center text-sm font-semibold">
+                                        {index + 1}
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-2">
+
+                                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                                question.difficulty === 'easy' ? 'bg-[var(--status-success)]/10 text-[var(--status-success)]' :
+                                                question.difficulty === 'medium' ? 'bg-[var(--status-warning)]/10 text-[var(--status-warning)]' :
+                                                'bg-[var(--status-error)]/10 text-[var(--status-error)]'
+                                            }`}>
+                                                {question.difficulty}
+                                            </span>
+                                        </div>
+                                        <p className="text-[var(--text-primary)] font-medium leading-relaxed mb-4">
+                                            <RenderWithLatex text={question.question} />
+                                        </p>
+                                    </div>
+                                </div>
+                                
+                                <div className="space-y-3 mb-4">
+                                    {question.options.map((option, optIndex) => {
+                                        const isSelected = answer === optIndex;
+                                        const isCorrectOption = optIndex === question.correctAnswer;
+                                        
+                                        let stateClasses = '';
+                                        if (answered) {
+                                            if (isSelected) {
+                                                stateClasses = isCorrectOption
+                                                    ? 'bg-[var(--status-success)] text-white border-[var(--status-success)]'
+                                                    : 'bg-[var(--status-error)] text-white border-[var(--status-error)]';
+                                            } else if (isCorrectOption) {
+                                                stateClasses = 'bg-[var(--status-success)] text-white border-[var(--status-success)]';
+                                            } else {
+                                                stateClasses = 'bg-[var(--bg-highlight)] text-[var(--text-muted)] border-[var(--border-primary)] opacity-70';
+                                            }
+                                        } else {
+                                            stateClasses = 'bg-[var(--bg-primary)] border-[var(--border-primary)] hover:border-[var(--bg-accent)] hover:bg-[var(--interactive-hover)] text-[var(--text-secondary)]';
+                                        }
+
+                                        return (
+                                            <button
+                                                key={optIndex}
+                                                onClick={() => !answered && handleQuizAnswerSelect(question.id, optIndex)}
+                                                disabled={answered}
+                                                className={`w-full text-left p-4 rounded-xl transition-all duration-300 ease-in-out text-sm flex items-center justify-between group ${stateClasses}`}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs font-semibold ${
+                                                        answered && (isSelected || isCorrectOption)
+                                                            ? (isCorrectOption ? 'bg-[var(--status-success)] border-[var(--status-success)] text-white' : 'bg-[var(--status-error)] border-[var(--status-error)] text-white')
+                                                            : 'bg-[var(--bg-highlight)] border-[var(--border-primary)] text-[var(--text-secondary)]'
+                                                    }`}>
+                                                        {String.fromCharCode(65 + optIndex)}
+                                                    </div>
+                                                    <span className="flex-1"><RenderWithLatex text={option} /></span>
+                                                </div>
+                                                {answered && (isSelected || isCorrectOption) && (
+                                                    <div className={`flex-shrink-0 ml-4 text-white`}>
+                                                        {isCorrectOption ? <Check className="w-5 h-5" /> : <X className="w-5 h-5" />}
+                                                    </div>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                
+                                <div className="flex items-center gap-2 mb-4">
+                                    {question.hint && (
+                                        <button
+                                            onClick={() => handleShowQuizHint(question.id)}
+                                            className="px-3 py-1.5 text-xs font-medium bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-secondary)] rounded-md transition-colors flex items-center gap-1"
+                                        >
+                                            <Lightbulb className="w-3 h-3" />
+                                            {showQuizHint[question.id] ? 'Hide Hint' : 'Show Hint'}
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={() => handleShowQuizAnswer(question.id)}
+                                        className="px-3 py-1.5 text-xs font-medium bg-[var(--bg-accent)] hover:bg-[var(--bg-accent-secondary)] text-white rounded-md transition-colors flex items-center gap-1"
+                                    >
+                                        <Eye className="w-3 h-3" />
+                                        {showQuizAnswer[question.id] ? 'Hide Answer' : 'Show Answer'}
+                                    </button>
+                                </div>
+                                
+                                {showQuizHint[question.id] && question.hint && (
+                                    <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        transition={{ duration: 0.3 }}
+                                        className="mb-4 p-3 rounded-lg bg-[var(--status-info)]/10 text-[var(--status-info)] border border-[var(--status-info)]/20"
+                                    >
+                                        <strong className="font-semibold">Hint:</strong> {question.hint}
+                                    </motion.div>
+                                )}
+                                
+                                {showQuizAnswer[question.id] && (
+                                    <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        transition={{ duration: 0.3 }}
+                                        className="mb-4 p-4 rounded-xl text-sm leading-relaxed bg-[var(--status-warning)] text-white border border-[var(--status-warning)]"
+                                    >
+                                        <div className="flex items-start gap-2">
+                                            <div className="w-5 h-5 rounded-full bg-[var(--status-warning)] flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                <span className="text-white text-xs">💡</span>
+                                            </div>
+                                            <div>
+                                                <strong className="font-semibold block mb-1">Explanation:</strong>
+                                                <RenderWithLatex text={question.explanation} />
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </motion.div>
+                        );
+                    })}
+                    
+                    <div className="flex items-center justify-between">
+                        <button
+                            onClick={() => setCurrentQuizQuestion(prev => Math.max(0, prev - 1))}
+                            disabled={currentQuizQuestion === 0}
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)] transition-colors"
+                        >
+                            <ChevronLeft className="w-4 h-4" />
+                            <span className="text-sm font-medium">Previous</span>
+                        </button>
+                        
+                        <div className="flex gap-1">
+                            {quizQuestions.map((_, index) => (
+                                <button
+                                    key={index}
+                                    onClick={() => setCurrentQuizQuestion(index)}
+                                    className={`w-2 h-2 rounded-full transition-colors ${
+                                        index === currentQuizQuestion 
+                                            ? 'bg-[var(--bg-accent)]' 
+                                            : 'bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)]'
+                                    }`}
+                                />
+                            ))}
+                        </div>
+                        
+                        <button
+                            onClick={() => setCurrentQuizQuestion(prev => Math.min(quizQuestions.length - 1, prev + 1))}
+                            disabled={currentQuizQuestion === quizQuestions.length - 1}
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)] transition-colors"
+                        >
+                            <span className="text-sm font-medium">Next</span>
+                            <ChevronRight className="w-4 h-4" />
+                        </button>
+                    </div>
+                </div>
+            )}
     </div>
     )}
 </div>

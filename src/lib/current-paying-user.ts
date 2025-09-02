@@ -174,11 +174,16 @@ export const getChatLimitForTier = (tier: UserTier): number => {
 };
 
 export const getNoteLimitsForTier = (tier: UserTier): { pdfAi: number; youtube: number } => {
-    return NOTE_LIMITS.pdf[tier] ? { 
-        pdfAi: NOTE_LIMITS.pdf[tier], 
+    // Filter out loading tier as it doesn't have limits
+    if (tier === 'loading') {
+        return { pdfAi: 0, youtube: 0 };
+    }
+    
+    return NOTE_LIMITS.pdfAi[tier] ? { 
+        pdfAi: NOTE_LIMITS.pdfAi[tier], 
         youtube: NOTE_LIMITS.youtube[tier] 
     } : { 
-        pdfAi: NOTE_LIMITS.pdf.basic, 
+        pdfAi: NOTE_LIMITS.pdfAi.basic, 
         youtube: NOTE_LIMITS.youtube.basic 
     };
 };
@@ -248,7 +253,12 @@ export const getUserNoteUsage = async (userId: string): Promise<NoteUsageData | 
             if (monthlyUsage && typeof monthlyUsage.pdfAi === 'number' && typeof monthlyUsage.youtube === 'number') {
                 return { pdfAi: monthlyUsage.pdfAi, youtube: monthlyUsage.youtube, month: currentMonthYear };
             }
-            return { pdfAi: 0, youtube: 0, month: currentMonthYear };
+            // Return safe defaults if monthlyUsage is undefined or missing properties
+            return { 
+                pdfAi: monthlyUsage?.pdfAi || 0, 
+                youtube: monthlyUsage?.youtube || 0, 
+                month: currentMonthYear 
+            };
         }
         return { pdfAi: 0, youtube: 0, month: currentMonthYear };
     } catch (error) {

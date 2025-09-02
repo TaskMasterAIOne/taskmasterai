@@ -36,6 +36,49 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useAuth } from '../contexts/AuthContext';
 import { motion } from 'framer-motion';
 
+// Error Boundary Component for Badges Section
+class BadgesErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error?: Error }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('Badges section error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-4 rounded-lg bg-[var(--status-error)]/10 border border-[var(--status-error)]/20">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertCircle className="w-4 h-4 text-[var(--status-error)]" />
+            <span className="text-sm font-medium text-[var(--status-error)]">Badges Section Error</span>
+          </div>
+          <p className="text-xs text-[var(--text-secondary)] mb-3">
+            There was an issue loading the badges. Please refresh the page or contact support if the problem persists.
+          </p>
+          <button
+            onClick={() => this.setState({ hasError: false })}
+            className="text-xs px-2 py-1 rounded bg-[var(--bg-highlight)] text-[var(--text-primary)] hover:bg-[var(--interactive-hover)]"
+          >
+            Try Again
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 interface UserProfileData {
     uid: string;
     email: string | null;
@@ -557,7 +600,9 @@ export function Settings() {
         
         setUserCurrentTier(tier);
         setChatUsage(fetchedChatUsage);
-        setNoteUsage(fetchedNoteUsage?.month === currentMonthStr ? fetchedNoteUsage : { pdfAi: 0, youtube: 0, month: currentMonthStr });
+        // Ensure we always have valid note usage data with fallbacks
+        const safeNoteUsage = fetchedNoteUsage || { pdfAi: 0, youtube: 0, month: currentMonthStr };
+        setNoteUsage(safeNoteUsage);
         setMemories(fetchedMemories);
         
         const { learningProfile: parsedProfile, freeText } = parseOtherContext(context?.otherContext);
@@ -1411,29 +1456,70 @@ const handleNotionConnect = () => {
                     </div>
 
                     <h3 className="text-md font-semibold mb-3 text-theme-text-primary">Badges Earned</h3>
-                    <div className="grid grid-cols-4 xs:grid-cols-5 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-9 gap-3 max-h-80 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-[var(--scrollbar-thumb)] dark:scrollbar-thumb-[var(--scrollbar-thumb-dark)]">
-                        {Object.entries(ALL_BADGES_CONFIG).map(([badgeKey, badgeConfig]) => {
-                            const isUnlocked = (userProfileData.badges || []).includes(badgeKey);
-                            const Icon = badgeConfig.icon;
-                            return (
-                                <div
-                                    key={badgeKey}
-                                    title={isUnlocked ? `${badgeConfig.name}: ${badgeConfig.description}` : `${badgeConfig.name} (Locked) - Unlock: ${badgeConfig.unlock_criteria_text}`}
-                                    className={`group relative flex flex-col items-center justify-center p-2.5 aspect-square bg-[var(--bg-highlight)] rounded-lg shadow-sm border border-[var(--border-primary)] text-center transition-all duration-200 ${!isUnlocked ? 'opacity-40 grayscale' : 'hover:border-[var(--border-secondary)]'}`}
-                                >
-                                    <Icon className={`w-6 h-6 mb-1 ${isUnlocked ? 'text-[var(--bg-accent)]' : 'text-[var(--text-muted)]'}`} />
-                                    <span className={`text-[9px] leading-tight font-medium ${isUnlocked ? 'text-theme-text-primary' : 'text-theme-text-secondary'}`}>{badgeConfig.name}</span>
-                                    {!isUnlocked && ( <div className="absolute top-1 right-1 bg-[var(--text-muted)]/20 p-0.5 rounded-full"> <Lock className="w-2.5 h-2.5 text-[var(--text-muted)]" /> </div> )}
-                                    {isUnlocked && ( <div className="absolute top-1 right-1 bg-[var(--status-success)]/20 p-0.5 rounded-full"> <Check className="w-2.5 h-2.5 text-[var(--status-success)]" /> </div> )}
-                                    {!isUnlocked && (
-                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-max max-w-[180px] p-1.5 bg-black/80 text-white text-[10px] rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none z-20">
-                                            <b>Unlock:</b> {badgeConfig.unlock_criteria_text}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
+                    {/* Debug info */}
+                    <div className="mb-2 text-xs text-[var(--text-secondary)]">
+                        Debug: {userProfileData ? `${Object.entries(ALL_BADGES_CONFIG).length} badges configured, ${(userProfileData.badges || []).length} unlocked` : 'No user data'}
                     </div>
+                    <BadgesErrorBoundary>
+                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-9 gap-2 sm:gap-3 max-h-80 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-[var(--scrollbar-thumb)] dark:scrollbar-thumb-[var(--scrollbar-thumb-dark)]">
+                            {Object.entries(ALL_BADGES_CONFIG)
+                                .map(([badgeKey, badgeConfig]) => {
+                                    try {
+                                        const isUnlocked = (userProfileData.badges || []).includes(badgeKey);
+                                        const Icon = badgeConfig.icon;
+                                        
+                                        // Temporarily remove validation to debug
+                                        // if (!Icon) {
+                                        //     console.warn(`Missing icon for badge: ${badgeKey}`);
+                                        //     return null;
+                                        // }
+                                        
+                                        return (
+                                            <div
+                                                key={badgeKey}
+                                                title={isUnlocked ? `${badgeConfig.name}: ${badgeConfig.description}` : `${badgeConfig.name} (Locked) - Unlock: ${badgeConfig.unlock_criteria_text}`}
+                                                className={`group relative flex flex-col items-center justify-center p-2 sm:p-2.5 aspect-square bg-[var(--bg-highlight)] rounded-lg shadow-sm border border-[var(--border-primary)] text-center transition-all duration-200 ${!isUnlocked ? 'opacity-40 grayscale' : 'hover:border-[var(--border-secondary)]'}`}
+                                            >
+                                                <Icon className={`w-5 h-5 sm:w-6 sm:h-6 mb-1 ${isUnlocked ? 'text-[var(--bg-accent)]' : 'text-[var(--text-muted)]'}`} />
+                                                <span className={`text-[8px] sm:text-[9px] leading-tight font-medium ${isUnlocked ? 'text-theme-text-primary' : 'text-theme-text-secondary'}`}>{badgeConfig.name}</span>
+                                                
+                                                {/* Lock/Check indicators */}
+                                                {!isUnlocked && (
+                                                    <div className="absolute top-1 right-1 bg-[var(--text-muted)]/20 p-0.5 rounded-full">
+                                                        <Lock className="w-2 h-2 sm:w-2.5 sm:h-2.5 text-[var(--text-muted)]" />
+                                                    </div>
+                                                )}
+                                                {isUnlocked && (
+                                                    <div className="absolute top-1 right-1 bg-[var(--status-success)]/20 p-0.5 rounded-full">
+                                                        <Check className="w-2 h-2 sm:w-2.5 sm:h-2.5 text-[var(--status-success)]" />
+                                                    </div>
+                                                )}
+                                                
+                                                {/* Desktop-only tooltip - hidden on mobile to prevent crashes */}
+                                                {!isUnlocked && (
+                                                    <div className="hidden sm:block absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-max max-w-[180px] p-1.5 bg-black/80 text-white text-[10px] rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none z-10">
+                                                        <b>Unlock:</b> {badgeConfig.unlock_criteria_text}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    } catch (error) {
+                                        console.error(`Error rendering badge ${badgeKey}:`, error);
+                                        // Return a fallback badge to prevent the entire section from crashing
+                                        return (
+                                            <div
+                                                key={badgeKey}
+                                                className="flex flex-col items-center justify-center p-2 sm:p-2.5 aspect-square bg-[var(--bg-highlight)] rounded-lg shadow-sm border border-[var(--border-primary)] text-center opacity-60"
+                                            >
+                                                <AlertCircle className="w-5 h-5 sm:w-6 sm:h-6 mb-1 text-[var(--text-muted)]" />
+                                                <span className="text-[8px] sm:text-[9px] leading-tight font-medium text-[var(--text-muted)]">Error</span>
+                                            </div>
+                                        );
+                                    }
+                                })
+                            }
+                        </div>
+                    </BadgesErrorBoundary>
                 </div>
             )}
 

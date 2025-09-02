@@ -6,7 +6,10 @@ import {
     getGeminiProxy, 
     extractCandidateText, 
     AI_CONFIGS, 
-    PROMPT_TEMPLATES 
+    PROMPT_TEMPLATES,
+    makeParallelAICalls,
+    parseTopicsResponse,
+    parseQuestionsWithTopics
 } from './processors';
 
 export type UserTier = 'basic' | 'pro' | 'premium' | 'loading';
@@ -36,13 +39,30 @@ export interface Podcast {
     totalDuration: number;
 }
 
+export interface Topic {
+    id: string;
+    name: string;
+    description: string;
+}
+
+export interface Question {
+    id: string;
+    question: string;
+    options: string[];
+    correctAnswer: number;
+    explanation: string;
+    topicId: string;
+    hint?: string;
+}
+
 export interface NoteData {
     id?: string;
     title: string;
     content: string;
     type: 'personal' | 'pdf' | 'youtube' | 'audio';
     keyPoints?: string[];
-    questions?: { question: string; options: string[]; correctAnswer: number; explanation: string; }[];
+    questions?: Question[];
+    topics?: Topic[];
     flashcards?: Flashcard[];
     podcasts?: Podcast[];
     sourceUrl?: string;
@@ -77,90 +97,108 @@ export async function toggleNotePublicStatus(noteId: string, makePublic: boolean
 export async function processTextToAINoteData( text: string, userId: string, onProgress: (progress: number) => void ): Promise<Omit<NoteData, 'id' | 'createdAt' | 'updatedAt'>> {
   if (!text.trim()) throw new Error("Input text cannot be empty.");
   const safeProgress = typeof onProgress === 'function' ? onProgress : () => {};
-  const geminiProxyCallable = getGeminiProxy();
   
   try {
     safeProgress(10);
-    const titlePrompt = PROMPT_TEMPLATES.TITLE_GENERATION(text.slice(0, 4000));
-    const titleResult = await geminiProxyCallable({ contents: [{ parts: [{ text: titlePrompt }] }], generationConfig: AI_CONFIGS.TITLE_GENERATION });
-    let title = extractCandidateText(JSON.stringify(titleResult.data)).replace(/["']/g, "").trim() || 'AI Generated Note';
-    safeProgress(20);
+    
+    // Use parallel AI processing for faster note creation
+    const aiCalls = [
+      {
+        key: 'title',
+        prompt: PROMPT_TEMPLATES.TITLE_GENERATION(text.slice(0, 4000)),
+        config: AI_CONFIGS.TITLE_GENERATION
+      },
+      {
+        key: 'content',
+        prompt: PROMPT_TEMPLATES.NOTE_GENERATION(text),
+        config: AI_CONFIGS.NOTE_GENERATION
+      },
+      {
+        key: 'keyPoints',
+        prompt: PROMPT_TEMPLATES.KEY_POINTS(text),
+        config: AI_CONFIGS.KEY_POINTS
+      },
+      {
+        key: 'flashcards',
+        prompt: PROMPT_TEMPLATES.FLASHCARDS(text),
+        config: AI_CONFIGS.FLASHCARDS
+      },
+      {
+        key: 'topics',
+        prompt: PROMPT_TEMPLATES.TOPICS(text),
+        config: AI_CONFIGS.QUESTIONS
+      },
+      {
+        key: 'questions',
+        prompt: PROMPT_TEMPLATES.QUESTIONS(text),
+        config: AI_CONFIGS.QUESTIONS
+      }
+    ];
 
-    const notePrompt = PROMPT_TEMPLATES.NOTE_GENERATION(text);
-    const noteResult = await geminiProxyCallable({ contents: [{ parts: [{ text: notePrompt }] }], generationConfig: AI_CONFIGS.NOTE_GENERATION });
-    let content = extractCandidateText(JSON.stringify(noteResult.data));
-    if (content.startsWith("Error:")) { content = `<p><strong>Error generating note:</strong> ${content}</p>`; }
-    safeProgress(50);
+    const aiResults = await makeParallelAICalls(aiCalls, (progress) => {
+      safeProgress(10 + Math.round(progress * 0.8)); // 10-90% range
+    });
+
+    // Process results
+    let title = aiResults.title.replace(/["']/g, "").trim() || 'AI Generated Note';
     
-    const keyPointsPrompt = PROMPT_TEMPLATES.KEY_POINTS(text, content);
-    const kpResult = await geminiProxyCallable({ contents: [{ parts: [{ text: keyPointsPrompt }] }], generationConfig: AI_CONFIGS.KEY_POINTS });
-    let keyPoints = (extractCandidateText(JSON.stringify(kpResult.data))).split('\n').map(l => l.trim().replace(/^(\*|-|\d+\.)\s*/, '')).filter(p => p.length > 5 && !p.toLowerCase().includes("primary task"));
-    if (keyPoints.length === 0) { keyPoints.push("Key point generation failed or returned no valid points."); }
-    safeProgress(65);
-    
-    const flashcardsPrompt = PROMPT_TEMPLATES.FLASHCARDS(text, content);
-    const fcResult = await geminiProxyCallable({ contents: [{ parts: [{ text: flashcardsPrompt }] }], generationConfig: AI_CONFIGS.FLASHCARDS });
-    const fcRawText = extractCandidateText(JSON.stringify(fcResult.data));
+    let content = aiResults.content;
+    if (content.startsWith("Error:")) { 
+      content = `<p><strong>Error generating note:</strong> ${content}</p>`; 
+    }
+
+    let keyPoints = aiResults.keyPoints.split('\n')
+      .map(l => l.trim().replace(/^(\*|-|\d+\.)\s*/, ''))
+      .filter(p => p.length > 5 && !p.toLowerCase().includes("primary task"));
+    if (keyPoints.length === 0) { 
+      keyPoints.push("Key point generation failed or returned no valid points."); 
+    }
+
+    // Process flashcards
+    const fcRawText = aiResults.flashcards;
     let flashcards: Flashcard[] = [];
     if (!fcRawText.startsWith("Error:")) {
-        fcRawText.split(/---FLASHCARD_DIVIDER---/i).forEach(block => {
-            const match = block.trim().match(/^(?:Front:\s*)?([\s\S]*?)\s*\nBack:\s*([\s\S]*)$/is);
-            if (match && match[1] && match[2] && match[1].trim() && match[2].trim()) {
-                flashcards.push({ front: match[1].trim(), back: match[2].trim() });
-            }
-        });
+      fcRawText.split(/---FLASHCARD_DIVIDER---/i).forEach(block => {
+        const match = block.trim().match(/^(?:Front:\s*)?([\s\S]*?)\s*\nBack:\s*([\s\S]*)$/is);
+        if (match && match[1] && match[2] && match[1].trim() && match[2].trim()) {
+          flashcards.push({ front: match[1].trim(), back: match[2].trim() });
+        }
+      });
     }
-    safeProgress(80);
 
-    const questionsPrompt = PROMPT_TEMPLATES.QUESTIONS(text, content);
-    const qResult = await geminiProxyCallable({ contents: [{ parts: [{ text: questionsPrompt }] }], generationConfig: AI_CONFIGS.QUESTIONS });
-    const qRawText = extractCandidateText(JSON.stringify(qResult.data));
-    let questions: NoteData['questions'] = [];
-    if (!qRawText.startsWith("Error:")) {
-        qRawText.split(/---DIVIDER---/i).forEach(block => {
-            const qM = block.match(/Question:\s*([\s\S]*?)\s*A\)/i);
-            const oM = block.match(/A\)\s*([\s\S]*?)\s*B\)\s*([\s\S]*?)\s*C\)\s*([\s\S]*?)\s*D\)\s*([\s\S]*?)\s*Correct:/is);
-            const cM = block.match(/Correct:\s*([A-D])/i);
-            const eM = block.match(/Explanation:\s*([\s\S]*)$/i);
-            if (qM && oM && cM && eM) {
-                const oL = [oM[1], oM[2], oM[3], oM[4]].map(o => o.trim());
-                const cL = cM[1].toUpperCase();
-                if (oL.every(o => o) && ['A', 'B', 'C', 'D'].includes(cL)) {
-                    questions!.push({ question: qM[1].trim(), options: oL, correctAnswer: ['A', 'B', 'C', 'D'].indexOf(cL), explanation: eM[1].trim() });
-                }
-            }
-        });
+    // Process topics
+    const topicsRawText = aiResults.topics;
+    let topics: Topic[] = [];
+    if (!topicsRawText.startsWith("Error:")) {
+      topics = parseTopicsResponse(topicsRawText);
     }
+
+    // Process questions with topics and hints
+    const qRawText = aiResults.questions;
+    let questions: Question[] = [];
+    if (!qRawText.startsWith("Error:")) {
+      questions = parseQuestionsWithTopics(qRawText);
+    }
+    
     safeProgress(100);
 
-    return { title, content, keyPoints, questions, flashcards, type: 'personal', userId, isPublic: false, tags: [] };
+    return { title, content, keyPoints, questions, flashcards, topics, type: 'personal', userId, isPublic: false, tags: [] };
   } catch (error) {
     throw new Error(`AI processing failed: ${error instanceof Error ? error.message : 'Unknown'}`);
   }
 }
 
-export async function regenerateStudyQuestions( noteId: string, content: string ): Promise<NoteData['questions']> {
+export async function regenerateStudyQuestions( noteId: string, content: string, topics?: Topic[] ): Promise<Question[]> {
    if (!noteId || !content.trim()) throw new Error("Note ID/content required.");
    const geminiProxyCallable = getGeminiProxy();
   try {
-    const questionsPrompt = PROMPT_TEMPLATES.QUESTIONS(content);
+    const topicsString = topics ? topics.map(t => `Topic: ${t.name}\nID: ${t.id}\nDescription: ${t.description}`).join('\n---DIVIDER---\n') : undefined;
+    const questionsPrompt = PROMPT_TEMPLATES.QUESTIONS(content, undefined, topicsString);
     const qResult = await geminiProxyCallable({ contents: [{ parts: [{ text: questionsPrompt }] }], generationConfig: AI_CONFIGS.QUESTIONS });
     const qRawText = extractCandidateText(JSON.stringify(qResult.data));
-    let questions: NoteData['questions'] = [];
+    let questions: Question[] = [];
     if (!qRawText.startsWith("Error:")) {
-        qRawText.split(/---DIVIDER---/i).forEach(block => {
-            const qM = block.match(/Question:\s*([\s\S]*?)\s*A\)/i);
-            const oM = block.match(/A\)\s*([\s\S]*?)\s*B\)\s*([\s\S]*?)\s*C\)\s*([\s\S]*?)\s*D\)\s*([\s\S]*?)\s*Correct:/is);
-            const cM = block.match(/Correct:\s*([A-D])/i);
-            const eM = block.match(/Explanation:\s*([\s\S]*)$/i);
-            if (qM && oM && cM && eM) {
-                const oL = [oM[1], oM[2], oM[3], oM[4]].map(o => o.trim());
-                const cL = cM[1].toUpperCase();
-                if (oL.every(o => o) && ['A', 'B', 'C', 'D'].includes(cL)) {
-                    questions.push({ question: qM[1].trim(), options: oL, correctAnswer: ['A', 'B', 'C', 'D'].indexOf(cL), explanation: eM[1].trim() });
-                }
-            }
-        });
+        questions = parseQuestionsWithTopics(qRawText);
     }
     return questions;
   } catch (error) {

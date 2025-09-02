@@ -8,9 +8,7 @@ import { STRIPE_CONFIG } from '../config/constants';
 // Use centralized Stripe configuration
 const STRIPE_PUBLISHABLE_KEY = STRIPE_CONFIG.publishableKey;
 
-if (!STRIPE_PUBLISHABLE_KEY) {
-  console.error('Stripe Publishable Key is not set!');
-}
+
 
 let stripePromise: Promise<Stripe | null>;
 

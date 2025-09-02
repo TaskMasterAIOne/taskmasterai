@@ -1,50 +1,89 @@
-import { getDocument, PDFDocumentProxy } from 'pdfjs-dist';
+import { getDocument, PDFDocumentProxy, GlobalWorkerOptions } from 'pdfjs-dist';
 import { createWorker } from 'tesseract.js';
 import { v4 as uuidv4 } from 'uuid';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from './firebase';
 import { 
-    getGeminiProxy, 
-    extractCandidateText, 
     AI_CONFIGS, 
-    PROMPT_TEMPLATES 
+    PROMPT_TEMPLATES,
+    makeParallelAICalls,
+    parseTopicsResponse,
+    parseQuestionsWithTopics
 } from './processors';
+
+// Use the worker from the installed pdfjs-dist package to ensure version match
+import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?worker&url';
+GlobalWorkerOptions.workerSrc = workerSrc;
 
 export interface ProcessedPDF {
     title: string;
     content: string;
     keyPoints: string[];
     questions: {
+        id: string;
         question: string;
         options: string[];
         correctAnswer: number;
         explanation: string;
+        topicId: string;
+        hint?: string;
+    }[];
+    topics: {
+        id: string;
+        name: string;
+        description: string;
     }[];
     flashcards?: { front: string; back: string; }[];
     sourceUrl: string;
     extractedText?: string;
 }
 
-function sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+
+
+// Image preprocessing for better OCR accuracy
+function preprocessImageForOCR(imageData: ImageData): ImageData {
+    const { data, width, height } = imageData;
+    const newData = new Uint8ClampedArray(data);
+    
+    // Convert to grayscale and enhance contrast
+    for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        
+        // Convert to grayscale using luminance formula
+        const gray = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+        
+        // Enhance contrast (simple contrast stretching)
+        const enhanced = gray < 128 ? Math.max(0, gray * 0.8) : Math.min(255, gray * 1.2);
+        
+        newData[i] = enhanced;     // Red
+        newData[i + 1] = enhanced; // Green
+        newData[i + 2] = enhanced; // Blue
+        // Alpha channel remains unchanged
+    }
+    
+    return new ImageData(newData, width, height);
 }
 
-async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delayMs = 3000): Promise<Response> {
-    for (let attempt = 0; attempt < retries; attempt++) {
-        try {
-            const response = await fetch(url, options);
-            if (!response.ok && (response.status === 429 || response.status >= 500)) {
-                await sleep(delayMs * (attempt + 1));
-                continue;
-            }
-            return response;
-        } catch (error) {
-            if (attempt === retries - 1) throw error;
-            await sleep(delayMs * (attempt + 1));
-        }
-    }
-    throw new Error(`Max retries reached for URL: ${url}`);
+// Post-process OCR text to improve quality
+function postProcessOCRText(text: string): string {
+    return text
+        // Fix common OCR mistakes
+        .replace(/\b0\b/g, 'O') // Replace standalone 0 with O
+        .replace(/\b1\b/g, 'I') // Replace standalone 1 with I
+        .replace(/\b5\b/g, 'S') // Replace standalone 5 with S
+        .replace(/\b8\b/g, 'B') // Replace standalone 8 with B
+        // Fix spacing issues
+        .replace(/([a-z])([A-Z])/g, '$1 $2') // Add space between camelCase
+        .replace(/([.!?])([A-Z])/g, '$1 $2') // Add space after punctuation
+        // Clean up multiple spaces and newlines
+        .replace(/\s+/g, ' ')
+        .replace(/\n\s*\n/g, '\n\n')
+        .trim();
 }
+
+
 
 export async function processPDF(
     file: File,
@@ -52,7 +91,6 @@ export async function processPDF(
     onProgress: (progress: number) => void
 ): Promise<ProcessedPDF> {
     const safeProgress = typeof onProgress === 'function' ? onProgress : () => {};
-    const geminiProxyCallable = getGeminiProxy();
     let extractedTextFromPdf = '';
 
     try {
@@ -88,113 +126,182 @@ export async function processPDF(
             const ocrProgressStart = 40;
             const ocrProgressEnd = 60;
             let ocrText = '';
-            const worker = await createWorker('eng');
+            
             try {
+                // Create worker with optimized settings
+                const worker = await createWorker('eng', 1, {
+                    logger: () => {}, // Disable logging for better performance
+                    gzip: false,
+                });
+                
+                // Configure worker for better accuracy
+                await worker.setParameters({
+                    tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,!?;:()[]{}\'"-+=*/%$@#&|\\<>~`^_',
+                    tessedit_pageseg_mode: 1, // Automatic page segmentation with OSD
+                    tessedit_ocr_engine_mode: 3, // Default, based on what is available
+                } as any);
+
                 for (let pageNum = 1; pageNum <= numPages; pageNum++) {
-                    const page = await pdfDoc.getPage(pageNum);
-                    const viewport = page.getViewport({ scale: 2.0 });
-                    const canvas = document.createElement('canvas');
-                    const context = canvas.getContext('2d', { alpha: false });
-                    if (!context) continue;
-                    canvas.height = viewport.height;
-                    canvas.width = viewport.width;
-                    await page.render({ canvasContext: context, viewport }).promise;
-                    const { data: { text } } = await worker.recognize(canvas);
-                    ocrText += text + '\n\n';
-                    safeProgress(ocrProgressStart + Math.round((pageNum / numPages) * (ocrProgressEnd - ocrProgressStart)));
-                    canvas.width = 0; canvas.height = 0;
+                    try {
+                        const page = await pdfDoc.getPage(pageNum);
+                        // Use higher scale for better OCR accuracy
+                        const viewport = page.getViewport({ scale: 3.0 });
+                        const canvas = document.createElement('canvas');
+                        const context = canvas.getContext('2d', { alpha: false });
+                        if (!context) continue;
+                        
+                        canvas.height = viewport.height;
+                        canvas.width = viewport.width;
+                        
+                        // Render page to canvas
+                        await page.render({ canvasContext: context, viewport, canvas }).promise;
+                        
+                        // Image preprocessing for better OCR
+                        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                        const processedImageData = preprocessImageForOCR(imageData);
+                        context.putImageData(processedImageData, 0, 0);
+                        
+                        // Perform OCR with retry mechanism
+                        let pageText = '';
+                        let retryCount = 0;
+                        const maxRetries = 2;
+                        
+                        while (retryCount <= maxRetries && !pageText.trim()) {
+                            try {
+                                const { data: { text } } = await worker.recognize(canvas);
+                                pageText = text || '';
+                                
+                                // If text is too short or seems like garbage, retry with different settings
+                                if (pageText.length < 10 && retryCount < maxRetries) {
+                                    await worker.setParameters({
+                                        tessedit_pageseg_mode: retryCount === 0 ? 6 : 8, // Try different segmentation modes
+                                    } as any);
+                                }
+                            } catch (ocrError) {
+                                console.error(`OCR failed for page ${pageNum}, attempt ${retryCount + 1}:`, ocrError);
+                            }
+                            retryCount++;
+                        }
+                        
+                        if (pageText.trim()) {
+                            ocrText += pageText + '\n\n';
+                        } else {
+                            console.warn(`No text extracted from page ${pageNum} after ${maxRetries + 1} attempts`);
+                        }
+                        
+                        safeProgress(ocrProgressStart + Math.round((pageNum / numPages) * (ocrProgressEnd - ocrProgressStart)));
+                        
+                        // Clean up canvas
+                        canvas.width = 0; 
+                        canvas.height = 0;
+                    } catch (pageError) {
+                        console.error(`Error processing page ${pageNum}:`, pageError);
+                        continue;
+                    }
                 }
-                extractedTextFromPdf = ocrText.replace(/(\s*\n\s*){3,}/g, ' ').trim();
-            } catch (ocrError) {
-            } finally {
+                
+                // Clean up worker
                 await worker.terminate();
+                
+                // Post-process OCR text
+                if (ocrText.trim()) {
+                    extractedTextFromPdf = postProcessOCRText(ocrText);
+                }
+                
+            } catch (ocrError) {
+                console.error('OCR processing failed:', ocrError);
+                // Don't throw error, just continue with whatever text we have
             }
         }
         safeProgress(60);
 
         if (!extractedTextFromPdf || extractedTextFromPdf.length < 20) {
-            throw new Error('No usable text could be extracted from the PDF.');
+            throw new Error('No usable text could be extracted from the PDF. Please ensure the PDF contains readable text or try a different file.');
         }
 
-        // Use centralized prompt templates and AI configs
-        const titlePrompt = PROMPT_TEMPLATES.TITLE_GENERATION(extractedTextFromPdf.slice(0, 4000), file.name);
-        const titleResult = await geminiProxyCallable({ 
-            contents: [{ parts: [{ text: titlePrompt }] }], 
-            generationConfig: AI_CONFIGS.TITLE_GENERATION 
-        });
-        let title = extractCandidateText(JSON.stringify(titleResult.data)).replace(/["']/g, "").trim() || file.name.replace(/\.pdf$/i, '');
+        // Use parallel AI processing for faster note creation
         safeProgress(65);
+        
+        const aiCalls = [
+            {
+                key: 'title',
+                prompt: PROMPT_TEMPLATES.TITLE_GENERATION(extractedTextFromPdf.slice(0, 4000), file.name),
+                config: AI_CONFIGS.TITLE_GENERATION
+            },
+            {
+                key: 'content',
+                prompt: PROMPT_TEMPLATES.NOTE_GENERATION(extractedTextFromPdf, file.name),
+                config: AI_CONFIGS.NOTE_GENERATION
+            },
+            {
+                key: 'keyPoints',
+                prompt: PROMPT_TEMPLATES.KEY_POINTS(extractedTextFromPdf),
+                config: AI_CONFIGS.KEY_POINTS
+            },
+            {
+                key: 'flashcards',
+                prompt: PROMPT_TEMPLATES.FLASHCARDS(extractedTextFromPdf),
+                config: AI_CONFIGS.FLASHCARDS
+            },
+            {
+                key: 'topics',
+                prompt: PROMPT_TEMPLATES.TOPICS(extractedTextFromPdf),
+                config: AI_CONFIGS.QUESTIONS
+            },
+            {
+                key: 'questions',
+                prompt: PROMPT_TEMPLATES.QUESTIONS(extractedTextFromPdf),
+                config: AI_CONFIGS.QUESTIONS
+            }
+        ];
 
-        const notePrompt = PROMPT_TEMPLATES.NOTE_GENERATION(extractedTextFromPdf, file.name);
-        const noteResult = await geminiProxyCallable({ 
-            contents: [{ parts: [{ text: notePrompt }] }], 
-            generationConfig: AI_CONFIGS.NOTE_GENERATION 
+        const aiResults = await makeParallelAICalls(aiCalls, (progress) => {
+            safeProgress(65 + Math.round(progress * 0.3)); // 65-95% range
         });
-        let content = extractCandidateText(JSON.stringify(noteResult.data));
-        if (content.startsWith("Error:")) { content = `<p><strong>Error generating note:</strong> ${content}</p>`; }
-        safeProgress(75);
 
-        const keyPointsPrompt = PROMPT_TEMPLATES.KEY_POINTS(extractedTextFromPdf, content);
-        const kpResult = await geminiProxyCallable({ 
-            contents: [{ parts: [{ text: keyPointsPrompt }] }], 
-            generationConfig: AI_CONFIGS.KEY_POINTS 
-        });
-        let keyPoints = (extractCandidateText(JSON.stringify(kpResult.data))).split('\n').map(l => l.trim().replace(/^(\*|-|\d+\.)\s*/, '')).filter(p => p.length > 5 && !p.toLowerCase().includes("primary task"));
-        if (keyPoints.length === 0) { keyPoints.push("Key point generation failed or returned no valid points."); }
-        safeProgress(80);
+        // Process results
+        let title = aiResults.title.replace(/["']/g, "").trim() || file.name.replace(/\.pdf$/i, '');
+        
+        let content = aiResults.content;
+        if (content.startsWith("Error:")) { 
+            content = `<p><strong>Error generating note:</strong> ${content}</p>`; 
+        }
 
-        const flashcardsPrompt = PROMPT_TEMPLATES.FLASHCARDS(extractedTextFromPdf, content);
-        const fcResult = await geminiProxyCallable({ 
-            contents: [{ parts: [{ text: flashcardsPrompt }] }], 
-            generationConfig: AI_CONFIGS.FLASHCARDS 
-        });
-        // FIX: Prepend "Front: " to the raw text to ensure the first card is parsed correctly.
-        const fcRawText = "Front: " + extractCandidateText(JSON.stringify(fcResult.data));
+        let keyPoints = aiResults.keyPoints.split('\n')
+            .map(l => l.trim().replace(/^(\*|-|\d+\.)\s*/, ''))
+            .filter(p => p.length > 5 && !p.toLowerCase().includes("primary task"));
+        if (keyPoints.length === 0) { 
+            keyPoints.push("Key point generation failed or returned no valid points."); 
+        }
+
+        // Process flashcards
+        const fcRawText = "Front: " + aiResults.flashcards;
         let flashcards: ProcessedPDF['flashcards'] = [];
         if (!fcRawText.startsWith("Error:")) {
             fcRawText.split(/---FLASHCARD_DIVIDER---/i).forEach(block => {
-                // FIX: Use a more robust regex that assumes the "Front: ... Back: ..." structure.
                 const match = block.trim().match(/^Front:\s*([\s\S]+?)\s*Back:\s*([\s\S]+)$/is);
                 if (match && match[1] && match[2] && match[1].trim() && match[2].trim()) {
                     flashcards.push({ front: match[1].trim(), back: match[2].trim() });
                 }
             });
         }
-        safeProgress(90);
         
-        const questionsPrompt = PROMPT_TEMPLATES.QUESTIONS(extractedTextFromPdf, content);
-        const qResult = await geminiProxyCallable({ 
-            contents: [{ parts: [{ text: questionsPrompt }] }], 
-            generationConfig: AI_CONFIGS.QUESTIONS 
-        });
-        const qRawText = extractCandidateText(JSON.stringify(qResult.data));
+        // Process topics
+        const topicsRawText = aiResults.topics;
+        let topics: ProcessedPDF['topics'] = [];
+        if (!topicsRawText.startsWith("Error:")) {
+            topics = parseTopicsResponse(topicsRawText);
+        }
+
+        // Process questions with topics and hints
+        const qRawText = aiResults.questions;
         let questions: ProcessedPDF['questions'] = [];
         if (!qRawText.startsWith("Error:")) {
-            qRawText.split(/---DIVIDER---/i).forEach(block => {
-                // FIX: Use a single, more robust regex to parse the entire question block at once.
-                const pattern = /Question:\s*([\s\S]+?)\s*A\)\s*([\s\S]+?)\s*B\)\s*([\s\S]+?)\s*C\)\s*([\s\S]+?)\s*D\)\s*([\s\S]+?)\s*Correct:\s*([A-D])\s*Explanation:\s*([\s\S]+)/is;
-                const match = block.trim().match(pattern);
-
-                if (match) {
-                    const questionText = match[1].trim();
-                    const options = [match[2].trim(), match[3].trim(), match[4].trim(), match[5].trim()];
-                    const correctLetter = match[6].trim().toUpperCase();
-                    const explanationText = match[7].trim();
-
-                    if (questionText && explanationText && options.every(o => o)) {
-                        questions.push({
-                            question: questionText,
-                            options: options,
-                            correctAnswer: ['A', 'B', 'C', 'D'].indexOf(correctLetter),
-                            explanation: explanationText
-                        });
-                    }
-                }
-            });
+            questions = parseQuestionsWithTopics(qRawText);
         }
 
         safeProgress(100);
-        return { title, content, keyPoints, flashcards, questions, sourceUrl: pdfUrl, extractedText: extractedTextFromPdf };
+        return { title, content, keyPoints, flashcards, questions, topics, sourceUrl: pdfUrl, extractedText: extractedTextFromPdf };
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown PDF processing error.';

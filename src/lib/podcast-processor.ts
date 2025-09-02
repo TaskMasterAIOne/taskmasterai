@@ -41,12 +41,12 @@ export async function processTextForPodcast(
     availableSpeakerProfiles: SpeakerProfileForProcessor[]
 ): Promise<PodcastTextProcessResult> {
     if (!settings.speaker1Id) {
-        return { error: "Speaker 1 must be selected for the podcast." };
+        return { error: "Speaker 1 must be selected for the podcast. Please choose a speaker before generating." };
     }
 
     const speaker1Profile = availableSpeakerProfiles.find(p => p.id === settings.speaker1Id);
     if (!speaker1Profile || !speaker1Profile.elevenLabsVoiceId) {
-        return { error: `Configuration error: Speaker 1 ('${settings.speaker1Id}') profile or its ElevenLabs Voice ID is missing.` };
+        return { error: `Configuration error: Speaker 1 ('${settings.speaker1Id}') profile or its ElevenLabs Voice ID is missing. Please check your speaker configuration.` };
     }
 
     let speaker2Profile: SpeakerProfileForProcessor | undefined;
