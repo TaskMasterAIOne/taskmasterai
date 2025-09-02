@@ -68,7 +68,7 @@ export const PRO_EMAILS = [
 ] as const;
 
 export const DEV_EMAILS = [
-  "bajinsrinivasr@lexington1.net"
+  "bajinsrinivasr@lexington1.net", "draco77654@gmail.com"
 ] as const;
 
 export const INTERN_EMAILS = [
