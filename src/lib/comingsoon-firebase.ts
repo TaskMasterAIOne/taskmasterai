@@ -35,7 +35,7 @@ export async function saveFeatureRequest(
 
     // Add the document to the collection
     const docRef = await addDoc(requestsRef, requestData);
-    console.log('Feature request saved with ID:', docRef.id);
+
     return docRef.id; // Return the ID of the newly created document
 
   } catch (error) {

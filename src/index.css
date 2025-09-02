@@ -1,3 +1,9 @@
+/* Import global theme colors */
+@import './theme.css';
+
+/* Import Clarika font */
+@import './fonts/clarika.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -8,17 +14,8 @@
   }
 
   body {
-    @apply bg-gray-900 text-gray-100;
-  }
-
-  /* Blackout mode styling */
-  body.blackout-mode {
-    @apply bg-gray-950;
-  }
-
-  /* Illuminate mode styling */
-  body.illuminate-mode {
-    @apply bg-white text-gray-900;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
   }
 }
 
@@ -35,18 +32,22 @@
     background: transparent;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    @apply bg-gray-400/40 rounded-full; /* Light mode thumb */
-  }
-  html.dark .custom-scrollbar::-webkit-scrollbar-thumb {
-    @apply bg-gray-500/50 rounded-full; /* Dark mode thumb */
+    background-color: var(--bg-highlight);
+    border-radius: 9999px;
   }
   /* Firefox */
   .custom-scrollbar {
     scrollbar-width: thin;
-    scrollbar-color: theme('colors.gray.400/0.4') transparent; /* Light mode */
+    scrollbar-color: var(--bg-highlight) transparent;
   }
-  html.dark .custom-scrollbar {
-    scrollbar-color: theme('colors.gray.500/0.5') transparent; /* Dark mode */
+
+  /* Hidden Scrollbar */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari and Opera */
   }
 
   /* Animations */
@@ -55,6 +56,63 @@
   }
   .animate-pulse {
      animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  /* PDF Modal Containment */
+  .pdf-modal-container {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    z-index: 111;
+    background: var(--bg-primary);
+    border-radius: 0.5rem;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  }
+  
+  .pdf-modal-container iframe,
+  .pdf-modal-container object {
+    position: relative;
+    z-index: 1;
+    max-width: 100%;
+    max-height: 100%;
+    overflow: hidden;
+  }
+  
+  .pdf-modal-container .pdf-content {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  
+  /* Ensure modal backdrop properly contains content */
+  .pdf-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 110;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(4px);
+    pointer-events: auto;
+  }
+  
+  /* Additional PDF containment rules */
+  .pdf-modal-container * {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  
+  /* Ensure PDF content doesn't overflow */
+  .pdf-modal-container iframe[src*=".pdf"],
+  .pdf-modal-container object[type="application/pdf"] {
+    position: relative !important;
+    z-index: 1 !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    overflow: hidden !important;
+    border: none !important;
+    outline: none !important;
   }
 
 }

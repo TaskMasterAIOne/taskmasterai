@@ -1,25 +1,24 @@
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, setPersistence, browserLocalPersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getFunctions } from "firebase/functions";
 import { getStorage } from "firebase/storage";
+import { FIREBASE_CONFIG } from "../config/constants";
 
-// Your Firebase project configuration
-// IMPORTANT: Consider using environment variables for security, especially apiKey
-const firebaseConfig = {
-  apiKey: "AIzaSyDaMAlQRMXiDsZ4P0b06P18id3y5xBiZ1k", // Replace if different
-  authDomain: "deepworkai-c3419.firebaseapp.com",
-  projectId: "deepworkai-c3419",
-  storageBucket: "deepworkai-c3419.appspot.com",
-  messagingSenderId: "367439182644",
-  appId: "1:367439182644:web:304216430df97eff68c361",
-};
+// Firebase configuration from central constants file
+const firebaseConfig = FIREBASE_CONFIG;
 
 // Initialize Firebase App
 const app = initializeApp(firebaseConfig);
 
 // Initialize and get Firebase service instances
 const auth = getAuth(app);
+
+// Set persistence to local to maintain auth state across page reloads
+setPersistence(auth, browserLocalPersistence).catch((error) => {
+  console.error("Error setting auth persistence:", error);
+});
+
 const db = getFirestore(app);
 const functions = getFunctions(app); // Initialize Functions service for calling deployed functions
 const storage = getStorage(app);

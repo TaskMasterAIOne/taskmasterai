@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useState, useLayoutEffect, useRef } from 'react';
+import { useEffect, useState, useLayoutEffect, useRef } from 'react';
 import 'regenerator-runtime/runtime';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
@@ -22,13 +22,14 @@ import PrivacyPolicy from './components/Privacy-Policy';
 import { Dashboard } from './components/Dashboard';
 import Contact from './components/Contact';
 import { Folders } from './components/Folders';
+import { FoldersMaintenance } from './components/FoldersMaintenance';
 import AIChat from './components/AI-Chat';
 import Notes from './components/Notes';
 import './index.css';
-import FriendsOutage from './outage-pages/FriendsOutage';
+
 import Status from './status/Status';
 import { PublicNoteView } from './components/PublicNoteView';
-import ComingSoon from './components/ComingSoon';
+
 import { FocusMode } from './components/Focus-Mode';
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
@@ -49,7 +50,7 @@ const DefaultHelmet = () => (
   </Helmet>
 );
 
-const ThemeProvider = ({ children }) => {
+const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const applyTheme = () => {
       const isIlluminateEnabled = JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'false');
@@ -112,7 +113,7 @@ const UnderMaintenance = () => {
   const darkModeVideo = "https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/TaskMaster%20AI%20Demo%20Video%20(1).mp4?alt=media&token=257d12b1-16b9-4552-9a3d-b3e306fa0f98";
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 font-poppins bg-[#F9FAFB] dark:bg-[#0A0B0F] text-gray-800 dark:text-gray-200">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 font-clarika bg-[var(--bg-page-light)] dark:bg-[var(--bg-page-dark)] text-gray-800 dark:text-gray-200">
       <div className="absolute top-8 sm:top-12 left-1/2 transform -translate-x-1/2">
         <Logo />
       </div>
@@ -126,7 +127,7 @@ const UnderMaintenance = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, ease: "easeOut", delay: 0.1 }}
           >
-            <div ref={cardRef} className="w-full h-full bg-white dark:bg-[#16181D] p-6 sm:p-8 lg:p-10 rounded-2xl border border-gray-200 dark:border-gray-700/50 shadow-lg text-left flex flex-col justify-center min-h-[280px] sm:min-h-[350px] lg:min-h-[465px]">
+            <div ref={cardRef} className="w-full h-full bg-white dark:bg-[var(--bg-card-dark)] p-6 sm:p-8 lg:p-10 rounded-2xl border border-gray-200 dark:border-gray-700/50 shadow-lg text-left flex flex-col justify-center min-h-[280px] sm:min-h-[350px] lg:min-h-[465px]">
               <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
                 <Wrench className="w-8 sm:w-10 h-8 sm:h-10 text-indigo-500 dark:text-indigo-400 flex-shrink-0" />
                 <h1 className="text-2xl sm:text-3xl lg:text-4xl font-semibold text-gray-900 dark:text-white whitespace-nowrap">
@@ -184,14 +185,14 @@ const UnderMaintenance = () => {
       <div className="mt-16 text-center w-full">
         <h3 className="font-semibold text-gray-800 dark:text-white mb-5">In the meantime, check us out!</h3>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <a href="https://www.instagram.com/taskmasteroneai/?hl=en" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between bg-white dark:bg-[#2A2D35] text-gray-800 dark:text-white p-4 rounded-xl hover:bg-gray-100 dark:hover:bg-[#3A3D45] transition-colors shadow-md w-full max-w-xs">
+          <a href="https://www.instagram.com/taskmasteroneai/?hl=en" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between bg-white dark:bg-[var(--bg-card-darker-alt2)] text-gray-800 dark:text-white p-4 rounded-xl hover:bg-gray-100 dark:hover:bg-[var(--bg-card-darker-alt3)] transition-colors shadow-md w-full max-w-xs">
             <div className="flex items-center space-x-3">
               <Instagram className="w-6 h-6 text-pink-500"/>
               <span className="font-semibold text-lg">Instagram</span>
             </div>
             <ArrowRight className="w-5 h-5 text-gray-400 dark:text-gray-500"/>
           </a>
-          <a href="https://www.tiktok.com/@taskmasterai" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between bg-white dark:bg-[#2A2D35] text-gray-800 dark:text-white p-4 rounded-xl hover:bg-gray-100 dark:hover:bg-[#3A3D45] transition-colors shadow-md w-full max-w-xs">
+          <a href="https://www.tiktok.com/@taskmasterai" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between bg-white dark:bg-[var(--bg-card-darker-alt2)] text-gray-800 dark:text-white p-4 rounded-xl hover:bg-gray-100 dark:hover:bg-[var(--bg-card-darker-alt3)] transition-colors shadow-md w-full max-w-xs">
             <div className="flex items-center space-x-3">
               <div className="w-6 h-6 flex items-center justify-center">
                 <img src="https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/tiktok-logo.png?alt=media&token=de834810-541b-4761-a6b5-113bc57d40a8" alt="TikTok Logo" className="w-5 h-5 object-contain" />
@@ -211,7 +212,7 @@ const UnderMaintenance = () => {
 };
 
 const NotFound = () => (
-  <div className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 font-poppins bg-[#F9FAFB] dark:bg-[#0A0B0F] text-gray-800 dark:text-gray-200">
+  <div className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 font-clarika bg-[var(--bg-page-light)] dark:bg-[var(--bg-page-dark)] text-gray-800 dark:text-gray-200">
     <div className="absolute top-8 sm:top-12 left-1/2 transform -translate-x-1/2">
       <Logo />
     </div>
@@ -238,7 +239,7 @@ const NotFound = () => (
     </p>
   </div>
 );
-const PageTitle = ({ title, children }: { title: string; children: React.ReactNode }) => ( <> <Helmet> <title>{title} | TaskMaster AI</title> </Helmet> {children} </> );
+const PageTitle = ({ title, children }: { title: string; children: React.ReactNode }) => ( <> <Helmet> <title>{title} </title> </Helmet> {children} </> );
 const RootTitle = ({ children }: { children: React.ReactNode }) => ( <> <Helmet> <title>TaskMaster AI</title> </Helmet> {children} </> );
 
 const AppRoutes = () => {
@@ -273,7 +274,7 @@ const AppRoutes = () => {
 
   if (authIsLoading) {
     return (
-      <div className="min-h-screen bg-gray-100 dark:bg-[#0A0B0F] flex items-center justify-center">
+      <div className="min-h-screen bg-gray-100 dark:bg-[var(--bg-page-dark)] flex items-center justify-center">
         <Loader2 className="w-10 h-10 text-indigo-500 animate-spin" />
       </div>
     );
@@ -282,7 +283,11 @@ const AppRoutes = () => {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <PageTitle title="Login"><Login /></PageTitle>} />
-      <Route path="/signup" element={user ? <Navigate to="/dashboard" replace /> : <PageTitle title="Sign Up"><SignUp /></PageTitle>} />
+      <Route path="/signup" element={
+        user && !sessionStorage.getItem('signup_in_progress') ? 
+          <Navigate to="/dashboard" replace /> : 
+          <PageTitle title="Sign Up"><SignUp /></PageTitle>
+      } />
       <Route path="/pricing" element={<PageTitle title="Pricing"><Pricing /></PageTitle>} />
       <Route path="/terms" element={<PageTitle title="Terms of Service"><Terms /></PageTitle>} />
       <Route path="/settings" element={user ? <PageTitle title="Settings"><Settings /></PageTitle> : <Navigate to="/login" replace />} />
@@ -292,8 +297,8 @@ const AppRoutes = () => {
       <Route path="/forgot-password" element={<PageTitle title="Reset Password"><ForgotPassword /></PageTitle>} />
       <Route path="/dashboard" element={user ? <PageTitle title="Dashboard"><Dashboard /></PageTitle> : <Navigate to="/login" replace />} />
       <Route path="/contact" element={<PageTitle title="Contact Us"><Contact /></PageTitle>} />
-      <Route path="/folders" element={user ? <PageTitle title="Folders"><Folders /></PageTitle> : <Navigate to="/login" replace />} />
-      <Route path="/ai" element={user ? <PageTitle title="AI Chat"><AIChat /></PageTitle> : <Navigate to="/login" replace />} />
+      <Route path="/folders" element={user ? <PageTitle title="Folders"><FoldersMaintenance /></PageTitle> : <Navigate to="/login" replace />} />
+      <Route path="/chat" element={user ? <PageTitle title="Chat"><AIChat /></PageTitle> : <Navigate to="/login" replace />} />
       <Route path="/notes" element={user ? <PageTitle title="Notes"><Notes /></PageTitle> : <Navigate to="/login" replace />} />
       <Route path="/" element={<RootTitle><App /></RootTitle>} />
       <Route path="/status" element={<PageTitle title="Status"><Status /></PageTitle>} />
@@ -305,20 +310,18 @@ const AppRoutes = () => {
 };
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <HelmetProvider>
-      <DefaultHelmet />
-      <BrowserRouter>
-        <AuthProvider>
-          <ThemeProvider>
-            <Analytics />
-            <SpeedInsights />
-            <AppRoutes />
-          </ThemeProvider>
-        </AuthProvider>
-      </BrowserRouter>
-    </HelmetProvider>
-  </StrictMode>
+  <HelmetProvider>
+    <DefaultHelmet />
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <AuthProvider>
+        <ThemeProvider>
+          <Analytics />
+          <SpeedInsights />
+          <AppRoutes />
+        </ThemeProvider>
+      </AuthProvider>
+    </BrowserRouter>
+  </HelmetProvider>
 );
 
 export {};

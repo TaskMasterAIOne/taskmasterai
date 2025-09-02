@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { Timestamp } from 'firebase/firestore';
 import { UserProfileData } from '../lib/current-paying-user';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 const toDateSafe = (value: any): Date | null => {
     if (!value) return null;
@@ -85,13 +86,16 @@ interface ProfileModalProps {
 export const ProfileModal = ({ isOpen, onClose, userProfile, userName }: ProfileModalProps) => {
     if (!userProfile) return null;
 
+    // Lock body scroll when modal is open
+    useScrollLock(isOpen);
+
     const statCardAnimation = {
         whileHover: { scale: 1.05, y: -2 },
-        transition: { type: "spring", stiffness: 300, damping: 15 }
+        transition: { type: "spring" as const, stiffness: 300, damping: 15 }
     };
     const badgeItemAnimation = {
         whileHover: { scale: 1.08, boxShadow: "0px 4px 12px rgba(0,0,0,0.08)" },
-        transition: { type: "spring", stiffness: 400, damping: 10 }
+        transition: { type: "spring" as const, stiffness: 400, damping: 10 }
     };
 
     return (
@@ -99,7 +103,7 @@ export const ProfileModal = ({ isOpen, onClose, userProfile, userName }: Profile
     {isOpen && (
         <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[200] flex items-center justify-center p-4 overflow-y-auto"
+            className="fixed inset-0 bg-[var(--overlay-dark)] backdrop-blur-sm z-[200] flex items-center justify-center p-4 overflow-y-auto"
             onClick={onClose}
         >
             <motion.div
@@ -107,12 +111,14 @@ export const ProfileModal = ({ isOpen, onClose, userProfile, userName }: Profile
                 animate={{ scale: 1, y: 0, opacity: 1 }}
                 exit={{ scale: 0.9, y: 15, opacity: 0 }}
                 transition={{ duration: 0.25, ease: "easeOut" }}
-                className="relative bg-gradient-to-br from-slate-50 to-gray-100 dark:from-[#10121c] dark:to-[#131520] p-4 sm:p-5 rounded-xl shadow-2xl max-w-4xl w-full text-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700/50 max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 dark:scrollbar-thumb-gray-600"
+                className="relative bg-[var(--bg-card)] p-4 sm:p-5 rounded-xl shadow-2xl max-w-4xl w-full border border-[var(--border-primary)] max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-thumb-[var(--scrollbar-thumb)]"
+                style={{ color: 'var(--text-primary)' }}
                 onClick={e => e.stopPropagation()}
             >
                 <button
                     onClick={onClose}
-                    className="absolute top-3 right-3 sm:top-4 sm:right-4 p-1 rounded-full text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700/60 transition-colors z-10"
+                    className="absolute top-3 right-3 sm:top-4 sm:right-4 p-1 rounded-full hover:bg-[var(--interactive-hover)] transition-colors z-10"
+                    style={{ color: 'var(--text-muted)' }}
                     aria-label="Close profile modal"
                 >
                     <X className="w-4 h-4" />
@@ -122,81 +128,93 @@ export const ProfileModal = ({ isOpen, onClose, userProfile, userName }: Profile
                     initial={{ opacity: 0, y: -8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.05, duration: 0.3 }}
-                    className="flex flex-col sm:flex-row items-center mb-5 pb-3 border-b border-gray-200 dark:border-gray-700/50"
+                    className="flex flex-col sm:flex-row items-center mb-5 pb-3 border-b border-[var(--border-primary)]"
                 >
                     {userProfile.photoURL ? (
                         <motion.img
                             src={userProfile.photoURL} alt="Profile"
-                            className="w-16 h-16 rounded-full mr-0 sm:mr-3 mb-2 sm:mb-0 border-2 border-indigo-500/60 dark:border-indigo-400/60 shadow-sm"
+                            className="w-16 h-16 rounded-full mr-0 sm:mr-3 mb-2 sm:mb-0 shadow-sm"
                             whileHover={{ scale: 1.03, rotate: 1 }}
                         />
                     ) : (
                         <motion.div whileHover={{ scale: 1.03 }}>
-                           <UserIconLucide className="w-16 h-16 rounded-full mr-0 sm:mr-3 mb-2 sm:mb-0 p-3 bg-indigo-100 dark:bg-indigo-800/40 text-indigo-500 dark:text-indigo-300 border-2 border-indigo-500/60 dark:border-indigo-400/60 shadow-sm"/>
+                           <UserIconLucide className="w-16 h-16 rounded-full mr-0 sm:mr-3 mb-2 sm:mb-0 p-3 bg-[var(--bg-highlight)] shadow-sm" style={{ color: 'var(--text-primary)' }}/>
                         </motion.div>
                     )}
                     <div className="text-center sm:text-left">
-                        <h3 className="text-xl font-semibold bg-gradient-to-r from-indigo-500 to-purple-600 dark:from-indigo-400 dark:to-purple-500 bg-clip-text text-transparent">{userProfile.displayName || userName}</h3>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">{userProfile.email}</p>
+                        <h3 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>{userProfile.displayName || userName}</h3>
+                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{userProfile.email}</p>
                     </div>
                 </motion.div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-5">
                     {[
-                        { label: 'Points', value: userProfile.points, icon: TrendingUp, color: 'text-indigo-500 dark:text-indigo-400', gradient: 'from-indigo-400 to-purple-500' },
-                        { label: 'Level', value: userProfile.level, icon: Award, color: 'text-green-500 dark:text-green-400', gradient: 'from-green-400 to-emerald-500' },
-                        { label: 'Streak', value: userProfile.overallStreakCount, icon: Flame, color: 'text-orange-500 dark:text-orange-400', gradient: 'from-orange-400 to-amber-500' },
-                        { label: 'Badges', value: (userProfile.badges || []).length, icon: Trophy, color: 'text-yellow-500 dark:text-yellow-400', gradient: 'from-yellow-400 to-amber-500' },
-                    ].map(stat => (
-                        <motion.div
-                            key={stat.label}
-                            className="bg-white dark:bg-slate-800/50 p-2.5 rounded-lg text-center shadow-sm border border-gray-200 dark:border-gray-700/50"
-                            {...statCardAnimation}
-                        >
-                            <stat.icon className={`w-5 h-5 mx-auto mb-0.5 ${stat.color}`} />
-                            <p className={`text-xl font-semibold text-transparent bg-clip-text bg-gradient-to-r ${stat.gradient}`}>{stat.value}</p>
-                            <p className="text-[9px] sm:text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider">{stat.label}</p>
-                        </motion.div>
-                    ))}
+                        { label: 'Points', value: userProfile.points ?? 0, icon: TrendingUp, color: 'var(--text-primary)', textColor: 'var(--text-primary)' },
+                        { label: 'Level', value: userProfile.level ?? 0, icon: Award, color: 'var(--text-primary)', textColor: 'var(--text-primary)' },
+                        { label: 'Streak', value: userProfile.overallStreakCount ?? 0, icon: Flame, color: 'var(--text-primary)', textColor: 'var(--text-primary)' },
+                        { label: 'Badges', value: (userProfile.badges || []).length, icon: Trophy, color: 'var(--text-primary)', textColor: 'var(--text-primary)' },
+                    ].map(stat => {
+                        const StatIcon = stat.icon;
+                        return (
+                            <motion.div
+                                key={stat.label}
+                                className="bg-[var(--bg-highlight)] p-2.5 rounded-lg text-center shadow-sm border border-[var(--border-primary)]"
+                                {...statCardAnimation}
+                            >
+                                <StatIcon className="w-5 h-5 mx-auto mb-0.5" style={{ color: stat.color }} />
+                                <p className="text-xl font-semibold" style={{ color: stat.textColor }}>{stat.value}</p>
+                                <p className="text-[9px] sm:text-[11px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{stat.label}</p>
+                            </motion.div>
+                        );
+                    })}
                 </div>
 
                 {userProfile.premiumAwardedUntil && (toDateSafe(userProfile.premiumAwardedUntil) || new Date(0)) > new Date() && (
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.1 }}
-                        className="mb-5 p-2.5 bg-gradient-to-r from-green-400 to-emerald-500 dark:from-green-600 dark:to-emerald-700 border border-green-500 dark:border-green-600 rounded-lg text-center shadow-md text-white"
+                        className="mb-5 p-2.5 bg-[var(--status-success)] border border-[var(--status-success)] rounded-lg text-center shadow-md"
                     >
-                        <Crown className="w-6 h-6 mx-auto mb-0.5"/>
-                        <p className="text-xs font-semibold">
+                        <Crown className="w-6 h-6 mx-auto mb-0.5 text-white"/>
+                        <p className="text-xs font-semibold text-white">
                             Free Premium Active!
                         </p>
-                        <p className="text-[10px]">Expires: {(toDateSafe(userProfile.premiumAwardedUntil) || new Date(0)).toLocaleDateString()}</p>
+                        <p className="text-[10px] text-white/90">Expires: {(toDateSafe(userProfile.premiumAwardedUntil) || new Date(0)).toLocaleDateString()}</p>
                     </motion.div>
                 )}
 
-                <h4 className="text-base font-semibold mb-3 text-gray-700 dark:text-gray-200">My Achievements</h4>
+                <h4 className="text-base font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>My Achievements</h4>
                 <div className="grid grid-cols-4 xs:grid-cols-5 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-8 gap-3 mb-3">
                     {Object.entries(ALL_BADGES_CONFIG).map(([badgeKey, badgeConfig]) => {
                         const isUnlocked = (userProfile.badges || []).includes(badgeKey);
-                        const Icon = badgeConfig.icon;
+                        const IconComponent = badgeConfig.icon;
                         return (
                             <motion.div
                                 key={badgeKey}
                                 title={isUnlocked ? `${badgeConfig.name}: ${badgeConfig.description}` : `${badgeConfig.name} (Locked) - Unlock: ${badgeConfig.unlock_criteria_text}`}
-                                className={`group relative flex flex-col items-center p-2 bg-white dark:bg-slate-800/50 rounded-md shadow-sm border border-gray-200 dark:border-gray-700/60 text-center transition-all duration-200 ${!isUnlocked ? 'opacity-50 grayscale filter' : 'hover:border-indigo-300 dark:hover:border-indigo-500'}`}
+                                className={`group relative flex flex-col items-center p-2 ${isUnlocked ? 'bg-[var(--bg-highlight)]' : 'bg-[var(--bg-card)]'} rounded-md shadow-sm border border-[var(--border-primary)] text-center transition-all duration-200 ${!isUnlocked ? 'opacity-50 grayscale filter' : 'hover:border-[var(--bg-accent)]'}`}
                                 {...badgeItemAnimation}
                                 layout
                             >
-                                <Icon className={`w-5 h-5 mb-1 ${isUnlocked ? 'text-indigo-500 dark:text-indigo-400' : 'text-gray-400 dark:text-gray-500'}`} />
-                                <span className={`text-[9px] leading-snug font-medium ${isUnlocked ? 'text-gray-700 dark:text-gray-200' : 'text-gray-500 dark:text-gray-400'}`}>{badgeConfig.name}</span>
+                                <IconComponent className="w-5 h-5 mb-1" style={{ color: isUnlocked ? 'var(--bg-accent)' : 'var(--text-muted)' }} />
+                                <span className="text-[9px] leading-snug font-medium" style={{ color: isUnlocked ? 'var(--text-primary)' : 'var(--text-muted)' }}>{badgeConfig.name}</span>
 
-                                {!isUnlocked && ( <div className="absolute top-0.5 right-0.5 bg-gray-500/20 dark:bg-gray-900/40 p-0.5 rounded-full"> <Lock className="w-2 h-2 text-white dark:text-gray-300" /> </div> )}
-                                 {isUnlocked && ( <div className="absolute top-0.5 right-0.5 bg-green-500/20 dark:bg-green-900/40 p-0.5 rounded-full"> <Check className="w-2 h-2 text-white dark:text-green-300" /> </div> )}
-                                <AnimatePresence>
+                                {!isUnlocked && (
+                                    <div key={`${badgeKey}-lock`} className="absolute top-0.5 right-0.5 bg-[var(--text-muted)]/20 p-0.5 rounded-full">
+                                        <Lock className="w-2 h-2 text-white" />
+                                    </div>
+                                )}
+                                {isUnlocked && (
+                                    <div key={`${badgeKey}-check`} className="absolute top-0.5 right-0.5 bg-[var(--status-success)]/20 p-0.5 rounded-full">
+                                        <Check className="w-2 h-2 text-white" />
+                                    </div>
+                                )}
+                                <AnimatePresence mode="wait">
                                   {!isUnlocked && (
                                     <motion.div
+                                      key={`${badgeKey}-tooltip`}
                                       initial={{ opacity: 0, y: 8 }}
                                       exit={{ opacity: 0, y: 8, transition: { duration: 0.1 } }}
-                                      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-max max-w-[180px] p-1.5 bg-black/75 text-white text-[9px] rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none z-20"
+                                      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-max max-w-[180px] p-1.5 bg-[var(--overlay-dark)] text-white text-[9px] rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none z-20"
                                     >
                                       {badgeConfig.unlock_criteria_text}
                                     </motion.div>
@@ -207,7 +225,7 @@ export const ProfileModal = ({ isOpen, onClose, userProfile, userName }: Profile
                     })}
                 </div>
                  {Object.keys(ALL_BADGES_CONFIG).length === 0 && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400 italic mt-1">Badges are being polished. Check back soon!</p>
+                    <p className="text-xs italic mt-1" style={{ color: 'var(--text-muted)' }}>Badges are being polished. Check back soon!</p>
                 )}
             </motion.div>
         </motion.div>

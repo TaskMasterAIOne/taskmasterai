@@ -452,36 +452,36 @@ export function PublicNoteView() {
     ::-webkit-scrollbar { width: 12px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb {
-        background-color: #d1d5db;
+        background-color: var(--scrollbar-thumb);
         border-radius: 10px;
         border: 3px solid transparent;
         background-clip: content-box;
     }
-    .dark ::-webkit-scrollbar-thumb { background-color: #4b5563; }
-    ::-webkit-scrollbar-thumb:hover { background-color: #9ca3af; }
-    .dark ::-webkit-scrollbar-thumb:hover { background-color: #6b7280; }
+    .dark ::-webkit-scrollbar-thumb { background-color: var(--scrollbar-thumb-dark); }
+    ::-webkit-scrollbar-thumb:hover { background-color: var(--scrollbar-thumb-hover); }
+    .dark ::-webkit-scrollbar-thumb:hover { background-color: var(--scrollbar-thumb-hover-dark); }
 
     .note-content-area {
-        font-family: 'Poppins', sans-serif;
-        font-size: 16px;
-        line-height: 1.8;
-        color: #111827;
+        font-family: var(--font-body);
+        font-size: 14px;
+        line-height: 1.5;
+        color: var(--text-gray-900);
     }
-    .dark .note-content-area { color: #f3f4f6; }
+    .dark .note-content-area { color: var(--text-gray-100); }
 
     .note-content-area h1, .note-content-area h2, .note-content-area h3, .note-content-area h4, .note-content-area h5, .note-content-area h6 {
         font-weight: 600;
-        font-family: 'Poppins', sans-serif;
+        font-family: var(--font-heading);
         margin-top: 1.5em;
         margin-bottom: 0.75em;
         line-height: 1.3;
     }
-    .note-content-area h1 { font-size: 32px; }
-    .note-content-area h2 { font-size: 24px; }
-    .note-content-area h3 { font-size: 1.5em; }
-    .note-content-area h4 { font-size: 1.25em; }
-    .note-content-area h5 { font-size: 1.1em; }
-    .note-content-area h6 { font-size: 1em; font-weight: 700; }
+    .note-content-area h1 { font-size: 24px; }
+    .note-content-area h2 { font-size: 20px; }
+    .note-content-area h3 { font-size: 18px; }
+    .note-content-area h4 { font-size: 16px; }
+    .note-content-area h5 { font-size: 15px; }
+    .note-content-area h6 { font-size: 14px; font-weight: 700; }
 
     .note-content-area p { margin-bottom: 1rem; }
 
@@ -496,22 +496,22 @@ export function PublicNoteView() {
     .note-content-area ol { list-style-type: decimal; }
 
     .note-content-area li {
-        margin-bottom: 1.1em;
+        margin-bottom: 0.5em;
         padding-left: 0.5em;
-        font-size: 18px;
+        font-size: 14px;
     }
     
     .note-content-area a {
-        color: #4f46e5;
+        color: var(--link-primary);
         text-decoration: underline;
     }
-    .dark .note-content-area a { color: #818cf8; }
+    .dark .note-content-area a { color: var(--link-primary-dark); }
 
     .note-content-area table {
         width: 100%;
         border-collapse: collapse;
-        margin: 1.5em 0;
-        font-size: 15px;
+        margin: 1em 0;
+        font-size: 13px;
     }
 
     .note-content-area th, .note-content-area td {
@@ -525,17 +525,17 @@ export function PublicNoteView() {
     .note-content-area tr:last-child { border: 0; }
 
     .note-content-area th {
-        background-color: #F9FAFB;
-        color: #111827;
+        background-color: var(--bg-page-light);
+        color: var(--text-gray-900);
         font-weight: 600;
     }
     .dark .note-content-area th {
-        background-color: #1F2937;
-        color: #F9FAFB;
+        background-color: var(--bg-card-darker-alt);
+        color: var(--text-gray-100);
     }
 
-    .note-content-area td { color: #374151; }
-    .dark .note-content-area td { color: #D1D5DB; }
+    .note-content-area td { color: var(--text-gray-700); }
+    .dark .note-content-area td { color: var(--text-gray-300); }
 
     .note-content-area img {
         border-radius: 12px;
@@ -559,9 +559,9 @@ export function PublicNoteView() {
     .note-content-area blockquote {
         margin: 1.5em 0;
         padding: 12px 20px;
-        border-left: 4px solid #e5e7eb;
-        background-color: #f9fafb;
-        color: #4b5563;
+        border-left: 4px solid var(--border-gray-200);
+        background-color: var(--bg-page-light);
+        color: var(--text-gray-600);
         font-style: italic;
     }
     
@@ -570,19 +570,19 @@ export function PublicNoteView() {
     }
     
     .dark .note-content-area blockquote {
-        border-left-color: #374151;
-        background-color: #161922;
-        color: #9ca3af;
+        border-left-color: var(--border-gray-700);
+        background-color: var(--bg-card-darker);
+        color: var(--text-gray-600);
     }
 
-    .note-content-area .katex { font-size: 1.1em !important; }
-    .note-content-area .katex-display { font-size: 1.15em !important; }
+    .note-content-area .katex { font-size: 0.9em !important; }
+    .note-content-area .katex-display { font-size: 0.85em !important; }
 
     .note-content-area p strong,
     .note-content-area li strong,
     .note-content-area p b,
     .note-content-area li b {
-        color: #4E46DC;
+        color: var(--bg-header);
         font-weight: 600;
     }
     
@@ -590,7 +590,7 @@ export function PublicNoteView() {
     .dark .note-content-area li strong,
     .dark .note-content-area p b,
     .dark .note-content-area li b {
-        color: #DACAFA;
+        color: var(--bg-accent-secondary);
     }
     
     .note-content-area h1 strong, .note-content-area h1 b,
@@ -606,7 +606,7 @@ export function PublicNoteView() {
   return (
     <>
     <style>{globalStyles}</style>
-    <div className={`min-h-screen font-poppins bg-white dark:bg-[#0C0E1A] text-gray-900 dark:text-gray-100 transition-colors duration-300 flex flex-col`}>
+    <div className={`min-h-screen font-clarika bg-white dark:bg-[var(--bg-card-darker-alt5)] text-gray-900 dark:text-gray-100 transition-colors duration-300 flex flex-col`}>
         <main className="w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 flex-grow flex flex-col">
             {loading || error ? (
                 <div className="flex-grow flex items-center justify-center">
@@ -780,7 +780,7 @@ export function PublicNoteView() {
                                         {note.questions.map((q, index) => {
                                             const key = `q-${index}`;
                                             return (
-                                                <div key={key} className={`p-4 md:p-5 rounded-xl bg-gray-50 dark:bg-[#1A1D29]`}>
+                                                <div key={key} className={`p-4 md:p-5 rounded-xl bg-gray-50 dark:bg-[var(--bg-card-darkest)]`}>
                                                     <p className={`text-gray-800 dark:text-gray-200 font-medium mb-4 leading-relaxed`}>
                                                         <span className="text-indigo-500 dark:text-indigo-400 font-semibold mr-2">{index + 1}.</span>
                                                         <RenderWithLatex text={q.question} />

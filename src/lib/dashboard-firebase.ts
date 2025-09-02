@@ -3,6 +3,7 @@
 import { auth, db } from "./firebase"
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { type User, onAuthStateChanged, createUserWithEmailAndPassword, updateProfile } from "firebase/auth"
+import { prepareInitialProfileData } from "./current-paying-user"
 
 import {
   doc,
@@ -20,6 +21,7 @@ import {
   onSnapshot,
   type DocumentData,
   getDocs,
+  type Unsubscribe,
 } from "firebase/firestore"
 
 
@@ -149,18 +151,25 @@ export function onFirebaseAuthStateChanged(callback: (user: User | null) => void
 export async function signUp(email: string, password: string) {
   const userCredential = await createUserWithEmailAndPassword(auth, email, password)
   const user = userCredential.user
+  const initialData = prepareInitialProfileData(user.uid, user.email, user.displayName, user.photoURL);
+  
   await setDoc(doc(db, "users", user.uid), {
+    ...initialData,
     splashScreenShown: false,
     createdAt: serverTimestamp(),
+    lastLoginAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   })
 }
 
 export async function updateUserDisplayName(newDisplayName: string) {
   if (!auth.currentUser) return
   await updateProfile(auth.currentUser, { displayName: newDisplayName })
-  await updateDoc(doc(db, "users", auth.currentUser.uid), {
+  // Use setDoc with merge to handle race conditions gracefully
+  await setDoc(doc(db, "users", auth.currentUser.uid), {
     displayName: newDisplayName,
-  })
+    updatedAt: serverTimestamp(),
+  }, { merge: true })
 }
 
 export async function setUserOnline(userId: string) {
@@ -180,24 +189,49 @@ export async function handleVisibilityChange(userId: string, excludedPages: stri
   }
 }
 
-export async function addCustomTimer(name: string, timeInSeconds: number, userId: string) {
+export async function addCustomTimer(name: string, timeInSeconds: number, userId: string, ambientSoundId?: string) {
+  // Validate inputs
+  if (!name || !name.trim()) {
+    throw new Error('Timer name is required');
+  }
+  if (typeof timeInSeconds !== 'number' || timeInSeconds <= 0 || isNaN(timeInSeconds)) {
+    throw new Error('Time must be a positive number');
+  }
+  if (!userId) {
+    throw new Error('User ID is required');
+  }
+  
   const docRef = await addDoc(collection(db, "customTimers"), {
-    name,
+    name: name.trim(),
     time: timeInSeconds,
     userId,
+    ambientSoundId: ambientSoundId || 'none',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   })
   return docRef.id
 }
 
-export async function updateCustomTimer(timerId: string, newName?: string, newTimeInSeconds?: number) {
+export async function updateCustomTimer(timerId: string, newName?: string, newTimeInSeconds?: number, newAmbientSoundId?: string) {
+  if (!timerId) {
+    throw new Error('Timer ID is required');
+  }
+  
   const updates: any = { updatedAt: serverTimestamp() }
   if (newName !== undefined) {
-    updates.name = newName
+    if (!newName || !newName.trim()) {
+      throw new Error('Timer name cannot be empty');
+    }
+    updates.name = newName.trim()
   }
   if (newTimeInSeconds !== undefined) {
+    if (typeof newTimeInSeconds !== 'number' || newTimeInSeconds <= 0 || isNaN(newTimeInSeconds)) {
+      throw new Error('Time must be a positive number');
+    }
     updates.time = newTimeInSeconds
+  }
+  if (newAmbientSoundId !== undefined) {
+    updates.ambientSoundId = newAmbientSoundId
   }
   await updateDoc(doc(db, "customTimers", timerId), updates)
 }
@@ -365,6 +399,133 @@ export async function findItemByName(
         return null;
     } catch (error) {
         console.error(`Error finding ${fieldName} by name:`, error);
+        return null;
+    }
+}
+
+// Cache for user preferences
+const preferencesCache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// User Preferences Functions
+export async function saveUserPreferences(preferences: { hideBrief?: boolean; hideQuickSuggestions?: boolean }) {
+    try {
+        const user = auth.currentUser;
+        if (!user) throw new Error("User not authenticated");
+        
+        const userDocRef = doc(db, 'users', user.uid);
+        
+        // Use setDoc with merge to create document if it doesn't exist
+        await setDoc(userDocRef, {
+            ...preferences,
+            updatedAt: serverTimestamp()
+        }, { merge: true });
+        
+        // Update cache immediately
+        const cached = preferencesCache.get(user.uid);
+        if (cached) {
+            preferencesCache.set(user.uid, {
+                data: { ...cached.data, ...preferences },
+                timestamp: Date.now()
+            });
+        }
+        
+
+    } catch (error) {
+        console.error("Error saving user preferences:", error);
+        throw error;
+    }
+}
+
+export async function getUserPreferences() {
+    try {
+        const user = auth.currentUser;
+        if (!user) {
+
+            return { hideBrief: false, hideQuickSuggestions: false };
+        }
+        
+        // Check cache first
+        const cached = preferencesCache.get(user.uid);
+        if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
+
+            return {
+                hideBrief: cached.data.hideBrief || false,
+                hideQuickSuggestions: cached.data.hideQuickSuggestions || false
+            };
+        }
+        
+
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDoc = await getDoc(userDocRef);
+        
+        let preferences = { hideBrief: false, hideQuickSuggestions: false };
+        
+        if (userDoc.exists()) {
+            const data = userDoc.data();
+            preferences = {
+                hideBrief: data.hideBrief || false,
+                hideQuickSuggestions: data.hideQuickSuggestions || false
+            };
+
+        } else {
+
+        }
+        
+        // Cache the result
+        preferencesCache.set(user.uid, {
+            data: { hideBrief: preferences.hideBrief, hideQuickSuggestions: preferences.hideQuickSuggestions },
+            timestamp: Date.now()
+        });
+        
+        return preferences;
+    } catch (error) {
+        console.error("Error getting user preferences:", error);
+        return { hideBrief: false, hideQuickSuggestions: false };
+    }
+}
+
+// Real-time listener for user preferences
+export function subscribeToUserPreferences(
+    callback: (preferences: { hideBrief: boolean; hideQuickSuggestions: boolean }) => void
+): Unsubscribe | null {
+    try {
+        const user = auth.currentUser;
+        if (!user) {
+
+            return null;
+        }
+        
+        const userDocRef = doc(db, 'users', user.uid);
+        
+        const unsubscribe = onSnapshot(userDocRef, (doc) => {
+            if (doc.exists()) {
+                const data = doc.data();
+                const preferences = {
+                    hideBrief: data.hideBrief || false,
+                    hideQuickSuggestions: data.hideQuickSuggestions || false
+                };
+                
+                // Update cache immediately
+                preferencesCache.set(user.uid, {
+                    data: preferences,
+                    timestamp: Date.now()
+                });
+                
+
+                callback(preferences);
+            } else {
+
+                const defaultPreferences = { hideBrief: false, hideQuickSuggestions: false };
+                callback(defaultPreferences);
+            }
+        }, (error) => {
+            console.error("Error in preferences subscription:", error);
+        });
+        
+        return unsubscribe;
+    } catch (error) {
+        console.error("Error setting up preferences subscription:", error);
         return null;
     }
 }

@@ -6,6 +6,7 @@ import {
     updateProfile,
     GoogleAuthProvider, 
     signInWithPopup,
+    signOut,
     User
 } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
@@ -13,7 +14,6 @@ import {
     doc, 
     setDoc, 
     getDoc, 
-    updateDoc, 
     serverTimestamp 
 } from 'firebase/firestore';
 import { prepareInitialProfileData } from '../lib/current-paying-user';
@@ -50,9 +50,13 @@ export function SignUpForm() {
       navigate('/onboarding'); 
     }
     catch (err: any) { 
-      if (err.code === 'auth/email-already-in-use') setError('This email address is already in use.'); 
-      else if (err.code === 'auth/weak-password') setError('Password should be at least 6 characters long.'); 
-      else setError('Failed to create account. Please try again.'); 
+      if (err.code === 'auth/email-already-in-use') {
+        setError('You already have an account with this email! Please log in instead.');
+      } else if (err.code === 'auth/weak-password') {
+        setError('Password should be at least 6 characters long.'); 
+      } else {
+        setError('Failed to create account. Please try again.'); 
+      }
       console.error("Sign up error:", err); 
     }
     finally { 
@@ -64,22 +68,22 @@ export function SignUpForm() {
     <form onSubmit={handleSubmit} className="space-y-5">
       <div className="grid grid-cols-2 gap-x-4">
         <div>
-          <label htmlFor="firstName" className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">First name</label>
+          <label htmlFor="firstName" className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">First name</label>
           <input 
             type="text" 
             id="firstName" 
-            className="w-full px-4 py-3 bg-gray-50 dark:bg-[#2A2F3B] border border-gray-300 dark:border-gray-700/60 text-gray-900 dark:text-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-purple-500 focus:border-indigo-500 dark:focus:border-purple-500 transition-colors duration-200 placeholder-gray-400 dark:placeholder-gray-500 text-sm" 
+            className="w-full px-4 py-3 bg-white dark:bg-[var(--bg-highlight)] border border-[var(--border-primary)] text-[var(--text-primary)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--bg-solid-button)] focus:border-[var(--bg-solid-button)] transition-colors duration-200 placeholder-[var(--text-muted)] text-sm" 
             value={firstName} 
             onChange={(e) => setFirstName(e.target.value)} 
             required 
             aria-required="true" />
         </div>
         <div>
-          <label htmlFor="lastName" className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Last name</label>
+          <label htmlFor="lastName" className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Last name</label>
           <input 
             type="text" 
             id="lastName" 
-            className="w-full px-4 py-3 bg-gray-50 dark:bg-[#2A2F3B] border border-gray-300 dark:border-gray-700/60 text-gray-900 dark:text-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-purple-500 focus:border-indigo-500 dark:focus:border-purple-500 transition-colors duration-200 placeholder-gray-400 dark:placeholder-gray-500 text-sm" 
+            className="w-full px-4 py-3 bg-white dark:bg-[var(--bg-highlight)] border border-[var(--border-primary)] text-[var(--text-primary)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--bg-solid-button)] focus:border-[var(--bg-solid-button)] transition-colors duration-200 placeholder-[var(--text-muted)] text-sm" 
             value={lastName} 
             onChange={(e) => setLastName(e.target.value)} 
             required 
@@ -87,11 +91,11 @@ export function SignUpForm() {
         </div>
       </div>
       <div>
-        <label htmlFor="email" className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Email</label>
+        <label htmlFor="email" className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Email</label>
         <input 
           type="email" 
           id="email" 
-          className="w-full px-4 py-3 bg-gray-50 dark:bg-[#2A2F3B] border border-gray-300 dark:border-gray-700/60 text-gray-900 dark:text-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-purple-500 focus:border-indigo-500 dark:focus:border-purple-500 transition-colors duration-200 placeholder-gray-400 dark:placeholder-gray-500 text-sm" 
+          className="w-full px-4 py-3 bg-white dark:bg-[var(--bg-highlight)] border border-[var(--border-primary)] text-[var(--text-primary)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--bg-solid-button)] focus:border-[var(--bg-solid-button)] transition-colors duration-200 placeholder-[var(--text-muted)] text-sm" 
           placeholder="name@example.com" 
           value={email} 
           onChange={(e) => setEmail(e.target.value)} 
@@ -99,11 +103,11 @@ export function SignUpForm() {
           aria-required="true" />
       </div>
       <div>
-        <label htmlFor="password" className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Password</label>
+        <label htmlFor="password" className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Password</label>
         <input 
           type="password" 
           id="password" 
-          className="w-full px-4 py-3 bg-gray-50 dark:bg-[#2A2F3B] border border-gray-300 dark:border-gray-700/60 text-gray-900 dark:text-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-purple-500 focus:border-indigo-500 dark:focus:border-purple-500 transition-colors duration-200 placeholder-gray-400 dark:placeholder-gray-500 text-sm" 
+          className="w-full px-4 py-3 bg-white dark:bg-[var(--bg-highlight)] border border-[var(--border-primary)] text-[var(--text-primary)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--bg-solid-button)] focus:border-[var(--bg-solid-button)] transition-colors duration-200 placeholder-[var(--text-muted)] text-sm" 
           placeholder="••••••••" 
           value={password} 
           onChange={(e) => setPassword(e.target.value)} 
@@ -115,7 +119,7 @@ export function SignUpForm() {
       <button 
         type="submit" 
         disabled={loading} 
-        className="w-full py-3.5 mt-1 bg-indigo-600 hover:bg-indigo-700 dark:bg-gradient-to-r dark:from-purple-600 dark:to-indigo-600 dark:hover:from-purple-700 dark:hover:to-indigo-700 text-white font-semibold rounded-full transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-white dark:focus:ring-offset-[#16181D] focus:ring-indigo-500 dark:focus:ring-purple-500 text-sm" >
+        className="w-full py-3.5 mt-1 bg-[var(--bg-solid-button)] hover:bg-[var(--bg-accent)] text-white font-semibold rounded-full transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[var(--bg-solid-button)] text-sm" >
         {loading ? <Loader2 className="animate-spin h-5 w-5 text-white mx-auto" /> : 'Create an account'}
       </button>
     </form>
@@ -127,35 +131,24 @@ export function GoogleSignUp() {
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  const saveOrUpdateUserData = async (user: User) => {
+  const saveNewUserData = async (user: User) => {
     const userDocRef = doc(db, "users", user.uid);
     try {
-      const docSnap = await getDoc(userDocRef);
       const name = user.displayName || "Anonymous User";
       const photoURL = user.photoURL || null;
       const [firstName, ...lastNameParts] = name.split(' ');
       const lastName = lastNameParts.join(' ');
 
-
-      if (!docSnap.exists()) {
-        const initialData = prepareInitialProfileData(user.uid, user.email, name, photoURL, firstName, lastName);
-        await setDoc(userDocRef, {
-            ...initialData,
-            createdAt: serverTimestamp(),
-            lastLoginAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-        });
-      } else {
-        await updateDoc(userDocRef, {
-          name: name,
-          displayName: name,
-          email: user.email,
-          photoURL: photoURL,
-          lastLoginAt: serverTimestamp()
-        });
-      }
+      // Create new user document (we already checked they don't exist)
+      const initialData = prepareInitialProfileData(user.uid, user.email, name, photoURL, firstName, lastName);
+      await setDoc(userDocRef, {
+          ...initialData,
+          createdAt: serverTimestamp(),
+          lastLoginAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+      });
     } catch (err) {
-      console.error("Error saving or updating user data:", err);
+      console.error("Error saving new user data:", err);
       throw err;
     }
   };
@@ -164,14 +157,32 @@ export function GoogleSignUp() {
     setError(''); 
     setLoading(true);
     try { 
+      // Mark that we're in a signup flow
+      sessionStorage.setItem('signup_in_progress', 'true');
+      
       const provider = new GoogleAuthProvider(); 
       const result = await signInWithPopup(auth, provider); 
-      await saveOrUpdateUserData(result.user); 
+      
+      // Check if user already exists
+      const userDocRef = doc(db, "users", result.user.uid);
+      const docSnap = await getDoc(userDocRef);
+      
+      if (docSnap.exists()) {
+        // User already has an account - sign them out and show error
+        await signOut(auth);
+        sessionStorage.removeItem('signup_in_progress');
+        setError('You already have an account! Please log in instead.');
+        return;
+      }
+      
+      // New user - proceed with signup
+      await saveNewUserData(result.user); 
+      sessionStorage.removeItem('signup_in_progress');
       navigate('/onboarding'); 
     }
     catch (err: any) { 
       if (err.code === 'auth/popup-closed-by-user') { 
-        console.log('Google Sign-In popup closed by user.'); 
+        /* popup closed by user */ 
       } else if (err.code === 'auth/account-exists-with-different-credential') {
         setError('An account already exists with this email using a different sign-in method.'); 
       } else { 
@@ -180,6 +191,7 @@ export function GoogleSignUp() {
       } 
     }
     finally { 
+      sessionStorage.removeItem('signup_in_progress');
       setLoading(false); 
     }
   };
@@ -189,20 +201,20 @@ export function GoogleSignUp() {
       <button
         onClick={handleGoogleSignUp}
         disabled={loading}
-        className="w-full py-3.5 mb-4 bg-white hover:bg-gray-50 dark:bg-[#2A2F3B] dark:hover:bg-gray-700/70 border border-gray-300 dark:border-gray-700/60 text-gray-700 dark:text-gray-200 font-medium rounded-full flex items-center justify-center gap-3 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-white dark:focus:ring-offset-[#16181D] focus:ring-indigo-500 dark:focus:ring-purple-500 text-sm"
+        className="w-full py-3.5 mb-4 bg-[var(--bg-primary)] hover:bg-white dark:bg-[var(--bg-highlight)] border border-[var(--border-primary)] text-[var(--text-primary)] font-medium rounded-full flex items-center justify-center gap-3 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[var(--bg-solid-button)] text-sm"
       >
         {loading ? (
-             <Loader2 className="animate-spin h-5 w-5 text-indigo-500 dark:text-purple-400" />
+             <Loader2 className="animate-spin h-5 w-5 text-[var(--bg-solid-button)]" />
         ) : (
-         <>
+         <div className="flex items-center justify-center gap-3">
             <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="20px" height="20px">
                 <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/>
                 <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/>
                 <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/>
                 <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/>
             </svg>
-            Continue with Google
-         </>
+            <span>Continue with Google</span>
+         </div>
         )}
       </button>
       {error && <p className="text-sm text-center -mt-2 mb-4 text-red-600 dark:text-red-400">{error}</p>}
@@ -219,6 +231,8 @@ function SignUp() {
     }
     return window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
+
+  // Note: Auth protection is handled by the route guard in main.tsx
 
   React.useEffect(() => {
     const applyAndSetTheme = () => {
@@ -267,41 +281,41 @@ function SignUp() {
     : '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)';
 
   return (
-    <div className="min-h-screen font-poppins flex flex-col bg-gray-100 text-gray-900 dark:bg-[#0C0E1A] dark:text-gray-200">
+    <div className="min-h-screen font-clarika flex flex-col bg-[var(--bg-primary)] text-[var(--text-primary)] selection:bg-[var(--bg-accent)] selection:text-white">
       <header className="py-6 px-4 sm:px-6 h-20"></header>
       <main className="flex flex-grow items-center justify-center px-4 py-8">
         <div 
-            className="w-full max-w-md bg-white dark:bg-[#12141D] p-8 sm:p-10 rounded-2xl border border-gray-300 dark:border-gray-700/50 shadow-2xl"
+            className="w-full max-w-md bg-[var(--bg-card)] p-8 sm:p-10 rounded-2xl border border-[var(--border-primary)] shadow-2xl"
             style={{ boxShadow: cardShadow }} 
         >
-          <h2 className="text-3xl font-semibold text-center text-gray-900 dark:text-white mb-2">Sign Up</h2>
-          <p className="text-center text-gray-600 dark:text-gray-400 mb-8 text-sm whitespace-nowrap"> Learn in minutes. No credit card required. </p>
+          <h2 className="text-3xl font-semibold text-center text-[var(--text-primary)] mb-2">Sign Up</h2>
+          <p className="text-center text-[var(--text-secondary)] mb-8 text-sm whitespace-nowrap"> Learn in minutes. No credit card required. </p>
           
           <GoogleSignUp /> 
           
           <div className="flex items-center my-7"> 
-            <hr className="flex-grow border-t border-gray-300 dark:border-gray-600/80" /> 
-            <span className="mx-4 text-gray-400 dark:text-gray-500 text-xs font-semibold tracking-wider">OR</span> 
-            <hr className="flex-grow border-t border-gray-300 dark:border-gray-600/80" /> 
+            <hr className="flex-grow border-t border-[var(--border-primary)]" /> 
+            <span className="mx-4 text-[var(--text-muted)] text-xs font-semibold tracking-wider">OR</span> 
+            <hr className="flex-grow border-t border-[var(--border-primary)]" /> 
           </div>
           
           <SignUpForm /> 
           
           <div className="text-center mt-8"> 
-            <p className="text-sm text-gray-600 dark:text-gray-400"> 
+            <p className="text-sm text-[var(--text-secondary)]"> 
               Already have an account?{' '} 
-              <a href="/login" className="font-medium text-indigo-600 hover:text-indigo-500 dark:text-purple-400 dark:hover:text-purple-300 transition-colors duration-200"> Sign in </a> 
+              <a href="/login" className="font-medium text-[var(--bg-solid-button)] hover:text-[var(--bg-accent)] transition-colors duration-200"> Sign in </a> 
             </p> 
           </div>
         </div>
       </main>
-      <footer className="py-8 bg-gray-100 dark:bg-[#0C0E1A]"> 
-        <div className="text-center text-xs text-gray-500 px-4">
+      <footer className="py-8 bg-[var(--bg-primary)]"> 
+        <div className="text-center text-xs text-[var(--text-muted)] px-4">
           <p className="whitespace-nowrap overflow-hidden text-ellipsis sm:whitespace-normal"> 
             By creating or entering an account, you agree to the{' '} 
-            <a href="/terms" className="font-medium text-indigo-600 hover:text-indigo-500 dark:text-purple-400 dark:hover:text-purple-300 transition-colors duration-200"> Terms of Service </a>{' '} 
+            <a href="/terms" className="font-medium text-[var(--bg-solid-button)] hover:text-[var(--bg-accent)] transition-colors duration-200"> Terms of Service </a>{' '} 
             and{' '} 
-            <a href="/privacy-policy" className="font-medium text-indigo-600 hover:text-indigo-500 dark:text-purple-400 dark:hover:text-purple-300 transition-colors duration-200"> Privacy Policy </a> . 
+            <a href="/privacy-policy" className="font-medium text-[var(--bg-solid-button)] hover:text-[var(--bg-accent)] transition-colors duration-200"> Privacy Policy </a> . 
           </p> 
         </div> 
       </footer>

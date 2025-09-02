@@ -1,17 +1,83 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { useScrollLock } from '../hooks/useScrollLock';
 import {
-    FileText, Upload, Youtube, Mic, Plus, Search,
-    AlertTriangle, X, ChevronRight, ChevronLeft, Bot, FileQuestion, BookOpen,
-    Sparkles, Loader2, Save, Tag, Edit2, Check, Pencil, MessageCircle, Globe,
-    Lock, Trash2, Copy, RefreshCw, SplitSquareVertical, Menu, List, Briefcase,
-    Share2, ClipboardCopy, Eye, ZoomIn, ZoomOut, RotateCcw, Crown, Info,
-    PanelRightClose, PanelLeftClose, GripVertical, PlusCircle,
-    Image as ImageIconLucide, Layers, Download, Camera, Trash, CheckSquare, ArrowLeft,
-    Award, TrendingUp, Flame, User as UserIconLucide, PanelRightOpen,
-    Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Speaker, ChevronDown, ChevronUp, RotateCw as FlipIcon, Gift
+    FileText, Mic, Plus, Search,
+    AlertTriangle, X, ChevronRight, ChevronLeft, FileQuestion, BookOpen,
+    Sparkles, BadgeCheck, Loader2, Save, Edit2, Check, Pencil, MessageCircle, Globe,
+    Lock, Trash2, RefreshCw, SplitSquareVertical, List, Briefcase,
+    Share2, ClipboardCopy, Eye, ZoomIn, ZoomOut, RotateCcw, Crown,
+    PanelLeftClose, GripVertical, PlusCircle, PodcastIcon,
+    Layers, Download, Camera, Trash, ArrowLeft,
+    Award, TrendingUp, Flame, PanelRightOpen,
+    Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Speaker, ChevronDown, RotateCw as FlipIcon, Gift,
+    Notebook
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+// Custom YouTube Icon Component
+const CustomYouTubeIcon: React.FC<{ className?: string }> = ({ className = "" }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    version="1.1" 
+    width="512" 
+    height="512" 
+    x="0" 
+    y="0" 
+    viewBox="0 0 176 176" 
+    className={className}
+  >
+    <g>
+      <g data-name="Layer 2">
+        <g data-name="02.youtube">
+          <path 
+            fill="#e60000" 
+            d="M144.52 173a532.59 532.59 0 0 1-113 0A32.07 32.07 0 0 1 3 144.52a532.59 532.59 0 0 1 0-113A32.07 32.07 0 0 1 31.48 3a532.59 532.59 0 0 1 113 0A32.07 32.07 0 0 1 173 31.48a532.59 532.59 0 0 1 0 113A32.07 32.07 0 0 1 144.52 173z" 
+          />
+          <path 
+            fill="#ffffff" 
+            d="M140.43 61.54c-2.2-6.77-9.48-10.87-16.18-11.81a343.16 343.16 0 0 0-72.5 0c-6.7.94-14 5-16.18 11.81a137.42 137.42 0 0 0 0 52.93c2.2 6.76 9.48 10.87 16.18 11.81a343.16 343.16 0 0 0 72.5 0c6.7-.94 14-5 16.18-11.81a137.42 137.42 0 0 0 0-52.93zm-65.59 47.54V66.92L109.16 88c-11.57 7.11-22.8 14-34.32 21.08z" 
+          />
+        </g>
+      </g>
+    </g>
+  </svg>
+);
+
+// Custom PDF Icon Component
+const CustomPDFIcon: React.FC<{ className?: string }> = ({ className = "" }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    version="1.1" 
+    width="512" 
+    height="512" 
+    x="0" 
+    y="0" 
+    viewBox="0 0 791.454 791.454" 
+    className={className}
+  >
+    <g>
+      <path 
+        fill="var(--bg-accent)" 
+        fillRule="evenodd" 
+        d="M202.808 0h264.609l224.265 233.758v454.661c0 56.956-46.079 103.035-102.838 103.035H202.808c-56.956 0-103.035-46.079-103.035-103.035V103.035C99.772 46.079 145.851 0 202.808 0z" 
+        clipRule="evenodd"
+      />
+      <g fill="#fff">
+        <path 
+          fillRule="evenodd" 
+          d="M467.219 0v231.978h224.463z" 
+          clipRule="evenodd" 
+          opacity=".302" 
+          fill="#ffffff"
+        />
+        <path d="M214.278 590.525V445.959h61.505c15.228 0 27.292 4.153 36.389 12.657 9.097 8.306 13.646 19.579 13.646 33.62s-4.549 25.314-13.646 33.62c-9.097 8.504-21.161 12.657-36.389 12.657H251.26v52.012zm36.982-83.456h20.37c5.537 0 9.888-1.187 12.855-3.955 2.966-2.571 4.549-6.131 4.549-10.877s-1.582-8.306-4.549-10.877c-2.966-2.769-7.317-3.955-12.855-3.955h-20.37zm89.785 83.456V445.959h51.221c10.086 0 19.579 1.384 28.478 4.351 8.899 2.966 17.008 7.12 24.127 12.855 7.12 5.537 12.855 13.052 17.008 22.545 3.955 9.493 6.131 20.37 6.131 32.631 0 12.064-2.175 22.941-6.131 32.433-4.153 9.493-9.888 17.008-17.008 22.545-7.12 5.735-15.228 9.888-24.127 12.855-8.899 2.966-18.392 4.351-28.478 4.351zm36.191-31.444h10.679c5.735 0 11.075-.593 16.019-1.978 4.746-1.384 9.295-3.56 13.646-6.526 4.153-2.966 7.515-7.12 9.888-12.657s3.56-12.064 3.56-19.579c0-7.713-1.187-14.239-3.56-19.776s-5.735-9.69-9.888-12.657c-4.351-2.966-8.899-5.142-13.646-6.526-4.944-1.384-10.284-1.978-16.019-1.978h-10.679zM486.6 590.525V445.959h102.838v31.445h-65.856v23.138h52.605v31.247h-52.605v58.736z" 
+          fill="#ffffff" 
+        />
+      </g>
+    </g>
+  </svg>
+);
 import { Sidebar } from './Sidebar';
 import { auth, db, app } from '../lib/firebase';
 import { User as FirebaseUser } from 'firebase/auth';
@@ -63,7 +129,7 @@ import suneditor from 'suneditor';
 import plugins from 'suneditor/src/plugins';
 import { en } from 'suneditor/src/lang';
 import 'suneditor/dist/css/suneditor.min.css';
-import './Editor.scss';
+
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
@@ -113,10 +179,10 @@ const SunEditorWrapper: React.FC<SunEditorWrapperProps> = ({ initialContent = ''
                     ['removeFormat'],
                     ['fullScreen']
                 ],
-                defaultStyle: "font-family: 'Poppins', sans-serif; font-size: 16px;",
+                defaultStyle: "font-family: var(--font-heading); font-size: 16px;",
                 mode: 'classic',
                 font: [
-                    'Poppins', 'Arial', 'Helvetica', 'Comic Sans MS', 'Courier New',
+                    'Clarika Geometric Medium', 'Arial', 'Helvetica', 'Comic Sans MS', 'Courier New',
                     'Garamond', 'Georgia', 'Impact', 'Lucida Console', 'Tahoma',
                     'Times New Roman', 'Trebuchet MS', 'Verdana'
                 ],
@@ -276,7 +342,7 @@ interface Note extends FirebaseNoteData {
     id: string;
 }
 
-interface UploadProgressState { progress: number; status: string; error: string | null; icon?: React.FC<any>; type?: 'success' | 'error' | 'info'; }
+interface UploadProgressState { progress: number; status: string; error: string | null; icon?: React.FC<any>; type?: 'success' | 'error' | 'info'; customStyle?: { backgroundColor?: string; color?: string; border?: string }; }
 interface NoteUsage { pdfAi: number; youtube: number; }
 
 interface PodcastSpeakerProfile extends SpeakerProfileForProcessor {
@@ -317,6 +383,9 @@ const triggerPodcastGenerationFn = httpsCallable<
 >(firebaseFunctions, 'triggerPodcastGeneration');
 
 const SimpleModal = ({ isOpen, onClose, title, children, maxWidth = "max-w-md" }: { isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; maxWidth?: string}) => {
+    // Lock body scroll when modal is open
+    useScrollLock(isOpen);
+    
     if (!isOpen) return null;
     return (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn" onClick={onClose}>
@@ -325,12 +394,12 @@ const SimpleModal = ({ isOpen, onClose, title, children, maxWidth = "max-w-md" }
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
                 transition={{ duration: 0.2 }}
-                className={`bg-white dark:bg-[#161922] rounded-lg shadow-xl w-full ${maxWidth} flex flex-col overflow-hidden border border-gray-200 dark:border-gray-700/70`}
+                className={`bg-[var(--bg-primary)] rounded-lg shadow-xl w-full ${maxWidth} flex flex-col overflow-hidden border border-[var(--border-primary)]`}
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className={`flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700`}>
-                    <h2 className={`text-lg font-semibold text-gray-800 dark:text-gray-100`}>{title}</h2>
-                    <button onClick={onClose} className={`text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 p-1 rounded-full`}>
+                <div className={`flex justify-between items-center p-4 border-b border-[var(--border-primary)]`}>
+                    <h2 className={`text-lg font-semibold text-[var(--text-primary)]`}>{title}</h2>
+                    <button onClick={onClose} className={`text-[var(--text-muted)] hover:bg-[var(--interactive-hover)] p-1 rounded-full`}>
                         <X className="w-5 h-5" />
                     </button>
                 </div>
@@ -349,15 +418,15 @@ const UpgradeModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
     return (
         <SimpleModal isOpen={isOpen} onClose={onClose} title="Premium Feature">
             <div className="text-center">
-                <Lock className={`w-16 h-16 mx-auto mb-4 text-purple-500 dark:text-purple-400`} />
-                <h3 className={`text-xl font-semibold mb-2 text-gray-800 dark:text-gray-100`}>Feature Locked</h3>
-                <p className={`text-gray-600 dark:text-gray-400 text-sm  mb-6`}>
+                <Lock className={`w-16 h-16 mx-auto mb-4 text-[var(--bg-solid-button)]`} />
+                <h3 className={`text-xl font-semibold mb-2 text-[var(--text-primary)]`}>Feature Locked</h3>
+                <p className={`text-[var(--text-secondary)] text-sm  mb-6`}>
                     This is a Premium feature — upgrade to unlock.
                 </p>
                 <Link
                     to="/pricing"
                     onClick={onClose}
-                    className={`w-full flex items-center justify-center px-4 py-2.5 rounded-full text-sm font-medium bg-purple-500 hover:bg-purple-600 text-white shadow-md hover:shadow-lg transition-shadow`}
+                    className={`w-full flex items-center justify-center px-4 py-2.5 rounded-full text-sm font-medium bg-[var(--bg-solid-button)] hover:bg-[var(--bg-accent-secondary)] text-[var(--text-white)] shadow-md hover:shadow-lg transition-shadow`}
                 >
                     {/* --- FIX IS HERE: Added Crown icon --- */}
                     <Crown className="w-4 h-4 mr-2" />
@@ -387,8 +456,8 @@ const toDateSafe = (value: any): Date | null => {
 
 const BADGES_CONFIG_NOTES: { [key: string]: { name: string, description: string, icon: React.FC<any>, unlock_criteria_text: string, condition?: (profile: UserProfileData, notes?: Note[], noteType?: Note['type']) => boolean } } = {
     firstPersonalNote: { name: "Personal Scribe", description: "Created your first personal note.", icon: Pencil, unlock_criteria_text: "Create 1 personal note", condition: (p) => (p.notesCreatedCount || 0) >=1 && (p.notesCreatedCount || 0) - (p.pdfNotesCreatedCount || 0) - (p.youtubeNotesCreatedCount || 0) - (p.aiNotesCreatedCount || 0) >=1 },
-    firstPdfNote: { name: "PDF Powerhouse", description: "Processed your first PDF.", icon: FileText, unlock_criteria_text: "Process 1 PDF", condition: (p) => (p.pdfNotesCreatedCount || 0) >= 1 },
-    firstYoutubeNote: { name: "Video Virtuoso", description: "Summarized your first YouTube video.", icon: Youtube, unlock_criteria_text: "Summarize 1 YouTube video", condition: (p) => (p.youtubeNotesCreatedCount || 0) >= 1 },
+    firstPdfNote: { name: "PDF Powerhouse", description: "Processed your first PDF.", icon: CustomPDFIcon, unlock_criteria_text: "Process 1 PDF", condition: (p) => (p.pdfNotesCreatedCount || 0) >= 1 },
+    firstYoutubeNote: { name: "Video Virtuoso", description: "Summarized your first YouTube video.", icon: CustomYouTubeIcon, unlock_criteria_text: "Summarize 1 YouTube video", condition: (p) => (p.youtubeNotesCreatedCount || 0) >= 1 },
     firstAiNote: { name: "AI Note Crafter", description: "Created your first AI-processed text note.", icon: Sparkles, unlock_criteria_text: "Create 1 AI text note", condition: (p) => (p.aiNotesCreatedCount || 0) >= 1 },
     fiveNotesCreated: { name: "Note Collector", description: "Created 5 notes in total.", icon: Layers, unlock_criteria_text: "Create 5 notes", condition: (p) => (p.notesCreatedCount || 0) >= 5 },
     twentyFiveNotesCreated: { name: "Note Archivist", description: "Created 25 notes in total.", icon: Briefcase, unlock_criteria_text: "Create 25 notes", condition: (p) => (p.notesCreatedCount || 0) >= 25 },
@@ -404,6 +473,7 @@ const BADGES_CONFIG_NOTES: { [key: string]: { name: string, description: string,
 
 export function Notes() {
     const navigate = useNavigate();
+    const location = useLocation();
     const [user, setUser] = useState<FirebaseUser | null>(null);
     const [userName, setUserName] = useState<string>("User");
     const [userProfile, setUserProfile] = useState<UserProfileData | null>(null);
@@ -516,9 +586,9 @@ export function Notes() {
 
 
     // Define showToast early to avoid initialization errors
-    const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info', icon?: React.FC<any>) => {
-        setUploadProgress({ progress: type === 'success' ? 100 : 0, status: message, error: type === 'error' ? message : null, icon, type });
-        setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null, icon: undefined, type: undefined }), 3500);
+    const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info', icon?: React.FC<any>, customStyle?: { backgroundColor?: string; color?: string; border?: string }) => {
+        setUploadProgress({ progress: type === 'success' ? 100 : 0, status: message, error: type === 'error' ? message : null, icon, type, customStyle });
+        setTimeout(() => setUploadProgress({ progress: 0, status: '', error: null, icon: undefined, type: undefined, customStyle: undefined }), 3500);
     }, []);
 
 
@@ -744,7 +814,7 @@ const handlePodcastToggle = () => {
     const updateOverallStreakAndCheckBadges = useCallback(async () => {
         if (!user || !userProfile) return;
         try {
-            const { newStreakCount, streakBroken } = await updateUserStreak(user.uid, { email: user.email!, displayName: userName }, 'overall');
+            const { newStreakCount, streakBroken } = await updateUserStreak(user.uid, { email: user.email!, displayName: userName });
              if (streakBroken && userProfile.overallStreakCount && userProfile.overallStreakCount > 0) {
                  showToast("Welcome back! Your previous streak was broken.", "info");
             } else if (newStreakCount > (userProfile.overallStreakCount || 0) && newStreakCount > 0) {
@@ -756,7 +826,7 @@ const handlePodcastToggle = () => {
                 if (badgeKey.includes('overallStreak') && !(userProfile.badges || []).includes(badgeKey) && badgeConfig.condition) {
                      if (badgeConfig.condition(updatedProfileForBadgeCheck)) {
                         await addUserBadge(user.uid, badgeKey, { email: user.email!, displayName: userName });
-                        showToast(`Badge Unlocked: ${badgeConfig.name}!`, 'info', badgeConfig.icon);
+                        showToast(`Badge Unlocked: ${badgeConfig.name}!`, 'success', badgeConfig.icon);
                     }
                 }
             });
@@ -805,7 +875,14 @@ const handlePodcastToggle = () => {
             });
 
           } else {
-            navigate('/login');
+            // Don't navigate away if there are active processes that could be interrupted
+            const hasActiveProcesses = showNewNoteModal || isPodcastProcessing || activePodcast || 
+                                      document.querySelector('[data-note-generation="true"]') !== null;
+            
+            if (!hasActiveProcesses) {
+              navigate('/login');
+            }
+            
             setUser(null);
             setUserName("User");
             setUserProfile(null);
@@ -924,6 +1001,46 @@ useEffect(() => {
     return () => unsubscribe();
 }, [user?.uid, isPodcastProcessing]);
 
+    // Handle navigation state from Dashboard suggestions
+    useEffect(() => {
+        if (!location.state) return;
+        
+        const state = location.state as any;
+        
+        // Handle search term from Dashboard suggestions
+        if (state.autoSearch && state.searchTerm) {
+            setSearchQuery(state.searchTerm);
+        }
+        
+        // Handle specific note targeting
+        if (state.targetNoteId && notes.length > 0) {
+            const targetNote = notes.find(note => note.id === state.targetNoteId);
+            if (targetNote) {
+                setSelectedNote(targetNote);
+                // If we found the specific note, clear the search to focus on it
+                setSearchQuery('');
+            }
+        }
+        
+        // Handle navigation from created notes
+        if (state.noteId && notes.length > 0) {
+            const createdNote = notes.find(note => note.id === state.noteId);
+            if (createdNote) {
+                setSelectedNote(createdNote);
+                setSearchQuery('');
+            }
+        }
+        
+        // Handle opening new note modal
+        if (state.openNewNoteModal) {
+            setShowNewNoteModal(true);
+        }
+        
+        // Clear the navigation state after processing to prevent re-triggering
+        if (Object.keys(state).length > 0) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    }, [location.state, notes]);
 
     useEffect(() => {
         if (!showPdfViewer && mainContentAreaRef.current) {
@@ -1053,10 +1170,10 @@ useEffect(() => {
         if (!user || !userProfile) return;
         try {
             const { newPoints, newLevel, newTier } = await updateUserPointsAndLevel(user.uid, points, { email: user.email!, displayName: userName });
-            if (points > 0) showToast(`+${points} Points!`, 'success', TrendingUp);
-            if (newLevel > userProfile.level) showToast(`Level Up! You reached Level ${newLevel}!`, 'info', Award);
+            if (points > 0) showToast(`+${points} Points!`, 'info', TrendingUp);
+            if (newLevel > userProfile.level) showToast(`Level Up! You reached Level ${newLevel}!`, 'success', Award);
             if (newTier === 'premium' && userTier !== 'premium' && (!userProfile.premiumAwardedUntil || (toDateSafe(userProfile.premiumAwardedUntil) || new Date(0)) < new Date())) {
-                showToast(`🎉 You've earned 1 FREE week of Premium!`, 'info', Crown);
+                showToast(`🎉 You've earned 1 FREE week of Premium!`, 'success', Crown);
             }
 
             const updatedProfileForBadgeCheck = { ...userProfile, points: newPoints, level: newLevel };
@@ -1064,7 +1181,7 @@ useEffect(() => {
                 if (!(userProfile.badges || []).includes(badgeKey) && badgeConfig.condition) {
                      if (badgeConfig.condition(updatedProfileForBadgeCheck, notes, noteType)) {
                         await addUserBadge(user.uid, badgeKey, { email: user.email!, displayName: userName });
-                        showToast(`Badge Unlocked: ${badgeConfig.name}!`, 'info', badgeConfig.icon);
+                        showToast(`Badge Unlocked: ${badgeConfig.name}!`, 'success', badgeConfig.icon);
                     }
                 }
             });
@@ -1223,7 +1340,7 @@ useEffect(() => {
         if (activePodcast) handlePodcastStop();
         if (user && userProfile && !(userProfile.badges || []).includes('splitViewUser')) {
             addUserBadge(user.uid, 'splitViewUser', { email: user.email!, displayName: userName });
-            showToast("Badge Unlocked: Dual Viewer!", "info", SplitSquareVertical);
+            showToast("Badge Unlocked: Dual Viewer!", "success", SplitSquareVertical);
         }
     }, [splitViewNotes, isMobile, showPdfViewer, togglePdfViewer, activePodcast, user, userProfile, userName, showToast, handlePodcastStop]);
 
@@ -1318,7 +1435,7 @@ useEffect(() => {
         if (user && userProfile && !(userProfile.badges || []).includes('firstChatWithNote')) {
             incrementUserProfileCounter(user.uid, 'noteChatsStartedCount');
             addUserBadge(user.uid, 'firstChatWithNote', { email: user.email!, displayName: userName });
-            showToast("Badge Unlocked: Note Conversationalist!", "info", MessageCircle);
+            showToast("Badge Unlocked: Note Conversationalist!", "success", MessageCircle);
         }
     }, [selectedNote?.id, showSplitView, showPdfViewer, isMobile, togglePdfViewer, user, userProfile, userName, showToast, activePodcast, handlePodcastStop]);
 
@@ -1331,7 +1448,7 @@ useEffect(() => {
         showToast('Updating via chat...', 'info');
         try {
             await updateNote(noteId, { content: newContent, updatedAt: Timestamp.now() });
-            showToast('Updated via chat!', 'success');
+            showToast('Updated via chat!', 'success', Check);
         } catch (error) {
             showToast('Failed to update note via chat.', 'error');
         } finally {
@@ -1379,13 +1496,13 @@ useEffect(() => {
             };
             await updateNote(selectedNote.id, updatedData);
             setIsEditing(false);
-            showToast('Saved!', 'success');
+            showToast('Saved!', 'success', Check);
             addPointsAndCheckBadges(1);
 
             if (user && userProfile && finalFlashcards.length > (selectedNote.flashcards?.length || 0) && !(userProfile.badges || []).includes('firstFlashcardsFromNote')) {
                  incrementUserProfileCounter(user.uid, 'noteFlashcardsCreatedCount');
                  addUserBadge(user.uid, 'firstFlashcardsFromNote', { email: user.email!, displayName: userName });
-                 showToast("Badge Unlocked: Note Card Wizard!", "info", Layers);
+                 showToast("Badge Unlocked: Note Card Wizard!", "success", Layers);
             }
 
         } catch (error) {
@@ -1417,7 +1534,7 @@ useEffect(() => {
                  if (showSplitView && !uLeft && !uRight) closeSplitView();
                  else if (showSplitView && (!uLeft || !uRight) && isMobile) setShowNotesListOnMobile(true);
             }
-            showToast('Deleted!', 'success');
+            showToast('Deleted!', 'success', Check);
         } catch (error) {
             showToast('Failed to delete note', 'error');
         }
@@ -1427,12 +1544,12 @@ useEffect(() => {
         showToast('Updating visibility...', 'info');
         try {
             await toggleNotePublicStatus(noteId, !currentIsPublic);
-            showToast('Visibility updated!', 'success');
+            showToast('Visibility updated!', 'success', Check);
             if (currentIsPublic) setLinkCopied(false);
 
             if (user && userProfile && !currentIsPublic && !(userProfile.badges || []).includes('publicNoteSharer')) {
                 addUserBadge(user.uid, 'publicNoteSharer', { email: user.email!, displayName: userName });
-                showToast("Badge Unlocked: Public Sharer!", "info", Share2);
+                showToast("Badge Unlocked: Public Sharer!", "success", Share2);
             }
 
         } catch (error) {
@@ -1461,11 +1578,11 @@ useEffect(() => {
             if (newNoteDoc) {
                 handleSelectNote(newNoteDoc as Note);
             }
-            showToast('Note created!', 'success');
+            showToast('Note created!', 'success', Check);
             addPointsAndCheckBadges(2, 'personal');
             if (user && userProfile && !(userProfile.badges || []).includes('firstPersonalNote')) {
                 addUserBadge(user.uid, 'firstPersonalNote', { email: user.email!, displayName: userName });
-                 showToast("Badge Unlocked: Personal Scribe!", "info", Pencil);
+                 showToast("Badge Unlocked: Personal Scribe!", "success", Pencil);
             }
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -1488,11 +1605,11 @@ useEffect(() => {
         const newNoteDoc = await getNoteById(newNoteId);
         if (newNoteDoc) { handleSelectNote(newNoteDoc as Note); }
         
-        showToast('AI Note Created!', 'success', Check);
+        showToast('AI Note Created!', 'success', Sparkles);
         addPointsAndCheckBadges(5, 'personal');
         if (user && userProfile && !(userProfile.badges || []).includes('firstAiNote')) {
             addUserBadge(user.uid, 'firstAiNote', { email: user.email!, displayName: userName });
-            showToast("Badge Unlocked: AI Note Crafter!", "info", Sparkles);
+            showToast("Badge Unlocked: AI Note Crafter!", "success", Sparkles);
         }
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to create AI note';
@@ -1526,7 +1643,7 @@ const handlePDFUpload = async (file: File, onProgress: (progress: number) => voi
         const newNoteDoc = await getNoteById(newNoteId);
         if (newNoteDoc) { handleSelectNote(newNoteDoc as Note); }
         
-        showToast('PDF Note Created!', 'success', Check);
+        showToast('PDF Note Created!', 'success', CustomPDFIcon);
         addPointsAndCheckBadges(5, 'personal');
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to process PDF';
@@ -1561,11 +1678,11 @@ const handleYoutubeLink = async (url: string, onProgress: (progress: number) => 
         const newNoteDoc = await getNoteById(newNoteId);
         if (newNoteDoc) { handleSelectNote(newNoteDoc as Note); }
 
-        showToast('YouTube Note Created!', 'success', Youtube);
+        showToast('YouTube Note Created!', 'success', CustomYouTubeIcon);
         addPointsAndCheckBadges(5, 'youtube');
         if (user && userProfile && !(userProfile.badges || []).includes('firstYoutubeNote')) {
             addUserBadge(user.uid, 'firstYoutubeNote', { email: user.email!, displayName: userName });
-            showToast("Badge Unlocked: YouTube Scholar!", "info", Youtube);
+            showToast("Badge Unlocked: YouTube Scholar!", "success", CustomYouTubeIcon);
         }
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to process YouTube link';
@@ -1621,7 +1738,7 @@ const handleYoutubeLink = async (url: string, onProgress: (progress: number) => 
         }
         try {
             await deletePodcastFromNote(selectedNote.id, podcastId);
-            showToast("Podcast deleted.", "success");
+            showToast("Podcast deleted.", "success", Check);
         } catch (error) {
             showToast("Failed to delete podcast.", "error");
         }
@@ -1745,7 +1862,7 @@ ${contentHtml.replace(/<[^>]+>/g, '\n')}
         }
 
         await triggerPodcastGeneration(selectedNote.id, textProcessingResult.processedSegments, podcastPlaybackSettings);
-        showToast("Your podcast is being generated!", 'success');
+        showToast("Your podcast is being generated!", 'success', Check);
 
     } catch (error: any) {
         showToast(error.message || "Failed to start podcast generation.", 'error');
@@ -1831,7 +1948,7 @@ useEffect(() => {
                 await updateUserNoteUsage(user.uid, 'pdfAi', usageMonth);
             }
             addPointsAndCheckBadges(3);
-            showToast('Questions regenerated!', 'success');
+            showToast('Questions regenerated!', 'success', Check);
         } catch (error) {
             console.error("Error regenerating questions:", error);
             showToast('Failed to regenerate questions.', 'error');
@@ -2082,7 +2199,7 @@ useEffect(() => {
     };
 
     const currentLimits = userTier === 'loading' ? null : NOTE_LIMITS[userTier];
-    const pointsNeededForPremium = userProfile ? Math.max(0, POINTS_FOR_FREE_PREMIUM - userProfile.points) : POINTS_FOR_FREE_PREMIUM;
+    const pointsNeededForPremium = userProfile ? Math.max(0, POINTS_FOR_FREE_PREMIUM - (userProfile.points || 0)) : POINTS_FOR_FREE_PREMIUM;
 
 
     const formatNoteTypeDisplay = (type: string): string => {
@@ -2094,12 +2211,12 @@ useEffect(() => {
     };
 
     const tagColors = {
-        personal: "bg-green-100 text-green-700 dark:bg-green-700/30 dark:text-green-300 border-green-200 dark:border-green-600",
-        pdf: "bg-red-100 text-red-700 dark:bg-red-700/30 dark:text-red-300 border-red-200 dark:border-red-600",
-        youtube: "bg-purple-100 text-purple-700 dark:bg-purple-700/30 dark:text-purple-300 border-purple-200 dark:border-purple-600",
-        audio: "bg-yellow-100 text-yellow-700 dark:bg-yellow-700/30 dark:text-yellow-300 border-yellow-200 dark:border-yellow-600",
-        public: "bg-cyan-100 text-cyan-700 dark:bg-cyan-700/30 dark:text-cyan-300 border-cyan-200 dark:border-cyan-600",
-        custom: "bg-indigo-100 text-indigo-700 dark:bg-indigo-700/30 dark:text-indigo-300 border-indigo-200 dark:border-indigo-600",
+        personal: "bg-[var(--status-success)] text-white border-[var(--status-success)]",
+        pdf: "bg-[var(--bg-accent)] text-white border-[var(--bg-accent)]",
+        youtube: "bg-[var(--status-error)] text-white border-[var(--status-error)]",
+        audio: "bg-[var(--status-warning)] text-white border-[var(--status-warning)]",
+        public: "bg-[var(--status-info)] text-white border-[var(--status-info)]",
+        custom: "bg-[var(--bg-solid-button)] text-white border-[var(--bg-solid-button)]",
     };
 
     const podcastTextObjects = useMemo(() => {
@@ -2112,7 +2229,7 @@ useEffect(() => {
     }, [selectedNote]);
 
     return (
-        <div className={`flex h-screen overflow-hidden bg-[#F7F8FA] dark:bg-[#0C0E1A] text-gray-900 dark:text-gray-100 font-poppins`}>
+        <div className={`flex h-screen overflow-hidden bg-[var(--bg-primary)] text-[var(--text-primary)] font-clarika selection:bg-[var(--bg-accent)] selection:text-white`}>
       <Sidebar
         userName={userName}
         isCollapsed={isSidebarCollapsed}
@@ -2120,7 +2237,6 @@ useEffect(() => {
         isMobileOpen={isMobileSidebarOpen}
         setIsMobileOpen={setIsMobileSidebarOpen}
         userProfile={userProfile}
-        onProfileClick={() => setShowProfileModal(true)}
       />
                   <ProfileModal
                 isOpen={showNotesProfileModal}
@@ -2133,13 +2249,13 @@ useEffect(() => {
             <main className={`pt-14 md:pt-0 flex-1 flex overflow-hidden transition-all duration-300 ${ isSidebarCollapsed ? 'ml-16 md:ml-20' : 'ml-0 md:ml-64' }`}>
 {/* --- END OF FIX --- */}
 
-<div ref={mainContentAreaRef} className={`flex-1 bg-[#F7F8FA] dark:bg-[#0C0E1A] relative overflow-hidden`}>
+<div ref={mainContentAreaRef} className={`flex-1 bg-[var(--bg-primary)] relative overflow-hidden`}>
 
                      {isMobile && !showNotesListOnMobile && !showSideBySideChat && (
-                         <div className={`sticky top-0 z-30 p-2 border-b border-gray-200 dark:border-gray-700/50 bg-white/80 dark:bg-[#0C0E1A]/80 backdrop-blur-sm flex items-center justify-between`}>
-                             <span className={`text-sm font-medium truncate px-2 text-gray-800 dark:text-gray-100`}> {isEditing ? 'Editing Note' : ''} </span>
+                         <div className={`sticky top-0 z-30 p-2 border-b border-[var(--border-primary)] bg-[var(--bg-primary)]/80 backdrop-blur-sm flex items-center justify-between`}>
+                             <span className={`text-sm font-medium truncate px-2 text-[var(--text-primary)]`}> {isEditing ? 'Editing Note' : ''} </span>
                           <div className="w-8 h-8 flex items-center justify-center">
-                                 {selectedNote && !isEditing && !showPdfViewer && !showSplitView && ( <button onClick={handleEditNote} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60`} title="Edit note"> <Edit2 className="w-4 h-4" /> </button> )}
+                                 {selectedNote && !isEditing && !showPdfViewer && !showSplitView && ( <button onClick={handleEditNote} className={`p-1.5 rounded-full text-[var(--text-muted)] hover:bg-[var(--interactive-hover)]`} title="Edit note"> <Edit2 className="w-4 h-4" /> </button> )}
                                  {isEditing && ( <button onClick={handleSaveEdit} disabled={isSaving || !editTitle.trim()} className={`p-1.5 rounded-full bg-indigo-500 hover:bg-indigo-600 text-white ${isSaving || !editTitle.trim() ? 'opacity-50 cursor-not-allowed' : ''}`} title="Save Changes"> {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} </button> )}
                              </div>
                          </div>
@@ -2160,17 +2276,17 @@ useEffect(() => {
                     ) : showSideBySideChat ? (
                         <div className="flex flex-row h-full overflow-hidden">
                              <div
-                                className="flex flex-col overflow-hidden relative border-r border-gray-200 dark:border-gray-700/50"
+                                className="flex flex-col overflow-hidden relative border-r border-[var(--border-primary)]"
                                 style={{ width: `${pdfChatSplitRatio}%` }}
                                 onMouseDown={isScreenshotModeActive ? handleScreenshotMouseDown : undefined}
                                 onMouseMove={isScreenshotModeActive ? handleScreenshotMouseMove : undefined}
                                 onMouseUp={isScreenshotModeActive ? handleScreenshotMouseUp : undefined}
                              >
-                                  <div className={`flex-shrink-0 p-1.5 border-b border-gray-200 dark:border-gray-700/50 bg-gray-50 dark:bg-[#1A1D29] flex items-center justify-between gap-1 sticky top-0 z-20`}>
+                                  <div className={`flex-shrink-0 p-1.5 border-b border-[var(--border-primary)] bg-[var(--bg-primary)] flex items-center justify-between gap-1 sticky top-0 z-20`}>
                                       <div className="flex items-center gap-1">
 <button
     onClick={() => togglePdfViewer(false)}
-    className={`p-1.5 rounded-md flex items-center gap-1 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300`}
+    className={`p-1.5 rounded-md flex items-center gap-1 text-xs bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-secondary)]`}
     title="Go Back"
 >
     <ArrowLeft className="w-4 h-4" />
@@ -2179,8 +2295,8 @@ useEffect(() => {
 <button
     onClick={() => setIsScreenshotModeActive(!isScreenshotModeActive)}
     className={`p-1.5 rounded-md flex items-center gap-1 text-xs text-white shadow-sm hover:shadow-md transition-colors ${isScreenshotModeActive
-        ? 'bg-[#cc2f2f] hover:bg-[#b32929]'   // Cancel button color
-        : 'bg-[#4E46DC] hover:bg-[#4038c5]'   // Snip button color
+        ? 'bg-[var(--status-error)] hover:bg-[var(--status-error)]/80'   // Cancel button color
+        : 'bg-[var(--bg-accent)] hover:bg-[var(--bg-accent-secondary)]'   // Snip button color
     }`}
     title={isScreenshotModeActive ? "Cancel Screenshot Mode" : "Capture PDF Area"}
 >
@@ -2190,26 +2306,26 @@ useEffect(() => {
                                       </div>
                                       
                                       <div className="flex items-center gap-1 text-xs font-medium">
-                                        <span className={`text-xs text-gray-700 dark:text-gray-300`}>Page</span>
-                                        <input type="number" value={pdfPageInput} onChange={handlePdfPageInputChange} onKeyPress={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleGoToPage(); (e.target as HTMLInputElement).blur(); } }} onBlur={handleGoToPage} className={`w-14 text-center bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 text-xs rounded p-1 border border-gray-200 dark:border-gray-600/80 focus:outline-none focus:ring-1 focus:ring-indigo-500`} min="1" max={numPages || undefined} disabled={!numPages} aria-label="Current Page Number" />
-                                        {numPages != null && <span className={`text-xs text-gray-700 dark:text-gray-300`}>of {numPages}</span>}
+                                        <span className={`text-xs text-[var(--text-secondary)]`}>Page</span>
+                                        <input type="number" value={pdfPageInput} onChange={handlePdfPageInputChange} onKeyPress={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleGoToPage(); (e.target as HTMLInputElement).blur(); } }} onBlur={handleGoToPage} className={`w-14 text-center bg-[var(--bg-highlight)] text-[var(--text-primary)] placeholder-[var(--text-muted)] text-xs rounded p-1 border border-[var(--border-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--interactive-focus)]`} min="1" max={numPages || undefined} disabled={!numPages} aria-label="Current Page Number" />
+                                        {numPages != null && <span className={`text-xs text-[var(--text-secondary)]`}>of {numPages}</span>}
                                      </div>
                                      <div className="flex items-center gap-1">
-                                        <div className={`w-px h-4 bg-gray-300 dark:bg-gray-600 mx-0.5`}></div>
-                                        <button onClick={() => changeScale(-0.1)} className={`p-1.5 rounded-md bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400`} title="Zoom Out"> <ZoomOut className="w-4 h-4" /> </button>
-                                        <span className={`text-xs font-medium px-1 text-gray-700 dark:text-gray-300`}>{Math.round(pdfScale * 100)}%</span>
-                                        <button onClick={() => changeScale(0.1)} className={`p-1.5 rounded-md bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400`} title="Zoom In"> <ZoomIn className="w-4 h-4" /> </button>
-                                        <div className={`w-px h-4 bg-gray-300 dark:bg-gray-600 mx-0.5`}></div>
-                                        <button onClick={() => changeRotation(-90)} className={`p-1.5 rounded-md bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400`} title="Rotate Left"> <RotateCcw className="w-4 h-4 transform -scale-x-100" /> </button>
-                                        <button onClick={() => changeRotation(90)} className={`p-1.5 rounded-md bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400`} title="Rotate Right"> <RotateCcw className="w-4 h-4" /> </button>
-                                        <div className={`w-px h-4 bg-gray-300 dark:bg-gray-600 mx-0.5`}></div>
-                                        <button onClick={handleDownloadPdf} disabled={!selectedNote?.sourceUrl || selectedNote.type !== 'pdf'} className={`p-1.5 rounded-md bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 ${(!selectedNote?.sourceUrl || selectedNote.type !== 'pdf') ? 'opacity-50 cursor-not-allowed' : ''}`} title="Download PDF" > <Download className="w-4 h-4" /> </button>
+                                        <div className={`w-px h-4 bg-[var(--border-primary)] mx-0.5`}></div>
+                                        <button onClick={() => changeScale(-0.1)} className={`p-1.5 rounded-md bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-muted)]`} title="Zoom Out"> <ZoomOut className="w-4 h-4" /> </button>
+                                        <span className={`text-xs font-medium px-1 text-[var(--text-secondary)]`}>{Math.round(pdfScale * 100)}%</span>
+                                        <button onClick={() => changeScale(0.1)} className={`p-1.5 rounded-md bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-muted)]`} title="Zoom In"> <ZoomIn className="w-4 h-4" /> </button>
+                                        <div className={`w-px h-4 bg-[var(--border-primary)] mx-0.5`}></div>
+                                        <button onClick={() => changeRotation(-90)} className={`p-1.5 rounded-md bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-muted)]`} title="Rotate Left"> <RotateCcw className="w-4 h-4 transform -scale-x-100" /> </button>
+                                        <button onClick={() => changeRotation(90)} className={`p-1.5 rounded-md bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-muted)]`} title="Rotate Right"> <RotateCcw className="w-4 h-4" /> </button>
+                                        <div className={`w-px h-4 bg-[var(--border-primary)] mx-0.5`}></div>
+                                        <button onClick={handleDownloadPdf} disabled={!selectedNote?.sourceUrl || selectedNote.type !== 'pdf'} className={`p-1.5 rounded-md bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-muted)] ${(!selectedNote?.sourceUrl || selectedNote.type !== 'pdf') ? 'opacity-50 cursor-not-allowed' : ''}`} title="Download PDF" > <Download className="w-4 h-4" /> </button>
                                     </div>
                                   </div>
                                   <p className={`flex-shrink-0 text-center text-[10px] p-0.5 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 sticky top-[37px] z-[19]`}>
                                     {isScreenshotModeActive ? "Click and drag on a page to select an area for chat." : "Highlight text for Explain/Chat options. Use Camera to Snip PDF area."}
                                   </p>
-                                 <div ref={pdfViewerContainerRef} onMouseUp={isScreenshotModeActive ? undefined : handlePdfTextSelection} className={`flex-1 overflow-auto relative bg-gray-100 dark:bg-[#0C0E1A] ${isScreenshotModeActive ? 'cursor-crosshair' : ''}`} >
+                                 <div ref={pdfViewerContainerRef} onMouseUp={isScreenshotModeActive ? undefined : handlePdfTextSelection} className={`flex-1 overflow-auto relative bg-[var(--bg-highlight)] ${isScreenshotModeActive ? 'cursor-crosshair' : ''}`} >
                                      {pdfError ? ( <div className="p-6 text-center text-red-500 flex flex-col items-center justify-center h-full"> <AlertTriangle className="w-10 h-10 mb-3" /> <p className="text-sm font-medium">Error Loading PDF</p> <p className="text-xs mt-1">{pdfError}</p> </div>
                                      ) : selectedNote?.sourceUrl ? (
                                         <Document file={selectedNote.sourceUrl} onLoadSuccess={onDocumentLoadSuccess} onLoadError={onDocumentLoadError} loading={<div className="flex justify-center items-center h-64 pt-10"><Loader2 className="w-6 h-6 animate-spin text-indigo-500"/></div>} className="flex flex-col items-center pdf-document pt-4 pb-8" >
@@ -2226,17 +2342,17 @@ useEffect(() => {
                                                     renderAnnotationLayer={!isScreenshotModeActive}
                                                     renderTextLayer={!isScreenshotModeActive}
                                                     className="mb-2 shadow-md react-pdf__Page"
-                                                    loading={<div className="h-64 flex items-center justify-center text-xs text-gray-500 dark:text-gray-400">Loading page {index + 1}...</div>}
+                                                    loading={<div className="h-64 flex items-center justify-center text-xs text-[var(--text-muted)]">Loading page {index + 1}...</div>}
                                                 />
                                             )))}
                                         </Document>
-                                     ) : ( <div className="p-6 text-center text-gray-500 dark:text-gray-400">PDF source missing.</div> )}
+                                     ) : ( <div className="p-6 text-center text-[var(--text-muted)]">PDF source missing.</div> )}
                                      {isScreenshotModeActive && selectionRect && (
-                                        <div style={{ position: 'absolute', border: '2px dashed #6366f1', backgroundColor: 'rgba(99,102,241,0.1)', left: selectionRect.x + (pdfViewerContainerRef.current?.scrollLeft || 0), top: selectionRect.y + (pdfViewerContainerRef.current?.scrollTop || 0), width: selectionRect.width, height: selectionRect.height, zIndex: 100, pointerEvents: 'none' }} />
+                                        <div style={{ position: 'absolute', border: `2px dashed var(--bg-accent)`, backgroundColor: 'rgba(78, 70, 220, 0.1)', left: selectionRect.x + (pdfViewerContainerRef.current?.scrollLeft || 0), top: selectionRect.y + (pdfViewerContainerRef.current?.scrollTop || 0), width: selectionRect.width, height: selectionRect.height, zIndex: 100, pointerEvents: 'none' }} />
                                      )}
 {showHighlightButtons && highlightButtonPosition && (
   <div
-    className={`highlight-buttons-container absolute z-20 flex items-center bg-white dark:bg-[#0C0E1A] text-gray-900 dark:text-white rounded-xl shadow-lg overflow-hidden`}
+    className={`highlight-buttons-container absolute z-20 flex items-center bg-[var(--bg-primary)] text-[var(--text-primary)] rounded-xl shadow-lg overflow-hidden`}
     style={{
       top: `${highlightButtonPosition.top}px`,
       left: `${highlightButtonPosition.left}px`,
@@ -2250,7 +2366,7 @@ useEffect(() => {
     >
       Explain
     </button>
-    <div className="w-px self-stretch bg-gray-200 dark:bg-gray-500/30"></div>
+    <div className="w-px self-stretch bg-[var(--border-primary)]"></div>
     <button
       onClick={handleChatAboutHighlight}
       className={`text-sm px-4 py-2 transition-colors hover:bg-black/5 dark:hover:bg-white/10`}
@@ -2260,7 +2376,7 @@ useEffect(() => {
   </div>
 )}                               </div>
                              </div>
-                             <div className={`w-1.5 cursor-col-resize flex items-center justify-center flex-shrink-0 bg-gray-300 dark:bg-gray-700 hover:bg-gray-400 dark:hover:bg-gray-600 ${isResizingPdfChatSplit ? '!bg-indigo-500' : ''}`} onMouseDown={handleResizeMouseDown} title="Drag to resize panels"><GripVertical className={`w-4 h-4 pointer-events-none text-gray-600 dark:text-gray-400`} /></div>
+                             <div className={`w-1.5 cursor-col-resize flex items-center justify-center flex-shrink-0 bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] ${isResizingPdfChatSplit ? '!bg-[var(--bg-accent)]' : ''}`} onMouseDown={handleResizeMouseDown} title="Drag to resize panels"><GripVertical className={`w-4 h-4 pointer-events-none text-[var(--text-secondary)]`} /></div>
                              <div className="h-full flex flex-col overflow-hidden" style={{ width: `${100 - pdfChatSplitRatio}%` }}>
                                  {selectedNote && user && ( <NoteChat ref={noteChatRef} key={`chat-inline-${selectedNote.id}`} note={selectedNote} onClose={() => togglePdfViewer(false)} userName={userName} isIlluminateEnabled={!isDarkMode} isBlackoutEnabled={false} isVisible={true} onUpdateNoteContent={handleUpdateNoteContentFromChat} onAddImageToNoteRequest={handleAddImageToNoteRequest} displayMode="inline" userTier={userTier} /> )}
                              </div>
@@ -2268,61 +2384,61 @@ useEffect(() => {
 ) : isSideBySideNoteChatVisible && selectedNote && !isMobile ? (
     <div className="flex flex-row h-full overflow-hidden">
         <div className="flex flex-col overflow-hidden h-full" style={{ width: `${noteChatSplitRatio}%` }}>
-            <div key={`view-split-${selectedNote.id}`} className={`bg-white dark:bg-[#0C0E1A] flex flex-col overflow-hidden h-full`}>
+            <div key={`view-split-${selectedNote.id}`} className={`bg-[var(--bg-primary)] flex flex-col overflow-hidden h-full`}>
                 <div className={`p-4 md:p-6 flex flex-col sm:flex-row sm:items-start sm:justify-between mb-0 gap-3 flex-shrink-0`}>
-                    <h1 className={`text-2xl md:text-2xl font-semibold text-gray-800 dark:text-gray-100 break-words mr-auto pr-4`}>{selectedNote.title || "Untitled"}</h1>
-                    <div className={`flex items-center gap-1 flex-shrink-0  rounded-full p-0.5 bg-white dark:bg-[#0C0E1A]`}>
+                    <h1 className={`text-2xl md:text-2xl font-semibold text-[var(--text-primary)] break-words mr-auto pr-4`}>{selectedNote.title || "Untitled"}</h1>
+                    <div className={`flex items-center gap-1 flex-shrink-0  rounded-full p-0.5 bg-[var(--bg-primary)]`}>
                         {!isMobile && isNotesListHidden && (
                             <>
                                 <button
                                     onClick={handleToggleNotesList}
-                                    className={`p-1.5 rounded-full text-indigo-600 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-700/30 hover:bg-indigo-200 dark:hover:bg-indigo-700/50`}
+                                    className={`p-1.5 rounded-full text-[var(--bg-accent)] bg-[var(--bg-accent)]/10 hover:bg-[var(--interactive-hover)]`}
                                     title="Show Notes List"
                                 >
                                     <PanelRightOpen className="w-4 h-4" />
                                 </button>
-                                <div className={`w-px h-4 bg-gray-300 dark:bg-gray-700/50 mx-0.5`}></div>
+                                <div className={`w-px h-4 bg-[var(--border-primary)] mx-0.5`}></div>
                             </>
                         )}
-                        <button onClick={handleEditNote} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60`} title="Edit"><Edit2 className="w-4 h-4" /></button>
-                        <button onClick={() => handleChatWithNote(selectedNote)} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60`} title="Chat with AI"><MessageCircle className="w-4 h-4" /></button>
+                        <button onClick={handleEditNote} className={`p-1.5 rounded-full text-[var(--text-muted)] hover:bg-[var(--interactive-hover)]`} title="Edit"><Edit2 className="w-4 h-4" /></button>
+                        <button onClick={() => handleChatWithNote(selectedNote)} className={`p-1.5 rounded-full text-[var(--text-muted)] hover:bg-[var(--interactive-hover)]`} title="Chat with AI"><MessageCircle className="w-4 h-4" /></button>
                         {selectedNote.type === 'pdf' && selectedNote.sourceUrl && !isMobile && (
                             <button
                                 onClick={() => togglePdfViewer(true)}
-                                className={`p-1.5 rounded-full flex items-center gap-1 text-xs text-sky-600 dark:text-sky-300 bg-sky-100 dark:bg-sky-700/30 hover:bg-sky-200 dark:hover:bg-sky-700/50 focus:ring-1 focus:ring-sky-300 dark:focus:ring-sky-600`}
+                                className={`p-1.5 rounded-full flex items-center gap-1 text-xs font-medium text-white bg-[var(--bg-accent)] hover:bg-[var(--bg-accent-secondary)] focus:ring-1 focus:ring-[var(--bg-accent)]/50 transition-colors`}
                                 title="View PDF Side-by-Side"
                             >
                                 <Eye className="w-4 h-4" />
                                 <span className="hidden sm:inline">View PDF</span>
                             </button>
                         )}
-                        <button onClick={() => handleTogglePublic(selectedNote.id, selectedNote.isPublic)} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60 ${selectedNote.isPublic ? 'hover:bg-cyan-100/50 dark:hover:bg-cyan-900/30' : ''}`} title={selectedNote.isPublic ? 'Make private' : 'Make public'}>{selectedNote.isPublic ? <Globe className={`w-4 h-4 text-cyan-600 dark:text-cyan-400`} /> : <Lock className="w-4 h-4" />}</button>
-                        {selectedNote.isPublic && ( <button onClick={() => handleGetShareLink(selectedNote.id)} className={`p-1.5 rounded-full relative text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60 ${linkCopied ? 'hover:bg-green-100/50 dark:hover:bg-green-900/30' : ''}`} title="Copy share link">{linkCopied ? <ClipboardCopy className={`w-4 h-4 text-green-500`} /> : <Share2 className="w-4 h-4" />}</button> )}
-                        <div className={`w-px h-4 bg-gray-300 dark:bg-gray-700/50 mx-0.5`}></div>
-                        <button onClick={() => handleDeleteNote(selectedNote.id)} className={`p-1.5 rounded-full text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-700/30`} title="Delete"><Trash2 className="w-4 h-4" /></button>
+                        <button onClick={() => handleTogglePublic(selectedNote.id, selectedNote.isPublic)} className={`p-1.5 rounded-full text-[var(--text-muted)] hover:bg-[var(--interactive-hover)] ${selectedNote.isPublic ? 'hover:bg-cyan-100/50 dark:hover:bg-cyan-900/30' : ''}`} title={selectedNote.isPublic ? 'Make private' : 'Make public'}>{selectedNote.isPublic ? <Globe className={`w-4 h-4 text-[var(--status-info)]`} /> : <Lock className="w-4 h-4" />}</button>
+                        {selectedNote.isPublic && ( <button onClick={() => handleGetShareLink(selectedNote.id)} className={`p-1.5 rounded-full relative text-[var(--text-muted)] hover:bg-[var(--interactive-hover)] ${linkCopied ? 'hover:bg-green-100/50 dark:hover:bg-green-900/30' : ''}`} title="Copy share link">{linkCopied ? <ClipboardCopy className={`w-4 h-4 text-[var(--status-success)]`} /> : <Share2 className="w-4 h-4" />}</button> )}
+                        <div className={`w-px h-4 bg-[var(--border-primary)] mx-0.5`}></div>
+                        <button onClick={() => handleDeleteNote(selectedNote.id)} className={`p-1.5 rounded-full text-[var(--status-error)] hover:bg-[var(--status-error)]/10`} title="Delete"><Trash2 className="w-4 h-4" /></button>
                     </div>
                 </div>
-                <div ref={noteContentRef} className={`flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 px-4 md:px-6 bg-white dark:bg-[#0C0E1A]`}>
+                <div ref={noteContentRef} className={`flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-[var(--scrollbar-thumb)] dark:scrollbar-thumb-[var(--scrollbar-thumb-dark)] px-4 md:px-6 bg-[var(--bg-primary)]`}>
                     <div className="py-1">
                         <KatexRenderer htmlContent={selectedNote.content} />
                     </div>
 
                     {selectedNote.keyPoints && selectedNote.keyPoints.length > 0 && (
-                        <div className={`mt-8 pt-6 border-t border-gray-200 dark:border-gray-700/50`}>
-                            <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 text-gray-800 dark:text-gray-100`}> <Sparkles className={`w-5 h-5 text-yellow-500 dark:text-yellow-400`} /> Key Points </h3>
+                        <div className={`mt-8 pt-6 border-t border-[var(--border-primary)]`}>
+                            <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 text-[var(--text-primary)]`}> <BadgeCheck className={`w-5 h-5 text-[var(--text-primary)]`} /> Key Points </h3>
                             <div className={`space-y-3`}> {selectedNote.keyPoints.map((point, index) => (
-                                <div key={index} className="flex items-start p-3 rounded-lg bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700/50">
-                                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-700/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center text-xs font-semibold mr-3 mt-0.5">{index + 1}</div>
-                                    <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed"><RenderWithLatex text={point} /></p>
+                                <div key={index} className="flex items-start p-3 rounded-lg bg-[var(--bg-card)] border border-[var(--border-primary)] shadow-sm">
+                                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-[var(--bg-accent)]/10 text-[var(--bg-accent)] flex items-center justify-center text-xs font-semibold mr-3 mt-0.5">{index + 1}</div>
+                                    <p className="text-sm text-[var(--text-secondary)] leading-relaxed"><RenderWithLatex text={point} /></p>
                                 </div>
                             ))} </div>
                         </div>
                     )}
 
                     {selectedNote.flashcards && selectedNote.flashcards.length > 0 && (
-                        <div id="flashcards-section" className="my-8 pt-6 border-t border-gray-200 dark:border-gray-700/50">
+                        <div id="flashcards-section" className="my-8 pt-6 border-t border-[var(--border-primary)]">
                             <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100">
+                                <h3 className="text-lg font-semibold flex items-center gap-2 text-[var(--text-primary)]">
                                     <Layers className="w-5 h-5 text-indigo-500 dark:text-indigo-400" /> Flashcards
                                 </h3>
                             </div>
@@ -2365,26 +2481,26 @@ useEffect(() => {
                                 <button
                                     onClick={() => { setCurrentFlashcardIndex(prev => Math.max(0, prev - 1)); setIsFlashcardFlipped(false); }}
                                     disabled={currentFlashcardIndex === 0}
-                                    className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-gray-600 dark:text-gray-300"
+                                    className="p-2 rounded-full bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)]"
                                 > <ChevronLeft className="w-5 h-5" /> </button>
-                                <span className="text-sm text-gray-600 dark:text-gray-400"> {currentFlashcardIndex + 1} / {selectedNote.flashcards.length} </span>
+                                <span className="text-sm text-[var(--text-secondary)]"> {currentFlashcardIndex + 1} / {selectedNote.flashcards.length} </span>
                                 <button
                                     onClick={() => { setCurrentFlashcardIndex(prev => Math.min(selectedNote.flashcards!.length - 1, prev + 1)); setIsFlashcardFlipped(false); }}
                                     disabled={currentFlashcardIndex === selectedNote.flashcards.length - 1}
-                                    className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-gray-600 dark:text-gray-300"
+                                    className="p-2 rounded-full bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)]"
                                 > <ChevronRight className="w-5 h-5" /> </button>
                             </div>
-                            <button onClick={() => setIsFlashcardFlipped(!isFlashcardFlipped)} className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200">
+                            <button onClick={() => setIsFlashcardFlipped(!isFlashcardFlipped)} className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-secondary)]">
                                 <FlipIcon className="w-4 h-4" /> Flip Card
                             </button>
                         </div>
                     )}
 
                     {selectedNote.questions && selectedNote.questions.length > 0 && (
-                        <div id="study-questions-section" className={`mt-8 pt-6 border-t border-gray-200 dark:border-gray-700/50`}>
+                        <div id="study-questions-section" className={`mt-8 pt-6 border-t border-[var(--border-primary)]`}>
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
-                                <h3 className={`text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100`}><BookOpen className={`w-5 h-5 text-purple-500 dark:text-purple-400`} />Study Questions</h3>
-                                <button onClick={handleRegenerateQuestions} disabled={isRegeneratingQuestions} className={`bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-md text-xs flex items-center gap-1.5 ${isRegeneratingQuestions ? 'opacity-50 cursor-not-allowed' : ''}`} title="Regenerate"> {isRegeneratingQuestions ? (<> <Loader2 className="w-3.5 h-3.5 animate-spin" /> Regenerating... </>) : (<> <RefreshCw className="w-3.5 h-3.5" /> Regenerate </>)} </button>
+                                <h3 className={`text-lg font-semibold flex items-center gap-2 text-[var(--text-primary)]`}><BookOpen className={`w-5 h-5 text-purple-500 dark:text-purple-400`} />Study Questions</h3>
+                                <button onClick={handleRegenerateQuestions} disabled={isRegeneratingQuestions} className={`bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded-md text-xs flex items-center gap-1.5 ${isRegeneratingQuestions ? 'opacity-50 cursor-not-allowed' : ''}`} title="Regenerate"> {isRegeneratingQuestions ? (<> <Loader2 className="w-3.5 h-3.5 animate-spin" /> Regenerating... </>) : (<> <RefreshCw className="w-3.5 h-3.5" /> Regenerate </>)} </button>
                             </div>
                             <div className="space-y-5">
                                 {selectedNote.questions.map((q, index) => {
@@ -2393,8 +2509,8 @@ useEffect(() => {
                                     const answered = answer != null;
                                     const isCorrect = answered && answer === q.correctAnswer;
                                     return (
-                                        <div key={key} className={`p-4 md:p-5 rounded-xl transition-colors duration-300 ${answered ? (isCorrect ? 'bg-green-500/10' : 'bg-red-500/10') : 'bg-gray-50 dark:bg-[#1A1D29]'}`}>
-                                            <p className={`text-gray-800 dark:text-gray-200 font-medium mb-4 leading-relaxed`}>
+                                        <div key={key} className={`p-4 md:p-5 rounded-xl transition-colors duration-300 ${answered ? (isCorrect ? 'bg-[var(--status-success)]/10' : 'bg-[var(--status-error)]/10') : 'bg-[var(--bg-highlight)]'}`}>
+                                            <p className={`text-[var(--text-primary)] font-medium mb-4 leading-relaxed`}>
                                                 <span className="text-indigo-500 dark:text-indigo-400 font-semibold mr-2">{index + 1}.</span>
                                                 <RenderWithLatex text={q.question} />
                                             </p>
@@ -2407,15 +2523,15 @@ useEffect(() => {
                                                     if (answered) {
                                                         if (sel) {
                                                             stateClasses = cor
-                                                                ? `bg-green-100 dark:bg-green-500/20 text-green-800 dark:text-white font-semibold border-green-300 dark:border-green-500/50 cursor-default`
-                                                                : `bg-red-100 dark:bg-red-500/20 text-red-800 dark:text-white font-semibold border-red-300 dark:border-red-500/50 cursor-default`;
+                                                                ? `bg-[var(--status-success)]/10 text-[var(--status-success)] font-semibold border-[var(--status-success)]/30 cursor-default`
+                                                                : `bg-[var(--status-error)]/10 text-[var(--status-error)] font-semibold border-[var(--status-error)]/30 cursor-default`;
                                                         } else if (cor) {
-                                                            stateClasses = `bg-green-100 dark:bg-green-500/20 text-green-800 dark:text-white border-green-300 dark:border-green-500/50 cursor-default`;
+                                                            stateClasses = `bg-[var(--status-success)]/10 text-[var(--status-success)] border-[var(--status-success)]/30 cursor-default`;
                                                         } else {
-                                                            stateClasses = `bg-gray-100 dark:bg-gray-700/40 text-gray-500 dark:text-gray-400 border-transparent cursor-default opacity-70`;
+                                                            stateClasses = `bg-[var(--bg-highlight)] text-[var(--text-muted)] border-transparent cursor-default opacity-70`;
                                                         }
                                                     } else {
-                                                        stateClasses = `bg-white dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 focus:ring-2 focus:ring-indigo-400 focus:outline-none text-gray-700 dark:text-gray-300`;
+                                                        stateClasses = `bg-[var(--bg-primary)] border-[var(--border-primary)] hover:border-[var(--bg-accent)] hover:bg-[var(--interactive-hover)] focus:ring-2 focus:ring-[var(--interactive-focus)] focus:outline-none text-[var(--text-secondary)]`;
                                                     }
 
                                                     return (
@@ -2427,7 +2543,7 @@ useEffect(() => {
                                                         >
                                                             <span><RenderWithLatex text={opt} /></span>
                                                             <div className={`flex-shrink-0 ml-4 w-6 h-6 flex items-center justify-center rounded-full transition-colors
-                                                                ${answered && (sel || cor) ? (cor ? 'bg-green-500/20 border-green-500/30' : 'bg-red-500/20 border-red-500/30') : 'bg-gray-200/50 dark:bg-gray-700/50 border-gray-300 dark:border-gray-600'}
+                                                                ${answered && (sel || cor) ? (cor ? 'bg-green-500/20 border-green-500/30' : 'bg-red-500/20 border-red-500/30') : 'bg-[var(--bg-highlight)] border-[var(--border-primary)]'}
                                                             `}>
                                                                 {answered && sel && (cor ? <Check className="w-4 h-4 text-green-600" /> : <X className="w-4 h-4 text-red-600" />)}
                                                                 {answered && !sel && cor && <Check className="w-4 h-4 text-green-600" />}
@@ -2437,7 +2553,7 @@ useEffect(() => {
                                                 })}
                                             </div>
                                             {answered && q.explanation && (
-                                                <div className={`mt-4 p-3 rounded-lg text-sm leading-relaxed ${isCorrect ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'}`}>
+                                                <div className={`mt-4 p-3 rounded-lg text-sm leading-relaxed ${isCorrect ? 'bg-[var(--status-success)]/10 text-[var(--status-success)]' : 'bg-[var(--status-error)]/10 text-[var(--status-error)]'}`}>
                                                     <strong className="font-semibold">Explanation: </strong><RenderWithLatex text={q.explanation} />
                                                 </div>
                                             )}
@@ -2451,13 +2567,13 @@ useEffect(() => {
             </div>
         </div>
         <div
-            className={`w-1.5 cursor-col-resize flex items-center justify-center flex-shrink-0 bg-gray-300 dark:bg-gray-700 hover:bg-gray-400 dark:hover:bg-gray-600 ${isResizingNoteChatSplit ? '!bg-indigo-500' : ''}`}
+            className={`w-1.5 cursor-col-resize flex items-center justify-center flex-shrink-0 bg-[var(--border-primary)] hover:bg-[var(--interactive-hover)] ${isResizingNoteChatSplit ? '!bg-indigo-500' : ''}`}
             onMouseDown={handleNoteChatResizeMouseDown}
             title="Drag to resize panels"
         >
-            <GripVertical className={`w-4 h-4 pointer-events-none text-gray-600 dark:text-gray-400`} />
+            <GripVertical className={`w-4 h-4 pointer-events-none text-[var(--text-secondary)]`} />
         </div>
-        <div className="h-full flex flex-col overflow-hidden border-l border-gray-200 dark:border-gray-700/50" style={{ width: `${100 - noteChatSplitRatio}%` }}>
+        <div className="h-full flex flex-col overflow-hidden border-l border-[var(--border-primary)]" style={{ width: `${100 - noteChatSplitRatio}%` }}>
             {user && (
                 <NoteChat
                     ref={noteChatRef}
@@ -2479,22 +2595,22 @@ useEffect(() => {
                     ) : (
                         <div className={`h-full`}>
                             {showSplitView && (!splitViewNotes.left || !splitViewNotes.right) ? (
-                                <div className={`flex flex-col items-center justify-center bg-white dark:bg-[#0C0E1A] h-full text-center p-6`}>
-                                    <SplitSquareVertical className={`w-12 h-12 text-gray-400 dark:text-gray-500 mb-4`} />
-                                    <h2 className={`text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2`}>Compare Notes</h2>
-                                    <p className={`text-gray-600 dark:text-gray-400 text-sm mb-4`}>Select {splitViewNotes.left ? 'one more note' : 'two notes'} from the list.</p>
-                                    <p className={`text-xs text-gray-500 dark:text-gray-400 mb-4`}>Selected: {splitViewNotes.left ? 1 : 0}/2</p>
-                                    <button onClick={closeSplitView} className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-md text-sm`}>Cancel Comparison</button>
+                                <div className={`flex flex-col items-center justify-center bg-[var(--bg-primary)] h-full text-center p-6`}>
+                                    <SplitSquareVertical className={`w-12 h-12 text-[var(--text-muted)] mb-4`} />
+                                    <h2 className={`text-lg font-semibold text-[var(--text-primary)] mb-2`}>Compare Notes</h2>
+                                    <p className={`text-[var(--text-secondary)] text-sm mb-4`}>Select {splitViewNotes.left ? 'one more note' : 'two notes'} from the list.</p>
+                                    <p className={`text-xs text-[var(--text-muted)] mb-4`}>Selected: {splitViewNotes.left ? 1 : 0}/2</p>
+                                    <button onClick={closeSplitView} className={`bg-[var(--bg-card)] border border-[var(--border-primary)] hover:bg-[var(--interactive-hover)] text-[var(--text-primary)] px-3 py-1.5 rounded-md text-sm`}>Cancel Comparison</button>
                                 </div>
                             ) : selectedNote ? (
                                 isEditing ? (
-                                    <div key={`edit-${selectedNote.id}`} className={`bg-white dark:bg-[#0C0E1A] flex flex-col h-full`}>
+                                    <div key={`edit-${selectedNote.id}`} className={`bg-[var(--bg-primary)] flex flex-col h-full`}>
                                         <div className="p-4 pt-5 md:p-6 flex-shrink-0 ">
                                             <input
                                                 type="text"
                                                 value={editTitle}
                                                 onChange={(e) => setEditTitle(e.target.value)}
-                                                className={`w-full bg-transparent text-gray-800 dark:text-gray-100 text-2xl font-semibold focus:outline-none placeholder-gray-400 dark:placeholder-gray-500 border-none ring-0 focus:ring-0 p-0`}
+                                                className={`w-full bg-transparent text-[var(--text-primary)] text-2xl font-semibold focus:outline-none placeholder-[var(--text-muted)] border-none ring-0 focus:ring-0 p-0`}
                                                 placeholder="Note title..."
                                             />
                                             <div className="flex flex-wrap items-center gap-2 mt-3">
@@ -2508,8 +2624,8 @@ useEffect(() => {
                                                 ))}
                                                 {editTags.length < 5 && (
                                                     <div className="flex items-center gap-1">
-                                                        <input type="text" value={newTag} onChange={(e) => setNewTag(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleAddTag()} placeholder="Add tag..." className={`bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 rounded-full px-2.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 w-24`} />
-                                                        <button onClick={handleAddTag} className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-2 py-0.5 rounded-full text-xs`}>Add</button>
+                                                        <input type="text" value={newTag} onChange={(e) => setNewTag(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleAddTag()} placeholder="Add tag..." className={`bg-[var(--bg-card)] border-[var(--border-primary)] text-[var(--text-primary)] placeholder-[var(--text-muted)] rounded-full px-2.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--interactive-focus)] w-24`} />
+                                                        <button onClick={handleAddTag} className={`bg-[var(--bg-highlight)] border border-[var(--border-primary)] hover:bg-[var(--interactive-hover)] text-[var(--text-primary)] px-2 py-0.5 rounded-full text-xs`}>Add</button>
                                                     </div>
                                                 )}
                                             </div>
@@ -2522,26 +2638,26 @@ useEffect(() => {
                                                 />
                                             </div>
                                             <div className="flex-shrink-0 p-4">
-                                                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700/50">
-                                                    <h3 className="text-base font-semibold mb-3 flex items-center gap-1.5 text-gray-800 dark:text-gray-100">
-                                                        <Sparkles className="w-4 h-4 text-yellow-500 dark:text-yellow-400" />
+                                                <div className="mt-4 pt-4 border-t border-[var(--border-primary)]">
+                                                    <h3 className="text-base font-semibold mb-3 flex items-center gap-1.5 text-[var(--text-primary)]">
+                                                        <BadgeCheck className="w-4 h-4 text-[var(--text-primary)]" />
                                                         Key Points
                                                     </h3>
                                                     {editKeyPoints.length > 0 ? (
                                                         <div className="space-y-2">
                                                             {editKeyPoints.map((point, index) => (
-                                                                <div key={index} className="group flex items-start gap-2 p-2 rounded-lg bg-gray-50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-700/40 transition-colors">
+                                                                <div key={index} className="group flex items-start gap-2 p-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border-primary)] hover:bg-[var(--interactive-hover)] transition-colors">
                                                                     <span className="mt-1.5 flex-shrink-0 w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-700/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center text-[10px] font-semibold">{index + 1}</span>
                                                                     <textarea
                                                                         rows={1}
                                                                         value={point}
                                                                         onChange={(e) => handleKeyPointChange(index, e.target.value)}
                                                                         placeholder={`Key point ${index + 1}`}
-                                                                        className="flex-grow bg-transparent text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 text-sm rounded focus:outline-none resize-y min-h-[28px] py-1 leading-relaxed"
+                                                                        className="flex-grow bg-[var(--bg-primary)] text-[var(--text-secondary)] placeholder-[var(--text-muted)] text-sm rounded focus:outline-none resize-y min-h-[28px] py-1 leading-relaxed border border-[var(--border-primary)] shadow-sm"
                                                                     />
                                                                     <button
                                                                         onClick={() => handleRemoveKeyPoint(index)}
-                                                                        className="mt-0.5 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                        className="mt-0.5 text-[var(--text-muted)] hover:text-red-500 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                                                                         title="Remove Point"
                                                                     >
                                                                         <Trash className="w-3.5 h-3.5" />
@@ -2550,7 +2666,7 @@ useEffect(() => {
                                                             ))}
                                                         </div>
                                                     ) : (
-                                                        <p className="text-xs text-gray-500 dark:text-gray-400 italic">No key points added yet.</p>
+                                                        <p className="text-xs text-[var(--text-muted)] italic">No key points added yet.</p>
                                                     )}
                                                     <button
                                                         onClick={handleAddKeyPoint}
@@ -2560,46 +2676,46 @@ useEffect(() => {
                                                     </button>
                                                 </div>
 
-                                                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700/50">
-                                                    <h3 className="text-base font-semibold mb-3 flex items-center gap-1.5 text-gray-800 dark:text-gray-100">
+                                                <div className="mt-4 pt-4 border-t border-[var(--border-primary)]">
+                                                    <h3 className="text-base font-semibold mb-3 flex items-center gap-1.5 text-[var(--text-primary)]">
                                                         <Layers className="w-4 h-4 text-purple-500 dark:text-purple-400" />
                                                         Flashcards
                                                     </h3>
                                                     {editFlashcards.length > 0 ? (
                                                         <div className="space-y-3">
                                                             {editFlashcards.map((card, index) => (
-                                                                <div key={index} className="group relative p-3 rounded-lg bg-gray-50 dark:bg-gray-800/30 shadow-sm">
+                                                                <div key={index} className="group relative p-3 rounded-lg bg-[var(--bg-card)] border border-[var(--border-primary)] shadow-sm">
                                                                     <span className="absolute top-2 left-2.5 px-1.5 py-0.5 text-[9px] font-semibold bg-purple-100 dark:bg-purple-700/40 text-purple-700 dark:text-purple-200 rounded-full">
                                                                         Card {index + 1}
                                                                     </span>
                                                                     <button
                                                                         onClick={() => handleRemoveFlashcard(index)}
-                                                                        className="absolute top-2 right-2 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                        className="absolute top-2 right-2 text-[var(--text-muted)] hover:text-red-500 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                                                                         title="Remove Card"
                                                                     >
                                                                         <Trash className="w-3.5 h-3.5" />
                                                                     </button>
                                                                     <div className="space-y-2.5 mt-4">
                                                                         <div>
-                                                                            <label htmlFor={`flashcard-front-${index}`} className="block text-[11px] font-medium text-gray-600 dark:text-gray-400 mb-0.5 ml-1">Front</label>
+                                                                            <label htmlFor={`flashcard-front-${index}`} className="block text-[11px] font-medium text-[var(--text-secondary)] mb-0.5 ml-1">Front</label>
                                                                             <textarea
                                                                                 id={`flashcard-front-${index}`}
                                                                                 rows={2}
                                                                                 value={card.front}
                                                                                 onChange={(e) => handleFlashcardChange(index, 'front', e.target.value)}
                                                                                 placeholder="Term or question..."
-                                                                                className="w-full bg-white dark:bg-[#0C0E1A] border border-gray-200 dark:border-gray-600/70 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 text-sm rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y min-h-[40px] leading-relaxed"
+                                                                                className="w-full bg-[var(--bg-primary)] border border-[var(--border-primary)] text-[var(--text-secondary)] placeholder-[var(--text-muted)] text-sm rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y min-h-[40px] leading-relaxed"
                                                                             />
                                                                         </div>
                                                                         <div>
-                                                                            <label htmlFor={`flashcard-back-${index}`} className="block text-[11px] font-medium text-gray-600 dark:text-gray-400 mb-0.5 ml-1">Back</label>
+                                                                            <label htmlFor={`flashcard-back-${index}`} className="block text-[11px] font-medium text-[var(--text-secondary)] mb-0.5 ml-1">Back</label>
                                                                             <textarea
                                                                                 id={`flashcard-back-${index}`}
                                                                                 rows={2}
                                                                                 value={card.back}
                                                                                 onChange={(e) => handleFlashcardChange(index, 'back', e.target.value)}
                                                                                 placeholder="Definition or answer..."
-                                                                                className="w-full bg-white dark:bg-[#0C0E1A] border border-gray-200 dark:border-gray-600/70 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 text-sm rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y min-h-[40px] leading-relaxed"
+                                                                                className="w-full bg-[var(--bg-primary)] border border-[var(--border-primary)] text-[var(--text-secondary)] placeholder-[var(--text-muted)] text-sm rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y min-h-[40px] leading-relaxed"
                                                                             />
                                                                         </div>
                                                                     </div>
@@ -2607,7 +2723,7 @@ useEffect(() => {
                                                             ))}
                                                         </div>
                                                     ) : (
-                                                        <p className="text-xs text-gray-500 dark:text-gray-400 italic">No flashcards added yet.</p>
+                                                        <p className="text-xs text-[var(--text-muted)] italic">No flashcards added yet.</p>
                                                     )}
                                                     <button
                                                         onClick={handleAddFlashcard}
@@ -2618,16 +2734,16 @@ useEffect(() => {
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className={`flex justify-end items-center gap-2 p-4  flex-shrink-0 bg-white dark:bg-[#0C0E1A]`}>
-                                            <button onClick={handleCancelEdit} className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-4 py-1.5 rounded-md text-sm`}>Cancel</button>
-                                            <button onClick={handleSaveEdit} disabled={isSaving || !editTitle.trim()} className={`bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-1.5 rounded-md text-sm flex items-center gap-1.5 ${isSaving || !editTitle.trim() ? 'opacity-50 cursor-not-allowed' : ''}`}> {isSaving ? (<> <Loader2 className="w-4 h-4 animate-spin" /> Saving... </>) : (<> <Save className="w-4 h-4" /> Save </>)} </button>
+                                        <div className={`flex justify-end items-center gap-2 p-4  flex-shrink-0 bg-[var(--bg-primary)]`}>
+                                            <button onClick={handleCancelEdit} className={`bg-[var(--bg-card)] border border-[var(--border-primary)] hover:bg-[var(--interactive-hover)] text-[var(--text-primary)] px-4 py-1.5 rounded-md text-sm`}>Cancel</button>
+                                            <button onClick={handleSaveEdit} disabled={isSaving || !editTitle.trim()} className={`bg-[var(--status-success)] text-white hover:bg-[var(--status-success)]/80 px-4 py-1.5 rounded-md text-sm flex items-center gap-1.5 ${isSaving || !editTitle.trim() ? 'opacity-50 cursor-not-allowed' : ''}`}> {isSaving ? (<> <Loader2 className="w-4 h-4 animate-spin" /> Saving... </>) : (<> <Check className="w-4 h-4" /> Save </>)} </button>
                                         </div>
                                     </div>
                                 ) : (
-                                    <div key={`view-${selectedNote.id}`} className={`bg-white dark:bg-[#0C0E1A] flex flex-col overflow-hidden h-full animate-fadeIn`}>
+                                    <div key={`view-${selectedNote.id}`} className={`bg-[var(--bg-primary)] flex flex-col overflow-hidden h-full animate-fadeIn`}>
                                         <div className={`p-4 md:p-6 flex flex-col sm:flex-row sm:items-start sm:justify-between mb-0 gap-3 flex-shrink-0`}>
-                                            <h1 className={`text-2xl md:text-2xl font-semibold text-gray-800 dark:text-gray-100 break-words mr-auto pr-4`}>{selectedNote.title || "Untitled"}</h1>
-<div className={`flex items-center gap-1 flex-shrink-0  rounded-full p-0.5  bg-white dark:bg-[#0C0E1A]`}>
+                                            <h1 className={`text-2xl md:text-2xl font-semibold text-[var(--text-primary)] break-words mr-auto pr-4`}>{selectedNote.title || "Untitled"}</h1>
+<div className={`flex items-center gap-1 flex-shrink-0  rounded-full p-0.5  bg-[var(--bg-primary)]`}>
     {!isMobile && isNotesListHidden && (
         <>
             <button 
@@ -2637,24 +2753,24 @@ useEffect(() => {
             >
                 <PanelRightOpen className="w-4 h-4" />
             </button>
-            <div className={`w-px h-4 bg-gray-300 dark:bg-gray-700/50 mx-0.5`}></div>
+            <div className={`w-px h-4 bg-[var(--border-primary)] mx-0.5`}></div>
         </>
     )}
-    <button onClick={handleEditNote} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60`} title="Edit"><Edit2 className="w-4 h-4" /></button>
-    <button onClick={() => handleChatWithNote(selectedNote)} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60`} title="Chat with AI"><MessageCircle className="w-4 h-4" /></button>
+    <button onClick={handleEditNote} className={`p-1.5 rounded-full text-[var(--text-muted)] hover:bg-[var(--interactive-hover)]`} title="Edit"><Edit2 className="w-4 h-4" /></button>
+    <button onClick={() => handleChatWithNote(selectedNote)} className={`p-1.5 rounded-full text-[var(--text-muted)] hover:bg-[var(--interactive-hover)]`} title="Chat with AI"><MessageCircle className="w-4 h-4" /></button>
     {selectedNote.type === 'pdf' && selectedNote.sourceUrl && !isMobile && (
         <button
             onClick={() => togglePdfViewer(true)}
-            className={`p-1.5 rounded-full flex items-center gap-1 text-xs text-sky-600 dark:text-sky-300 bg-sky-100 dark:bg-sky-700/30 hover:bg-sky-200 dark:hover:bg-sky-700/50 focus:ring-1 focus:ring-sky-300 dark:focus:ring-sky-600`}
+            className={`p-1.5 rounded-full flex items-center gap-1 text-xs font-medium text-white bg-[var(--bg-accent)] hover:bg-[var(--bg-accent-secondary)] focus:ring-1 focus:ring-[var(--bg-accent)]/50 transition-colors`}
             title="View PDF Side-by-Side"
         >
             <Eye className="w-4 h-4" />
             <span className="hidden sm:inline">View PDF</span>
         </button>
     )}
-    <button onClick={() => handleTogglePublic(selectedNote.id, selectedNote.isPublic)} className={`p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60 ${selectedNote.isPublic ? 'hover:bg-cyan-100/50 dark:hover:bg-cyan-900/30' : ''}`} title={selectedNote.isPublic ? 'Make private' : 'Make public'}>{selectedNote.isPublic ? <Globe className={`w-4 h-4 text-cyan-600 dark:text-cyan-400`} /> : <Lock className="w-4 h-4" />}</button>
-    {selectedNote.isPublic && ( <button onClick={() => handleGetShareLink(selectedNote.id)} className={`p-1.5 rounded-full relative text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60 ${linkCopied ? 'hover:bg-green-100/50 dark:hover:bg-green-900/30' : ''}`} title="Copy share link">{linkCopied ? <ClipboardCopy className={`w-4 h-4 text-green-500`} /> : <Share2 className="w-4 h-4" />}</button> )}
-    <div className={`w-px h-4 bg-gray-300 dark:bg-gray-700/50 mx-0.5`}></div>
+    <button onClick={() => handleTogglePublic(selectedNote.id, selectedNote.isPublic)} className={`p-1.5 rounded-full text-[var(--text-muted)] hover:bg-[var(--interactive-hover)] ${selectedNote.isPublic ? 'hover:bg-cyan-100/50 dark:hover:bg-cyan-900/30' : ''}`} title={selectedNote.isPublic ? 'Make private' : 'Make public'}>{selectedNote.isPublic ? <Globe className={`w-4 h-4 text-cyan-600 dark:text-cyan-400`} /> : <Lock className="w-4 h-4" />}</button>
+                            {selectedNote.isPublic && ( <button onClick={() => handleGetShareLink(selectedNote.id)} className={`p-1.5 rounded-full relative text-[var(--text-muted)] hover:bg-[var(--interactive-hover)] ${linkCopied ? 'hover:bg-green-100/50 dark:hover:bg-green-900/30' : ''}`} title="Copy share link">{linkCopied ? <ClipboardCopy className={`w-4 h-4 text-[var(--status-success)]`} /> : <Share2 className="w-4 h-4" />}</button> )}
+    <div className={`w-px h-4 bg-[var(--border-primary)] mx-0.5`}></div>
     <button onClick={() => handleDeleteNote(selectedNote.id)} className={`p-1.5 rounded-full text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-700/30`} title="Delete"><Trash2 className="w-4 h-4" /></button>
 </div>
                                         </div>
@@ -2665,13 +2781,13 @@ useEffect(() => {
         {(selectedNote.questions && selectedNote.questions.length > 0) && (
             <button onClick={() => handleScrollToSection('study-questions-section')} className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 bg-purple-50 dark:bg-purple-700/20 hover:bg-purple-100 dark:hover:bg-purple-700/30 shadow-sm `} >
                 <div className={`p-2 rounded-full bg-purple-100 dark:bg-purple-700/30 text-purple-600 dark:text-purple-300`}> <BookOpen className="w-5 h-5" /> </div>
-                <div> <span className={`block font-semibold text-sm text-gray-800 dark:text-gray-100`}>Quiz</span> <span className={`block text-xs text-gray-600 dark:text-gray-400`}>Test your knowledge</span> </div>
+                <div> <span className={`block font-semibold text-sm text-[var(--text-primary)]`}>Quiz</span> <span className={`block text-xs text-[var(--text-secondary)]`}>Test your knowledge</span> </div>
             </button>
         )}
         {(selectedNote.flashcards && selectedNote.flashcards.length > 0) && (
             <button onClick={() => handleScrollToSection('flashcards-section')} className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 bg-indigo-50 dark:bg-indigo-700/20 hover:bg-indigo-100 dark:hover:bg-indigo-700/30 shadow-sm `} >
                 <div className={`p-2 rounded-full bg-indigo-100 dark:bg-indigo-700/30 text-indigo-600 dark:text-indigo-300`}> <Layers className="w-5 h-5" /> </div>
-                <div> <span className={`block font-semibold text-sm text-gray-800 dark:text-gray-100`}>Flashcards</span> <span className={`block text-xs text-gray-600 dark:text-gray-400`}>Review key terms</span> </div>
+                <div> <span className={`block font-semibold text-sm text-[var(--text-primary)]`}>Flashcards</span> <span className={`block text-xs text-[var(--text-secondary)]`}>Review key terms</span> </div>
             </button>
         )}
         <button
@@ -2679,14 +2795,14 @@ useEffect(() => {
             className={`p-3 rounded-lg text-left transition-all duration-150 flex items-center space-x-3 bg-teal-50 dark:bg-teal-700/20 hover:bg-teal-100 dark:hover:bg-teal-700/30 shadow-sm  ${userTier !== 'premium' ? 'opacity-70' : ''}`}
         >
             <div className={`p-2 rounded-full bg-teal-100 dark:bg-teal-700/30 text-teal-600 dark:text-teal-300`}>
-                <Mic className="w-5 h-5" />
+                <PodcastIcon className="w-5 h-5" />
             </div>
             <div>
                 <div className="flex items-center gap-1.5">
-                    <span className="font-semibold text-sm text-gray-800 dark:text-gray-100">Podcast</span>
-                    {userTier !== 'premium' && (<Lock className="w-4 h-4 text-gray-500 dark:text-gray-500 relative translate-y-[-0.5px]" />)}
+                    <span className="font-semibold text-sm text-[var(--text-primary)]">Podcast</span>
+                    {userTier !== 'premium' && (<Lock className="w-4 h-4 text-[var(--text-muted)] relative translate-y-[-0.5px]" />)}
                 </div>
-                <span className="block text-xs text-gray-600 dark:text-gray-400">{showPodcastSection ? 'Close Player' : 'Listen to your notes'}</span>
+                <span className="block text-xs text-[var(--text-secondary)]">{showPodcastSection ? 'Close Player' : 'Listen to your notes'}</span>
             </div>
         </button>
     </div>
@@ -2708,15 +2824,15 @@ useEffect(() => {
             className={`relative p-3 rounded-full transition-all duration-150 flex items-center justify-center bg-teal-50 dark:bg-teal-700/20 hover:bg-teal-100 dark:hover:bg-teal-700/30 shadow-sm ${userTier !== 'premium' ? 'opacity-70' : ''}`}
             title="Podcast"
         >
-            <Mic className="w-5 h-5 text-teal-600 dark:text-teal-300" />
+            <PodcastIcon className="w-5 h-5 text-teal-600 dark:text-teal-300" />
             {userTier !== 'premium' && (
-                <Lock className="w-3 h-3 absolute bottom-1 right-1 bg-white dark:bg-gray-800 rounded-full p-0.5 text-gray-500" />
+                <Lock className="w-3 h-3 absolute bottom-1 right-1 bg-white dark:bg-[var(--bg-card)] rounded-full p-0.5 text-[var(--text-muted)]" />
             )}
         </button>
     </div>
 </div>
 {/* --- END OF FIX --- */}
-<div ref={noteContentRef} className={`flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 px-4 md:px-6 bg-white dark:bg-[#0C0E1A]`}>
+<div ref={noteContentRef} className={`flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-[var(--scrollbar-thumb)] dark:scrollbar-thumb-[var(--scrollbar-thumb-dark)] px-4 md:px-6 bg-[var(--bg-primary)]`}>
     <AnimatePresence>
     {showPodcastSection && (
         <motion.div
@@ -2728,10 +2844,10 @@ useEffect(() => {
            className="overflow-hidden"
         >
         {isPodcastProcessing && (
-            <div className="my-6 p-4 rounded-lg bg-gray-100 dark:bg-gray-800/50 text-center">
+            <div className="my-6 p-4 rounded-lg bg-[var(--bg-highlight)] text-center">
                 <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mx-auto mb-2" />
-                <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Crafting your podcast...</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">This may take 5-10 min. Please wait.</p>
+                <p className="text-sm font-medium text-[var(--text-primary)]">Crafting your podcast...</p>
+                <p className="text-xs text-[var(--text-muted)]">This may take 5-10 min. Please wait.</p>
             </div>
         )}
         
@@ -2797,10 +2913,10 @@ useEffect(() => {
             </div>
         )}
 
-        <div id="podcast-list-section" className="mt-1 pt-6 mb-6 border-t border-gray-200 dark:border-gray-700/50">
+        <div id="podcast-list-section" className="mt-1 pt-6 mb-6 border-t border-[var(--border-primary)]">
             <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100">
-                    <Mic className="w-5 h-5 text-teal-500 dark:text-teal-400" /> Podcasts
+                <h3 className="text-lg font-semibold flex items-center gap-2 text-[var(--text-primary)]">
+                    <PodcastIcon className="w-5 h-5 text-teal-500 dark:text-teal-400" /> Podcasts
                 </h3>
                 <button onClick={() => { if (userTier === 'premium') setShowPodcastConfigModal(true); else setShowUpgradeModal(true); }}
                     className="bg-teal-50 dark:bg-teal-700/20 hover:bg-teal-100 dark:hover:bg-teal-700/30 text-teal-600 dark:text-teal-300 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
@@ -2811,28 +2927,28 @@ useEffect(() => {
             {(selectedNote.podcasts?.length ?? 0) > 0 ? (
                 <div className="space-y-2">
                     {selectedNote.podcasts!.sort((a, b) => toDateSafe(b.createdAt)!.getTime() - toDateSafe(a.createdAt)!.getTime()).map(p => (
-                        <div key={p.id} className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700/50 flex items-center justify-between gap-3">
+                        <div key={p.id} className="p-3 rounded-lg bg-[var(--bg-highlight)] border border-[var(--border-primary)] flex items-center justify-between gap-3">
                             <div className="flex items-center gap-3">
                                 <button onClick={() => handlePlayPodcast(p)} className="p-2 rounded-full bg-teal-100 dark:bg-teal-700/30 text-teal-600 dark:text-teal-300 hover:bg-teal-200 dark:hover:bg-teal-700/50">
                                     {activePodcast?.id === p.id && isPodcastPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
                                 </button>
                                 <div>
-                                    <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                                    <p className="text-sm font-medium text-[var(--text-primary)]">
                                         Podcast from {toDateSafe(p.createdAt)?.toLocaleString()}
                                     </p>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    <p className="text-xs text-[var(--text-muted)]">
                                         {p.settings.speaker2Id ? `${PREDEFINED_PODCAST_SPEAKERS.find(s=>s.id===p.settings.speaker1Id)?.name} & ${PREDEFINED_PODCAST_SPEAKERS.find(s=>s.id===p.settings.speaker2Id)?.name}` : PREDEFINED_PODCAST_SPEAKERS.find(s=>s.id===p.settings.speaker1Id)?.name}
                                     </p>
                                 </div>
                             </div>
-                            <button onClick={() => handleDeletePodcast(p.id)} className="p-1.5 text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30">
+                            <button onClick={() => handleDeletePodcast(p.id)} className="p-1.5 text-[var(--text-muted)] hover:text-red-500 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30">
                                 <Trash2 className="w-4 h-4" />
                             </button>
                         </div>
                     ))}
                 </div>
             ) : (
-                <p className="text-center text-xs text-gray-500 dark:text-gray-400 py-1">No podcasts generated for this note yet.</p>
+                <p className="text-center text-xs text-[var(--text-muted)] py-1">No podcasts generated for this note yet.</p>
             )}
         </div>
         </motion.div>
@@ -2845,21 +2961,21 @@ useEffect(() => {
 
 
     {selectedNote.keyPoints && selectedNote.keyPoints.length > 0 && (
-    <div className={`mt-8 pt-6 border-t border-gray-200 dark:border-gray-700/50`}>
-        <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 text-gray-800 dark:text-gray-100`}> <Sparkles className={`w-5 h-5 text-yellow-500 dark:text-yellow-400`} /> Key Points </h3>
+    <div className={`mt-8 pt-6 border-t border-[var(--border-primary)]`}>
+        <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 text-[var(--text-primary)]`}> <BadgeCheck className={`w-5 h-5 text-[var(--text-primary)]`} /> Key Points </h3>
         <div className={`space-y-3`}> {selectedNote.keyPoints.map((point, index) => (
-            <div key={index} className="flex items-start p-3 rounded-lg bg-gray-50 dark:bg-[#161922]">
+                         <div key={index} className="flex items-start p-3 rounded-lg bg-[var(--bg-card)] border border-[var(--border-primary)] shadow-sm">
                 <div className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-700/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center text-xs font-semibold mr-3 mt-0.5">{index + 1}</div>
-                <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed"><RenderWithLatex text={point} /></p>
+                <p className="text-sm text-[var(--text-secondary)] leading-relaxed"><RenderWithLatex text={point} /></p>
             </div>
         ))} </div>
     </div>
     )}
 
     {selectedNote.flashcards && selectedNote.flashcards.length > 0 && (
-        <div id="flashcards-section" className="my-8 pt-6 border-t border-gray-200 dark:border-gray-700/50">
+        <div id="flashcards-section" className="my-8 pt-6 border-t border-[var(--border-primary)]">
             <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100">
+                <h3 className="text-lg font-semibold flex items-center gap-2 text-[var(--text-primary)]">
                     <Layers className="w-5 h-5 text-indigo-500 dark:text-indigo-400" /> Flashcards
                 </h3>
             </div>
@@ -2902,16 +3018,16 @@ useEffect(() => {
                 <button
                     onClick={() => { setCurrentFlashcardIndex(prev => Math.max(0, prev - 1)); setIsFlashcardFlipped(false); }}
                     disabled={currentFlashcardIndex === 0}
-                    className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-gray-600 dark:text-gray-300"
+                    className="p-2 rounded-full bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)]"
                 > <ChevronLeft className="w-5 h-5" /> </button>
-                <span className="text-sm text-gray-600 dark:text-gray-400"> {currentFlashcardIndex + 1} / {selectedNote.flashcards.length} </span>
+                <span className="text-sm text-[var(--text-secondary)]"> {currentFlashcardIndex + 1} / {selectedNote.flashcards.length} </span>
                 <button
                     onClick={() => { setCurrentFlashcardIndex(prev => Math.min(selectedNote.flashcards!.length - 1, prev + 1)); setIsFlashcardFlipped(false); }}
                     disabled={currentFlashcardIndex === selectedNote.flashcards.length - 1}
-                    className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-gray-600 dark:text-gray-300"
+                    className="p-2 rounded-full bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)]"
                 > <ChevronRight className="w-5 h-5" /> </button>
             </div>
-            <button onClick={() => setIsFlashcardFlipped(!isFlashcardFlipped)} className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200">
+            <button onClick={() => setIsFlashcardFlipped(!isFlashcardFlipped)} className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-secondary)]">
                 <FlipIcon className="w-4 h-4" /> Flip Card
             </button>
         </div>
@@ -2919,10 +3035,10 @@ useEffect(() => {
 
 
     {selectedNote.questions && selectedNote.questions.length > 0 && (
-    <div id="study-questions-section" className={`mt-8 pt-6 border-t border-gray-200 dark:border-gray-700/50`}>
+    <div id="study-questions-section" className={`mt-8 pt-6 border-t border-[var(--border-primary)]`}>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
-            <h3 className={`text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100`}><BookOpen className={`w-5 h-5 text-purple-500 dark:text-purple-400`} />Study Questions</h3>
-            <button onClick={handleRegenerateQuestions} disabled={isRegeneratingQuestions} className={`bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-md text-xs flex items-center gap-1.5 ${isRegeneratingQuestions ? 'opacity-50 cursor-not-allowed' : ''}`} title="Regenerate"> {isRegeneratingQuestions ? (<> <Loader2 className="w-3.5 h-3.5 animate-spin" /> Regenerating... </>) : (<> <RefreshCw className="w-3.5 h-3.5" /> Regenerate </>)} </button>
+            <h3 className={`text-lg font-semibold flex items-center gap-2 text-[var(--text-primary)]`}><BookOpen className={`w-5 h-5 text-purple-500 dark:text-purple-400`} />Study Questions</h3>
+            <button onClick={handleRegenerateQuestions} disabled={isRegeneratingQuestions} className={`bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded-md text-xs flex items-center gap-1.5 ${isRegeneratingQuestions ? 'opacity-50 cursor-not-allowed' : ''}`} title="Regenerate"> {isRegeneratingQuestions ? (<> <Loader2 className="w-3.5 h-3.5 animate-spin" /> Regenerating... </>) : (<> <RefreshCw className="w-3.5 h-3.5" /> Regenerate </>)} </button>
         </div>
         <div className="space-y-5">
             {selectedNote.questions.map((q, index) => {
@@ -2931,8 +3047,8 @@ useEffect(() => {
                 const answered = answer != null;
                 const isCorrect = answered && answer === q.correctAnswer;
                 return (
-                    <div key={key} className={`p-4 md:p-5 rounded-xl transition-colors duration-300 ${answered ? (isCorrect ? 'bg-green-500/10' : 'bg-red-500/10') : 'bg-gray-50 dark:bg-[#1A1D29]'}`}>
-<p className={`text-gray-800 dark:text-gray-200 font-medium mb-4 leading-relaxed`}>
+                    <div key={key} className={`p-4 md:p-5 rounded-xl transition-colors duration-300 ${answered ? (isCorrect ? 'bg-[var(--status-success)]/10' : 'bg-[var(--status-error)]/10') : 'bg-[var(--bg-card)]'}`}>
+<p className={`text-[var(--text-primary)] font-medium mb-4 leading-relaxed`}>
     <span className="text-indigo-500 dark:text-indigo-400 font-semibold mr-2">{index + 1}.</span>
     <RenderWithLatex text={q.question} />
 </p>
@@ -2950,10 +3066,10 @@ useEffect(() => {
                                     } else if (cor) {
                                         stateClasses = `bg-green-100 dark:bg-green-500/20 text-green-800 dark:text-white border-green-300 dark:border-green-500/50 cursor-default`;
                                     } else {
-                                        stateClasses = `bg-gray-100 dark:bg-gray-700/40 text-gray-500 dark:text-gray-400 border-transparent cursor-default opacity-70`;
+                                        stateClasses = `bg-[var(--bg-highlight)] text-[var(--text-muted)] border-transparent cursor-default opacity-70`;
                                     }
                                 } else {
-                                    stateClasses = `bg-white dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 focus:ring-2 focus:ring-indigo-400 focus:outline-none text-gray-700 dark:text-gray-300`;
+                                    stateClasses = `bg-[var(--bg-primary)] border-[var(--border-primary)] hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 focus:ring-2 focus:ring-indigo-400 focus:outline-none text-[var(--text-secondary)]`;
                                 }
 
                                 return (
@@ -2965,7 +3081,7 @@ useEffect(() => {
                                     >
                                         <span><RenderWithLatex text={opt} /></span>
                                         <div className={`flex-shrink-0 ml-4 w-6 h-6 flex items-center justify-center rounded-full transition-colors
-                                            ${answered && (sel || cor) ? (cor ? 'bg-green-500/20 border-green-500/30' : 'bg-red-500/20 border-red-500/30') : 'bg-gray-200/50 dark:bg-gray-700/50 border-gray-300 dark:border-gray-600'}
+                                            ${answered && (sel || cor) ? (cor ? 'bg-green-500/20 border-green-500/30' : 'bg-red-500/20 border-red-500/30') : 'bg-[var(--bg-highlight)] border-[var(--border-primary)]'}
                                         `}>
                                             {answered && sel && (cor ? <Check className="w-4 h-4 text-green-600" /> : <X className="w-4 h-4 text-red-600" />)}
                                             {answered && !sel && cor && <Check className="w-4 h-4 text-green-600" />}
@@ -2989,15 +3105,15 @@ useEffect(() => {
                                     </div>
                                 )
                             ) : (
-                                <div className={`flex flex-col items-center justify-center bg-white dark:bg-[#0C0E1A] h-full text-center p-6`}>
-                                    <FileQuestion className={`w-12 h-12 text-gray-400 dark:text-gray-500 mb-4`} />
-                                    <h2 className={`text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2`}>No Note Selected</h2>
-                                    <p className={`text-gray-600 dark:text-gray-400 text-sm mb-4 max-w-xs whitespace-nowrap`}>Select a note from the list, or create a new one.</p>
-                                    <button onClick={() => setShowNewNoteModal(true)} className={`bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 mb-2`}>
+                                <div className={`flex flex-col items-center justify-center bg-[var(--bg-primary)] h-full text-center p-6`}>
+                                    <FileQuestion className={`w-12 h-12 text-[var(--text-muted)] mb-4`} />
+                                    <h2 className={`text-lg font-semibold text-[var(--text-primary)] mb-2`}>No Note Selected</h2>
+                                    <p className={`text-[var(--text-secondary)] text-sm mb-4 max-w-xs whitespace-nowrap`}>Select a note from the list, or create a new one.</p>
+                                    <button onClick={() => setShowNewNoteModal(true)} className={`bg-[var(--bg-solid-button)] hover:bg-[var(--bg-accent-secondary)] text-[var(--text-white)] px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 mb-2`}>
                                         <Plus className="w-4 h-4" /> Create Note
                                     </button>
                                     {!isMobile && notes.length >= 2 && !showSplitView && (
-                                        <button onClick={startSplitView} className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5`}>
+                                        <button onClick={startSplitView} className={`bg-[var(--bg-card)] border border-[var(--border-primary)] hover:bg-[var(--interactive-hover)] text-[var(--text-primary)] px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5`}>
                                             <SplitSquareVertical className="w-4 h-4" /> Compare Notes
                                         </button>
                                     )}
@@ -3007,45 +3123,29 @@ useEffect(() => {
                     )}
                 </div>
 
-                 <div className={` ${!isMobile && !isNotesListHidden ? 'w-full md:w-72 lg:w-80 xl:w-96 ' : 'w-0 hidden'} border-gray-200 dark:border-gray-700/50 flex-shrink-0 flex flex-col bg-white dark:bg-[#161922] transition-all duration-300 ease-in-out relative h-full z-10 order-last `}>
+                 <div className={` ${!isMobile && !isNotesListHidden ? 'w-full md:w-72 lg:w-80 xl:w-96 ' : 'w-0 hidden'} border-[var(--border-primary)] flex-shrink-0 flex flex-col bg-[var(--bg-sidebar)] transition-all duration-300 ease-in-out relative h-full z-10 order-last `}>
                      {(!isMobile && !isNotesListHidden) && (
                          <>
-                         <div className={`p-3  flex items-center justify-between flex-shrink-0`}> <h2 className={`text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2`}>
-    <FileText className={`w-5 h-5 text-indigo-500 dark:text-indigo-400`} />
+                         <div className={`p-3  flex items-center justify-between flex-shrink-0`}> <h2 className={`text-lg font-semibold text-[var(--text-primary)] flex items-center gap-2`}>
+    <Notebook className={`w-5 h-5 icon-theme-adaptive`} />
     <span>Notes</span>
-</h2> <div className="flex items-center gap-1"> <button onClick={handleToggleNotesList} className={`bg-white dark:bg-[#161922] hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 p-1.5 rounded-full`} title="Hide List"> <PanelLeftClose className="w-4 h-4 transform scale-x-[-1]" /> </button> {notes.length >= 2 && !showPdfViewer && ( <button onClick={showSplitView ? closeSplitView : startSplitView} className={`bg-white dark:bg-[#161922] hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 p-1.5 rounded-full`} title={showSplitView ? "Close Comparison" : "Compare Notes"}> <SplitSquareVertical className={`w-4 h-4 ${showSplitView ? 'text-indigo-500 dark:text-indigo-400': ''}`} /> </button> )} <button onClick={() => setShowNewNoteModal(true)} className={`bg-indigo-500 hover:bg-indigo-600 text-white p-2 rounded-full hover:shadow-md transition-all duration-150`} title="New Note"> <Plus className="w-4 h-4" /> </button> </div> </div>
+</h2> <div className="flex items-center gap-1"> <button onClick={handleToggleNotesList} className={`bg-[var(--bg-primary)] hover:bg-[var(--interactive-hover)] text-[var(--text-muted)] p-1.5 rounded-full`} title="Hide List"> <PanelLeftClose className="w-4 h-4 transform scale-x-[-1]" /> </button> {notes.length >= 2 && !showPdfViewer && ( <button onClick={showSplitView ? closeSplitView : startSplitView} className={`bg-[var(--bg-primary)] hover:bg-[var(--interactive-hover)] text-[var(--text-muted)] p-1.5 rounded-full`} title={showSplitView ? "Close Comparison" : "Compare Notes"}> <SplitSquareVertical className={`w-4 h-4 ${showSplitView ? 'text-[var(--bg-accent)]': ''}`} /> </button> )} <button onClick={() => setShowNewNoteModal(true)} className={`bg-[var(--bg-solid-button)] hover:bg-[var(--bg-accent-secondary)] text-[var(--text-white)] p-2 rounded-full hover:shadow-md transition-all duration-150`} title="New Note"> <Plus className="w-4 h-4" /> </button> </div> </div>
                                                   {userTier !== 'premium' && userProfile && pointsNeededForPremium > 0 && (
-                            <div className="px-3 pt-2 pb-2 border-b border-gray-200 dark:border-gray-700/50">
-                                <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-600/50 text-center shadow-sm">
+                            <div className="px-3 pt-2 pb-2 border-b border-[var(--border-primary)]">
+                                <div className="p-2 rounded-lg bg-[var(--bg-accent)] border border-[var(--bg-accent)] text-center shadow-sm">
                                     <div className="flex items-center justify-center gap-1.5">
-                                        <Gift className="w-4 h-4 text-amber-500 dark:text-amber-400 flex-shrink-0" />
-                                        <p className="text-[10px] font-medium text-amber-700 dark:text-amber-200 leading-tight">
-                                            Collect {pointsNeededForPremium} more points to earn <span className="font-semibold">1 FREE week of Premium</span>!
+                                        <Gift className="w-4 h-4 text-white flex-shrink-0" />
+                                        <p className="text-[10px] font-medium text-white leading-tight">
+                                            Collect {pointsNeededForPremium} more points to earn <span className="font-semibold text-white">1 FREE week of Premium</span>!
                                         </p>
                                     </div>
                                 </div>
                             </div>
                         )}
-                         {userProfile && (
-                            <div className="p-3  space-y-2 bg-white dark:bg-[#161922]">
-                                <div className="grid grid-cols-3 gap-2 text-center">
-                                    {[
-                                        { label: 'Points', value: userProfile.points, icon: TrendingUp, color: 'text-indigo-500 dark:text-indigo-400' },
-                                        { label: 'Level', value: userProfile.level, icon: Award, color: 'text-green-500 dark:text-green-400' },
-                                        { label: 'Streak', value: userProfile.overallStreakCount, icon: Flame, color: 'text-orange-500 dark:text-orange-400' },
-                                    ].map(stat => (
-                                        <div key={stat.label} className="p-1.5 rounded-md bg-[#F7F8FA] dark:bg-[#0C0E1A] shadow-sm ">
-                                            <stat.icon className={`w-4 h-4 mx-auto mb-0.5 ${stat.color}`} />
-                                            <p className="text-sm font-semibold text-gray-700 dark:text-gray-100">{stat.value}</p>
-                                            <p className="text-[9px] text-gray-500 dark:text-gray-400 uppercase">{stat.label}</p>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                         )}
-                         <div className={`p-3 border-b border-gray-200 dark:border-gray-700/50 flex-shrink-0`}> <div className="relative mb-2"> <Search className={`absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500`} /> <input type="text" placeholder="Search notes..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className={`w-full bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 pl-8 pr-3 py-1.5 rounded-full text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500`} /> </div> <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar"> {(['all', 'personal', 'pdf', 'youtube', 'audio'] as const).map(type => ( <button key={type} onClick={() => setFilterType(type)} className={`px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap ${filterType === type ? `bg-indigo-500 text-white shadow-sm` : `bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300`}`}> {formatNoteTypeDisplay(type)} </button> ))} </div> </div>
-                         {userTier !== 'premium' && userTier !== 'loading' && currentLimits && ( <div className={`px-3 py-2 text-[10px] border-b border-gray-200 dark:border-gray-700/50 text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-[#1A1D29]`}> <div className="flex justify-between items-center gap-2"> <span>PDF/AI Notes: {userProfile?.noteUsageByMonth?.[usageMonth]?.pdfAi ?? 0} / {currentLimits.pdfAi === Infinity ? '∞' : currentLimits.pdfAi}</span> <span>YouTube Notes: {userProfile?.noteUsageByMonth?.[usageMonth]?.youtube ?? 0} / {currentLimits.youtube === Infinity ? '∞' : currentLimits.youtube}</span> </div> </div> )}
-                         <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600"> {loading && notes.length === 0 ? ( <div className="flex justify-center items-center h-full p-6"> <Loader2 className={`w-6 h-6 animate-spin text-gray-400 dark:text-gray-500`} /> </div> ) : !loading && notes.length === 0 ? ( <div className="flex flex-col items-center justify-center h-full text-center p-6"> <FileQuestion className={`w-12 h-12 text-gray-400 dark:text-gray-500 mb-3`} /> <p className={`text-gray-600 dark:text-gray-400 mb-4 text-sm`}>No notes yet.</p> <button onClick={() => setShowNewNoteModal(true)} className={`bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5`}> <Plus className="w-4 h-4" /> Create Note </button> </div> ) : ( <div className={`divide-y divide-gray-200 dark:divide-gray-700/50`}> {notes.filter((note) => { if (filterType !== 'all' && note.type !== filterType) return false; if (searchQuery) { const search = searchQuery.toLowerCase(); return (note.title.toLowerCase().includes(search) || (note.content || '').toLowerCase().includes(search) || note.tags?.some((tag) => tag.toLowerCase().includes(search))); } return true; }).map((note) => { const isSel = (!showSplitView && selectedNote?.id === note.id); const isSplitL = showSplitView && splitViewNotes.left?.id === note.id; const isSplitR = showSplitView && splitViewNotes.right?.id === note.id; const isSelectedAny = isSel || isSplitL || isSplitR; let typeIcon; switch (note.type) { case 'personal': typeIcon = <Briefcase className="w-3 h-3"/>; break; case 'pdf': typeIcon = <FileText className="w-3 h-3"/>; break; case 'youtube': typeIcon = <Youtube className="w-3 h-3"/>; break; case 'audio': typeIcon = <Mic className="w-3 h-3"/>; break; default: typeIcon = null; } return ( <div key={note.id} className={`p-3 cursor-pointer transition-colors duration-150 hover:bg-gray-50 dark:hover:bg-gray-800/60 border-l-2 ${isSelectedAny ? 'bg-indigo-50 dark:bg-indigo-700/20 border-indigo-500 dark:border-indigo-400' : 'border-transparent'}`} onClick={() => handleSelectNote(note)}> <div className="flex justify-between items-start gap-2"> <h3 className={`text-sm font-medium mb-0.5 line-clamp-1 text-gray-800 dark:text-gray-100 flex items-center`}>{note.title || "Untitled"}</h3> {isSplitL && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-indigo-500/20 text-indigo-300`}>L</span>} {isSplitR && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-purple-500/20 text-purple-300`}>R</span>} </div> <p className={`text-gray-600 dark:text-gray-400 text-xs line-clamp-2 mb-1.5`}>{(note.content || '').replace(/<[^>]+>/g, '').substring(0, 100)}</p> <div className="flex flex-wrap items-center gap-1 text-[10px]"> <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full border ${(tagColors as any)[note.type] || tagColors.custom}`}> {typeIcon} {formatNoteTypeDisplay(note.type)} </span> {note.isPublic && <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full border ${tagColors.public}`}><Globe className="w-3 h-3"/> Public</span>} {note.tags?.filter(t => t !== note.type).slice(0, 2).map((tag) => <span key={tag} className={`px-1.5 py-0.5 rounded-full border ${(tagColors as any)[tag] || tagColors.custom} truncate max-w-[60px]`} title={tag}>#{tag}</span>)} {note.tags && note.tags.filter(t => t !== note.type).length > 2 && <span className={`px-1.5 py-0.5 rounded-full border ${tagColors.custom}`}>+{note.tags.filter(t => t !== note.type).length - 2}</span>} <span className={`ml-auto text-gray-500 dark:text-gray-500`}>{note.updatedAt?.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span> </div> </div> ); })} </div> )} </div>
+
+                         <div className={`p-3 border-b border-[var(--border-primary)] flex-shrink-0`}> <div className="relative mb-4"> <Search className={`absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]`} /> <input type="text" placeholder="Search notes..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className={`w-full bg-[var(--bg-highlight)] border-[var(--border-primary)] text-[var(--text-primary)] placeholder-[var(--text-muted)] pl-8 pr-3 py-1.5 rounded-full text-sm focus:outline-none focus:ring-1 focus:ring-[var(--interactive-focus)] focus:border-[var(--interactive-focus)]`} /> </div> <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar"> {(['all', 'personal', 'pdf', 'youtube', 'audio'] as const).map(type => ( <button key={type} onClick={() => setFilterType(type)} className={`px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap ${filterType === type ? `bg-[var(--bg-solid-button)] text-[var(--text-white)] shadow-sm` : `bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-secondary)]`}`}> {formatNoteTypeDisplay(type)} </button> ))} </div> </div>
+                         {userTier !== 'premium' && userTier !== 'loading' && currentLimits && ( <div className={`px-3 py-2 text-[10px] border-b border-[var(--border-primary)] text-[var(--text-secondary)] bg-[var(--bg-card)]`}> <div className="flex justify-between items-center gap-2"> <span>PDF/Text Notes: {userProfile?.noteUsageByMonth?.[usageMonth]?.pdfAi ?? 0} / {currentLimits.pdfAi === Infinity ? '∞' : currentLimits.pdfAi}</span> <span>YouTube Notes: {userProfile?.noteUsageByMonth?.[usageMonth]?.youtube ?? 0} / {currentLimits.youtube === Infinity ? '∞' : currentLimits.youtube}</span> </div> </div> )}
+                         <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-[var(--scrollbar-thumb)] dark:scrollbar-thumb-[var(--scrollbar-thumb-dark)]"> {loading && notes.length === 0 ? ( <div className="flex justify-center items-center h-full p-6"> <Loader2 className={`w-6 h-6 animate-spin text-[var(--text-muted)]`} /> </div> ) : !loading && notes.length === 0 ? ( <div className="flex flex-col items-center justify-center h-full text-center p-6"> <FileQuestion className={`w-12 h-12 text-[var(--text-muted)] mb-3`} /> <p className={`text-[var(--text-secondary)] mb-4 text-sm`}>No notes yet.</p> <button onClick={() => setShowNewNoteModal(true)} className={`bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5`}> <Plus className="w-4 h-4" /> Create Note </button> </div> ) : ( <div className={`divide-y divide-[var(--border-primary)]`}> {notes.filter((note) => { if (filterType !== 'all' && note.type !== filterType) return false; if (searchQuery) { const search = searchQuery.toLowerCase(); return (note.title.toLowerCase().includes(search) || (note.content || '').toLowerCase().includes(search) || note.tags?.some((tag) => tag.toLowerCase().includes(search))); } return true; }).map((note) => { const isSel = (!showSplitView && selectedNote?.id === note.id); const isSplitL = showSplitView && splitViewNotes.left?.id === note.id; const isSplitR = showSplitView && splitViewNotes.right?.id === note.id; const isSelectedAny = isSel || isSplitL || isSplitR; let typeIcon; switch (note.type) { case 'personal': typeIcon = <Briefcase className="w-3 h-3"/>; break; case 'pdf': typeIcon = <CustomPDFIcon className="w-3 h-3"/>; break; case 'youtube': typeIcon = <CustomYouTubeIcon className="w-3 h-3"/>; break; case 'audio': typeIcon = <PodcastIcon className="w-3 h-3"/>; break; default: typeIcon = null; } return ( <div key={note.id} className={`p-3 cursor-pointer transition-colors duration-150 hover:bg-[var(--interactive-hover)] border-l-2 ${isSelectedAny ? 'bg-indigo-50 dark:bg-indigo-700/20 border-indigo-500 dark:border-indigo-400' : 'border-transparent'}`} onClick={() => handleSelectNote(note)}> <div className="flex justify-between items-start gap-2"> <h3 className={`text-sm font-medium mb-0.5 line-clamp-1 text-[var(--text-primary)] flex items-center`}>{note.title || "Untitled"}</h3> {isSplitL && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-[var(--bg-accent)] text-[var(--text-white)] border border-[var(--bg-accent)]`}>L</span>} {isSplitR && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-[var(--bg-accent-secondary)] text-[var(--text-white)] border border-[var(--bg-accent-secondary)]`}>R</span>} </div> <p className={`text-[var(--text-secondary)] text-xs line-clamp-2 mb-1.5`}>{(note.content || '').replace(/<[^>]+>/g, '').substring(0, 100)}</p> <div className="flex flex-wrap items-center gap-1 text-[10px]"> <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full border ${(tagColors as any)[note.type] || tagColors.custom}`}> {typeIcon} {formatNoteTypeDisplay(note.type)} </span> {note.isPublic && <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full border ${tagColors.public}`}><Globe className="w-3 h-3"/> Public</span>} {note.tags?.filter(t => t !== note.type).slice(0, 2).map((tag) => <span key={tag} className={`px-1.5 py-0.5 rounded-full border ${(tagColors as any)[tag] || tagColors.custom} truncate max-w-[60px]`} title={tag}>#{tag}</span>)} {note.tags && note.tags.filter(t => t !== note.type).length > 2 && <span className={`px-1.5 py-0.5 rounded-full border ${tagColors.custom}`}>+{note.tags.filter(t => t !== note.type).length - 2}</span>} <span className={`ml-auto text-[var(--text-muted)]`}>{note.updatedAt?.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span> </div> </div> ); })} </div> )} </div>
                          </>
                     )}
                  </div>
@@ -3053,55 +3153,36 @@ useEffect(() => {
 
                   {isMobile && (
                     <div className={` fixed inset-0 z-40 bg-black/50 transition-opacity duration-300 ease-in-out ${showNotesListOnMobile ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'} `} onClick={() => setShowNotesListOnMobile(false)}>
-                        <div className={` absolute top-0 right-0 h-full w-4/5 max-w-sm bg-white dark:bg-[#0C0E1A] border-l border-gray-200 dark:border-gray-700/50 shadow-xl flex flex-col transform transition-transform duration-300 ease-in-out ${showNotesListOnMobile ? 'translate-x-0' : 'translate-x-full'} `} onClick={(e) => e.stopPropagation()}>
+                        <div className={` absolute top-0 right-0 h-full w-4/5 max-w-sm bg-[var(--bg-sidebar)] border-l border-[var(--border-primary)] shadow-xl flex flex-col transform transition-transform duration-300 ease-in-out ${showNotesListOnMobile ? 'translate-x-0' : 'translate-x-full'} `} onClick={(e) => e.stopPropagation()}>
                             <div className={`p-3   flex items-center justify-between flex-shrink-0`}>
-                                <h2 className={`text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2`}> <FileText className={`w-5 h-5 text-indigo-500 dark:text-indigo-400`} /> Notes </h2>
+                                <h2 className={`text-lg font-semibold text-[var(--text-primary)] flex items-center gap-2`}> <FileText className={`w-5 h-5 text-indigo-500 dark:text-indigo-400`} /> Notes </h2>
                                 <div className="flex items-center gap-1">
                                     <button onClick={() => setShowNewNoteModal(true)} className={`bg-indigo-500 hover:bg-indigo-600 text-white p-1.5 rounded-full hover:shadow-md`} title="New Note"> <Plus className="w-4 h-4" /> </button>
-                                    <button onClick={() => setShowNotesListOnMobile(false)} className={`bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 p-1.5 rounded-md`} title="Close List"> <X className="w-4 h-4" /> </button>
+                                    <button onClick={() => setShowNotesListOnMobile(false)} className={`bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-muted)] p-1.5 rounded-md`} title="Close List"> <X className="w-4 h-4" /> </button>
                                 </div>
                             </div>
-                            {userProfile && (
-                                <div className="p-3  space-y-2 bg-gray-50 dark:bg-[#0C0E1A]">
-                                     <div className="grid grid-cols-3 gap-2 text-center">
-                                        {[
-                                            { label: 'Points', value: userProfile.points, icon: TrendingUp, color: 'text-indigo-500 dark:text-indigo-400' },
-                                            { label: 'Level', value: userProfile.level, icon: Award, color: 'text-green-500 dark:text-green-400' },
-                                            { label: 'Streak', value: userProfile.overallStreakCount, icon: Flame, color: 'text-orange-500 dark:text-orange-400' },
-                                        ].map(stat => (
-                                            <div key={stat.label} className="p-1.5 rounded-md bg-white dark:bg-slate-800/60 shadow-sm border border-gray-200 dark:border-gray-700/60">
-                                                <stat.icon className={`w-4 h-4 mx-auto mb-0.5 ${stat.color}`} />
-                                                <p className="text-sm font-semibold text-gray-700 dark:text-gray-100">{stat.value}</p>
-                                                <p className="text-[9px] text-gray-500 dark:text-gray-400 uppercase">{stat.label}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <button onClick={() => setShowNotesProfileModal(true)} className="w-full text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline py-1 rounded-md hover:bg-indigo-100 dark:hover:bg-indigo-700/30 flex items-center justify-center gap-1">
-                                        <UserIconLucide className="w-3.5 h-3.5"/> View Full Profile
-                                    </button>
-                                </div>
-                            )}
+
                              {userTier !== 'premium' && userProfile && pointsNeededForPremium > 0 && (
-                                <div className="px-3 pt-1 pb-1 border-b border-gray-200 dark:border-gray-700/50">
-                                    <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-600/50 text-center shadow-sm">
+                                <div className="px-3 pt-1 pb-1 border-b border-[var(--border-primary)]">
+                                    <div className="p-1.5 rounded-lg bg-[var(--bg-accent)] border border-[var(--bg-accent)] text-center shadow-sm">
                                         <div className="flex items-center justify-center gap-1">
-                                            <Gift className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 flex-shrink-0" />
-                                            <p className="text-[9px] font-medium text-amber-700 dark:text-amber-200 leading-tight">
-                                                Collect {pointsNeededForPremium} more points for <span className="font-semibold">1 FREE week of Premium</span>!
+                                            <Gift className="w-3.5 h-3.5 text-white flex-shrink-0" />
+                                            <p className="text-[9px] font-medium text-white leading-tight">
+                                                Collect {pointsNeededForPremium} more points for <span className="font-semibold text-white">1 FREE week of Premium</span>!
                                             </p>
                                         </div>
                                     </div>
                                 </div>
                             )}
-                            <div className={`p-3 border-b border-gray-200 dark:border-gray-700/50 flex-shrink-0`}>
-                                <div className="relative mb-2"> <Search className={`absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500`} /> <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className={`w-full bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 pl-8 pr-3 py-1.5 rounded-full text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500`} /> </div>
-                                <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar"> {(['all', 'personal', 'pdf', 'youtube', 'audio'] as const).map(type => ( <button key={type} onClick={() => setFilterType(type)} className={`px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap ${filterType === type ? `bg-indigo-500 text-white shadow-sm` : `bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300`}`}> {formatNoteTypeDisplay(type)} </button> ))} </div>
+                            <div className={`p-3 border-b border-[var(--border-primary)] flex-shrink-0`}>
+                                <div className="relative mb-4"> <Search className={`absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]`} /> <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className={`w-full bg-[var(--bg-primary)] border-[var(--border-primary)] text-[var(--text-primary)] placeholder-[var(--text-muted)] pl-8 pr-3 py-1.5 rounded-full text-sm focus:outline-none focus:ring-1 focus:ring-[var(--interactive-focus)] focus:border-[var(--interactive-focus)]`} /> </div>
+                                <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar"> {(['all', 'personal', 'pdf', 'youtube', 'audio'] as const).map(type => ( <button key={type} onClick={() => setFilterType(type)} className={`px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap ${filterType === type ? `bg-[var(--bg-solid-button)] text-[var(--text-white)] shadow-sm` : `bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-secondary)]`}`}> {formatNoteTypeDisplay(type)} </button> ))} </div>
                             </div>
-                            {userTier !== 'premium' && userTier !== 'loading' && currentLimits && ( <div className={`px-3 py-2 text-[10px] border-b border-gray-200 dark:border-gray-700/50 text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-[#1A1D29]`}> <div className="flex justify-between items-center gap-2"> <span>PDF/AI: {userProfile?.noteUsageByMonth?.[usageMonth]?.pdfAi ?? 0}/{currentLimits.pdfAi === Infinity ? '∞' : currentLimits.pdfAi}</span> <span>YT: {userProfile?.noteUsageByMonth?.[usageMonth]?.youtube ?? 0}/{currentLimits.youtube === Infinity ? '∞' : currentLimits.youtube}</span> </div> </div> )}
-                            <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
-                                {loading && notes.length === 0 ? ( <div className="flex justify-center items-center h-full p-6"> <Loader2 className={`w-6 h-6 animate-spin text-gray-400 dark:text-gray-500`} /> </div>
-                                ) : !loading && notes.length === 0 ? ( <div className="flex flex-col items-center justify-center h-full text-center p-6"> <FileQuestion className={`w-12 h-12 text-gray-400 dark:text-gray-500 mb-3`} /> <p className={`text-gray-600 dark:text-gray-400 mb-4 text-sm`}>No notes yet.</p> <button onClick={() => setShowNewNoteModal(true)} className={`bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5`}> <Plus className="w-4 h-4" /> Create </button> </div>
-                                ) : ( <div className={`divide-y divide-gray-200 dark:divide-gray-700/50`}> {notes.filter((note) => { if (filterType !== 'all' && note.type !== filterType) return false; if (searchQuery) { const search = searchQuery.toLowerCase(); return (note.title.toLowerCase().includes(search) || (note.content || '').toLowerCase().includes(search) || note.tags?.some((tag) => tag.toLowerCase().includes(search))); } return true; }).map((note) => { const isSel = (!showSplitView && selectedNote?.id === note.id); const isSplitL = showSplitView && splitViewNotes.left?.id === note.id; const isSplitR = showSplitView && splitViewNotes.right?.id === note.id; const isSelectedAny = isSel || isSplitL || isSplitR; let typeIcon; switch (note.type) { case 'personal': typeIcon = <Briefcase className="w-3 h-3"/>; break; case 'pdf': typeIcon = <FileText className="w-3 h-3"/>; break; case 'youtube': typeIcon = <Youtube className="w-3 h-3"/>; break; case 'audio': typeIcon = <Mic className="w-3 h-3"/>; break; default: typeIcon = null; } return ( <div key={note.id} className={`p-3 cursor-pointer transition-colors duration-150 hover:bg-gray-50 dark:hover:bg-gray-800/60 border-l-2 ${isSelectedAny ? 'bg-indigo-50 dark:bg-indigo-700/20 border-indigo-500 dark:border-indigo-400' : 'border-transparent'}`} onClick={() => handleSelectNote(note)}> <div className="flex justify-between items-start gap-2"> <h3 className={`text-sm font-medium mb-0.5 line-clamp-1 text-gray-800 dark:text-gray-100 flex items-center`}>{note.title || "Untitled"}</h3> {isSplitL && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-indigo-500/20 text-indigo-300`}>L</span>} {isSplitR && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-purple-500/20 text-purple-300`}>R</span>} </div> <p className={`text-gray-600 dark:text-gray-400 text-xs line-clamp-2 mb-1.5`}>{(note.content || '').replace(/<[^>]+>/g, '').substring(0, 100)}</p> <div className="flex flex-wrap items-center gap-1 text-[10px]"> <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full border ${(tagColors as any)[note.type] || tagColors.custom}`}> {typeIcon} {formatNoteTypeDisplay(note.type)} </span> {note.isPublic && <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full border ${tagColors.public}`}><Globe className="w-3 h-3"/> Public</span>} {note.tags?.filter(t=>t !== note.type).slice(0, 2).map((tag) => <span key={tag} className={`px-1.5 py-0.5 rounded-full border ${(tagColors as any)[tag] || tagColors.custom} truncate max-w-[60px]`} title={tag}>#{tag}</span>)} {note.tags && note.tags.filter(t=>t !== note.type).length > 2 && <span className={`px-1.5 py-0.5 rounded-full border ${tagColors.custom}`}>+{note.tags.filter(t=>t !== note.type).length - 2}</span>} <span className={`ml-auto text-gray-500 dark:text-gray-500`}>{note.updatedAt?.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span> </div> </div> ); })} </div> )}
+                            {userTier !== 'premium' && userTier !== 'loading' && currentLimits && ( <div className={`px-3 py-2 text-[10px] border-b border-[var(--border-primary)] text-[var(--text-secondary)] bg-[var(--bg-card)]`}> <div className="flex justify-between items-center gap-2"> <span>PDF/AI: {userProfile?.noteUsageByMonth?.[usageMonth]?.pdfAi ?? 0}/{currentLimits.pdfAi === Infinity ? '∞' : currentLimits.pdfAi}</span> <span>YT: {userProfile?.noteUsageByMonth?.[usageMonth]?.youtube ?? 0}/{currentLimits.youtube === Infinity ? '∞' : currentLimits.youtube}</span> </div> </div> )}
+                            <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-[var(--scrollbar-thumb)] dark:scrollbar-thumb-[var(--scrollbar-thumb-dark)]">
+                                {loading && notes.length === 0 ? ( <div className="flex justify-center items-center h-full p-6"> <Loader2 className={`w-6 h-6 animate-spin text-[var(--text-muted)]`} /> </div>
+                                ) : !loading && notes.length === 0 ? ( <div className="flex flex-col items-center justify-center h-full text-center p-6"> <FileQuestion className={`w-12 h-12 text-[var(--text-muted)] mb-3`} /> <p className={`text-[var(--text-secondary)] mb-4 text-sm`}>No notes yet.</p> <button onClick={() => setShowNewNoteModal(true)} className={`bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5`}> <Plus className="w-4 h-4" /> Create </button> </div>
+                                ) : ( <div className={`divide-y divide-[var(--border-primary)]`}> {notes.filter((note) => { if (filterType !== 'all' && note.type !== filterType) return false; if (searchQuery) { const search = searchQuery.toLowerCase(); return (note.title.toLowerCase().includes(search) || (note.content || '').toLowerCase().includes(search) || note.tags?.some((tag) => tag.toLowerCase().includes(search))); } return true; }).map((note) => { const isSel = (!showSplitView && selectedNote?.id === note.id); const isSplitL = showSplitView && splitViewNotes.left?.id === note.id; const isSplitR = showSplitView && splitViewNotes.right?.id === note.id; const isSelectedAny = isSel || isSplitL || isSplitR; let typeIcon; switch (note.type) { case 'personal': typeIcon = <Briefcase className="w-3 h-3"/>; break; case 'pdf': typeIcon = <CustomPDFIcon className="w-3 h-3"/>; break; case 'youtube': typeIcon = <CustomYouTubeIcon className="w-3 h-3"/>; break; case 'audio': typeIcon = <PodcastIcon className="w-3 h-3"/>; break; default: typeIcon = null; } return ( <div key={note.id} className={`p-3 cursor-pointer transition-colors duration-150 hover:bg-[var(--interactive-hover)] border-l-2 ${isSelectedAny ? 'bg-indigo-50 dark:bg-indigo-700/20 border-indigo-500 dark:border-indigo-400' : 'border-transparent'}`} onClick={() => handleSelectNote(note)}> <div className="flex justify-between items-start gap-2"> <h3 className={`text-sm font-medium mb-0.5 line-clamp-1 text-[var(--text-primary)] flex items-center`}>{note.title || "Untitled"}</h3> {isSplitL && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-[var(--bg-accent)] text-[var(--text-white)] border border-[var(--bg-accent)]`}>L</span>} {isSplitR && <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium shrink-0 bg-[var(--bg-accent-secondary)] text-[var(--text-white)] border border-[var(--bg-accent-secondary)]`}>R</span>} </div> <p className={`text-[var(--text-secondary)] text-xs line-clamp-2 mb-1.5`}>{(note.content || '').replace(/<[^>]+>/g, '').substring(0, 100)}</p> <div className="flex flex-wrap items-center gap-1 text-[10px]"> <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full border ${(tagColors as any)[note.type] || tagColors.custom}`}> {typeIcon} {formatNoteTypeDisplay(note.type)} </span> {note.isPublic && <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full border ${tagColors.public}`}><Globe className="w-3 h-3"/> Public</span>} {note.tags?.filter(t=>t !== note.type).slice(0, 2).map((tag) => <span key={tag} className={`px-1.5 py-0.5 rounded-full border ${(tagColors as any)[tag] || tagColors.custom} truncate max-w-[60px]`} title={tag}>#{tag}</span>)} {note.tags && note.tags.filter(t=>t !== note.type).length > 2 && <span className={`px-1.5 py-0.5 rounded-full border ${tagColors.custom}`}>+{note.tags.filter(t=>t !== note.type).length - 2}</span>} <span className={`ml-auto text-[var(--text-muted)]`}>{note.updatedAt?.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span> </div> </div> ); })} </div> )}
                             </div>
                         </div>
                     </div>
@@ -3125,13 +3206,13 @@ useEffect(() => {
             <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
              {showPodcastConfigModal && (
                 <SimpleModal isOpen={showPodcastConfigModal} onClose={() => setShowPodcastConfigModal(false)} title="Create New Podcast" maxWidth="max-w-lg">
-                    <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300">
-                        <p className="text-xs text-gray-500 dark:text-gray-400 -mt-2">Customize your podcast.</p>
+                    <div className="space-y-4 text-sm text-[var(--text-secondary)]">
+                        <p className="text-xs text-[var(--text-muted)] -mt-2">Customize your podcast.</p>
                         <div>
                             <label className="block text-xs font-medium mb-1">Speaker 1:</label>
                             <button
                                 onClick={() => { setSpeakerSlotToConfigure(1); setShowVoiceSelectionModal(true); }}
-                                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-600/50 text-left flex items-center justify-between"
+                                className="w-full p-2 border border-[var(--border-primary)] rounded-md bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-left flex items-center justify-between"
                             >
                                 <span>{podcastPlaybackSettings.speaker1Id ? PREDEFINED_PODCAST_SPEAKERS.find(s => s.id === podcastPlaybackSettings.speaker1Id)?.name : "Choose Speaker 1"}</span>
                                 <ChevronDown className="w-4 h-4" />
@@ -3141,7 +3222,7 @@ useEffect(() => {
                             <label className="block text-xs font-medium mb-1">Speaker 2:</label>
                             <button
                                 onClick={() => { setSpeakerSlotToConfigure(2); setShowVoiceSelectionModal(true); }}
-                                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-600/50 text-left flex items-center justify-between"
+                                className="w-full p-2 border border-[var(--border-primary)] rounded-md bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-left flex items-center justify-between"
                             >
                                 <span>{podcastPlaybackSettings.speaker2Id ? PREDEFINED_PODCAST_SPEAKERS.find(s => s.id === podcastPlaybackSettings.speaker2Id)?.name : "Choose Speaker 2"}</span>
                                 <ChevronDown className="w-4 h-4" />
@@ -3157,7 +3238,7 @@ useEffect(() => {
                                 id="podcastLength"
                                 value={podcastPlaybackSettings.length || 'short'}
                                 onChange={(e) => setPodcastPlaybackSettings(prev => ({ ...prev, length: e.target.value as 'short' | 'medium' | 'long' | null }))}
-                                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:ring-indigo-500 focus:border-indigo-500"
+                                className="w-full p-2 border border-[var(--border-primary)] rounded-md bg-[var(--bg-highlight)] text-[var(--text-secondary)] focus:ring-indigo-500 focus:border-indigo-500"
                             >
                                 <option value="short">Short (5-15 min)</option>
                                 <option value="medium" disabled>Medium (15-30 min) - Coming Soon</option>
@@ -3173,7 +3254,7 @@ useEffect(() => {
                                 onChange={(e) => setPodcastPlaybackSettings(prev => ({...prev, instructions: e.target.value}))}
                                 rows={3}
                                 placeholder="e.g., 'Explain this for a beginner', 'Focus on the historical context', 'Make the tone humorous'"
-                                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-400 dark:placeholder-gray-500 text-xs"
+                                className="w-full p-2 border border-[var(--border-primary)] rounded-md bg-[var(--bg-highlight)] text-[var(--text-secondary)] focus:ring-indigo-500 focus:border-indigo-500 placeholder-[var(--text-muted)] text-xs"
                             />
                         </div>
 
@@ -3191,7 +3272,7 @@ useEffect(() => {
 
             {showVoiceSelectionModal && speakerSlotToConfigure && (
                 <SimpleModal isOpen={showVoiceSelectionModal} onClose={() => setShowVoiceSelectionModal(false)} title={`Choose Podcast Speaker ${speakerSlotToConfigure}`} maxWidth="max-w-md">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 -mt-2 mb-3">Hear a sample by clicking the play icon!</p>
+                    <p className="text-xs text-[var(--text-muted)] -mt-2 mb-3">Hear a sample by clicking the play icon!</p>
                     <div className="space-y-3">
                         {PREDEFINED_PODCAST_SPEAKERS.map(speaker => (
                             <div
@@ -3204,16 +3285,16 @@ useEffect(() => {
                                     }
                                     setShowVoiceSelectionModal(false);
                                 }}
-                                className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg flex items-center space-x-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                                className="p-3 border border-[var(--border-primary)] rounded-lg flex items-center space-x-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
                             >
-                                <img src={speaker.avatarUrl} alt={speaker.name} className="w-12 h-12 rounded-full object-cover bg-gray-200 dark:bg-gray-600" />
+                                <img src={speaker.avatarUrl} alt={speaker.name} className="w-12 h-12 rounded-full object-cover bg-[var(--bg-highlight)]" />
                                 <div className="flex-1">
-                                    <h4 className="font-semibold text-gray-800 dark:text-gray-100">{speaker.name}</h4>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">{speaker.description}</p>
+                                    <h4 className="font-semibold text-[var(--text-primary)]">{speaker.name}</h4>
+                                    <p className="text-xs text-[var(--text-muted)]">{speaker.description}</p>
                                 </div>
                                 <button
                                     onClick={(e) => { e.stopPropagation(); handleToggleSpeakerSample(speaker); }}
-                                    className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400"
+                                    className="p-2 rounded-full hover:bg-[var(--interactive-hover)] text-[var(--text-muted)]"
                                     title={isSamplePlaying && playingSpeakerSampleId === speaker.id ? `Pause sample of ${speaker.name}` : `Play sample of ${speaker.name}`}
                                 >
                                     {isSamplePlaying && playingSpeakerSampleId === speaker.id ? (
@@ -3227,7 +3308,7 @@ useEffect(() => {
                         {speakerSlotToConfigure === 2 && (
                              <button
                                 onClick={() => { setPodcastPlaybackSettings(prev => ({ ...prev, speaker2Id: null })); setShowVoiceSelectionModal(false); }}
-                                className="w-full mt-2 p-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/30 text-sm"
+                                className="w-full mt-2 p-2 border border-dashed border-[var(--border-primary)] rounded-md text-[var(--text-muted)] hover:bg-[var(--interactive-hover)] text-sm"
                             >
                                 Clear Speaker 2 (Single Narrator)
                             </button>
@@ -3247,24 +3328,28 @@ useEffect(() => {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 20 }}
                         transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                        className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-[80] p-3 rounded-lg shadow-xl text-xs font-medium
-                                    ${uploadProgress.type === 'error' ? 'bg-red-100 dark:bg-red-700/40 border-red-300 dark:border-red-600 text-red-700 dark:text-red-200' :
+                        className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-[80] p-3 rounded-lg shadow-xl text-xs font-medium border ${!uploadProgress.customStyle ? 
+                                    (uploadProgress.type === 'error' ? 'bg-red-100 dark:bg-red-700/40 border-red-300 dark:border-red-600 text-red-700 dark:text-red-200' :
                                       uploadProgress.type === 'success' ? 'bg-green-100 dark:bg-green-700/40 border-green-300 dark:border-green-600 text-green-700 dark:text-green-200' :
-                                      'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100'}
-                                    border `}
+                                      'bg-[var(--bg-primary)] border-[var(--border-primary)] text-[var(--text-primary)]') : ''}`}
+                        style={uploadProgress.customStyle ? { 
+                            backgroundColor: uploadProgress.customStyle.backgroundColor, 
+                            color: uploadProgress.customStyle.color,
+                            border: uploadProgress.customStyle.border || 'none'
+                        } : {}}
                     >
                         <div className="flex items-center gap-2">
-                            {uploadProgress.icon ? <uploadProgress.icon className={`w-4 h-4 ${uploadProgress.type === 'error' ? 'text-red-500' : uploadProgress.type === 'success' ? 'text-green-500' : 'text-indigo-500'}`} /> :
-                             uploadProgress.type === 'error' ? <AlertTriangle className="w-4 h-4 text-red-500" /> :
-                             uploadProgress.type === 'success' ? <Check className="w-4 h-4 text-green-500" /> :
-                             <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />}
+                            {uploadProgress.icon ? <uploadProgress.icon className={`w-4 h-4 ${uploadProgress.customStyle ? 'text-white' : (uploadProgress.type === 'error' ? 'text-red-500' : uploadProgress.type === 'success' ? 'text-green-500' : 'text-indigo-500')}`} /> :
+                             uploadProgress.type === 'error' ? <AlertTriangle className={`w-4 h-4 ${uploadProgress.customStyle ? 'text-white' : 'text-red-500'}`} /> :
+                             uploadProgress.type === 'success' ? <Check className={`w-4 h-4 ${uploadProgress.customStyle ? 'text-white' : 'text-green-500'}`} /> :
+                             <Loader2 className={`w-4 h-4 animate-spin ${uploadProgress.customStyle ? 'text-white' : 'text-indigo-500'}`} />}
                             <span>{uploadProgress.status}</span>
                             {uploadProgress.progress > 0 && uploadProgress.progress < 100 && !uploadProgress.error && (
-                                <span className="text-gray-500 dark:text-gray-400">({uploadProgress.progress}%)</span>
+                                <span className="text-[var(--text-muted)]">({uploadProgress.progress}%)</span>
                             )}
                         </div>
                         {!uploadProgress.error && uploadProgress.progress < 100 && (
-                            <div className={`w-full h-1 mt-1.5 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-600`}>
+                            <div className={`w-full h-1 mt-1.5 rounded-full overflow-hidden bg-[var(--bg-highlight)]`}>
                                 <div className="h-full bg-indigo-500 rounded-full transition-all duration-300" style={{ width: `${uploadProgress.progress}%` }}></div>
                             </div>
                         )}
@@ -3276,3 +3361,8 @@ useEffect(() => {
 };
 
 export default Notes;
+
+
+
+
+

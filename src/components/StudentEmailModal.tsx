@@ -1,7 +1,8 @@
 import React, { useState, FormEvent, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Loader2, Send, CheckCircle, AlertTriangle } from 'lucide-react';
+import { X, Loader2, Send, CheckCircle, AlertTriangle, GraduationCap, Mail, User, Sparkles } from 'lucide-react';
 import emailjs from '@emailjs/browser';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 interface StudentEmailModalProps {
   isOpen: boolean;
@@ -16,13 +17,19 @@ const EMAILJS_PUBLIC_KEY = 'uE6sEAu0ykEIf36_V';
 const StudentEmailModal: React.FC<StudentEmailModalProps> = ({ isOpen, onClose }) => {
   const [name, setName] = useState('');
   const [senderEmail, setSenderEmail] = useState('');
-  const [message, setMessage] = useState('');
-  const [status, setStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'sending' | 'success' | 'error' | 'verifying'>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Lock body scroll when modal is open
+  useScrollLock(isOpen);
   const [isConfigReady, setIsConfigReady] = useState(false);
+  const [isEduEmail, setIsEduEmail] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [isVerificationSent, setIsVerificationSent] = useState(false);
+  const [sentVerificationCode, setSentVerificationCode] = useState('');
 
   useEffect(() => {
-    if (EMAILJS_SERVICE_ID && EMAILJS_TEMPLATE_ID && EMAILJS_PUBLIC_KEY && EMAILJS_TEMPLATE_ID !== 'YOUR_EMAILJS_TEMPLATE_ID') {
+    if (EMAILJS_SERVICE_ID && EMAILJS_TEMPLATE_ID && EMAILJS_PUBLIC_KEY) {
       setIsConfigReady(true);
     } else {
       setIsConfigReady(false);
@@ -30,44 +37,281 @@ const StudentEmailModal: React.FC<StudentEmailModalProps> = ({ isOpen, onClose }
     }
   }, []);
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    setStatus('sending');
-    setErrorMsg(null);
+  // List of known invalid .edu domains that are commonly used for testing
+  const invalidEduDomains = [
+    'gmail.edu',
+    'yahoo.edu', 
+    'hotmail.edu',
+    'outlook.edu',
+    'aol.edu',
+    'icloud.edu',
+    'test.edu',
+    'fake.edu',
+    'example.edu',
+    'demo.edu',
+    'sample.edu',
+    'tempmail.edu',
+    'mailinator.edu',
+    '123.edu',
+    'abc.edu',
+    "gmai.edu",
+    'xx.edu',
+    'university.edu'
+  ];
 
-    if (!isConfigReady) {
+  // International academic domain patterns
+  const academicDomainPatterns = [
+    // US and Americas
+    '.edu',         // United States
+    '.edu.au',      // Australia
+    '.edu.ar',      // Argentina
+    '.edu.br',      // Brazil
+    '.edu.co',      // Colombia
+    '.edu.pe',      // Peru
+    '.edu.mx',      // Mexico
+    '.edu.ve',      // Venezuela
+    '.edu.eg',      // Egypt
+    '.edu.ng',      // Nigeria
+    '.edu.gh',      // Ghana
+    '.edu.pk',      // Pakistan
+    '.edu.my',      // Malaysia
+    '.edu.sg',      // Singapore
+    '.edu.vn',      // Vietnam
+    '.edu.ph',      // Philippines
+    '.edu.sa',      // Saudi Arabia
+    '.edu.iq',      // Iraq
+    '.edu.jo',      // Jordan
+    '.edu.lb',      // Lebanon
+    '.edu.sy',      // Syria
+    '.edu.kw',      // Kuwait
+    '.edu.om',      // Oman
+    '.edu.tr',      // Turkey
+    '.edu.pl',      // Poland
+    '.edu.cn',      // China
+    
+    // Academic (.ac) domains
+    '.ac.uk',       // United Kingdom
+    '.ac.jp',       // Japan
+    '.ac.in',       // India
+    '.ac.za',       // South Africa
+    '.ac.nz',       // New Zealand
+    '.ac.kr',       // South Korea
+    '.ac.bd',       // Bangladesh
+    '.ac.lk',       // Sri Lanka
+    '.ac.id',       // Indonesia
+    '.ac.th',       // Thailand
+    '.ac.ke',       // Kenya
+    '.ac.ae',       // UAE
+    '.ac.il',       // Israel
+    '.ac.ir',       // Iran
+    '.ac.cn',       // China (research)
+  ];
+
+  // Check if email is from a valid college/university (international support)
+  const isCollegeEmail = (email: string): boolean => {
+    const emailLower = email.toLowerCase();
+    
+    // Extract domain from email
+    const domain = emailLower.split('@')[1];
+    if (!domain) {
+      return false;
+    }
+    
+    // Check if it's a known invalid domain first
+    if (invalidEduDomains.includes(domain)) {
+      return false;
+    }
+    
+    // Check if domain ends with any valid academic pattern
+    const isAcademicDomain = academicDomainPatterns.some(pattern => domain.endsWith(pattern));
+    if (!isAcademicDomain) {
+      return false;
+    }
+    
+    // Extract institution name (everything before the academic domain suffix)
+    let institutionName = '';
+    for (const pattern of academicDomainPatterns) {
+      if (domain.endsWith(pattern)) {
+        institutionName = domain.substring(0, domain.length - pattern.length);
+        break;
+      }
+    }
+    
+    // Remove any trailing dots
+    institutionName = institutionName.replace(/\.$/, '');
+    
+    // Institution name validation
+    if (!institutionName) {
+      return false;
+    }
+    
+    // Handle subdomains (e.g., "dept.university" from "dept.university.edu")
+    const institutionParts = institutionName.split('.');
+    const mainInstitution = institutionParts[institutionParts.length - 1]; // Get the last part
+    
+    // Main institution validation
+    if (mainInstitution.length < 2) {
+      return false;
+    }
+    
+    // Cannot be purely numeric
+    if (/^\d+$/.test(mainInstitution)) {
+      return false;
+    }
+    
+    // Cannot contain consecutive special characters or start/end with hyphen
+    if (/--/.test(mainInstitution) || mainInstitution.startsWith('-') || mainInstitution.endsWith('-')) {
+      return false;
+    }
+    
+    // Should only contain letters, numbers, and hyphens
+    if (!/^[a-z0-9-]+$/.test(mainInstitution)) {
+      return false;
+    }
+    
+    return true;
+  };
+
+  // Handle email change and verification
+  useEffect(() => {
+    if (senderEmail) {
+      const isEdu = isCollegeEmail(senderEmail);
+      setIsEduEmail(isEdu);
+      if (!isEdu && senderEmail.includes('@')) {
+        setErrorMsg('Please use your college email address ending with .edu');
+      } else {
+        setErrorMsg(null);
+      }
+    }
+  }, [senderEmail]);
+
+  // Generate random verification code
+  const generateVerificationCode = (): string => {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  };
+
+  // Send verification email
+  const sendVerificationEmail = async () => {
+    if (!isConfigReady || !isEduEmail) {
       setStatus('error');
-      setErrorMsg('Email sending configuration is incomplete. Please contact support.');
+      setErrorMsg('Please enter a valid .edu email address first.');
       return;
     }
+
+    setStatus('verifying');
+    setErrorMsg(null);
+
+    const code = generateVerificationCode();
+    setSentVerificationCode(code);
 
     const templateParams = {
       name: name,
       sender_email: senderEmail,
-      message_html: message.replace(/\n/g, '<br />'),
+      verification_code: code,
+      message_html: `
+        <p>Hello ${name},</p>
+        <p>Thank you for requesting your student discount for TaskMaster AI!</p>
+        <p>Your verification code is: <strong>${code}</strong></p>
+        <p>Please enter this code in the modal to verify your student status and claim your 2 months of PRO for free.</p>
+        <p>Best regards,<br>TaskMaster AI Team</p>
+      `,
     };
 
     try {
-      await emailjs.send(
+      const response = await emailjs.send(
         EMAILJS_SERVICE_ID,
         EMAILJS_TEMPLATE_ID,
         templateParams,
         EMAILJS_PUBLIC_KEY
       );
 
-      setStatus('success');
-      setName('');
-      setSenderEmail('');
-      setMessage('');
-      setTimeout(() => {
-        onClose();
-        setTimeout(() => setStatus('idle'), 300);
-      }, 2500);
+      // Check if email was actually sent successfully
+      if (response.status === 200) {
+        setIsVerificationSent(true);
+        setStatus('idle');
+      } else {
+        throw new Error('Email service returned an error');
+      }
     } catch (err: any) {
-      setStatus('error');
-      setErrorMsg(err.text || 'Failed to send email. Please try again later.');
       console.error('EMAILJS SEND ERROR:', err);
+      setStatus('error');
+      setErrorMsg(err.text || err.message || 'Failed to send verification email. Please check that your email address is valid and try again.');
+      setIsVerificationSent(false);
+      setSentVerificationCode('');
     }
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    
+    // Clear any previous errors
+    setErrorMsg(null);
+    
+    // Validate name and email are filled
+    if (!name.trim()) {
+      setStatus('error');
+      setErrorMsg('Please enter your full name.');
+      return;
+    }
+    
+    if (!senderEmail.trim()) {
+      setStatus('error');
+      setErrorMsg('Please enter your email address.');
+      return;
+    }
+    
+    if (!isEduEmail) {
+      setStatus('error');
+      
+      // Check if they used a fake academic domain
+      const domain = senderEmail.toLowerCase().split('@')[1];
+      if (domain && invalidEduDomains.includes(domain)) {
+        setErrorMsg(`"${domain}" is not a valid educational institution domain. Please use your official college/university email address.`);
+      } else {
+        // Check if they used any academic-looking pattern
+        const hasAcademicPattern = academicDomainPatterns.some(pattern => domain?.endsWith(pattern));
+        if (hasAcademicPattern) {
+          setErrorMsg('This academic domain appears to be invalid. Please use your official college/university email address.');
+        } else {
+          setErrorMsg('Please use a valid academic email address (.edu, .ac.uk, .edu.au, etc.) to verify your student status.');
+        }
+      }
+      return;
+    }
+
+    if (!isVerificationSent) {
+      // Send verification email
+      await sendVerificationEmail();
+      return;
+    }
+
+    // Handle verification code submission
+    setStatus('sending');
+
+    // Validate the entered code
+    if (!verificationCode || verificationCode.trim() === '') {
+      setStatus('error');
+      setErrorMsg('Please enter the verification code sent to your email.');
+      return;
+    }
+    
+    if (verificationCode.length !== 6) {
+      setStatus('error');
+      setErrorMsg('Verification code must be exactly 6 digits.');
+      return;
+    }
+
+    // Check if the entered code matches the sent code
+    if (verificationCode !== sentVerificationCode) {
+      setStatus('error');
+      setErrorMsg('Invalid verification code. Please check your email and enter the correct 6-digit code.');
+      return;
+    }
+
+    // Add a small delay to show the verification process
+    setTimeout(() => {
+      setStatus('success');
+    }, 500);
   };
   
   useEffect(() => {
@@ -75,14 +319,17 @@ const StudentEmailModal: React.FC<StudentEmailModalProps> = ({ isOpen, onClose }
         if (status !== 'success') {
             setStatus('idle');
             setErrorMsg(null);
+            setIsVerificationSent(false);
+            setVerificationCode('');
+            setSentVerificationCode('');
         }
     }
   }, [isOpen, status]);
 
   const modalVariants = {
     hidden: { opacity: 0, scale: 0.95, y: 20 },
-    visible: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.2, ease: "easeOut" } },
-    exit: { opacity: 0, scale: 0.95, y: 20, transition: { duration: 0.15, ease: "easeIn" } },
+    visible: { opacity: 1, scale: 1, y: 0 },
+    exit: { opacity: 0, scale: 0.95, y: 20 },
   };
 
   const backdropVariants = {
@@ -99,110 +346,315 @@ const StudentEmailModal: React.FC<StudentEmailModalProps> = ({ isOpen, onClose }
           initial="hidden"
           animate="visible"
           exit="exit"
-          className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-[100] [will-change:opacity]"
+          className="fixed inset-0 bg-[var(--overlay-dark)] backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-[100] [will-change:opacity]"
           onClick={() => status !== 'sending' && onClose()}
         >
           <motion.div
             variants={modalVariants}
-            className="bg-white dark:bg-[#16181D] p-6 sm:p-8 rounded-2xl shadow-2xl w-full max-w-lg text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700/60 [will-change:transform,opacity]"
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="bg-[var(--bg-primary)] p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-sm sm:max-w-2xl text-[var(--text-primary)] border border-[var(--border-primary)] [will-change:transform,opacity] relative overflow-hidden max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex justify-between items-center mb-5">
-              <h2 className="text-xl sm:text-2xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-purple-500 via-indigo-500 to-pink-500 dark:from-purple-400 dark:via-indigo-400 dark:to-pink-400">
-                Claim Student Offer
-              </h2>
-              <button
-                onClick={onClose}
-                className="text-gray-400 dark:text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 transition-colors disabled:opacity-50"
-                disabled={status === 'sending'}
-                aria-label="Close modal"
-              >
-                <X size={24} />
-              </button>
+            {/* Decorative gradient background */}
+            <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-[var(--bg-accent)]/10 to-transparent pointer-events-none" />
+            <div className="relative">
+              <div className="flex justify-between items-start mb-4 sm:mb-5">
+                <div className="flex items-center space-x-2 sm:space-x-3">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-[var(--bg-accent)] to-[var(--bg-accent-secondary)] rounded-xl sm:rounded-2xl flex items-center justify-center">
+                    <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6 text-[var(--text-white)]" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg sm:text-2xl font-bold text-[var(--text-primary)] font-heading">
+                      Student Discount
+                    </h2>
+                    <p className="text-xs sm:text-sm text-[var(--text-secondary)] mt-0.5 sm:mt-1">
+                      Get 2 months PRO absolutely free
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={onClose}
+                  className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all duration-200 p-2 hover:bg-[var(--bg-highlight)] rounded-xl disabled:opacity-50"
+                  disabled={status === 'sending'}
+                  aria-label="Close modal"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              
+              {/* Benefits section */}
+              <div className="bg-[var(--bg-card)] rounded-xl sm:rounded-2xl p-3 sm:p-4 mb-4 sm:mb-5 border border-[var(--border-primary)]">
+                <div className="flex items-center space-x-2 mb-2 sm:mb-3">
+                  <Sparkles className="w-3 h-3 sm:w-4 sm:h-4 text-[var(--bg-accent)]" />
+                  <span className="text-xs sm:text-sm font-semibold text-[var(--text-primary)]">What you'll get:</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-xs sm:text-sm text-[var(--text-secondary)]">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-1.5 h-1.5 bg-[var(--bg-accent)] rounded-full"></div>
+                    <span>25 PDF & Text Notes/month</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-1.5 h-1.5 bg-[var(--bg-accent)] rounded-full"></div>
+                    <span>15 YouTube Notes/month</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-1.5 h-1.5 bg-[var(--bg-accent)] rounded-full"></div>
+                    <span>500 Chat Messages/month</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-1.5 h-1.5 bg-[var(--bg-accent)] rounded-full"></div>
+                    <span>Smart Daily Brief access</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {status === 'success' ? (
               <div className="text-center py-8">
                 <motion.div
-                  initial={{ scale: 0.5, opacity: 0 }}
+                  initial={{ scale: 0.3, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ type: "spring", stiffness: 300, damping: 15, delay: 0.1 }}
+                  className="relative mb-6"
                 >
-                  <CheckCircle className="w-16 h-16 text-green-500 dark:text-green-400 mx-auto mb-4" />
+                  <div className="w-20 h-20 bg-gradient-to-br from-[var(--status-success)] to-[var(--status-success)]/80 rounded-full flex items-center justify-center mx-auto">
+                    <CheckCircle className="w-10 h-10 text-[var(--text-white)]" />
+                  </div>
+                  {/* Success confetti effect */}
+                  <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-2">
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: [0, 1.2, 1] }}
+                      transition={{ delay: 0.3, duration: 0.5 }}
+                      className="w-2 h-2 bg-[var(--bg-accent)] rounded-full"
+                    />
+                  </div>
                 </motion.div>
-                <p className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">Request Sent!</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">We'll review your details and get back to you soon.</p>
+                
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4, duration: 0.3 }}
+                >
+                  <h3 className="text-2xl font-bold text-[var(--text-primary)] mb-2 font-heading">
+                    Student Status Verified! 🎓
+                  </h3>
+                  <p className="text-[var(--text-secondary)] mb-4 leading-relaxed">
+                    Congratulations! Your .edu email has been verified. You now have access to 2 months of PRO features completely free!
+                  </p>
+                  
+                  <div className="bg-[var(--bg-card)] rounded-2xl p-4 border border-[var(--border-primary)] mb-4">
+                    <div className="flex items-center justify-center space-x-2 text-sm text-[var(--text-secondary)]">
+                      <div className="w-2 h-2 bg-[var(--status-success)] rounded-full animate-pulse"></div>
+                      <span>Your PRO access is now active!</span>
+                    </div>
+                  </div>
+                  
+                  <button
+                    onClick={onClose}
+                    className="w-full py-3 px-6 bg-[var(--bg-card)] hover:bg-[var(--bg-highlight)] text-[var(--text-primary)] font-semibold rounded-xl transition-all duration-200 border border-[var(--border-primary)] hover:border-[var(--border-secondary)]"
+                  >
+                    Close
+                  </button>
+                </motion.div>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
                 {!isConfigReady && (
-                    <div className="p-3 bg-yellow-100/50 dark:bg-yellow-900/50 border border-yellow-300 dark:border-yellow-500/30 rounded-lg text-yellow-700 dark:text-yellow-300 text-sm flex items-center gap-2">
-                        <AlertTriangle size={18} /> Email sending is temporarily unavailable.
+                    <div className="p-3 bg-[var(--status-warning)]/10 border border-[var(--status-warning)]/30 rounded-xl text-[var(--status-warning)] text-xs sm:text-sm flex items-center gap-3">
+                        <AlertTriangle size={16} className="sm:w-4 sm:h-4" /> 
+                        <span>Email sending is temporarily unavailable. Please try again later.</span>
                     </div>
                 )}
-                <div>
-                  <label htmlFor="name" className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1.5">Full Name</label>
-                  <input
-                    type="text"
-                    id="name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                    className="w-full text-sm px-4 py-2 bg-gray-100 dark:bg-[#0C0E1A] border border-gray-200 dark:border-gray-700/50 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-400 dark:placeholder-gray-600 text-gray-800 dark:text-gray-200 transition-colors"
-                    placeholder="e.g., Ada Lovelace"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="senderEmail" className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1.5">Your Email Address</label>
-                  <input
-                    type="email"
-                    id="senderEmail"
-                    value={senderEmail}
-                    onChange={(e) => setSenderEmail(e.target.value)}
-                    required
-                    className="w-full text-sm px-4 py-2 bg-gray-100 dark:bg-[#0C0E1A] border border-gray-200 dark:border-gray-700/50 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-400 dark:placeholder-gray-600 text-gray-800 dark:text-gray-200 transition-colors"
-                    placeholder="you@example.edu"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="message" className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1.5">
-                    Student Verification Details
-                  </label>
-                  <textarea
-                    id="message"
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    rows={4}
-                    required
-                    className="w-full text-sm px-4 py-2 bg-gray-100 dark:bg-[#0C0E1A] border border-gray-200 dark:border-gray-700/50 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-400 dark:placeholder-gray-600 text-gray-800 dark:text-gray-200 transition-colors"
-                    placeholder="e.g., Student at [University], ID: [Your ID]. My .edu email is [your .edu email if different from above]."
-                  ></textarea>
-                   <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
-                     Provide clear info like your .edu email, student ID, or university affiliation.
-                   </p>
+                
+                <div className="space-y-3 sm:space-y-4">
+                  {/* Name and Email in a row */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    <div className="relative">
+                      <label htmlFor="name" className="block text-xs sm:text-sm font-semibold text-[var(--text-primary)] mb-1.5 sm:mb-2 flex items-center gap-2">
+                        <User className="w-3 h-3 sm:w-4 sm:h-4 text-[var(--bg-accent)]" />
+                        Full Name
+                      </label>
+                      <input
+                        type="text"
+                        id="name"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        required
+                        className="w-full px-3 py-2.5 sm:py-3 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-lg sm:rounded-xl focus:outline-none focus:ring-0 focus:ring-transparent focus:border-[var(--bg-accent)] focus:shadow-[0_0_0_3px_rgba(138,133,255,0.2)] placeholder-[var(--text-muted)] text-[var(--text-primary)] transition-all duration-200 hover:border-[var(--border-secondary)] text-sm sm:text-base"
+                        placeholder="Enter your full name"
+                        style={{ outline: 'none', boxShadow: 'none' }}
+                        onFocus={(e) => e.target.style.outline = 'none'}
+                      />
+                    </div>
+                    
+                    <div className="relative">
+                      <label htmlFor="senderEmail" className="block text-xs sm:text-sm font-semibold text-[var(--text-primary)] mb-1.5 sm:mb-2 flex items-center gap-2">
+                        <Mail className="w-3 h-3 sm:w-4 sm:h-4 text-[var(--bg-accent)]" />
+                        Email Address
+                      </label>
+                      <input
+                        type="email"
+                        id="senderEmail"
+                        value={senderEmail}
+                        onChange={(e) => setSenderEmail(e.target.value)}
+                        required
+                        className="w-full px-3 py-2.5 sm:py-3 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-lg sm:rounded-xl focus:outline-none focus:ring-0 focus:ring-transparent focus:border-[var(--bg-accent)] focus:shadow-[0_0_0_3px_rgba(138,133,255,0.2)] placeholder-[var(--text-muted)] text-[var(--text-primary)] transition-all duration-200 hover:border-[var(--border-secondary)] text-sm sm:text-base"
+                        placeholder="your.email@university.edu (or .ac.uk, .edu.au, etc.)"
+                        style={{ outline: 'none', boxShadow: 'none' }}
+                        onFocus={(e) => e.target.style.outline = 'none'}
+                      />
+                      
+                      {/* Real-time email validation feedback */}
+                      {senderEmail && (
+                        <div className="mt-2">
+                          {isEduEmail ? (
+                            <div className="flex items-center gap-2 text-[var(--status-success)] text-xs">
+                              <div className="w-2 h-2 bg-[var(--status-success)] rounded-full"></div>
+                              <span>Valid academic email detected</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 text-[var(--status-error)] text-xs">
+                              <div className="w-2 h-2 bg-[var(--status-error)] rounded-full"></div>
+                              <span>
+                                {(() => {
+                                  const domain = senderEmail.toLowerCase().split('@')[1];
+                                  if (domain && invalidEduDomains.includes(domain)) {
+                                    return `"${domain}" is not a valid educational domain`;
+                                  } else {
+                                    const hasAcademicPattern = academicDomainPatterns.some(pattern => domain?.endsWith(pattern));
+                                    if (hasAcademicPattern) {
+                                      return 'This academic domain appears invalid';
+                                    } else {
+                                      return 'Must be a valid academic email (.edu, .ac.uk, etc.)';
+                                    }
+                                  }
+                                })()}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 text-xs text-[var(--text-muted)] -mt-1 sm:-mt-2">
+                    <div className={`w-2 h-2 rounded-full ${isEduEmail ? 'bg-[var(--status-success)]' : 'bg-[var(--bg-accent)]'}`}></div>
+                    <span>{isEduEmail ? 'Valid academic email detected!' : 'Use your college/university academic email address'}</span>
+                  </div>
+                  
+                  {isVerificationSent && (
+                    <div className="relative">
+                      <label htmlFor="verificationCode" className="block text-xs sm:text-sm font-semibold text-[var(--text-primary)] mb-1.5 sm:mb-2 flex items-center gap-2">
+                        <Mail className="w-3 h-3 sm:w-4 sm:h-4 text-[var(--bg-accent)]" />
+                        Verification Code
+                      </label>
+                      <input
+                        type="text"
+                        id="verificationCode"
+                        value={verificationCode}
+                        onChange={(e) => setVerificationCode(e.target.value)}
+                        maxLength={6}
+                        required
+                        className="w-full px-3 py-2.5 sm:py-3 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-lg sm:rounded-xl focus:outline-none focus:ring-0 focus:ring-transparent focus:border-[var(--bg-accent)] focus:shadow-[0_0_0_3px_rgba(138,133,255,0.2)] placeholder-[var(--text-muted)] text-[var(--text-primary)] transition-all duration-200 hover:border-[var(--border-secondary)] text-sm sm:text-base text-center tracking-wider font-mono text-lg"
+                        placeholder="Enter 6-digit code"
+                        style={{ outline: 'none', boxShadow: 'none' }}
+                        onFocus={(e) => e.target.style.outline = 'none'}
+                      />
+                      <div className="mt-2 text-center">
+                        <p className="text-xs text-[var(--text-secondary)]">
+                          We sent a verification code to <span className="font-semibold">{senderEmail}</span>
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsVerificationSent(false);
+                            setVerificationCode('');
+                            setSentVerificationCode('');
+                            setErrorMsg(null);
+                            setStatus('idle');
+                          }}
+                          className="text-xs text-[var(--bg-accent)] hover:text-[var(--bg-accent-secondary)] mt-1 underline transition-colors"
+                        >
+                          Didn't receive it? Send again
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {!isVerificationSent && (
+                    <div className="mt-2 sm:mt-3 p-3 sm:p-4 bg-[var(--bg-card)] rounded-lg sm:rounded-xl border border-[var(--border-primary)]">
+                      <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
+                        <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-[var(--bg-accent)] rounded-full"></div>
+                        <p className="text-xs sm:text-sm font-bold text-[var(--text-primary)]">How it works:</p>
+                      </div>
+                      <p className="text-xs sm:text-sm text-[var(--text-secondary)] font-medium">
+                        We'll send a verification code to your .edu email to confirm your student status automatically!
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {status === 'error' && errorMsg && (
-                  <div className="p-3 bg-red-100/50 dark:bg-red-900/50 border border-red-300 dark:border-red-500/30 rounded-lg text-red-700 dark:text-red-300 text-sm flex items-center gap-2.5">
-                    <AlertTriangle size={20} /> <span>{errorMsg}</span>
-                  </div>
+                  <motion.div 
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-4 bg-[var(--status-error)]/10 border border-[var(--status-error)]/30 rounded-xl text-[var(--status-error)] text-sm"
+                  >
+                    <div className="flex items-center gap-3 mb-3">
+                      <AlertTriangle size={20} className="shrink-0" /> 
+                      <span>{errorMsg}</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setStatus('idle');
+                        setErrorMsg(null);
+                        setIsVerificationSent(false);
+                        setSentVerificationCode('');
+                        setVerificationCode('');
+                      }}
+                      className="w-full py-2 px-4 bg-[var(--status-error)] hover:bg-[var(--status-error)]/80 text-white font-medium rounded-lg transition-all duration-200 text-sm"
+                    >
+                      Try Again
+                    </button>
+                  </motion.div>
                 )}
 
-                <button
-                  type="submit"
-                  disabled={status === 'sending' || !isConfigReady}
-                  className="w-full flex items-center justify-center py-2.5 px-5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-full transition-all duration-300 ease-in-out disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-[#16181D] shadow-md hover:shadow-[0_0_15px_2px_rgba(99,102,241,0.5)]"
-                >
-                  {status === 'sending' ? (
-                    <>
-                      <Loader2 className="w-5 h-5 mr-2 animate-spin" /> Sending...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="w-5 h-5 mr-2" /> Submit Request
-                    </>
-                  )}
-                </button>
+                <div className="pt-2 sm:pt-3">
+                  <button
+                    type="submit"
+                    disabled={status === 'sending' || status === 'verifying' || !isConfigReady || (!isEduEmail && !isVerificationSent)}
+                    className="w-full flex items-center justify-center py-3 sm:py-3.5 px-4 sm:px-6 bg-gradient-to-r from-[var(--bg-accent)] to-[var(--bg-accent-secondary)] hover:from-[var(--bg-accent-secondary)] hover:to-[var(--bg-accent)] text-[var(--text-white)] font-bold rounded-xl sm:rounded-2xl transition-all duration-300 ease-in-out disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[var(--bg-accent)]/50 focus:ring-offset-2 focus:ring-offset-[var(--bg-primary)] shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none text-sm sm:text-base"
+                  >
+                    {status === 'verifying' ? (
+                      <>
+                        <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-3 animate-spin" /> 
+                        <span>Sending Code...</span>
+                      </>
+                    ) : status === 'sending' ? (
+                      <>
+                        <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-3 animate-spin" /> 
+                        <span>Verifying Code...</span>
+                      </>
+                    ) : isVerificationSent ? (
+                      <>
+                        <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-3" /> 
+                        <span>Verify & Claim Discount</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-3" /> 
+                        <span>Send Verification Code</span>
+                      </>
+                    )}
+                  </button>
+                  
+                  <div className="mt-2 sm:mt-3 text-center">
+                    <p className="text-xs text-[var(--text-muted)]">
+                      {isVerificationSent ? 'Check your email for the verification code' : 'Instant verification with your .edu email'}
+                    </p>
+                  </div>
+                </div>
               </form>
             )}
           </motion.div>

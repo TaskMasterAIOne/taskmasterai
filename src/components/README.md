@@ -9,14 +9,11 @@ This directory contains the main React components used throughout the TaskMaster
 - **Notes.tsx, NewNoteModal.tsx** – Note-taking and modal components for interacting with notes.
 - **Terms.tsx, Privacy-Policy.tsx, SchoolPage.tsx** – Standalone informational pages and app sections.
 - **TaskAnalytics.tsx** – Analytics and AI insights for user tasks.
-- **dashboardfirebase.js** – Firebase dashboard utilities and online status logic.
+
 - **testimonials-styles.css** – Styles for testimonial cards.
 
 ## Subdirectories
 
-- **login/** – Authentication and login form components.
-- **services/** – Service modals and service-related UI.
-- **signup/** – (See below)
 - **ui/** – Reusable and accessible UI primitives such as Button, Dialog, Popover, and more.
 
 > This list may be incomplete. For a full view of all components, see the [GitHub code search for components](https://github.com/TaskMasterAIOne/taskmasterai/search?q=path%3A%2Fsrc%2Fcomponents%2F).

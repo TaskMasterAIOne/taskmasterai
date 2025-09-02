@@ -107,6 +107,7 @@ export interface ChatMessage {
   question?: { type: 'question'; data: Array<{ id: string; question: string; options: string[]; correctAnswer: number; explanation: string }> };
   localPlaceholderId?: string;
   isLoading?: boolean;
+  sources?: Array<{ number: number; url: string; title: string }>; // Web search sources
 }
 
 export interface ChatConversation {
@@ -876,7 +877,7 @@ export const calculateAndUpdateFolderMemoryScore = async (userId: string, folder
     const itemsRef = collection(db, "users", userId, "folders", folderId, "items");
     const itemsSnap = await getDocs(itemsRef);
     if (itemsSnap.empty) {
-        await updateDoc(doc(db, "users", userId, "folders", folderId), { memoryScore: 0, avgMasteryLevel: 0, updatedAt: serverTimestamp() });
+        await setDoc(doc(db, "users", userId, "folders", folderId), { memoryScore: 0, avgMasteryLevel: 0, updatedAt: serverTimestamp() }, { merge: true });
         return;
     }
     let totalMasteryValue = 0;
@@ -890,9 +891,9 @@ export const calculateAndUpdateFolderMemoryScore = async (userId: string, folder
     const avgMastery = itemsSnap.size > 0 ? totalMasteryValue / itemsSnap.size : 0;
     const memoryScore = Math.round((avgMastery / 3) * 100);
 
-    await updateDoc(doc(db, "users", userId, "folders", folderId), {
+    await setDoc(doc(db, "users", userId, "folders", folderId), {
         memoryScore: memoryScore,
         avgMasteryLevel: parseFloat(avgMastery.toFixed(2)),
         updatedAt: serverTimestamp()
-    });
+    }, { merge: true });
 };

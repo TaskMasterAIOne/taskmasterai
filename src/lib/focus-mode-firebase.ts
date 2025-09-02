@@ -209,6 +209,11 @@ export const createFocusSession = async (userId: string, sessionInput: CreateFoc
       plannedDurationSeconds: null,
     };
   } else if (sessionInput.type === 'custom_timer') {
+    // Ensure plannedDurationSeconds is valid for custom timer sessions
+    if (sessionInput.plannedDurationSeconds === undefined || sessionInput.plannedDurationSeconds === null || typeof sessionInput.plannedDurationSeconds !== 'number' || sessionInput.plannedDurationSeconds <= 0) {
+      throw new Error('Custom timer sessions require a valid plannedDurationSeconds (must be a positive number)');
+    }
+    
     specificData = {
       type: 'custom_timer',
       plannedDurationSeconds: sessionInput.plannedDurationSeconds,
@@ -251,10 +256,33 @@ export const updateFocusSession = async (sessionId: string, updates: Partial<Foc
   }
 
   const sessionRef = doc(db, 'focusSessions', sessionId);
-  await updateDoc(sessionRef, {
-    ...sanitizedUpdates,
-    updatedAt: serverTimestamp(),
-  });
+
+  try {
+    await updateDoc(sessionRef, {
+      ...sanitizedUpdates,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error: any) {
+    // If the document doesn't exist or there's a precondition failure, try to create it
+    if (error?.code === 'not-found' || error?.code === 'failed-precondition') {
+      console.warn(`Session ${sessionId} not found or precondition failed, attempting to recreate:`, error);
+
+      // Try to get the document first to see if it exists
+      const docSnap = await getDoc(sessionRef);
+      if (!docSnap.exists()) {
+        throw new Error(`Session ${sessionId} does not exist and cannot be updated.`);
+      }
+
+      // If it exists but update failed, try again with setDoc and merge
+      await setDoc(sessionRef, {
+        ...sanitizedUpdates,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+    } else {
+      // Re-throw other errors
+      throw error;
+    }
+  }
 };
 
 export const deleteFocusSession = async (sessionId: string): Promise<void> => {

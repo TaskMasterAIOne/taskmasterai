@@ -1,4 +1,5 @@
 import React, { useState, FormEvent, useEffect, useRef } from 'react';
+import { useScrollLock } from '../hooks/useScrollLock';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Users, DollarSign, Briefcase, Award, Rocket, 
@@ -32,7 +33,7 @@ const perks = [
 ];
 
 const VideoPlayer = ({ src }) => (
-    <div className="aspect-[9/16] w-full max-w-xs mx-auto bg-[#635bff] rounded-3xl p-2 border-2 border-[#635bff]/50 shadow-xl shadow-[#8a85ff]">
+    <div className="aspect-[9/16] w-full max-w-xs mx-auto bg-[var(--bg-header-secondary)] rounded-3xl p-2 border-2 border-[var(--bg-header-secondary)]/50 shadow-xl shadow-[var(--bg-accent)]">
       <video
         src={src}
         autoPlay
@@ -51,7 +52,7 @@ const FormInput = ({ icon, ...props }) => (
         </div>
         <input 
             {...props} 
-            className="w-full bg-[#4E46DC] text-white placeholder:text-gray-300 pl-12 pr-4 py-3 rounded-xl focus:outline-none transition" 
+            className="w-full bg-[var(--bg-header)] text-white placeholder:text-gray-300 pl-12 pr-4 py-3 rounded-xl focus:outline-none transition" 
         />
     </div>
 );
@@ -63,7 +64,7 @@ const FormTextarea = ({ icon, ...props }) => (
         </div>
         <textarea 
             {...props} 
-            className="w-full bg-[#4E46DC] text-white placeholder:text-gray-300 pl-12 pr-4 py-3 rounded-xl focus:outline-none transition" 
+            className="w-full bg-[var(--bg-header)] text-white placeholder:text-gray-300 pl-12 pr-4 py-3 rounded-xl focus:outline-none transition" 
         />
     </div>
 );
@@ -77,6 +78,9 @@ export default function Partner() {
   const [formError, setFormError] = useState('');
   const formRef = useRef<HTMLDivElement>(null);
   const [showReferralModal, setShowReferralModal] = useState(false);
+
+  // Lock body scroll when referral modal is open
+  useScrollLock(showReferralModal);
   const [referralFormData, setReferralFormData] = useState({ referrerEmail: '', friendName: '', friendEmail: '', friendTiktok: '' });
   const [isSubmittingReferral, setIsSubmittingReferral] = useState(false);
   const [referralError, setReferralError] = useState('');
@@ -177,14 +181,14 @@ export default function Partner() {
   };
 
   return (
-    <div className="bg-[#4E46DC] text-gray-200 font-poppins">
+    <div className="bg-[var(--bg-header)] text-gray-200 font-clarika">
       <main className="overflow-x-hidden">
         <section className="relative text-center pt-28 pb-20 md:pt-40 md:pb-28">
           <div className="absolute inset-0 bg-grid-indigo z-0"></div>
-           <div className="absolute inset-0 bg-gradient-to-b from-[#4E46DC] via-[#4E46DC] to-transparent z-10"></div>
+           <div className="absolute inset-0 bg-gradient-to-b from-[var(--bg-header)] via-[var(--bg-header)] to-transparent z-10"></div>
           <div className="container mx-auto px-6 relative z-20">
             <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-              <span className="inline-block bg-[#635bff] text-white rounded-full px-5 py-2.5 text-base font-medium mb-8">
+              <span className="inline-block bg-[var(--bg-header-secondary)] text-white rounded-full px-5 py-2.5 text-base font-medium mb-8">
                 Hiring Marketing Interns
               </span>
             </motion.div>
@@ -195,7 +199,7 @@ export default function Partner() {
             <motion.p className="text-lg md:text-xl text-gray-300 mb-7 max-w-3xl mx-auto" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }}>
               <span className="underline underline-offset-4">TaskMaster AI</span> Creator Program
             </motion.p>
-            <motion.button onClick={handleApplyClick} className="inline-block bg-[#635bff] hover:bg-indigo-500 text-white rounded-full px-10 py-4 text-lg font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 transition-all duration-300 transform hover:-translate-y-1" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ type: "spring", stiffness: 200, damping: 15, delay: 0.3 }}>
+            <motion.button onClick={handleApplyClick} className="inline-block bg-[var(--bg-header-secondary)] hover:bg-indigo-500 text-white rounded-full px-10 py-4 text-lg font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 transition-all duration-300 transform hover:-translate-y-1" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ type: "spring", stiffness: 200, damping: 15, delay: 0.3 }}>
               Apply Today
             </motion.button>
           </div>
@@ -203,19 +207,19 @@ export default function Partner() {
 
         <section className="py-5 lg:py-5">
             <div className="container mx-auto px-6">
-                <div className="bg-[#635bff] rounded-3xl p-8 md:p-12 shadow-2xl max-w-5xl mx-auto ">
+                <div className="bg-[var(--bg-header-secondary)] rounded-3xl p-8 md:p-12 shadow-2xl max-w-5xl mx-auto ">
                     <div className="grid md:grid-cols-2 gap-12 items-center">
                         <div className="flex flex-col space-y-8">
                             <h2 className="text-3xl md:text-4xl font-semibold text-white">The Job</h2>
                             {jobDetails.map((item, index) => (
                                 <motion.div key={index} className="flex items-start space-x-5" initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, delay: index * 0.15 }} viewport={{ once: true, amount: 0.5 }}>
-                                    <div className="flex-shrink-0 bg-[#4E46DC] rounded-xl p-3 ">{item.icon}</div>
+                                    <div className="flex-shrink-0 bg-[var(--bg-header)] rounded-xl p-3 ">{item.icon}</div>
                                     <p className="text-gray-300 text-base pt-1 leading-relaxed">{item.description}</p>
                                 </motion.div>
                             ))}
                         </div>
                         <motion.div 
-                            className="bg-[#4E46DC] rounded-2xl aspect-video relative flex items-center justify-center overflow-hidden" 
+                            className="bg-[var(--bg-header)] rounded-2xl aspect-video relative flex items-center justify-center overflow-hidden" 
                             initial={{ opacity: 0, scale: 0.9 }} 
                             whileInView={{ opacity: 1, scale: 1 }} 
                             transition={{ duration: 0.6, ease: "easeOut" }} 
@@ -236,8 +240,8 @@ export default function Partner() {
             <h2 className="text-3xl md:text-5xl font-semibold text-white mb-20">Why Become a TaskPartner?</h2>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
               {perks.map((perk, i) => (
-                <motion.div key={perk.title} className="bg-[#635bff] p-8 rounded-2xl text-left hover:bg-indigo-500/80 hover:-translate-y-1 transition-all duration-300" initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: i * 0.05 }} viewport={{ once: true, amount: 0.3 }}>
-                  <div className="bg-[#4E46DC] inline-block p-3 rounded-xl mb-5">{perk.icon}</div>
+                <motion.div key={perk.title} className="bg-[var(--bg-header-secondary)] p-8 rounded-2xl text-left hover:bg-indigo-500/80 hover:-translate-y-1 transition-all duration-300" initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: i * 0.05 }} viewport={{ once: true, amount: 0.3 }}>
+                  <div className="bg-[var(--bg-header)] inline-block p-3 rounded-xl mb-5">{perk.icon}</div>
                   <h3 className="text-xl font-semibold text-white mb-2">{perk.title}</h3>
                   <p className="text-gray-300 text-base leading-relaxed">{perk.description}</p>
                 </motion.div>
@@ -263,7 +267,7 @@ export default function Partner() {
             <p className="text-lg text-gray-300 max-w-2xl mx-auto mb-8">
               Are you an existing creator in our program? Earn a <strong className="text-white font-semibold">$50</strong> bonus for every friend you refer who gets accepted as a TaskPartner.
             </p>
-            <button onClick={handleReferralClick} className="inline-block bg-[#635bff] hover:bg-indigo-500 text-white rounded-full px-8 py-4 text-lg font-semibold shadow-md transition-all duration-300 transform hover:-translate-y-1">
+            <button onClick={handleReferralClick} className="inline-block bg-[var(--bg-header-secondary)] hover:bg-indigo-500 text-white rounded-full px-8 py-4 text-lg font-semibold shadow-md transition-all duration-300 transform hover:-translate-y-1">
               Refer a Friend
             </button>
           </div>
@@ -271,13 +275,13 @@ export default function Partner() {
 
         <section id="application-form-section" ref={formRef} className="py-20 lg:py-28 scroll-mt-20">
             <div className="container mx-auto px-6 max-w-3xl">
-                <div className="bg-[#635bff] rounded-3xl p-6 sm:p-8 md:p-12 shadow-2xl min-h-[550px] flex flex-col justify-center">
+                <div className="bg-[var(--bg-header-secondary)] rounded-3xl p-6 sm:p-8 md:p-12 shadow-2xl min-h-[550px] flex flex-col justify-center">
                     <AnimatePresence mode="wait">
                         {formStep === 0 && (
                             <motion.div key="start" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="text-center">
                                 <h2 className="text-3xl md:text-5xl font-semibold text-white mb-4">Ready to Apply?</h2>
                                 <p className="text-lg text-gray-300 max-w-2xl mx-auto mb-8">Join our creator program and start earning today.</p>
-                                <button onClick={() => setFormStep(1)} className="inline-block bg-white text-[#635bff] rounded-full px-10 py-4 text-lg font-semibold shadow-lg transition-all duration-300 transform hover:scale-105 focus:outline-none">
+                                <button onClick={() => setFormStep(1)} className="inline-block bg-white text-[var(--bg-header-secondary)] rounded-full px-10 py-4 text-lg font-semibold shadow-lg transition-all duration-300 transform hover:scale-105 focus:outline-none">
                                     Start Application
                                 </button>
                             </motion.div>
@@ -293,7 +297,7 @@ export default function Partner() {
                                             </button>
                                         )}
                                     </div>
-                                    <div className="w-full h-2 bg-[#4E46DC] rounded-full overflow-hidden">
+                                    <div className="w-full h-2 bg-[var(--bg-header)] rounded-full overflow-hidden">
                                         <motion.div className="h-full bg-white" animate={{ width: `${(formStep - 1) / totalSteps * 100}%` }} transition={{ ease: "easeInOut", duration: 0.5 }}/>
                                     </div>
                                     <div className="w-12 text-right">
@@ -311,7 +315,7 @@ export default function Partner() {
                                                     <p className="text-gray-300 text-center mb-8">Tell us a little about yourself.</p>
                                                     <FormInput icon={<User className="w-5 h-5 text-gray-300"/>} type="text" name="name" placeholder="Full Name" value={formData.name} onChange={handleInputChange} required />
                                                     <FormInput icon={<Mail className="w-5 h-5 text-gray-300"/>} type="email" name="email" placeholder="Email Address" value={formData.email} onChange={handleInputChange} required />
-                                                    <button type="button" onClick={nextStep} className="w-full bg-white text-[#635bff] font-semibold py-3 px-8 rounded-xl hover:bg-gray-200 transition-colors focus:outline-none">Next</button>
+                                                    <button type="button" onClick={nextStep} className="w-full bg-white text-[var(--bg-header-secondary)] font-semibold py-3 px-8 rounded-xl hover:bg-gray-200 transition-colors focus:outline-none">Next</button>
                                                 </motion.div>
                                             )}
                                             {formStep === 2 && (
@@ -320,7 +324,7 @@ export default function Partner() {
                                                     <p className="text-gray-300 text-center mb-8">Where do you create content?</p>
                                                     <FormInput icon={<AtSign className="w-5 h-5 text-gray-300"/>} type="text" name="tiktokHandle" placeholder="TikTok Handle (e.g., @yourhandle)" value={formData.tiktokHandle} onChange={handleInputChange} required />
                                                     <FormInput icon={<Instagram className="w-5 h-5 text-gray-300"/>} type="text" name="instagramHandle" placeholder="Instagram Handle (Optional)" value={formData.instagramHandle} onChange={handleInputChange} />
-                                                    <button type="button" onClick={nextStep} className="w-full bg-white text-[#635bff] font-semibold py-3 px-8 rounded-xl hover:bg-gray-200 transition-colors focus:outline-none">Next</button>
+                                                    <button type="button" onClick={nextStep} className="w-full bg-white text-[var(--bg-header-secondary)] font-semibold py-3 px-8 rounded-xl hover:bg-gray-200 transition-colors focus:outline-none">Next</button>
                                                 </motion.div>
                                             )}
                                             {formStep === 3 && (
@@ -330,7 +334,7 @@ export default function Partner() {
                                                     <FormInput icon={<Tag className="w-5 h-5 text-gray-300"/>} type="text" name="creatorCode" placeholder="Desired Creator Code" value={formData.creatorCode} onChange={handleInputChange} required />
                                                     <FormTextarea icon={<MessageSquare className="w-5 h-5 text-gray-300"/>} name="whyPartner" placeholder="Why do you want to be a TaskPartner?" value={formData.whyPartner} onChange={handleInputChange} rows={4} required></FormTextarea>
                                                     <FormInput icon={<Link2 className="w-5 h-5 text-gray-300"/>} type="text" name="referral" placeholder="Referred by (Optional)" value={formData.referral} onChange={handleInputChange} />
-                                                    <button type="submit" disabled={isSubmitting} className="w-full inline-flex items-center justify-center bg-white text-[#635bff] font-semibold py-3 px-8 rounded-xl hover:bg-gray-200 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed focus:outline-none">
+                                                    <button type="submit" disabled={isSubmitting} className="w-full inline-flex items-center justify-center bg-white text-[var(--bg-header-secondary)] font-semibold py-3 px-8 rounded-xl hover:bg-gray-200 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed focus:outline-none">
                                                         {isSubmitting ? (<><Loader2 className="w-5 h-5 mr-2 animate-spin" />Submitting...</>) : (<>Submit Application <Send className="w-4 h-4 ml-2" /></>)}
                                                     </button>
                                                 </motion.div>
@@ -340,7 +344,7 @@ export default function Partner() {
                                                     <CheckCircle className="w-20 h-20 text-white mx-auto mb-6"/>
                                                     <h3 className="text-2xl sm:text-3xl font-semibold text-white mb-3">Application Received!</h3>
                                                     <p className="text-gray-300 max-w-sm mx-auto">We'll get back to you within 3–5 business days.</p>
-                                                    <button type="button" onClick={resetForm} className="mt-8 bg-white text-[#635bff] font-semibold py-3 px-8 rounded-xl hover:bg-gray-200 transition-colors focus:outline-none">Done</button>
+                                                    <button type="button" onClick={resetForm} className="mt-8 bg-white text-[var(--bg-header-secondary)] font-semibold py-3 px-8 rounded-xl hover:bg-gray-200 transition-colors focus:outline-none">Done</button>
                                                 </motion.div>
                                             )}
                                             {formStep === 5 && (
@@ -348,7 +352,7 @@ export default function Partner() {
                                                     <AlertTriangle className="w-20 h-20 text-red-400 mx-auto mb-6"/>
                                                     <h3 className="text-2xl sm:text-3xl font-semibold text-white mb-3">Submission Failed</h3>
                                                     <p className="text-gray-300 max-w-sm mx-auto">{formError || "Something went wrong."}</p>
-                                                    <button type="button" onClick={() => { setDirection(-1); setFormStep(3); }} className="mt-8 bg-white text-[#635bff] font-semibold py-3 px-8 rounded-xl hover:bg-gray-200 transition-colors focus:outline-none">Try Again</button>
+                                                    <button type="button" onClick={() => { setDirection(-1); setFormStep(3); }} className="mt-8 bg-white text-[var(--bg-header-secondary)] font-semibold py-3 px-8 rounded-xl hover:bg-gray-200 transition-colors focus:outline-none">Try Again</button>
                                                 </motion.div>
                                             )}
                                         </form>
@@ -365,7 +369,7 @@ export default function Partner() {
           <div className="container mx-auto px-6 text-center">
             <h3 className="font-semibold text-white mb-4">Follow Our Socials</h3>
             <div className="flex flex-col space-y-4 max-w-md mx-auto">
-              <a href="https://www.instagram.com/taskmasteroneai/" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between bg-[#635bff] text-white p-4 rounded-xl hover:bg-indigo-500 transition-colors">
+              <a href="https://www.instagram.com/taskmasteroneai/" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between bg-[var(--bg-header-secondary)] text-white p-4 rounded-xl hover:bg-indigo-500 transition-colors">
                 <div className="flex items-center space-x-3">
                   <div className="w-6 h-6 flex items-center justify-center">
                     <img src="https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/instagram-logo.png?alt=media&token=1620382b-3e8f-46ed-901e-e9ec6356ceb7" alt="Instagram Logo" className="max-w-full max-h-full object-contain" />
@@ -374,7 +378,7 @@ export default function Partner() {
                 </div>
                 <ArrowRight className="w-5 h-5 text-gray-400"/>
               </a>
-              <a href="https://www.tiktok.com/@taskmasterai" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between bg-[#635bff] text-white p-4 rounded-xl hover:bg-indigo-500 transition-colors">
+              <a href="https://www.tiktok.com/@taskmasterai" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between bg-[var(--bg-header-secondary)] text-white p-4 rounded-xl hover:bg-indigo-500 transition-colors">
                 <div className="flex items-center space-x-3">
                   <div className="w-6 h-6 flex items-center justify-center">
                     <img src="https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/tiktok-logo.png?alt=media&token=de834810-541b-4761-a6b5-113bc57d40a8" alt="TikTok Logo" className="max-w-full max-h-full object-contain" />
@@ -402,7 +406,7 @@ export default function Partner() {
       onClick={() => !isSubmittingReferral && setShowReferralModal(false)}
     >
       <motion.div
-        className="bg-[#635bff] rounded-3xl p-8 shadow-2xl w-full max-w-lg relative [will-change:transform,opacity]"
+        className="bg-[var(--bg-header-secondary)] rounded-3xl p-8 shadow-2xl w-full max-w-lg relative [will-change:transform,opacity]"
         variants={{
           hidden: { opacity: 0, scale: 0.95, y: 20 },
           visible: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.3, ease: 'easeOut' } },
@@ -441,7 +445,7 @@ export default function Partner() {
               </div>
             )}
 
-            <button type="submit" disabled={isSubmittingReferral} className="w-full inline-flex items-center justify-center bg-white text-[#635bff] font-semibold py-3 px-8 rounded-xl hover:bg-gray-200 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed focus:outline-none">
+            <button type="submit" disabled={isSubmittingReferral} className="w-full inline-flex items-center justify-center bg-white text-[var(--bg-header-secondary)] font-semibold py-3 px-8 rounded-xl hover:bg-gray-200 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed focus:outline-none">
               {isSubmittingReferral ? (<><Loader2 className="w-5 h-5 mr-2 animate-spin" />Submitting...</>) : (<>Submit Referral <Send className="w-4 h-4 ml-2" /></>)}
             </button>
           </form>
@@ -452,12 +456,12 @@ export default function Partner() {
 </AnimatePresence>
       </main>
       <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
-        .font-poppins {
-          font-family: 'Poppins', sans-serif;
+        @import url('https://db.onlinewebfonts.com/c/87ac07a4a6ff7e0603908b6a1354e998?family=Clarika+Geometric+Medium');
+        .font-clarika {
+          font-family: var(--font-heading);
         }
         .bg-grid-indigo {
-          background-image: linear-gradient(#635bff 1px, transparent 1px), linear-gradient(to right, #635bff 1px, transparent 1px);
+          background-image: linear-gradient(var(--bg-header-secondary) 1px, transparent 1px), linear-gradient(to right, var(--bg-header-secondary) 1px, transparent 1px);
           background-size: 30px 30px;
           opacity: 0.1;
         }

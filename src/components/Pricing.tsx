@@ -35,8 +35,8 @@ interface ButtonInfo {
 
 const FeatureItem = ({ text }: { text: string }) => (
   <li className="flex items-start">
-    <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-500 dark:text-indigo-400 mr-2 flex-shrink-0 mt-1" />
-    <span className="text-gray-600 dark:text-gray-300 text-xs sm:text-sm">{text}</span>
+    <Check className="w-4 h-4 text-[var(--text-primary)] mr-3 flex-shrink-0 mt-0.5" />
+    <span className="text-[var(--text-secondary)] text-sm text-optimized">{text}</span>
   </li>
 );
 
@@ -237,18 +237,18 @@ function Pricing() {
   const proButtonInfo = getButtonInfo('PRO', proStripePriceId);
   const basicButtonInfo = getButtonInfo('BASIC');
 
-  const planCardBaseStyle = "bg-white/80 dark:bg-[#16181D]/80 rounded-2xl flex flex-col border border-gray-200 dark:border-gray-700/50 p-5 sm:p-6 transition-all duration-300 backdrop-blur-sm";
-  const planButtonBaseStyle = "w-full block text-center py-2.5 px-5 rounded-full font-semibold text-xs transition-colors duration-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-[#16181D]";
+  const planCardBaseStyle = "bg-[var(--bg-card)] rounded-3xl flex flex-col border border-[var(--border-primary)] p-5 sm:p-6 transition-all duration-300 shadow-lg hover:shadow-xl";
+  const planButtonBaseStyle = "w-full block text-center py-3 px-6 rounded-2xl font-semibold text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2";
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-[#0C0E1A] text-gray-800 dark:text-gray-200 font-poppins selection:bg-purple-600 selection:text-white relative overflow-hidden">
+    <div className="flex flex-col min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] font-clarika selection:bg-[var(--bg-accent)] selection:text-white relative overflow-hidden">
       <AnimatedBackground />
       <motion.header className="w-full py-5 sm:py-6 bg-transparent z-10" variants={headerMotionVariants} initial="hidden" animate="visible">
         <div className="container mx-auto px-5 sm:px-6">
           <nav className="flex items-center justify-between">
             <a href="/" aria-label="TaskMaster AI Home"><Logo /></a>
             <div className="flex items-center">
-              <a href={authUser ? "/dashboard" : "/signup"} className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full text-sm font-semibold transition-colors duration-200 shadow-md hover:shadow-[0_0_15px_2px_rgba(99,102,241,0.5)]">
+              <a href={authUser ? "/dashboard" : "/signup"} className="px-6 py-2.5 bg-[var(--bg-solid-button)] hover:bg-[var(--bg-accent)] text-white rounded-full text-sm font-semibold transition-colors duration-200 shadow-md hover:shadow-lg">
                 {authUser ? "Dashboard" : "Start today - It's Free"}
               </a>
             </div>
@@ -257,22 +257,22 @@ function Pricing() {
       </motion.header>
 
       <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 w-full max-w-screen-2xl z-10">
-        <div className="text-center mb-16">
-          <h1 className="text-3xl sm:text-4xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-purple-500 via-indigo-500 to-pink-500 dark:from-purple-400 dark:via-indigo-400 dark:to-pink-400 mb-3 pb-2">
+        <div className="text-center mb-10">
+          <h1 className="text-3xl sm:text-4xl font-bold text-[var(--text-primary)] mb-4 text-optimized">
             Pricing Plans
           </h1>
         </div>
 
-        <div className="flex justify-center mb-12">
-          <div className="bg-gray-100 dark:bg-[#16181D]/70 backdrop-blur-sm p-1.5 rounded-full flex border border-gray-200 dark:border-gray-700/60 shadow-lg">
+        <div className="flex justify-center mb-16">
+          <div className="bg-[var(--bg-highlight)] p-1 rounded-3xl flex border border-[var(--border-primary)] shadow-md">
             <button
-              className={`px-6 py-2.5 rounded-full transition-all duration-300 text-sm font-medium focus:outline-none ${isYearly ? 'bg-indigo-600 text-white shadow-[0_0_12px_2px_rgba(99,102,241,0.5)]' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'}`}
+              className={`px-8 py-3 rounded-3xl transition-all duration-300 text-sm font-medium focus:outline-none text-optimized ${isYearly ? 'bg-[var(--bg-solid-button)] text-white shadow-md' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
               onClick={() => { setIsYearly(true); setCheckoutError(null); }}
             >
               Yearly <span className="text-xs opacity-80">(Save 33%)</span>
             </button>
             <button
-              className={`px-6 py-2.5 rounded-full transition-all duration-300 text-sm font-medium focus:outline-none ${!isYearly ? 'bg-indigo-600 text-white shadow-[0_0_12px_2px_rgba(99,102,241,0.5)]' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'}`}
+              className={`px-8 py-3 rounded-3xl transition-all duration-300 text-sm font-medium focus:outline-none text-optimized ${!isYearly ? 'bg-[var(--bg-solid-button)] text-white shadow-md' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
               onClick={() => { setIsYearly(false); setCheckoutError(null); }}
             >
               Monthly
@@ -281,53 +281,54 @@ function Pricing() {
         </div>
 
         {checkoutError && (
-          <div className="mb-8 p-4 bg-red-100/50 dark:bg-red-900/50 backdrop-blur-sm border border-red-500/30 rounded-lg text-red-700 dark:text-red-300 text-sm flex items-center justify-center gap-3 max-w-xl mx-auto">
+          <div className="mb-8 p-4 bg-red-100/50 dark:bg-red-900/50 backdrop-blur-sm border border-red-500/30 rounded-2xl text-red-700 dark:text-red-300 text-sm flex items-center justify-center gap-3 max-w-xl mx-auto">
             <AlertCircle className="w-5 h-5 shrink-0 text-red-500 dark:text-red-400" />
             <span>{checkoutError}</span>
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 xl:gap-5 items-stretch max-w-6xl mx-auto">
-            <div className={`${planCardBaseStyle} hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-xl`}>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 items-stretch max-w-7xl mx-auto">
+            <div className={`${planCardBaseStyle} hover:border-[var(--border-secondary)] hover:shadow-2xl`}>
                 <div className="flex-grow">
-                    <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">Basic</h3>
-                    <p className="text-gray-500 dark:text-gray-400 mb-1 text-xs">For light users and trying things out.</p>
-                    <div className="my-4">
-                        <span className="text-4xl font-semibold text-indigo-600 dark:text-indigo-400">Free</span>
-                        <span className="text-gray-500 dark:text-gray-400 text-sm"> / forever</span>
+                    <h3 className="text-2xl font-bold text-[var(--text-primary)] mb-3 text-optimized">Basic</h3>
+                    <p className="text-[var(--text-secondary)] mb-6 text-sm text-optimized">For light users and trying things out.</p>
+                    <div className="mb-8">
+                        <span className="text-price-large text-[var(--text-primary)]">Free</span>
+                        <span className="text-[var(--text-secondary)] text-sm"> / forever</span>
                     </div>
-                    <ul className="space-y-2 mb-6">
+                    <ul className="space-y-4 mb-8">
                         <FeatureItem text="5 PDF and Text Notes per month" />
                         <FeatureItem text="3 YouTube Notes per month" />
-                        <FeatureItem text="25 AI Chat Interactions per month" />
+                        <FeatureItem text="25 Chat Messages per month" />
                     </ul>
                 </div>
                 <a href={basicButtonInfo.redirectTo || '#'}
-                   className={`${planButtonBaseStyle} ${basicButtonInfo.disabled ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-default focus:ring-gray-400' : `bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-[0_0_15px_2px_rgba(99,102,241,0.6)] focus:ring-indigo-500`}`}>
+                   className={`${planButtonBaseStyle} ${basicButtonInfo.disabled ? 'bg-[var(--bg-highlight)] text-[var(--text-muted)] cursor-default' : 'bg-[var(--bg-solid-button)] text-white hover:bg-[var(--bg-accent)] focus:ring-[var(--bg-accent)]'}`}>
                   {basicButtonInfo.text}
                 </a>
             </div>
 
-            <div className={`${planCardBaseStyle} border-2 border-indigo-500 relative shadow-[0_0_15px_-3px_rgba(99,102,241,0.5)] hover:shadow-[0_0_25px_0px_rgba(99,102,241,0.6)]`}>
+            <div className={`${planCardBaseStyle} border-2 border-[var(--bg-solid-button)] relative shadow-2xl hover:shadow-3xl`}>
                 {isYearly && (
                 <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
-                    <span className="inline-block bg-yellow-400 text-black text-xs font-semibold px-4 py-1.5 rounded-full shadow-md">
-                    {recommendationText}
+                    <span className="inline-block bg-green-500 text-white text-xs font-semibold px-4 py-2 rounded-2xl shadow-md">
+                    Popular
                     </span>
                 </div>
                 )}
-                <div className="flex-grow pt-5">
-                    <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center"><Crown className="w-5 h-5 text-yellow-400 mr-2" />Premium</h3>
-                    <p className="text-gray-500 dark:text-gray-400 mb-1 text-xs">Best value for unlimited access.</p>
-                    <div className="my-4">
-                        <span className="text-4xl font-semibold text-indigo-600 dark:text-indigo-400">{premiumPriceText}</span>
-                        <span className="text-gray-500 dark:text-gray-400 text-sm">{priceSuffix}</span>
-                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">{premiumBillingText}</p>
+                <div className="flex-grow">
+                    <h3 className="text-2xl font-bold text-[var(--text-primary)] mb-3 text-optimized">Premium</h3>
+                    <p className="text-[var(--text-secondary)] mb-6 text-sm text-optimized">Best value for unlimited access.</p>
+                    <div className="mb-8">
+                        <span className="text-price-large text-[var(--text-primary)]">{premiumPriceText}</span>
+                        <span className="text-[var(--text-secondary)] text-sm">{priceSuffix}</span>
+                        <p className="text-xs text-[var(--text-muted)] mt-1">{premiumBillingText}</p>
                     </div>
-                    <ul className="space-y-2 mb-6">
+                    <ul className="space-y-4 mb-8">
                         <FeatureItem text="Unlimited PDF and Text Notes" />
                         <FeatureItem text="Unlimited YouTube Notes" />
-                        <FeatureItem text="Unlimited AI Chat Interactions" />
+                        <FeatureItem text="Unlimited Chat Messages" />
+                        <FeatureItem text="Unlimited Smarter AI Responses" />
                         <FeatureItem text="Unlimited Smart Daily Brief" />
                         <FeatureItem text="Unlimited Podcasts" />
                         <FeatureItem text="Priority Support"/>
@@ -342,38 +343,34 @@ function Pricing() {
                         }
                     }} 
                     disabled={premiumButtonInfo.disabled || (!!isCheckingOut && !premiumButtonInfo.isLoading)}
-                    className={`${planButtonBaseStyle} ${premiumButtonInfo.disabled && premiumButtonInfo.isCurrent ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-default focus:ring-gray-400' : 'bg-white text-indigo-700 hover:bg-gray-200 hover:shadow-[0_0_15px_2px_rgba(255,255,255,0.3)] focus:ring-indigo-300'} ${(!!isCheckingOut && !premiumButtonInfo.isLoading) ? 'opacity-60 cursor-not-allowed' : ''} flex items-center justify-center gap-2`}
+                    className={`${planButtonBaseStyle} ${premiumButtonInfo.disabled && premiumButtonInfo.isCurrent ? 'bg-[var(--bg-highlight)] text-[var(--text-muted)] cursor-default' : 'bg-[var(--bg-solid-button)] text-white hover:bg-[var(--bg-accent)] focus:ring-[var(--bg-accent)]'} ${(!!isCheckingOut && !premiumButtonInfo.isLoading) ? 'opacity-60 cursor-not-allowed' : ''} flex items-center justify-center gap-2`}
                 >
                 {premiumButtonInfo.isLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> {premiumButtonInfo.text}</> : premiumButtonInfo.text}
                 </button>
             </div>
 
-            <div className={`${planCardBaseStyle} relative hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-xl`}>
-                <AnimatePresence>
-                    {showStudentOfferOnProCard && (
-                        <motion.div
-                            key="studentOfferProCard" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0, transition: { delay: 0.1 } }} exit={{ opacity: 0 }}
-                            className="absolute -top-1 left-0 right-0 mx-auto -translate-y-1/2 w-max max-w-[calc(100%-1rem)] z-10">
-                            <div className="bg-gradient-to-r from-purple-600 via-indigo-500 to-pink-500 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1.5 whitespace-nowrap">
-                                <GraduationCap className="w-3.5 h-3.5 shrink-0" />
-                                <span>Student? Get 2 Months PRO FREE!</span>
-                                <button onClick={() => setIsEmailModalOpen(true)} className="underline hover:text-yellow-300 focus:outline-none ml-1">Details</button>
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-                <div className={`flex-grow ${showStudentOfferOnProCard ? 'pt-5' : ''}`}>
-                    <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center"><Gem className="w-4 h-4 text-purple-500 dark:text-purple-400 mr-2" />Pro</h3>
-                    <p className="text-gray-500 dark:text-gray-400 mb-1 text-xs">For students and regular usage.</p>
-                    <div className="my-4">
-                        <span className="text-4xl font-semibold text-indigo-600 dark:text-indigo-400">{proPriceText}</span>
-                        <span className="text-gray-500 dark:text-gray-400 text-sm">{priceSuffix}</span>
-                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">{proBillingText}</p>
+            <div className={`${planCardBaseStyle} relative hover:border-[var(--border-secondary)] hover:shadow-2xl`}>
+                {showStudentOfferOnProCard && (
+                <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/3 z-10">
+                    <div className="bg-[var(--bg-solid-button)] text-white text-xs font-semibold px-4 py-1.5 rounded-full shadow-md flex items-center gap-1.5 whitespace-nowrap">
+                        <GraduationCap className="w-3.5 h-3.5 shrink-0" />
+                        <span>Student? Get 2 Months PRO FREE!</span>
+                        <button onClick={() => setIsEmailModalOpen(true)} className="underline hover:text-yellow-300 focus:outline-none ml-1">Details</button>
                     </div>
-                    <ul className="space-y-2 mb-6">
+                </div>
+                )}
+                <div className="flex-grow">
+                    <h3 className="text-2xl font-bold text-[var(--text-primary)] mb-3 text-optimized">Pro</h3>
+                    <p className="text-[var(--text-secondary)] mb-6 text-sm text-optimized">For students and regular usage.</p>
+                    <div className="mb-8">
+                        <span className="text-price-large text-[var(--text-primary)]">{proPriceText}</span>
+                        <span className="text-[var(--text-secondary)] text-sm">{priceSuffix}</span>
+                        <p className="text-xs text-[var(--text-muted)] mt-1">{proBillingText}</p>
+                    </div>
+                    <ul className="space-y-4 mb-8">
                         <FeatureItem text="25 PDF and Text Notes per month" />
                         <FeatureItem text="15 YouTube Notes per month" />
-                        <FeatureItem text="500 AI Chat Interactions per Month" />
+                        <FeatureItem text="500 Chat Messages per Month" />
                         <FeatureItem text="Limited Access to Smart Daily Brief" />
                     </ul>
                 </div>
@@ -388,10 +385,10 @@ function Pricing() {
                     disabled={proButtonInfo.disabled || (!!isCheckingOut && !proButtonInfo.isLoading)}
                     className={`${planButtonBaseStyle} ${
                         proButtonInfo.disabled && proButtonInfo.isCurrent 
-                            ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-default focus:ring-gray-400' 
+                            ? 'bg-[var(--bg-highlight)] text-[var(--text-muted)] cursor-default' 
                             : proButtonInfo.actionType === 'redirect' && proButtonInfo.redirectTo === '/settings'
-                                ? 'bg-purple-600 text-white hover:bg-purple-700 hover:shadow-[0_0_15px_2px_rgba(168,85,247,0.6)] focus:ring-purple-500' 
-                                : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-[0_0_15px_2px_rgba(99,102,241,0.6)] focus:ring-indigo-500'
+                                ? 'bg-[var(--bg-solid-button)] text-white hover:bg-[var(--bg-accent)] focus:ring-[var(--bg-accent)]' 
+                                : 'bg-[var(--bg-solid-button)] text-white hover:bg-[var(--bg-accent)] focus:ring-[var(--bg-accent)]'
                         } ${(!!isCheckingOut && !proButtonInfo.isLoading) ? 'opacity-60 cursor-not-allowed' : ''} flex items-center justify-center gap-2`}
                 >
                 {proButtonInfo.isLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> {proButtonInfo.text}</> : proButtonInfo.text}
@@ -404,11 +401,11 @@ function Pricing() {
         <div className="container mx-auto px-5 sm:px-6 py-10">
           <div className="flex flex-col md:flex-row items-center justify-between gap-5">
             <div className="flex items-center space-x-4">
-              <a href="/privacy-policy" className="text-sm text-gray-500 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors">Privacy Policy</a>
-              <span className="text-gray-300 dark:text-gray-700 hidden sm:inline">|</span>
-              <a href="/terms" className="text-sm text-gray-500 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors">Terms & Conditions</a>
+              <a href="/privacy-policy" className="text-sm text-[var(--text-secondary)] hover:text-[var(--bg-solid-button)] transition-colors">Privacy Policy</a>
+              <span className="text-[var(--border-primary)] hidden sm:inline">|</span>
+              <a href="/terms" className="text-sm text-[var(--text-secondary)] hover:text-[var(--bg-solid-button)] transition-colors">Terms & Conditions</a>
             </div>
-            <p className="text-sm text-gray-500 text-center md:text-right">© {new Date().getFullYear()} TaskMaster AI. All rights reserved.</p>
+            <p className="text-sm text-[var(--text-secondary)] text-center md:text-right">© {new Date().getFullYear()} TaskMaster AI. All rights reserved.</p>
           </div>
         </div>
       </footer>

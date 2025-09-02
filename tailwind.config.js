@@ -13,13 +13,14 @@ const QUILL_FONTS_OBJECT_FOR_TAILWIND = {
   'georgia': ['Georgia', 'serif'],
   'helvetica': ['Helvetica', 'sans-serif'],
   'lucidasansunicode': ['"Lucida Sans Unicode"', '"Lucida Grande"', 'sans-serif'], // Key is CSS-safe
+
+  'clarika': ['Clarika Geometric Medium', 'Clarika Fallback', 'sans-serif'],
   'poppins': ['Poppins', 'sans-serif'],
   'tahoma': ['Tahoma', 'sans-serif'],
   'timesnewroman': ['"Times New Roman"', 'Times', 'serif'], // Key is CSS-safe
   'trebuchetms': ['"Trebuchet MS"', 'sans-serif'],       // Key is CSS-safe
   'verdana': ['Verdana', 'sans-serif']
 };
-
 
 export default {
   darkMode: 'class',
@@ -28,8 +29,30 @@ export default {
     extend: {
       fontFamily: {
         ...QUILL_FONTS_OBJECT_FOR_TAILWIND,
+        // New semantic font families for the typography system
+        'heading': ['Clarika Geometric Medium', 'Clarika Fallback', 'sans-serif'],
+        'body': ['Clarika Geometric Medium', 'Clarika Fallback', 'sans-serif'],
+        'mono': ['Menlo', 'Monaco', 'Courier New', 'monospace'],
+        // Optimized Clarika variants for specific use cases
+        'clarika-pricing': ['Clarika Geometric Medium', 'Clarika Fallback', 'sans-serif'],
+        'clarika-numbers': ['Clarika Geometric Medium', 'Clarika Fallback', 'sans-serif'],
       },
       colors: {
+        // Global theme colors using CSS custom properties
+        theme: {
+          primary: 'var(--bg-primary)',
+          sidebar: 'var(--bg-sidebar)',
+          card: 'var(--bg-card)',
+          highlight: 'var(--bg-highlight)',
+          'solid-button': 'var(--bg-solid-button)',
+          'border-radius': 'var(--bg-border-radius)',
+          'text-primary': 'var(--text-primary)',
+          'text-secondary': 'var(--text-secondary)',
+          'text-muted': 'var(--text-muted)',
+          'border-primary': 'var(--border-primary)',
+          'border-secondary': 'var(--border-secondary)',
+        },
+        // Legacy dark colors for backward compatibility
         dark: {
           DEFAULT: '#0A0B0F',
           primary: '#0C0E1A',
@@ -56,6 +79,18 @@ export default {
           600: '#db2777', 400: '#f472b6',
         }
       },
+      fontFeatureSettings: {
+        'tabular': ['tnum'],
+        'kern': ['kern'],
+        'liga': ['liga'],
+        'calt': ['calt'],
+      },
+      fontVariantNumeric: {
+        'tabular': 'tabular-nums',
+        'oldstyle': 'oldstyle-nums',
+        'lining': 'lining-nums',
+        'proportional': 'proportional-nums',
+      },
       animation: {
         'gradient': 'gradient 8s linear infinite',
         'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
@@ -68,6 +103,332 @@ export default {
         'fade-in-tags': 'tag-fade-in 0.5s ease-out forwards',
         'fadeIn': 'fadeIn 0.3s ease-out forwards',
       },
+      // Updated typography plugin with responsive clamp() values and proper font families
+      typography: (theme) => ({
+        DEFAULT: {
+          css: {
+            // Color variables using theme colors
+            '--tw-prose-body': theme('colors.theme.text-secondary'),
+            '--tw-prose-headings': theme('colors.theme.text-primary'),
+            '--tw-prose-lead': theme('colors.theme.text-secondary'),
+            '--tw-prose-links': theme('colors.theme.solid-button'),
+            '--tw-prose-bold': theme('colors.theme.text-primary'),
+            '--tw-prose-counters': theme('colors.theme.solid-button'),
+            '--tw-prose-bullets': theme('colors.theme.solid-button'),
+            '--tw-prose-hr': theme('colors.theme.border-primary'),
+            '--tw-prose-quotes': theme('colors.theme.text-secondary'),
+            '--tw-prose-quote-borders': theme('colors.theme.solid-button'),
+            '--tw-prose-captions': theme('colors.theme.text-muted'),
+            '--tw-prose-code': theme('colors.theme.solid-button'),
+            '--tw-prose-pre-code': theme('colors.theme.text-primary'),
+            '--tw-prose-pre-bg': theme('colors.theme.card'),
+            '--tw-prose-th-borders': theme('colors.theme.border-primary'),
+            '--tw-prose-td-borders': theme('colors.theme.border-primary'),
+            
+            // Font families - Clarika for headings and body
+            fontFamily: theme('fontFamily.body').join(', '),
+            
+            // Headings with responsive clamp() values
+            h1: { 
+              fontFamily: theme('fontFamily.heading').join(', '),
+              fontWeight: '700', 
+              fontSize: 'clamp(1.875rem, 1.5rem + 1vw, 2.5rem)',
+              lineHeight: '1.2',
+              marginTop: '1.5rem',
+              marginBottom: '1rem',
+              color: 'var(--tw-prose-headings)',
+            },
+            h2: { 
+              fontFamily: theme('fontFamily.heading').join(', '),
+              fontWeight: '600', 
+              fontSize: 'clamp(1.5rem, 1.25rem + 0.8vw, 2rem)',
+              lineHeight: '1.3',
+              marginTop: '1.25rem',
+              marginBottom: '0.75rem',
+              color: 'var(--tw-prose-headings)',
+            },
+            h3: { 
+              fontFamily: theme('fontFamily.heading').join(', '),
+              fontWeight: '600', 
+              fontSize: 'clamp(1.25rem, 1.125rem + 0.5vw, 1.5rem)',
+              lineHeight: '1.4',
+              marginTop: '1rem',
+              marginBottom: '0.5rem',
+              color: 'var(--tw-prose-headings)',
+            },
+            h4: { 
+              fontFamily: theme('fontFamily.heading').join(', '),
+              fontWeight: '600', 
+              fontSize: 'clamp(1.125rem, 1rem + 0.4vw, 1.25rem)',
+              lineHeight: '1.4',
+              color: 'var(--tw-prose-headings)',
+            },
+            h5: { 
+              fontFamily: theme('fontFamily.body').join(', '),
+              fontWeight: '600', 
+              fontSize: 'clamp(1rem, 0.9rem + 0.3vw, 1.125rem)',
+              lineHeight: '1.5',
+              color: 'var(--tw-prose-headings)',
+            },
+            h6: { 
+              fontFamily: theme('fontFamily.body').join(', '),
+              fontWeight: '600', 
+              fontSize: 'clamp(1rem, 0.9rem + 0.3vw, 1.125rem)',
+              lineHeight: '1.5',
+              color: 'var(--tw-prose-headings)',
+            },
+            
+            // Body text with responsive sizing
+            p: { 
+              fontFamily: theme('fontFamily.body').join(', '),
+              fontSize: 'clamp(0.9375rem, 0.85rem + 0.3vw, 1.0625rem)',
+              lineHeight: '1.6',
+              marginTop: '0.75rem',
+              marginBottom: '0.75rem',
+              color: 'var(--tw-prose-body)',
+            },
+            
+            // Lists with responsive sizing
+            'ul, ol': { 
+              fontFamily: theme('fontFamily.body').join(', '),
+              fontSize: 'clamp(0.9375rem, 0.85rem + 0.3vw, 1.0625rem)',
+              lineHeight: '1.6',
+              marginTop: '0.75rem',
+              marginBottom: '0.75rem',
+              paddingLeft: '1.5rem',
+            },
+            li: { 
+              fontFamily: theme('fontFamily.body').join(', '),
+              fontSize: 'clamp(0.9375rem, 0.85rem + 0.3vw, 1.0625rem)',
+              lineHeight: '1.6',
+              marginTop: '0.25rem',
+              marginBottom: '0.5rem',
+              color: 'var(--tw-prose-body)',
+            },
+            
+            // Code blocks with responsive sizing
+            code: { 
+              fontFamily: theme('fontFamily.mono').join(', '),
+              fontSize: '0.9em',
+              backgroundColor: 'var(--tw-prose-pre-bg)',
+              padding: '0.2em 0.4em',
+              borderRadius: '4px',
+              color: 'var(--tw-prose-code)',
+            },
+            'code::before': { content: '"" !important' }, 
+            'code::after': { content: '"" !important' },
+            
+            pre: { 
+              fontFamily: theme('fontFamily.mono').join(', '),
+              fontSize: 'clamp(0.875rem, 0.8rem + 0.2vw, 1rem)',
+              lineHeight: '1.5',
+              backgroundColor: 'var(--tw-prose-pre-bg)',
+              color: 'var(--tw-prose-pre-code)',
+              padding: '1rem',
+              borderRadius: '6px',
+              overflowX: 'auto',
+            },
+            'pre code': { 
+              backgroundColor: 'transparent !important', 
+              padding: '0 !important', 
+              fontSize: 'inherit !important', 
+              color: 'inherit !important'
+            },
+            
+            // Blockquotes with responsive sizing
+            blockquote: {
+              fontFamily: theme('fontFamily.body').join(', '),
+              fontSize: 'clamp(0.9375rem, 0.85rem + 0.3vw, 1.0625rem)',
+              lineHeight: '1.6',
+              borderLeftWidth: '4px',
+              borderLeftColor: 'var(--tw-prose-quote-borders)',
+              paddingLeft: '1rem',
+              fontStyle: 'italic',
+              color: 'var(--tw-prose-quotes)',
+              marginTop: '1rem',
+              marginBottom: '1rem',
+            },
+            
+            // Tables with responsive sizing
+            table: { 
+              width: '100%', 
+              marginTop: '1.5rem', 
+              marginBottom: '1.5rem', 
+              fontSize: 'clamp(0.875rem, 0.8rem + 0.2vw, 1rem)',
+              borderCollapse: 'collapse' 
+            },
+            'thead th': { 
+              color: 'var(--tw-prose-headings)', 
+              padding: '0.75rem 1rem', 
+              fontWeight: '600', 
+              textAlign: 'left', 
+              border: '1px solid var(--tw-prose-th-borders)', 
+              backgroundColor: 'var(--tw-prose-pre-bg)',
+            },
+            'tbody td': { 
+              padding: '0.75rem 1rem', 
+              border: '1px solid var(--tw-prose-td-borders)',
+              color: 'var(--tw-prose-body)',
+            },
+            'tbody tr:nth-child(even) td': { 
+              backgroundColor: 'var(--tw-prose-pre-bg)',
+            },
+            
+            // Links
+            a: { 
+              color: 'var(--tw-prose-links)', 
+              textDecoration: 'none', 
+              fontWeight: '500',
+              '&:hover': { 
+                color: theme('colors.theme.header'), 
+              }, 
+            },
+            
+            // Images
+            img: { 
+              borderRadius: '12px', 
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', 
+              marginTop: '1.5rem', 
+              marginBottom: '1.5rem',
+            },
+            
+            // List markers
+            'ul > li:not([data-list])::marker': { 
+              color: 'var(--tw-prose-bullets)', 
+              fontWeight: '600' 
+            },
+            'ol > li::marker': { 
+              color: 'var(--tw-prose-counters)', 
+              fontWeight: '600' 
+            },
+          },
+        },
+        invert: {
+          css: {
+            // Dark mode color variables
+            '--tw-prose-body': theme('colors.dark.text'),
+            '--tw-prose-headings': theme('colors.gray.50'),
+            '--tw-prose-lead': theme('colors.gray.400'),
+            '--tw-prose-links': theme('colors.theme.solid-button'),
+            '--tw-prose-bold': theme('colors.gray.50'),
+            '--tw-prose-counters': theme('colors.theme.solid-button'),
+            '--tw-prose-bullets': theme('colors.theme.solid-button'),
+            '--tw-prose-hr': theme('colors.gray.700'),
+            '--tw-prose-quotes': theme('colors.dark.text-secondary'),
+            '--tw-prose-quote-borders': theme('colors.theme.solid-button'),
+            '--tw-prose-captions': theme('colors.gray.400'),
+            '--tw-prose-code': theme('colors.theme.solid-button'),
+            '--tw-prose-pre-code': theme('colors.gray.200'),
+            '--tw-prose-pre-bg': theme('colors.dark.secondary'),
+            '--tw-prose-th-borders': theme('colors.gray.600'),
+            '--tw-prose-td-borders': theme('colors.gray.700'),
+            
+            // Font families remain the same in dark mode
+            fontFamily: theme('fontFamily.body').join(', '),
+            
+            // Headings in dark mode
+            h1: { 
+              fontFamily: theme('fontFamily.heading').join(', '),
+              color: 'var(--tw-prose-headings)',
+            },
+            h2: { 
+              fontFamily: theme('fontFamily.heading').join(', '),
+              color: 'var(--tw-prose-headings)',
+            },
+            h3: { 
+              fontFamily: theme('fontFamily.heading').join(', '),
+              color: 'var(--tw-prose-headings)',
+            },
+            h4: { 
+              fontFamily: theme('fontFamily.heading').join(', '),
+              color: 'var(--tw-prose-headings)',
+            },
+            h5: { 
+              fontFamily: theme('fontFamily.body').join(', '),
+              color: 'var(--tw-prose-headings)',
+            },
+            h6: { 
+              fontFamily: theme('fontFamily.body').join(', '),
+              color: 'var(--tw-prose-headings)',
+            },
+            
+            // Body text in dark mode
+            p: { 
+              fontFamily: theme('fontFamily.body').join(', '),
+              color: 'var(--tw-prose-body)',
+            },
+            
+            // Lists in dark mode
+            'ul, ol': { 
+              fontFamily: theme('fontFamily.body').join(', '),
+              color: 'var(--tw-prose-body)',
+            },
+            li: { 
+              fontFamily: theme('fontFamily.body').join(', '),
+              color: 'var(--tw-prose-body)',
+            },
+            
+            // Links in dark mode
+            a: { 
+              color: 'var(--tw-prose-links)',
+              '&:hover': { 
+                color: theme('colors.theme.accent-secondary'), 
+              }, 
+            },
+            
+            // List markers in dark mode
+            'ul > li:not([data-list])::marker': { 
+              color: 'var(--tw-prose-bullets)' 
+            },
+            'ol > li::marker': { 
+              color: 'var(--tw-prose-counters)' 
+            },
+            
+            // Blockquotes in dark mode
+            blockquote: {
+              fontFamily: theme('fontFamily.body').join(', '),
+              borderLeftColor: 'var(--tw-prose-quote-borders)',
+              color: 'var(--tw-prose-quotes)',
+            },
+            
+            // Code in dark mode
+            code: { 
+              backgroundColor: 'var(--tw-prose-pre-bg)',
+              color: 'var(--tw-prose-code)',
+            },
+            
+            // Pre blocks in dark mode
+            'pre': {
+              backgroundColor: 'var(--tw-prose-pre-bg)',
+              color: 'var(--tw-prose-pre-code)',
+            },
+            'pre code': { 
+              backgroundColor: 'transparent !important', 
+              color: 'inherit !important' 
+            },
+            
+            // Images in dark mode
+            img: { 
+              borderColor: theme('colors.dark.secondary') 
+            },
+            
+            // Tables in dark mode
+            'thead th': { 
+              color: 'var(--tw-prose-headings)', 
+              border: '1px solid var(--tw-prose-th-borders)', 
+              backgroundColor: 'var(--tw-prose-pre-bg)',
+            },
+            'tbody td': { 
+              color: 'var(--tw-prose-body)', 
+              border: '1px solid var(--tw-prose-td-borders)', 
+              backgroundColor: 'var(--tw-prose-pre-bg)',
+            },
+            'tbody tr:nth-child(even) td': { 
+              backgroundColor: theme('colors.dark.secondary'),
+            }
+          },
+        },
+      }),
       keyframes: {
         gradient: {
           '0%, 100%': { 'background-size': '200% 200%', 'background-position': 'left center' },
@@ -104,103 +465,6 @@ export default {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
         'gradient-conic': 'conic-gradient(var(--tw-gradient-stops))',
       },
-      typography: (theme) => ({
-        DEFAULT: {
-          css: {
-            '--tw-prose-body': theme('colors.gray.700'),
-            '--tw-prose-headings': theme('colors.gray.900'),
-            '--tw-prose-lead': theme('colors.gray.600'),
-            '--tw-prose-links': theme('colors.indigo.600'),
-            '--tw-prose-bold': theme('colors.gray.900'),
-            '--tw-prose-counters': theme('colors.purple.500'),
-            '--tw-prose-bullets': theme('colors.purple.500'),
-            '--tw-prose-hr': theme('colors.gray.200'),
-            '--tw-prose-quotes': theme('colors.gray.600'),
-            '--tw-prose-quote-borders': theme('colors.purple.500'),
-            '--tw-prose-captions': theme('colors.gray.500'),
-            '--tw-prose-code': theme('colors.pink.600'),
-            '--tw-prose-pre-code': theme('colors.gray.800'),
-            '--tw-prose-pre-bg': theme('colors.gray.50'),
-            '--tw-prose-th-borders': theme('colors.gray.300'),
-            '--tw-prose-td-borders': theme('colors.gray.200'),
-            fontFamily: theme('fontFamily.poppins', ['Poppins', 'sans-serif']).join(', '),
-            a: { '&:hover': { color: theme('colors.indigo.700', theme('colors.indigo.500')) }, textDecoration: 'none', fontWeight: '500',},
-            h1: { fontWeight: '700', fontSize: theme('fontSize.3xl')[0], lineHeight: theme('fontSize.3xl')[1].lineHeight, marginBottom: theme('spacing.6'), marginTop: theme('spacing.8')},
-            h2: { fontWeight: '600', fontSize: theme('fontSize.2xl')[0], lineHeight: theme('fontSize.2xl')[1].lineHeight, marginTop: theme('spacing.7'), marginBottom: theme('spacing.5'),},
-            h3: { fontWeight: '600', fontSize: theme('fontSize.xl')[0], lineHeight: theme('fontSize.xl')[1].lineHeight, marginTop: theme('spacing.6'), marginBottom: theme('spacing.4'),},
-            'ul, ol': { paddingLeft: theme('spacing.5'), marginTop: theme('spacing.4'), marginBottom: theme('spacing.4'),},
-            li: { marginTop: theme('spacing.2'), marginBottom: theme('spacing.2') },
-            'ul > li:not([data-list])::marker': { color: 'var(--tw-prose-bullets)', fontWeight: '600' }, // Target standard ul li markers
-            'ol > li::marker': { color: 'var(--tw-prose-counters)', fontWeight: '600' },
-             // Specific styling for Quill checklist items will be handled in Notes.tsx readOnlyQuillClasses
-            p: { marginBottom: theme('spacing.5'), lineHeight: '1.75',},
-            blockquote: {
-              borderLeftWidth: '3px',
-              borderLeftColor: 'var(--tw-prose-quote-borders)',
-              paddingLeft: theme('spacing.4'),
-              fontStyle: 'italic',
-              color: 'var(--tw-prose-quotes)',
-            },
-            code: { backgroundColor: theme('colors.gray.100'), padding: '0.2em 0.4em', borderRadius: theme('borderRadius.md'), fontSize: '0.9em',},
-            'code::before': { content: '"" !important' }, 'code::after': { content: '"" !important' },
-            'pre': {
-                backgroundColor: 'var(--tw-prose-pre-bg)',
-                color: 'var(--tw-prose-pre-code)',
-                padding: theme('spacing.4'),
-                borderRadius: theme('borderRadius.md'),
-                overflowX: 'auto',
-            },
-            'pre code': { backgroundColor: 'transparent !important', padding: '0 !important', fontSize: '0.875em !important', color: 'inherit !important'},
-            img: { borderRadius: theme('borderRadius.lg'), boxShadow: theme('boxShadow.md'), marginTop: theme('spacing.6'), marginBottom: theme('spacing.6'),},
-            table: { width: '100%', marginTop: theme('spacing.6'), marginBottom: 'spacing.6', fontSize: theme('fontSize.sm'), borderCollapse: 'collapse' },
-            'thead th': { color: theme('colors.gray.800'), padding: `${theme('spacing.2')} ${theme('spacing.3')}`, fontWeight: '600', textAlign: 'left', border: `1px solid var(--tw-prose-th-borders)`, backgroundColor: theme('colors.gray.100'),},
-            'tbody td': { padding: `${theme('spacing.2')} ${theme('spacing.3')}`, border: `1px solid var(--tw-prose-td-borders)`,},
-            'tbody tr:nth-child(even) td': { backgroundColor: theme('colors.gray.50'),},
-          },
-        },
-        invert: {
-          css: {
-            '--tw-prose-body': theme('colors.dark.text'),
-            '--tw-prose-headings': theme('colors.gray.50'),
-            '--tw-prose-lead': theme('colors.gray.400'),
-            '--tw-prose-links': theme('colors.indigo.300'),
-            '--tw-prose-bold': theme('colors.gray.50'),
-            '--tw-prose-counters': theme('colors.purple.400'),
-            '--tw-prose-bullets': theme('colors.purple.400'),
-            '--tw-prose-hr': theme('colors.gray.700'),
-            '--tw-prose-quotes': theme('colors.dark.text-secondary'),
-            '--tw-prose-quote-borders': theme('colors.purple.400'),
-            '--tw-prose-captions': theme('colors.gray.400'),
-            '--tw-prose-code': theme('colors.pink.400'),
-            '--tw-prose-pre-code': theme('colors.gray.200'),
-            '--tw-prose-pre-bg': theme('colors.dark.secondary'),
-            '--tw-prose-th-borders': theme('colors.gray.600'),
-            '--tw-prose-td-borders': theme('colors.gray.700'),
-            fontFamily: theme('fontFamily.poppins', ['Poppins', 'sans-serif']).join(', '),
-            a: { '&:hover': { color: theme('colors.indigo.400', theme('colors.indigo.200')) },},
-            h1: { color: 'var(--tw-prose-headings)'},
-            h2: { color: 'var(--tw-prose-headings)'},
-            h3: { color: 'var(--tw-prose-headings)'},
-            'ul > li:not([data-list])::marker': { color: 'var(--tw-prose-bullets)' }, // Target standard ul li markers for dark mode
-            'ol > li::marker': { color: 'var(--tw-prose-counters)' },
-            // Specific styling for Quill checklist items will be handled in Notes.tsx readOnlyQuillClasses
-            blockquote: {
-                borderLeftColor: 'var(--tw-prose-quote-borders)',
-                color: 'var(--tw-prose-quotes)',
-            },
-            code: { backgroundColor: theme('colors.dark.tertiary') },
-            'pre': {
-                backgroundColor: 'var(--tw-prose-pre-bg)',
-                color: 'var(--tw-prose-pre-code)',
-            },
-            'pre code': { backgroundColor: 'transparent !important', color: 'inherit !important' },
-            img: { borderColor: theme('colors.dark.secondary') },
-            'thead th': { color: 'var(--tw-prose-headings)', border: `1px solid var(--tw-prose-th-borders)`, backgroundColor: theme('colors.dark.secondary'),},
-            'tbody td': { color: 'var(--tw-prose-body)', border: `1px solid var(--tw-prose-td-borders)`, backgroundColor: theme('colors.dark.primary'),},
-            'tbody tr:nth-child(even) td': { backgroundColor: theme('colors.dark.secondary'),}
-          },
-        },
-      }),
     },
   },
   plugins: [

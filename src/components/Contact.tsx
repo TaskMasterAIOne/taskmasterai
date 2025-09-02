@@ -253,14 +253,14 @@ function Contact() {
      exit: (direction: number) => ({ opacity: 0, x: direction < 0 ? 30 : -30, transition: { duration: 0.3, ease: 'easeInOut' } })
    };
 
-  const inputBaseClasses = "w-full bg-gray-100 dark:bg-[#1F2328] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-3 text-sm text-gray-800 dark:text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors";
-  const textareaClasses = "w-full bg-gray-100 dark:bg-[#1F2328] border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-800 dark:text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors";
+  const inputBaseClasses = "w-full bg-white dark:bg-[var(--bg-highlight)] border border-[var(--border-primary)] rounded-lg px-4 py-3 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--bg-solid-button)] focus:border-transparent transition-colors";
+  const textareaClasses = "w-full bg-white dark:bg-[var(--bg-highlight)] border border-[var(--border-primary)] rounded-xl px-4 py-3 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--bg-solid-button)] focus:border-transparent transition-colors";
   const selectClasses = inputBaseClasses;
-  const labelClasses = "block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1.5";
+  const labelClasses = "block text-sm font-medium text-[var(--text-secondary)] mb-1.5";
 
-  const buttonBaseStyle = "px-6 py-3 rounded-full font-semibold text-sm transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-[#16181D]";
-  const primaryButtonStyle = `${buttonBaseStyle} bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-[0_0_15px_2px_rgba(99,102,241,0.6)] focus:ring-indigo-500`;
-  const secondaryButtonStyle = `${buttonBaseStyle} bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-300 hover:text-black dark:hover:text-white focus:ring-gray-500`;
+  const buttonBaseStyle = "px-6 py-3 rounded-full font-semibold text-sm transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[var(--bg-primary)]";
+  const primaryButtonStyle = `${buttonBaseStyle} bg-[var(--bg-solid-button)] text-white hover:bg-[var(--bg-accent)] focus:ring-[var(--bg-solid-button)]`;
+  const secondaryButtonStyle = `${buttonBaseStyle} bg-[var(--bg-highlight)] hover:bg-[var(--border-primary)] text-[var(--text-primary)] hover:text-[var(--text-primary)] focus:ring-[var(--border-primary)]`;
 
   const renderStep1 = () => (
      <motion.div
@@ -363,18 +363,18 @@ function Contact() {
   );
 
   if (authLoading) {
-    return <div className="min-h-screen bg-white dark:bg-[#0C0E1A] flex items-center justify-center"><Loader2 className="w-12 h-12 text-indigo-500 animate-spin" /></div>;
+    return <div className="min-h-screen bg-[var(--bg-primary)] flex items-center justify-center"><Loader2 className="w-12 h-12 text-[var(--bg-solid-button)] animate-spin" /></div>;
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-[#0C0E1A] text-gray-800 dark:text-gray-200 font-poppins selection:bg-purple-600 selection:text-white relative overflow-hidden">
+    <div className="flex flex-col min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] font-clarika selection:bg-[var(--bg-accent)] selection:text-white relative overflow-hidden">
       <AnimatedBackground />
       <motion.header className="w-full py-5 sm:py-6 bg-transparent z-10" variants={headerMotionVariants} initial="hidden" animate="visible">
         <div className="container mx-auto px-5 sm:px-6">
           <nav className="flex items-center justify-between">
             <a href="/" aria-label="TaskMaster AI Home"><Logo /></a>
             <div className="flex items-center">
-              <a href={authUser ? "/dashboard" : "/signup"} className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full text-sm font-semibold transition-colors duration-200 shadow-md hover:shadow-[0_0_15px_2px_rgba(99,102,241,0.5)]">
+              <a href={authUser ? "/dashboard" : "/signup"} className="px-6 py-2.5 bg-[var(--bg-solid-button)] hover:bg-[var(--bg-accent)] text-white rounded-full text-sm font-semibold transition-colors duration-200 shadow-md">
                 {authUser ? "Dashboard" : "Start today - It's Free"}
               </a>
             </div>
@@ -390,10 +390,10 @@ function Contact() {
       >
         <div className="max-w-2xl mx-auto">
           <div className="text-center mb-12 sm:mb-16">
-            <h1 className="text-3xl sm:text-4xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-purple-500 via-indigo-500 to-pink-500 dark:from-purple-400 dark:via-indigo-400 dark:to-pink-400 mb-3">
+            <h1 className="text-3xl sm:text-4xl font-semibold text-[var(--text-primary)] mb-3">
               Contact Us
             </h1>
-            <p className="text-base text-gray-600 dark:text-gray-400 max-w-xl mx-auto">
+            <p className="text-base text-[var(--text-secondary)] max-w-xl mx-auto">
               We're here to help with any questions or concerns.
             </p>
           </div>
@@ -406,11 +406,11 @@ function Contact() {
                 initial="hidden"
                 animate="visible"
                 exit="exit"
-                className="bg-white/80 dark:bg-[#16181D]/80 backdrop-blur-sm rounded-2xl p-6 sm:p-8 text-center border border-gray-200 dark:border-gray-700/50"
+                className="bg-[var(--bg-card)]/80 backdrop-blur-sm rounded-2xl p-6 sm:p-8 text-center border border-[var(--border-primary)]"
               >
                 <CheckCircle className="w-16 h-16 text-green-500 dark:text-green-400 mx-auto mb-5" />
-                <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-2">Message Sent Successfully!</h2>
-                <p className="text-gray-500 dark:text-gray-400 mb-6">We'll get back to you as soon as possible.</p>
+                <h2 className="text-2xl font-semibold text-[var(--text-primary)] mb-2">Message Sent Successfully!</h2>
+                <p className="text-[var(--text-secondary)] mb-6">We'll get back to you as soon as possible.</p>
                 <button
                   onClick={resetForm}
                   className={primaryButtonStyle}
@@ -422,7 +422,7 @@ function Contact() {
               <motion.form
                 key="form"
                 onSubmit={handleSubmit}
-                className="bg-white/80 dark:bg-[#16181D]/80 backdrop-blur-sm rounded-2xl p-6 sm:p-8 border border-gray-200 dark:border-gray-700/50"
+                className="bg-[var(--bg-card)]/80 backdrop-blur-sm rounded-2xl p-6 sm:p-8 border border-[var(--border-primary)]"
                 initial={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
               >
@@ -496,11 +496,11 @@ function Contact() {
         <div className="container mx-auto px-5 sm:px-6 py-10">
           <div className="flex flex-col md:flex-row items-center justify-between gap-5">
             <div className="flex items-center space-x-4">
-              <a href="/privacy-policy" className="text-sm text-gray-500 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors">Privacy Policy</a>
-              <span className="text-gray-300 dark:text-gray-700 hidden sm:inline">|</span>
-              <a href="/terms" className="text-sm text-gray-500 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors">Terms & Conditions</a>
+              <a href="/privacy-policy" className="text-sm text-[var(--text-secondary)] hover:text-[var(--bg-solid-button)] transition-colors">Privacy Policy</a>
+              <span className="text-[var(--border-primary)] hidden sm:inline">|</span>
+              <a href="/terms" className="text-sm text-[var(--text-secondary)] hover:text-[var(--bg-solid-button)] transition-colors">Terms & Conditions</a>
             </div>
-            <p className="text-sm text-gray-500 text-center md:text-right">
+            <p className="text-sm text-[var(--text-secondary)] text-center md:text-right">
               © {new Date().getFullYear()} TaskMaster AI. All rights reserved.
             </p>
           </div>

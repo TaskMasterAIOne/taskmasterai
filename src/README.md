@@ -4,7 +4,7 @@ This is the main source directory for the TaskMasterAI frontend application, pri
 
 Key contents include:
 - **App.tsx**: Main application entry point and layout.
-- **index.css** / **login.css**: Global and login page styles using Tailwind CSS.
+- **index.css**: Global styles using Tailwind CSS.
 - **lib/**: Helper libraries (API wrappers, utilities, payment integration).
 - **utils/**: Shared React components or utility functions.
 - **status/**: Status page or related status components.

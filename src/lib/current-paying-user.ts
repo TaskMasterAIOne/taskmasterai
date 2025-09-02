@@ -14,23 +14,25 @@ import {
   onSnapshot,
 } from "firebase/firestore";
 
-export const PREMIUM_EMAILS = [
-    "bajinsrinivasr@lexington1.net", "draco77654@gmail.com", "akaash.chirravuri@gmail.com", "rithikrt1@gmail.com", "Mithun.kutuva@gmail.com", "rickmrreddy@gmail.com", "shankartkraj@gmail.com",  "1cosmic20@gmail.com", "amlitha@gmail.com", "suryar9108@gmail.com", "poojarameshkumar789@gmail.com", "achallapureddy@gmail.com", "ali.ahsan.a214@gmail.com", "amrish.naranappa@gmail.com",
-    "navaneeth.ravindranath@gmail.com", "Goduwin_Ravi@yahoo.com", "gautham.paddu@outlook.com", "Isha.kandhaluram@gmail.com", "learner@example.com"
-];
+// Import constants from central config
+import { 
+    PREMIUM_EMAILS, 
+    PRO_EMAILS, 
+    USER_TIERS, 
+    CHAT_LIMITS, 
+    NOTE_LIMITS,
+    RATE_LIMITS,
+    INTERN_EMAILS 
+} from '../config/constants';
 
-export const PRO_EMAILS = ["srinibaj10@gmail.com"];
+// Re-export for backwards compatibility
+export { PREMIUM_EMAILS, PRO_EMAILS, INTERN_EMAILS, NOTE_LIMITS, RATE_LIMITS };
 
-export type UserTier = 'basic' | 'pro' | 'premium' | 'loading';
+export type UserTier = keyof typeof CHAT_LIMITS;
 
-export const NOTE_LIMITS = {
-    basic: { pdfAi: 5, youtube: 3 },
-    pro: { pdfAi: 25, youtube: 15 },
-    premium: { pdfAi: Infinity, youtube: Infinity },
-    loading: { pdfAi: 0, youtube: 0 },
-};
-export const BASIC_CHAT_LIMIT = 25;
-export const PRO_CHAT_LIMIT = 500;
+// Legacy constants for backwards compatibility
+export const BASIC_CHAT_LIMIT = CHAT_LIMITS.basic;
+export const PRO_CHAT_LIMIT = CHAT_LIMITS.pro;
 export const BRIEF_REFRESH_LIMIT_PRO = 20;
 export const POINTS_FOR_FREE_PREMIUM = 200;
 
@@ -57,8 +59,7 @@ export interface UserProfileData {
   level: number;
   overallStreakCount: number;
   lastOverallStreakUpdate: Timestamp | Date | null;
-  notesStreakCount: number;
-  lastNotesStreakUpdate: Timestamp | Date | null;
+
   badges: string[];
   createdAt: Timestamp | Date;
   lastLoginAt: Timestamp | Date;
@@ -110,11 +111,10 @@ export const prepareInitialProfileData = (userId: string, email?: string | null,
         firstName: firstName?.trim() ?? '',
         lastName: lastName?.trim() ?? '',
         points: 0,
-        level: 1,
+        level: 0,
         overallStreakCount: 0,
         lastOverallStreakUpdate: null,
-        notesStreakCount: 0,
-        lastNotesStreakUpdate: null,
+
         badges: [],
         premiumAwardedUntil: null,
         activeTier: initialTier,
@@ -170,17 +170,17 @@ export const getUserTier = async (userId: string | null | undefined, emailFromAu
 };
 
 export const getChatLimitForTier = (tier: UserTier): number => {
-    switch (tier) {
-        case 'premium': return Infinity;
-        case 'pro': return PRO_CHAT_LIMIT;
-        case 'basic': return BASIC_CHAT_LIMIT;
-        case 'loading': return 0;
-        default: return BASIC_CHAT_LIMIT;
-    }
+    return CHAT_LIMITS[tier] || CHAT_LIMITS.basic;
 };
 
 export const getNoteLimitsForTier = (tier: UserTier): { pdfAi: number; youtube: number } => {
-    return NOTE_LIMITS[tier] || NOTE_LIMITS.basic;
+    return NOTE_LIMITS.pdf[tier] ? { 
+        pdfAi: NOTE_LIMITS.pdf[tier], 
+        youtube: NOTE_LIMITS.youtube[tier] 
+    } : { 
+        pdfAi: NOTE_LIMITS.pdf.basic, 
+        youtube: NOTE_LIMITS.youtube.basic 
+    };
 };
 
 export const getCurrentMonthUserChatUsage = async (userId: string, currentMonth: string): Promise<ChatUsageData | null> => {
@@ -304,9 +304,9 @@ export const onUserProfileSnapshot = (userId: string, callback: (profile: UserPr
       callback({
         ...data,
         uid: docSnap.id,
-        level: data.level || calculateLevel(data.points || 0),
+        level: data.level !== undefined ? data.level : calculateLevel(data.points || 0),
         lastOverallStreakUpdate: toDateSafe(data.lastOverallStreakUpdate),
-        lastNotesStreakUpdate: toDateSafe(data.lastNotesStreakUpdate),
+
         createdAt: toDateSafe(data.createdAt) || new Date(),
         updatedAt: toDateSafe(data.updatedAt) || new Date(),
         lastLoginAt: toDateSafe(data.lastLoginAt) || new Date(),
@@ -350,112 +350,145 @@ export const updateUserPointsAndLevel = async (
     userDetailsForCreation?: { email?: string | null; displayName?: string | null; photoURL?: string | null; }
 ): Promise<{ newPoints: number, newLevel: number, newTier?: UserTier }> => {
   const userRef = doc(db, 'users', userId);
-  return runTransaction(db, async (transaction) => {
-    const userSnap = await transaction.get(userRef);
-    let newTierAwarded: UserTier | undefined = undefined;
-    if (!userSnap.exists()) {
-        const initialData = createProfileInTransaction(transaction, userRef, userId, userDetailsForCreation);
-        const newPoints = pointsToAdd;
-        const newLevel = calculateLevel(newPoints);
-        transaction.update(userRef, { points: newPoints, level: newLevel });
-        return { newPoints: initialData.points, newLevel: initialData.level, newTier: undefined };
-    } else {
-        const currentProfileData = userSnap.data() as UserProfileData;
-        const currentPoints = currentProfileData.points || 0;
-        const newPoints = currentPoints + pointsToAdd;
-        const newLevel = calculateLevel(newPoints);
-        const updateData: any = {
-            points: newPoints,
-            level: newLevel,
-            updatedAt: serverTimestamp(),
-        };
-        const currentTier = await getUserTier(userId, currentProfileData.email);
-        if ( (currentTier === 'basic' || currentTier === 'pro') &&
-            (!currentProfileData.premiumAwardedUntil || toDateSafe(currentProfileData.premiumAwardedUntil)! < new Date()) &&
-            newPoints >= POINTS_FOR_FREE_PREMIUM && currentPoints < POINTS_FOR_FREE_PREMIUM
-        ) {
-            const oneWeekFromNow = new Date();
-            oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7);
-            updateData.premiumAwardedUntil = Timestamp.fromDate(oneWeekFromNow);
-            newTierAwarded = 'premium';
+  const maxRetries = 5;
+  let retryCount = 0;
+  
+  while (retryCount < maxRetries) {
+    try {
+      return await runTransaction(db, async (transaction) => {
+        const userSnap = await transaction.get(userRef);
+        let newTierAwarded: UserTier | undefined = undefined;
+        
+        if (!userSnap.exists()) {
+            const initialData = createProfileInTransaction(transaction, userRef, userId, userDetailsForCreation);
+            const newPoints = pointsToAdd;
+            const newLevel = calculateLevel(newPoints);
+            transaction.update(userRef, { points: newPoints, level: newLevel });
+            return { newPoints: initialData.points, newLevel: initialData.level, newTier: undefined };
+        } else {
+            const currentProfileData = userSnap.data() as UserProfileData;
+            const currentPoints = currentProfileData.points || 0;
+            const newPoints = currentPoints + pointsToAdd;
+            const newLevel = calculateLevel(newPoints);
+            const updateData: any = {
+                points: newPoints,
+                level: newLevel,
+                updatedAt: serverTimestamp(),
+            };
+            const currentTier = await getUserTier(userId, currentProfileData.email);
+            if ( (currentTier === 'basic' || currentTier === 'pro') &&
+                (!currentProfileData.premiumAwardedUntil || toDateSafe(currentProfileData.premiumAwardedUntil)! < new Date()) &&
+                newPoints >= POINTS_FOR_FREE_PREMIUM && currentPoints < POINTS_FOR_FREE_PREMIUM
+            ) {
+                const oneWeekFromNow = new Date();
+                oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7);
+                updateData.premiumAwardedUntil = Timestamp.fromDate(oneWeekFromNow);
+                newTierAwarded = 'premium';
+            }
+            transaction.update(userRef, updateData);
+            return { newPoints, newLevel, newTier: newTierAwarded };
         }
-        transaction.update(userRef, updateData);
-        return { newPoints, newLevel, newTier: newTierAwarded };
+      });
+    } catch (error: any) {
+      console.error(`Error updating user points/level (attempt ${retryCount + 1}):`, error);
+      
+      if ((error?.code === 'failed-precondition' || error?.code === 'aborted') && retryCount < maxRetries - 1) {
+        // Wait before retrying with exponential backoff + jitter
+        const delay = Math.pow(2, retryCount) * 200 + Math.random() * 200;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        retryCount++;
+        continue;
+      }
+      
+      // If it's not a retryable error or we've exhausted retries, throw
+      console.error("Failed to update user points/level after retries:", error);
+      throw error;
     }
-  });
+  }
+  
+  // This should never be reached, but TypeScript requires it
+  throw new Error("Transaction failed after all retries");
 };
 
 export const updateUserStreak = async (
     userId: string,
-    userDetailsForCreation?: { email?: string | null; displayName?: string | null; photoURL?: string | null; },
-    streakType: 'overall' | 'notes' = 'overall'
+    userDetailsForCreation?: { email?: string | null; displayName?: string | null; photoURL?: string | null; }
 ): Promise<{ newStreakCount: number, streakBroken: boolean }> => {
   const userRef = doc(db, 'users', userId);
-  return runTransaction(db, async (transaction) => {
-    const userSnap = await transaction.get(userRef);
-    if (!userSnap.exists()) {
-        const initialData = createProfileInTransaction(transaction, userRef, userId, userDetailsForCreation);
-        const now = serverTimestamp();
-        if (streakType === 'overall') {
+  const maxRetries = 5;
+  let retryCount = 0;
+  
+  while (retryCount < maxRetries) {
+    try {
+      return await runTransaction(db, async (transaction) => {
+        const userSnap = await transaction.get(userRef);
+        
+        if (!userSnap.exists()) {
+            const initialData = createProfileInTransaction(transaction, userRef, userId, userDetailsForCreation);
+            // Set the streak data directly in the initial creation instead of updating afterward
             initialData.overallStreakCount = 1;
-            initialData.lastOverallStreakUpdate = now;
+            initialData.lastOverallStreakUpdate = Timestamp.fromDate(new Date());
+            // Note: createProfileInTransaction already calls transaction.set, so no additional update needed
+            return { newStreakCount: 1, streakBroken: false };
         } else {
-            initialData.notesStreakCount = 1;
-            initialData.lastNotesStreakUpdate = now;
-        }
-        transaction.update(userRef, {
-            overallStreakCount: initialData.overallStreakCount,
-            lastOverallStreakUpdate: initialData.lastOverallStreakUpdate,
-            notesStreakCount: initialData.notesStreakCount,
-            lastNotesStreakUpdate: initialData.lastNotesStreakUpdate,
-        });
-        return { newStreakCount: 1, streakBroken: false };
-    } else {
-        const currentProfileData = userSnap.data() as UserProfileData;
-        let currentStreak: number;
-        let lastUpdateRaw: Timestamp | Date | null;
-        const now = new Date();
-        let streakBroken = false;
-        if (streakType === 'overall') {
-            currentStreak = currentProfileData.overallStreakCount || 0;
-            lastUpdateRaw = currentProfileData.lastOverallStreakUpdate;
-        } else {
-            currentStreak = currentProfileData.notesStreakCount || 0;
-            lastUpdateRaw = currentProfileData.lastNotesStreakUpdate;
-        }
-        const lastUpdate = lastUpdateRaw ? toDateSafe(lastUpdateRaw) : null;
-        let shouldUpdate = false;
-        if (lastUpdate) {
-            const lastUpdateDate = new Date(lastUpdate.getFullYear(), lastUpdate.getMonth(), lastUpdate.getDate());
-            const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            const diffTime = todayDate.getTime() - lastUpdateDate.getTime();
-            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-            if (diffDays === 1) {
-                currentStreak++;
-                shouldUpdate = true;
-            } else if (diffDays > 1) {
-                currentStreak = 1;
-                streakBroken = true;
-                shouldUpdate = true;
-            }
-        } else {
-            currentStreak = 1;
-            shouldUpdate = true;
-        }
-        if (shouldUpdate) {
-            const updateData: any = { updatedAt: serverTimestamp() };
-            if (streakType === 'overall') {
-                updateData.overallStreakCount = currentStreak;
-                updateData.lastOverallStreakUpdate = Timestamp.fromDate(now);
+            const currentProfileData = userSnap.data() as UserProfileData;
+            let currentStreak: number = currentProfileData.overallStreakCount || 0;
+            let lastUpdateRaw: Timestamp | Date | null = currentProfileData.lastOverallStreakUpdate;
+            const now = new Date();
+            let streakBroken = false;
+            const lastUpdate = lastUpdateRaw ? toDateSafe(lastUpdateRaw) : null;
+            let shouldUpdate = false;
+            
+            if (lastUpdate) {
+                const lastUpdateDate = new Date(lastUpdate.getFullYear(), lastUpdate.getMonth(), lastUpdate.getDate());
+                const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                const diffTime = todayDate.getTime() - lastUpdateDate.getTime();
+                const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+                if (diffDays === 1) {
+                    currentStreak++;
+                    shouldUpdate = true;
+                } else if (diffDays > 1) {
+                    currentStreak = 1;
+                    streakBroken = true;
+                    shouldUpdate = true;
+                }
             } else {
-                updateData.notesStreakCount = currentStreak;
-                updateData.lastNotesStreakUpdate = Timestamp.fromDate(now);
+                currentStreak = 1;
+                shouldUpdate = true;
             }
-            transaction.update(userRef, updateData);
+            
+            if (shouldUpdate) {
+                const updateData: any = { 
+                    updatedAt: serverTimestamp(),
+                    overallStreakCount: currentStreak,
+                    lastOverallStreakUpdate: Timestamp.fromDate(now)
+                };
+                transaction.update(userRef, updateData);
+            }
+            
+            return { newStreakCount: currentStreak, streakBroken };
         }
-        return { newStreakCount: currentStreak, streakBroken };
+      });
+    } catch (error: any) {
+      console.error(`Error updating user streak (attempt ${retryCount + 1}):`, error);
+      
+      if ((error?.code === 'failed-precondition' || error?.code === 'aborted') && retryCount < maxRetries - 1) {
+        // Wait before retrying with exponential backoff + jitter
+        const delay = Math.pow(2, retryCount) * 200 + Math.random() * 200;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        retryCount++;
+        continue;
+      }
+      
+      // If it's not a retryable error or we've exhausted retries, log and return default
+      console.error("Failed to update user streak after retries:", error);
+      // Return a safe default instead of throwing to prevent breaking the app flow
+      return { newStreakCount: 0, streakBroken: false };
     }
-  });
+  }
+  
+  // This should never be reached, but TypeScript requires it
+  return { newStreakCount: 0, streakBroken: false };
 };
 
 export const addUserBadge = async (
@@ -502,7 +535,7 @@ export const incrementUserProfileCounter = async (
 };
 
 export const calculateLevel = (points: number): number => {
-    if (points <= 0) return 1;
+    if (points <= 0) return 0;
     const base = 100;
     const factor = 1.2;
     let level = 1;

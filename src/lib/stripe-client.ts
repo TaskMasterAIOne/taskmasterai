@@ -3,9 +3,10 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app, auth } from './firebase';
 import { getIdToken } from 'firebase/auth';
 import { FirebaseError } from 'firebase/app';
+import { STRIPE_CONFIG } from '../config/constants';
 
-// --- USE YOUR **LIVE** PUBLISHABLE KEY ---
-const STRIPE_PUBLISHABLE_KEY = 'pk_live_51QdhwgIdgEonJvEbYZYASetFGNVWiSHN68N3FtLpybd4QIhEjfXQxk3XJoxhEDor4gaT7hZxjN4HSDAz1fAQiuFV00Q4nb1AlL'; // YOUR LIVE KEY
+// Use centralized Stripe configuration
+const STRIPE_PUBLISHABLE_KEY = STRIPE_CONFIG.publishableKey;
 
 if (!STRIPE_PUBLISHABLE_KEY) {
   console.error('Stripe Publishable Key is not set!');
@@ -48,13 +49,11 @@ export const createCheckoutSession = async (
   const cancelUrl = `${window.location.origin}/pricing`;
 
   try {
-    console.log(`Calling LIVE function for priceId: ${priceId}`);
     const result: any = await createStripeCheckoutSessionCallable({
       priceId, successUrl, cancelUrl,
     });
 
     if (result.data?.sessionId) {
-       console.log("LIVE function returned sessionId:", result.data.sessionId);
        return { sessionId: result.data.sessionId };
     } else {
        console.error("LIVE response missing sessionId:", result);
@@ -95,11 +94,9 @@ export const createPortalSession = async (): Promise<{ portalUrl: string }> => {
   );
 
   try {
-    console.log("Calling backend function 'createStripePortalSession'...");
     const result: any = await createStripePortalSessionCallable();
 
     if (result.data?.portalUrl) {
-       console.log("Backend returned portal URL:", result.data.portalUrl);
        return { portalUrl: result.data.portalUrl };
     } else {
        console.error("Backend response missing portalUrl:", result);

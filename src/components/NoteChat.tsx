@@ -15,6 +15,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Timer } from './Timer';
 import { ChatControls } from './chat-controls';
 import { FlashcardsQuestions } from './FlashcardsQuestions';
+import { MultiEducationalContent } from './MultiEducationalContent';
 import { User } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { Timestamp } from 'firebase/firestore';
@@ -444,8 +445,8 @@ const handleDownloadImage = (imageData: ImageData) => { if (!imageData) return; 
 const AssistantMessageContent = React.memo(({ message, onAcceptEdit, onRevertEdit, isChatLoading, isDarkMode }: { message: ChatMessage, onAcceptEdit: (msg: ChatMessage) => void, onRevertEdit: (msg: ChatMessage) => void, isChatLoading: boolean, isDarkMode: boolean }) => {
     const proseClassChat = `prose prose-sm max-w-none prose-p:mb-3 prose-p:last:mb-0 prose-p:leading-relaxed prose-ul:my-3 prose-ul:space-y-2 prose-ol:my-3 prose-ol:space-y-2 prose-li:pl-1 prose-code:text-xs prose-code:px-1 prose-code:py-0.5 prose-pre:text-xs prose-pre:my-2 prose-pre:p-2 prose-pre:leading-relaxed
     ${isDarkMode
-        ? 'prose-invert prose-a:text-[#8A85FF] hover:prose-a:text-indigo-300 prose-code:bg-gray-700/70 prose-code:text-pink-400 prose-pre:bg-black/60'
-        : 'prose-a:text-[#635BFF] hover:prose-a:text-indigo-700 prose-code:bg-gray-200/70 prose-code:text-pink-600 prose-pre:bg-gray-800/80 prose-pre:text-white/90'
+        ? 'prose-invert prose-a:text-[var(--bg-accent)] hover:prose-a:text-[var(--bg-accent-secondary)] prose-code:bg-[var(--bg-card)] prose-code:text-[var(--status-error)] prose-pre:bg-[var(--bg-primary)]'
+        : 'prose-a:text-[var(--bg-header-secondary)] hover:prose-a:text-[var(--bg-accent)] prose-code:bg-[var(--bg-highlight)] prose-code:text-[var(--bg-accent-secondary)] prose-pre:bg-[var(--bg-card)] prose-pre:text-[var(--text-primary)]'
     }`;
   
     return (
@@ -453,7 +454,13 @@ const AssistantMessageContent = React.memo(({ message, onAcceptEdit, onRevertEdi
         {message.content && (
           <ReactMarkdown
             remarkPlugins={[remarkMath, remarkGfm]}
-            rehypePlugins={[rehypeKatex, rehypeRaw]}
+            rehypePlugins={[[rehypeKatex, { 
+                strict: 'ignore',
+                throwOnError: false,
+                errorColor: '#cc0000',
+                trust: true,
+                output: 'htmlAndMathml'
+            }], rehypeRaw]}
             className={proseClassChat}
             components={{
                 a: ({ node, ...props }) => {
@@ -462,7 +469,7 @@ const AssistantMessageContent = React.memo(({ message, onAcceptEdit, onRevertEdi
                     if (citationMatch && props.href) {
                       return (
                         <sup className="inline-block mx-0.5 align-super">
-                          <a href={props.href} target="_blank" rel="noopener noreferrer" className="text-[#635BFF] dark:text-[#8A85FF] no-underline hover:underline font-medium" title={`Source: ${props.href}`}>
+                          <a href={props.href} target="_blank" rel="noopener noreferrer" className="text-[var(--bg-header-secondary)] dark:text-[var(--bg-accent)] no-underline hover:underline font-medium" title={`Source: ${props.href}`}>
                             [{citationMatch[1]}]
                           </a>
                         </sup>
@@ -515,8 +522,8 @@ const AssistantMessageContent = React.memo(({ message, onAcceptEdit, onRevertEdi
   
         {message.attachedFiles?.map((file, index) => file.wasGenerated && file.type.startsWith('image/') && (
             <div key={index} className="relative group mt-2">
-                <img src={`data:${file.type};base64,${file.base64}`} alt={file.name || "Generated Image"} className="max-w-full h-auto max-h-56 object-contain rounded-lg border border-gray-300 dark:border-gray-600 cursor-pointer" onClick={() => window.open(`data:${file.type};base64,${file.base64}`, '_blank')} title="View full"/>
-                <button onClick={() => handleDownloadImage({ base64: file.base64, type: file.type, name: file.name })} className="absolute top-1.5 right-1.5 p-1.5 rounded-full opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-200 bg-gray-200/70 dark:bg-gray-900/70 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300" title="Download">
+                <img src={`data:${file.type};base64,${file.base64}`} alt={file.name || "Generated Image"} className="max-w-full h-auto max-h-56 object-contain rounded-lg border border-[var(--border-primary)] cursor-pointer" onClick={() => window.open(`data:${file.type};base64,${file.base64}`, '_blank')} title="View full"/>
+                <button onClick={() => handleDownloadImage({ base64: file.base64, type: file.type, name: file.name })} className="absolute top-1.5 right-1.5 p-1.5 rounded-full opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-200 bg-[var(--bg-highlight)]/70 hover:bg-[var(--interactive-hover)] text-[var(--text-secondary)]" title="Download">
                     <Download className="w-3.5 h-3.5" />
                 </button>
             </div>
@@ -531,8 +538,19 @@ const AssistantMessageContent = React.memo(({ message, onAcceptEdit, onRevertEdi
           </div>
         )}
       
-        {message.flashcard && <FlashcardsQuestions type="flashcard" data={message.flashcard.data} onComplete={() => {}} />}
-        {message.question && <FlashcardsQuestions type="question" data={message.question.data} onComplete={() => {}} />}
+        {/* Render multiple educational content or legacy single content */}
+        {message.multipleEducationalContent ? (
+          <MultiEducationalContent 
+            flashcards={message.multipleEducationalContent.flashcards}
+            questions={message.multipleEducationalContent.questions}
+            onComplete={() => {}} 
+          />
+        ) : (
+          <>
+            {message.flashcard && <FlashcardsQuestions type="flashcard" data={message.flashcard.data} onComplete={() => {}} />}
+            {message.question && <FlashcardsQuestions type="question" data={message.question.data} onComplete={() => {}} />}
+          </>
+        )}
   
         {message.isEditSuggestion && message.editAction && !isChatLoading && !message.error && (
           <div className="mt-2 border-t pt-2 flex justify-end border-yellow-300/50 dark:border-yellow-700/50">
@@ -551,7 +569,7 @@ const AssistantMessageContent = React.memo(({ message, onAcceptEdit, onRevertEdi
           <div className="mt-2 border-t pt-2 flex justify-end border-green-300/50 dark:border-green-700/50">
             <button
               onClick={() => onRevertEdit(message)}
-              className={`bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors`}
+              className={`bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-primary)] px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors`}
               disabled={isChatLoading}
               title="Revert this change"
             >
@@ -573,7 +591,7 @@ const AssistantMessageContent = React.memo(({ message, onAcceptEdit, onRevertEdi
                             href={message.actionDetails.pageUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-200/50 dark:bg-gray-700/50 px-2.5 py-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                            className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--text-secondary)] bg-[var(--bg-highlight)]/50 px-2.5 py-1.5 rounded-lg hover:bg-[var(--interactive-hover)] transition-colors"
                         >
                             <NotionIcon className="w-3.5 h-3.5 fill-current" />
                             <span>View "{message.actionDetails.pageTitle || "Page"}" in Notion</span>
@@ -585,23 +603,23 @@ const AssistantMessageContent = React.memo(({ message, onAcceptEdit, onRevertEdi
         )}
 
         {message.sources && message.sources.length > 0 && (
-            <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700/70">
-            <h4 className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">{message.sources.length} sources found</h4>
+            <div className="mt-4 pt-3 border-t border-[var(--border-primary)]">
+            <h4 className="text-sm font-semibold text-[var(--text-secondary)] mb-2">{message.sources.length} sources found</h4>
             <div className="grid grid-cols-1 gap-2">
                 {message.sources.sort((a: any, b: any) => a.number - b.number).map((source: any) => {
                 let hostname = "source.com";
                 try { hostname = new URL(source.url).hostname.replace('www.', ''); }
                 catch (e) { hostname = source.url.split('/')[2] || source.url; }
                 return (
-                    <a href={source.url} key={source.number} target="_blank" rel="noopener noreferrer" className="block bg-gray-100/70 dark:bg-[#1A1D29] p-2 rounded-lg border border-gray-200 dark:border-gray-700/80 hover:bg-gray-200/70 dark:hover:bg-gray-700/60 transition-colors duration-150">
+                    <a href={source.url} key={source.number} target="_blank" rel="noopener noreferrer" className="block bg-[var(--bg-highlight)] p-2 rounded-lg border border-[var(--border-primary)] hover:bg-[var(--interactive-hover)] transition-colors duration-150">
                     <div className="flex items-center justify-between gap-2 mb-1">
                         <div className="flex items-center gap-1.5 min-w-0">
                         <img src={`https://www.google.com/s2/favicons?domain=${hostname}&sz=32`} alt="" className="w-4 h-4 rounded-full bg-white flex-shrink-0" />
-                        <span className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate">{hostname}</span>
+                        <span className="text-xs font-semibold text-[var(--text-primary)] truncate">{hostname}</span>
                         </div>
-                        <ArrowUpRight className="w-3 h-3 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                        <ArrowUpRight className="w-3 h-3 text-[var(--text-muted)] flex-shrink-0" />
                     </div>
-                    <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-3 leading-snug">{source.title}</p>
+                    <p className="text-xs text-[var(--text-secondary)] line-clamp-3 leading-snug">{source.title}</p>
                     </a>
                 )
                 })}
@@ -1956,8 +1974,8 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string) =
         useImperativeHandle(ref, () => ({ sendMessage: (message: string) => { if (isImageGenModeActive) setIsImageGenModeActive(false); if (isSearchModeActive) setIsSearchModeActive(false); const filesForExternalSend = [...selectedFiles]; const contextForExternalSend = [...pdfContextSegments]; setSelectedFiles([]); setPdfContextSegments([]); submitMessageToAI(message, filesForExternalSend, false, false, contextForExternalSend); }, addPdfContextSegment: (text: string) => setPdfContextSegments(prev => [...prev, { id: `pdf-ctx-${Date.now()}-${Math.random().toString(16).slice(2)}`, text }]), addPdfScreenshot, focusInput: () => textareaRef.current?.focus(), }));
 
         const rootClasses = displayMode === 'overlay'
-        ? `fixed bottom-4 right-4 z-50 bg-white dark:bg-[#12141D] rounded-lg flex flex-col shadow-xl border border-gray-200 dark:border-gray-700/50`
-        : `h-full w-full flex flex-col bg-white dark:bg-[#12141D]`;
+        ? `fixed bottom-4 right-4 z-50 bg-[var(--bg-primary)] rounded-lg flex flex-col shadow-xl border border-[var(--border-primary)]`
+        : `h-full w-full flex flex-col bg-[var(--bg-primary)]`;
 
 
         // Add this handler function inside the Folders component
@@ -2008,7 +2026,7 @@ const handleToggleNotionSearchMode = () => {
                         <div className="w-full h-full border-l-2 border-t-2 border-gray-400/60 dark:border-gray-500/60 rounded-tl-lg" />
                     </div>
                 )}
-                 <div className={`p-2  bg-gray-50 dark:bg-[#161922] flex justify-between items-center shrink-0 sticky top-0 z-10 ${displayMode === 'overlay' ? 'cursor-pointer rounded-t-lg' : ''}`} onClick={displayMode === 'overlay' ? () => setIsMinimized(!isMinimized) : undefined} title={displayMode === 'overlay' ? (isMinimized ? "Expand" : "Minimize") : undefined}>
+                 <div className={`p-2 bg-[var(--bg-highlight)] flex justify-between items-center shrink-0 sticky top-0 z-10 ${displayMode === 'overlay' ? 'cursor-pointer rounded-t-lg' : ''}`} onClick={displayMode === 'overlay' ? () => setIsMinimized(!isMinimized) : undefined} title={displayMode === 'overlay' ? (isMinimized ? "Expand" : "Minimize") : undefined}>
                      <h3 className={`text-sm font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-1.5 truncate pr-2`}>
                          <MessageCircle className={`w-4 h-4 shrink-0 text-indigo-500 dark:text-indigo-400`} />
                          <span className="truncate" title={`Chat: ${note.title}`}>Chat: {note.title}</span>
@@ -2028,7 +2046,7 @@ const handleToggleNotionSearchMode = () => {
 
                 {(!isMinimized || displayMode === 'inline') && (
                     <>
-                        <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 bg-white dark:bg-[#0C0E1A]">
+                        <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 bg-[var(--bg-primary)]">
                         {chatHistory.map((message, index) => {
                                 const isCurrentLoadingMsg = message.role === 'assistant' && isChatLoading && message.id === loadingMsgId;
                                 const isPdfContextDisplayMsg = message.isPdfContextDisplay === true;
@@ -2041,7 +2059,7 @@ const handleToggleNotionSearchMode = () => {
     : message.error ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200 border border-red-200 dark:border-red-700/60'
     : message.isEditSuggestion ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-700/60'
     : message.isUpdateConfirmation ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-700/60'
-    : 'bg-gray-100 dark:bg-[#161922] '
+    : 'bg-[var(--bg-highlight)] '
     }`}>
     {isPdfContextDisplayMsg ? (
         <>
@@ -2091,14 +2109,14 @@ const handleToggleNotionSearchMode = () => {
                             {suggestedPrompts.length > 0 && !isChatLoading && (
                                 <div className={`px-1 py-2`}>
                                     <div className="flex flex-wrap gap-2">
-                                        {suggestedPrompts.map((prompt, idx) => (<button key={idx} onClick={() => handleSuggestionClick(prompt)} className={`bg-[#4E46DC] dark:bg-[#4E46DC] hover:bg-gray-600 dark:hover:bg-gray-600/80 text-gray-200 dark:text-gray-200 text-xs px-2.5 py-1.5 rounded-lg hover:shadow-sm transition-all duration-150 cursor-pointer`} title={prompt}>{prompt}</button>))}
+                                        {suggestedPrompts.map((prompt, idx) => (<button key={idx} onClick={() => handleSuggestionClick(prompt)} className={`bg-[var(--bg-accent)] hover:bg-[var(--bg-accent-secondary)] text-[var(--text-white)] text-xs px-2.5 py-1.5 rounded-lg hover:shadow-sm transition-all duration-150 cursor-pointer`} title={prompt}>{prompt}</button>))}
                                     </div>
                                 </div>
                              )}
                             <div ref={chatEndRef} />
                         </div>
 
-                        <div className={`p-2 bg-white dark:bg-[#0C0E1A] shrink-0 sticky bottom-0`}>
+                        <div className={`p-2 bg-[var(--bg-primary)] shrink-0 sticky bottom-0`}>
                             {userTier !== 'premium' && userTier !== 'loading' && (<div className="pb-1.5 text-xs text-center"><span className="text-gray-600 dark:text-gray-400">Messages: {isLoadingUsage ? '...' : chatCount} / {currentChatLimit === Infinity ? '∞' : currentChatLimit}</span>{isChatLimitReached && !isLoadingUsage && (<span className="text-red-500 ml-1 font-medium">(Limit Reached)</span>)}{!isChatLimitReached && userTier === 'basic' && (<Link to="/pricing" className={`ml-2 font-medium text-indigo-500 dark:text-indigo-400 hover:underline`}><Crown className="w-2.5 h-2.5 inline mr-0.5"/>Upgrade</Link>)}</div>)}
                             {pdfContextSegments.length > 0 && !isImageGenModeActive && !isSearchModeActive && (<div className="mb-2 px-1 max-h-24 overflow-y-auto scrollbar-thin"><div className="flex flex-col gap-1.5">{pdfContextSegments.map(segment => (<div key={segment.id} className={`flex items-center p-2 rounded-lg shadow-sm bg-gray-200 dark:bg-gray-700/60`}><CornerDownRight className={`w-4 h-4 mr-2 shrink-0 text-gray-500 dark:text-gray-400`}/><span className={`flex-1 text-xs truncate text-gray-700 dark:text-gray-200`} title={segment.text}>{segment.text}</span><button type="button" onClick={() => removePdfContextSegment(segment.id)} className={`ml-2 p-1 rounded-full hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors`} title="Remove context segment"><X className="w-3 h-3"/></button></div>))}</div></div>)}
                             {selectedFiles.length > 0 && !isImageGenModeActive && !isSearchModeActive && (<div className="mb-2 flex flex-wrap gap-1.5 p-1.5 max-h-20 overflow-y-auto scrollbar-thin border border-dashed rounded-lg border-gray-300 dark:border-gray-600">{selectedFiles.map(file => (<div key={file.name} className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg border bg-indigo-100 dark:bg-indigo-600/20 border-indigo-200 dark:border-indigo-600/40 text-indigo-700 dark:text-indigo-300">{file.type.startsWith("image/") && file.localPreviewUrl && (<img src={file.localPreviewUrl} alt={file.name} className="w-4 h-4 rounded-sm object-cover"/>)}{!file.type.startsWith("image/") && <Paperclip className="w-3 h-3 flex-shrink-0"/>}<span className="truncate max-w-[80px]">{file.name}</span><button type="button" onClick={() => handleRemoveFile(file.name)} className="ml-1 p-0.5 rounded-full hover:bg-indigo-200 dark:hover:bg-indigo-600/40" title="Remove"><X className="w-2.5 h-2.5"/></button></div>))}</div>)}
@@ -2108,7 +2126,7 @@ const handleToggleNotionSearchMode = () => {
                                     onDragOver={handleDragEvents}
                                     onDragEnter={handleDragEnter}
                                     onDragLeave={handleDragLeave}
-                                    className="relative bg-[#F7F8FA] dark:bg-[#161922]  rounded-2xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-400 dark:focus-within:ring-indigo-600 transition-all duration-200 flex flex-col"
+                                    className="relative bg-[var(--bg-card)] rounded-2xl shadow-sm focus-within:ring-2 focus-within:ring-[var(--interactive-focus)] transition-all duration-200 flex flex-col"
                                 >
                                     <AnimatePresence>
                                     {isDraggingOver && (

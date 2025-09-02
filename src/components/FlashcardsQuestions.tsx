@@ -63,7 +63,7 @@ export const FlashcardsQuestions: React.FC<FlashcardsQuestionsProps> = ({
   // Safety Check: Ensure data from the AI is valid before rendering.
   if (!data || !Array.isArray(data) || data.length === 0) {
     return (
-      <div className="text-center p-4 my-2 text-xs rounded-lg bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300 border border-red-200 dark:border-red-600/50">
+      <div className="text-center p-4 my-2 text-xs rounded-lg" style={{backgroundColor: 'var(--status-error)', color: 'var(--text-white)', border: '1px solid var(--status-error)'}}>
         Could not display content. The AI may have provided incomplete or invalid data.
       </div>
     );
@@ -72,7 +72,7 @@ export const FlashcardsQuestions: React.FC<FlashcardsQuestionsProps> = ({
   const currentItem = data[currentIndex];
   
   if (!currentItem) {
-      return <div className="text-red-500 dark:text-red-400 text-xs">Error: Invalid item data.</div>
+      return <div className="text-xs" style={{color: 'var(--status-error)'}}>Error: Invalid item data.</div>
   }
 
   const cardVariants = {
@@ -97,17 +97,27 @@ export const FlashcardsQuestions: React.FC<FlashcardsQuestionsProps> = ({
     const flashcard = currentItem as Flashcard;
 
     return (
-      <div className="w-full max-w-lg mx-auto my-2 text-xs">
-        <div className="flex justify-between items-center mb-2 px-1">
-          <span className="font-semibold text-indigo-600 dark:text-indigo-400">
-            Topic: {flashcard.topic || 'General'}
-          </span>
-          <span className="text-gray-500 dark:text-gray-400">
-            {currentIndex + 1} / {data.length}
-          </span>
+      <div className="w-full max-w-lg my-2 stats-text-responsive">
+        {/* Header Section */}
+                  <div className="study-card-width-only mb-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <button onClick={handlePrevious} disabled={currentIndex === 0} className="p-2 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed hover:bg-theme-interactive" style={{color: 'var(--text-secondary)'}}><ChevronLeft className="stats-icon-responsive" /></button>
+              <span className="font-semibold" style={{color: 'var(--bg-accent)'}}>
+                Topic: {flashcard.topic || 'General'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span style={{color: 'var(--text-muted)'}}>
+                {currentIndex + 1} / {data.length}
+              </span>
+              <button onClick={handleNext} disabled={currentIndex === data.length - 1} className="p-2 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed hover:bg-theme-interactive" style={{color: 'var(--text-secondary)'}}><ChevronRight className="stats-icon-responsive" /></button>
+            </div>
+          </div>
         </div>
 
-        <div className="relative h-48 [perspective:1000px]">
+        {/* Card Section - FIXED: Replaced h-48 with aspect-video for proper responsive height */}
+        <div className="relative study-card-responsive [perspective:1000px]">
           <AnimatePresence initial={false} custom={direction} mode="wait">
             <motion.div
               key={currentIndex}
@@ -116,33 +126,29 @@ export const FlashcardsQuestions: React.FC<FlashcardsQuestionsProps> = ({
               initial="enter"
               animate="center"
               exit="exit"
-              // UPDATED: Made slide transition smoother
               transition={{ type: 'tween', ease: 'easeInOut', duration: 0.4 }}
               className="absolute w-full h-full"
             >
               <div 
-                // UPDATED: Changed flip animation to vertical and made it more fluid
                 className={`relative w-full h-full cursor-pointer transition-transform duration-500 ease-in-out [transform-style:preserve-3d] ${isFlipped ? '[transform:rotateX(180deg)]' : ''}`}
                 onClick={() => setIsFlipped(!isFlipped)}
               >
                 {/* Front */}
-                <div className="absolute w-full h-full p-4 flex items-center justify-center text-center rounded-xl shadow-md bg-gray-100 dark:bg-gray-700/80 border border-gray-200 dark:border-gray-600/50 [backface-visibility:hidden]">
-                  <p className="text-sm font-medium text-gray-800 dark:text-gray-100">{flashcard.question}</p>
+                <div className="absolute w-full h-full p-6 flex items-center justify-center text-center rounded-xl [backface-visibility:hidden]" style={{backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-primary)', boxShadow: '0 4px 6px -1px var(--shadow-medium)'}}>
+                  <p className="study-card-text-responsive font-medium" style={{color: 'var(--text-primary)'}}>{flashcard.question}</p>
                 </div>
                 {/* Back */}
-                {/* UPDATED: Changed to rotateX to match vertical flip */}
-                <div className="absolute w-full h-full p-4 flex items-center justify-center text-center rounded-xl shadow-md bg-indigo-100 dark:bg-indigo-900/50 border border-indigo-200 dark:border-indigo-600/50 [backface-visibility:hidden] [transform:rotateX(180deg)]">
-                  <p className="text-sm text-gray-800 dark:text-gray-100">{flashcard.answer}</p>
+                <div className="absolute w-full h-full p-6 flex items-center justify-center text-center rounded-xl [backface-visibility:hidden] [transform:rotateX(180deg)]" style={{backgroundColor: 'var(--bg-accent)', border: '1px solid var(--bg-accent)', boxShadow: '0 4px 6px -1px var(--shadow-medium)'}}>
+                  <p className="study-card-text-responsive" style={{color: 'var(--text-white)'}}>{flashcard.answer}</p>
                 </div>
               </div>
             </motion.div>
           </AnimatePresence>
         </div>
 
-        <div className="mt-3 flex justify-between items-center">
-          <button onClick={handlePrevious} disabled={currentIndex === 0} className="p-2 rounded-lg transition-colors text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-600/50 disabled:opacity-40 disabled:cursor-not-allowed"><ChevronLeft className="w-4 h-4" /></button>
-          <button onClick={() => setIsFlipped(!isFlipped)} className="px-3 py-1.5 text-[10px] font-semibold rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 transition-colors flex items-center gap-1"><RotateCcw className="w-3 h-3" /> Flip</button>
-          <button onClick={handleNext} disabled={currentIndex === data.length - 1} className="p-2 rounded-lg transition-colors text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-600/50 disabled:opacity-40 disabled:cursor-not-allowed"><ChevronRight className="w-4 h-4" /></button>
+        {/* Button Section */}
+        <div className="mt-4 flex justify-center" style={{width: 'clamp(280px, 90vw, 400px)'}}>
+          <button onClick={() => setIsFlipped(!isFlipped)} className="px-4 py-2 stats-text-responsive font-semibold rounded-lg transition-colors flex items-center gap-1" style={{backgroundColor: 'var(--bg-accent)', color: 'var(--text-white)'}} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-accent-secondary)'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-accent)'}><RotateCcw className="stats-text-responsive" style={{width: '1em', height: '1em'}} /> Flip</button>
         </div>
       </div>
     );
@@ -152,14 +158,20 @@ export const FlashcardsQuestions: React.FC<FlashcardsQuestionsProps> = ({
   const quiz = currentItem as Question;
 
   return (
-    <div className="w-full max-w-lg mx-auto my-2 text-xs">
+    <div className="w-full max-w-lg my-2 text-xs">
         <div className="flex justify-between items-center mb-2 px-1">
-            <span className="font-semibold text-gray-500 dark:text-gray-400">
-                Question
-            </span>
-            <span className="text-gray-500 dark:text-gray-400">
-                {currentIndex + 1} / {data.length}
-            </span>
+            <div className="flex items-center gap-2">
+                <button onClick={handlePrevious} disabled={currentIndex === 0} className="p-2 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed hover:bg-theme-interactive" style={{color: 'var(--text-secondary)'}}><ChevronLeft className="w-4 h-4" /></button>
+                <span className="font-semibold" style={{color: 'var(--text-secondary)'}}>
+                    Question
+                </span>
+            </div>
+            <div className="flex items-center gap-2">
+                <span style={{color: 'var(--text-muted)'}}>
+                    {currentIndex + 1} / {data.length}
+                </span>
+                <button onClick={handleNext} disabled={currentIndex === data.length - 1} className="p-2 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed hover:bg-theme-interactive" style={{color: 'var(--text-secondary)'}}><ChevronRight className="w-4 h-4" /></button>
+            </div>
         </div>
         
         <AnimatePresence initial={false} custom={direction} mode="wait">
@@ -171,9 +183,9 @@ export const FlashcardsQuestions: React.FC<FlashcardsQuestionsProps> = ({
                 animate="center"
                 exit="exit"
                 transition={{ type: 'tween', ease: 'circOut', duration: 0.3 }}
-                className="p-4 rounded-xl shadow-md bg-gray-100 dark:bg-gray-700/80 border border-gray-200 dark:border-gray-600/50"
+                className="p-4 rounded-xl" style={{backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-primary)', boxShadow: '0 4px 6px -1px var(--shadow-medium)'}}
             >
-                <p className="text-sm font-medium text-gray-800 dark:text-gray-100 mb-4">{quiz.question}</p>
+                <p className="text-sm font-medium mb-4" style={{color: 'var(--text-primary)'}}>{quiz.question}</p>
 
                 <div className="space-y-2">
                     {Array.isArray(quiz.options) ? quiz.options.map((option, index) => {
@@ -181,16 +193,33 @@ export const FlashcardsQuestions: React.FC<FlashcardsQuestionsProps> = ({
                         const isCorrect = selectedAnswer !== null && index === quiz.correctAnswer;
                         const isIncorrect = isSelected && !isCorrect;
 
-                        let buttonClass = 'bg-white dark:bg-gray-800/80 hover:bg-gray-200/70 dark:hover:bg-gray-800 border-gray-200 dark:border-gray-600';
-                        if (isCorrect) buttonClass = 'bg-green-100 dark:bg-green-900/50 border-green-400 dark:border-green-600 text-green-700 dark:text-green-300';
-                        if (isIncorrect) buttonClass = 'bg-red-100 dark:bg-red-900/50 border-red-400 dark:border-red-600 text-red-700 dark:text-red-300';
+                        let buttonStyle = {
+                            backgroundColor: 'var(--bg-primary)',
+                            borderColor: 'var(--border-primary)',
+                            color: 'var(--text-secondary)'
+                        };
+                        if (isCorrect) {
+                            buttonStyle = {
+                                backgroundColor: 'var(--status-success)',
+                                borderColor: 'var(--status-success)',
+                                color: 'var(--text-white)'
+                            };
+                        }
+                        if (isIncorrect) {
+                            buttonStyle = {
+                                backgroundColor: 'var(--status-error)',
+                                borderColor: 'var(--status-error)',
+                                color: 'var(--text-white)'
+                            };
+                        }
                         
                         return (
                             <button
                                 key={index}
                                 onClick={() => { if (selectedAnswer === null) setSelectedAnswer(index); }}
                                 disabled={selectedAnswer !== null}
-                                className={`w-full text-left p-2.5 rounded-lg transition-all duration-150 flex justify-between items-center text-xs font-medium border ${buttonClass} disabled:cursor-default`}
+                                className="w-full text-left p-2.5 rounded-lg transition-all duration-150 flex justify-between items-center text-xs font-medium border disabled:cursor-default hover:bg-theme-interactive"
+                                style={buttonStyle}
                             >
                                 <span>{option}</span>
                                 <AnimatePresence>
@@ -200,7 +229,7 @@ export const FlashcardsQuestions: React.FC<FlashcardsQuestionsProps> = ({
                             </button>
                         );
                     }) : (
-                        <p className="text-red-500 dark:text-red-400 italic">Error: No options provided for this question.</p>
+                        <p className="italic" style={{color: 'var(--status-error)'}}>Error: No options provided for this question.</p>
                     )}
                 </div>
 
@@ -212,7 +241,7 @@ export const FlashcardsQuestions: React.FC<FlashcardsQuestionsProps> = ({
                         exit={{ opacity: 0, height: 0 }}
                         className="overflow-hidden"
                     >
-                        <div className="p-3 rounded-lg bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 leading-snug">
+                        <div className="p-3 rounded-lg leading-snug" style={{backgroundColor: 'var(--bg-highlight)', color: 'var(--text-secondary)'}}>
                             <strong className="font-semibold">Explanation: </strong>{quiz.explanation}
                         </div>
                     </motion.div>
@@ -221,11 +250,7 @@ export const FlashcardsQuestions: React.FC<FlashcardsQuestionsProps> = ({
             </motion.div>
         </AnimatePresence>
 
-        <div className="mt-3 flex justify-between items-center">
-            <button onClick={handlePrevious} disabled={currentIndex === 0} className="p-2 rounded-lg transition-colors text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-600/50 disabled:opacity-40 disabled:cursor-not-allowed"><ChevronLeft className="w-4 h-4" /></button>
-            <button onClick={resetCard} className="px-3 py-1.5 text-[10px] font-semibold rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 transition-colors flex items-center gap-1 disabled:opacity-50" disabled={selectedAnswer === null}><RotateCcw className="w-3 h-3" /> Try Again</button>
-            <button onClick={handleNext} disabled={currentIndex === data.length - 1} className="p-2 rounded-lg transition-colors text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-600/50 disabled:opacity-40 disabled:cursor-not-allowed"><ChevronRight className="w-4 h-4" /></button>
-        </div>
+
     </div>
   );
 };

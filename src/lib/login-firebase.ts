@@ -12,7 +12,11 @@ import { getFirestore, doc, setDoc, getDoc, Timestamp, updateDoc } from 'firebas
 
 // Import the correctly initialized auth and db from your central firebase.ts
 // This assumes firebase.ts is in the same src/lib/ directory.
-import { auth, db } from './firebase';
+import { auth as firebaseAuth, db } from './firebase';
+import { prepareInitialProfileData } from './current-paying-user';
+
+// Re-export auth for use in other files
+export const auth = firebaseAuth;
 
 // DO NOT INITIALIZE APP OR CONFIG HERE
 // const app = initializeApp(firebaseConfig); <--- REMOVED
@@ -25,31 +29,75 @@ import { auth, db } from './firebase';
  * @param user The Firebase Auth User object.
  */
 export async function ensureUserDocument(user: User): Promise<void> {
-  const userDocRef = doc(db, 'users', user.uid); // Use imported db
-  try {
-    const docSnap = await getDoc(userDocRef);
-    if (!docSnap.exists()) {
-      // Document doesn't exist, create it
-      await setDoc(userDocRef, {
-        uid: user.uid,
-        email: user.email,
-        name: user.displayName || user.email?.split('@')[0] || "New User",
-        photoURL: user.photoURL || '',
-        createdAt: Timestamp.fromDate(new Date()),
-        lastLoginAt: Timestamp.fromDate(new Date()),
-        // Add any other default fields for new users
-      });
-    } else {
-      // Document exists, update last login time and potentially name/photoURL
-      await updateDoc(userDocRef, {
-        lastLoginAt: Timestamp.fromDate(new Date()),
-        ...(user.photoURL && user.photoURL !== docSnap.data()?.photoURL && { photoURL: user.photoURL }),
-        ...(user.displayName && user.displayName !== docSnap.data()?.name && { name: user.displayName }),
-      });
+  const userDocRef = doc(db, 'users', user.uid);
+  const maxRetries = 3;
+  let retryCount = 0;
+  
+  while (retryCount < maxRetries) {
+    try {
+      const docSnap = await getDoc(userDocRef);
+      if (!docSnap.exists()) {
+        // Document doesn't exist, create it
+        const [firstName, ...lastNameParts] = (user.displayName || user.email?.split('@')[0] || "New User").split(' ');
+        const lastName = lastNameParts.join(' ');
+        const initialData = prepareInitialProfileData(
+          user.uid, 
+          user.email, 
+          user.displayName, 
+          user.photoURL, 
+          firstName, 
+          lastName
+        );
+        
+        // Use setDoc with merge to avoid conflicts if document was created elsewhere
+        await setDoc(userDocRef, {
+          ...initialData,
+          createdAt: Timestamp.fromDate(new Date()),
+          lastLoginAt: Timestamp.fromDate(new Date()),
+          updatedAt: Timestamp.fromDate(new Date()),
+        }, { merge: true });
+      } else {
+        // Document exists, update last login time and potentially name, but respect profile picture preferences
+        const existingData = docSnap.data();
+        const updateData = {
+          lastLoginAt: Timestamp.fromDate(new Date()),
+          updatedAt: Timestamp.fromDate(new Date()),
+          ...(user.displayName && user.displayName !== existingData?.name && { name: user.displayName }),
+        };
+        
+        // Only update photoURL if:
+        // 1. User has a photoURL from Google AND
+        // 2. Current stored photoURL is not explicitly null (user didn't remove it) AND  
+        // 3. The photoURL is actually different
+        if (user.photoURL && 
+            existingData?.photoURL !== null && 
+            user.photoURL !== existingData?.photoURL) {
+          updateData.photoURL = user.photoURL;
+        }
+        
+        // Use setDoc with merge to handle race conditions gracefully
+        await setDoc(userDocRef, updateData, { merge: true });
+      }
+      
+      // Success - break out of retry loop
+      break;
+      
+    } catch (error: any) {
+      console.error(`Error ensuring user document (attempt ${retryCount + 1}):`, error);
+      
+      if (error?.code === 'failed-precondition' && retryCount < maxRetries - 1) {
+        // Wait before retrying with exponential backoff
+        const delay = Math.pow(2, retryCount) * 100 + Math.random() * 100;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        retryCount++;
+        continue;
+      }
+      
+      // If it's not a retryable error or we've exhausted retries, log and continue
+      // Don't throw to avoid breaking the login flow
+      console.error("Failed to ensure user document after retries:", error);
+      break;
     }
-  } catch (error) {
-    console.error("Error ensuring user document:", error);
-    // Decide if you want to re-throw or handle silently
   }
 }
 
@@ -85,7 +133,7 @@ export const googleSignIn = async (): Promise<User | null> => {
     // Handle specific errors like 'auth/popup-closed-by-user' if desired
     // For example:
     // if ((error as any).code === 'auth/popup-closed-by-user') {
-    //   console.log('Google sign-in popup closed by user.');
+    //   // popup closed by user
     //   return null; // Or handle as you see fit
     // }
     throw error; // Re-throw for the calling component to handle

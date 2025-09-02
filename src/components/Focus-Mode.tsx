@@ -1,9 +1,10 @@
-// src/components/Focus-Mode.tsx
+// src/components/Focus-Mode.tsx - Redesigned with Modern UI & Advanced Features
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { useScrollLock } from '../hooks/useScrollLock';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Play, Pause, PlusCircle, Edit, Trash, Moon, CheckCircle, Paperclip, Trophy, Target, MessageCircle, BrainCircuit, ZapOff, Crown, RotateCcw, X, TimerIcon, Send, Settings2, SkipForward, Zap, Link2, StickyNote, History, Volume2, VolumeX, Maximize2, Brain, Coffee, Smile, Meh, Frown, TrendingUp, BookOpen, Award, Headphones, Wind, SunDim, Star as StarIcon, Flame, Volume1, Waves, CloudRain, Music2 as LofiIcon, Bird as ForestIcon, Flame as FireplaceIcon, Search, Globe, ImageIcon, Palette, Folder as FolderIconLucide, ChevronDown, ChevronRight, User as UserIcon, Loader2, Info as InfoIcon, Download, Users, Columns, Eye, AlignLeft, UserCheck, Hourglass, Notebook, Wand, SortAsc, CalendarCheck, Bot, CalendarDays,  Mic, Video, FileQuestion, Sparkles, Layers, PackagePlus, MessageSquarePlus, Edit3, SlidersHorizontal, BookCopy, ListTodo, Maximize, Minimize, Target as GoalIcon, CalendarRange, ArrowUpRight, Link as LinkLucideIcon, Plus, FileText, StopCircle, MoreHorizontal, BarChart3, AlertCircle, Circle, ShieldCheck, BatteryCharging, CheckSquare, Square, Clock
+  Play, Pause, PlusCircle, Edit, Trash, Moon, CheckCircle, Paperclip, Trophy, Target, MessageCircle, BrainCircuit, ZapOff, Crown, RotateCcw, X, Timer as TimerIcon, Send, Settings2, SkipForward, Link2, StickyNote, History, Volume2, VolumeX, Maximize2, Brain, Coffee, Smile, Meh, Frown, TrendingUp, BookOpen, Award, Headphones, Wind, SunDim, Star as StarIcon, Flame, Volume1, Zap, Waves, CloudRain, Music2 as LofiIcon, Bird as ForestIcon, Flame as FireplaceIcon, Search, Globe, ImageIcon, Palette, Folder as FolderIconLucide, ChevronDown, ChevronRight, User as UserIcon, Loader2, Info as InfoIcon, Download, Users, Columns, Eye, AlignLeft, UserCheck, Hourglass, Notebook, Wand, SortAsc, CalendarCheck, Bot, CalendarDays, Mic, Video, FileQuestion, Sparkles, Layers, PackagePlus, MessageSquarePlus, Edit3, SlidersHorizontal, BookCopy, ListTodo, Maximize, Minimize, Target as GoalIcon, CalendarRange, ArrowUpRight, Link as LinkLucideIcon, Plus, FileText, StopCircle, MoreHorizontal, BarChart3, AlertCircle, Circle, ShieldCheck, BatteryCharging, CheckSquare, Square, Clock, Clock3, Clock12, Focus, Rocket, Mountain, Coffee as CoffeeIcon, Moon as MoonIcon, Sun, Activity, TrendingUp as TrendUp, Star, Shield, ExternalLink, Github, Youtube, Music, Radio,   Heart, HeartHandshake, BookHeart, Users2, UserPlus, RefreshCw, Settings, Battery, Lightbulb, Calendar
 } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import ReactMarkdown from 'react-markdown';
@@ -15,18 +16,22 @@ import 'katex/dist/katex.min.css';
 import {
   onFirebaseAuthStateChanged,
   updateDashboardLastSeen,
-  onCustomTimersSnapshot,
-  addCustomTimer,
-  updateCustomTimer,
-  deleteCustomTimer,
+  onCollectionSnapshot,
   createTask as createDashboardTask,
   createGoal as createDashboardGoal,
   createEvent as createFirebaseEvent,
   updateItem as updateDashboardItem,
   deleteItem as deleteDashboardItem,
   findItemByName,
+  onCustomTimersSnapshot,
+  addCustomTimer,
+  updateCustomTimer,
+  deleteCustomTimer,
   type EventData as FirebaseEventData,
 } from '../lib/dashboard-firebase';
+
+import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
+import { auth } from '../lib/firebase';
 
 import {
   UserTier,
@@ -52,7 +57,6 @@ import {
   addNoteToFocusSession,
   type FocusSessionData,
   type CreatePomodoroSessionInput,
-  type CreateCustomTimerSessionInput,
   savePostSessionFeedback,
   updateSessionAmbientSound,
   calculateXpForSession,
@@ -60,6 +64,7 @@ import {
   saveUserPomodoroSettings,
   type UserPomodoroSettings
 } from '../lib/focus-mode-firebase';
+import { DocumentData } from 'firebase/firestore';
 
 import {
   FolderData,
@@ -88,20 +93,29 @@ import {
 } from '../lib/ai-actions-firebase';
 
 
-import { auth } from '../lib/firebase';
+import { functions } from '../lib/firebase';
 import { User } from 'firebase/auth';
 import { Timestamp } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { httpsCallable } from 'firebase/functions';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { ContextDialog } from './context-dialog';
 import { ChatControls } from './chat-controls';
 import { IntegrationsControl } from './integrations-control';
 import { saveUserContext, onUserContextChange, type UserContext } from '../lib/ai-context-firebase';
 import { AMBIENT_SOUND_FILES, type AmbientSound as AmbientSoundFile } from '../lib/ambientSounds';
+import { getDefaultChatStyle } from '../lib/settings-firebase';
+import { getStylePrompt } from '../lib/chat-styles';
+import { useAuth } from '../contexts/AuthContext';
+
+// Enhanced Session Types
+type SessionMode = 'pomodoro' | 'deep_work' | 'quick_sprint' | 'custom';
+type AmbientMode = 'calm' | 'intense' | 'dynamic' | 'spotify' | 'youtube';
 
 
 
 // Interfaces
-interface TimerMessage { type: 'timer'; duration: number; id: string; }
+
 interface FlashcardData { id: string; question: string; answer: string; topic: string; }
 interface QuestionData { id: string; question: string; options: string[]; correctAnswer: number; explanation: string; }
 interface FlashcardMessage { type: 'flashcard'; data: FlashcardData[]; }
@@ -113,7 +127,7 @@ export interface ChatMessageData {
   role: 'user' | 'assistant' | 'system';
   content: string;
   createdAt?: any;
-  timer?: TimerMessage;
+
   flashcard?: FlashcardMessage;
   question?: QuestionMessage;
   error?: boolean;
@@ -188,7 +202,7 @@ interface ChatMessageDisplayData {
 }
 
 
-interface CustomTimer { id: string; data: { name: string; time: number; userId: string; createdAt: any; ambientSoundId?: string; } }
+
 interface LinkableProductivityItem { id: string; name: string; type: 'task' | 'goal' | 'event' | 'folder' | 'subfolder'; collection: string; parentId?: string | null; color?: string; completed?:boolean; }
 interface SelectedFile { name: string; type: string; size: number; base64Data: string; fileObject: File; localPreviewUrl: string; }
 interface LocalImageData { base64: string; type: string; name: string; }
@@ -220,24 +234,182 @@ const MINDFUL_BREAK_SUGGESTIONS = [
 
 const NOTIFICATION_SOUND_URL = 'https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/ios-17-ringtone-tilt-gg8jzmiv_pUhS32fz.mp3?alt=media&token=a0a522e0-8a49-408a-9dfe-17e41d3bc801';
 
-const FOCUS_BADGES_CONFIG: { [key: string]: { name: string, description: string, icon: React.FC<any>, unlock_criteria_text: string, condition?: (profile: UserProfileData, focusSession?: FocusSessionData, focusHistory?: FocusSessionData[]) => boolean } } = {
-  focus_first_session: { name: "Focus Initiate", description: "Completed your first focus session.", icon: Play, unlock_criteria_text: "Complete 1st focus session", condition: (p, fs) => !!fs && fs.status === 'completed' },
-  focus_pomodoro_5_cycles: { name: "Pomodoro Powerhouse (5)", description: "Completed 5 Pomodoro cycles in a single session.", icon: TimerIcon, unlock_criteria_text: "5 Pomodoro cycles in one go", condition: (p,fs) => fs?.type === 'pomodoro' && (fs.currentCycle || 0) >= 5 && fs.status === 'completed'},
-  focus_pomodoro_10_cycles: { name: "Pomodoro Grandmaster (10)", description: "Completed 10 Pomodoro cycles in a single session.", icon: Award, unlock_criteria_text: "10 Pomodoro cycles in one go", condition: (p,fs) => fs?.type === 'pomodoro' && (fs.currentCycle || 0) >= 10 && fs.status === 'completed' },
-  focus_deep_work_1hr: { name: "Deep Diver (1 Hour)", description: "Completed a continuous focus session of at least 1 hour.", icon: Brain, unlock_criteria_text: "Focus for 1 hour straight", condition: (p,fs) => (fs?.accumulatedFocusSeconds || 0) >= 3600 && fs?.status === 'completed' },
-  focus_deep_work_2hr: { name: "Ultra Focus (2 Hours)", description: "Completed a continuous focus session of at least 2 hours.", icon: Brain, unlock_criteria_text: "Focus for 2 hours straight", condition: (p,fs) => (fs?.accumulatedFocusSeconds || 0) >= 7200 && fs?.status === 'completed' },
-  focus_goal_crusher_5: { name: "Goal Smasher (5)", description: "Achieved your session goal 5 times.", icon: Target, unlock_criteria_text: "Achieve session goal 5 times", condition: (p, fs, hist) => (hist?.filter(s => s.sessionGoalAchieved === true).length || 0) >= 5 },
-  focus_sound_explorer: { name: "Sonic Explorer", description: "Tried 3 different ambient sounds.", icon: Headphones, unlock_criteria_text: "Try 3 ambient sounds", condition: (p) => (p.soundsExploredCount || 0) >= 3 },
-  focus_early_bird: { name: "Early Bird Focus", description: "Completed a focus session before 8 AM.", icon: SunDim, unlock_criteria_text: "Focus before 8 AM", condition: (p,fs) => fs?.status === 'completed' && fs.endTime && toDateSafe(fs.endTime)!.getHours() < 8 },
-  focus_night_owl: { name: "Night Owl Focus", description: "Completed a focus session after 10 PM.", icon: Moon, unlock_criteria_text: "Focus after 10 PM", condition: (p,fs) => fs?.status === 'completed' && fs.endTime && toDateSafe(fs.endTime)!.getHours() >= 22 },
+// Enhanced Session Configurations
+const SESSION_MODES = {
+  pomodoro: {
+    name: 'Pomodoro',
+    icon: Clock,
+    description: 'Classic 25/5 minute cycles',
+    workDuration: 25 * 60,
+    shortBreak: 5 * 60,
+    longBreak: 15 * 60,
+    cyclesGoal: 4,
+    color: 'from-red-500 to-pink-500',
+    bgColor: 'bg-gradient-to-br from-red-50 to-pink-50 dark:from-red-900/20 dark:to-pink-900/20'
+  },
+  deep_work: {
+    name: 'Deep Work',
+    icon: Brain,
+    description: 'Extended focus sessions (60-90min)',
+    workDuration: 75 * 60,
+    shortBreak: 10 * 60,
+    longBreak: 20 * 60,
+    cyclesGoal: 2,
+    color: 'from-blue-500 to-purple-500',
+    bgColor: 'bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20'
+  },
+  quick_sprint: {
+    name: 'Quick Sprint',
+    icon: Rocket,
+    description: 'Short intense bursts (15min)',
+    workDuration: 15 * 60,
+    shortBreak: 3 * 60,
+    longBreak: 10 * 60,
+    cyclesGoal: 6,
+    color: 'from-green-500 to-teal-500',
+    bgColor: 'bg-gradient-to-br from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20'
+  },
+  custom: {
+    name: 'Custom',
+    icon: Settings2,
+    description: 'Fully customizable sessions',
+    workDuration: 25 * 60,
+    shortBreak: 5 * 60,
+    longBreak: 15 * 60,
+    cyclesGoal: 4,
+    color: 'from-gray-500 to-slate-500',
+    bgColor: 'bg-gradient-to-br from-gray-50 to-slate-50 dark:from-gray-900/20 dark:to-slate-900/20'
+  }
 };
+
+// Achievement and Badge System
+const FOCUS_BADGES_CONFIG: Record<string, { name: string; description: string; icon: React.ComponentType<any>; color: string; rarity: string }> = {
+  first_session: {
+    name: 'First Focus',
+    description: 'Complete your first focus session',
+    icon: Star,
+    color: 'from-yellow-400 to-orange-500',
+    rarity: 'common'
+  },
+  goal_master: {
+    name: 'Goal Master',
+    description: 'Complete all micro-goals in a session',
+    icon: Trophy,
+    color: 'from-purple-400 to-pink-500',
+    rarity: 'uncommon'
+  },
+  streak_3: {
+    name: 'Focused Mind',
+    description: 'Maintain a 3-day focus streak',
+    icon: Flame,
+    color: 'from-orange-400 to-red-500',
+    rarity: 'common'
+  },
+  streak_7: {
+    name: 'Discipline',
+    description: 'Maintain a 7-day focus streak',
+    icon: Flame,
+    color: 'from-red-400 to-pink-500',
+    rarity: 'uncommon'
+  },
+  night_owl: {
+    name: 'Night Owl',
+    description: 'Complete 10 sessions after 9 PM',
+    icon: Moon,
+    color: 'from-indigo-400 to-purple-500',
+    rarity: 'uncommon'
+  },
+  // Additional badges for compatibility
+  focus_first_session: {
+    name: 'Focus Initiate',
+    description: 'Completed your first focus session',
+    icon: Play,
+    color: 'from-yellow-400 to-orange-500',
+    rarity: 'common'
+  },
+  focus_pomodoro_5_cycles: {
+    name: 'Pomodoro Powerhouse (5)',
+    description: 'Completed 5 Pomodoro cycles in a single session',
+    icon: TimerIcon,
+    color: 'from-red-400 to-pink-500',
+    rarity: 'uncommon'
+  },
+  focus_pomodoro_10_cycles: {
+    name: 'Pomodoro Grandmaster (10)',
+    description: 'Completed 10 Pomodoro cycles in a single session',
+    icon: Award,
+    color: 'from-red-400 to-pink-500',
+    rarity: 'rare'
+  },
+  focus_goal_crusher_5: {
+    name: 'Goal Smasher (5)',
+    description: 'Achieved your session goal 5 times',
+    icon: Target,
+    color: 'from-purple-400 to-pink-500',
+    rarity: 'uncommon'
+  },
+  focus_sound_explorer: {
+    name: 'Sonic Explorer',
+    description: 'Tried 3 different ambient sounds',
+    icon: Headphones,
+    color: 'from-blue-400 to-purple-500',
+    rarity: 'common'
+  }
+};
+
+// Enhanced Ambient Modes
+const AMBIENT_MODES = {
+  calm: {
+    name: 'Calm',
+    icon: Wind,
+    description: 'Gentle, soothing sounds',
+    sounds: ['rain', 'forest', 'ocean', 'white_noise']
+  },
+  intense: {
+    name: 'Intense',
+    icon: Zap,
+    description: 'High-energy focus tracks',
+    sounds: ['electronic', 'lofi', 'classical_focus', 'brown_noise']
+  },
+  dynamic: {
+    name: 'Dynamic',
+    icon: Activity,
+    description: 'Adapts to session progress',
+    sounds: ['adaptive_rain', 'progressive_lofi', 'time_based']
+  },
+  spotify: {
+    name: 'Spotify',
+    icon: Music,
+    description: 'Sync with Spotify playlists',
+    sounds: []
+  },
+  youtube: {
+    name: 'YouTube',
+    icon: Youtube,
+    description: 'YouTube music/ambient videos',
+    sounds: []
+  }
+};
+
+// External Integration Types
+interface ExternalTask {
+  id: string;
+  title: string;
+  source: 'notion' | 'google_drive' | 'google_calendar' | 'todoist' | 'canvas' | 'manual';
+  url?: string;
+  dueDate?: Date;
+  priority?: 'low' | 'medium' | 'high';
+  completed?: boolean;
+}
+
+
 
 // AssistantMessageContent component for proper message rendering
 const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessageDisplayData, isDarkMode: boolean }) => {
-  const proseClassFocus = `prose prose-sm max-w-none prose-p:mb-3 prose-p:last:mb-0 prose-p:leading-relaxed prose-ul:my-3 prose-ul:space-y-2 prose-ol:my-3 prose-ol:space-y-2 prose-li:pl-1 prose-code:text-xs prose-code:px-1 prose-code:py-0.5 prose-pre:text-xs prose-pre:my-2 prose-pre:p-2 prose-pre:leading-relaxed
+  const proseClassFocus = `prose prose-sm max-w-none prose-p:mb-3 prose-p:last:mb-0 prose-p:leading-relaxed prose-ul:my-3 prose-ul:space-y-2 prose-ol:my-3 prose-ol:space-y-2 prose-li:pl-1 prose-li:text-responsive-sm prose-code:text-xs prose-code:px-1 prose-code:py-0.5 prose-pre:text-xs prose-pre:my-2 prose-pre:p-2 prose-pre:leading-relaxed
     ${isDarkMode
-        ? 'prose-invert prose-a:text-[#8A85FF] hover:prose-a:text-indigo-300 prose-code:bg-gray-700/70 prose-code:text-pink-400 prose-pre:bg-black/60'
-        : 'prose-a:text-[#635BFF] hover:prose-a:text-indigo-700 prose-code:bg-gray-200/70 prose-code:text-pink-600 prose-pre:bg-gray-800/80 prose-pre:text-white/90'
+        ? 'prose-invert prose-a:text-[var(--bg-accent)] hover:prose-a:text-[var(--bg-accent-secondary)] prose-code:bg-[var(--bg-card)] prose-code:text-[var(--status-error)] prose-pre:bg-[var(--bg-primary)]'
+        : 'prose-a:text-[var(--bg-header-secondary)] hover:prose-a:text-[var(--bg-accent)] prose-code:bg-[var(--bg-highlight)] prose-code:text-[var(--bg-accent-secondary)] prose-pre:bg-[var(--bg-card)] prose-pre:text-[var(--text-primary)]'
     }`;
 
   return (
@@ -253,7 +425,7 @@ const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessage
               if (citationMatch && props.href) {
                 return (
                   <sup className="inline-block mx-0.5 align-super">
-                    <a href={props.href} target="_blank" rel="noopener noreferrer" className="text-[#635BFF] dark:text-[#8A85FF] no-underline hover:underline font-medium" title={`Source: ${props.href}`}>
+                                              <a href={props.href} target="_blank" rel="noopener noreferrer" className="text-[var(--bg-header-secondary)] dark:text-[var(--bg-accent)] no-underline hover:underline font-medium" title={`Source: ${props.href}`}>
                       [{citationMatch[1]}]
                     </a>
                   </sup>
@@ -284,8 +456,8 @@ const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessage
       )}
 
       {message.actionDetails && (
-        <div className={`mt-2 pt-2 border-t border-dashed ${message.actionDetails.status === 'success' ? 'border-green-300 dark:border-green-700/60' : 'border-red-300 dark:border-red-700/60'}`}>
-          <div className={`flex items-center gap-1.5 text-xs font-medium ${message.actionDetails.status === 'success' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+        <div className={`mt-2 pt-2 border-t border-dashed border-[var(--border-primary)]`}>
+          <div className={`flex items-center gap-1.5 text-xs font-medium ${message.actionDetails.status === 'success' ? 'text-[var(--status-success)]' : 'text-[var(--status-error)]'}`}>
             {message.actionDetails.status === 'success' ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
             <span className="whitespace-pre-wrap">{message.actionDetails.message}</span>
           </div>
@@ -297,7 +469,7 @@ const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessage
                 href={(message.actionDetails as any).pageUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-200/50 dark:bg-gray-700/50 px-2.5 py-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--text-secondary)] bg-[var(--bg-highlight)]/50 px-2.5 py-1.5 rounded-lg hover:bg-[var(--interactive-hover)] transition-colors"
               >
                 <NotionIcon className="w-3.5 h-3.5" />
                 <span>View "{(message.actionDetails as any).pageTitle || "Page"}" in Notion</span>
@@ -309,8 +481,8 @@ const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessage
       )}
       
       {message.sources && message.sources.length > 0 && (
-        <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700/70">
-          <h4 className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">{message.sources.length} sources found</h4>
+        <div className="mt-4 pt-3 border-t border-[var(--border-primary)]">
+          <h4 className="text-sm font-semibold text-[var(--text-secondary)] mb-2">{message.sources.length} sources found</h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {message.sources.sort((a,b) => a.number - b.number).map(source => {
               let hostname = "source.com";
@@ -325,15 +497,15 @@ const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessage
                   key={source.number}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block bg-gray-100/70 dark:bg-[#1A1D29] p-2 rounded-lg border border-gray-200 dark:border-gray-700/80 hover:bg-gray-200/70 dark:hover:bg-gray-700/60 transition-colors duration-150"
+                  className="block bg-[var(--bg-highlight)] p-2 rounded-lg border border-[var(--border-primary)] hover:bg-[var(--interactive-hover)] transition-colors duration-150"
                 >
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">
+                    <span className="text-xs font-semibold text-[var(--text-secondary)] bg-[var(--bg-highlight)] px-1.5 py-0.5 rounded">
                       {source.number}
                     </span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">{hostname}</span>
+                    <span className="text-xs text-[var(--text-muted)]">{hostname}</span>
                   </div>
-                  <p className="text-xs text-gray-700 dark:text-gray-200 line-clamp-2">{source.title}</p>
+                  <p className="text-xs text-[var(--text-primary)] line-clamp-2">{source.title}</p>
                 </a>
               );
             })}
@@ -406,7 +578,6 @@ const parseGeminiApiResponse = (responseText: string, isImageGenCall: boolean): 
                     title: source.title || new URL(source.uri).pathname.split('/').pop() || source.uri,
                 }));
             }
-            
              if (!textContent && !imageContent ) {
                  if (reason === 'SAFETY') { errorMessage = "Response blocked due to safety concerns."; if (candidate.safetyRatings) { errorMessage += ` Details: ${JSON.stringify(candidate.safetyRatings)}`; } }
                  else if (reason === 'MAX_TOKENS') { errorMessage = "The response was cut off as it reached the maximum length."; }
@@ -531,7 +702,6 @@ const verifyEducationalContent = async (content: FlashcardMessage | QuestionMess
     
   try {
     // SECURE: Use the geminiProxy function
-    const functions = getFunctions();
     const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
     
     const apiRequestBody = {
@@ -579,7 +749,7 @@ const verifyEducationalContent = async (content: FlashcardMessage | QuestionMess
 };
 
 export function FocusMode() {
-  const [user, setUser] = useState<User | null>(null);
+  const { user } = useAuth();
   const [userName, setUserName] = useState<string>("User");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -607,106 +777,21 @@ export function FocusMode() {
     return () => { mediaQuery.removeEventListener('change', applyTheme); window.removeEventListener('storage', applyTheme); };
   }, []);
 
-  // Auth effect
+  // Auth effect - now handled by useAuth hook
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      setUser(user);
       if (user) {
         setUserName(user.displayName || user.email || "User");
       }
-    });
-    return () => unsubscribe();
-  }, []);
+  }, [user]);
 
-  // Focus Mode is currently under maintenance
-  return (
-    <div className="min-h-screen bg-gray-100 dark:bg-[#0A0B0F] font-poppins illuminate-override">
-      {user && (
-        <Sidebar
-          userName={userName}
-          isCollapsed={isSidebarCollapsed}
-          onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          isMobileOpen={isMobileSidebarOpen}
-          setIsMobileOpen={setIsMobileSidebarOpen}
-        />
-      )}
-      
-      <div className={`transition-all duration-300 ${user ? (isSidebarCollapsed ? 'md:ml-20' : 'md:ml-64') : ''} min-h-screen flex items-center justify-center p-4`}>
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
-          className="max-w-lg w-full bg-white dark:bg-[#16181D] rounded-3xl shadow-2xl p-10 text-center border border-gray-200 dark:border-gray-700/50"
-        >
-          <motion.div 
-            initial={{ scale: 0.8 }}
-            animate={{ scale: 1 }}
-            transition={{ duration: 0.5, ease: "easeOut", delay: 0.2 }}
-            className="w-20 h-20 mx-auto mb-8 bg-gradient-to-br from-yellow-100 to-orange-100 dark:from-yellow-900/30 dark:to-orange-900/30 rounded-full flex items-center justify-center shadow-lg"
-          >
-            <Settings2 className="w-10 h-10 text-yellow-600 dark:text-yellow-400" />
-          </motion.div>
-          
-          <motion.h1 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3, duration: 0.5 }}
-            className="text-3xl font-semibold text-gray-900 dark:text-white mb-4"
-          >
-            Under Maintenance
-          </motion.h1>
-          
-          <motion.p 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.4, duration: 0.5 }}
-            className="text-gray-600 dark:text-gray-400 mb-8 leading-relaxed text-lg"
-          >
-            Focus is currently being enhanced to provide you with an even better experience. 
-          </motion.p>
-          
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5, duration: 0.5 }}
-            className="space-y-4"
-          >
-            <Link 
-              to="/status"
-              className="block w-full px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-full font-semibold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 active:translate-y-0"
-            >
-              View Status Page
-            </Link>
-            
-            <Link 
-              to="/dashboard"
-              className="block w-full px-8 py-4 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-full font-semibold transition-all duration-300 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 active:translate-y-0"
-            >
-              Return to Dashboard
-            </Link>
-          </motion.div>
-          
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.6, duration: 0.5 }}
-            className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700/50"
-          >
-            <p className="text-sm text-gray-500 dark:text-gray-500 flex items-center justify-center gap-2">
-              <Clock className="w-4 h-4" />
-              Estimated downtime: 1-2 days
-            </p>
-          </motion.div>
-        </motion.div>
-      </div>
-    </div>
-  );
+  // Call the actual Focus Mode implementation
+  return <FocusModeOriginal />;
 }
 
 export function FocusModeOriginal() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [user, setUser] = useState<User | null>(null);
+  const { user } = useAuth();
   const [userProfile, setUserProfile] = useState<UserProfileData | null>(null);
   const [userName, setUserName] = useState<string>("Learner");
   const truncatedName = useMemo(() => userName.split(' ')[0] || userName, [userName]);
@@ -715,7 +800,6 @@ export function FocusModeOriginal() {
   // Define showToast early to avoid initialization errors
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info', icon?: React.FC<any>) => {
     // Simple toast implementation
-    console.log(`[${type.toUpperCase()}] ${message}`);
   }, []);
 
   
@@ -729,37 +813,69 @@ export function FocusModeOriginal() {
   });
   const [isDarkMode, setIsDarkMode] = useState(false);
 
-   // --- FIX 2: UNIFIED THEME LOGIC ---
+  // --- FIX 2: UNIFIED THEME LOGIC ---
+  const [isIlluminateEnabled, setIsIlluminateEnabled] = useState(() => JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'false'));
+  const [isBlackoutEnabled, setIsBlackoutEnabled] = useState(() => JSON.parse(localStorage.getItem('isBlackoutEnabled') || 'false'));
+
   useEffect(() => {
     const applyTheme = () => {
-        const savedTheme = localStorage.getItem('appTheme') || 'system';
-        document.documentElement.classList.remove('light', 'dark');
+      const root = document.documentElement;
+      root.classList.remove('light', 'dark');
 
-        if (savedTheme === 'dark') {
-            document.documentElement.classList.add('dark');
-            setIsDarkMode(true);
-        } else if (savedTheme === 'light') {
-            document.documentElement.classList.add('light');
-            setIsDarkMode(false);
-        } else { // 'system'
-            if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                document.documentElement.classList.add('dark');
-                setIsDarkMode(true);
-            } else {
-                document.documentElement.classList.add('light');
-                setIsDarkMode(false);
-            }
+      if (isIlluminateEnabled) {
+        root.classList.add('light');
+        setIsDarkMode(false);
+      } else if (isBlackoutEnabled) {
+        root.classList.add('dark');
+        setIsDarkMode(true);
+      } else {
+        // System theme
+        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          root.classList.add('dark');
+          setIsDarkMode(true);
+        } else {
+          root.classList.add('light');
+          setIsDarkMode(false);
         }
+      }
     };
 
     applyTheme();
+    localStorage.setItem('isIlluminateEnabled', JSON.stringify(isIlluminateEnabled));
+    localStorage.setItem('isBlackoutEnabled', JSON.stringify(isBlackoutEnabled));
+  }, [isIlluminateEnabled, isBlackoutEnabled]);
+
+  // Listen for system theme changes
+  useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    mediaQuery.addEventListener('change', applyTheme);
-    window.addEventListener('storage', (event) => { if (event.key === 'appTheme') applyTheme(); });
-    return () => {
-        mediaQuery.removeEventListener('change', applyTheme);
-        window.removeEventListener('storage', (event) => { if (event.key === 'appTheme') applyTheme(); });
-    }
+    const handleSystemThemeChange = (e: MediaQueryListEvent) => {
+      if (!isIlluminateEnabled && !isBlackoutEnabled) {
+        if (e.matches) {
+          document.documentElement.classList.add('dark');
+          setIsDarkMode(true);
+        } else {
+          document.documentElement.classList.remove('dark');
+          setIsDarkMode(false);
+        }
+      }
+    };
+
+    mediaQuery.addEventListener('change', handleSystemThemeChange);
+    return () => mediaQuery.removeEventListener('change', handleSystemThemeChange);
+  }, [isIlluminateEnabled, isBlackoutEnabled]);
+
+  // Listen for localStorage changes from other components
+  useEffect(() => {
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === 'isIlluminateEnabled') {
+        setIsIlluminateEnabled(JSON.parse(event.newValue || 'false'));
+      } else if (event.key === 'isBlackoutEnabled') {
+        setIsBlackoutEnabled(JSON.parse(event.newValue || 'false'));
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
@@ -773,7 +889,7 @@ export function FocusModeOriginal() {
   useEffect(() => { activeSessionRef.current = activeSession; }, [activeSession]);
 
   const [timeLeft, setTimeLeft] = useState(DEFAULT_WORK_SECONDS);
-  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
   const notificationSoundRef = useRef<HTMLAudioElement | null>(null);
 
   const [pomodoroWorkSetting, setPomodoroWorkSetting] = useState(DEFAULT_WORK_SECONDS);
@@ -782,14 +898,7 @@ export function FocusModeOriginal() {
   const [pomodoroCyclesGoalSetting, setPomodoroCyclesGoalSetting] = useState(DEFAULT_CYCLES_GOAL);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
-  const [customTimers, setCustomTimers] = useState<CustomTimer[]>([]);
-  const [showCustomTimerModal, setShowCustomTimerModal] = useState(false);
-  const [editingCustomTimer, setEditingCustomTimer] = useState<CustomTimer | null>(null);
-  const [newCustomTimerName, setNewCustomTimerName] = useState("");
-  const [newCustomTimerHours, setNewCustomTimerHours] = useState(0);
-  const [newCustomTimerMinutes, setNewCustomTimerMinutes] = useState(25);
-  const [newCustomTimerSeconds, setNewCustomTimerSeconds] = useState(0);
-  const [newCustomTimerSound, setNewCustomTimerSound] = useState('none');
+
 
 
   const [userProductivityItems, setUserProductivityItems] = useState<LinkableProductivityItem[]>([]);
@@ -809,6 +918,65 @@ export function FocusModeOriginal() {
   const [sessionNotes, setSessionNotes] = useState("");
   const [sessionGoalText, setSessionGoalText] = useState("");
 
+  // Micro-Goals and Gamification
+  const [sessionMicroGoals, setSessionMicroGoals] = useState<{text: string, completed: boolean}[]>([]);
+  const [newMicroGoal, setNewMicroGoal] = useState("");
+  const [earnedBadges, setEarnedBadges] = useState<string[]>([]);
+  const [showAchievementModal, setShowAchievementModal] = useState(false);
+  const [latestAchievement, setLatestAchievement] = useState<string>("");
+
+  // Enhanced Session Mode States
+  const [currentSessionMode, setCurrentSessionMode] = useState<SessionMode>('pomodoro');
+  const [currentAmbientMode, setCurrentAmbientMode] = useState<AmbientMode>('calm');
+  const [sessionDistractionCount, setSessionDistractionCount] = useState(0);
+  const [sessionStreak, setSessionStreak] = useState(0);
+
+  // AI-Powered Features
+  const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
+  const [showAISuggestions, setShowAISuggestions] = useState(false);
+  const [isAIAnalyzing, setIsAIAnalyzing] = useState(false);
+
+  // External Integration States
+  const [externalTasks, setExternalTasks] = useState<ExternalTask[]>([]);
+  const [selectedExternalTask, setSelectedExternalTask] = useState<ExternalTask | null>(null);
+  const [isLoadingIntegrations, setIsLoadingIntegrations] = useState(false);
+  const [connectedServices, setConnectedServices] = useState({
+    notion: false,
+    googleDrive: false,
+    googleCalendar: false,
+    todoist: false,
+    canvas: false
+  });
+  const [showExternalIntegrations, setShowExternalIntegrations] = useState(false);
+  const [externalIntegrationTasks, setExternalIntegrationTasks] = useState<any[]>([]);
+  const [integrationSearchQuery, setIntegrationSearchQuery] = useState('');
+  const [selectedIntegrationService, setSelectedIntegrationService] = useState<string>('');
+
+  // Gamification States
+  const [currentStreak, setCurrentStreak] = useState(0);
+  const [totalSessionsCompleted, setTotalSessionsCompleted] = useState(0);
+
+  // Enhanced Ambient Features
+  const [spotifyPlaylistUrl, setSpotifyPlaylistUrl] = useState("");
+  const [youtubeVideoUrl, setYoutubeVideoUrl] = useState("");
+  const [ambientIntensity, setAmbientIntensity] = useState(50);
+  const [adaptiveAmbientEnabled, setAdaptiveAmbientEnabled] = useState(false);
+
+  // Smart Ambient Mode State
+  const [sessionProgress, setSessionProgress] = useState(0);
+  const [adaptiveVolumeEnabled, setAdaptiveVolumeEnabled] = useState(false);
+  const [spotifyConnected, setSpotifyConnected] = useState(false);
+  const [youtubeConnected, setYoutubeConnected] = useState(false);
+
+
+
+  // Custom Timer States
+  const [customTimers, setCustomTimers] = useState<Array<{ id: string; data: DocumentData }>>([]);
+  const [showFocusLog, setShowFocusLog] = useState(false);
+  const [showCustomTimers, setShowCustomTimers] = useState(false);
+  const [showAddTimerModal, setShowAddTimerModal] = useState(false);
+
+  // Pre-focus and Post-session Modal States
   const [showPreFocusModal, setShowPreFocusModal] = useState(false);
   const [preFocusMood, setPreFocusMood] = useState<'good' | 'okay' | 'bad' | null>(null);
   const [preFocusEnergy, setPreFocusEnergy] = useState<number>(3);
@@ -820,6 +988,28 @@ export function FocusModeOriginal() {
   const [postSessionReflection, setPostSessionReflection] = useState("");
   const [postSessionGoalAchieved, setPostSessionGoalAchieved] = useState<boolean | null>(null);
 
+  // Lock body scroll when any modal is open
+  useScrollLock(showAddTimerModal || showSettingsModal || showPreFocusModal || showPostSessionModal);
+  const [editingTimer, setEditingTimer] = useState<{ id: string; data: DocumentData } | null>(null);
+  const [focusSessions, setFocusSessions] = useState<FocusSessionData[]>([]);
+
+  // Custom Timer Modal State
+  const [newTimerName, setNewTimerName] = useState('');
+  const [newTimerDuration, setNewTimerDuration] = useState(25);
+  const [newTimerSoundId, setNewTimerSoundId] = useState('none');
+
+  // AI Reflection State
+  const [aiReflection, setAiReflection] = useState<string>("");
+  const [isGeneratingReflection, setIsGeneratingReflection] = useState(false);
+  const [reflectionInsights, setReflectionInsights] = useState<{
+    productivityPattern: string;
+    energyPattern: string;
+    timeOfDayInsight: string;
+    improvementSuggestion: string;
+    streakInfo: string;
+  } | null>(null);
+  const [showAiReflection, setShowAiReflection] = useState(false);
+
   const [selectedAmbientSoundInfo, setSelectedAmbientSoundInfo] = useState<AmbientSoundFile | null>(
     AMBIENT_SOUND_FILES.find(s => s.id === 'none') || null
   );
@@ -829,6 +1019,16 @@ export function FocusModeOriginal() {
 
   const [currentMindfulSuggestion, setCurrentMindfulSuggestion] = useState("");
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error' | 'info', message: string, icon?: React.FC<any> } | null>(null);
+
+  // Auto-clear toast messages after 3 seconds
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => {
+        setToastMessage(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
 
   const [aiChatSidebarTab, setAiChatSidebarTab] = useState<'chat' | 'history' | 'analytics'>('chat');
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -865,7 +1065,6 @@ export function FocusModeOriginal() {
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [assistantLoadingPlaceholderId, setAssistantLoadingPlaceholderId] = useState<string | null>(null);
   const [activeStyle, setActiveStyle] = useState<'default' | 'illuminate' | 'blackout'>('default');
-  const [isIlluminateEnabled, setIsIlluminateEnabled] = useState(false);
   const [isNotionConnected, setIsNotionConnected] = useState(false);
   const [isNotionSearchModeActive, setIsNotionSearchModeActive] = useState(false);
   const [notionActionStatus, setNotionActionStatus] = useState<string | null>(null);
@@ -923,14 +1122,11 @@ export function FocusModeOriginal() {
          showToast(`🎉 You've earned 1 FREE week of Premium!`, 'info', Crown);
       }
 
-      const updatedProfileForBadgeCheck = { ...userProfile!, points: newPoints, level: newLevel, overallStreakCount: userStreakData?.current || 0, soundsExploredCount: userProfile?.soundsExploredCount || 0 };
+      const updatedProfileForBadgeCheck = { ...userProfile!, points: newPoints, level: newLevel, overallStreakCount: userStreakData?.current || 0 };
       for (const [badgeKey, badgeConfig] of Object.entries(FOCUS_BADGES_CONFIG)) {
         if (!(userProfile?.badges || []).includes(badgeKey)) {
           let conditionMet = false;
           if (badgeKey === criteriaKey) conditionMet = true;
-          else if (badgeConfig.condition) {
-            conditionMet = badgeConfig.condition(updatedProfileForBadgeCheck, completedSession, focusHistory);
-          }
           if (conditionMet) {
             await addUserBadge(user.uid, badgeKey, currentUserDetails);
             showToast(`Badge Unlocked: ${badgeConfig.name}!`, 'info', badgeConfig.icon);
@@ -943,7 +1139,6 @@ export function FocusModeOriginal() {
   const handleReset = useCallback(async () => {
     if (!activeSessionRef.current || !user || !activeSessionRef.current.id) return;
     stopNotificationSound();
-    if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; }
     const now = Timestamp.now();
     let finalAccumulatedFocus = activeSessionRef.current.accumulatedFocusSeconds || 0;
     let finalAccumulatedBreak = activeSessionRef.current.accumulatedBreakSeconds || 0;
@@ -958,7 +1153,11 @@ export function FocusModeOriginal() {
     const pointsFromCancelled = calculateXpForSession(sessionToCalculateXp, userStreakData?.current || 0);
 
     const updates: Partial<FocusSessionData> = { status: 'cancelled', startTime: null, endTime: now, pauseTime: null, accumulatedFocusSeconds: finalAccumulatedFocus, accumulatedBreakSeconds: finalAccumulatedBreak, currentCycle: activeSessionRef.current.type === 'pomodoro' ? activeSessionRef.current.currentCycle : null, isLongBreakNext: false, currentSegmentProgressSeconds: 0, xpEarned: pointsFromCancelled };
-    await updateFocusSession(activeSessionRef.current.id, updates);
+    try {
+      await updateFocusSession(activeSessionRef.current.id, updates);
+    } catch (error) {
+      console.error('Error cancelling session:', error);
+    }
     if (pointsFromCancelled > 0) addPointsAndCheckBadges(pointsFromCancelled, undefined, sessionToCalculateXp);
 
     setIsSoundPlaying(false); setSessionGoalText(""); setSessionNotes(""); setSelectedLinkedItemId(null); setSelectedLinkedItemType(null);
@@ -966,10 +1165,13 @@ export function FocusModeOriginal() {
   }, [user, pomodoroWorkSetting, stopNotificationSound, addPointsAndCheckBadges, userStreakData]);
 
 
-  // In Focus-Mode.tsx, replace the existing main authentication useEffect hook with this:
-
+  // Main authentication effect using useAuth hook
   useEffect(() => {
-    const unsubscribeAuth = onFirebaseAuthStateChanged(async (firebaseUser) => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+
       let unsubProfile = () => {};
       let unsubCustomTimers = () => {};
       let unsubFolders = () => {};
@@ -977,21 +1179,19 @@ export function FocusModeOriginal() {
       let unsubConversations = () => {};
       let unsubContext = () => {};
       
-      if (firebaseUser) {
-        setUser(firebaseUser);
-        // THE FIX: Set userName immediately from the auth object
-        setUserName(firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "User");
-        updateDashboardLastSeen(firebaseUser.uid).catch(console.warn);
+    // Set userName from the auth object
+    setUserName(user.displayName || user.email?.split('@')[0] || "User");
+    updateDashboardLastSeen(user.uid).catch(console.warn);
 
-        unsubProfile = onUserProfileSnapshot(firebaseUser.uid, (profile) => {
+    unsubProfile = onUserProfileSnapshot(user.uid, (profile) => {
           setUserProfile(profile);
           if (profile) {
-            updateUserStreak(firebaseUser.uid, {email: firebaseUser.email!, displayName: profile.displayName || "User", photoURL: firebaseUser.photoURL });
+        updateUserStreak(user.uid, {email: user.email!, displayName: profile.displayName || "User", photoURL: user.photoURL });
           }
         });
         
         // Fetch page-specific data
-        getUserPomodoroSettings(firebaseUser.uid).then(settings => {
+    getUserPomodoroSettings(user.uid).then(settings => {
           if (settings) {
             setPomodoroWorkSetting(settings.workSeconds);
             setPomodoroShortBreakSetting(settings.shortBreakSeconds);
@@ -1001,57 +1201,41 @@ export function FocusModeOriginal() {
           }
         });
         
-        getUserTier(firebaseUser.uid, firebaseUser.email).then(tier => {
+    getUserTier(user.uid, user.email).then(tier => {
           setUserTier(tier);
           const limit = getChatLimitForTier(tier);
           setChatLimit(limit);
           setCurrentChatLimitDisplay(limit === Infinity ? '∞' : limit);
           if (tier !== 'premium') {
             const currentMonth = new Date().toISOString().slice(0, 7);
-            getCurrentMonthUserChatUsage(firebaseUser.uid, currentMonth).then(usage => setChatUsageCount(usage?.count || 0));
+        getCurrentMonthUserChatUsage(user.uid, currentMonth).then(usage => setChatUsageCount(usage?.count || 0));
           } else {
             setChatUsageCount(0);
             setIsChatDisabledByLimit(false);
           }
         });
         
-        unsubCustomTimers = onCustomTimersSnapshot(firebaseUser.uid, setCustomTimers);
-        unsubFolders = onFoldersSnapshot(firebaseUser.uid, null, (folders) => setAllFolders(folders));
-        getAllUserProductivityItems(firebaseUser.uid, true).then(setUserProductivityItems);
+
+    unsubFolders = onFoldersSnapshot(user.uid, null, (folders) => setAllFolders(folders));
+    getAllUserProductivityItems(user.uid, true).then(setUserProductivityItems);
         
         // Set up listeners for tasks, goals, and events
-        const unsubTasks = onCollectionSnapshot('tasks', firebaseUser.uid, setTasks);
-        const unsubGoals = onCollectionSnapshot('goals', firebaseUser.uid, setGoals);
-        const unsubEvents = onCollectionSnapshot('events', firebaseUser.uid, setEvents);
-        unsubFocusSessions = onUserFocusSessionsSnapshot(firebaseUser.uid, (sessions) => {
+    const unsubTasks = onCollectionSnapshot('tasks', user.uid, setTasks);
+    const unsubGoals = onCollectionSnapshot('goals', user.uid, setGoals);
+    const unsubEvents = onCollectionSnapshot('events', user.uid, setEvents);
+    unsubFocusSessions = onUserFocusSessionsSnapshot(user.uid, (sessions) => {
           const currentActive = sessions.find(s => ['running', 'paused', 'break_running', 'break_paused'].includes(s.status)) || null;
           setActiveSession(currentActive);
           setFocusHistory(sessions.filter(s => ['completed', 'cancelled'].includes(s.status)).sort((a,b) => (b.endTime?.seconds || b.createdAt.seconds) - (a.endTime?.seconds || a.createdAt.seconds)));
+          setFocusSessions(sessions.filter(s => ['completed', 'cancelled'].includes(s.status)).sort((a,b) => (b.endTime?.seconds || b.createdAt.seconds) - (a.endTime?.seconds || a.createdAt.seconds)));
         }, { includeCompleted: true, includeCancelled: true });
-        unsubConversations = onChatConversationsSnapshot(firebaseUser.uid, (conversations) => setConversationList(conversations.map(c => ({ ...c, key: c.id }))));
-        unsubContext = onUserContextChange(firebaseUser.uid, setUserContext);
-        getMemories(firebaseUser.uid).then(setMemories);
-        
-      } else {
-        navigate('/login');
-        // Reset all state...
-        setUser(null);
-        setUserName("Learner");
-        setActiveSession(null);
-        setCustomTimers([]);
-        setUserProductivityItems([]);
-        setFocusHistory([]);
-        setAllFolders([]);
-        setAllSubFolders({});
-        setConversationId(null);
-        setConversationList([]);
-        setChatHistory([]);
-        setUserStreakData(null);
-        setMemories([]);
-        setTimeLeft(DEFAULT_WORK_SECONDS);
-        stopNotificationSound();
-        setIsSoundPlaying(false);
-      }
+
+    unsubCustomTimers = onCustomTimersSnapshot(user.uid, (timers) => {
+          setCustomTimers(timers);
+        });
+    unsubConversations = onChatConversationsSnapshot(user.uid, (conversations) => setConversationList(conversations.map(c => ({ ...c, key: c.id }))));
+    unsubContext = onUserContextChange(user.uid, setUserContext);
+    getMemories(user.uid).then(setMemories);
 
       return () => {
         unsubProfile();
@@ -1064,10 +1248,7 @@ export function FocusModeOriginal() {
         unsubGoals();
         unsubEvents();
       };
-    });
-
-    return () => unsubscribeAuth();
-  }, [navigate, stopNotificationSound]);
+  }, [user, navigate, stopNotificationSound]);
 
    useEffect(() => {
     if(!user?.uid) return;
@@ -1083,14 +1264,18 @@ export function FocusModeOriginal() {
   }, [user, allFolders, allSubFolders]);
 
 
- useEffect(() => {
+   useEffect(() => {
     if (user && location.state?.autoStartFocus && (!activeSessionRef.current || ['idle', 'completed', 'cancelled'].includes(activeSessionRef.current.status))) {
       const { name, duration } = location.state.autoStartFocus;
       const startAISuggestedSession = async () => {
         if (!user) return; stopNotificationSound();
         if (activeSessionRef.current && !['completed', 'cancelled'].includes(activeSessionRef.current.status) && activeSessionRef.current.id) await handleReset();
+
+        // Validate duration - must be a positive number
+        const validDuration = (typeof duration === 'number' && duration > 0) ? duration : 25 * 60; // Default to 25 minutes
+
         const ambientSoundToSave = selectedAmbientSoundInfo && selectedAmbientSoundInfo.id !== 'none' ? { name: selectedAmbientSoundInfo.name, src: selectedAmbientSoundInfo.src, volume: ambientVolume } : null;
-        const newSessionInput: CreateCustomTimerSessionInput = { type: 'custom_timer', timerName: name || `AI Suggested Focus`, plannedDurationSeconds: duration, startTime: Timestamp.now(), linkedItemId: null, linkedItemName: null, linkedItemCollection: null, notes: "Started from AI Dashboard Suggestion.", sessionGoalText: name, preFocusCheckIn: null, ambientSound: ambientSoundToSave };
+        const newSessionInput: CreatePomodoroSessionInput = { type: 'pomodoro', timerName: name || `AI Suggested Focus`, plannedDurationSeconds: validDuration, startTime: Timestamp.now(), linkedItemId: null, linkedItemName: null, linkedItemCollection: null, notes: "Started from AI Dashboard Suggestion.", sessionGoalText: name, preFocusCheckIn: null, ambientSound: ambientSoundToSave, pomodoroConfig: { workMinutes: validDuration / 60, shortBreakMinutes: 5, longBreakMinutes: 15, cycles: 4 } };
         await createFocusSession(user.uid, newSessionInput);
         if (ambientSoundToSave) setIsSoundPlaying(true); else setIsSoundPlaying(false);
         navigate('.', { replace: true, state: {} });
@@ -1181,48 +1366,89 @@ export function FocusModeOriginal() {
 
   useEffect(() => {
     const applyTheme = () => {
-      const savedTheme = localStorage.getItem('appTheme') || 'system';
-      document.documentElement.classList.remove('light', 'dark');
+      const root = document.documentElement;
+      root.classList.remove('light', 'dark');
 
-      if (savedTheme === 'dark') {
-        document.documentElement.classList.add('dark');
-        setIsDarkMode(true);
-      } else if (savedTheme === 'light') {
-        document.documentElement.classList.add('light');
+      if (isIlluminateEnabled) {
+        root.classList.add('light');
         setIsDarkMode(false);
-      } else { // 'system'
+      } else if (isBlackoutEnabled) {
+        root.classList.add('dark');
+        setIsDarkMode(true);
+      } else {
+        // System theme
         if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-          document.documentElement.classList.add('dark');
+          root.classList.add('dark');
           setIsDarkMode(true);
         } else {
-          document.documentElement.classList.add('light');
+          root.classList.add('light');
           setIsDarkMode(false);
         }
       }
     };
 
     applyTheme();
+    localStorage.setItem('isIlluminateEnabled', JSON.stringify(isIlluminateEnabled));
+    localStorage.setItem('isBlackoutEnabled', JSON.stringify(isBlackoutEnabled));
+  }, [isIlluminateEnabled, isBlackoutEnabled]);
+
+  // Listen for system theme changes
+  useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    mediaQuery.addEventListener('change', applyTheme);
-    window.addEventListener('storage', (event) => { if (event.key === 'appTheme') applyTheme(); });
-    return () => {
-      mediaQuery.removeEventListener('change', applyTheme);
-      window.removeEventListener('storage', (event) => { if (event.key === 'appTheme') applyTheme(); });
-    }
+    const handleSystemThemeChange = (e: MediaQueryListEvent) => {
+      if (!isIlluminateEnabled && !isBlackoutEnabled) {
+        if (e.matches) {
+          document.documentElement.classList.add('dark');
+          setIsDarkMode(true);
+        } else {
+          document.documentElement.classList.remove('dark');
+          setIsDarkMode(false);
+        }
+      }
+    };
+
+    mediaQuery.addEventListener('change', handleSystemThemeChange);
+    return () => mediaQuery.removeEventListener('change', handleSystemThemeChange);
+  }, [isIlluminateEnabled, isBlackoutEnabled]);
+
+  // Listen for localStorage changes from other components
+  useEffect(() => {
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === 'isIlluminateEnabled') {
+        setIsIlluminateEnabled(JSON.parse(event.newValue || 'false'));
+      } else if (event.key === 'isBlackoutEnabled') {
+        setIsBlackoutEnabled(JSON.parse(event.newValue || 'false'));
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
+  // Restore missing useEffect for activeSession
   useEffect(() => {
-    if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; }
     if (activeSession) {
-      setSessionNotes(activeSession.notes || ""); setSelectedLinkedItemId(activeSession.linkedItemId || null); setSelectedLinkedItemType(activeSession.linkedItemCollection || null); setSessionGoalText(activeSession.sessionGoalText || "");
+      setSessionNotes(activeSession.notes || ""); 
+      setSelectedLinkedItemId(activeSession.linkedItemId || null); 
+      setSelectedLinkedItemType(activeSession.linkedItemCollection || null); 
+      setSessionGoalText(activeSession.sessionGoalText || "");
       if (activeSession.ambientSound) {
-        const soundInfo = AMBIENT_SOUND_FILES.find(f => f.name === activeSession.ambientSound!.name);
+        const soundInfo = AMBIENT_SOUND_FILES.find(s => s.name === activeSession.ambientSound!.name);
         if (soundInfo && selectedAmbientSoundInfo?.id !== soundInfo.id) setSelectedAmbientSoundInfo(soundInfo);
         if (typeof activeSession.ambientSound.volume === 'number' && ambientVolume !== activeSession.ambientSound.volume) setAmbientVolume(activeSession.ambientSound.volume);
       } else if (!activeSession.ambientSound && selectedAmbientSoundInfo?.id !== 'none') setSelectedAmbientSoundInfo(AMBIENT_SOUND_FILES.find(s => s.id === 'none') || null);
 
-      let targetDurationForCurrentPhase = 0; const progressInCurrentSegment = Number(activeSession.currentSegmentProgressSeconds || 0);
-      if (activeSession.status === 'running' || activeSession.status === 'paused') targetDurationForCurrentPhase = activeSession.type === 'pomodoro' ? (activeSession.pomodoroWorkSeconds ?? pomodoroWorkSetting) : (activeSession.plannedDurationSeconds ?? DEFAULT_WORK_SECONDS);
+      let targetDurationForCurrentPhase = 0; 
+      const progressInCurrentSegment = Number(activeSession.currentSegmentProgressSeconds || 0);
+      if (activeSession.status === 'running' || activeSession.status === 'paused') {
+        if (activeSession.type === 'pomodoro') {
+          targetDurationForCurrentPhase = activeSession.pomodoroWorkSeconds ?? pomodoroWorkSetting;
+        } else if (activeSession.type === 'custom_timer') {
+          targetDurationForCurrentPhase = activeSession.plannedDurationSeconds ?? DEFAULT_WORK_SECONDS;
+        } else {
+          targetDurationForCurrentPhase = DEFAULT_WORK_SECONDS;
+        }
+      }
       else if (activeSession.status === 'break_running' || activeSession.status === 'break_paused') targetDurationForCurrentPhase = activeSession.isLongBreakNext ? (activeSession.pomodoroLongBreakSeconds ?? pomodoroLongBreakSetting) : (activeSession.pomodoroShortBreakSeconds ?? pomodoroShortBreakSetting);
       else { setTimeLeft(pomodoroWorkSetting); if (['completed', 'cancelled'].includes(activeSession.status)) stopNotificationSound(); return; }
 
@@ -1231,148 +1457,239 @@ export function FocusModeOriginal() {
         const timeElapsedSinceStartTime = activeSession.startTime ? (Timestamp.now().seconds - activeSession.startTime.seconds) : 0;
         const currentDisplayTimeLeft = Math.max(0, timeRemainingInSegment - timeElapsedSinceStartTime);
         setTimeLeft(currentDisplayTimeLeft);
-        if (currentDisplayTimeLeft > 0) startUiTimer(); else handleTimerEnd();
+        if (currentDisplayTimeLeft <= 0) handleTimerEnd();
       } else if (activeSession.status === 'paused' || activeSession.status === 'break_paused') setTimeLeft(Math.max(0, timeRemainingInSegment));
     } else {
       setTimeLeft(pomodoroWorkSetting); if (selectedAmbientSoundInfo?.id !== 'none') setSelectedAmbientSoundInfo(AMBIENT_SOUND_FILES.find(s => s.id === 'none') || null);
       stopNotificationSound();
     }
     if (activeSession && (activeSession.status === 'break_running' || activeSession.status === 'break_paused')) { if (!currentMindfulSuggestion || activeSession.pauseTime) setCurrentMindfulSuggestion(MINDFUL_BREAK_SUGGESTIONS[Math.floor(Math.random() * MINDFUL_BREAK_SUGGESTIONS.length)]); } else setCurrentMindfulSuggestion("");
-    return () => { if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; } };
   }, [activeSession, pomodoroWorkSetting, pomodoroShortBreakSetting, pomodoroLongBreakSetting]);
 
-
-  const startUiTimer = () => {
-    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-    timerIntervalRef.current = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) { if (timerIntervalRef.current) clearInterval(timerIntervalRef.current!); timerIntervalRef.current = null; handleTimerEnd(); return 0; }
-        return prev - 1;
-      });
-    }, 1000);
-  };
+  // Additional useEffect to ensure ambient sound is properly synchronized when session starts
+  useEffect(() => {
+    if (activeSession && activeSession.ambientSound && activeSession.status === 'running') {
+      // Find the sound info and ensure it's properly set
+      const soundInfo = AMBIENT_SOUND_FILES.find(s => s.name === activeSession.ambientSound!.name);
+      if (soundInfo && selectedAmbientSoundInfo?.id !== soundInfo.id) {
+        setSelectedAmbientSoundInfo(soundInfo);
+        // Also set the volume if it exists
+        if (typeof activeSession.ambientSound.volume === 'number') {
+          setAmbientVolume(activeSession.ambientSound.volume);
+        }
+        // Start playing if the session is running
+        setIsSoundPlaying(true);
+      }
+    }
+  }, [activeSession?.status, activeSession?.ambientSound]);
 
   const handleTimerEnd = async () => {
     if (!activeSessionRef.current || !user || !activeSessionRef.current.id) return;
     const currentSessionStateForCalc = { ...activeSessionRef.current };
     if (currentSessionStateForCalc.status !== 'running' && currentSessionStateForCalc.status !== 'break_running') return;
 
-    let updates: Partial<FocusSessionData> = { currentSegmentProgressSeconds: 0 }; const now = Timestamp.now(); let phaseDurationJustCompleted = 0;
+    let updates: Partial<FocusSessionData> = { currentSegmentProgressSeconds: 0 }; 
+    const now = Timestamp.now(); 
+    let phaseDurationJustCompleted = 0;
     let pointsEarned = 0;
     let badgeCriteriaKey: keyof typeof FOCUS_BADGES_CONFIG | undefined = undefined;
-
 
     if (currentSessionStateForCalc.status === 'running') {
       playNotificationSound();
       phaseDurationJustCompleted = currentSessionStateForCalc.type === 'pomodoro' ? (currentSessionStateForCalc.pomodoroWorkSeconds ?? pomodoroWorkSetting) : (currentSessionStateForCalc.plannedDurationSeconds ?? DEFAULT_WORK_SECONDS);
       updates.accumulatedFocusSeconds = (currentSessionStateForCalc.accumulatedFocusSeconds || 0) + phaseDurationJustCompleted;
       if (currentSessionStateForCalc.type === 'pomodoro') {
-        updates.status = 'break_running'; updates.startTime = now;
+        updates.status = 'break_running'; 
+        updates.startTime = now;
         const workSegmentNumberJustFinished = (currentSessionStateForCalc.currentCycle || 0) + 1;
         updates.isLongBreakNext = workSegmentNumberJustFinished % (currentSessionStateForCalc.pomodoroCyclesGoal || pomodoroCyclesGoalSetting) === 0;
       } else {
-        updates.status = 'completed'; updates.endTime = now; updates.startTime = null; setIsSoundPlaying(false);
+        updates.status = 'completed'; 
+        updates.endTime = now; 
+        updates.startTime = null; 
+        setIsSoundPlaying(false);
         const completedSessionDataForFeedback: FocusSessionData = { ...currentSessionStateForCalc, ...updates, status: 'completed', endTime: now };
         pointsEarned = calculateXpForSession(completedSessionDataForFeedback, userStreakData?.current || 0);
         badgeCriteriaKey = 'focus_first_session';
-        setCompletedSessionForFeedback(completedSessionDataForFeedback); setShowPostSessionModal(true);
+        setCompletedSessionForFeedback(completedSessionDataForFeedback); 
+        setShowPostSessionModal(true);
         await updateUserStreak(user.uid, {email: user.email!, displayName: userName, photoURL: user.photoURL});
-
       }
     } else if (currentSessionStateForCalc.status === 'break_running') {
       stopNotificationSound();
       phaseDurationJustCompleted = currentSessionStateForCalc.isLongBreakNext ? (currentSessionStateForCalc.pomodoroLongBreakSeconds ?? pomodoroLongBreakSetting) : (currentSessionStateForCalc.pomodoroShortBreakSeconds ?? pomodoroShortBreakSetting);
       updates.accumulatedBreakSeconds = (currentSessionStateForCalc.accumulatedBreakSeconds || 0) + phaseDurationJustCompleted;
-      const newCompletedCycleCount = (currentSessionStateForCalc.currentCycle || 0) + 1; updates.currentCycle = newCompletedCycleCount;
+      const newCompletedCycleCount = (currentSessionStateForCalc.currentCycle || 0) + 1; 
+      updates.currentCycle = newCompletedCycleCount;
 
       if (currentSessionStateForCalc.type === 'pomodoro' && newCompletedCycleCount >= (currentSessionStateForCalc.pomodoroCyclesGoal || pomodoroCyclesGoalSetting)) {
-        playNotificationSound(); updates.status = 'completed'; updates.endTime = now; updates.startTime = null; updates.isLongBreakNext = false; setIsSoundPlaying(false);
+        playNotificationSound(); 
+        updates.status = 'completed'; 
+        updates.endTime = now; 
+        updates.startTime = null; 
+        updates.isLongBreakNext = false; 
+        setIsSoundPlaying(false);
         const completedSessionDataForFeedback: FocusSessionData = { ...currentSessionStateForCalc, ...updates, status: 'completed', endTime: now, currentCycle: newCompletedCycleCount };
         pointsEarned = calculateXpForSession(completedSessionDataForFeedback, userStreakData?.current || 0);
         badgeCriteriaKey = newCompletedCycleCount >= 10 ? 'focus_pomodoro_10_cycles' : (newCompletedCycleCount >= 5 ? 'focus_pomodoro_5_cycles' : 'focus_first_session');
-        setCompletedSessionForFeedback(completedSessionDataForFeedback); setShowPostSessionModal(true);
+        setCompletedSessionForFeedback(completedSessionDataForFeedback); 
+        setShowPostSessionModal(true);
         await updateUserStreak(user.uid, {email: user.email!, displayName: userName, photoURL: user.photoURL});
       } else if (currentSessionStateForCalc.type === 'pomodoro') {
-        updates.status = 'running'; updates.startTime = now; updates.isLongBreakNext = false;
-        if (selectedAmbientSoundInfo?.id !== 'none' && selectedAmbientSoundInfo?.src) setIsSoundPlaying(true);
-      } else { updates.status = 'cancelled'; updates.endTime = now; updates.startTime = null; setIsSoundPlaying(false); }
+        updates.status = 'running'; 
+        updates.startTime = now; 
+        updates.isLongBreakNext = false;
+        if (selectedAmbientSoundInfo?.src && selectedAmbientSoundInfo.id !== 'none') setIsSoundPlaying(true);
+      } else { 
+        updates.status = 'cancelled'; 
+        updates.endTime = now; 
+        updates.startTime = null; 
+        setIsSoundPlaying(false); 
+      }
     }
     updates.xpEarned = pointsEarned;
-    if (activeSessionRef.current && activeSessionRef.current.id) await updateFocusSession(activeSessionRef.current.id, updates);
+    if (activeSessionRef.current && activeSessionRef.current.id) {
+      try {
+        await updateFocusSession(activeSessionRef.current.id, updates);
+      } catch (error) {
+        console.error('Error updating session progress:', error);
+      }
+    }
     if (pointsEarned > 0) addPointsAndCheckBadges(pointsEarned, badgeCriteriaKey, { ...currentSessionStateForCalc, ...updates } as FocusSessionData);
   };
 
   const handleStartPauseResume = async () => {
-    if (!user) return; const now = Timestamp.now();
-    if (!activeSession || ['idle', 'completed', 'cancelled'].includes(activeSession.status)) { stopNotificationSound(); setShowPreFocusModal(true); }
+    if (!user) return; 
+    const now = Timestamp.now();
+    if (!activeSession || ['idle', 'completed', 'cancelled'].includes(activeSession.status)) { 
+      stopNotificationSound(); 
+      setShowPreFocusModal(true); 
+    }
     else {
-      if (!activeSession.id) return; let updates: Partial<FocusSessionData> = {};
+      if (!activeSession.id) return; 
+      let updates: Partial<FocusSessionData> = {};
       const timeElapsedInCurrentRunningSegment = activeSession.startTime ? Math.max(0, now.seconds - activeSession.startTime.seconds) : 0;
       if (['running', 'break_running'].includes(activeSession.status)) {
-        updates.status = activeSession.status === 'running' ? 'paused' : 'break_paused'; updates.currentSegmentProgressSeconds = (activeSession.currentSegmentProgressSeconds || 0) + timeElapsedInCurrentRunningSegment;
-        updates.pauseTime = now; updates.startTime = null; setIsSoundPlaying(false); stopNotificationSound();
-        if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; }
+        updates.status = activeSession.status === 'running' ? 'paused' : 'break_paused'; 
+        updates.currentSegmentProgressSeconds = (activeSession.currentSegmentProgressSeconds || 0) + timeElapsedInCurrentRunningSegment;
+        updates.pauseTime = now; 
+        updates.startTime = null; 
+        setIsSoundPlaying(false); 
+        stopNotificationSound();
       } else if (['paused', 'break_paused'].includes(activeSession.status)) {
-        updates.status = activeSession.status === 'paused' ? 'running' : 'break_running'; updates.startTime = now; updates.pauseTime = null;
+        updates.status = activeSession.status === 'paused' ? 'running' : 'break_running'; 
+        updates.startTime = now; 
+        updates.pauseTime = null;
         if (updates.status === 'running') stopNotificationSound();
         if (selectedAmbientSoundInfo?.src && selectedAmbientSoundInfo.id !== 'none') setIsSoundPlaying(true);
       }
-      await updateFocusSession(activeSession.id, updates);
+      try {
+        await updateFocusSession(activeSession.id, updates);
+      } catch (error) {
+        console.error('Error updating session on start/pause/resume:', error);
+      }
     }
   };
 
   const startNewPomodoroSessionFromModal = async () => {
-    if (!user) return; stopNotificationSound();
+    if (!user) return; 
+    stopNotificationSound();
     const linkedItem = selectedLinkedItemId ? userProductivityItems.find(i => i.id === selectedLinkedItemId && i.type === selectedLinkedItemType) : null;
     const ambientSoundToSave = selectedAmbientSoundInfo && selectedAmbientSoundInfo.id !== 'none' ? { name: selectedAmbientSoundInfo.name, src: selectedAmbientSoundInfo.src, volume: ambientVolume } : null;
-    const newSessionInput: CreatePomodoroSessionInput = { type: 'pomodoro', timerName: linkedItem ? `Focus: ${linkedItem.name}` : 'Pomodoro Session', pomodoroWorkSeconds: pomodoroWorkSetting, pomodoroShortBreakSeconds: pomodoroShortBreakSetting, pomodoroLongBreakSeconds: pomodoroLongBreakSetting, pomodoroCyclesGoal: pomodoroCyclesGoalSetting, startTime: Timestamp.now(), currentCycle: 0, linkedItemId: linkedItem?.id || null, linkedItemName: linkedItem?.name || null, linkedItemCollection: linkedItem?.collection || null, notes: sessionNotes || null, sessionGoalText: sessionGoalText || null, preFocusCheckIn: { mood: preFocusMood, energyLevel: preFocusEnergy, customInput: null }, ambientSound: ambientSoundToSave };
-    await createFocusSession(user.uid, newSessionInput);
-    setShowPreFocusModal(false); setPreFocusMood(null); setPreFocusEnergy(3); setSessionGoalText(""); setSessionNotes(""); setSelectedLinkedItemId(null); setSelectedLinkedItemType(null);
-    if (ambientSoundToSave) setIsSoundPlaying(true); else setIsSoundPlaying(false);
-  };
 
-  const handleStartCustomTimerSession = async (timer: CustomTimer) => {
-    if (!user) return; stopNotificationSound();
-    if (activeSession && !['completed', 'cancelled'].includes(activeSession.status) && activeSession.id) await handleReset();
-    
-    let soundToUse = selectedAmbientSoundInfo;
-    if (timer.data.ambientSoundId && timer.data.ambientSoundId !== 'none') {
-        const linkedSound = AMBIENT_SOUND_FILES.find(s => s.id === timer.data.ambientSoundId);
-        if (linkedSound) {
-            soundToUse = linkedSound;
-            setSelectedAmbientSoundInfo(linkedSound);
-        }
+    // Get the current session mode configuration
+    const sessionConfig = SESSION_MODES[currentSessionMode];
+    const sessionName = linkedItem ? `Focus: ${linkedItem.name}` : `${sessionConfig.name} Session`;
+
+    // Map session mode to the correct session type
+    const sessionType = currentSessionMode === 'custom' ? 'custom_timer' : 'pomodoro';
+
+    if (sessionType === 'custom_timer') {
+      // For custom sessions, create a custom timer session
+      const customSessionInput = {
+        type: 'custom_timer' as const,
+        timerName: sessionName,
+        plannedDurationSeconds: sessionConfig.workDuration,
+        linkedItemId: linkedItem?.id || null,
+        linkedItemName: linkedItem?.name || null,
+        linkedItemCollection: (linkedItem?.collection as 'tasks' | 'goals' | 'projects' | 'plans') || null,
+        notes: sessionNotes || null,
+        sessionGoalText: sessionGoalText || null,
+        preFocusCheckIn: { mood: preFocusMood, energyLevel: preFocusEnergy, customInput: null },
+        ambientSound: ambientSoundToSave,
+        startTime: Timestamp.now()
+      };
+
+      await createFocusSession(user.uid, customSessionInput);
+    } else {
+      // For pomodoro-style sessions (pomodoro, deep_work, quick_sprint)
+      const newSessionInput: CreatePomodoroSessionInput = {
+        type: 'pomodoro',
+        timerName: sessionName,
+        pomodoroWorkSeconds: sessionConfig.workDuration,
+        pomodoroShortBreakSeconds: sessionConfig.shortBreak,
+        pomodoroLongBreakSeconds: sessionConfig.longBreak,
+        pomodoroCyclesGoal: sessionConfig.cyclesGoal,
+        startTime: Timestamp.now(),
+        currentCycle: 0,
+        linkedItemId: linkedItem?.id || null,
+        linkedItemName: linkedItem?.name || null,
+        linkedItemCollection: linkedItem?.collection || null,
+        notes: sessionNotes || null,
+        sessionGoalText: sessionGoalText || null,
+        preFocusCheckIn: { mood: preFocusMood, energyLevel: preFocusEnergy, customInput: null },
+        ambientSound: ambientSoundToSave
+      };
+
+      await createFocusSession(user.uid, newSessionInput);
     }
 
-    const linkedItem = selectedLinkedItemId ? userProductivityItems.find(i => i.id === selectedLinkedItemId && i.type === selectedLinkedItemType) : null;
-    const ambientSoundToSave = soundToUse && soundToUse.id !== 'none' ? { name: soundToUse.name, src: soundToUse.src, volume: ambientVolume } : null;
-    
-    const newSessionInput: CreateCustomTimerSessionInput = { type: 'custom_timer', timerName: timer.data.name, plannedDurationSeconds: timer.data.time, startTime: Timestamp.now(), linkedItemId: linkedItem?.id || null, linkedItemName: linkedItem?.name || null, linkedItemCollection: linkedItem?.collection || null, notes: sessionNotes || null, sessionGoalText: sessionGoalText || null, preFocusCheckIn: activeSession?.preFocusCheckIn || { mood: preFocusMood, energyLevel: preFocusEnergy, customInput: null }, ambientSound: ambientSoundToSave };
-    
-    await createFocusSession(user.uid, newSessionInput);
-    setSessionGoalText(""); setSessionNotes(""); setSelectedLinkedItemId(null); setSelectedLinkedItemType(null);
-    if (ambientSoundToSave) setIsSoundPlaying(true); else setIsSoundPlaying(false);
+    setShowPreFocusModal(false); 
+    setPreFocusMood(null); 
+    setPreFocusEnergy(3); 
+    setSessionGoalText(""); 
+    setSessionNotes(""); 
+    setSelectedLinkedItemId(null); 
+    setSelectedLinkedItemType(null);
+    if (ambientSoundToSave) setIsSoundPlaying(true); 
+    else setIsSoundPlaying(false);
   };
-
 
   const handleSkipBreak = async () => {
     if (!activeSession || !user || !activeSession.id || activeSession.type !== 'pomodoro' || !['break_running', 'break_paused'].includes(activeSession.status)) return;
-    stopNotificationSound(); if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; }
-    const now = Timestamp.now(); let totalSkippedBreakProgress = activeSession.currentSegmentProgressSeconds || 0;
+    stopNotificationSound();
+    const now = Timestamp.now(); 
+    let totalSkippedBreakProgress = activeSession.currentSegmentProgressSeconds || 0;
     if (activeSession.status === 'break_running' && activeSession.startTime) totalSkippedBreakProgress += Math.max(0, now.seconds - activeSession.startTime.seconds);
-    const newCompletedCycleCount = (activeSession.currentCycle || 0) + 1; const cyclesGoal = activeSession.pomodoroCyclesGoal || pomodoroCyclesGoalSetting;
-    let updates: Partial<FocusSessionData> = { accumulatedBreakSeconds: (activeSession.accumulatedBreakSeconds || 0) + totalSkippedBreakProgress, currentSegmentProgressSeconds: 0, pauseTime: null, currentCycle: newCompletedCycleCount };
-    let pointsEarned = 0; let badgeCriteriaKey: keyof typeof FOCUS_BADGES_CONFIG | undefined = undefined;
+    const newCompletedCycleCount = (activeSession.currentCycle || 0) + 1; 
+    const cyclesGoal = activeSession.pomodoroCyclesGoal || pomodoroCyclesGoalSetting;
+    let updates: Partial<FocusSessionData> = { 
+      accumulatedBreakSeconds: (activeSession.accumulatedBreakSeconds || 0) + totalSkippedBreakProgress, 
+      currentSegmentProgressSeconds: 0, 
+      pauseTime: null, 
+      currentCycle: newCompletedCycleCount 
+    };
+    let pointsEarned = 0; 
+    let badgeCriteriaKey: keyof typeof FOCUS_BADGES_CONFIG | undefined = undefined;
     if (newCompletedCycleCount >= cyclesGoal) {
-      playNotificationSound(); updates.status = 'completed'; updates.endTime = now; updates.startTime = null; updates.isLongBreakNext = false; setIsSoundPlaying(false);
+      playNotificationSound(); 
+      updates.status = 'completed'; 
+      updates.endTime = now; 
+      updates.startTime = null; 
+      updates.isLongBreakNext = false; 
+      setIsSoundPlaying(false);
       const completedSessionDataForFeedback: FocusSessionData = { ...activeSession, ...updates, status: 'completed', endTime: now, currentCycle: newCompletedCycleCount };
       pointsEarned = calculateXpForSession(completedSessionDataForFeedback, userStreakData?.current || 0);
       badgeCriteriaKey = newCompletedCycleCount >= 10 ? 'focus_pomodoro_10_cycles' : (newCompletedCycleCount >= 5 ? 'focus_pomodoro_5_cycles' : 'focus_first_session');
-      setCompletedSessionForFeedback(completedSessionDataForFeedback); setShowPostSessionModal(true);
+      setCompletedSessionForFeedback(completedSessionDataForFeedback); 
+      setShowPostSessionModal(true);
       await updateUserStreak(user.uid, {email: user.email!, displayName: userName, photoURL: user.photoURL});
     } else {
-      updates.status = 'running'; updates.startTime = now; updates.isLongBreakNext = false;
-      if (selectedAmbientSoundInfo?.src && selectedAmbientSoundInfo.id !== 'none') setIsSoundPlaying(true); else setIsSoundPlaying(false);
+      updates.status = 'running'; 
+      updates.startTime = now; 
+      updates.isLongBreakNext = false;
+      if (selectedAmbientSoundInfo?.src && selectedAmbientSoundInfo.id !== 'none') setIsSoundPlaying(true); 
+      else setIsSoundPlaying(false);
     }
     updates.xpEarned = pointsEarned;
     await updateFocusSession(activeSession.id, updates);
@@ -1397,44 +1714,11 @@ export function FocusModeOriginal() {
     setShowSettingsModal(false);
   };
 
-  const handleOpenCustomTimerModal = (timer?: CustomTimer) => {
-    if (timer) { 
-      setEditingCustomTimer(timer); 
-      setNewCustomTimerName(timer.data.name); 
-      const totalSeconds = timer.data.time;
-      setNewCustomTimerHours(Math.floor(totalSeconds / 3600));
-      setNewCustomTimerMinutes(Math.floor((totalSeconds % 3600) / 60));
-      setNewCustomTimerSeconds(totalSeconds % 60);
-      setNewCustomTimerSound(timer.data.ambientSoundId || 'none');
-    }
-    else { 
-      setEditingCustomTimer(null); 
-      setNewCustomTimerName(""); 
-      setNewCustomTimerHours(0);
-      setNewCustomTimerMinutes(25);
-      setNewCustomTimerSeconds(0);
-      setNewCustomTimerSound('none');
-    }
-    setShowCustomTimerModal(true);
-  };
 
-  const handleSaveCustomTimer = async () => {
-    if (!user || !newCustomTimerName.trim()) return;
-    const durationInSeconds = (newCustomTimerHours * 3600) + (newCustomTimerMinutes * 60) + newCustomTimerSeconds;
-    if (durationInSeconds <= 0) {
-        showToast("Timer duration must be greater than 0.", "error");
-        return;
-    }
-    
-    if (editingCustomTimer) {
-      await updateCustomTimer(editingCustomTimer.id, newCustomTimerName, durationInSeconds, newCustomTimerSound);
-    } else {
-      await addCustomTimer(newCustomTimerName, durationInSeconds, user.uid, newCustomTimerSound);
-    }
-    setShowCustomTimerModal(false);
-  };
 
-  const handleDeleteCustomTimer = async (timerId: string) => { if (window.confirm("Delete this timer?")) await deleteCustomTimer(timerId); };
+
+
+
 
   const handleLinkItemChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const valueParts = e.target.value.split('::');
@@ -1522,10 +1806,10 @@ export function FocusModeOriginal() {
     }
 
     const relevantHistory = history.slice(0, Math.min(history.length, 4)).map(m => `${m.role}: ${m.content?.substring(0, 100) || ""}`).join("\n");
-    const prompt = `Please provide a short 3-5 word title summarizing the conversation so far:\n${relevantHistory}\nReturn ONLY the title, with no extra commentary. USE THE SAME LANGUAGE AS PRESENTED IN THE CONVERSATION!`;
+    const userMessageCount = history.filter(m => m.role === 'user').length;
+    const prompt = `Please provide a short 3-5 word title summarizing this focus conversation. The user has sent ${userMessageCount} messages so far:\n${relevantHistory}\nReturn ONLY the title, with no extra commentary. USE THE SAME LANGUAGE AS PRESENTED IN THE CONVERSATION!`;
     
     try {
-      const functions = getFunctions();
       const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
       
       const apiRequestBody = {
@@ -1534,16 +1818,20 @@ export function FocusModeOriginal() {
           temperature: 0.5, 
           maxOutputTokens: 60 
         },
-        isImageGen: false
+        isImageGen: false,
+        useLiteModel: true
       };
       
       const result = await geminiProxyCallable(apiRequestBody);
       const responseData = result.data as any;
       
-      if (responseData.text && responseData.text.trim()) {
-        const newName = responseData.text.trim().replace(/["']/g, "").substring(0, 50);
+      // Parse the response properly
+      const parsedResponse = parseGeminiApiResponse(JSON.stringify(responseData), false);
+      
+      if (parsedResponse.text && parsedResponse.text.trim()) {
+        const newName = parsedResponse.text.trim().replace(/["']/g, "").substring(0, 50);
         await updateChatConversationName(convId, newName);
-      } else if (responseData.error) { 
+      } else if (parsedResponse.error) { 
         console.warn("Name gen failed (API/parsing):", responseData.error); 
       }
     } catch (error) { 
@@ -1699,15 +1987,727 @@ export function FocusModeOriginal() {
   const handleSaveSessionNotes = async () => { if (activeSession && activeSession.id && user && !['completed', 'cancelled'].includes(activeSession.status)) await addNoteToFocusSession(activeSession.id, sessionNotes || null); };
   const handleSessionGoalTextChange = (e: React.ChangeEvent<HTMLInputElement>) => { setSessionGoalText(e.target.value); if (activeSession && activeSession.id && !['completed', 'cancelled'].includes(activeSession.status)) updateFocusSession(activeSession.id, { sessionGoalText: e.target.value || null }); };
 
+  // Micro-Goals Functions
+  const addMicroGoal = () => {
+    if (newMicroGoal.trim()) {
+      setSessionMicroGoals(prev => [...prev, { text: newMicroGoal.trim(), completed: false }]);
+      setNewMicroGoal("");
+    }
+  };
+
+  const toggleMicroGoal = (index: number) => {
+    setSessionMicroGoals(prev => prev.map((goal, i) =>
+      i === index ? { ...goal, completed: !goal.completed } : goal
+    ));
+
+    // Award achievement if all goals are completed
+    const updatedGoals = sessionMicroGoals.map((goal, i) =>
+      i === index ? { ...goal, completed: !goal.completed } : goal
+    );
+
+    if (updatedGoals.every(goal => goal.completed) && updatedGoals.length > 0) {
+      awardAchievement('goal_master');
+    }
+  };
+
+  const removeMicroGoal = (index: number) => {
+    setSessionMicroGoals(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Achievement System
+  const awardAchievement = (badgeKey: string) => {
+    if (!earnedBadges.includes(badgeKey)) {
+      setEarnedBadges(prev => [...prev, badgeKey]);
+      setLatestAchievement(badgeKey);
+      setShowAchievementModal(true);
+
+      // Auto-hide achievement modal after 3 seconds
+      setTimeout(() => setShowAchievementModal(false), 3000);
+    }
+  };
+
+  // Smart Ambient Mode Functions
+  const updateSessionProgress = useCallback(() => {
+    if (activeSession && ['running', 'break_running'].includes(activeSession.status)) {
+      const totalDuration = activeSession.type === 'pomodoro'
+        ? (activeSession.pomodoroWorkSeconds || 0)
+        : (activeSession.actualDurationSeconds || 0);
+      const elapsed = totalDuration - timeLeft;
+      const progress = totalDuration > 0 ? (elapsed / totalDuration) * 100 : 0;
+      setSessionProgress(Math.min(100, Math.max(0, progress)));
+    }
+  }, [activeSession, timeLeft]);
+
+  const getAdaptiveVolume = useCallback(() => {
+    if (!adaptiveVolumeEnabled || !adaptiveAmbientEnabled) return ambientVolume;
+
+    const baseVolume = ambientVolume / 100;
+    const progress = sessionProgress / 100;
+
+    // Volume pattern: Start low, peak in middle, taper off at end
+    let adaptiveMultiplier = 1;
+    if (progress < 0.2) {
+      adaptiveMultiplier = 0.7 + (progress / 0.2) * 0.3; // 70% to 100%
+    } else if (progress < 0.8) {
+      adaptiveMultiplier = 1.0; // Full volume in middle
+    } else {
+      adaptiveMultiplier = 1.0 - ((progress - 0.8) / 0.2) * 0.3; // 100% to 70%
+    }
+
+    return Math.round(baseVolume * adaptiveMultiplier * 100);
+  }, [adaptiveVolumeEnabled, adaptiveAmbientEnabled, ambientVolume, sessionProgress]);
+
+  // Distraction and Service Functions
+
+
+  const checkConnectedServices = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      const userDocRef = doc(db, 'users', user.uid);
+      const userDocSnap = await getDoc(userDocRef);
+
+      if (userDocSnap.exists()) {
+        const userData = userDocSnap.data();
+        setConnectedServices({
+          notion: !!userData.notionAccessData?.access_token,
+          googleDrive: !!userData.googleTokens?.access_token,
+          googleCalendar: !!userData.googleTokens?.access_token,
+          spotify: !!userData.spotifyTokens?.access_token,
+          youtube: !!userData.youtubeTokens?.access_token
+        });
+      }
+    } catch (error) {
+      console.error('Error checking connected services:', error);
+    }
+  }, [user]);
+
+
+
+  // Update session progress and countdown timer in real-time
+  useEffect(() => {
+    if (activeSession && ['running', 'break_running'].includes(activeSession.status)) {
+      updateSessionProgress();
+
+      const interval = setInterval(() => {
+        setTimeLeft(prevTime => {
+          if (prevTime <= 1) {
+            // Timer reached zero - handle session/break completion
+            if (activeSession.status === 'running') {
+              // Work session completed, transition to break
+              if (activeSession.type === 'pomodoro') {
+                const now = Timestamp.now();
+                const updates: Partial<FocusSessionData> = {
+                  status: 'break_running',
+                  startTime: now,
+                  currentSegmentProgressSeconds: 0,
+                  isLongBreakNext: (activeSession.currentCycle || 0) + 1 >= (activeSession.pomodoroCyclesGoal || 4) - 1
+                };
+                updateFocusSession(activeSession.id, updates).catch(error => {
+                  console.error('Error updating session after work completion:', error);
+                });
+              } else {
+                // Regular session completed
+                const now = Timestamp.now();
+                const completedSessionData = { ...activeSession, status: 'completed' as const, endTime: now };
+                updateFocusSession(activeSession.id, { status: 'completed', endTime: now }).catch(error => {
+                  console.error('Error updating session after completion:', error);
+                });
+                setCompletedSessionForFeedback(completedSessionData);
+                setShowPostSessionModal(true);
+              }
+            } else if (activeSession.status === 'break_running') {
+              // Break completed, start next work session
+              const now = Timestamp.now();
+              const updates: Partial<FocusSessionData> = {
+                status: 'running',
+                startTime: now,
+                currentSegmentProgressSeconds: 0,
+                isLongBreakNext: false,
+                currentCycle: (activeSession.currentCycle || 0) + 1
+              };
+              updateFocusSession(activeSession.id, updates).catch(error => {
+                console.error('Error updating session after break completion:', error);
+              });
+            }
+            return 0;
+          }
+          return prevTime - 1;
+        });
+        updateSessionProgress();
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }
+  }, [activeSession, updateSessionProgress]);
+
+
+
+  // Check connected services on component mount
+  useEffect(() => {
+    checkConnectedServices();
+  }, [checkConnectedServices]);
+
+  const connectSpotify = useCallback(async () => {
+    try {
+      // TODO: Implement Spotify OAuth connection
+      setSpotifyConnected(true);
+      // Show success toast
+      setToastMessage({
+        message: "Spotify connected successfully!",
+        type: "success"
+      });
+    } catch (error) {
+      console.error('Spotify connection error:', error);
+      setToastMessage({
+        message: "Failed to connect to Spotify",
+        type: "error"
+      });
+    }
+  }, []);
+
+  const connectYouTube = useCallback(async () => {
+    try {
+      // TODO: Implement YouTube API connection
+      setYoutubeConnected(true);
+      setToastMessage({
+        message: "YouTube connected successfully!",
+        type: "success"
+      });
+    } catch (error) {
+      console.error('YouTube connection error:', error);
+      setToastMessage({
+        message: "Failed to connect to YouTube",
+        type: "error"
+      });
+    }
+  }, []);
+
+  const startSpotifyPlayback = useCallback(async () => {
+    if (!spotifyConnected || !spotifyPlaylistUrl) return;
+
+    try {
+      // TODO: Implement Spotify Web Playback SDK integration
+      setToastMessage({
+        message: "Starting Spotify playlist...",
+        type: "success"
+      });
+    } catch (error) {
+      console.error('Spotify playback error:', error);
+      setToastMessage({
+        message: "Failed to start Spotify playback",
+        type: "error"
+      });
+    }
+  }, [spotifyConnected, spotifyPlaylistUrl]);
+
+  const startYouTubePlayback = useCallback(async () => {
+    if (!youtubeConnected || !youtubeVideoUrl) return;
+
+    try {
+      // TODO: Implement YouTube Player API integration
+      setToastMessage({
+        message: "Starting YouTube video...",
+        type: "success"
+      });
+    } catch (error) {
+      console.error('YouTube playback error:', error);
+      setToastMessage({
+        message: "Failed to start YouTube playback",
+        type: "error"
+      });
+    }
+  }, [youtubeConnected, youtubeVideoUrl]);
+
+  // Distraction Blocking Functions
+
+
+
+
+
+
+
+
+  // Custom Timer Functions
+  const handleStartCustomTimer = async (timer: { id: string; data: DocumentData }) => {
+    if (!user) return;
+
+    try {
+      const sessionId = await createFocusSession(user.uid, {
+        type: 'custom_timer',
+        timerName: timer.data.name,
+        plannedDurationSeconds: timer.data.time,
+        startTime: Timestamp.now(),
+        ambientSound: timer.data.ambientSoundId && timer.data.ambientSoundId !== 'none' ? {
+          name: AMBIENT_SOUND_FILES.find(s => s.id === timer.data.ambientSoundId)?.name || 'Unknown',
+          src: AMBIENT_SOUND_FILES.find(s => s.id === timer.data.ambientSoundId)?.src || '',
+          volume: ambientVolume
+        } : null
+      });
+
+      // Wait for the session to be created and then update the active session
+      setTimeout(() => {
+        // The session will be automatically picked up by the listener
+        setToastMessage({
+          message: `Started timer: ${timer.data.name}`,
+          type: "success"
+        });
+      }, 500);
+
+    } catch (error) {
+      console.error('Error starting custom timer:', error);
+      setToastMessage({
+        message: "Failed to start custom timer",
+        type: "error"
+      });
+    }
+  };
+
+  const handleEditCustomTimer = (timer: { id: string; data: DocumentData }) => {
+    setEditingTimer(timer);
+    setNewTimerName(timer.data.name);
+    setNewTimerDuration(Math.floor(timer.data.time / 60));
+    setNewTimerSoundId(timer.data.ambientSoundId || 'none');
+    setShowAddTimerModal(true);
+  };
+
+  const handleDeleteCustomTimer = async (timerId: string) => {
+    try {
+      await deleteCustomTimer(timerId);
+      setToastMessage({
+        message: "Timer deleted successfully",
+        type: "success"
+      });
+    } catch (error) {
+      console.error('Error deleting custom timer:', error);
+      setToastMessage({
+        message: "Failed to delete timer",
+        type: "error"
+      });
+    }
+  };
+
+  const handleCreateCustomTimer = async (name: string, timeInSeconds: number, ambientSoundId: string) => {
+    if (!user) return;
+
+    try {
+      await addCustomTimer(name, timeInSeconds, user.uid, ambientSoundId);
+      setShowAddTimerModal(false);
+      setToastMessage({
+        message: "Timer created successfully",
+        type: "success"
+      });
+    } catch (error) {
+      console.error('Error creating custom timer:', error);
+      setToastMessage({
+        message: "Failed to create timer",
+        type: "error"
+      });
+    }
+  };
+
+  const handleUpdateCustomTimer = async (timerId: string, name?: string, timeInSeconds?: number, ambientSoundId?: string) => {
+    try {
+      await updateCustomTimer(timerId, name, timeInSeconds, ambientSoundId);
+      setShowAddTimerModal(false);
+      setEditingTimer(null);
+      setToastMessage({
+        message: "Timer updated successfully",
+        type: "success"
+      });
+    } catch (error) {
+      console.error('Error updating custom timer:', error);
+      setToastMessage({
+        message: "Failed to update timer",
+        type: "error"
+      });
+    }
+  };
+
+  // External Integration Functions
+
+  const loadExternalTasks = useCallback(async (service: string) => {
+    if (!user) return;
+
+    setIsLoadingIntegrations(true);
+    try {
+      let tasks: any[] = [];
+
+      switch (service) {
+        case 'notion':
+          if (connectedServices.notion) {
+            const notionResult = await httpsCallable(functions, 'notionProxy')({
+              action: 'searchNotion',
+              payload: { query: '' }
+            });
+
+            // Convert Notion pages to tasks
+            tasks = notionResult.data.results?.map((page: any) => ({
+              id: page.id,
+              title: page.properties?.title?.title?.[0]?.plain_text || 'Untitled',
+              source: 'notion',
+              url: page.url,
+              type: 'document',
+              createdTime: page.created_time,
+              lastEdited: page.last_edited_time
+            })) || [];
+          }
+          break;
+
+        case 'googleDrive':
+          if (connectedServices.googleDrive) {
+            const driveResult = await httpsCallable(functions, 'googleProxy')({
+              service: 'drive',
+              action: 'listFilesAndFolders',
+              payload: {}
+            });
+
+            // Convert Drive files to tasks
+            tasks = driveResult.data.files?.map((file: any) => ({
+              id: file.id,
+              title: file.name,
+              source: 'google_drive',
+              url: file.webViewLink,
+              type: getFileTypeFromMimeType(file.mimeType),
+              mimeType: file.mimeType,
+              iconLink: file.iconLink
+            })) || [];
+          }
+          break;
+
+        case 'googleCalendar':
+          if (connectedServices.googleCalendar) {
+            const calendarResult = await httpsCallable(functions, 'googleProxy')({
+              service: 'calendar',
+              action: 'listCalendarEvents',
+              payload: {
+                timeMin: new Date().toISOString(),
+                timeMax: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // Next 7 days
+              }
+            });
+
+            // Convert calendar events to tasks
+            tasks = calendarResult.data.items?.map((event: any) => ({
+              id: event.id,
+              title: event.summary || 'Untitled Event',
+              source: 'google_calendar',
+              url: event.htmlLink,
+              type: 'event',
+              startTime: event.start?.dateTime || event.start?.date,
+              endTime: event.end?.dateTime || event.end?.date,
+              description: event.description
+            })) || [];
+          }
+          break;
+
+        case 'todoist':
+          // TODO: Implement Todoist API integration
+          setToastMessage({
+            message: "Todoist integration coming soon!",
+            type: "info"
+          });
+          break;
+
+        case 'canvas':
+          // TODO: Implement Canvas LMS integration
+          setToastMessage({
+            message: "Canvas integration coming soon!",
+            type: "info"
+          });
+          break;
+      }
+
+      // Filter tasks based on search query
+      const filteredTasks = integrationSearchQuery
+        ? tasks.filter(task =>
+            task.title.toLowerCase().includes(integrationSearchQuery.toLowerCase())
+          )
+        : tasks;
+
+      setExternalIntegrationTasks(filteredTasks);
+      setSelectedIntegrationService(service);
+
+    } catch (error) {
+      console.error(`Error loading ${service} tasks:`, error);
+      setToastMessage({
+        message: `Failed to load ${service} tasks`,
+        type: "error"
+      });
+    } finally {
+      setIsLoadingIntegrations(false);
+    }
+  }, [user, connectedServices, integrationSearchQuery]);
+
+  const getFileTypeFromMimeType = (mimeType: string): string => {
+    if (mimeType.includes('document')) return 'document';
+    if (mimeType.includes('spreadsheet')) return 'spreadsheet';
+    if (mimeType.includes('presentation')) return 'presentation';
+    if (mimeType.includes('pdf')) return 'pdf';
+    if (mimeType.includes('image')) return 'image';
+    if (mimeType.includes('folder')) return 'folder';
+    return 'file';
+  };
+
+  const selectExternalTask = useCallback((task: any) => {
+    const externalTask: ExternalTask = {
+      id: task.id,
+      title: task.title,
+      source: task.source as any,
+      url: task.url,
+      dueDate: task.endTime ? new Date(task.endTime) : undefined,
+      type: task.type,
+      completed: task.completed || false
+    };
+
+    setSelectedExternalTask(externalTask);
+    setShowExternalIntegrations(false);
+
+    setToastMessage({
+      message: `Linked to: ${task.title}`,
+      type: "success"
+    });
+  }, []);
+
+  const clearExternalTask = useCallback(() => {
+    setSelectedExternalTask(null);
+    setToastMessage({
+      message: "External task unlinked",
+      type: "info"
+    });
+  }, []);
+
+  const connectService = useCallback(async (service: string) => {
+    try {
+      switch (service) {
+        case 'notion':
+          // Notion OAuth flow would typically redirect to Notion's auth page
+          // For now, we'll show a message
+          setToastMessage({
+            message: "Redirecting to Notion authorization...",
+            type: "info"
+          });
+          break;
+
+        case 'googleDrive':
+        case 'googleCalendar':
+          const googleAuthUrl = await httpsCallable(functions, 'getGoogleAuthUrl')({
+            redirectUri: window.location.origin + '/settings'
+          });
+          window.location.href = googleAuthUrl.data.url;
+          break;
+
+        case 'todoist':
+          setToastMessage({
+            message: "Todoist integration coming soon!",
+            type: "info"
+          });
+          break;
+
+        case 'canvas':
+          setToastMessage({
+            message: "Canvas integration coming soon!",
+            type: "info"
+          });
+          break;
+      }
+    } catch (error) {
+      console.error(`Error connecting to ${service}:`, error);
+      setToastMessage({
+        message: `Failed to connect to ${service}`,
+        type: "error"
+      });
+    }
+  }, []);
+
+  // AI Reflection Functions
+  const generateAiReflection = useCallback(async () => {
+    if (!completedSessionForFeedback || !user) return;
+
+    setIsGeneratingReflection(true);
+    try {
+      // Get user's focus session history for analysis
+      const userSessionsRef = collection(db, 'focusSessions');
+      const q = query(
+        userSessionsRef,
+        where('userId', '==', user.uid),
+        orderBy('createdAt', 'desc'),
+        limit(20)
+      );
+
+      const sessionsSnapshot = await getDocs(q);
+      const sessions = sessionsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as FocusSessionData[];
+
+      // Analyze patterns
+      const currentSession = completedSessionForFeedback;
+      const recentSessions = sessions.filter(s => s.id !== currentSession.id);
+
+      const productivityPattern = analyzeProductivityPattern(recentSessions, currentSession);
+      const energyPattern = analyzeEnergyPattern(recentSessions, currentSession);
+      const timeOfDayInsight = analyzeTimeOfDayPattern(recentSessions, currentSession);
+      const streakInfo = analyzeStreakInfo(sessions);
+      const improvementSuggestion = generateImprovementSuggestion(recentSessions, currentSession);
+
+      const insights = {
+        productivityPattern,
+        energyPattern,
+        timeOfDayInsight,
+        improvementSuggestion,
+        streakInfo
+      };
+
+      setReflectionInsights(insights);
+
+      // Generate personalized reflection using AI
+      const reflectionPrompt = `
+        Based on this user's focus session data and patterns, generate a personalized reflection:
+
+        Current Session:
+        - Duration: ${Math.round(currentSession.accumulatedFocusSeconds / 60)} minutes
+        - Productivity Rating: ${postSessionProductivity}/5
+        - Energy Level: ${postSessionEnergy}/5
+        - Goal Achievement: ${postSessionGoalAchieved === true ? 'Achieved' : postSessionGoalAchieved === false ? 'Not Achieved' : 'Not Set'}
+        - User Reflection: "${postSessionReflection}"
+
+        User Patterns:
+        - Productivity: ${productivityPattern}
+        - Energy: ${energyPattern}
+        - Best Time: ${timeOfDayInsight}
+        - Streak: ${streakInfo}
+
+        Write a personalized, encouraging reflection that:
+        1. Acknowledges their effort and progress
+        2. Provides 1-2 specific insights about their patterns
+        3. Gives 1 actionable suggestion for improvement
+        4. Encourages them to continue their focus journey
+
+        Keep it concise (3-4 sentences) and positive.
+      `;
+
+      const aiResult = await httpsCallable(functions, 'geminiProxy')({
+        contents: [{ parts: [{ text: reflectionPrompt }] }],
+        generationConfig: { temperature: 0.7, maxOutputTokens: 200 }
+      });
+
+      const aiText = aiResult.data.text || "Great session! Keep up the excellent work.";
+      setAiReflection(aiText);
+      setShowAiReflection(true);
+
+    } catch (error) {
+      console.error('AI Reflection Error:', error);
+      setAiReflection("Great effort on your focus session! Keep building those productive habits.");
+      setShowAiReflection(true);
+    } finally {
+      setIsGeneratingReflection(false);
+    }
+  }, [completedSessionForFeedback, user, postSessionProductivity, postSessionEnergy, postSessionGoalAchieved, postSessionReflection]);
+
+  const analyzeProductivityPattern = (sessions: FocusSessionData[], current: FocusSessionData): string => {
+    const avgProductivity = sessions
+      .filter(s => s.postSessionFeedback?.productivityRating)
+      .reduce((sum, s) => sum + (s.postSessionFeedback?.productivityRating || 3), 0) / Math.max(1, sessions.filter(s => s.postSessionFeedback?.productivityRating).length);
+
+    const currentProd = postSessionProductivity;
+    if (currentProd > avgProductivity + 0.5) return "above your average";
+    if (currentProd < avgProductivity - 0.5) return "below your average";
+    return "consistent with your usual performance";
+  };
+
+  const analyzeEnergyPattern = (sessions: FocusSessionData[], current: FocusSessionData): string => {
+    const avgEnergy = sessions
+      .filter(s => s.postSessionFeedback?.energyLevel)
+      .reduce((sum, s) => sum + (s.postSessionFeedback?.energyLevel || 3), 0) / Math.max(1, sessions.filter(s => s.postSessionFeedback?.energyLevel).length);
+
+    const currentEnergy = postSessionEnergy;
+    if (currentEnergy > avgEnergy + 0.5) return "higher than usual";
+    if (currentEnergy < avgEnergy - 0.5) return "lower than usual";
+    return "typical for you";
+  };
+
+  const analyzeTimeOfDayPattern = (sessions: FocusSessionData[], current: FocusSessionData): string => {
+    const currentHour = new Date(current.createdAt.toDate()).getHours();
+    const productiveSessions = sessions.filter(s => {
+      const hour = new Date(s.createdAt.toDate()).getHours();
+      const prod = s.postSessionFeedback?.productivityRating || 3;
+      return prod >= 4;
+    });
+
+    const bestHours = productiveSessions.map(s => new Date(s.createdAt.toDate()).getHours());
+    const hourCounts = bestHours.reduce((acc, hour) => {
+      acc[hour] = (acc[hour] || 0) + 1;
+      return acc;
+    }, {} as Record<number, number>);
+
+    const bestHour = Object.entries(hourCounts).sort(([,a], [,b]) => b - a)[0]?.[0];
+
+    if (bestHour && Math.abs(currentHour - parseInt(bestHour)) <= 2) {
+      return `you're in your peak productive time (${bestHour}:00)`;
+    }
+    return "this session was outside your usual productive hours";
+  };
+
+  const analyzeStreakInfo = (sessions: FocusSessionData[]): string => {
+    let currentStreak = 0;
+    let maxStreak = 0;
+
+    for (let i = sessions.length - 1; i >= 0; i--) {
+      const session = sessions[i];
+      if (session.status === 'completed' && session.accumulatedFocusSeconds >= 600) { // 10+ minutes
+        currentStreak++;
+        maxStreak = Math.max(maxStreak, currentStreak);
+      } else {
+        break;
+      }
+    }
+
+    if (currentStreak >= 5) return `you're on a ${currentStreak}-day streak!`;
+    if (maxStreak >= 3) return `your longest streak is ${maxStreak} days`;
+    return "you're building consistent focus habits";
+  };
+
+  const generateImprovementSuggestion = (sessions: FocusSessionData[], current: FocusSessionData): string => {
+    const suggestions = [];
+
+    // Duration analysis
+    const avgDuration = sessions.reduce((sum, s) => sum + s.accumulatedFocusSeconds, 0) / Math.max(1, sessions.length);
+    if (current.accumulatedFocusSeconds < avgDuration * 0.7) {
+      suggestions.push("Try extending your next session by 5-10 minutes");
+    }
+
+    // Goal achievement analysis
+    const goalAchievementRate = sessions.filter(s => s.sessionGoalAchieved === true).length / Math.max(1, sessions.filter(s => s.sessionGoalAchieved !== null).length);
+    if (goalAchievementRate < 0.6 && current.sessionGoalText) {
+      suggestions.push("Consider breaking your goals into smaller, more achievable steps");
+    }
+
+    // Energy pattern analysis
+    const recentEnergy = sessions.slice(0, 5).map(s => s.postSessionFeedback?.energyLevel || 3).filter(e => e > 0);
+    const avgRecentEnergy = recentEnergy.reduce((sum, e) => sum + e, 0) / Math.max(1, recentEnergy.length);
+    if (avgRecentEnergy < 3) {
+      suggestions.push("Try taking short breaks between sessions to maintain energy levels");
+    }
+
+    return suggestions.length > 0 ? suggestions[Math.floor(Math.random() * suggestions.length)] : "Keep up your current approach - it's working well!";
+  };
+
   const handleSubmitPostSessionFeedback = async () => {
     if (completedSessionForFeedback && completedSessionForFeedback.id && user) {
       stopNotificationSound();
+
+      // Generate AI reflection before saving
+      if (!aiReflection && !isGeneratingReflection) {
+        await generateAiReflection();
+      }
+
       await savePostSessionFeedback(
         completedSessionForFeedback.id, 
         { 
           productivityRating: postSessionProductivity, 
           reflection: postSessionReflection || null,
-          energyLevel: postSessionEnergy
+          energyLevel: postSessionEnergy,
+          aiReflection: aiReflection || null
         }, 
         postSessionGoalAchieved, 
         user.uid
@@ -1720,6 +2720,9 @@ export function FocusModeOriginal() {
     setPostSessionEnergy(3);
     setPostSessionReflection(""); 
     setPostSessionGoalAchieved(null);
+    setAiReflection("");
+    setReflectionInsights(null);
+    setShowAiReflection(false);
   };
 
   useEffect(() => {
@@ -1807,6 +2810,23 @@ export function FocusModeOriginal() {
       currentConvId = await createChatConversation(user.uid, "New Focus Chat");
       if (!currentConvId) { console.error("Failed to create/get conversation ID"); showToast("Error starting chat.", "error"); return; }
       setConversationId(currentConvId); setAiChatSidebarTab('chat'); setHasGeneratedChatName(false);
+      
+      // Apply default chat style if set
+      try {
+        const defaultStyle = await getDefaultChatStyle(user.uid);
+        if (defaultStyle && defaultStyle !== 'Normal') {
+          // Get the style prompt from centralized styles
+          const stylePrompt = getStylePrompt(defaultStyle);
+          
+          if (stylePrompt) {
+            // Set the active style for this conversation
+            setActiveStyle(defaultStyle);
+            setActivePrompt(stylePrompt);
+          }
+        }
+      } catch (error) {
+        console.error('Error applying default chat style:', error);
+      }
     }
     if (isChatDisabledByLimit) { setChatHistory(prev => [...prev, { id: `err-${Date.now()}`, role: 'system', content: `Monthly message limit reached.`, error: true, createdAt: new Date() }]); return; }
 
@@ -2150,7 +3170,6 @@ YOU MUST ALWYAYS USE THAT LATEX FOR MATH ONLY.
 Be a world-class Focus Coach for ${truncatedName}.
 Assistant:`;
 
-    const currentTargetModel = imageGenModeOn ? GEMINI_IMAGE_GEN_MODEL : GEMINI_TEXT_MODEL;
     let apiRequestBody: any;
 
     if (imageGenModeOn) {
@@ -2162,7 +3181,7 @@ Assistant:`;
 
     try {
         // --- THIS IS THE NEW LOGIC ---
-        const geminiProxyCallable = httpsCallable(getFunctions(), 'geminiProxy');
+        const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
         
         const apiRequestBodyForProxy = {
             contents: apiRequestBody.contents,
@@ -2221,8 +3240,9 @@ Assistant:`;
                                 };
                                 await createFocusSession(user.uid, newSessionData); 
                                 currentActionMsg = `Started Pomodoro session ${itemToLink ? `for "${itemToLink.name}"` : ''}.`;
-                            } else if ((type === 'custom_timer' || type === 'custom') && durationMinutes) {
-                                const newSessionData: CreateCustomTimerSessionInput = { type: 'custom_timer', timerName: timerName || (itemToLink ? `Custom: ${itemToLink.name}` : `Custom ${durationMinutes}min (AI)`), plannedDurationSeconds: durationMinutes * 60, startTime: Timestamp.now(), linkedItemId: itemToLink?.id || null, linkedItemName: itemToLink?.name || null, linkedItemCollection: itemToLink?.collection || null, notes: null, sessionGoalText: goalTextFromAI || sessionGoalText || null, preFocusCheckIn: null, ambientSound: ambientSoundForAISession };
+                            } else if ((type === 'custom_timer' || type === 'custom') && durationMinutes && typeof durationMinutes === 'number' && durationMinutes > 0 && !isNaN(durationMinutes)) {
+                                const validDurationSeconds = Math.round(durationMinutes * 60); // Ensure it's a whole number
+                                const newSessionData: CreatePomodoroSessionInput = { type: 'pomodoro', timerName: timerName || (itemToLink ? `Custom: ${itemToLink.name}` : `Custom ${durationMinutes}min (AI)`), plannedDurationSeconds: validDurationSeconds, startTime: Timestamp.now(), linkedItemId: itemToLink?.id || null, linkedItemName: itemToLink?.name || null, linkedItemCollection: itemToLink?.collection || null, notes: null, sessionGoalText: goalTextFromAI || sessionGoalText || null, preFocusCheckIn: null, ambientSound: ambientSoundForAISession, pomodoroConfig: { workMinutes: durationMinutes, shortBreakMinutes: 5, longBreakMinutes: 15, cycles: 4 } };
                                 await createFocusSession(user.uid, newSessionData); currentActionMsg = `Started ${durationMinutes} min timer ${itemToLink ? `for "${itemToLink.name}"` : ''}.`;
                             } else { throw new Error("Invalid parameters for starting session."); }
                             if (ambientSoundForAISession) setIsSoundPlaying(true); else setIsSoundPlaying(false);
@@ -2289,9 +3309,10 @@ Assistant:`;
       const finalHistoryForName = [...chatHistory.filter(m => m.id !== assistantPlaceholderId), finalAssistantMsgDataForUi];
       const totalUserMessagesInConv = finalHistoryForName.filter(m => m.role === 'user').length;
       const currentConvInfo = conversationList.find(c => c.id === currentConvId);
-      if (currentConvId && currentConvInfo?.chatName?.startsWith("New Focus Chat") && (!hasGeneratedChatName || totalUserMessagesInConv <= 2)) {
-        const newName = `Focus ${new Date().toLocaleDateString([], { month: 'short', day: 'numeric' })} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-        await updateChatConversationName(currentConvId, newName); setHasGeneratedChatName(true);
+      if (currentConvId && currentConvInfo?.chatName?.startsWith("New Focus Chat") && (!hasGeneratedChatName || totalUserMessagesInConv >= 3)) {
+        // Generate chat name after 3+ user messages for better accuracy
+        await generateChatName(currentConvId, finalHistoryForName, user);
+        setHasGeneratedChatName(true);
       }
     } catch (err: any) {
       console.error("Error in handleChatSubmit (Focus AI):", err); const errorMsgContent = `Sorry, Focus AI error: ${err.message || 'Please try again.'}`;
@@ -2349,7 +3370,7 @@ Assistant:`;
   };
 
   useEffect(() => { if (!conversationId) { setChatHistory([]); return; } const unsubMessages = onChatMessagesSnapshot(conversationId, (messagesFromDb: FirebaseChatMessage[]) => setChatHistory(messagesFromDb.map(m => ({ id: m.id || `fb-${Date.now()}-${Math.random()}`, role: m.role as any, content: m.content, createdAt: m.createdAt, error: m.error, actionDetails: m.actionDetails as any, imageUrl:m.imageUrl, imageMeta:m.imageMeta, wasImageGenerated:m.wasImageGenerated, sources:m.sources, attachedFilesMeta: m.attachedFilesMeta?.map(fbm => ({ ...fbm, localPreviewUrl: fbm.url })) || undefined, } as ChatMessageDisplayData)))); return () => unsubMessages(); }, [conversationId]);
-  useEffect(() => { return () => { stopNotificationSound(); if (timerIntervalRef.current) clearInterval(timerIntervalRef.current); if (audioRef.current && !audioRef.current.paused) audioRef.current.pause(); }; }, [stopNotificationSound]);
+  useEffect(() => { return () => { stopNotificationSound(); if (audioRef.current && !audioRef.current.paused) audioRef.current.pause(); }; }, [stopNotificationSound]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => { if (!event.target.files || event.target.files.length === 0) return; const filesArray = Array.from(event.target.files); const newSelectedFiles: SelectedFile[] = []; for (const file of filesArray) { if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) { showToast(`File ${file.name} too large (max ${MAX_FILE_SIZE_MB}MB).`, "error"); continue; } try { newSelectedFiles.push(await readFileAsSelectedFile(file)); } catch (error) { console.error("Error reading file:", file.name, error); showToast(`Error reading file ${file.name}.`, "error"); } } setSelectedFiles(prev => [...prev, ...newSelectedFiles].slice(0, 5)); if (fileInputRef.current) fileInputRef.current.value = ""; };
   const triggerFileSelect = () => fileInputRef.current?.click();
@@ -2410,48 +3431,295 @@ Assistant:`;
   const handleToggleRecording = () => { if (!isAudioSupported || !recognitionRef.current) return; const currentlyRecording = isRecording; setIsRecording(!currentlyRecording); if (currentlyRecording) { recognitionStoppedManually.current = true; recognitionRef.current.stop(); } else { recognitionStoppedManually.current = false; setChatMessage(''); try { recognitionRef.current.start(); } catch(e) { console.error("Speech recognition could not start:", e); showToast("Mic error.", "error"); setIsRecording(false); } } };
 
 
-  const containerClass = isDarkMode ? "bg-[#0C0E1A] text-gray-100" : "bg-[#F7F8FA] text-gray-900";
-  const cardClass = isDarkMode ? "bg-[#161922] text-gray-200 border border-gray-700/50 shadow-xl shadow-black/20" : "bg-white text-gray-800 border border-gray-200/80 shadow-xl";
-  const headingClass = isDarkMode ? "text-gray-100" : "text-gray-800";
-  const subheadingClass = isDarkMode ? "text-gray-400" : "text-gray-500";
-  const inputBg = isDarkMode ? "bg-gray-700/60 hover:bg-gray-700 border-gray-600 focus:border-indigo-500 focus:ring-indigo-500 text-gray-200 placeholder-gray-500" : "bg-gray-100 hover:bg-gray-200/70 border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 text-gray-800 placeholder-gray-400";
-  const iconColor = isDarkMode ? "text-gray-400 hover:text-gray-100" : "text-gray-500 hover:text-gray-800";
-  const primaryAccentText = isDarkMode ? "text-indigo-400" : "text-indigo-500";
-  const buttonPrimaryClass = isDarkMode ? "bg-indigo-600 text-white hover:bg-indigo-500" : "bg-indigo-500 text-white hover:bg-indigo-600";
-  const buttonSecondaryClass = isDarkMode ? "bg-gray-700 text-gray-200 hover:bg-gray-600" : "bg-gray-200 text-gray-700 hover:bg-gray-300";
+  // Color scheme variables - matching Dashboard exactly
+  const containerClass = `bg-[var(--bg-primary)] text-[var(--text-primary)]`;
+  const cardClass = `bg-[var(--bg-card)] border border-[var(--border-primary)] shadow-lg`;
+  const headingClass = "text-[var(--text-primary)]";
+  const subheadingClass = "text-[var(--text-secondary)]";
+  const inputBg = `bg-[var(--bg-primary)] border border-[var(--border-primary)] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:ring-1 focus:ring-[var(--interactive-focus)] focus:border-[var(--interactive-focus)]`;
+  const iconColor = `text-[var(--text-muted)] hover:text-[var(--text-primary)]`;
+  const primaryAccentText = `text-[var(--bg-accent)]`;
+  const buttonPrimaryClass = `bg-[var(--bg-accent)] text-[var(--text-white)] hover:bg-[var(--bg-accent-secondary)]`;
+  const buttonSecondaryClass = `bg-[var(--bg-highlight)] text-[var(--text-primary)] hover:bg-[var(--interactive-hover)]`;
 
 
   const fullscreenContainerVariants = { normal: { borderRadius: "0.75rem" }, fullscreen: { borderRadius: "0px" } };
   const fullscreenContentVariants = { initial: { opacity: 0, scale: 0.95, y: 20 }, animate: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.4, ease: "circOut" } }, exit: { opacity: 0, scale: 0.95, y: -20, transition: { duration: 0.3, ease: "circIn" } } };
   const modalVariants = { hidden: { opacity: 0, scale: 0.95, y: -20 }, visible: { opacity: 1, scale: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 25 } }, exit: { opacity: 0, scale: 0.9, y: 20, transition: { duration: 0.2, ease: "easeIn" } } };
 
-  const fsBgColor = isDarkMode ? 'bg-gradient-to-br from-gray-900 via-[#0C0E1A] to-black' : 'bg-gradient-to-br from-slate-100 via-[#F7F8FA] to-white';
-  const fsTextColor = isDarkMode ? 'text-gray-100' : 'text-gray-900';
-  const fsSubtleTextColor = isDarkMode ? 'text-gray-400' : 'text-gray-500';
-  const fsCardBg = isDarkMode ? 'bg-gray-800/60 backdrop-blur-md' : 'bg-white/70 backdrop-blur-md';
-  const fsInputBorder = isDarkMode ? 'border-gray-700/60' : 'border-gray-300/80';
-  const fsIconColor = isDarkMode ? 'text-gray-400 hover:text-gray-100' : 'text-gray-500 hover:text-gray-800';
+  // Fullscreen color variables - Updated to handle illuminate/blackout themes
+  const fsBgColor = `bg-[var(--bg-primary)]`;
+  
+    const fsTextColor = `text-[var(--text-primary)]`;
+  
+    const fsSubtleTextColor = `text-[var(--text-secondary)]`;
+  
+  const fsCardBg = `bg-[var(--bg-card)]/70 backdrop-blur-md`;
+  
+  const fsInputBorder = `border-[var(--border-primary)]`;
+  const fsIconColor = `text-[var(--text-muted)] hover:text-[var(--text-primary)]`;
 
   const displayCycleNumber = useMemo(() => { if (!activeSession || activeSession.type !== 'pomodoro') return 1; return (activeSession.currentCycle || 0) + 1; }, [activeSession]);
 
 
+  // Enhanced Functions for New Features
+  const handleSessionModeChange = useCallback(async (mode: SessionMode) => {
+    setCurrentSessionMode(mode);
+    const sessionConfig = SESSION_MODES[mode];
+
+    // Update timer settings for the new mode
+    setPomodoroWorkSetting(sessionConfig.workDuration);
+    setPomodoroShortBreakSetting(sessionConfig.shortBreak);
+    setPomodoroLongBreakSetting(sessionConfig.longBreak);
+    setPomodoroCyclesGoalSetting(sessionConfig.cyclesGoal);
+
+    // Reset timer to new mode's duration if not currently active
+    if (!activeSession || ['idle', 'completed', 'cancelled'].includes(activeSession.status)) {
+      setTimeLeft(sessionConfig.workDuration);
+    }
+
+    // Save the new settings to persist the session mode
+    if (user) {
+      try {
+        await saveUserPomodoroSettings(user.uid, {
+          workSeconds: sessionConfig.workDuration,
+          shortBreakSeconds: sessionConfig.shortBreak,
+          longBreakSeconds: sessionConfig.longBreak,
+          cyclesGoal: sessionConfig.cyclesGoal
+        });
+      } catch (error) {
+        console.error('Error saving session mode settings:', error);
+      }
+    }
+
+    // Auto-select appropriate ambient mode based on session type
+    if (mode === 'deep_work') {
+      setCurrentAmbientMode('calm');
+    } else if (mode === 'quick_sprint') {
+      setCurrentAmbientMode('intense');
+    } else if (mode === 'custom') {
+      setCurrentAmbientMode('dynamic');
+    } else {
+      setCurrentAmbientMode('calm');
+    }
+
+    // Stop current session if running to prevent conflicts
+    if (activeSession && ['running', 'paused', 'break_running', 'break_paused'].includes(activeSession.status)) {
+      handleReset();
+    }
+  }, [activeSession]);
+
+  const handleAmbientModeChange = useCallback((mode: AmbientMode) => {
+    setCurrentAmbientMode(mode);
+    if (mode === 'spotify' || mode === 'youtube') {
+      setIsSoundPlaying(false);
+    }
+  }, []);
+
+
+
+  // Enhanced AI Performance Analysis
+  const analyzeUserPerformance = useCallback(() => {
+    const recentSessions = focusHistory.slice(0, 20); // Last 20 sessions
+
+    if (recentSessions.length === 0) {
+      return {
+        avgSessionLength: 0,
+        avgBreakLength: 0,
+        completionRate: 0,
+        preferredWorkDuration: 25 * 60,
+        distractionPatterns: [],
+        peakPerformanceTime: 'afternoon',
+        sessionType: 'pomodoro'
+      };
+    }
+
+    // Calculate average session length
+    const completedSessions = recentSessions.filter(s => s.status === 'completed');
+    const avgSessionLength = completedSessions.length > 0
+      ? completedSessions.reduce((sum, s) => sum + (s.accumulatedFocusSeconds || 0), 0) / completedSessions.length
+      : 0;
+
+    // Calculate completion rate
+    const completionRate = recentSessions.length > 0
+      ? (completedSessions.length / recentSessions.length) * 100
+      : 0;
+
+    // Analyze preferred work duration
+    const workDurations = completedSessions.map(s => s.accumulatedFocusSeconds || 0).filter(d => d > 0);
+    const preferredWorkDuration = workDurations.length > 0
+      ? workDurations.reduce((sum, d) => sum + d, 0) / workDurations.length
+      : 25 * 60;
+
+    // Analyze session timing patterns
+    const sessionHours = completedSessions.map(s => {
+      const createdAt = s.createdAt?.toDate?.();
+      return createdAt ? createdAt.getHours() : 12;
+    });
+
+    const morningSessions = sessionHours.filter(h => h >= 6 && h < 12).length;
+    const afternoonSessions = sessionHours.filter(h => h >= 12 && h < 18).length;
+    const eveningSessions = sessionHours.filter(h => h >= 18 && h < 24).length;
+
+    const peakPerformanceTime = morningSessions > afternoonSessions && morningSessions > eveningSessions
+      ? 'morning'
+      : afternoonSessions > eveningSessions
+      ? 'afternoon'
+      : 'evening';
+
+    return {
+      avgSessionLength,
+      completionRate,
+      preferredWorkDuration,
+      peakPerformanceTime,
+      sessionCount: recentSessions.length,
+      distractionPatterns: [],
+      sessionType: 'pomodoro'
+    };
+  }, [focusHistory]);
+
+  const generateAISuggestions = useCallback(async () => {
+    if (!user || !focusHistory.length) return;
+    setIsAIAnalyzing(true);
+    try {
+      const analysis = analyzeUserPerformance();
+
+      const prompt = `You are an AI focus coach. Based on this detailed user performance analysis, provide 3 personalized, actionable recommendations:
+
+PERFORMANCE DATA:
+- Total sessions completed: ${analysis.sessionCount}
+- Average session duration: ${Math.round(analysis.avgSessionLength / 60)} minutes
+- Completion rate: ${Math.round(analysis.completionRate)}%
+- Preferred work duration: ${Math.round(analysis.preferredWorkDuration / 60)} minutes
+- Peak performance time: ${analysis.peakPerformanceTime}
+- Current session mode: ${currentSessionMode}
+
+RECOMMENDATIONS SHOULD:
+1. Suggest the most appropriate session mode (Pomodoro, Deep Work, Quick Sprint, or Custom)
+2. Recommend optimal duration based on their performance patterns
+3. Give specific timing advice based on their peak performance periods
+4. Be encouraging and actionable
+
+Format each recommendation as a clear, concise sentence starting with an action verb.`;
+
+      const aiResult = await httpsCallable(functions, 'geminiProxy')({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.7, maxOutputTokens: 500 }
+      });
+
+      // Handle the AI response structure
+      let suggestions: string[] = [];
+      if (aiResult.data && typeof aiResult.data === 'object') {
+        // Try different response structures
+        let responseText = '';
+
+        // Check for candidates structure (Gemini API)
+        if (aiResult.data.candidates && Array.isArray(aiResult.data.candidates) && aiResult.data.candidates.length > 0) {
+          const candidate = aiResult.data.candidates[0];
+          if (candidate.content && candidate.content.parts && Array.isArray(candidate.content.parts)) {
+            responseText = candidate.content.parts.map((part: any) => part.text || '').join('');
+          }
+        }
+
+        // Fallback to direct text/content fields
+        if (!responseText) {
+          responseText = aiResult.data.text || aiResult.data.content || '';
+        }
+
+        // If still no text and response is incomplete, provide default suggestions
+        if (!responseText.trim()) {
+          console.warn('AI response incomplete or empty, using fallback suggestions');
+          suggestions = [
+            'Try a focused 25-minute Pomodoro session to build momentum',
+            'Consider switching to Deep Work mode for longer, uninterrupted focus periods',
+            'Take a Quick Sprint session for high-energy, short tasks'
+          ];
+        } else {
+          // Parse the response text into individual suggestions
+          suggestions = responseText
+            .split('\n')
+            .map((line: string) => line.trim())
+            .filter((line: string) => line.length > 0)
+            .filter((line: string) => !line.match(/^\d+\.?$/) && !line.match(/^(RECOMMENDATIONS?|SUGGESTIONS?)/i))
+            .map((line: string) => {
+              // Clean up numbering and bullets
+              return line.replace(/^\d+\.?\s*/, '').replace(/^[-*•]\s*/, '').trim();
+            })
+            .filter((line: string) => line.length > 10 && line.length < 200);
+        }
+      }
+      
+      setAiSuggestions(suggestions.slice(0, 3)); // Limit to 3 suggestions
+      setShowAISuggestions(true);
+    } catch (error) {
+      console.error('Error generating AI suggestions:', error);
+    } finally {
+      setIsAIAnalyzing(false);
+    }
+  }, [user, focusHistory, currentSessionMode, analyzeUserPerformance]);
+
   return (
-    <div className={`${containerClass} min-h-screen w-full overflow-hidden relative font-poppins`}>
+    <div className={`${containerClass} min-h-screen w-full overflow-hidden relative font-clarika bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 selection:bg-[var(--bg-accent)] selection:text-[var(--text-white)]`}>
+      {/* Achievement Modal */}
+      <AnimatePresence>
+        {showAchievementModal && latestAchievement && FOCUS_BADGES_CONFIG[latestAchievement] && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8, y: 50 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 50 }}
+            className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[200] bg-[var(--bg-primary)] rounded-3xl p-8 shadow-2xl border border-[var(--border-primary)] max-w-sm mx-4"
+          >
+            <div className="text-center">
+                              <div className="flex justify-center mb-4">
+                  <div className={`p-4 rounded-2xl bg-gradient-to-r ${FOCUS_BADGES_CONFIG[latestAchievement]?.color || 'from-yellow-400 to-orange-500'}`}>
+                    {latestAchievement && FOCUS_BADGES_CONFIG[latestAchievement] && React.createElement(FOCUS_BADGES_CONFIG[latestAchievement].icon as React.ComponentType<any>, { className: "w-12 h-12 text-[var(--text-white)]" })}
+                  </div>
+                </div>
+              <h3 className="text-xl font-semibold text-[var(--text-primary)] mb-2">
+                Achievement Unlocked!
+              </h3>
+              <p className="text-2xl font-bold text-[var(--bg-accent)] mb-1">
+                {FOCUS_BADGES_CONFIG[latestAchievement].name}
+              </p>
+              <p className="text-sm text-[var(--text-secondary)] mb-4">
+                {FOCUS_BADGES_CONFIG[latestAchievement].description}
+              </p>
+              <div className="text-xs text-[var(--text-muted)] uppercase tracking-wide">
+                {FOCUS_BADGES_CONFIG[latestAchievement].rarity} Badge
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+
+
+      {/* Enhanced Toast System */}
       {toastMessage && (
         <AnimatePresence>
         <motion.div
             initial={{ opacity: 0, y: -20, x: "-50%" }} animate={{ opacity: 1, y: 0, x: "-50%" }} exit={{ opacity: 0, y: -20, x: "-50%" }} transition={{ type: "spring", stiffness: 300, damping: 25 }}
-            className={`fixed top-5 left-1/2 transform -translate-x-1/2 z-[100] p-3 rounded-md shadow-lg text-xs text-white flex items-center gap-2
-                        ${toastMessage.type === 'success' ? 'bg-green-500' : toastMessage.type === 'error' ? 'bg-red-500' : 'bg-blue-500'}`}
-        > {toastMessage.icon && <toastMessage.icon className="w-4 h-4" />} {toastMessage.message} </motion.div>
+            className={`fixed top-5 left-1/2 transform -translate-x-1/2 z-[100] p-4 rounded-2xl shadow-xl text-sm text-[var(--text-white)] flex items-center gap-3 border border-[var(--border-primary)] backdrop-blur-sm
+                        ${toastMessage.type === 'success' ? 'bg-[var(--status-success)]' : toastMessage.type === 'error' ? 'bg-[var(--status-error)]' : 'bg-[var(--bg-accent)]'}`}
+        >
+          {toastMessage.icon && <toastMessage.icon className="w-4 h-4" />}
+          {toastMessage.message}
+          <button
+            onClick={() => setToastMessage(null)}
+            className="ml-2 p-1 rounded-full hover:bg-[var(--interactive-hover)] transition-colors"
+            title="Close"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </motion.div>
         </AnimatePresence>
       )}
        <ProfileModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} userProfile={userProfile} userName={userName} />
 
-       {!isFullscreen && <Sidebar userName={userName} onProfileClick={() => setShowProfileModal(true)} isCollapsed={isSidebarCollapsed} onToggleCollapse={() => setIsSidebarCollapsed(p => !p)} isMobileOpen={isMobileOpen} setIsMobileOpen={setIsMobileOpen}/>}
+       {!isFullscreen && <Sidebar userName={userName} userProfile={userProfile} isCollapsed={isSidebarCollapsed} onToggleCollapse={() => setIsSidebarCollapsed(p => !p)} isMobileOpen={isMobileOpen} setIsMobileOpen={setIsMobileOpen}/>}
        
       <audio ref={audioRef} />
-      <button onClick={() => setIsAiAssistantOpen(prev => !prev)} className={`fixed bottom-5 right-5 z-40 p-3 rounded-full shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-100 bg-gradient-to-br from-[#635BFF] to-[#8A85FF] text-white ${isAiAssistantOpen ? 'rotate-45 bg-gradient-to-br from-pink-500 to-orange-500' : ''}`} title={isAiAssistantOpen ? "Close Focus Agent" : "Open Focus Agent"} aria-label="Toggle Focus Agent">
+      <button onClick={() => setIsAiAssistantOpen(prev => !prev)} className={`fixed bottom-5 right-5 z-40 p-3 rounded-full shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-100 bg-gradient-to-br from-[var(--bg-header-secondary)] to-[var(--bg-accent)] text-[var(--text-white)] ${isAiAssistantOpen ? 'rotate-45 bg-gradient-to-br from-[var(--status-error)] to-[var(--status-warning)]' : ''}`} title={isAiAssistantOpen ? "Close Focus Agent" : "Open Focus Agent"} aria-label="Toggle Focus Agent">
         {isAiAssistantOpen ? <X className="w-5 h-5" /> : <Brain className="w-5 h-5" />}
       </button>
 
@@ -2459,61 +3727,311 @@ Assistant:`;
         layout
         className={`transition-all duration-300 ease-in-out min-h-screen
                     ${isFullscreen ? `fixed inset-0 ml-0 !p-0 z-[45] flex flex-col items-stretch justify-start overflow-hidden ${fsBgColor} ${fsTextColor}`
-                        : `pt-6 px-4 pb-8 md:pt-8 md:px-6 ${isSidebarCollapsed ? 'md:ml-20' : 'md:ml-64'} bg-[#F7F8FA] dark:bg-[#0C0E1A] overflow-x-hidden`}`}
+                        : `pt-6 px-4 pb-8 md:pt-8 md:px-6 ${isSidebarCollapsed ? 'md:ml-20' : 'md:ml-64'} bg-[var(--bg-primary)] overflow-x-hidden`}`}
         variants={fullscreenContainerVariants} animate={isFullscreen ? "fullscreen" : "normal"}
       >
         <AnimatePresence mode="wait">
           {isFullscreen ? (
-            <motion.div key="fullscreen-content" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1, transition: { duration: 0.3, ease: "circOut" } }} exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.2, ease: "circIn" } }} className={`w-full h-full flex flex-col items-center justify-between p-6 sm:p-8 selection:bg-indigo-500 selection:text-white ${fsBgColor} ${fsTextColor}`}>
-              <div className="w-full max-w-6xl mx-auto flex justify-between items-center pt-2">
-                <div className="text-left"><h1 className="text-2xl sm:text-3xl font-semibold flex items-center"><TimerIcon className={`w-7 h-7 sm:w-8 sm:h-8 mr-2.5 ${isDarkMode ? 'text-indigo-400' : 'text-indigo-600'}`} /> Focus Session</h1> {activeSession?.sessionGoalText && <p className={`text-sm sm:text-base italic mt-1.5 ${fsSubtleTextColor}`}>Goal: {activeSession.sessionGoalText}</p>}</div>
-                <button onClick={toggleFullscreen} className={`p-2.5 rounded-full transition-colors ${fsIconColor}`} title="Exit Fullscreen"><X className="w-6 h-6 sm:w-7 sm:h-7" /></button>
+            <motion.div key="fullscreen-content" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1, transition: { duration: 0.3, ease: "circOut" } }} exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.2, ease: "circIn" } }} className={`w-full h-full flex flex-col items-center justify-center p-4 sm:p-6 md:p-8 selection:bg-[var(--bg-accent)] selection:text-[var(--text-white)] ${fsBgColor} ${fsTextColor} overflow-hidden`}>
+
+              {/* Header - Fixed at top */}
+              <div className="w-full max-w-6xl flex justify-between items-center mb-6 sm:mb-8 flex-shrink-0">
+                <div className="text-left">
+                  <h1 className="text-2xl sm:text-3xl font-semibold flex items-center">
+                    <TimerIcon className={`w-7 h-7 sm:w-8 sm:h-8 mr-2.5 text-[var(--bg-accent)]`} />
+                    Focus Session
+                  </h1>
+                  {activeSession?.sessionGoalText && (
+                    <p className={`text-sm sm:text-base italic mt-1.5 ${fsSubtleTextColor} max-w-md truncate`}>
+                      Goal: {activeSession.sessionGoalText}
+                    </p>
+                  )}
               </div>
-              <div className="flex flex-col items-center justify-center flex-grow w-full text-center">
-                <motion.div key={timeLeft + (activeSession?.status || 'idle') + "-fullscreen"} initial={{ opacity: 0.8, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className={`text-7xl sm:text-8xl md:text-9xl lg:text-[10rem] xl:text-[12rem] font-mono font-semibold mb-4 tabular-nums transition-colors duration-300 ${(activeSession?.status === 'break_running' || activeSession?.status === 'break_paused') ? (isDarkMode ? 'text-green-400' : 'text-green-600') : (isDarkMode ? 'text-indigo-400' : 'text-indigo-600')}`}>{formatTime(timeLeft)}</motion.div>
-                <div className="mb-3 text-base sm:text-lg min-h-[24px] font-medium">{activeSession?.status === 'running' && <span className={`${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>Focusing on: {activeSession.linkedItemName || activeSession.timerName || "Work"}</span>} {activeSession?.status === 'paused' && <span className={`italic ${fsSubtleTextColor}`}>Paused: {activeSession.linkedItemName || activeSession.timerName || "Work"}</span>} {(activeSession?.status === 'break_running' || activeSession?.status === 'break_paused') && <span className={`${isDarkMode ? 'text-green-300' : 'text-green-700'}`}>{activeSession.isLongBreakNext ? 'Long Break' : 'Short Break'} {activeSession.status === 'break_paused' && '(Paused)'}</span>} {(!activeSession || ['idle', 'completed', 'cancelled'].includes(activeSession.status)) && <span className={`italic ${fsSubtleTextColor}`}>Ready to start a new session.</span>}</div>
-                {activeSession?.type === 'pomodoro' && (activeSession.status === 'running' || activeSession.status === 'paused' || activeSession.status === 'break_running' || activeSession.status === 'break_paused') && <p className={`${fsSubtleTextColor} text-sm sm:text-base mb-6`}>Cycle {displayCycleNumber} of {activeSession.pomodoroCyclesGoal || pomodoroCyclesGoalSetting}</p>}
-                <AnimatePresence>{currentMindfulSuggestion && (activeSession?.status === 'break_running' || activeSession?.status === 'break_paused') && (<motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }} className={`p-3.5 my-4 rounded-lg text-sm italic max-w-md backdrop-blur-sm ${isDarkMode ? 'bg-green-500/10 text-green-300 border border-green-500/30' : 'bg-green-500/10 text-green-700 border border-green-500/20'}`}><Coffee className="w-4 h-4 inline mr-2" /> {currentMindfulSuggestion}</motion.div>)}</AnimatePresence>
-                <div className="flex flex-wrap justify-center items-center gap-3 sm:gap-4 mt-4">
-                  <button onClick={handleStartPauseResume} disabled={!user || showPreFocusModal} className={`px-6 py-3 sm:px-8 sm:py-3.5 text-lg sm:text-xl font-semibold rounded-lg transition-all transform hover:scale-105 active:scale-95 shadow-lg flex items-center gap-2 sm:gap-2.5 ${(!activeSession || ['idle', 'paused', 'break_paused', 'completed', 'cancelled'].includes(activeSession.status)) ? (isDarkMode ? 'bg-indigo-600 text-white hover:bg-indigo-500 focus-visible:ring-4 focus-visible:ring-indigo-700' : 'bg-indigo-500 text-white hover:bg-indigo-600 focus-visible:ring-4 focus-visible:ring-indigo-300') : (isDarkMode ? 'bg-yellow-500 text-black hover:bg-yellow-400 focus-visible:ring-4 focus-visible:ring-yellow-600' : 'bg-yellow-500 text-black hover:bg-yellow-400 focus-visible:ring-4 focus-visible:ring-yellow-300')}`}>{(!activeSession || ['idle', 'completed', 'cancelled'].includes(activeSession.status)) && <><Play className="w-5 h-5 sm:w-6 sm:h-6" /> Start</>} {(activeSession?.status === 'running' || activeSession?.status === 'break_running') && <><Pause className="w-5 h-5 sm:w-6 sm:h-6" /> Pause</>} {(activeSession?.status === 'paused' || activeSession?.status === 'break_paused') && <><Play className="w-5 h-5 sm:w-6 sm:h-6" /> Resume</>}</button>
-                  <button onClick={handleReset} disabled={!activeSession || activeSession.status === 'idle' || !activeSession?.id} className={`px-4 py-2.5 sm:px-5 sm:py-3 rounded-lg transition-colors flex items-center gap-1.5 text-sm sm:text-base font-medium shadow-md disabled:opacity-50 ${isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}><RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" /> Reset</button>
-                  {activeSession?.type === 'pomodoro' && (activeSession?.status === 'break_running' || activeSession?.status === 'break_paused') && (<button onClick={handleSkipBreak} className={`px-4 py-2.5 sm:px-5 sm:py-3 rounded-lg transition-colors flex items-center gap-1.5 text-sm sm:text-base font-medium shadow-md ${isDarkMode ? 'bg-green-800 text-green-200 hover:bg-green-700' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}><SkipForward className="w-4 h-4 sm:w-5 sm:h-5" /> Skip Break</button>)}
+                      <button
+                  onClick={toggleFullscreen}
+                  className={`p-2.5 rounded-full transition-colors hover:bg-[var(--interactive-hover)] ${fsIconColor}`}
+                  title="Exit Fullscreen"
+                      >
+                  <X className="w-6 h-6 sm:w-7 sm:h-7" />
+                      </button>
+                </div>
+
+              {/* Main Content - Centered and flexible */}
+              <div className="flex flex-col items-center justify-center flex-1 w-full max-w-4xl mx-auto text-center space-y-4 sm:space-y-6">
+
+                {/* Timer Display */}
+                <motion.div
+                  key={timeLeft + (activeSession?.status || 'idle') + "-fullscreen"}
+                  initial={{ opacity: 0.8, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className={`font-mono font-bold tabular-nums transition-colors duration-300 text-center leading-none ${
+                    (activeSession?.status === 'break_running' || activeSession?.status === 'break_paused')
+                      ? 'text-[var(--status-success)]'
+                      : 'text-[var(--bg-accent)]'
+                  }`}
+                  style={{
+                    fontSize: 'clamp(4rem, 12vw, 12rem)',
+                    lineHeight: '0.9'
+                  }}
+                >
+                  {formatTime(timeLeft)}
+                </motion.div>
+
+                {/* Session Status */}
+                <div className="min-h-[2rem] flex items-center justify-center">
+                  <div className="text-base sm:text-lg font-medium max-w-lg px-4">
+                    {activeSession?.status === 'running' && (
+                      <span className={`text-[var(--text-primary)]`}>
+                        Focusing on: {activeSession.linkedItemName || activeSession.timerName || "Work"}
+                      </span>
+                    )}
+                    {activeSession?.status === 'paused' && (
+                      <span className={`italic ${fsSubtleTextColor}`}>
+                        Paused: {activeSession.linkedItemName || activeSession.timerName || "Work"}
+                      </span>
+                    )}
+                    {(activeSession?.status === 'break_running' || activeSession?.status === 'break_paused') && (
+                      <span className={`text-[var(--status-success)]`}>
+                        {activeSession.isLongBreakNext ? 'Long Break' : 'Short Break'}
+                        {activeSession.status === 'break_paused' && ' (Paused)'}
+                    </span>
+                    )}
+                    {(!activeSession || ['idle', 'completed', 'cancelled'].includes(activeSession.status)) && (
+                      <span className={`italic ${fsSubtleTextColor}`}>
+                        Ready to start a new session
+                      </span>
+                    )}
+                  </div>
+                  </div>
+
+                {/* Pomodoro Cycle Info */}
+                {activeSession?.type === 'pomodoro' && (activeSession.status === 'running' || activeSession.status === 'paused' || activeSession.status === 'break_running' || activeSession.status === 'break_paused') && (
+                  <p className={`${fsSubtleTextColor} text-sm sm:text-base`}>
+                    Cycle {displayCycleNumber} of {activeSession.pomodoroCyclesGoal || pomodoroCyclesGoalSetting}
+                  </p>
+                )}
+
+                {/* Mindful Break Suggestion */}
+                <AnimatePresence>
+                  {currentMindfulSuggestion && (activeSession?.status === 'break_running' || activeSession?.status === 'break_paused') && (
+              <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.3 }}
+                      className={`p-4 rounded-xl text-sm sm:text-base italic max-w-lg backdrop-blur-md border bg-[var(--bg-highlight)] text-[var(--status-success)] border-[var(--border-primary)]`}
+                    >
+                      <Coffee className="w-4 h-4 inline mr-2 flex-shrink-0" />
+                      <span className="align-middle">{currentMindfulSuggestion}</span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Control Buttons */}
+                <div className="flex flex-wrap justify-center items-center gap-3 sm:gap-4 mt-6 sm:mt-8">
+                              <button
+                    onClick={handleStartPauseResume}
+                    disabled={!user || showPreFocusModal}
+                    className={`px-6 py-3 sm:px-8 sm:py-4 text-base sm:text-lg md:text-xl font-semibold rounded-xl transition-all transform hover:scale-105 active:scale-95 shadow-xl flex items-center gap-2 sm:gap-3 min-w-[140px] justify-center ${
+                      (!activeSession || ['idle', 'paused', 'break_paused', 'completed', 'cancelled'].includes(activeSession.status))
+                        ? (isDarkMode
+                            ? 'bg-[var(--bg-accent)] text-[var(--text-white)] hover:bg-[var(--bg-accent-secondary)] focus:ring-4 focus:ring-[var(--bg-accent)]/50'
+                            : 'bg-[var(--bg-accent)] text-[var(--text-white)] hover:bg-[var(--bg-accent-secondary)] focus:ring-4 focus:ring-[var(--bg-accent)]/30')
+                        : (isDarkMode
+                            ? 'bg-[var(--status-warning)] text-[var(--text-primary)] hover:bg-[var(--status-warning)]/80 focus:ring-4 focus:ring-[var(--status-warning)]/50'
+                            : 'bg-[var(--status-warning)] text-[var(--text-primary)] hover:bg-[var(--status-warning)]/80 focus:ring-4 focus:ring-[var(--status-warning)]/30')
+                    } disabled:opacity-50`}
+                  >
+                    {(!activeSession || ['idle', 'completed', 'cancelled'].includes(activeSession.status)) && (
+                      <>
+                        <Play className="w-5 h-5 sm:w-6 sm:h-6" />
+                        Start
+                      </>
+                    )}
+                    {(activeSession?.status === 'running' || activeSession?.status === 'break_running') && (
+                      <>
+                        <Pause className="w-5 h-5 sm:w-6 sm:h-6" />
+                        Pause
+                      </>
+                    )}
+                    {(activeSession?.status === 'paused' || activeSession?.status === 'break_paused') && (
+                      <>
+                        <Play className="w-5 h-5 sm:w-6 sm:h-6" />
+                        Resume
+                      </>
+                    )}
+                  </button>
+
+                        <button
+                    onClick={handleReset}
+                    disabled={!activeSession || activeSession.status === 'idle' || !activeSession?.id}
+                    className={`px-4 py-3 sm:px-6 sm:py-4 rounded-xl transition-colors flex items-center gap-2 text-sm sm:text-base font-medium shadow-lg min-w-[100px] justify-center disabled:opacity-50 ${
+                      isDarkMode
+                        ? 'bg-[var(--bg-primary)]/80 text-[var(--text-secondary)] hover:bg-[var(--interactive-hover)] border border-[var(--border-primary)]'
+                        : 'bg-[var(--bg-primary)]/80 text-[var(--text-secondary)] hover:bg-[var(--interactive-hover)] border border-[var(--border-primary)]'
+                    }`}
+                  >
+                    <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
+                    Reset
+                        </button>
+
+                  {activeSession?.type === 'pomodoro' && (activeSession?.status === 'break_running' || activeSession?.status === 'break_paused') && (
+                    <button
+                      onClick={handleSkipBreak}
+                      className={`px-4 py-3 sm:px-6 sm:py-4 rounded-xl transition-colors flex items-center gap-2 text-sm sm:text-base font-medium shadow-lg min-w-[120px] justify-center ${
+                        isDarkMode
+                          ? 'bg-[var(--status-success)]/80 text-[var(--text-white)] hover:bg-[var(--status-success)]/70 border border-[var(--status-success)]/50'
+                          : 'bg-[var(--status-success)]/20 text-[var(--status-success)] hover:bg-[var(--status-success)]/30 border border-[var(--status-success)]/50'
+                      }`}
+                    >
+                      <SkipForward className="w-4 h-4 sm:w-5 sm:h-5" />
+                      Skip Break
+                    </button>
+                  )}
                 </div>
               </div>
-              <motion.div initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2, type: 'spring', stiffness: 100 }} className={`w-full max-w-4xl mx-auto mb-4 p-3 sm:p-4 rounded-xl shadow-xl backdrop-blur-md ${fsCardBg} border ${fsInputBorder}`}>
-                <div className="flex items-center justify-between mb-3"><h3 className={`text-base sm:text-lg font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>Ambient Sound</h3>{selectedAmbientSoundInfo && selectedAmbientSoundInfo.id !== 'none' && selectedAmbientSoundInfo.src && (<div className="flex items-center gap-2 sm:gap-3"><button onClick={toggleSoundPlay} className={`p-2 rounded-full transition-colors ${fsIconColor}`}>{isSoundPlaying ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}</button><input type="range" min="0" max="1" step="0.01" value={ambientVolume} onChange={(e) => handleVolumeChange(parseFloat(e.target.value))} className={`w-20 sm:w-28 h-2 rounded-lg appearance-none cursor-pointer ${isDarkMode ? 'bg-gray-600 accent-indigo-500' : 'bg-gray-300 accent-indigo-500'}`} /><span className={`text-xs sm:text-sm w-10 text-right ${fsSubtleTextColor}`}>{Math.round(ambientVolume * 100)}%</span></div>)}</div>
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">{AMBIENT_SOUND_FILES.map(sound => { const IconComponent = sound.icon; const isSelected = selectedAmbientSoundInfo?.id === sound.id; return (<button key={sound.id} onClick={() => handleAmbientSoundChange(sound.id)} title={sound.name} className={`p-2.5 sm:p-3 rounded-lg flex flex-col items-center justify-center aspect-square transition-all duration-200 ease-out transform focus:outline-none focus:ring-2 ${isSelected ? (isDarkMode ? 'bg-indigo-600 text-white shadow-md scale-105 ring-indigo-500' : 'bg-indigo-500 text-white shadow-md scale-105 ring-indigo-300') : (isDarkMode ? `bg-gray-700/70 hover:bg-gray-600/90 text-gray-300 hover:text-white ring-gray-500` : `bg-slate-200 hover:bg-slate-300 text-gray-700 ring-slate-400`)} ${sound.id === 'none' && !isSelected && (isDarkMode ? 'opacity-60 hover:opacity-90' : 'opacity-70 hover:opacity-100')}`}><IconComponent className={`w-5 h-5 sm:w-6 sm:h-6 mb-1 sm:mb-1.5 ${isSelected ? '' : (isDarkMode ? 'text-gray-400' : 'text-gray-600')}`} /><span className={`text-[11px] sm:text-[13px] font-medium w-full text-center leading-snug break-words ${isSelected ? '' : (isDarkMode ? 'text-gray-400' : 'text-gray-600')}`}>{sound.name}</span></button>); })}</div>
-                {selectedAmbientSoundInfo?.attribution && selectedAmbientSoundInfo.id !== 'none' && (<p className={`text-[10px] text-center mt-2 ${fsSubtleTextColor}`}>Sound from {selectedAmbientSoundInfo.attribution}</p>)}
+              {/* Ambient Sound Controls - Fixed at bottom */}
+              <motion.div
+                initial={{ y: 50, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.2, type: 'spring', stiffness: 100 }}
+                className={`w-full max-w-4xl mx-auto mt-6 p-4 sm:p-5 rounded-2xl shadow-2xl backdrop-blur-md border ${fsCardBg} ${fsInputBorder} flex-shrink-0`}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className={`text-lg sm:text-xl font-semibold ${isDarkMode ? 'text-[var(--text-secondary)]' : 'text-[var(--text-secondary)]'} flex items-center gap-2`}>
+                    <Volume2 className="w-5 h-5" />
+                    Ambient Sound
+                    {adaptiveAmbientEnabled && (
+                      <span className="text-xs bg-[var(--bg-highlight)] text-[var(--bg-accent)] px-2 py-1 rounded-full font-medium">
+                        Smart Mode
+                      </span>
+                    )}
+                  </h3>
+
+                  {/* Quick Controls */}
+                  {selectedAmbientSoundInfo && selectedAmbientSoundInfo.id !== 'none' && selectedAmbientSoundInfo.src && (
+                    <div className="flex items-center gap-3">
+                        <button
+                        onClick={toggleSoundPlay}
+                        className={`p-2.5 rounded-full transition-colors hover:bg-[var(--bg-primary)]/10 ${fsIconColor}`}
+                        title={isSoundPlaying ? 'Pause Sound' : 'Play Sound'}
+                        >
+                        {isSoundPlaying ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+                        </button>
+                      <div className="flex items-center gap-2">
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.01"
+                        value={adaptiveAmbientEnabled ? getAdaptiveVolume() / 100 : ambientVolume}
+                        onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                        disabled={adaptiveAmbientEnabled}
+                          className={`w-24 h-2 rounded-lg appearance-none cursor-pointer disabled:opacity-50 ${
+                          isDarkMode ? 'bg-[var(--bg-highlight)] accent-[var(--bg-accent)]' : 'bg-[var(--bg-highlight)] accent-[var(--bg-accent)]'
+                        }`}
+                      />
+                        <span className={`text-sm font-medium min-w-[35px] text-right ${fsSubtleTextColor}`}>
+                        {adaptiveAmbientEnabled ? getAdaptiveVolume() : Math.round(ambientVolume * 100)}%
+                      </span>
+                      </div>
+                      </div>
+                  )}
+                </div>
+
+                {/* Sound Selection Grid */}
+                <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 gap-2 sm:gap-3 mb-4">
+                  {AMBIENT_SOUND_FILES.slice(0, 7).map(sound => {
+                    const IconComponent = sound.icon;
+                    const isSelected = selectedAmbientSoundInfo?.id === sound.id;
+                    return (
+                        <button
+                        key={sound.id}
+                        onClick={() => handleAmbientSoundChange(sound.id)}
+                        title={sound.name}
+                        className={`p-2.5 sm:p-3 rounded-xl flex flex-col items-center justify-center aspect-square transition-all duration-200 ease-out transform focus:outline-none focus:ring-2 ${
+                          isSelected
+                            ? (isDarkMode
+                                ? 'bg-[var(--bg-accent)] text-[var(--text-white)] shadow-lg scale-105 ring-[var(--bg-accent)]'
+                                : 'bg-[var(--bg-accent)] text-[var(--text-white)] shadow-lg scale-105 ring-[var(--bg-accent)]')
+                            : (isDarkMode
+                                ? `bg-[var(--bg-primary)]/70 hover:bg-[var(--interactive-hover)] text-[var(--text-secondary)] hover:text-[var(--text-white)] ring-[var(--border-primary)] hover:scale-105`
+                                : `bg-[var(--bg-primary)] hover:bg-[var(--interactive-hover)] text-[var(--text-secondary)] ring-[var(--border-primary)] hover:scale-105`)
+                        } ${sound.id === 'none' && !isSelected && (isDarkMode ? 'opacity-60 hover:opacity-90' : 'opacity-70 hover:opacity-100')}`}
+                      >
+                        <IconComponent className={`w-5 h-5 sm:w-6 sm:h-6 mb-1 ${isSelected ? '' : (isDarkMode ? 'text-[var(--text-muted)]' : 'text-[var(--text-muted)]')}`} />
+                        <span className={`text-xs font-medium text-center leading-tight ${isSelected ? '' : (isDarkMode ? 'text-[var(--text-muted)]' : 'text-[var(--text-muted)]')}`}>
+                          {sound.name}
+                            </span>
+                        </button>
+                    );
+                  })}
+                    </div>
+
+                {/* Session Progress - Only show when relevant */}
+                {adaptiveAmbientEnabled && activeSession && ['running', 'break_running'].includes(activeSession.status) && (
+                  <div className="mt-4 p-3 bg-[var(--bg-highlight)] rounded-xl border border-[var(--border-primary)]">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-[var(--bg-accent)]">Session Progress</span>
+                      <span className="text-sm font-bold text-[var(--bg-accent)]">{Math.round(sessionProgress)}%</span>
+                    </div>
+                        <div className="w-full bg-[var(--bg-highlight)] rounded-full h-2">
+                          <div
+                            className="bg-gradient-to-r from-[var(--bg-accent)] to-[var(--bg-accent-secondary)] h-2 rounded-full transition-all duration-300 ease-out"
+                            style={{ width: `${sessionProgress}%` }}
+                          />
+                    </div>
+                          </div>
+                        )}
               </motion.div>
+
+
+
+
+
+              {/* Focus Agent Button */}
               <div className="absolute bottom-6 right-6 z-20">
-                <button onClick={() => setIsFsChatOpen(true)} className={`p-3.5 rounded-full shadow-xl transition-all duration-300 transform hover:scale-110 active:scale-100 ${isDarkMode ? 'bg-gradient-to-br from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700' : 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700'}`} title="Open Focus Agent"><Brain className="w-6 h-6"/></button>
-              </div>
+                              <button
+                  onClick={() => setIsFsChatOpen(true)}
+                  className={`p-3.5 rounded-full shadow-xl transition-all duration-300 transform hover:scale-110 active:scale-100 ${
+                    isDarkMode
+                      ? 'bg-gradient-to-br from-purple-600 to-indigo-600 text-[var(--text-white)] hover:from-purple-700 hover:to-indigo-700'
+                      : 'bg-gradient-to-br from-indigo-500 to-purple-600 text-[var(--text-white)] hover:from-indigo-600 hover:to-purple-700'
+                  }`}
+                  title="Open Focus Agent"
+                >
+                  <Brain className="w-6 h-6"/>
+                              </button>
+                          </div>
+
+
               <AnimatePresence>
                 {isFsChatOpen && (
                   <>
-                  <motion.div className="absolute inset-0 bg-black/40 z-30" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsFsChatOpen(false)} />
-                  <motion.div className={`absolute top-0 right-0 h-full w-full max-w-md backdrop-blur-lg shadow-2xl z-40 flex flex-col ${isDarkMode ? 'bg-gray-900/80' : 'bg-white/80'}`} initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: 'spring', stiffness: 300, damping: 30 }}>
-                    <div className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+                  <motion.div className="absolute inset-0 bg-[var(--overlay-dark)] z-30" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsFsChatOpen(false)} />
+                  <motion.div className={`absolute top-0 right-0 h-full w-full max-w-md backdrop-blur-lg shadow-2xl z-40 flex flex-col ${isDarkMode ? 'bg-[var(--bg-card)]/80' : 'bg-[var(--bg-primary)]/80'}`} initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: 'spring', stiffness: 300, damping: 30 }}>
+                    <div className="flex justify-between items-center p-4 border-b border-[var(--border-primary)] flex-shrink-0">
                         <h3 className={`text-lg font-semibold flex items-center gap-2 ${primaryAccentText}`}><Brain className="w-5 h-5"/> Focus Agent</h3>
                         <button onClick={() => setIsFsChatOpen(false)} className={iconColor}><X className="w-5 h-5"/></button>
                     </div>
-                     <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent">
-                        {!conversationId && ( <div className="text-center py-8 flex flex-col items-center"><MessageCircle className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-3" /><p className="text-gray-500 dark:text-gray-400 text-sm mb-4">Start a new chat.</p><button onClick={() => handleNewConversation()} className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 text-sm font-semibold rounded-lg hover:shadow-md transition-all duration-200 flex items-center gap-1.5 transform hover:scale-105 active:scale-100"><Plus className="w-4 h-4" /> New Chat</button></div>)}
+                     <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-[var(--scrollbar-thumb)] scrollbar-track-transparent">
+                        {!conversationId && ( <div className="text-center py-8 flex flex-col items-center"><MessageCircle className="w-12 h-12 text-[var(--text-muted)] mb-3" /><p className="text-[var(--text-muted)] text-sm mb-4">Start a new chat.</p><button onClick={() => handleNewConversation()} className="bg-gradient-to-r from-[var(--bg-accent)] to-[var(--bg-accent-secondary)] text-[var(--text-white)] px-4 py-2 text-sm font-semibold rounded-lg hover:shadow-md transition-all duration-200 flex items-center gap-1.5 transform hover:scale-105 active:scale-100"><Plus className="w-4 h-4" /> New Chat</button></div>)}
                         {conversationId && chatHistory.map((message, index) => (
                           <div key={message.id || `${message.role}-${index}`} className={`flex ${message.role === 'user' || message.role === 'system' ? 'justify-end' : 'justify-start'}`}>
-                              <div className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm shadow-sm break-words ${message.role === 'user' ? 'bg-indigo-500 text-white' : message.error ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200 border border-red-200 dark:border-red-700/60' : message.role === 'system' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-100 border border-yellow-200 dark:border-yellow-700/60 text-center mx-auto' : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700/70'}`}>
-                                  {message.isLoading && (<div className="flex flex-col items-center gap-1.5 text-gray-500 dark:text-gray-400 p-1"><div className="flex space-x-0.5 p-1"><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce"></div><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div></div></div>)}
+                              <div className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm shadow-sm break-words ${message.role === 'user' ? 'bg-[var(--bg-accent)] text-[var(--text-white)]' : message.error ? 'bg-[var(--status-error)]/20 text-[var(--status-error)] border border-[var(--status-error)]/60' : message.role === 'system' ? 'bg-[var(--status-warning)]/20 text-[var(--status-warning)] border border-[var(--status-warning)]/60 text-center mx-auto' : 'bg-[var(--bg-highlight)] text-[var(--text-secondary)] border border-[var(--border-primary)]/70'}`}>
+                                  {message.isLoading && (<div className="flex flex-col items-center gap-1.5 text-[var(--text-muted)] p-1"><div className="flex space-x-0.5 p-1"><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce"></div><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div></div></div>)}
                                   <div className="whitespace-pre-wrap">{message.content}</div>
                               </div>
                           </div>
                         ))}
                      </div>
-                     <div className="p-3 border-t border-gray-200 dark:border-gray-700/80 bg-gray-50 dark:bg-gray-800/50 flex-shrink-0">
+                     <div className="p-3 border-t border-[var(--border-primary)]/80 bg-[var(--bg-highlight)]/50 flex-shrink-0">
                        {/* Usage display moved above chatbox */}
                        {userTier !== 'premium' && userTier !== 'loading' && (
                            <div className="pt-2 text-xs text-center mb-3">
-                               <span className="text-gray-500 dark:text-gray-400">Messages: {chatUsageCount} / {currentChatLimitDisplay}</span>
-                               {isChatDisabledByLimit && <span className="text-red-500 dark:text-red-400 ml-1 font-medium">(Limit Reached)</span>}
+                               <span className="text-[var(--text-muted)]">Messages: {chatUsageCount} / {currentChatLimitDisplay}</span>
+                               {isChatDisabledByLimit && <span className="text-[var(--status-error)] ml-1 font-medium">(Limit Reached)</span>}
                                {!isChatDisabledByLimit && userTier === 'basic' && (
                                    <Link to="/pricing" className="ml-1 font-medium text-indigo-500 dark:text-indigo-400 hover:underline">
                                        <Crown className="w-3 h-3 inline mr-0.5"/>Upgrade
@@ -2528,7 +4046,7 @@ Assistant:`;
                                onDragOver={handleDragEvents}
                                onDragEnter={handleDragEnter}
                                onDragLeave={handleDragLeave}
-                               className={`relative bg-[#F7F8FA] dark:bg-[#161922] rounded-2xl shadow-sm transition-all duration-200 flex flex-col ${isDraggingOver ? 'ring-2 ring-indigo-400 dark:ring-indigo-600 ring-offset-2 ring-offset-white dark:ring-offset-[#12141D]' : 'focus-within:ring-2 focus-within:ring-indigo-400 dark:focus-within:ring-indigo-600'}`}
+                               className={`relative bg-[var(--bg-card)] rounded-2xl shadow-sm transition-all duration-200 flex flex-col ${isDraggingOver ? 'ring-2 ring-[var(--bg-accent)] ring-offset-2 ring-offset-[var(--bg-primary)]' : 'focus-within:ring-2 focus-within:ring-[var(--bg-accent)]'}`}
                            >
                                <AnimatePresence>
                                {isDraggingOver && (
@@ -2536,7 +4054,7 @@ Assistant:`;
                                        initial={{ opacity: 0 }}
                                        animate={{ opacity: 1 }}
                                        exit={{ opacity: 0 }}
-                                       className="absolute inset-0 bg-indigo-50/90 dark:bg-indigo-900/90 z-10 flex items-center justify-center rounded-2xl pointer-events-none border-2 border-dashed border-indigo-400"
+                                       className="absolute inset-0 bg-[var(--bg-highlight)]/90 dark:bg-indigo-900/90 z-10 flex items-center justify-center rounded-2xl pointer-events-none border-2 border-dashed border-indigo-400"
                                    >
                                        <div className="text-center">
                                            <ImageIcon className="w-8 h-8 text-indigo-500 dark:text-indigo-400 mx-auto mb-2"/>
@@ -2552,7 +4070,7 @@ Assistant:`;
                                            initial={{ opacity: 0, height: 0 }}
                                            animate={{ opacity: 1, height: 'auto' }}
                                            exit={{ opacity: 0, height: 0 }}
-                                           className="text-center text-sm p-2 text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600/50"
+                                           className="text-center text-sm p-2 text-[var(--text-muted)] bg-[var(--bg-highlight)]/50 border-b border-[var(--border-primary)]/50"
                                        >
                                            {aiActionStatus}
                                        </motion.div>
@@ -2573,20 +4091,20 @@ Assistant:`;
                                        !conversationId ? "Start a new chat to begin..." :
                                        "Ask anything..."
                                    } 
-                                   className="w-full bg-transparent text-gray-800 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 p-3.5 text-sm focus:ring-0 focus:outline-none border-0 resize-none overflow-y-auto max-h-44 leading-relaxed" 
+                                   className="w-full bg-transparent text-[var(--text-secondary)] placeholder-[var(--text-muted)] p-3.5 text-sm focus:ring-0 focus:outline-none border-0 resize-none overflow-y-auto max-h-44 leading-relaxed" 
                                    disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading' || !conversationId}
                                />
                                <div className="flex justify-between items-center px-2 py-1.5 mt-1">
                                    <div className="flex items-center gap-1">
                                        <input type="file" ref={fileInputRef} onChange={handleFileSelect} multiple accept={SUPPORTED_FILE_TYPES} className="hidden" disabled={isImageGenModeActive || isSearchModeActive || isNotionSearchModeActive || isChatLoading || isChatDisabledByLimit || !conversationId} />
-                                       <button type="button" onClick={triggerFileSelect} disabled={isImageGenModeActive || isSearchModeActive || isNotionSearchModeActive || isChatLoading || isChatDisabledByLimit || !conversationId} className="p-2 rounded-lg transition-colors duration-150 text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600 disabled:cursor-not-allowed" title="Attach Files">
+                                       <button type="button" onClick={triggerFileSelect} disabled={isImageGenModeActive || isSearchModeActive || isNotionSearchModeActive || isChatLoading || isChatDisabledByLimit || !conversationId} className="p-2 rounded-lg transition-colors duration-150 text-[var(--text-muted)] hover:bg-[var(--interactive-hover)] disabled:text-[var(--text-muted)]/50 disabled:cursor-not-allowed" title="Attach Files">
                                            <Plus className="w-4 h-4" />
                                        </button>
-                                       <button type="button" onClick={handleToggleSearchMode} disabled={isChatLoading || isChatDisabledByLimit || isNotionSearchModeActive || !conversationId} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isSearchModeActive ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'}`} title={isSearchModeActive ? "Disable Search" : "Enable Search"}>
+                                       <button type="button" onClick={handleToggleSearchMode} disabled={isChatLoading || isChatDisabledByLimit || isNotionSearchModeActive || !conversationId} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isSearchModeActive ? 'bg-[var(--status-info)]/20 text-[var(--status-info)]' : 'text-[var(--text-muted)] hover:bg-[var(--interactive-hover)] disabled:text-[var(--text-muted)]/50'}`} title={isSearchModeActive ? "Disable Search" : "Enable Search"}>
                                            <Globe className="w-4 h-4" />
                                            <span className="hidden sm:inline">Search</span>
                                        </button>
-                                       <button type="button" onClick={handleToggleImageGenMode} disabled={isChatLoading || isChatDisabledByLimit || isNotionSearchModeActive || !conversationId} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isImageGenModeActive ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'}`} title={isImageGenModeActive ? "Switch to Normal" : "Generate Image"}>
+                                       <button type="button" onClick={handleToggleImageGenMode} disabled={isChatLoading || isChatDisabledByLimit || isNotionSearchModeActive || !conversationId} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isImageGenModeActive ? 'bg-[var(--bg-accent)]/20 text-[var(--bg-accent)]' : 'text-[var(--text-muted)] hover:bg-[var(--interactive-hover)] disabled:text-[var(--text-muted)]/50'}`} title={isImageGenModeActive ? "Switch to Normal" : "Generate Image"}>
                                            <ImageIcon className="w-4 h-4" />
                                            <span className="hidden sm:inline">Image</span>
                                        </button>
@@ -2612,7 +4130,7 @@ Assistant:`;
                                                transition={{ duration: 0.15 }}
                                            >
                                                {(chatMessage.trim() || selectedFiles.length > 0 || (isImageGenModeActive && chatMessage.trim())) ? (
-                                                   <button type="submit" disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading' || !conversationId} className="p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-indigo-500 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20" title="Send" aria-label="Send chat message">
+                                                   <button type="submit" disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading' || !conversationId} className="p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-[var(--bg-accent)] hover:bg-indigo-100 dark:hover:bg-[var(--bg-highlight)]0/20" title="Send" aria-label="Send chat message">
                                                        {isChatLoading ? <Loader2 className="w-5 h-5 animate-spin"/> : <Send className="w-5 h-5" />}
                                                    </button>
                                                ) : (
@@ -2620,7 +4138,7 @@ Assistant:`;
                                                        type="button" 
                                                        onClick={handleToggleRecording} 
                                                        disabled={isChatLoading || isChatDisabledByLimit || !conversationId || !isAudioSupported} 
-                                                       className={`p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isRecording ? 'text-red-500 bg-red-100 dark:bg-red-500/20 animate-pulse' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/70'}`} 
+                                                       className={`p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isRecording ? 'text-[var(--status-error)] bg-[var(--status-error)]/20 animate-pulse' : 'text-[var(--text-muted)] hover:bg-[var(--interactive-hover)]'}`} 
                                                        title={!isAudioSupported ? "Browser not supported" : isRecording ? "Stop Recording" : "Start Recording"}
                                                    >
                                                        {isRecording ? <StopCircle className="w-5 h-5"/> : <Mic className="w-5 h-5" />}
@@ -2639,106 +4157,833 @@ Assistant:`;
               </AnimatePresence>
             </motion.div>
           ) : (
-            <motion.div key="normal-content" initial="initial" animate="animate" exit="exit" variants={fullscreenContentVariants} className="w-full">
-              <header className="mb-6">
-                <div className="flex items-center justify-between">
-                  <h1 className={`text-2xl md:text-3xl font-semibold flex items-center ${headingClass}`}><ZapOff className={`w-7 h-7 mr-2.5 ${primaryAccentText}`} /> Focus</h1>
-                  <div className="flex items-center gap-2"> <button onClick={() => setShowSettingsModal(true)} className={`p-2 rounded-full ${iconColor}`} title="Timer Settings"><Settings2 className="w-5 h-5" /></button> <button onClick={toggleFullscreen} className={`p-2 rounded-full ${iconColor}`} title="Enter Fullscreen"><Maximize2 className="w-5 h-5" /></button></div>
-                </div>
-              </header>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <motion.div layout className={`lg:col-span-2 flex flex-col items-center justify-center text-center ${cardClass} rounded-xl p-6 shadow-xl min-h-[500px]`}>
-                  <motion.div key={timeLeft + (activeSession?.status || 'idle') + "-normal"} initial={{ opacity: 0.8, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }} className={`text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-mono font-semibold mb-4 tabular-nums transition-colors duration-300 ${(activeSession?.status === 'break_running' || activeSession?.status === 'break_paused') ? (isDarkMode ? 'text-green-400' : 'text-green-500') : primaryAccentText}`}>{formatTime(timeLeft)}</motion.div>
-                  <div className="mb-1 text-sm min-h-[20px] font-medium">{activeSession?.status === 'running' && <span className={`${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>Focusing on: {activeSession.linkedItemName || activeSession.timerName || "Work"}</span>} {activeSession?.status === 'paused' && <span className={`italic ${subheadingClass}`}>Paused: {activeSession.linkedItemName || activeSession.timerName || "Work"}</span>} {(activeSession?.status === 'break_running' || activeSession?.status === 'break_paused') && <span className={`${isDarkMode ? 'text-green-300' : 'text-green-600'}`}>{activeSession.isLongBreakNext ? 'Long Break' : 'Short Break'} {activeSession.status === 'break_paused' && '(Paused)'}</span>} {(!activeSession || ['idle', 'completed', 'cancelled'].includes(activeSession.status)) && <span className={`italic ${subheadingClass}`}>Ready to start a new session.</span>}</div>
-                  {activeSession?.sessionGoalText && <p className={`text-xs italic mt-0.5 mb-2 ${subheadingClass}`}>Goal: {activeSession.sessionGoalText}</p>}
-                  {activeSession?.type === 'pomodoro' && (activeSession.status === 'running' || activeSession.status === 'paused' || activeSession.status === 'break_running' || activeSession.status === 'break_paused') && <p className={`${subheadingClass} text-xs mb-4`}>Cycle {displayCycleNumber} of {activeSession.pomodoroCyclesGoal || pomodoroCyclesGoalSetting}</p>}
-                  <AnimatePresence>{currentMindfulSuggestion && (activeSession?.status === 'break_running' || activeSession?.status === 'break_paused') && (<motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }} className={`${cardClass} p-3 my-3.5 rounded-lg text-xs italic max-w-sm ${isDarkMode ? 'bg-green-900/40 text-green-300 border border-green-700/50' : 'bg-green-50 text-green-700 border border-green-200'}`}><Coffee className="w-3.5 h-3.5 inline mr-1.5" /> {currentMindfulSuggestion}</motion.div>)}</AnimatePresence>
-                  <div className="flex flex-wrap justify-center items-center gap-3 mb-6 mt-2">
-                    <button onClick={handleStartPauseResume} disabled={!user || showPreFocusModal} className={`px-6 py-3 text-lg font-semibold rounded-lg transition-all transform hover:scale-105 active:scale-95 shadow-lg flex items-center gap-2 ${(!activeSession || ['idle', 'paused', 'break_paused', 'completed', 'cancelled'].includes(activeSession.status)) ? (isDarkMode ? 'bg-indigo-600 text-white hover:bg-indigo-500' : 'bg-indigo-500 text-white hover:bg-indigo-600') : (isDarkMode ? 'bg-yellow-600 text-white hover:bg-yellow-500' : 'bg-yellow-500 text-white hover:bg-yellow-400')}`}>{(!activeSession || ['idle', 'completed', 'cancelled'].includes(activeSession.status)) && <><Play className="w-5 h-5" /> Start Focus</>} {(activeSession?.status === 'running' || activeSession?.status === 'break_running') && <><Pause className="w-5 h-5" /> Pause</>} {(activeSession?.status === 'paused' || activeSession?.status === 'break_paused') && <><Play className="w-5 h-5" /> Resume</>}</button>
-                    <button onClick={handleReset} disabled={!activeSession || activeSession.status === 'idle' || !activeSession?.id} className={`px-4 py-2.5 rounded-lg transition-colors flex items-center gap-1.5 text-sm font-medium shadow-md ${isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600 disabled:opacity-60' : 'bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-60'}`}><RotateCcw className="w-4 h-4" /> Reset/Cancel</button>
-                    {activeSession?.type === 'pomodoro' && (activeSession?.status === 'break_running' || activeSession?.status === 'break_paused') && (<button onClick={handleSkipBreak} className={`px-4 py-2.5 rounded-lg transition-colors flex items-center gap-1.5 text-sm font-medium shadow-md ${isDarkMode ? 'bg-green-800 text-green-200 hover:bg-green-700' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}><SkipForward className="w-4 h-4" /> Skip Break</button>)}
-                  </div>
-                  {(!activeSession || ['idle', 'completed', 'cancelled'].includes(activeSession.status)) && (<motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.3 }} className="w-full max-w-md mt-2 mb-4 overflow-hidden"><label htmlFor="sessionGoal" className={`block text-sm font-medium mb-1.5 ${subheadingClass}`}>Set a Goal for this Session (Optional):</label><input type="text" id="sessionGoal" value={sessionGoalText} onChange={handleSessionGoalTextChange} placeholder="e.g., Finish chapter 1, Draft email" className={`${inputBg} w-full p-2.5 rounded-lg text-sm shadow-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500`} /></motion.div>)}
-                  <div className={`w-full max-w-md border-t pt-4 mt-4 ${isDarkMode ? 'border-gray-700/60' : 'border-gray-200/80'}`}>
-                    <label htmlFor="linkItem" className={`block text-sm font-medium mb-1.5 ${subheadingClass}`}>Link to Item (Optional):</label>
-                    <select id="linkItem" value={selectedLinkedItemId && selectedLinkedItemType ? `${selectedLinkedItemId}::${selectedLinkedItemType}` : ""} onChange={handleLinkItemChange} className={`${inputBg} w-full p-2.5 rounded-lg text-sm shadow-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500`}>
-                        <option value="">-- Select an item --</option>
-                        {userProductivityItems.filter(item => item.type === 'task' || item.type === 'goal' || item.type === 'event').map(item => (<option key={`${item.id}::${item.type}`} value={`${item.id}::${item.type}`}>{item.type.charAt(0).toUpperCase() + item.type.slice(1)}: {item.name}</option>))}
-                        {allFolders.map(folder => (<optgroup key={folder.id} label={`Folder: ${folder.name}`}><option value={`${folder.id}::folder`}>{folder.name} (Folder)</option>{(allSubFolders[folder.id] || []).map(subfolder => (<option key={`${subfolder.id}::subfolder`} value={`${subfolder.id}::subfolder`}>&nbsp;&nbsp;&nbsp;{subfolder.name} (Subfolder)</option>))}</optgroup>))}
-                    </select>
-                  </div>
-                  <div className="w-full max-w-md mt-4">
-                    <label htmlFor="sessionNotes" className={`block text-sm font-medium mb-1.5 ${subheadingClass}`}>Session Notes:</label>
-                    <textarea id="sessionNotes" rows={2} value={sessionNotes} onChange={handleSessionNotesChange} placeholder="Key insights, blockers, next steps..." className={`${inputBg} w-full p-2.5 rounded-lg text-sm shadow-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 resize-none`}></textarea>
-                    {activeSession && activeSession.id && !['completed', 'cancelled'].includes(activeSession.status) && <button onClick={handleSaveSessionNotes} className={`mt-2 px-3 py-1.5 text-xs rounded-md transition-colors shadow ${isDarkMode ? 'bg-indigo-700 text-indigo-200 hover:bg-indigo-600' : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'}`}>Save Notes</button>}
-                  </div>
-                </motion.div>
-                <div className="lg:col-span-1 flex flex-col gap-6">
-                  <div className={`${cardClass} rounded-xl p-5`}>
-                    <div className="flex items-center justify-between mb-3"><h2 className={`text-lg font-semibold flex items-center ${headingClass}`}><Headphones className={`w-5 h-5 mr-2 ${primaryAccentText}`} />Ambient Sound</h2>{selectedAmbientSoundInfo && selectedAmbientSoundInfo.id !== 'none' && selectedAmbientSoundInfo.src && (<div className="flex items-center gap-2"><button onClick={toggleSoundPlay} className={`p-2 rounded-full transition-colors ${iconColor}`}>{isSoundPlaying ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}</button><input type="range" min="0" max="1" step="0.01" value={ambientVolume} onChange={(e) => handleVolumeChange(parseFloat(e.target.value))} className={`w-20 h-2 rounded-lg appearance-none cursor-pointer ${isDarkMode ? 'bg-gray-700 accent-indigo-500' : 'bg-gray-200 accent-indigo-500'}`} /></div>)}</div>
-                    <div className="grid grid-cols-3 gap-2">{AMBIENT_SOUND_FILES.map(sound => { const IconComponent = sound.icon; const isSelected = selectedAmbientSoundInfo?.id === sound.id; return (<button key={sound.id} onClick={() => handleAmbientSoundChange(sound.id)} title={sound.name} className={`p-2.5 rounded-lg flex flex-col items-center justify-center aspect-square transition-all duration-200 ease-out transform focus:outline-none focus:ring-2 ${isSelected ? (isDarkMode ? 'bg-indigo-600 text-white shadow-sm scale-105 ring-indigo-500' : 'bg-indigo-500 text-white shadow-sm scale-105 ring-indigo-300') : (isDarkMode ? `bg-gray-800 hover:bg-gray-700 text-gray-300 ring-gray-600` : `bg-slate-100 hover:bg-slate-200 text-gray-600 ring-slate-300`)} ${sound.id === 'none' && !isSelected && 'opacity-60'}`}><IconComponent className={`w-5 h-5 mb-1 ${isSelected ? '' : (isDarkMode ? 'text-gray-400' : 'text-gray-500')}`} /><span className={`text-[10px] font-medium w-full text-center leading-tight break-words ${isSelected ? '' : (isDarkMode ? 'text-gray-400' : 'text-gray-500')}`}>{sound.name}</span></button>); })}</div>
-                  </div>
-                </div>
-              </div>
-              <div className={`${cardClass} rounded-xl p-5 mt-6`}>
-                 <div className="flex justify-between items-center mb-3">
-                    <h2 className={`text-lg font-semibold flex items-center ${headingClass}`}><TimerIcon className={`w-5 h-5 mr-2 ${primaryAccentText}`} />Timers</h2>
-                    <button onClick={() => handleOpenCustomTimerModal()} className={`p-1.5 rounded-full ${iconColor} ${isDarkMode ? 'hover:bg-gray-700/60' : 'hover:bg-gray-100'}`} title="Add New Timer"><PlusCircle className="w-5 h-5" /></button>
-                 </div>
-                 {customTimers.length === 0 ? <p className={`${subheadingClass} text-sm italic text-center py-4`}>No timers yet. Create one to get started!</p> :
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-64 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
-                    {customTimers.map(timer => {
-                        const linkedSound = AMBIENT_SOUND_FILES.find(s => s.id === timer.data.ambientSoundId);
-                        const SoundIcon = linkedSound?.icon || ZapOff;
+            <motion.div key="normal-content" initial="initial" animate="animate" exit="exit" variants={fullscreenContentVariants} className="w-full max-w-7xl mx-auto">
+              {/* Enhanced Header with Session Mode Selector */}
+              <header className="mb-8">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+
+
+                    {/* Session Mode Selector */}
+                    <div className="flex bg-[var(--bg-card)] backdrop-blur-sm rounded-2xl p-1 shadow-lg border border-[var(--border-primary)]">
+                      {Object.entries(SESSION_MODES).map(([key, mode]) => {
+                        const IconComponent = mode.icon;
+                        const isSelected = currentSessionMode === key;
                         return (
-                            <div key={timer.id} className={`p-3 rounded-lg flex flex-col justify-between transition-colors shadow-sm ${isDarkMode ? 'bg-gray-800/60 hover:bg-gray-700/80 border border-gray-700/50' : 'bg-gray-50 hover:bg-gray-100 border border-gray-200/80'}`}>
-                                <div className="flex items-start justify-between">
-                                    <div>
-                                        <p className={`font-semibold text-base ${headingClass}`}>{timer.data.name}</p>
-                                        <p className={`text-sm ${subheadingClass}`}>{formatTime(timer.data.time)}</p>
-                                    </div>
-                                    <div title={`Linked Sound: ${linkedSound?.name || 'None'}`} className={`p-2 rounded-full ${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-200/70'}`}><SoundIcon className={`w-4 h-4 ${iconColor}`} /></div>
-                                </div>
-                                <div className="flex items-center justify-end gap-1 mt-3 pt-2 border-t border-dashed border-gray-700/30">
-                                    <button onClick={() => handleStartCustomTimerSession(timer)} className="p-2.5 rounded-full bg-green-500/10 text-green-500 hover:bg-green-500/20 transition-colors" title="Start Timer"><Play className="w-4 h-4" /></button>
-                                    <button onClick={() => handleOpenCustomTimerModal(timer)} className={`p-2.5 rounded-full ${iconColor} hover:bg-gray-500/10 transition-colors`} title="Edit"><Edit className="w-4 h-4" /></button>
-                                    <button onClick={() => handleDeleteCustomTimer(timer.id)} className={`p-2.5 rounded-full text-red-500/80 hover:bg-red-500/10 transition-colors`} title="Delete"><Trash className="w-4 h-4" /></button>
-                                </div>
-                            </div>
+                          <button
+                            key={key}
+                            onClick={() => handleSessionModeChange(key as SessionMode)}
+                            className={`flex items-center gap-2 px-3 py-2 sm:px-4 rounded-xl text-sm font-medium transition-all duration-300 ${
+                              isSelected
+                                ? `bg-[var(--bg-accent)] text-[var(--text-white)] shadow-md transform scale-105`
+                                : 'text-[var(--text-secondary)] hover:bg-[var(--interactive-hover)]'
+                            }`}
+                            title={mode.description}
+                          >
+                            <IconComponent className="w-4 h-4" />
+                            <span className="hidden sm:inline">{mode.name}</span>
+                          </button>
                         );
-                    })}
-                 </div>}
-              </div>
-              <div className={`${cardClass} rounded-xl p-5 mt-6`}>
-                <h2 className={`text-lg font-semibold mb-4 flex items-center ${headingClass}`}><History className={`w-5 h-5 mr-2 ${primaryAccentText}`} />Focus Log</h2>
-                {focusHistory.length === 0 ? <p className={`${subheadingClass} text-sm italic text-center py-4`}>No completed sessions yet.</p> :
-                  <div className="max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 pr-2">
-                    <div className="space-y-3">
-                      {focusHistory.map(session => (
-                        <div key={session.id} className={`p-3 rounded-lg shadow-md border ${session.status === 'cancelled' ? (isDarkMode ? 'bg-red-900/20 border-red-700/30' : 'bg-red-50/70 border-red-200/50') : (isDarkMode ? 'bg-gray-800/50 border-gray-700/50' : 'bg-gray-50/70 border-gray-200/50')}`}>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2 text-xs">
-                                <div className="col-span-2">
-                                    <p className={`font-semibold truncate ${headingClass}`} title={session.timerName || (session.type === 'pomodoro' ? 'Pomodoro' : 'Custom')}>{session.timerName || (session.type === 'pomodoro' ? 'Pomodoro' : 'Custom')}</p>
-                                    {session.status === 'cancelled' && <span className="text-[10px] text-red-500">(Cancelled)</span>}
-                                </div>
-                                <div className="flex items-center gap-1.5"><TimerIcon className="w-3.5 h-3.5" /><span className="font-medium">{formatTime(session.accumulatedFocusSeconds || 0)}</span></div>
-                                <div className="flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5" /><span className="font-medium">{session.createdAt?.toDate().toLocaleDateString()}</span></div>
-                                <div className="col-span-full md:col-span-2 flex items-center gap-1.5" title={`Energy Levels (Pre/Post)`}>
-                                    <BatteryCharging className="w-3.5 h-3.5 text-green-500" />
-                                    <span className="font-medium">{session.preFocusCheckIn?.energyLevel || 'N/A'} → {session.postSessionFeedback?.energyLevel || 'N/A'}</span>
-                                </div>
-                                <div className="flex items-center gap-1.5 font-medium text-yellow-500 dark:text-yellow-400">{session.xpEarned && session.xpEarned > 0 ? <><StarIcon className="w-3.5 h-3.5" /> +{session.xpEarned} Pts</> : ''}</div>
-                                {(session.sessionGoalText || session.linkedItemName) && <div className="col-span-full border-t border-dashed border-gray-300 dark:border-gray-700 pt-2 mt-2 space-y-1 text-[11px] text-gray-500 dark:text-gray-400">
-                                {session.sessionGoalText && <p className="flex items-center gap-1.5"><Target className="w-3 h-3"/> Goal: {session.sessionGoalText} {session.sessionGoalAchieved === true ? '✅' : session.sessionGoalAchieved === false ? '❌' : ''}</p>}
-                                {session.linkedItemName && <p className="flex items-center gap-1.5"><Link2 className="w-3 h-3"/> Linked: {session.linkedItemName}</p>}
-                                </div>}
-                            </div>
-                        </div>
-                      ))}
+                      })}
+                    </div>
+
+                    {/* Current Session Mode Info */}
+                    <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)] bg-[var(--bg-highlight)] rounded-xl px-3 py-2">
+                      <span className="font-medium text-[var(--bg-accent)]">
+                        {SESSION_MODES[currentSessionMode]?.name}
+                      </span>
+                      <span className="text-xs">•</span>
+                      <span className="text-xs">{SESSION_MODES[currentSessionMode]?.description}</span>
                     </div>
                   </div>
-                }
+
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    {/* AI Suggestions Button */}
+                    <button
+                      onClick={generateAISuggestions}
+                      disabled={isAIAnalyzing || !focusHistory.length}
+                      className={`p-2 sm:p-3 rounded-2xl shadow-lg transition-all duration-300 transform hover:scale-105 ${
+                        isAIAnalyzing
+                          ? 'bg-[var(--bg-accent)] text-[var(--text-white)] animate-pulse'
+                          : 'bg-[var(--bg-accent)] text-[var(--text-white)] hover:bg-[var(--bg-accent-secondary)]'
+                      }`}
+                      title="Get AI-powered session recommendations"
+                    >
+                      {isAIAnalyzing ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" /> : <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />}
+                    </button>
+
+                    {/* Settings & Fullscreen */}
+                    <button
+                      onClick={() => setShowSettingsModal(true)}
+                      className={`p-2 sm:p-3 rounded-2xl shadow-lg transition-all duration-300 transform hover:scale-105 ${
+                        isDarkMode
+                          ? 'bg-[var(--bg-primary)]/80 text-[var(--text-secondary)] hover:bg-[var(--interactive-hover)]'
+                          : 'bg-[var(--bg-primary)]/80 text-[var(--text-secondary)] hover:bg-[var(--interactive-hover)]'
+                      }`}
+                      title="Timer Settings"
+                    >
+                      <Settings2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                    </button>
+                    <button
+                      onClick={toggleFullscreen}
+                      className={`p-2 sm:p-3 rounded-2xl shadow-lg transition-all duration-300 transform hover:scale-105 ${
+                        isDarkMode
+                          ? 'bg-[var(--bg-primary)]/80 text-[var(--text-secondary)] hover:bg-[var(--interactive-hover)]'
+                          : 'bg-[var(--bg-primary)]/80 text-[var(--text-secondary)] hover:bg-[var(--interactive-hover)]'
+                      }`}
+                      title="Enter Fullscreen"
+                    >
+                      <Maximize2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                    </button>
+                  </div>
+                </div>
+              </header>
+
+              {/* Session Stats - Top Section */}
+              <motion.div
+                className="mb-4 md:mb-6 bg-[var(--bg-card)] backdrop-blur-xl rounded-2xl p-3 md:p-4 shadow-xl border border-[var(--border-primary)] overflow-hidden"
+                whileHover={{ scale: 1.01 }}
+                transition={{ type: "spring", stiffness: 300 }}
+              >
+                <h3 className="text-sm md:text-base font-semibold text-[var(--text-secondary)] flex items-center gap-2 mb-3">
+                  <TrendingUp className="w-3.5 h-3.5 md:w-4 md:h-4 text-[var(--bg-accent)]" />
+                  Your Stats
+                </h3>
+
+                <div className="space-y-3">
+                  {/* Performance Metrics */}
+                  {focusHistory.length > 0 && (
+                    <div className="p-2 bg-[var(--bg-highlight)]  rounded-xl border border-[var(--border-primary)]">
+                      <h4 className="text-xs font-medium text-[var(--bg-accent)] mb-1.5 flex items-center gap-1">
+                        <BarChart3 className="w-3 h-3" />
+                        Performance Insights
+                      </h4>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <span className="text-[var(--bg-accent)]">Avg Session:</span>
+                          <span className="font-medium text-[var(--bg-accent)] ml-1">
+                            {Math.round(focusHistory.slice(0, 20).reduce((sum, s) => sum + (s.accumulatedFocusSeconds || 0), 0) / Math.min(focusHistory.length, 20) / 60)}min
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[var(--bg-accent)]">Completion:</span>
+                          <span className="font-medium text-[var(--bg-accent)] ml-1">
+                            {Math.round((focusHistory.filter(s => s.status === 'completed').length / focusHistory.length) * 100)}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div className="flex items-center justify-between p-2 bg-[var(--bg-highlight)]  rounded-xl border border-[var(--border-primary)]">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 bg-[var(--bg-accent)] rounded-lg">
+                          <Flame className="w-3.5 h-3.5 text-[var(--text-white)]" />
+                        </div>
+                        <span className="text-xs md:text-sm font-medium text-[var(--bg-accent)]">Current Streak</span>
+                      </div>
+                      <span className="text-sm md:text-base font-semibold text-[var(--bg-accent)]">{currentStreak} days</span>
+                    </div>
+
+                    <div className="flex items-center justify-between p-2 bg-[var(--bg-highlight)]  rounded-xl border border-[var(--border-primary)]">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 bg-[var(--status-info)] rounded-lg">
+                          <Target className="w-3.5 h-3.5 text-[var(--text-white)]" />
+                        </div>
+                        <span className="text-xs md:text-sm font-medium text-[var(--status-info)]">Sessions</span>
+                      </div>
+                      <span className="text-sm md:text-base font-semibold text-[var(--status-info)]">{totalSessionsCompleted}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between p-2 bg-[var(--bg-highlight)]  rounded-xl border border-[var(--border-primary)]">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 bg-[var(--status-success)] rounded-lg">
+                          <Star className="w-3.5 h-3.5 text-[var(--text-white)]" />
+                        </div>
+                        <span className="text-xs md:text-sm font-medium text-[var(--status-success)]">Achievements</span>
+                      </div>
+                      <span className="text-sm md:text-base font-semibold text-[var(--status-success)]">{earnedBadges.length}</span>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* AI Suggestions Panel */}
+              <AnimatePresence>
+                {showAISuggestions && aiSuggestions.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mb-4 md:mb-6"
+                  >
+                    <div className="bg-[var(--bg-highlight)]  backdrop-blur-sm rounded-2xl p-3 md:p-4 shadow-lg border border-[var(--border-primary)]/50">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-sm md:text-base font-semibold text-[var(--bg-accent)] flex items-center gap-2">
+                          <Brain className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                          AI Session Recommendations
+                        </h3>
+                        <button
+                          onClick={() => setShowAISuggestions(false)}
+                          className="p-1.5 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-800/50 text-[var(--bg-accent)]"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                  </div>
+                      <div className="space-y-2">
+                        {aiSuggestions.map((suggestion, index) => (
+                          <div key={index} className="flex items-start gap-2 p-2 bg-[var(--bg-primary)]/50 rounded-xl hover:bg-[var(--bg-primary)]/70 transition-colors duration-200">
+                            <div className="w-5 h-5 md:w-6 md:h-6 rounded-full bg-[var(--bg-highlight)]0 text-[var(--text-white)] flex items-center justify-center text-xs font-semibold flex-shrink-0">
+                              {index + 1}
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-xs md:text-sm text-[var(--bg-accent)] leading-relaxed">{suggestion}</p>
+                              {/* Quick Action Button */}
+                              {suggestion.toLowerCase().includes('deep work') && (
+                                <button
+                                  onClick={() => handleSessionModeChange('deep_work')}
+                                  className="mt-1.5 text-xs bg-[var(--bg-highlight)] text-[var(--bg-accent)] px-2 py-0.5 rounded-md hover:bg-[var(--interactive-hover)] transition-colors duration-200"
+                                >
+                                  Apply Deep Work Mode
+                                </button>
+                              )}
+                              {suggestion.toLowerCase().includes('quick sprint') && (
+                                <button
+                                  onClick={() => handleSessionModeChange('quick_sprint')}
+                                  className="mt-1.5 text-xs bg-green-100 dark:bg-green-800/50 text-green-600 dark:text-green-300 px-2 py-0.5 rounded-md hover:bg-green-200 dark:hover:bg-green-700/50 transition-colors duration-200"
+                                >
+                                  Apply Quick Sprint Mode
+                                </button>
+                              )}
+                              {suggestion.toLowerCase().includes('pomodoro') && (
+                                <button
+                                  onClick={() => handleSessionModeChange('pomodoro')}
+                                  className="mt-1.5 text-xs bg-red-100 dark:bg-red-800/50 text-red-600 dark:text-red-300 px-2 py-0.5 rounded-md hover:bg-red-200 dark:hover:bg-red-700/50 transition-colors duration-200"
+                                >
+                                  Apply Pomodoro Mode
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              {/* Enhanced Main Layout */}
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 md:gap-4 lg:gap-6">
+                {/* Main Timer Section */}
+                <motion.div layout className="xl:col-span-2 bg-[var(--bg-card)] backdrop-blur-xl rounded-2xl p-3 md:p-4 lg:p-6 shadow-xl border border-[var(--border-primary)] overflow-hidden">
+                  <div className="flex flex-col items-center justify-center text-center min-h-[350px] sm:min-h-[400px] md:min-h-[500px] lg:min-h-[550px] xl:min-h-[600px] 2xl:min-h-[650px] w-full">
+                    {/* Enhanced Timer Display */}
+                    <motion.div
+                      key={timeLeft + (activeSession?.status || 'idle') + "-enhanced"}
+                      initial={{ opacity: 0.8, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.3 }}
+                      className="relative mb-3 md:mb-4"
+                    >
+                      <div className={`text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl 2xl:text-7xl font-mono font-semibold mb-2 md:mb-3 tabular-nums transition-all duration-500 break-words ${
+                        (activeSession?.status === 'break_running' || activeSession?.status === 'break_paused')
+                          ? 'text-[var(--status-success)] dark:text-green-400'
+                          : `text-[var(--bg-accent)]`
+                      }`}>
+                        {formatTime(timeLeft)}
+                      </div>
+
+                      {/* Session Progress Indicator */}
+                      {activeSession && ['running', 'paused', 'break_running', 'break_paused'].includes(activeSession.status) && (
+                        <div className="absolute -bottom-1.5 md:-bottom-3 left-1/2 transform -translate-x-1/2">
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 md:px-3 md:py-1.5 bg-[var(--bg-primary)]/90 /90 backdrop-blur-sm rounded-xl shadow-lg border border-[var(--border-primary)]/50">
+                            <div className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full ${
+                              activeSession.status === 'running' ? 'bg-[var(--status-success)] animate-pulse' :
+                              activeSession.status === 'paused' ? 'bg-[var(--status-warning)]' :
+                              'bg-[var(--status-info)]'
+                            }`} />
+                            <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                              {activeSession.status === 'running' ? 'Focusing' :
+                               activeSession.status === 'paused' ? 'Paused' :
+                               activeSession.status === 'break_running' ? 'Break Time' :
+                               'Break Paused'}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </motion.div>
+
+                    {/* Session Info */}
+                    <div className="mb-3 md:mb-4 space-y-1.5 w-full max-w-full px-3">
+                      {activeSession?.status === 'running' && (
+                        <div className="flex items-center justify-center gap-2 text-sm md:text-base font-medium text-gray-700 dark:text-gray-300 max-w-full">
+                          <Target className="w-3.5 h-3.5 md:w-4 md:h-4 flex-shrink-0" />
+                          <span className="truncate max-w-full">{activeSession.linkedItemName || activeSession.timerName || "Deep Work Session"}</span>
+                        </div>
+                      )}
+                      {activeSession?.sessionGoalText && (
+                        <p className="text-xs md:text-sm italic text-gray-600 dark:text-gray-400 max-w-full px-3 break-words">
+                          🎯 {activeSession.sessionGoalText}
+                        </p>
+                      )}
+                      {activeSession?.type === 'pomodoro' && (activeSession.status === 'running' || activeSession.status === 'paused' || activeSession.status === 'break_running' || activeSession.status === 'break_paused') && (
+                        <div className="flex items-center justify-center gap-2 text-xs text-[var(--text-muted)] max-w-full">
+                          <div className="flex gap-1 flex-shrink-0">
+                            {Array.from({ length: activeSession.pomodoroCyclesGoal || pomodoroCyclesGoalSetting }, (_, i) => (
+                              <div
+                                key={i}
+                                className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full ${
+                                  i < (activeSession.currentCycle || 0)
+                                    ? 'bg-[var(--status-success)]'
+                                    : i === (activeSession.currentCycle || 0) - 1
+                                    ? 'bg-[var(--bg-highlight)]0 animate-pulse'
+                                    : 'bg-gray-300 dark:bg-gray-600'
+                                }`}
+                              />
+                            ))}
+                          </div>
+                          <span className="truncate">Cycle {displayCycleNumber}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Mindful Break Suggestion */}
+                    <AnimatePresence>
+                      {currentMindfulSuggestion && (activeSession?.status === 'break_running' || activeSession?.status === 'break_paused') && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -20 }}
+                          className="mb-4 md:mb-6 p-3 bg-[var(--bg-highlight)]  backdrop-blur-sm rounded-xl border border-[var(--border-primary)]/50 max-w-full mx-3"
+                        >
+                          <div className="flex items-center gap-2 w-full">
+                            <div className="p-1.5 bg-[var(--status-success)] rounded-full flex-shrink-0">
+                              <Coffee className="w-3.5 h-3.5 text-[var(--text-white)]" />
+                            </div>
+                            <p className="text-xs md:text-sm text-green-800 dark:text-green-200 leading-relaxed break-words flex-1">
+                              {currentMindfulSuggestion}
+                            </p>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Enhanced Control Buttons */}
+                    <div className="flex flex-wrap justify-center items-center gap-2 sm:gap-3 md:gap-4 mb-4 md:mb-6 w-full max-w-full px-3">
+                      <button
+                        onClick={handleStartPauseResume}
+                        disabled={!user || showPreFocusModal}
+                        className={`px-3 sm:px-5 md:px-6 py-2 sm:py-2.5 md:py-3 text-sm sm:text-base md:text-base font-semibold rounded-xl transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-lg flex items-center gap-1.5 md:gap-2 flex-shrink-0 ${
+                          (!activeSession || ['idle', 'paused', 'break_paused', 'completed', 'cancelled'].includes(activeSession.status))
+                            ? 'bg-indigo-600 text-[var(--text-white)] hover:bg-indigo-700'
+                            : 'bg-[var(--status-warning)] text-[var(--text-white)] hover:bg-yellow-600'
+                        } disabled:opacity-50`}
+                      >
+                        {(!activeSession || ['idle', 'completed', 'cancelled'].includes(activeSession.status)) && (
+                          <>
+                            <Play className="w-4 h-4 md:w-5 md:h-5" />
+                            <span className="hidden sm:inline">Start {SESSION_MODES[currentSessionMode]?.name}</span>
+                            <span className="sm:hidden">Start</span>
+                          </>
+                        )}
+                        {(activeSession?.status === 'running' || activeSession?.status === 'break_running') && (
+                          <>
+                            <Pause className="w-4 h-4 md:w-5 md:h-5" />
+                            Pause
+                          </>
+                        )}
+                        {(activeSession?.status === 'paused' || activeSession?.status === 'break_paused') && (
+                          <>
+                            <Play className="w-4 h-4 md:w-5 md:h-5" />
+                            Resume
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        onClick={handleReset}
+                        disabled={!activeSession || activeSession.status === 'idle' || !activeSession?.id}
+                        className="px-2.5 sm:px-4 md:px-5 py-2 sm:py-2.5 md:py-3 rounded-xl transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-lg bg-gray-500 text-[var(--text-white)] hover:bg-gray-600 disabled:opacity-50 flex items-center gap-1.5 flex-shrink-0"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-4 md:h-4" />
+                        <span className="hidden sm:inline text-sm">Reset</span>
+                      </button>
+
+                      {activeSession?.type === 'pomodoro' && (activeSession?.status === 'break_running' || activeSession?.status === 'break_paused') && (
+                        <button
+                          onClick={handleSkipBreak}
+                          className="px-2.5 sm:px-4 md:px-5 py-2 sm:py-2.5 md:py-3 rounded-xl transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-lg bg-[var(--status-success)] text-[var(--text-white)] hover:bg-[var(--status-success)]/80 flex items-center gap-1.5 flex-shrink-0"
+                        >
+                          <SkipForward className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-4 md:h-4" />
+                          <span className="hidden sm:inline text-sm">Skip Break</span>
+                          <span className="sm:hidden text-sm">Skip</span>
+                        </button>
+                      )}
+                    </div>
+
+                                            {/* Session Configuration */}
+                        {(!activeSession || ['idle', 'completed', 'cancelled'].includes(activeSession.status)) && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="w-full max-w-full px-3 space-y-3 md:space-y-4"
+                          >
+
+                            {/* Custom Timer Settings */}
+                            {currentSessionMode === 'custom' && (
+                              <div className="space-y-3 p-3 bg-[var(--bg-highlight)]  rounded-xl border border-[var(--border-primary)] w-full max-w-full">
+                                <h4 className="text-xs md:text-sm font-medium text-[var(--bg-accent)] flex items-center gap-2">
+                                  <Settings2 className="w-3.5 h-3.5 flex-shrink-0" />
+                                  Custom Session Settings
+                                </h4>
+                                <div className="grid grid-cols-3 gap-2 w-full">
+                                  <div className="min-w-0">
+                                    <label className="block text-xs font-medium text-[var(--bg-accent)] mb-1">Work</label>
+                                    <input
+                                      type="number"
+                                      value={Math.floor(pomodoroWorkSetting / 60)}
+                                      onChange={(e) => setPomodoroWorkSetting(Math.max(1, parseInt(e.target.value) || 0) * 60)}
+                                      className="w-full p-1.5 rounded-lg border-2 border-[var(--border-primary)] bg-[var(--bg-card)]  text-[var(--text-secondary)] text-xs focus:ring-2 focus:ring-[var(--bg-accent)]"
+                                      min="1"
+                                      max="180"
+                                    />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <label className="block text-xs font-medium text-[var(--bg-accent)] mb-1">Break</label>
+                                    <input
+                                      type="number"
+                                      value={Math.floor(pomodoroShortBreakSetting / 60)}
+                                      onChange={(e) => setPomodoroShortBreakSetting(Math.max(1, parseInt(e.target.value) || 0) * 60)}
+                                      className="w-full p-1.5 rounded-lg border-2 border-[var(--border-primary)] bg-[var(--bg-card)]  text-[var(--text-secondary)] text-xs focus:ring-2 focus:ring-[var(--bg-accent)]"
+                                      min="1"
+                                      max="30"
+                                    />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <label className="block text-xs font-medium text-[var(--bg-accent)] mb-1">Cycles</label>
+                                    <input
+                                      type="number"
+                                      value={pomodoroCyclesGoalSetting}
+                                      onChange={(e) => setPomodoroCyclesGoalSetting(Math.max(1, parseInt(e.target.value) || 0))}
+                                      className="w-full p-1.5 rounded-lg border-2 border-[var(--border-primary)] bg-[var(--bg-card)]  text-[var(--text-secondary)] text-xs focus:ring-2 focus:ring-[var(--bg-accent)]"
+                                      min="1"
+                                      max="10"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                                                {/* Enhanced Goal Tracking */}
+                        <div className="space-y-3 w-full max-w-full">
+                          <div className="w-full">
+                            <label className="block text-xs md:text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                              🎯 Session Goal (Optional)
+                            </label>
+                            <input
+                              type="text"
+                              value={sessionGoalText}
+                              onChange={handleSessionGoalTextChange}
+                              placeholder="e.g., Complete math homework, Write 500 words, Study for 2 hours"
+                              className="w-full p-2 md:p-3 rounded-xl border-2 border-[var(--border-primary)] bg-[var(--bg-highlight)]  text-[var(--text-secondary)] placeholder-[var(--text-muted)] focus:ring-2 focus:ring-[var(--bg-accent)] focus:border-transparent transition-all duration-200 shadow-sm text-sm"
+                            />
+                          </div>
+
+
+
+                        {/* Link to External Task */}
+                        <div>
+                          <label className="block text-xs md:text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                            Link to Task
+                          </label>
+                          <select
+                            value={selectedLinkedItemId && selectedLinkedItemType ? `${selectedLinkedItemId}::${selectedLinkedItemType}` : ""}
+                            onChange={handleLinkItemChange}
+                            className="w-full p-2 md:p-3 rounded-xl border-2 border-[var(--border-primary)] bg-[var(--bg-highlight)]  text-[var(--text-secondary)] focus:ring-2 focus:ring-[var(--bg-accent)] focus:border-transparent transition-all duration-200 shadow-sm text-sm"
+                          >
+                        <option value="">-- Select an item --</option>
+                            {userProductivityItems.filter(item => item.type === 'task' || item.type === 'goal' || item.type === 'event').map(item => (
+                              <option key={`${item.id}::${item.type}`} value={`${item.id}::${item.type}`}>
+                                {item.type.charAt(0).toUpperCase() + item.type.slice(1)}: {item.name}
+                              </option>
+                            ))}
+                    </select>
+                  </div>
+
+                        {/* Session Notes */}
+                        <div>
+                          <label className="block text-xs md:text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                            Session Notes
+                          </label>
+                          <textarea
+                            rows={2}
+                            value={sessionNotes}
+                            onChange={handleSessionNotesChange}
+                            placeholder="Key insights, blockers, or preparation notes..."
+                            className="w-full p-2 md:p-3 rounded-xl border-2 border-[var(--border-primary)] bg-[var(--bg-highlight)]  text-[var(--text-secondary)] placeholder-[var(--text-muted)] focus:ring-2 focus:ring-[var(--bg-accent)] focus:border-transparent transition-all duration-200 shadow-sm resize-none text-sm"
+                          />
+                        </div>
+                      </div>
+                    </motion.div>
+                    )}
+                  </div>
+
+                  {/* Focus Log Section */}
+                  <motion.div
+                    className="mt-3 md:mt-4 bg-gradient-to-br from-green-50/80 to-emerald-50/80 dark:from-green-900/20 dark:to-emerald-900/20 backdrop-blur-xl rounded-xl p-3 md:p-4 shadow-lg border border-[var(--border-primary)] overflow-hidden"
+                    whileHover={{ scale: 1.01 }}
+                    transition={{ type: "spring", stiffness: 300 }}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm md:text-base font-semibold text-green-800 dark:text-green-200 flex items-center gap-1.5">
+                        <History className="w-3.5 h-3.5 md:w-4 md:h-4 text-green-600" />
+                        Focus Log
+                      </h3>
+                      <button
+                        onClick={() => setShowFocusLog(!showFocusLog)}
+                        className="p-1.5 rounded-lg bg-green-100 dark:bg-green-800/50 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-700/50 transition-all duration-200"
+                      >
+                        {showFocusLog ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+
+                    <AnimatePresence>
+                      {showFocusLog && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="space-y-2"
+                        >
+                          {/* Session History */}
+                          <div className="space-y-2 max-h-48 overflow-y-auto">
+                            {focusSessions.slice(0, 8).map((session) => (
+                              <div key={session.id} className="p-2 bg-[var(--bg-primary)]/70 dark:bg-[var(--bg-primary)]/70 rounded-lg border border-[var(--border-primary)]">
+                                <div className="flex items-center justify-between mb-1.5">
+                                  <div className="flex items-center gap-1.5">
+                                    <div className={`w-1.5 h-1.5 rounded-full ${
+                                      session.status === 'completed' ? 'bg-[var(--status-success)]' :
+                                      session.status === 'cancelled' ? 'bg-[var(--status-error)]' : 'bg-[var(--status-warning)]'
+                                    }`} />
+                                    <span className="font-medium text-xs md:text-sm text-gray-700 dark:text-gray-300 truncate max-w-[120px] sm:max-w-none">
+                                      {session.timerName || (session.type === 'pomodoro' ? 'Pomodoro' : 'Custom Timer')}
+                                    </span>
+                                  </div>
+                                  <span className="text-xs text-[var(--text-muted)] whitespace-nowrap">
+                                    {session.endTime && session.startTime ? formatTime((session.endTime.toDate() - session.startTime.toDate()) / 1000) : 'Ongoing'}
+                                  </span>
+                                </div>
+                                {session.sessionGoalText && (
+                                  <p className="text-xs text-gray-600 dark:text-gray-400 mb-1 truncate">
+                                    🎯 {session.sessionGoalText}
+                                  </p>
+                                )}
+                                {session.notes && (
+                                  <p className="text-xs text-[var(--text-muted)] italic truncate">
+                                    📝 {session.notes}
+                                  </p>
+                                )}
+                              </div>
+                            ))}
+                            {focusSessions.length === 0 && (
+                              <div className="text-center py-3 text-[var(--text-muted)]">
+                                <History className="w-6 h-6 mx-auto mb-1.5 opacity-50" />
+                                <p className="text-xs">No focus sessions yet</p>
+                                <p className="text-xs">Complete your first session to see your log</p>
+                              </div>
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+
+                  {/* Multiple Custom Timers Section */}
+                  <motion.div
+                    className="mt-3 md:mt-4 bg-gradient-to-br from-purple-50/80 to-indigo-50/80 dark:from-purple-900/20 dark:to-indigo-900/20 backdrop-blur-xl rounded-xl p-3 md:p-4 shadow-lg border border-[var(--border-primary)] overflow-hidden"
+                    whileHover={{ scale: 1.01 }}
+                    transition={{ type: "spring", stiffness: 300 }}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm md:text-base font-semibold text-[var(--bg-accent)] flex items-center gap-1.5">
+                        <TimerIcon className="w-3.5 h-3.5 md:w-4 md:h-4 text-[var(--bg-accent)]" />
+                        Custom Timers
+                      </h3>
+                      <button
+                        onClick={() => setShowCustomTimers(!showCustomTimers)}
+                        className="p-1.5 rounded-lg bg-purple-100 dark:bg-purple-800/50 text-[var(--bg-accent)] dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-700/50 transition-all duration-200"
+                      >
+                        {showCustomTimers ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+
+                    <AnimatePresence>
+                      {showCustomTimers && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="space-y-2"
+                        >
+                          {/* Add New Timer Button */}
+                          <button
+                            onClick={() => {
+                              setEditingTimer(null);
+                              setNewTimerName('');
+                              setNewTimerDuration(25);
+                              setNewTimerSoundId('none');
+                              setShowAddTimerModal(true);
+                            }}
+                            className="w-full p-2 rounded-lg bg-purple-100 dark:bg-purple-800/50 text-[var(--bg-accent)] dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-700/50 transition-all duration-200 flex items-center justify-center gap-1.5"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span className="font-medium text-sm">Create New Timer</span>
+                          </button>
+
+                          {/* Custom Timers List */}
+                          <div className="space-y-2 max-h-48 overflow-y-auto">
+                            {customTimers.map((timer) => {
+                              const timerSound = AMBIENT_SOUND_FILES.find(s => s.id === timer.data.ambientSoundId);
+                              return (
+                                <div key={timer.id} className="p-2 bg-[var(--bg-primary)]/70 dark:bg-[var(--bg-primary)]/70 rounded-lg border border-[var(--border-primary)]/50">
+                                  <div className="flex items-center justify-between mb-1.5">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-medium text-xs md:text-sm text-gray-700 dark:text-gray-300 truncate max-w-[100px] sm:max-w-none">
+                                        {timer.data.name}
+                                      </span>
+                                      {timerSound && timerSound.id !== 'none' && (
+                                        <div className="flex items-center gap-1 text-xs text-[var(--bg-accent)] dark:text-purple-400">
+                                          <Headphones className="w-3 h-3" />
+                                          <span className="hidden sm:inline">{timerSound.name}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-xs text-[var(--text-muted)] whitespace-nowrap">
+                                        {formatTime(timer.data.time)}
+                                      </span>
+                                      <button
+                                        onClick={() => handleStartCustomTimer(timer)}
+                                        className="p-1 rounded-md bg-[var(--bg-accent)] text-[var(--text-white)] hover:bg-[var(--bg-accent-secondary)] transition-all duration-200"
+                                        title="Start Timer"
+                                      >
+                                        <Play className="w-3 h-3" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleEditCustomTimer(timer)}
+                                        className="p-1 rounded-md bg-[var(--status-info)] text-[var(--text-white)] hover:bg-[var(--status-info)]/80 transition-all duration-200"
+                                        title="Edit Timer"
+                                      >
+                                        <Edit className="w-3 h-3" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteCustomTimer(timer.id)}
+                                        className="p-1 rounded-md bg-[var(--status-error)] text-[var(--text-white)] hover:bg-red-600 transition-all duration-200"
+                                        title="Delete Timer"
+                                      >
+                                        <Trash className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {customTimers.length === 0 && (
+                              <div className="text-center py-3 text-[var(--text-muted)]">
+                                <TimerIcon className="w-6 h-6 mx-auto mb-1.5 opacity-50" />
+                                <p className="text-xs">No custom timers yet</p>
+                                <p className="text-xs">Create your first custom timer to get started</p>
+                              </div>
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+                </motion.div>
+                {/* Enhanced Sidebar */}
+                <div className="xl:col-span-1 space-y-3">
+                  {/* Combined Ambient Sounds Controls */}
+                  <motion.div
+                    className="bg-[var(--bg-card)] backdrop-blur-xl rounded-2xl p-3 md:p-4 shadow-lg border border-[var(--border-primary)] overflow-hidden"
+                    whileHover={{ scale: 1.01 }}
+                    transition={{ type: "spring", stiffness: 300 }}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm md:text-base font-semibold text-[var(--text-secondary)] flex items-center gap-1.5">
+                        <Headphones className="w-3.5 h-3.5 md:w-4 md:h-4 text-indigo-600" />
+                        Ambient Sounds
+                      </h3>
+                      <div className="flex items-center gap-2">
+                        {/* Smart Mode Toggle */}
+                        <button
+                          onClick={() => setAdaptiveAmbientEnabled(!adaptiveAmbientEnabled)}
+                          className={`p-2 rounded-xl transition-all duration-200 ${
+                            adaptiveAmbientEnabled
+                              ? 'bg-[var(--bg-highlight)] text-[var(--bg-accent)]'
+                              : 'bg-[var(--bg-highlight)] text-[var(--text-muted)]'
+                          }`}
+                          title="Smart ambient mode adapts to your session"
+                        >
+                          <Zap className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Sound Controls */}
+                    <div className="space-y-3 mb-4">
+                      {selectedAmbientSoundInfo && selectedAmbientSoundInfo.id !== 'none' && selectedAmbientSoundInfo.src && (
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={toggleSoundPlay}
+                            className={`p-2 rounded-2xl transition-all duration-200 transform hover:scale-110 ${
+                              isSoundPlaying
+                                ? 'bg-[var(--status-success)] text-[var(--text-white)]'
+                                : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                            }`}
+                          >
+                            {isSoundPlaying ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                          </button>
+                          <div className="flex flex-col items-center">
+                            <input
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.01"
+                              value={ambientVolume}
+                              onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                              className="w-20 h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 dark:bg-gray-700 accent-indigo-500"
+                            />
+                            <span className="text-xs text-[var(--text-muted)] mt-1">
+                              {Math.round(ambientVolume * 100)}%
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Spotify and YouTube Direct Options */}
+                    <div className="mb-3">
+                      <label className="block text-xs md:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        External Sources
+                      </label>
+                      <div className="flex gap-1.5 mb-2">
+                                                <button
+                          onClick={() => handleAmbientModeChange('spotify')}
+                          className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs md:text-sm font-medium transition-all duration-200 flex-1 justify-center hover:scale-105 ${
+                            currentAmbientMode === 'spotify'
+                              ? 'bg-green-100 dark:bg-green-800/50 text-green-600 dark:text-green-300 shadow-sm'
+                              : 'bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 hover:bg-gray-200/50 dark:hover:bg-gray-700/70'
+                          }`}
+                        >
+                          <Music className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Spotify</span>
+                          <span className="sm:hidden">S</span>
+                        </button>
+                              <button
+                          onClick={() => handleAmbientModeChange('youtube')}
+                          className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs md:text-sm font-medium transition-all duration-200 flex-1 justify-center hover:scale-105 ${
+                            currentAmbientMode === 'youtube'
+                              ? 'bg-red-100 dark:bg-red-800/50 text-red-600 dark:text-red-300 shadow-sm'
+                              : 'bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 hover:bg-gray-200/50 dark:hover:bg-gray-700/70'
+                          }`}
+                        >
+                          <Youtube className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">YouTube</span>
+                          <span className="sm:hidden">Y</span>
+                              </button>
+                          </div>
+
+                      {/* Spotify/YouTube URL Input */}
+                      {(currentAmbientMode === 'spotify' || currentAmbientMode === 'youtube') && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          className="mb-2"
+                        >
+                          <input
+                            type="url"
+                            value={currentAmbientMode === 'spotify' ? spotifyPlaylistUrl : youtubeVideoUrl}
+                            onChange={(e) => currentAmbientMode === 'spotify' ? setSpotifyPlaylistUrl(e.target.value) : setYoutubeVideoUrl(e.target.value)}
+                            placeholder={currentAmbientMode === 'spotify' ? 'Spotify playlist URL' : 'YouTube video URL'}
+                            className="w-full px-2 py-1.5 bg-[var(--bg-highlight)] dark:bg-[var(--bg-highlight)] border border-[var(--border-primary)] rounded-lg text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-[var(--bg-accent)]"
+                          />
+                        </motion.div>
+                      )}
+                    </div>
+
+                    {/* Enhanced Sound Grid */}
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {AMBIENT_SOUND_FILES.map(sound => {
+                        const IconComponent = sound.icon;
+                        const isSelected = selectedAmbientSoundInfo?.id === sound.id;
+                        return (
+                          <button
+                            key={sound.id}
+                            onClick={() => handleAmbientSoundChange(sound.id)}
+                            title={sound.name}
+                            className={`p-3 rounded-2xl flex flex-col items-center justify-center aspect-square transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 ${
+                              isSelected
+                                ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-[var(--text-white)] shadow-lg scale-105 ring-indigo-300'
+                                : 'bg-gray-100 dark:bg-[var(--bg-primary)] hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 ring-gray-300'
+                            } ${sound.id === 'none' && !isSelected && 'opacity-60'}`}
+                          >
+                            <IconComponent className="w-5 h-5 mb-2" />
+                            <span className="text-xs font-medium text-center leading-tight break-words">
+                              {sound.name}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+
+
+
+
+
+
+
+                  {/* Gamification - Streak & Badges */}
+                  {earnedBadges.length > 0 && (
+                    <motion.div
+                      className="bg-[var(--bg-primary)]/80 backdrop-blur-xl rounded-2xl p-3 md:p-4 shadow-lg border border-[var(--border-primary)]/50 overflow-hidden"
+                      whileHover={{ scale: 1.01 }}
+                      transition={{ type: "spring", stiffness: 300 }}
+                    >
+                      <h3 className="text-sm md:text-base font-semibold text-[var(--text-secondary)] flex items-center gap-2 mb-3">
+                        <Trophy className="w-3.5 h-3.5 md:w-4 md:h-4 text-yellow-600" />
+                        Recent Badges
+                      </h3>
+
+                      <div className="grid grid-cols-3 gap-2">
+                        {earnedBadges.slice(0, 6).map(badgeKey => {
+                          const badge = FOCUS_BADGES_CONFIG[badgeKey];
+                          if (!badge) return null;
+                          const IconComponent = badge.icon;
+                          return (
+                            <div key={badgeKey} className="flex flex-col items-center p-2 bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 rounded-xl border border-yellow-200/50 dark:border-yellow-700/50 hover:scale-105 transition-transform duration-200">
+                              <div className={`p-1.5 bg-gradient-to-r ${badge.color} rounded-lg mb-1.5 shadow-sm`}>
+                                <IconComponent className="w-3.5 h-3.5 text-[var(--text-white)]" />
+                              </div>
+                              <span className="text-xs font-medium text-yellow-700 dark:text-yellow-300 text-center leading-tight">
+                                {badge.name}
+                              </span>
+                            </div>
+                          );
+                        })}
+                        {earnedBadges.length === 0 && (
+                          <div className="col-span-3 text-center text-xs text-[var(--text-muted)] py-3">
+                            Complete sessions to earn badges!
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
               </div>
+
+
             </motion.div>
           )}
         </AnimatePresence>
@@ -2746,7 +4991,7 @@ Assistant:`;
 
       <AnimatePresence>
           {showSettingsModal && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 dark:bg-black/60 backdrop-blur-sm">
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--overlay-dark)] dark:bg-[var(--overlay-dark)] backdrop-blur-sm">
                   <motion.div initial="hidden" animate="visible" exit="exit" variants={modalVariants} className={`${cardClass} rounded-xl p-6 w-full max-w-md`}>
                       <div className="flex justify-between items-center mb-6">
                           <h3 className={`text-xl font-semibold ${headingClass}`}>Pomodoro Settings</h3>
@@ -2777,44 +5022,9 @@ Assistant:`;
                   </motion.div>
               </div>
           )}
-          {showCustomTimerModal && (
-               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 dark:bg-black/60 backdrop-blur-sm">
-                  <motion.div initial="hidden" animate="visible" exit="exit" variants={modalVariants} className={`${cardClass} rounded-xl p-6 w-full max-w-md`}>
-                      <div className="flex justify-between items-center mb-6">
-                          <h3 className={`text-xl font-semibold ${headingClass}`}>{editingCustomTimer ? 'Edit' : 'Add'} Timer</h3>
-                          <button onClick={() => setShowCustomTimerModal(false)} className={iconColor}><X className="w-5 h-5"/></button>
-                      </div>
-                      <div className="space-y-4">
-                          <div>
-                              <label htmlFor="timer-name" className={`block text-sm font-medium mb-1 ${subheadingClass}`}>Timer Name</label>
-                              <input id="timer-name" type="text" value={newCustomTimerName} onChange={e => setNewCustomTimerName(e.target.value)} className={`${inputBg} w-full p-2.5 rounded-lg text-sm`} placeholder="e.g. Quick Sprint"/>
-                          </div>
-                          <div>
-                            <label className={`block text-sm font-medium mb-1 ${subheadingClass}`}>Duration</label>
-                            <div className="grid grid-cols-3 gap-2">
-                                <input type="number" min="0" value={newCustomTimerHours} onChange={e => setNewCustomTimerHours(Number(e.target.value))} className={`${inputBg} w-full p-2.5 rounded-lg text-sm text-center`} placeholder="H"/>
-                                <input type="number" min="0" max="59" value={newCustomTimerMinutes} onChange={e => setNewCustomTimerMinutes(Number(e.target.value))} className={`${inputBg} w-full p-2.5 rounded-lg text-sm text-center`} placeholder="M"/>
-                                <input type="number" min="0" max="59" value={newCustomTimerSeconds} onChange={e => setNewCustomTimerSeconds(Number(e.target.value))} className={`${inputBg} w-full p-2.5 rounded-lg text-sm text-center`} placeholder="S"/>
-                            </div>
-                          </div>
-                          <div>
-                              <label htmlFor="timer-sound" className={`block text-sm font-medium mb-1 ${subheadingClass}`}>Link Ambient Sound (Optional)</label>
-                              <select id="timer-sound" value={newCustomTimerSound} onChange={e => setNewCustomTimerSound(e.target.value)} className={`${inputBg} w-full p-2.5 rounded-lg text-sm`}>
-                                  {AMBIENT_SOUND_FILES.map(sound => (
-                                    <option key={sound.id} value={sound.id}>{sound.name}</option>
-                                  ))}
-                              </select>
-                          </div>
-                      </div>
-                      <div className="flex justify-end gap-3 mt-8">
-                          <button onClick={() => setShowCustomTimerModal(false)} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${buttonSecondaryClass}`}>Cancel</button>
-                          <button onClick={handleSaveCustomTimer} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${buttonPrimaryClass}`}>{editingCustomTimer ? 'Save Changes' : 'Add Timer'}</button>
-                      </div>
-                  </motion.div>
-              </div>
-          )}
+
           {showPreFocusModal && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 dark:bg-black/60 backdrop-blur-sm">
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--overlay-dark)] dark:bg-[var(--overlay-dark)] backdrop-blur-sm">
                   <motion.div initial="hidden" animate="visible" exit="exit" variants={modalVariants} className={`${cardClass} rounded-xl p-6 w-full max-w-lg text-center`}>
                       <h3 className={`text-2xl font-semibold mb-2 ${headingClass}`}>Ready to Focus?</h3>
                       <p className={`text-sm mb-6 ${subheadingClass}`}>A quick check-in can improve your session.</p>
@@ -2824,7 +5034,7 @@ Assistant:`;
                               <div className="flex justify-center gap-4">
                                   {(['good', 'okay', 'bad'] as const).map(mood => (
                                       <button key={mood} onClick={() => setPreFocusMood(mood)} className={`p-3 rounded-full transition-all duration-200 ${preFocusMood === mood ? 'scale-110 shadow-lg' : 'opacity-60 hover:opacity-100'}`}>
-                                          {mood === 'good' && <Smile className={`w-8 h-8 ${preFocusMood === 'good' ? 'text-green-500' : iconColor}`} />}
+                                          {mood === 'good' && <Smile className={`w-8 h-8 ${preFocusMood === 'good' ? 'text-[var(--status-success)]' : iconColor}`} />}
                                           {mood === 'okay' && <Meh className={`w-8 h-8 ${preFocusMood === 'okay' ? 'text-yellow-500' : iconColor}`} />}
                                           {mood === 'bad' && <Frown className={`w-8 h-8 ${preFocusMood === 'bad' ? 'text-red-500' : iconColor}`} />}
                                       </button>
@@ -2844,16 +5054,16 @@ Assistant:`;
               </div>
           )}
           {showPostSessionModal && completedSessionForFeedback && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 dark:bg-black/60 backdrop-blur-sm">
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--overlay-dark)] dark:bg-[var(--overlay-dark)] backdrop-blur-sm">
                   <motion.div initial="hidden" animate="visible" exit="exit" variants={modalVariants} className={`${cardClass} rounded-xl p-6 w-full max-w-lg`}>
                       <h3 className={`text-2xl font-semibold mb-2 ${headingClass}`}>Session Complete!</h3>
                       <p className={`text-sm mb-6 ${subheadingClass}`}>How did it go? Your feedback helps you improve.</p>
                       {completedSessionForFeedback.sessionGoalText && (
-                          <div className="mb-6 p-4 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/60">
+                          <div className="mb-6 p-4 rounded-lg bg-gray-50 dark:bg-[var(--bg-primary)]/50 border border-[var(--border-primary)]/60">
                               <p className={`text-sm font-medium mb-3 ${subheadingClass}`}>Did you achieve your goal?</p>
                               <p className={`italic mb-3 ${headingClass}`}>"{completedSessionForFeedback.sessionGoalText}"</p>
                               <div className="flex justify-center gap-3">
-                                  <button onClick={() => setPostSessionGoalAchieved(true)} className={`px-4 py-2 text-sm rounded-lg flex items-center gap-2 border-2 transition-all ${postSessionGoalAchieved === true ? 'bg-green-100 dark:bg-green-800/40 border-green-400 dark:border-green-600' : `bg-transparent border-transparent hover:border-gray-300 dark:hover:border-gray-600 ${buttonSecondaryClass}`}`}><CheckCircle className="w-4 h-4 text-green-500"/> Yes</button>
+                                  <button onClick={() => setPostSessionGoalAchieved(true)} className={`px-4 py-2 text-sm rounded-lg flex items-center gap-2 border-2 transition-all ${postSessionGoalAchieved === true ? 'bg-green-100 dark:bg-green-800/40 border-green-400 dark:border-green-600' : `bg-transparent border-transparent hover:border-gray-300 dark:hover:border-gray-600 ${buttonSecondaryClass}`}`}><CheckCircle className="w-4 h-4 text-[var(--status-success)]"/> Yes</button>
                                   <button onClick={() => setPostSessionGoalAchieved(false)} className={`px-4 py-2 text-sm rounded-lg flex items-center gap-2 border-2 transition-all ${postSessionGoalAchieved === false ? 'bg-red-100 dark:bg-red-800/40 border-red-400 dark:border-red-600' : `bg-transparent border-transparent hover:border-gray-300 dark:hover:border-gray-600 ${buttonSecondaryClass}`}`}><X className="w-4 h-4 text-red-500"/> No</button>
                               </div>
                           </div>
@@ -2872,11 +5082,196 @@ Assistant:`;
                               <textarea id="reflection-notes" value={postSessionReflection} onChange={e => setPostSessionReflection(e.target.value)} rows={3} placeholder="What went well? What could be better next time?" className={`${inputBg} w-full p-2.5 rounded-lg text-sm resize-none`}></textarea>
                           </div>
                       </div>
+                      {/* AI Reflection Section */}
+                      <div className="mt-6 p-4 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-xl border border-[var(--border-primary)]/50">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-sm font-semibold text-[var(--bg-accent)] flex items-center gap-2">
+                            <Brain className="w-4 h-4" />
+                            AI Reflection
+                          </h4>
+                          <button
+                            onClick={generateAiReflection}
+                            disabled={isGeneratingReflection}
+                            className="px-3 py-1 bg-indigo-600 text-[var(--text-white)] text-xs rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 flex items-center gap-1"
+                          >
+                            {isGeneratingReflection ? (
+                              <>
+                                <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
+                                Generating...
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-3 h-3" />
+                                Generate
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        {showAiReflection && aiReflection && (
+                          <div className="space-y-3">
+                            <div className="p-3 bg-[var(--bg-primary)]/70 dark:bg-[var(--bg-primary)]/70 rounded-lg border border-[var(--border-primary)]/30">
+                              <p className="text-sm text-[var(--text-secondary)] leading-relaxed">{aiReflection}</p>
+                            </div>
+
+                            {reflectionInsights && (
+                              <div className="grid grid-cols-1 gap-2 text-xs">
+                                <div className="flex items-center gap-2 p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                                  <TrendingUp className="w-3 h-3 text-green-600" />
+                                  <span className="text-[var(--status-success)]">{reflectionInsights.productivityPattern}</span>
+                                </div>
+                                <div className="flex items-center gap-2 p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                                  <Battery className="w-3 h-3 text-blue-600" />
+                                  <span className="text-[var(--status-info)]">{reflectionInsights.energyPattern}</span>
+                                </div>
+                                <div className="flex items-center gap-2 p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                                  <Clock className="w-3 h-3 text-[var(--bg-accent)]" />
+                                  <span className="text-[var(--bg-accent)]">{reflectionInsights.timeOfDayInsight}</span>
+                                </div>
+                                <div className="flex items-center gap-2 p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+                                  <Target className="w-3 h-3 text-orange-600" />
+                                  <span className="text-orange-700 dark:text-orange-300">{reflectionInsights.streakInfo}</span>
+                                </div>
+                                <div className="flex items-center gap-2 p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
+                                  <Lightbulb className="w-3 h-3 text-yellow-600" />
+                                  <span className="text-yellow-700 dark:text-yellow-300">{reflectionInsights.improvementSuggestion}</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {!showAiReflection && !isGeneratingReflection && (
+                          <p className="text-xs text-[var(--bg-accent)]">
+                            Click "Generate" to get personalized AI insights about your focus session and patterns.
+                          </p>
+                        )}
+                      </div>
+
                       <div className="flex justify-end mt-8">
                           <button onClick={handleSubmitPostSessionFeedback} className={`px-6 py-3 rounded-lg text-base font-semibold transition-colors ${buttonPrimaryClass}`}>Submit Feedback</button>
                       </div>
                   </motion.div>
               </div>
+          )}
+
+          {/* Custom Timer Modal */}
+          {showAddTimerModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--overlay-dark)] dark:bg-[var(--overlay-dark)] backdrop-blur-sm">
+              <motion.div
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                variants={modalVariants}
+                className={`${cardClass} rounded-xl p-6 w-full max-w-md`}
+              >
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className={`text-xl font-semibold ${headingClass}`}>
+                    {editingTimer ? 'Edit Timer' : 'Create New Timer'}
+                  </h3>
+                  <button
+                    onClick={() => {
+                      setShowAddTimerModal(false);
+                      setEditingTimer(null);
+                      // Reset form fields
+                      setNewTimerName('');
+                      setNewTimerDuration(25);
+                      setNewTimerSoundId('none');
+                    }}
+                    className={iconColor}
+                  >
+                    <X className="w-5 h-5"/>
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor="timer-name" className={`block text-sm font-medium mb-1 ${subheadingClass}`}>
+                      Timer Name
+                    </label>
+                    <input
+                      id="timer-name"
+                      type="text"
+                      value={newTimerName}
+                      placeholder="e.g., Study Session, Workout, Break"
+                      className={`${inputBg} w-full p-3 rounded-lg text-sm`}
+                      onChange={(e) => setNewTimerName(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="timer-duration" className={`block text-sm font-medium mb-1 ${subheadingClass}`}>
+                      Duration (minutes)
+                    </label>
+                    <input
+                      id="timer-duration"
+                      type="number"
+                      min="1"
+                      max="180"
+                      value={newTimerDuration}
+                      className={`${inputBg} w-full p-3 rounded-lg text-sm`}
+                      onChange={(e) => setNewTimerDuration(parseInt(e.target.value) || 25)}
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="timer-sound" className={`block text-sm font-medium mb-1 ${subheadingClass}`}>
+                      Ambient Sound (Optional)
+                    </label>
+                    <select
+                      id="timer-sound"
+                      value={newTimerSoundId}
+                      className={`${inputBg} w-full p-3 rounded-lg text-sm`}
+                      onChange={(e) => setNewTimerSoundId(e.target.value)}
+                    >
+                      <option value="none">None</option>
+                      {AMBIENT_SOUND_FILES.filter(sound => sound.id !== 'none').map(sound => (
+                        <option key={sound.id} value={sound.id}>
+                          {sound.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 mt-8">
+                  <button
+                    onClick={() => {
+                      setShowAddTimerModal(false);
+                      setEditingTimer(null);
+                      // Reset form fields
+                      setNewTimerName('');
+                      setNewTimerDuration(25);
+                      setNewTimerSoundId('none');
+                    }}
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${buttonSecondaryClass}`}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (editingTimer) {
+                        handleUpdateCustomTimer(
+                          editingTimer.id,
+                          newTimerName.trim() || editingTimer.data.name,
+                          (newTimerDuration || Math.floor(editingTimer.data.time / 60)) * 60,
+                          newTimerSoundId || editingTimer.data.ambientSoundId || 'none'
+                        );
+                      } else {
+                        handleCreateCustomTimer(
+                          newTimerName.trim() || `Custom Timer ${customTimers.length + 1}`,
+                          (newTimerDuration || 25) * 60,
+                          newTimerSoundId || 'none'
+                        );
+                      }
+                    }}
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${buttonPrimaryClass}`}
+                  >
+                    {editingTimer ? 'Update Timer' : 'Create Timer'}
+                  </button>
+                </div>
+              </motion.div>
+            </div>
           )}
       </AnimatePresence>
 
@@ -2889,49 +5284,65 @@ Assistant:`;
         >
             <motion.div
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className={`fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm`}
+                className={`fixed inset-0 bg-theme-overlay-dark backdrop-blur-sm`}
                 onClick={() => setIsAiAssistantOpen(false)}
             ></motion.div>
             <motion.div
                 initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                className={`relative w-full max-w-3xl h-[90vh] sm:h-[85vh] max-h-[800px] bg-white dark:bg-[#12141D] rounded-t-2xl sm:rounded-xl shadow-2xl flex flex-col`}
+                className={`relative w-full max-w-3xl h-[90vh] sm:h-[85vh] max-h-[800px] bg-theme-card rounded-t-2xl sm:rounded-xl shadow-2xl flex flex-col`}
             >
-              <div className="p-3 border-b border-gray-200 dark:border-gray-700/80 bg-gray-50 dark:bg-[#1A1D29]/90 flex justify-between items-center flex-shrink-0 rounded-t-2xl sm:rounded-t-xl">
-                    <h3 id="ai-assistant-title" className="text-md font-semibold flex items-center gap-1.5 text-indigo-500 dark:text-indigo-400">
+              <div className={`p-3 border-b border-theme-border-primary bg-theme-highlight flex justify-between items-center flex-shrink-0 rounded-t-2xl sm:rounded-t-xl`}>
+                    <h3 id="ai-assistant-title" className="text-md font-semibold flex items-center gap-1.5 text-theme-text-primary">
                         <ZapOff className="w-4.5 h-4.5" /> Focus Agent
                     </h3>
                     <div className="flex items-center gap-1">
-                      <button onClick={() => setIsAiAssistantOpen(false)} className="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700/80 p-1 rounded-lg transition-colors" title="Focus Agent"><X className="w-4 h-4" /></button>
+                      <button onClick={() => setIsAiAssistantOpen(false)} className="text-theme-text-muted hover:text-theme-text-primary hover:bg-theme-interactive-hover p-1 rounded-lg transition-colors" title="Focus Agent"><X className="w-4 h-4" /></button>
                     </div>
                 </div>
-                <div className="flex border-b border-gray-200 dark:border-gray-700/80 flex-shrink-0">
+                <div className="flex border-b border-theme-border-primary flex-shrink-0">
                     {(['chat', 'history', 'analytics'] as const).map(tab => (
                         <button key={tab} onClick={() => setAiChatSidebarTab(tab)}
                             className={`flex-1 py-2 px-2.5 text-sm font-medium transition-all duration-150
                             ${aiChatSidebarTab === tab
-                                ? 'text-indigo-500 dark:text-indigo-400 border-b-2 border-indigo-500 dark:border-indigo-400 bg-indigo-50 dark:bg-[#1A1D29]'
-                                : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/70 hover:text-gray-700 dark:hover:text-gray-200'}`}>
+                                ? 'text-theme-white border-b-2 border-theme-solid-button bg-theme-highlight'
+                                : 'text-theme-text-muted hover:bg-theme-highlight hover:text-theme-text-primary'}`}>
                             {tab.charAt(0).toUpperCase() + tab.slice(1)}
                         </button>
                     ))}
                 </div>
                 {aiChatSidebarTab === 'chat' && (
                 <>
-                    <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent">
-                      {!conversationId && ( <div className="text-center py-8 flex flex-col items-center"><MessageCircle className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-3" /><p className="text-gray-500 dark:text-gray-400 text-sm mb-4">Start a new chat or select one from history.</p><button onClick={() => handleNewConversation()} className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 text-sm font-semibold rounded-lg hover:shadow-md transition-all duration-200 flex items-center gap-1.5 transform hover:scale-105 active:scale-100"><Plus className="w-4 h-4" /> New Chat</button></div>)}
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-theme-border-secondary scrollbar-track-transparent" style={{ backgroundColor: 'var(--bg-primary)' }}>
+                      {!conversationId && ( <div className="text-center py-8 flex flex-col items-center"><MessageCircle className="w-12 h-12 text-theme-text-primary mb-3" /><p className="text-theme-text-muted text-sm mb-4">Start a new chat or select one from history.</p><button onClick={() => handleNewConversation()} className="bg-theme-header text-theme-white px-4 py-2 text-sm font-semibold rounded-lg hover:shadow-md transition-all duration-200 flex items-center gap-1.5 transform hover:scale-105 active:scale-100"><Plus className="w-4 h-4" /> New Chat</button></div>)}
                         {conversationId && chatHistory.map((message, index) => (
                             <div key={message.id || `${message.role}-${index}`} className={`flex ${message.role === 'user' || message.role === 'system' ? 'justify-end' : 'justify-start'}`}>
-                                <div className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm shadow-sm break-words ${message.role === 'user' ? 'bg-indigo-500 text-white' : message.error ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200 border border-red-200 dark:border-red-700/60' : message.role === 'system' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-100 border border-yellow-200 dark:border-yellow-700/60 text-center mx-auto' : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700/70'}`}>
+                                {/* Show attachments above the message bubble for user messages */}
+                                {message.role === 'user' && message.attachedFilesMeta && message.attachedFilesMeta.length > 0 && (
+                                    <div className="space-y-2 mb-2 mr-auto w-fit">
+                                        {message.attachedFilesMeta.map((file, fileIndex) => (
+                                            <div key={`${message.id}-file-${file.name}-${fileIndex}`} className="mt-1">
+                                                {file.type.startsWith('image/') ? (<img src={file.base64Data ? `data:${file.type};base64,${file.base64Data}` : file.url || file.localPreviewUrl || ''} alt={file.name} className="max-w-full h-auto max-h-48 object-contain rounded-lg border border-theme-border-primary cursor-pointer" onClick={() => window.open(file.url || file.localPreviewUrl || `data:${file.type};base64,${file.base64Data}` || '', '_blank')} title={`View ${file.name}`}/>
+                                                ) : (
+                                                    <div className="flex items-center gap-2 p-2 rounded-lg border bg-theme-accent/20 border-theme-accent/40 text-theme-text-primary text-xs max-w-xs">
+                                                        <FileText className="w-4 h-4 flex-shrink-0" /> <span className="truncate flex-1" title={file.name}>{file.name} ({formatBytes(file.size)})</span>
+                                                        {file.url && (<a href={file.url} target="_blank" rel="noopener noreferrer" title="Download file" className="p-1 rounded-full hover:bg-theme-accent/30"><Download className="w-3 h-3" /></a>)}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                <div className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm shadow-md break-words ${message.role === 'user' ? 'bg-theme-solid-button text-theme-text-solid-button' : message.error ? 'bg-theme-status-error/10 text-theme-status-error border border-theme-status-error/30' : message.role === 'system' ? 'bg-theme-status-warning/10 text-theme-status-warning border border-theme-status-warning/30 text-center mx-auto' : 'bg-theme-highlight text-theme-text-primary'}`}>
                                     {message.isLoading && (
-                                        <div className="flex flex-col items-center gap-1.5 text-gray-500 dark:text-gray-400 p-1">
+                                        <div className="flex flex-col items-center gap-1.5 text-theme-text-muted p-1">
                                             {(message as any).isProcessingNotion ? (
-                                                <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                                                <div className="flex items-center gap-2 text-sm text-theme-text-secondary">
                                                     <NotionIcon className="w-4 h-4 animate-pulse" />
                                                     <span>Working with Notion...</span>
                                                 </div>
                                             ) : message.isVerifyingContent ? (
-                                                <div className="flex flex-col items-center gap-2 text-sm text-gray-600 dark:text-gray-400 p-2">
-                                                    <ShieldCheck className="w-7 h-7 text-green-500 animate-pulse" />
+                                                <div className="flex flex-col items-center gap-2 text-sm text-theme-text-secondary p-2">
+                                                    <ShieldCheck className="w-7 h-7 text-theme-status-success animate-pulse" />
                                                     <span className="font-medium">Ensuring accuracy...</span>
                                                 </div>
                                             ) : message.isSearching ? (
@@ -2943,7 +5354,7 @@ Assistant:`;
                                                 </div>
                                             ) : message.isGeneratingImage ? (
                                                 <div className="flex items-center gap-2 text-sm">
-                                                    <Palette className="w-4 h-4 animate-pulse text-purple-500" />
+                                                    <Palette className="w-4 h-4 animate-pulse text-theme-text-primary" />
                                                     <span>Creating image...</span>
                                                 </div>
                                             ) : (
@@ -2956,27 +5367,12 @@ Assistant:`;
                                         </div>
                                     )}
                                     {message.role === 'user' && (<>
-                                        {message.attachedFilesMeta && message.attachedFilesMeta.length > 0 && (
-                                        <div className="space-y-2 mb-2">
-                                            {message.attachedFilesMeta.map((file, fileIndex) => (
-                                                <div key={`${message.id}-file-${file.name}-${fileIndex}`} className="mt-1">
-                                                    {file.type.startsWith('image/') ? (<img src={file.base64Data ? `data:${file.type};base64,${file.base64Data}` : file.url || file.localPreviewUrl || ''} alt={file.name} className="max-w-full h-auto max-h-48 object-contain rounded-lg border border-indigo-200 dark:border-indigo-500/50 cursor-pointer" onClick={() => window.open(file.url || file.localPreviewUrl || `data:${file.type};base64,${file.base64Data}` || '', '_blank')} title={`View ${file.name}`}/>
-                                                    ) : (
-                                                        <div className="flex items-center gap-2 p-2 rounded-lg border bg-indigo-400/20 dark:bg-indigo-600/20 border-indigo-300 dark:border-indigo-600/40 text-indigo-100 dark:text-indigo-200 text-xs max-w-xs">
-                                                            <FileText className="w-4 h-4 flex-shrink-0" /> <span className="truncate flex-1" title={file.name}>{file.name} ({formatBytes(file.size)})</span>
-                                                            {file.url && (<a href={file.url} target="_blank" rel="noopener noreferrer" title="Download file" className="p-1 rounded-full hover:bg-indigo-300/30 dark:hover:bg-indigo-500/30"><Download className="w-3 h-3" /></a>)}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
                                         <div className="whitespace-pre-wrap">{message.content}</div>
                                     </>)}
                                     {message.role === 'assistant' && !message.isLoading && (<>
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ p: ({ node, ...props }) => <p className="mb-1 last:mb-0 leading-normal" {...props} />, ul: ({ node, ...props }) => <ul className="list-disc list-outside ml-3.5 mb-1" {...props} />, ol: ({ node, ...props }) => <ol className="list-decimal list-outside ml-3.5 mb-1" {...props} />, li: ({ node, children, ...props }) => { const isTaskListItem = typeof (node as any)?.checked === 'boolean'; if (isTaskListItem) { const filteredChildren = React.Children.toArray(children).map(child => { if (React.isValidElement(child) && child.type === 'input' && (child.props as any).type === 'checkbox') return null; return child; }).filter(Boolean); return (<li className="flex items-start mb-0.5 list-none -ml-3.5" {...props}><span className="mr-1.5 mt-0.5 flex-shrink-0">{(node as any).checked ? <CheckCircle className="w-3.5 h-3.5 text-green-500" /> : <Circle className="w-3.5 h-3.5 text-gray-400" />}</span><div className="flex-grow">{filteredChildren}</div></li>); } return <li className="mb-0.5" {...props}>{children}</li>; }, a: ({ node, ...props }) => <a className={`${primaryAccentText} hover:underline`} target="_blank" rel="noopener noreferrer" {...props} />, code: ({ node, inline, className, children, ...props }) => { const match = /language-(\w+)/.exec(className || ''); return !inline ? (<pre className={`!bg-gray-800/80 dark:!bg-black/60 p-2 rounded-md overflow-x-auto my-1.5 text-xs leading-snug text-white/90 scrollbar-thin scrollbar-thumb-gray-600 dark:scrollbar-thumb-gray-500`} {...props}><code className={`language-${match ? match[1] : 'plaintext'}`}>{String(children).replace(/\n$/, '')}</code></pre>) : (<code className={`!bg-gray-200 dark:!bg-gray-700/70 px-1 py-0.5 rounded text-pink-600 dark:text-pink-400`} {...props}>{children}</code>); }, table: ({node,...props}) => <table className="w-full border-collapse border border-gray-300 dark:border-gray-600 my-2 shadow-sm rounded-md overflow-hidden" {...props} />, thead:({node,...props})=> <thead className="bg-gray-100 dark:bg-gray-700/80" {...props} />, th:({node,...props})=> <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-semibold text-gray-700 dark:text-gray-200" {...props}/>, td:({node,...props})=> <td className="border border-gray-200 dark:border-gray-500 px-2 py-1 text-gray-600 dark:text-gray-300" {...props}/>, blockquote: ({node,...props})=> <blockquote className="border-l-4 border-indigo-500 dark:border-indigo-400 pl-3 py-1 my-1.5 text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/70 rounded-r-md italic" {...props}/> }}>{message.content || ""}</ReactMarkdown>
-                                        {message.imageUrl && message.wasImageGenerated && (<div className="relative group mt-2"><img src={message.imageUrl} alt={message.imageMeta?.name || "Generated"} className="max-w-full h-auto max-h-56 object-contain rounded-lg border border-gray-300 dark:border-gray-600 cursor-pointer" onClick={() => window.open(message.imageUrl, '_blank')} title="View full"/><button onClick={() => handleDownloadImageFromUrl(message.imageUrl!, message.imageMeta?.name)} className="absolute top-1.5 right-1.5 p-1.5 rounded-full opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-200 bg-gray-200/70 dark:bg-gray-900/70 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300" title="Download"><Download className="w-3.5 h-3.5" /></button></div>)}
-                                        {message.actionDetails && (<div className={`mt-2 pt-2 border-t border-dashed ${message.actionDetails.status === 'success' ? 'border-green-300 dark:border-green-700/60' : 'border-red-300 dark:border-red-700/60'}`}><div className={`flex items-center gap-1.5 text-xs font-medium ${message.actionDetails.status === 'success' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{message.actionDetails.status === 'success' ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}<span className="whitespace-pre-wrap">{message.actionDetails.message}</span></div></div>)}
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ p: ({ node, ...props }) => <p className="mb-1 last:mb-0 leading-normal" {...props} />, ul: ({ node, ...props }) => <ul className="list-disc list-outside ml-3.5 mb-1 text-responsive-sm" {...props} />, ol: ({ node, ...props }) => <ol className="list-decimal list-outside ml-3.5 mb-1 text-responsive-sm" {...props} />, li: ({ node, children, ...props }) => { const isTaskListItem = typeof (node as any)?.checked === 'boolean'; if (isTaskListItem) { const filteredChildren = React.Children.toArray(children).map(child => { if (React.isValidElement(child) && child.type === 'input' && (child.props as any).type === 'checkbox') return null; return child; }).filter(Boolean); return (<li className="flex items-start mb-0.5 list-none -ml-3.5" {...props}><span className="mr-1.5 mt-0.5 flex-shrink-0">{(node as any).checked ? <CheckCircle className="w-3.5 h-3.5 text-[var(--status-success)]" /> : <Circle className="w-3.5 h-3.5 text-gray-400" />}</span><div className="flex-grow">{filteredChildren}</div></li>); } return <li className="mb-0.5" {...props}>{children}</li>; }, a: ({ node, ...props }) => <a className={`${primaryAccentText} hover:underline`} target="_blank" rel="noopener noreferrer" {...props} />, code: ({ node, inline, className, children, ...props }) => { const match = /language-(\w+)/.exec(className || ''); return !inline ? (<pre className={`!bg-[var(--bg-primary)]/80 dark:!bg-[var(--overlay-dark)] p-2 rounded-md overflow-x-auto my-1.5 text-xs leading-snug text-[var(--text-white)]/90 scrollbar-thin scrollbar-thumb-gray-600 dark:scrollbar-thumb-gray-500`} {...props}><code className={`language-${match ? match[1] : 'plaintext'}`}>{String(children).replace(/\n$/, '')}</code></pre>) : (<code className={`!bg-gray-200 dark:!bg-gray-700/70 px-1 py-0.5 rounded text-pink-600 dark:text-pink-400`} {...props}>{children}</code>); }, table: ({node,...props}) => <table className="w-full border-collapse border border-[var(--border-primary)] my-2 shadow-sm rounded-md overflow-hidden" {...props} />, thead:({node,...props})=> <thead className="bg-gray-100 dark:bg-gray-700/80" {...props} />, th:({node,...props})=> <th className="border border-[var(--border-primary)] px-2 py-1 text-left font-semibold text-[var(--text-secondary)]" {...props}/>, td:({node,...props})=> <td className="border border-gray-200 dark:border-gray-500 px-2 py-1 text-[var(--text-secondary)]" {...props}/>, blockquote: ({node,...props})=> <blockquote className="border-l-4 border-indigo-500 dark:border-indigo-400 pl-3 py-1 my-1.5 text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-[var(--bg-primary)]/70 rounded-r-md italic" {...props}/> }}>{message.content || ""}</ReactMarkdown>
+                                        {message.imageUrl && message.wasImageGenerated && (<div className="relative group mt-2"><img src={message.imageUrl} alt={message.imageMeta?.name || "Generated"} className="max-w-full h-auto max-h-56 object-contain rounded-lg border border-theme-border-primary cursor-pointer" onClick={() => window.open(message.imageUrl, '_blank')} title="View full"/><button onClick={() => handleDownloadImageFromUrl(message.imageUrl!, message.imageMeta?.name)} className="absolute top-1.5 right-1.5 p-1.5 rounded-full opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-200 bg-theme-highlight hover:bg-theme-interactive-hover text-theme-text-primary" title="Download"><Download className="w-3.5 h-3.5" /></button></div>)}
+                                        {message.actionDetails && (<div className={`mt-2 pt-2 border-t border-dashed ${message.actionDetails.status === 'success' ? 'border-theme-status-success/30' : 'border-theme-status-error/30'}`}><div className={`flex items-center gap-1.5 text-xs font-medium ${message.actionDetails.status === 'success' ? 'text-theme-status-success' : 'text-theme-status-error'}`}>{message.actionDetails.status === 'success' ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}<span className="whitespace-pre-wrap">{message.actionDetails.message}</span></div></div>)}
                                     </>)}
                                     {message.role === 'system' && !message.isLoading && (<div className="whitespace-pre-wrap text-center">{message.content}</div>)}
                                 </div>
@@ -2984,67 +5380,80 @@ Assistant:`;
                         ))}
                         <div ref={chatEndRef} />
                     </div>
-                    <div className="p-3 border-t border-gray-200 dark:border-gray-700/80 bg-gray-50 dark:bg-[#1A1D29] flex-shrink-0">
+                    <div className="p-3 flex-shrink-0" style={{ backgroundColor: 'var(--bg-primary)' }}>
                         {selectedFiles.length > 0 && !isImageGenModeActive && !isSearchModeActive && (
-                            <div className="mb-2 flex flex-wrap gap-1.5 p-1.5 max-h-16 overflow-y-auto scrollbar-thin border border-dashed rounded-lg border-gray-300 dark:border-gray-600">
-                                {selectedFiles.map(file => (<div key={file.name} className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg border bg-indigo-100 dark:bg-indigo-600/20 border-indigo-200 dark:border-indigo-600/40 text-indigo-700 dark:text-indigo-300">{file.type.startsWith("image/") && file.localPreviewUrl && (<img src={file.localPreviewUrl} alt={file.name} className="w-4 h-4 rounded-sm object-cover"/>)}{!file.type.startsWith("image/") && <FileText className="w-3 h-3 flex-shrink-0" />}<span className="truncate max-w-[80px]">{file.name}</span><button type="button" onClick={() => handleRemoveFile(file.name)} className="ml-1 p-0.5 rounded-full hover:bg-indigo-200 dark:hover:bg-indigo-600/40" title="Remove"> <X className="w-2.5 h-2.5" /> </button></div>))}
+                            <div className="mb-2 flex flex-wrap gap-1.5 p-1.5 max-h-16 overflow-y-auto scrollbar-thin border border-dashed rounded-lg border-theme-border-primary">
+                                {selectedFiles.map(file => (<div key={file.name} className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg border bg-theme-accent/20 border-theme-accent/40 text-theme-text-primary">{file.type.startsWith("image/") && file.localPreviewUrl && (<img src={file.localPreviewUrl} alt={file.name} className="w-4 h-4 rounded-sm object-cover"/>)}{!file.type.startsWith("image/") && <FileText className="w-3 h-3 flex-shrink-0" />}<span className="truncate max-w-[80px]">{file.name}</span><button type="button" onClick={() => handleRemoveFile(file.name)} className="ml-1 p-0.5 rounded-full hover:bg-theme-accent/30" title="Remove"> <X className="w-2.5 h-2.5" /> </button></div>))}
                             </div>
                         )}
                         <form onSubmit={handleChatSubmit}>
-                            <div className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-2xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-400 dark:focus-within:ring-indigo-600 transition-all duration-200 flex flex-col">
-                                <AnimatePresence>{aiActionStatus && (<motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="text-center text-sm p-2 text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600/50">{aiActionStatus}</motion.div>)}</AnimatePresence>
-                                <textarea ref={textareaRef} rows={1} value={chatMessage} onChange={(e) => setChatMessage(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSubmit(); } }} onPaste={handlePaste} placeholder={isRecording ? "Listening..." : isImageGenModeActive ? "Describe the image to generate..." : !conversationId ? "Start a new chat to begin..." : "Ask anything..."} className="w-full bg-transparent text-gray-800 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 p-3.5 text-sm focus:ring-0 focus:outline-none border-0 resize-none overflow-y-auto max-h-44 leading-relaxed" disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading' || !conversationId}/>
+                            <div className="border border-theme-border-primary rounded-2xl shadow-sm focus-within:ring-2 focus-within:ring-theme-accent transition-all duration-200 flex flex-col" style={{ backgroundColor: 'var(--bg-card)' }}>
+                                <AnimatePresence>{aiActionStatus && (<motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="text-center text-sm p-2 border-b text-theme-text-muted bg-theme-highlight border-theme-border-primary">{aiActionStatus}</motion.div>)}</AnimatePresence>
+                                <textarea ref={textareaRef} rows={1} value={chatMessage} onChange={(e) => setChatMessage(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSubmit(); } }} onPaste={handlePaste} placeholder={isRecording ? "Listening..." : isImageGenModeActive ? "Describe the image to generate..." : !conversationId ? "Start a new chat to begin..." : "Ask anything..."} className="w-full bg-transparent p-3.5 text-sm focus:ring-0 focus:outline-none border-0 resize-none overflow-y-auto max-h-44 leading-relaxed text-theme-text-primary placeholder-theme-text-muted" disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading' || !conversationId}/>
                                 <div className="flex justify-between items-center px-2 py-1.5 mt-1">
                                     <div className="flex items-center gap-1">
                                         <input type="file" ref={fileInputRef} onChange={handleFileSelect} multiple accept={SUPPORTED_FILE_TYPES} className="hidden" disabled={isImageGenModeActive || isSearchModeActive || isChatLoading || isChatDisabledByLimit || !conversationId} />
-                                        <button type="button" onClick={triggerFileSelect} disabled={isImageGenModeActive || isSearchModeActive || isChatLoading || isChatDisabledByLimit || !conversationId} className="p-2 rounded-lg transition-colors duration-150 text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600 disabled:cursor-not-allowed" title="Attach Files"><Plus className="w-4 h-4" /></button>
-                                        <button type="button" onClick={handleToggleSearchMode} disabled={isChatLoading || isChatDisabledByLimit || !conversationId} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isSearchModeActive ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'}`} title={isSearchModeActive ? "Disable Search" : "Enable Search"}><Globe className="w-4 h-4" /><span className="hidden sm:inline">Search</span></button>
-                                        <button type="button" onClick={handleToggleImageGenMode} disabled={isChatLoading || isChatDisabledByLimit || !conversationId} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isImageGenModeActive ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'}`} title={isImageGenModeActive ? "Switch to Normal" : "Generate Image"}><ImageIcon className="w-4 h-4" /><span className="hidden sm:inline">Image</span></button>
+                                        <button type="button" onClick={triggerFileSelect} disabled={isImageGenModeActive || isSearchModeActive || isChatLoading || isChatDisabledByLimit || !conversationId} className="p-2 rounded-lg transition-colors duration-150 disabled:cursor-not-allowed text-theme-text-muted hover:bg-theme-interactive-hover disabled:text-theme-text-muted/50" title="Attach Files"><Plus className="w-4 h-4" /></button>
+                                        <button type="button" onClick={handleToggleSearchMode} disabled={isChatLoading || isChatDisabledByLimit || !conversationId} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isSearchModeActive ? 'bg-theme-accent/20 text-theme-accent' : 'text-theme-text-muted hover:bg-theme-interactive-hover disabled:text-theme-text-muted/50'}`} title={isSearchModeActive ? "Disable Search" : "Enable Search"}><Globe className="w-4 h-4" /><span className="hidden sm:inline">Search</span></button>
+                                        <button type="button" onClick={handleToggleImageGenMode} disabled={isChatLoading || isChatDisabledByLimit || !conversationId} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isImageGenModeActive ? 'bg-theme-accent/20 text-theme-accent' : 'text-theme-text-muted hover:bg-theme-interactive-hover disabled:text-theme-text-muted/50'}`} title={isImageGenModeActive ? "Switch to Normal" : "Generate Image"}><ImageIcon className="w-4 h-4" /><span className="hidden sm:inline">Image</span></button>
+                                        
+                                        {/* Add ChatControls and IntegrationsControl like Dashboard */}
+                                        <ChatControls
+                                            onStyleSelect={handleStyleSelect}
+                                            activeStyle={activeStyle}
+                                            isIlluminateEnabled={isIlluminateEnabled}
+                                            isBlackoutEnabled={isDarkMode && !isIlluminateEnabled}
+                                        />
+                                        <IntegrationsControl
+                                            isNotionConnected={isNotionConnected}
+                                            isNotionSearchModeActive={isNotionSearchModeActive}
+                                            onToggleNotionSearchMode={handleToggleNotionSearchMode}
+                                        />
                                     </div>
                                     <div className="flex items-center">
                                         <AnimatePresence mode="wait" initial={false}><motion.div key={(chatMessage.trim() || selectedFiles.length > 0 || (isImageGenModeActive && chatMessage.trim())) ? 'send' : 'mic'} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} transition={{ duration: 0.15 }}>
-                                            {(chatMessage.trim() || selectedFiles.length > 0 || (isImageGenModeActive && chatMessage.trim())) ? (<button type="submit" disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading' || !conversationId} className="p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-indigo-500 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20" title="Send" aria-label="Send chat message">{isChatLoading ? <Loader2 className="w-5 h-5 animate-spin"/> : <Send className="w-5 h-5" />}</button>
-                                            ) : (isAudioSupported && <button type="button" onClick={handleToggleRecording} disabled={isChatLoading || isChatDisabledByLimit || !conversationId} className={`p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isRecording ? 'text-red-500 bg-red-100 dark:bg-red-500/20 animate-pulse' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/70'}`} title={isRecording ? "Stop Recording" : "Start Recording"}>{isRecording ? <StopCircle className="w-5 h-5"/> : <Mic className="w-5 h-5" />}</button>)}
+                                            {(chatMessage.trim() || selectedFiles.length > 0 || (isImageGenModeActive && chatMessage.trim())) ? (<button type="submit" disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading' || !conversationId} className="p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-theme-accent hover:bg-theme-accent/20" title="Send" aria-label="Send chat message">{isChatLoading ? <Loader2 className="w-5 h-5 animate-spin"/> : <Send className="w-5 h-5" />}</button>
+                                            ) : (isAudioSupported && <button type="button" onClick={handleToggleRecording} disabled={isChatLoading || isChatDisabledByLimit || !conversationId} className={`p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isRecording ? 'text-theme-status-error bg-theme-status-error/20 animate-pulse' : 'text-theme-text-muted hover:bg-theme-interactive-hover'}`} title={isRecording ? "Stop Recording" : "Start Recording"}>{isRecording ? <StopCircle className="w-5 h-5"/> : <Mic className="w-5 h-5" />}</button>)}
                                         </motion.div></AnimatePresence>
                                     </div>
                                 </div>
                             </div>
                         </form>
-                        {userTier !== 'premium' && userTier !== 'loading' && (<div className="pt-2 text-xs text-center"> <span className="text-gray-500 dark:text-gray-400">Usage: {chatUsageCount} / {currentChatLimitDisplay}</span> {isChatDisabledByLimit && <span className="text-red-500 dark:text-red-400 ml-1 font-medium">(Limit Reached)</span>} {!isChatDisabledByLimit && userTier === 'basic' && <Link to="/pricing" className="ml-1 font-medium text-indigo-500 dark:text-indigo-400 hover:underline"><Crown className="w-3 h-3 inline mr-0.5"/>Upgrade</Link>}</div>)}
+                        {userTier !== 'premium' && userTier !== 'loading' && (<div className="pt-2 text-xs text-center"> <span className="text-theme-text-muted">Usage: {chatUsageCount} / {currentChatLimitDisplay}</span> {isChatDisabledByLimit && <span className="ml-1 font-medium text-theme-status-error">(Limit Reached)</span>} {!isChatDisabledByLimit && userTier === 'basic' && <Link to="/pricing" className="ml-1 font-medium text-theme-accent hover:underline"><Crown className="w-3 h-3 inline mr-0.5"/>Upgrade</Link>}</div>)}
                     </div>
                 </>
             )}
-            {aiChatSidebarTab === 'history' && ( <div className="flex-1 overflow-y-auto p-3 space-y-1.5 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent">
-                <button onClick={() => handleNewConversation()} className="mb-2 w-full flex items-center justify-center gap-2 p-2.5 rounded-lg transition-all duration-200 text-sm font-medium shadow-sm bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 transform hover:scale-[1.02] active:scale-[0.98]"><Plus className="w-4 h-4" /> New Chat</button>
-                {conversationList.length === 0 && <p className="text-gray-500 dark:text-gray-400 text-center text-sm py-4 italic">No chat history.</p>}
+            {aiChatSidebarTab === 'history' && ( <div className="flex-1 overflow-y-auto p-3 space-y-1.5 scrollbar-thin scrollbar-thumb-theme-border-secondary scrollbar-track-transparent" style={{ backgroundColor: 'var(--bg-primary)' }}>
+                <button onClick={() => handleNewConversation()} className="mb-2 w-full flex items-center justify-center gap-2 p-2.5 rounded-lg transition-all duration-200 text-sm font-medium shadow-sm bg-theme-header text-theme-white hover:opacity-90 transform hover:scale-[1.02] active:scale-[0.98]"><Plus className="w-4 h-4" /> New Chat</button>
+                {conversationList.length === 0 && <p className="text-center text-sm py-4 italic text-theme-text-muted">No chat history.</p>}
                 {conversationList.sort((a,b) => (b.updatedAt?.toDate?.() || 0) - (a.updatedAt?.toDate?.() || 0)).map((conv) => (
-                <div key={conv.id} className={`flex items-center justify-between cursor-pointer p-2.5 rounded-lg transition-all duration-150 text-sm border ${conversationId === conv.id ? 'bg-indigo-50 dark:bg-indigo-700/30 text-indigo-700 dark:text-white border-indigo-200 dark:border-indigo-600/50' : 'bg-gray-50 dark:bg-gray-800/60 hover:bg-gray-100 dark:hover:bg-gray-700/80 text-gray-700 dark:text-gray-200 border-gray-100 dark:border-gray-700/70'}`} onClick={() => handleSelectConversation(conv.id)} >
-                    <div className="flex items-center gap-2 flex-1 min-w-0"> <MessageCircle className="w-4 h-4 flex-shrink-0" /> <span className="truncate font-medium">{conv.chatName}</span> </div><div className="relative flex-shrink-0"><button onClick={(e) => { e.stopPropagation(); setOpenDropdownId(openDropdownId === conv.id ? null : conv.id); }} className="p-1.5 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"> <MoreHorizontal className="w-4 h-4" /> </button>{openDropdownId === conv.id && (<div ref={dropdownRef} className="absolute top-7 right-0 rounded-lg shadow-xl z-50 text-xs bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700/80 overflow-hidden" style={{ minWidth: '120px' }} onClick={(e) => e.stopPropagation()}>{[{ label: 'Rename', icon: Edit, action: () => handleRenameConversation(conv) }, { label: 'Delete', icon: Trash, action: () => confirmDeleteConversation(conv), colorClass: 'text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-800/50' }].map(item => (<button key={item.label} onClick={item.action} className={`flex items-center w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700/80 ${item.colorClass || ''} transition-colors`}> <item.icon className="w-3.5 h-3.5 mr-2" /> {item.label} </button>))}</div>)}</div>
+                <div key={conv.id} className={`flex items-center justify-between cursor-pointer p-2.5 rounded-lg transition-all duration-150 text-sm ${conversationId === conv.id ? 'bg-theme-highlight text-theme-text-primary' : 'bg-theme-highlight/50 hover:bg-theme-highlight text-theme-text-secondary'}`} onClick={() => handleSelectConversation(conv.id)} >
+                    <div className="flex items-center gap-2 flex-1 min-w-0"> <MessageCircle className="w-4 h-4 flex-shrink-0" /> <span className="truncate font-medium">{conv.chatName}</span> </div><div className="relative flex-shrink-0"><button onClick={(e) => { e.stopPropagation(); setOpenDropdownId(openDropdownId === conv.id ? null : conv.id); }} className="p-1.5 rounded-md hover:bg-theme-interactive-hover transition-colors"> <MoreHorizontal className="w-4 h-4" /> </button>{openDropdownId === conv.id && (<div ref={dropdownRef} className="absolute top-7 right-0 rounded-lg shadow-xl z-50 text-xs bg-theme-card text-theme-text-primary border border-theme-border-primary overflow-hidden" style={{ minWidth: '120px' }} onClick={(e) => e.stopPropagation()}>{[{ label: 'Rename', icon: Edit, action: () => handleRenameConversation(conv) }, { label: 'Delete', icon: Trash, action: () => confirmDeleteConversation(conv), colorClass: 'text-theme-status-error hover:bg-theme-status-error/10' }].map(item => (<button key={item.label} onClick={item.action} className={`flex items-center w-full text-left px-3 py-2 hover:bg-theme-interactive-hover transition-colors ${item.colorClass || ''}`}> <item.icon className="w-3.5 h-3.5 mr-2" /> {item.label} </button>))}</div>)}</div>
                 </div>))}
                 </div>
             )}
-            {aiChatSidebarTab === 'analytics' && ( <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent">
-                <button onClick={generateProductivityAnalysis} disabled={isProductivityAnalysisLoading || !user} className="w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 shadow-sm bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 disabled:opacity-70 transform hover:scale-[1.02] active:scale-[0.98]">
+            {aiChatSidebarTab === 'analytics' && ( <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-theme-border-secondary scrollbar-track-transparent" style={{ backgroundColor: 'var(--bg-primary)' }}>
+                <button onClick={generateProductivityAnalysis} disabled={isProductivityAnalysisLoading || !user} className="w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 shadow-sm bg-theme-header text-theme-white hover:opacity-90 disabled:opacity-70 transform hover:scale-[1.02] active:scale-[0.98]">
                     <BarChart3 className="w-4 h-4" />
                     {isProductivityAnalysisLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : "Get Insights"}
                 </button>
                 {productivityAnalysisResult && (
-                    <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700/70 shadow-sm">
-                        <h4 className="text-md font-semibold mb-2 text-indigo-500 dark:text-indigo-400">Score: {productivityAnalysisResult.productivity_score}%</h4>
-                        <div className="w-full h-2.5 rounded-full mb-3 bg-gray-200 dark:bg-gray-700/80 overflow-hidden">
-                            <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-green-500" style={{width: `${productivityAnalysisResult.productivity_score}%`}}></div>
+                    <div className="p-3 rounded-lg bg-theme-highlight border border-theme-border-primary animate-fadeIn shadow-sm">
+                        <h4 className="text-md font-semibold mb-2 text-theme-header">Score: {productivityAnalysisResult.productivity_score}%</h4>
+                        <div className="w-full h-2.5 rounded-full mb-3 bg-theme-highlight overflow-hidden">
+                            <div className="h-full rounded-full bg-gradient-to-r from-theme-accent to-theme-status-success" style={{width: `${productivityAnalysisResult.productivity_score}%`}}></div>
                         </div>
-                        <h5 className="text-xs font-semibold mt-3 mb-1 text-gray-700 dark:text-gray-100">Analysis:</h5>
-                        <p className="text-xs mb-3 text-gray-600 dark:text-gray-300 leading-relaxed">{productivityAnalysisResult.text_analysis}</p>
+                        <h5 className="text-xs font-semibold mt-3 mb-1 text-theme-text-primary">Analysis:</h5>
+                        <p className="text-xs mb-3 leading-relaxed text-theme-text-secondary">{productivityAnalysisResult.text_analysis}</p>
                         {productivityAnalysisResult.recommended_actions && productivityAnalysisResult.recommended_actions.length > 0 && (
                         <>
-                            <h5 className="text-xs font-semibold mt-3 mb-1.5 text-gray-700 dark:text-gray-100">Suggestions:</h5>
+                            <h5 className="text-xs font-semibold mt-3 mb-1.5 text-theme-text-primary">Suggestions:</h5>
                             <ul className="space-y-1.5">
                                 {productivityAnalysisResult.recommended_actions.map((action: OverviewAction) => (
-                                    <li key={action.id} className="p-2 rounded-md text-xs flex items-center justify-between gap-2 bg-indigo-50 dark:bg-indigo-700/20 border border-indigo-100 dark:border-indigo-700/40 text-gray-700 dark:text-gray-200">
+                                    <li key={action.id} className="p-2 rounded-md text-xs flex items-center justify-between gap-2 border bg-theme-highlight border-theme-border-primary text-theme-text-primary">
                                         <span className="truncate" title={action.description}>{action.description}</span>
                                         {(action.action_type === "create_task" || action.action_type === "create_goal") && action.details?.name && (
-                                            <button onClick={() => handleAcceptProductivityAction(action)} className="px-2 py-1 rounded text-white text-xs flex items-center gap-1 bg-green-500 hover:bg-green-600 font-medium transition-colors duration-150 transform hover:scale-105 active:scale-100">
+                                            <button onClick={() => handleAcceptProductivityAction(action)} className="px-2 py-1 rounded text-theme-white text-xs flex items-center gap-1 bg-theme-solid-button hover:bg-theme-accent font-medium transition-colors duration-150 transform hover:scale-105 active:scale-100">
                                                 <CheckCircle className="w-3 h-3"/> Accept
                                             </button>
                                         )}
@@ -3055,7 +5464,7 @@ Assistant:`;
                         )}
                     </div>
                 )}
-                {!isProductivityAnalysisLoading && !productivityAnalysisResult && (<div className="text-center py-6 text-gray-500 dark:text-gray-400 text-sm italic"><InfoIcon className="w-10 h-10 mx-auto mb-2 text-gray-400 dark:text-gray-600" />Click to get insights about your productivity.</div>)}
+                {!isProductivityAnalysisLoading && !productivityAnalysisResult && (<div className="text-center py-6 text-sm italic text-theme-text-muted"><InfoIcon className="w-10 h-10 mx-auto mb-2 text-theme-text-muted" />Click to get insights about your productivity.</div>)}
                 </div>
             )}
         </motion.div>

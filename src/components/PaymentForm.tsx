@@ -5,7 +5,7 @@ const CARD_ELEMENT_OPTIONS = {
   style: {
     base: {
       color: '#F8F9FA',
-      fontFamily: '"Poppins", sans-serif',
+      fontFamily: '"Clarika Geometric Medium", "Clarika Fallback", sans-serif',
       fontSmoothing: 'antialiased',
       fontSize: '16px',
       '::placeholder': {

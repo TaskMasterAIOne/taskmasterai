@@ -1,22 +1,26 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition'; // <-- ADD THIS IMPORT
+import { useScrollLock } from '../hooks/useScrollLock';
 import { getFunctions, httpsCallable } from 'firebase/functions'; 
-import { getUserData } from '../lib/settings-firebase';
-import { useNavigate, Link } from 'react-router-dom';
+import { getUserData, getDefaultChatStyle } from '../lib/settings-firebase';
+import { getStylePrompt } from '../lib/chat-styles';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import {
-  Folder as FolderIconLucide, Folders as FoldersIcon, FolderPlus, MessageCircle, Edit, Bot, Trash, Search, X, MessageSquare, ChevronRight, ChevronDown,
-  FileText, Star, MoreHorizontal, Plus, Clock, CalendarCheck, AlertCircle, Sparkles, MessageCircleIcon, Play, BookOpen,
-  Tag, Download, Upload, Copy, Printer, Share2, Settings, Filter, SortAsc, Bookmark, Layers, LayoutGrid, List, Zap, Award,
-  Repeat, Shuffle, ArrowLeft, ArrowRightIcon as ArrowRightIconLucide, Eye, EyeOff, RefreshCw, Lightbulb, Flame, Target, PenTool, Gamepad2, CheckSquare, Square,
-  FolderTree, BarChart3, Send, Home, LogOut, HelpCircle, User as UserIconLucide, Sun, Moon, Check, Crown, CheckCircle, ShieldCheck, Trophy, UserCheck, TrendingUp, InfoIcon, Users,
-  Paperclip, ImageIcon, SlidersHorizontal, BookCopy, ListTodo, Maximize, Minimize, CalendarDays, Brain, Mic, Video, FileQuestion,
-  Loader2, Info, ExternalLink, ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIconUI, Gift, Palette, Book, FileWarning, ArrowLeftIcon as ArrowLeftIconLucide,
-  Lock, Unlock, BarChart, GraduationCap, Milestone, PackagePlus, MessageSquarePlus, Edit3, EyeIcon, Globe, StopCircle, ArrowUpRight
+  Folder as FolderIconLucide, Folders as FoldersIcon, FolderPlus, Edit, Trash, X, ChevronDown,
+  Star, Plus, AlertCircle, LayoutGrid, List, CheckSquare, Square,
+  Brain, Lightbulb, Flame, CheckCircle, ChevronRight as ChevronRightIconUI, Gift, ArrowUpRight,
+  Award, Crown, GraduationCap, ShieldCheck, Zap, TrendingUp, BarChart3, BarChart, Milestone,
+  FolderTree, Layers, PackagePlus, FileQuestion, ListTodo, Play, BookOpen, MessageCircle, MessageCircle as MessageCircleIcon,
+  Sparkles, Target, Upload, Palette, SlidersHorizontal, UserCheck, User as UserIconLucide,
+  Loader2, Trophy, Gamepad2, MoreHorizontal, Tag, Download, FileText, Search, Globe,
+  ImageIcon, Send, StopCircle, Mic, Check, Info as InfoIcon, ArrowLeft as ArrowLeftIconLucide,
+  ArrowRight as ArrowRightIconLucide, BookCopy, CalendarDays, Repeat
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sidebar } from './Sidebar';
 import { FlashcardsQuestions } from './FlashcardsQuestions';
-import { getTimeBasedGreeting } from '../lib/greetings';
+import { MultiEducationalContent } from './MultiEducationalContent';
+
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
@@ -30,7 +34,7 @@ import {
   onFirebaseAuthStateChanged,
   updateDashboardLastSeen,
   findItemByName,
-  type EventData as FirebaseEventData,
+
   createEvent as createFirebaseEvent,
 } from '../lib/dashboard-firebase';
 
@@ -58,7 +62,7 @@ import {
   incrementUserChatUsage,
   getChatLimitForTier,
   BASIC_CHAT_LIMIT,
-  PRO_CHAT_LIMIT,
+
   UserProfileData,
   onUserProfileSnapshot,
   updateUserPointsAndLevel,
@@ -67,9 +71,9 @@ import {
   POINTS_FOR_FREE_PREMIUM,
   getUserTier,
 } from '../lib/current-paying-user';
-import { auth, db } from '../lib/firebase';
+import { db } from '../lib/firebase';
 import { User as FirebaseUser } from 'firebase/auth';
-import { getDoc, doc, serverTimestamp, Timestamp, updateDoc, onSnapshot as firestoreOnSnapshot } from 'firebase/firestore';
+import { doc, Timestamp, onSnapshot as firestoreOnSnapshot } from 'firebase/firestore';
 import { ContextDialog } from './context-dialog';
 import {
   saveUserContext,
@@ -85,7 +89,7 @@ import {
   createFolder,
   updateFolder,
   deleteFolderRecursive,
-  toggleFolderStar,
+
   onFoldersSnapshot,
   addFolderItem,
   updateFolderItem,
@@ -103,7 +107,7 @@ import {
   deleteChatConversation,
   uploadBase64ImageToStorage,
   uploadFileToStorage,
-  findItemByNameInFolder,
+
   type ChatMessage as FirebaseChatMessage,
   type ImageMeta as FirebaseImageMeta,
   type AttachedFileMeta as FirebaseAttachedFileMeta,
@@ -183,22 +187,7 @@ const toDateSafe = (value: any): Date | null => {
 };
 
 
-const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 45000) => {
-  const controller = new AbortController();
-  const { signal } = controller;
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-  try {
-    const response = await fetch(url, { ...options, signal });
-    clearTimeout(timeoutId);
-    return response;
-  } catch (error) {
-    clearTimeout(timeoutId);
-    if ((error as Error).name === 'AbortError') {
-         throw new Error('Request timed out');
-    }
-    throw error;
-  }
-};
+
 
 interface ParsedGeminiResponse {
     text: string | null;
@@ -341,7 +330,18 @@ const handleDownloadImageFromUrl = (imageUrl: string, imageName?: string) => {
   document.body.removeChild(link);
 };
 
-const defaultFolderColors = [ "#718096", "#F56565", "#ED8936", "#ECC94B", "#48BB78", "#38B2AC", "#4299E1", "#667EEA", "#9F7AEA", "#ED64A6"];
+const defaultFolderColors = [
+  "var(--status-info)",
+  "var(--status-error)",
+  "var(--status-warning)",
+  "var(--bg-accent)",
+  "var(--status-success)",
+  "var(--bg-accent-secondary)",
+  "var(--bg-header-secondary)",
+  "var(--bg-gradient-start)",
+  "var(--bg-gradient-end)",
+  "var(--interactive-focus)"
+];
 
 const BADGES_CONFIG: { [key: string]: { name: string, description: string, icon: React.FC<any>, unlock_criteria_text: string, condition?: (profile: UserProfileData, folders?: FolderData[]) => boolean } } = {
     level5Reached: { name: "Level 5 Voyager", description: "Reached overall level 5.", icon: Award, unlock_criteria_text: "Reach Level 5", condition: (p) => p.level >= 5 },
@@ -393,8 +393,8 @@ interface CurrentLearnActivityType {
 const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessageData, isDarkMode: boolean }) => {
     const proseClassFolders = `prose prose-sm max-w-none prose-p:mb-3 prose-p:last:mb-0 prose-p:leading-relaxed prose-ul:my-3 prose-ul:space-y-2 prose-ol:my-3 prose-ol:space-y-2 prose-li:pl-1 prose-code:text-xs prose-code:px-1 prose-code:py-0.5 prose-pre:text-xs prose-pre:my-2 prose-pre:p-2 prose-pre:leading-relaxed
     ${isDarkMode
-        ? 'prose-invert prose-a:text-[#8A85FF] hover:prose-a:text-indigo-300 prose-code:bg-gray-700/70 prose-code:text-pink-400 prose-pre:bg-black/60'
-        : 'prose-a:text-[#635BFF] hover:prose-a:text-indigo-700 prose-code:bg-gray-200/70 prose-code:text-pink-600 prose-pre:bg-gray-800/80 prose-pre:text-white/90'
+        ? 'prose-invert prose-a:text-[var(--bg-accent)] hover:prose-a:text-[var(--bg-accent-secondary)] prose-code:bg-[var(--bg-card)] prose-code:text-[var(--status-error)] prose-pre:bg-[var(--bg-primary)]'
+        : 'prose-a:text-[var(--bg-header-secondary)] hover:prose-a:text-[var(--bg-accent)] prose-code:bg-[var(--bg-highlight)] prose-code:text-[var(--bg-accent-secondary)] prose-pre:bg-[var(--bg-card)] prose-pre:text-[var(--text-primary)]'
     }`;
 
     return (
@@ -411,7 +411,7 @@ const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessage
                             if (citationMatch && props.href) {
                               return (
                                 <sup className="inline-block mx-0.5 align-super">
-                                  <a href={props.href} target="_blank" rel="noopener noreferrer" className="text-[#635BFF] dark:text-[#8A85FF] no-underline hover:underline font-medium" title={`Source: ${props.href}`}>
+                                  <a href={props.href} target="_blank" rel="noopener noreferrer" className="text-[var(--bg-header-secondary)] dark:text-[var(--bg-accent)] no-underline hover:underline font-medium" title={`Source: ${props.href}`}>
                                     [{citationMatch[1]}]
                                   </a>
                                 </sup>
@@ -442,8 +442,8 @@ const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessage
             )}
 
             {message.actionDetails && (
-                <div className={`mt-2 pt-2 border-t border-dashed ${message.actionDetails.status === 'success' ? 'border-green-300 dark:border-green-700/60' : 'border-red-300 dark:border-red-700/60'}`}>
-                    <div className={`flex items-center gap-1.5 text-xs font-medium ${message.actionDetails.status === 'success' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                <div className={`mt-2 pt-2 border-t border-dashed ${message.actionDetails.status === 'success' ? 'border-[var(--status-success)]/60' : 'border-[var(--status-error)]/60'}`}>
+                    <div className={`flex items-center gap-1.5 text-xs font-medium ${message.actionDetails.status === 'success' ? 'text-[var(--status-success)]' : 'text-[var(--status-error)]'}`}>
                         {message.actionDetails.status === 'success' ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
                         <span className="whitespace-pre-wrap">{message.actionDetails.message}</span>
                     </div>
@@ -455,7 +455,7 @@ const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessage
                                 href={message.actionDetails.pageUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-200/50 dark:bg-gray-700/50 px-2.5 py-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                                className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--text-primary)] bg-[var(--bg-highlight)] px-2.5 py-1.5 rounded-lg hover:bg-[var(--interactive-hover)] transition-colors"
                             >
                                 <NotionIcon className="w-3.5 h-3.5" />
                                 <span>View "{message.actionDetails.pageTitle || "Page"}" in Notion</span>
@@ -467,22 +467,22 @@ const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessage
             )}
             
             {message.sources && message.sources.length > 0 && (
-                 <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700/70">
-                    <h4 className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">{message.sources.length} sources found</h4>
+                 <div className="mt-4 pt-3 border-t border-[var(--border-primary)]">
+                    <h4 className="text-sm font-semibold text-[var(--text-secondary)] mb-2">{message.sources.length} sources found</h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {message.sources.sort((a,b) => a.number - b.number).map(source => {
                             let hostname = "source.com";
                             try { hostname = new URL(source.url).hostname.replace('www.', ''); } catch (e) { hostname = source.url.split('/')[2] || source.url; }
                            return (
-                            <a href={source.url} key={source.number} target="_blank" rel="noopener noreferrer" className="block bg-gray-100/70 dark:bg-[#1A1D29] p-2 rounded-lg border border-gray-200 dark:border-gray-700/80 hover:bg-gray-200/70 dark:hover:bg-gray-700/60 transition-colors duration-150">
+                            <a href={source.url} key={source.number} target="_blank" rel="noopener noreferrer" className="block bg-[var(--bg-highlight)] p-2 rounded-lg border border-[var(--border-primary)] hover:bg-[var(--interactive-hover)] transition-colors duration-150">
                                 <div className="flex items-center justify-between gap-2 mb-1">
                                     <div className="flex items-center gap-1.5 min-w-0">
                                         <img src={`https://www.google.com/s2/favicons?domain=${hostname}&sz=32`} alt="" className="w-4 h-4 rounded-full bg-white flex-shrink-0" />
-                                        <span className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate">{hostname}</span>
+                                        <span className="text-xs font-semibold text-[var(--text-primary)] truncate">{hostname}</span>
                                     </div>
-                                    <ArrowUpRight className="w-3 h-3 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                                    <ArrowUpRight className="w-3 h-3 text-[var(--text-muted)] flex-shrink-0" />
                                 </div>
-                                <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-3 leading-snug">{source.title}</p>
+                                <p className="text-xs text-[var(--text-secondary)] line-clamp-3 leading-snug">{source.title}</p>
                             </a>
                         )})}
                     </div>
@@ -502,6 +502,7 @@ const NotionIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 export function Folders() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfileData | null>(null);
   const [userName, setUserName] = useState<string>("Learner");
@@ -509,7 +510,7 @@ export function Folders() {
 
   const [userTier, setUserTier] = useState<UserTier>('loading');
   const [chatUsageCount, setChatUsageCount] = useState(0);
-  const [chatLimit, setChatLimit] = useState(BASIC_CHAT_LIMIT);
+  const [chatLimit, setChatLimit] = useState<number>(BASIC_CHAT_LIMIT);
   const [isChatDisabledByLimit, setIsChatDisabledByLimit] = useState(true);
 
     const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
@@ -523,7 +524,7 @@ export function Folders() {
   const [isNotionConnected, setIsNotionConnected] = useState(false);
   const [isNotionSearchModeActive, setIsNotionSearchModeActive] = useState(false);
   const [activeNotionPage, setActiveNotionPage] = useState<{ id: string, title: string } | null>(null);
-  const [isProcessingNotion, setIsProcessingNotion] = useState(false);
+
   const functions = getFunctions();
   
   // --- ADD THESE NEW STATES AND HOOKS ---
@@ -661,6 +662,7 @@ export function Folders() {
     return saved ? JSON.parse(saved) : false;
   });
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isFoldersSidebarVisible, setIsFoldersSidebarVisible] = useState(true);
 // --- FIX 2: UNIFIED THEME LOGIC ---
   const [isDarkMode, setIsDarkMode] = useState(false);
   useEffect(() => {
@@ -770,7 +772,7 @@ export function Folders() {
 
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterTags, setFilterTags] = useState<string[]>([]);
+  const [filterTags] = useState<string[]>([]);
   const [allUserTags, setAllUserTags] = useState<string[]>([]);
   const [showTagManagement, setShowTagManagement] = useState(false);
   const [editingTag, setEditingTag] = useState<{ folderId: string; oldTag: string; newTag: string } | null>(null);
@@ -790,8 +792,8 @@ export function Folders() {
   const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
   const [isImageGenModeActive, setIsImageGenModeActive] = useState(false);
   const [isSearchModeActive, setIsSearchModeActive] = useState(false);
-  const [isAiSearching, setIsAiSearching] = useState(false);
-  const [assistantLoadingPlaceholderId, setAssistantLoadingPlaceholderId] = useState<string | null>(null);
+
+
   const [currentChatLimitDisplay, setCurrentChatLimitDisplay] = useState<number | string>(BASIC_CHAT_LIMIT);
 
 
@@ -813,9 +815,11 @@ export function Folders() {
   const [confirmAction, setConfirmAction] = useState<{ message: string, onConfirm: () => void, onCancel?: () => void } | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
 
-
   const [reviewQueue, setReviewQueue] = useState<FolderItem[]>([]);
   const [showSetGoalModal, setShowSetGoalModal] = useState(false);
+
+  // Lock body scroll when any modal is open
+  useScrollLock(!!confirmAction || showSetGoalModal);
   const [newGoalDescription, setNewGoalDescription] = useState("");
   const [newGoalType, setNewGoalType] = useState<'flashcards_mastered' | 'items_reviewed' | 'time_spent_minutes'>('flashcards_mastered');
   const [newGoalTarget, setNewGoalTarget] = useState<number>(10);
@@ -830,7 +834,7 @@ export function Folders() {
     setTimeout(() => setToastMessage(null), 3500);
   }, []);
 
-const recognitionRef = useRef<any>(null);
+
 
   useEffect(() => {
     const applyTheme = () => {
@@ -944,7 +948,7 @@ const recognitionRef = useRef<any>(null);
         const currentTier = await getUserTier(user.uid, profileData.email!); // Removed profileData pass-through
         setUserTier(currentTier);
         const limitForTier = getChatLimitForTier(currentTier);
-        setChatLimit(limitForTier);
+        setChatLimit(typeof limitForTier === 'number' ? limitForTier : Number.MAX_SAFE_INTEGER);
         setCurrentChatLimitDisplay(limitForTier === Infinity ? '∞' : limitForTier);
         if (currentTier !== 'premium' && currentTier !== 'loading') {
           const currentMonthYear = new Date().toISOString().slice(0, 7);
@@ -958,8 +962,8 @@ const recognitionRef = useRef<any>(null);
       } else {
         setUserProfile(null);
         setUserTier('loading');
-        const limitForTier = getChatLimitForTier(currentTier);
-        setChatLimit(limitForTier);
+        const limitForTier = getChatLimitForTier('loading');
+        setChatLimit(typeof limitForTier === 'number' ? limitForTier : Number.MAX_SAFE_INTEGER);
         setCurrentChatLimitDisplay(limitForTier === Infinity ? '∞' : limitForTier);
         setChatUsageCount(0);
       }
@@ -1033,6 +1037,8 @@ const recognitionRef = useRef<any>(null);
     }
   }, [user?.uid]);
 
+
+
   useEffect(() => {
     if (!user?.uid) {
       setSubFolders({}); 
@@ -1088,7 +1094,7 @@ const recognitionRef = useRef<any>(null);
 
 
 
-      const pointsNeededForPremium = userProfile ? Math.max(0, POINTS_FOR_FREE_PREMIUM - userProfile.points) : POINTS_FOR_FREE_PREMIUM;
+      const pointsNeededForPremium = userProfile ? Math.max(0, POINTS_FOR_FREE_PREMIUM - (userProfile.points || 0)) : POINTS_FOR_FREE_PREMIUM;
   
 // Add this handler function inside the Folders component
 const handleToggleNotionSearchMode = () => {
@@ -1156,7 +1162,7 @@ const handleToggleNotionSearchMode = () => {
 
   useEffect(() => {
     if (!conversationId || !user?.uid) {
-      setChatHistory([]); setHasGeneratedChatName(false); setSelectedFiles([]); setIsImageGenModeActive(false); setIsSearchModeActive(false); setAssistantLoadingPlaceholderId(null);
+      setChatHistory([]); setHasGeneratedChatName(false); setSelectedFiles([]); setIsImageGenModeActive(false); setIsSearchModeActive(false);
       return;
     }
     const unsubMessages = onChatMessagesSnapshot(user.uid, conversationId, (messagesFromDb: FirebaseChatMessage[]) => {
@@ -1197,7 +1203,7 @@ const addPoints = useCallback(async (
             if (newTier === 'premium' && userTier !== 'premium' && (!userProfile?.premiumAwardedUntil || (toDateSafe(userProfile.premiumAwardedUntil) || new Date(0)) < new Date())) {
                 showToast(`🎉 You've earned 1 FREE month of Premium!`, 'info', Crown);
             }
-            const updatedProfileForBadgeCheck = { ...userProfile!, points: newPoints, level: newLevel };
+
 
             Object.entries(BADGES_CONFIG).forEach(async ([badgeKey, badgeConfig]) => {
                 if (!(userProfile?.badges || []).includes(badgeKey) && badgeConfig.condition) {
@@ -1313,12 +1319,17 @@ const addPoints = useCallback(async (
   }, [user, selectedFolder, folders, subFolders, folderItems]);
 
 
+interface GeminiFormattedMessage {
+  role: string;
+  parts: any[];
+}
+
  const createChatPromptContents = useCallback((
     userMessage: string,
     filesDataForPrompt: SelectedFile[],
     currentHistory: ChatMessageData[]
-  ): FirebaseChatMessage[] => {
-    const formattedHistory: FirebaseChatMessage[] = currentHistory.map(msg => {
+  ): GeminiFormattedMessage[] => {
+    const formattedHistory: GeminiFormattedMessage[] = currentHistory.map(msg => {
         const parts: any[] = [];
         if (typeof msg.content === 'string') { parts.push({ text: msg.content }); }
         if (msg.role === 'user' && msg.attachedFilesMeta) {
@@ -1359,7 +1370,8 @@ const generateChatName = useCallback(async (convId: string, history: ChatMessage
     if (!currentUser || !currentUser.uid || history.length < 2 || !selectedFolder) return;
     
     const relevantHistory = history.slice(0, Math.min(history.length, 4)).map(m => `${m.role}: ${m.content?.substring(0,100) || ""}`).join("\n");
-    const prompt = `Please provide a short 3-5 word title summarizing this study conversation about the folder "${selectedFolder.name}":\n${relevantHistory}\nReturn ONLY the title, with no extra commentary. USE THE SAME LANGUAGE AS PRESENTED IN THE CONVERSATION!`;
+    const userMessageCount = history.filter(m => m.role === 'user').length;
+    const prompt = `Please provide a short 3-5 word title summarizing this study conversation about the folder "${selectedFolder.name}". The user has sent ${userMessageCount} messages so far:\n${relevantHistory}\nReturn ONLY the title, with no extra commentary. USE THE SAME LANGUAGE AS PRESENTED IN THE CONVERSATION!`;
     
     try {
         // --- THIS IS THE NEW LOGIC ---
@@ -1370,7 +1382,8 @@ const generateChatName = useCallback(async (convId: string, history: ChatMessage
             generationConfig: { temperature: 0.5, maxOutputTokens: 60 },
             tools: [],
             systemInstruction: undefined,
-            isImageGen: false
+            isImageGen: false,
+            useLiteModel: true
         };
 
         const result = await geminiProxyCallable(apiRequestBody);
@@ -1394,7 +1407,7 @@ const calculatePriority = (itemInput: any): 'high' | 'medium' | 'low' => {
   if (!itemData.dueDate && !itemData.targetDate) return 'low';
   let itemDateToConsider: Date | Timestamp | null = itemData.dueDate || itemData.targetDate;
   let dueDate: Date | null = null;
-  if (itemDateToConsider?.toDate) { dueDate = itemDateToConsider.toDate(); } 
+  if (itemDateToConsider && typeof itemDateToConsider === 'object' && 'toDate' in itemDateToConsider && typeof itemDateToConsider.toDate === 'function') { dueDate = itemDateToConsider.toDate(); } 
   else if (itemDateToConsider instanceof Date) { dueDate = itemDateToConsider; } 
   else if (typeof itemDateToConsider === 'string' || typeof itemDateToConsider === 'number') {
       try { dueDate = new Date(itemDateToConsider); if (isNaN(dueDate.getTime())) dueDate = null; } catch (e) { dueDate = null; }
@@ -1595,6 +1608,24 @@ const handleChatSubmit = useCallback(async (e?: React.FormEvent, incomingMessage
       setIsAiAssistantOpen(true);
       setAiChatSidebarTab('chat');
       setHasGeneratedChatName(false);
+      
+      // Apply default chat style if set
+      try {
+        const defaultStyle = await getDefaultChatStyle(user.uid);
+        if (defaultStyle && defaultStyle !== 'Normal') {
+          // Get the style prompt from centralized styles
+          const stylePrompt = getStylePrompt(defaultStyle);
+          
+          if (stylePrompt) {
+            // Set the active style for this conversation
+            setActiveStyle(defaultStyle);
+            setActivePrompt(stylePrompt);
+          }
+        }
+      } catch (error) {
+        console.error('Error applying default chat style:', error);
+      }
+      
       if (userProfile && !(userProfile.badges || []).includes('firstAIChat')) {
           addUserBadge(user.uid, 'firstAIChat', {email:user.email!, displayName: user.displayName!, photoURL: user.photoURL!});
           showToast("Badge Unlocked: AI Conversationalist!", "info", MessageCircleIcon);
@@ -1659,9 +1690,7 @@ const handleChatSubmit = useCallback(async (e?: React.FormEvent, incomingMessage
     }
 
     setIsChatLoading(true);
-    if(searchModeOn) setIsAiSearching(true);
     const newAssistantLPHId = `assistant-ph-${Date.now()}`;
-    setAssistantLoadingPlaceholderId(newAssistantLPHId);
     
     const assistantResponsePlaceholder: ChatMessageData = { 
         id: newAssistantLPHId, 
@@ -2065,10 +2094,9 @@ Assistant:`;
 
         if (geminiFormattedContents.length === 0 || (geminiFormattedContents.length === 1 && geminiFormattedContents[0].parts.every(p => !p.text && !p.inline_data))) {
             setIsChatLoading(false);
-                  setIsAiSearching(false);
 
-                  setIsProcessingNotion(false); // Add this
-            setAssistantLoadingPlaceholderId(null);
+
+
             const errorMsgContent = "I couldn't process an empty message. Please type something or attach a file.";
             const errorMsgForState: ChatMessageData = { id: newAssistantLPHId, role: 'assistant', content: errorMsgContent, error: true, createdAt: new Date(), isLoading: false };
             setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? errorMsgForState : msg ));
@@ -2123,7 +2151,7 @@ const { blocks: jsonActionBlocks, cleanedText, originalText } = extractJsonBlock
       let actionTakenDetails: ChatMessageData['actionDetails'] | undefined = undefined;
 
       if (notionBlock && user?.uid && isNotionConnected) {
-          setIsProcessingNotion(true);
+
           setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? { ...msg, isLoading: true, isProcessingNotion: true } : msg ));
           
           try {
@@ -2156,7 +2184,7 @@ const { blocks: jsonActionBlocks, cleanedText, originalText } = extractJsonBlock
                   if (lastSuccess && lastSuccess.url) {
                       pageUrl = lastSuccess.url;
                       pageTitle = lastSuccess.properties?.title?.title?.[0]?.plain_text || "Last Page";
-                      setActiveNotionPage({ id: lastSuccess.id, title: pageTitle });
+                      setActiveNotionPage({ id: lastSuccess.id, title: pageTitle || "Last Page" });
                   }
               } 
               // Handle single action results
@@ -2248,7 +2276,7 @@ const { blocks: jsonActionBlocks, cleanedText, originalText } = extractJsonBlock
               actionTakenDetails = { status: 'error', message: `Notion Error: ${errorMessage}`};
               setActiveNotionPage(null);
           } finally {
-              setIsProcessingNotion(false);
+
           }
       }
 // --- END REPLACEMENT ---
@@ -2440,7 +2468,7 @@ const { blocks: jsonActionBlocks, cleanedText, originalText } = extractJsonBlock
         if (itemsAddedByAICount > 0) {
             addPoints(itemsAddedByAICount * 2, 'folder', selectedFolder.id);
             addPoints(itemsAddedByAICount, 'user_profile');
-             if (userProfile && !(userProfile.badges || []).includes('aiCreatedTenItems') && (userProfile.aiItemsCreatedCount || 0) + itemsAddedByAICount >= 10) {
+             if (userProfile && !(userProfile.badges || []).includes('aiCreatedTenItems') && (userProfile.aiNotesCreatedCount || 0) + itemsAddedByAICount >= 10) {
                  addUserBadge(user.uid, 'aiCreatedTenItems', {email:user.email!, displayName: user.displayName!, photoURL:user.photoURL!});
                  showToast("Badge Unlocked: AI Collaborator!", "info", Sparkles);
             }
@@ -2516,17 +2544,18 @@ const { blocks: jsonActionBlocks, cleanedText, originalText } = extractJsonBlock
       const totalUserMessagesInConv = finalHistoryForName.filter(m => m.role === 'user').length;
       const currentConvInfo = conversationList.find(c => c.id === currentConvId);
 
-      if (currentConvId && currentConvInfo?.chatName.startsWith("Chat for") && (!hasGeneratedChatName || totalUserMessagesInConv === 1) ) {
-          await generateChatName(currentConvId, finalHistoryForName, user);
-          setHasGeneratedChatName(true);
-      }
+              if (currentConvId && currentConvInfo?.chatName.startsWith("Chat for") && (!hasGeneratedChatName || totalUserMessagesInConv >= 3) ) {
+            // Generate chat name after 3+ user messages for better accuracy
+            await generateChatName(currentConvId, finalHistoryForName, user);
+            setHasGeneratedChatName(true);
+        }
     } catch (err: any) {
       console.error("Error in handleChatSubmit:", err);
       const errorMsgContent = `Sorry, I encountered an error${err.message ? ': ' + err.message : '.'} Please try again.`;
       const errorMsgForState: ChatMessageData = { id: newAssistantLPHId, role: 'assistant', content: errorMsgContent, error: true, createdAt: new Date(), isLoading: false };
       setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? errorMsgForState : msg ));
       if (currentConvId) await saveChatMessage(user.uid, currentConvId, { role: 'assistant', content: errorMsgContent, error: true });
-    } finally { setIsChatLoading(false); setIsAiSearching(false); setAssistantLoadingPlaceholderId(null); }
+    } finally { setIsChatLoading(false); }
 }, [
     user, selectedFolder, conversationId, isChatDisabledByLimit, currentChatLimitDisplay, 
     chatMessage, selectedFiles, isImageGenModeActive, isSearchModeActive, userTier, 
@@ -2568,6 +2597,7 @@ const { blocks: jsonActionBlocks, cleanedText, originalText } = extractJsonBlock
     setLearnQueue([]);
     setCurrentLearnActivity(null);
     setLearnSessionStats({ masteredThisSession: 0, totalForSession: 0 });
+    setIsFoldersSidebarVisible(false);
 
 
     if (user?.uid) {
@@ -2590,7 +2620,7 @@ const { blocks: jsonActionBlocks, cleanedText, originalText } = extractJsonBlock
   const handleSaveFolder = useCallback(async () => {
     if (!user || !newFolderName.trim()) return;
     try {
-      const isNewFolderCreation = !editingFolder;
+
       if (editingFolder) {
         await updateFolder(user.uid, editingFolder.id, { name: newFolderName, description: newFolderDescription, type: newFolderType, color: newFolderColor, parentId: newFolderParentId });
         showToast("Folder updated successfully!", "success");
@@ -2819,7 +2849,7 @@ const loadNextLearnItemFromQueue = useCallback((queueToLoadFrom: FolderItem[]) =
     const srUpdates = calculateSpacedRepetitionUpdate(itemToUpdate, quality);
     await updateItemSpacedRepetitionData(user.uid, selectedFolder.id, itemToUpdate.id, srUpdates as any);
     
-    setFolderItems(prev => prev.map(it => it.id === itemToUpdate.id ? { ...it, ...srUpdates } : it));
+    setFolderItems(prev => prev.map(it => it.id === itemToUpdate.id ? { ...it, ...srUpdates } as FolderItem : it));
 
     const wasAlreadyMasteredInThisSession = learnSessionStats.totalForSession - learnQueue.length > learnSessionStats.masteredThisSession &&
                                              itemToUpdate.masteryLevel === 'mastered';
@@ -3012,7 +3042,7 @@ const loadNextLearnItemFromQueue = useCallback((queueToLoadFrom: FolderItem[]) =
                 if (currentPairs.every(p => p.matched)) {
                     setTimeout(() => {
                         showToast("Match game complete!", "success", Gamepad2);
-                        addPoints(10, 'folder', selectedFolder.id);
+                        if (selectedFolder) addPoints(10, 'folder', selectedFolder.id);
                         addPoints(5, 'user_profile');
                     }, 300);
                 }
@@ -3324,7 +3354,7 @@ const generateFolderStats = useCallback(async () => {
                  analysisJson = jsonBlockResultAnalysis.blocks[0]; 
              } else {
                  try { 
-                     const fullApiResponse = JSON.parse(responseText); 
+                     const fullApiResponse = JSON.parse(JSON.stringify(responseData)); 
                      if(fullApiResponse.candidates?.[0]?.content?.parts?.[0]?.text) { 
                          analysisJson = JSON.parse(fullApiResponse.candidates[0].content.parts[0].text); 
                      } else { 
@@ -3489,6 +3519,41 @@ const generateFolderStats = useCallback(async () => {
     debouncedLearnInputFocus();
   }, [currentLearnActivity, debouncedLearnInputFocus]); 
 
+  // Handle navigation state from Dashboard suggestions
+  useEffect(() => {
+    if (!location.state) return;
+    
+    const state = location.state as any;
+    
+    // Handle specific folder targeting
+    if (state.autoSelect && state.targetFolderId && folders.length > 0) {
+      const targetFolder = folders.find(folder => folder.id === state.targetFolderId) || 
+                          Object.values(subFolders).flat().find(folder => folder.id === state.targetFolderId);
+      if (targetFolder) {
+        handleSelectFolder(targetFolder);
+      }
+    }
+    
+    // Handle navigation from created folders
+    if (state.folderId && folders.length > 0) {
+      const createdFolder = folders.find(folder => folder.id === state.folderId) ||
+                           Object.values(subFolders).flat().find(folder => folder.id === state.folderId);
+      if (createdFolder) {
+        handleSelectFolder(createdFolder);
+      }
+    }
+    
+    // Handle opening new folder form
+    if (state.openNewFolderForm) {
+      setShowNewFolderForm(true);
+    }
+    
+    // Clear the navigation state after processing to prevent re-triggering
+    if (Object.keys(state).length > 0) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [location.state, folders, subFolders, handleSelectFolder]);
+
   function debounce<T extends (...args: any[]) => any>(func: T, delay: number): (...args: Parameters<T>) => void {
     let timeoutId: ReturnType<typeof setTimeout>;
     return function (this: any, ...args: Parameters<T>) {
@@ -3504,28 +3569,28 @@ const generateFolderStats = useCallback(async () => {
     return currentLevelFolders.map(folder => (
       <React.Fragment key={folder.id}>
         <div
-          className={`pl-${level * 3} group flex items-center justify-between p-1 rounded-md cursor-pointer transition-colors duration-150
-            ${selectedFolder?.id === folder.id ? 'bg-indigo-100 dark:bg-indigo-700/40 ring-1 ring-indigo-400 dark:ring-indigo-600' : 'hover:bg-gray-100 dark:hover:bg-gray-700/60'}`}
+          className={`pl-${level * 4} group flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors duration-150
+            ${selectedFolder?.id === folder.id ? 'bg-[var(--interactive-hover)] ring-1 ring-[var(--interactive-focus)]' : 'hover:bg-[var(--interactive-hover)]'}`}
           onClick={() => handleSelectFolder(folder)}
         >
           <div className="flex items-center gap-1 flex-1 min-w-0">
             <button
                 onClick={(e) => { e.stopPropagation(); handleToggleFolderExpansion(folder.id); }}
-                className={`p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors ${folder.subfolderCount === 0 ? 'opacity-0 pointer-events-none' : '' }`}
+                className={`p-0.5 rounded hover:bg-[var(--interactive-hover)] transition-colors ${folder.subfolderCount === 0 ? 'opacity-0 pointer-events-none' : '' }`}
                 disabled={folder.subfolderCount === 0}
             >
-              { (folder.subfolderCount || 0) > 0 ? (expandedFolders.has(folder.id) ? <ChevronDown className="w-3 h-3 text-gray-500 dark:text-gray-400" /> : <ChevronRightIconUI className="w-3 h-3 text-gray-500 dark:text-gray-400" />) : <div className="w-3 h-3"></div>}
+              { (folder.subfolderCount || 0) > 0 ? (expandedFolders.has(folder.id) ? <ChevronDown className="sidebar-icon-responsive text-[var(--text-muted)]" /> : <ChevronRightIconUI className="sidebar-icon-responsive text-[var(--text-muted)]" />) : <div className="sidebar-icon-responsive"></div>}
             </button>
-            {folder.isStarred && <Star className="w-3 h-3 text-yellow-400 flex-shrink-0" />}
-            {folder.dailyStreakCount > 0 && <Flame className="w-3 h-3 text-orange-400 flex-shrink-0" title={`Streak: ${folder.dailyStreakCount}`} />}
-            <FolderIconLucide className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400 flex-shrink-0" style={{color: folder.color || undefined }}/>
-            <span className="text-xs font-medium text-gray-700 dark:text-gray-200 truncate" title={folder.name}>{folder.name}</span>
-            {folder.level > 1 && <span className="text-[8px] bg-yellow-100 text-yellow-700 px-1 rounded-sm dark:bg-yellow-700 dark:text-yellow-100 ml-1">Lvl {folder.level}</span>}
+            {folder.isStarred && <Star className="sidebar-icon-responsive text-[var(--status-warning)] flex-shrink-0" />}
+            {folder.dailyStreakCount > 0 && <Flame className="sidebar-icon-responsive text-[var(--status-warning)] flex-shrink-0" />}
+            <FolderIconLucide className="sidebar-icon-responsive text-[var(--bg-accent)] flex-shrink-0" style={{color: folder.color || undefined }}/>
+            <span className="sidebar-text-responsive font-medium text-[var(--text-primary)] truncate" title={folder.name}>{folder.name}</span>
+            {folder.level > 1 && <span className="text-[8px] bg-[var(--status-warning)]/20 text-[var(--status-warning)] px-1 rounded-sm ml-1">Lvl {folder.level}</span>}
           </div>
           <div className="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-             <button onClick={(e) => { e.stopPropagation(); setShowNewFolderForm(true); setNewFolderParentId(folder.id); setEditingFolder(null); setNewFolderName(""); setNewFolderDescription(""); setNewFolderColor(defaultFolderColors[0]); setNewFolderType("mixed"); }} className="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600" title="Add Subfolder"><FolderPlus className="w-2.5 h-2.5 text-gray-500 dark:text-gray-400" /></button>
-             <button onClick={(e) => { e.stopPropagation(); setShowNewFolderForm(true); setEditingFolder(folder); setNewFolderName(folder.name); setNewFolderDescription(folder.description||""); setNewFolderType(folder.type); setNewFolderColor(folder.color||defaultFolderColors[0]); setNewFolderParentId(folder.parentId); }} className="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600" title="Edit Folder"><Edit className="w-2.5 h-2.5 text-gray-500 dark:text-gray-400" /></button>
-             <button onClick={(e) => { e.stopPropagation(); confirmDeleteFolder(folder.id); }} className="p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-700/30" title="Delete Folder"><Trash className="w-2.5 h-2.5 text-red-500 dark:text-red-400" /></button>
+             <button onClick={(e) => { e.stopPropagation(); setShowNewFolderForm(true); setNewFolderParentId(folder.id); setEditingFolder(null); setNewFolderName(""); setNewFolderDescription(""); setNewFolderColor(defaultFolderColors[0]); setNewFolderType("mixed"); }} className="p-0.5 rounded hover:bg-[var(--interactive-hover)]" title="Add Subfolder"><FolderPlus className="w-2.5 h-2.5 text-[var(--text-muted)]" /></button>
+             <button onClick={(e) => { e.stopPropagation(); setShowNewFolderForm(true); setEditingFolder(folder); setNewFolderName(folder.name); setNewFolderDescription(folder.description||""); setNewFolderType(folder.type); setNewFolderColor(folder.color||defaultFolderColors[0]); setNewFolderParentId(folder.parentId || null); }} className="p-0.5 rounded hover:bg-[var(--interactive-hover)]" title="Edit Folder"><Edit className="w-2.5 h-2.5 text-[var(--text-muted)]" /></button>
+             <button onClick={(e) => { e.stopPropagation(); confirmDeleteFolder(folder.id); }} className="p-0.5 rounded hover:bg-[var(--status-error)]/20" title="Delete Folder"><Trash className="w-2.5 h-2.5 text-[var(--status-error)]" /></button>
           </div>
         </div>
         {expandedFolders.has(folder.id) && renderFolderTree(folder.id, level + 1)}
@@ -3609,7 +3674,7 @@ if (userProfile) {
 
 
 return (
-    <div className={`bg-white dark:bg-[#0C0E1A] text-gray-900 dark:text-gray-100 min-h-screen w-full overflow-x-hidden relative font-poppins flex`}>
+    <div className={`bg-[var(--bg-primary)] text-[var(--text-primary)] min-h-screen w-full overflow-x-hidden relative font-clarika flex selection:bg-[var(--bg-accent)] selection:text-white`}>
       {toastMessage && (
         <AnimatePresence>
         <motion.div
@@ -3631,10 +3696,10 @@ return (
               initial={{scale:0.9, opacity:0}} animate={{scale:1, opacity:1}}
               className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-sm w-full"
             >
-                <h4 className="text-md font-semibold text-gray-800 dark:text-gray-100 mb-3">Confirm Action</h4>
-                <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">{confirmAction.message}</p>
+                <h4 className="text-md font-semibold text-[var(--text-primary)] mb-3">Confirm Action</h4>
+                <p className="text-sm text-[var(--text-secondary)] mb-4">{confirmAction.message}</p>
                 <div className="flex justify-end gap-3">
-                    <button onClick={() => { confirmAction.onCancel?.(); setConfirmAction(null); }} className="px-4 py-2 text-xs rounded-md bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-100">Cancel</button>
+                    <button onClick={() => { confirmAction.onCancel?.(); setConfirmAction(null); }} className="px-4 py-2 text-xs rounded-md bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-primary)]">Cancel</button>
                     <button onClick={() => { confirmAction.onConfirm(); }} className="px-4 py-2 text-xs rounded-md bg-red-500 hover:bg-red-600 text-white">Confirm</button>
                 </div>
             </motion.div>
@@ -3650,13 +3715,12 @@ return (
       <Sidebar
         userName={userName}
         isCollapsed={isSidebarCollapsed}
-        onToggleCollapse={() => setIsSidebarCollapsed(prev => !prev)}
+        onToggleCollapse={() => setIsSidebarCollapsed((prev: boolean) => !prev)}
         isMobileOpen={isMobileSidebarOpen}
         setIsMobileOpen={setIsMobileSidebarOpen}
         userProfile={userProfile}
-        onProfileClick={() => setShowProfileModal(true)}
       />
-      <button onClick={() => setIsAiAssistantOpen(prev => !prev)} className={`fixed bottom-5 right-5 z-40 p-3 rounded-full shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-100 bg-gradient-to-br from-[#635BFF] to-[#8A85FF] text-white ${isAiAssistantOpen ? 'rotate-45 bg-gradient-to-br from-pink-500 to-orange-500' : ''}`} title={isAiAssistantOpen ? "Close Folders Agent" : "Open Folders Agent"} aria-label="Toggle Folders Agent">
+      <button onClick={() => setIsAiAssistantOpen(prev => !prev)} className={`fixed bottom-5 right-5 z-40 p-3 rounded-full shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-100 bg-gradient-to-br from-[var(--bg-header-secondary)] to-[var(--bg-accent)] text-[var(--text-white)] ${isAiAssistantOpen ? 'rotate-45 bg-gradient-to-br from-[var(--status-error)] to-[var(--status-warning)]' : ''}`} title={isAiAssistantOpen ? "Close Folders Agent" : "Open Folders Agent"} aria-label="Toggle Folders Agent">
         {isAiAssistantOpen ? <X className="w-5 h-5" /> : <Brain className="w-5 h-5" />}
       </button>
 
@@ -3666,84 +3730,46 @@ return (
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4, ease: "easeOut" }}
-              className="bg-gradient-to-r from-slate-50 to-gray-100 dark:from-[#10121c] dark:to-[#131520] p-3 sm:p-4 rounded-xl shadow-lg  mb-7 max-w-7xl mx-auto space-y-6"
+              className="w-full py-8 space-y-8"
             >
-              <div className="flex flex-col md:flex-row justify-between items-center gap-2 md:gap-3">
-                <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-center md:justify-start">
+              <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3 justify-center lg:justify-start">
                   {[
-                    { label: 'Points', value: userProfile.points, icon: TrendingUp, color: 'text-indigo-500 dark:text-indigo-400', gradient: 'from-indigo-400 to-purple-500' },
-                    { label: 'Level', value: userProfile.level, icon: Award, color: 'text-green-500 dark:text-green-400', gradient: 'from-green-400 to-emerald-500' },
-                    { label: 'Streak', value: userProfile.overallStreakCount, icon: Flame, color: 'text-orange-500 dark:text-orange-400', gradient: 'from-orange-400 to-amber-500' },
-                    { label: 'Badges', value: (userProfile.badges || []).length, icon: Trophy, color: 'text-yellow-500 dark:text-yellow-400', gradient: 'from-yellow-400 to-amber-500' },
-                  ].map(stat => {
-                    let statAnimationProps = {};
-                    if (stat.label === 'Points') {
-                      statAnimationProps = {
-                        animate: { y: [0, -1.5, 0, 1, 0] },
-                        transition: { duration: 3, repeat: Infinity, ease: "easeInOut", delay: 0.1 }
-                      };
-                    } else if (stat.label === 'Level') {
-                      statAnimationProps = {
-                        animate: { scale: [1, 1.015, 1, 1.005, 1] },
-                        transition: { duration: 2.7, repeat: Infinity, ease: "easeInOut", delay: 0.3 }
-                      };
-                    } else if (stat.label === 'Streak') {
-                      statAnimationProps = {
-                        animate: {
-                          boxShadow: [
-                            "0px 1px 2px 0 rgba(0,0,0,0.05), 0 0 0px rgba(249, 115, 22, 0)",
-                            "0px 1px 3px 0 rgba(0,0,0,0.06), 0 0 8px rgba(249, 115, 22, 0.5)",
-                            "0px 1px 2px 0 rgba(0,0,0,0.05), 0 0 2px rgba(249, 115, 22, 0.2)",
-                            "0px 1px 3px 0 rgba(0,0,0,0.07), 0 0 10px rgba(249, 115, 22, 0.6)",
-                            "0px 1px 2px 0 rgba(0,0,0,0.05), 0 0 0px rgba(249, 115, 22, 0)"
-                          ]
-                        },
-                        transition: { duration: 1.7, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }
-                      };
-                    } else if (stat.label === 'Badges') {
-                        statAnimationProps = {
-                           animate: {
-                             textShadow: [
-                                "0 0 0px rgba(253, 224, 71, 0)",
-                                "0 0 8px rgba(253, 224, 71, 0.7)",
-                                "0 0 2px rgba(253, 224, 71, 0.3)",
-                                "0 0 0px rgba(253, 224, 71, 0)",
-                             ],
-                             scale: [1, 1.01, 1, 1.005, 1]
-                           },
-                           transition: { duration: 2.2, repeat: Infinity, ease: "easeInOut", delay: 0.2 }
-                        }
-                    }
-
-                    return (
-                      <motion.div
-                        key={stat.label}
-                        whileHover={{ scale: 1.05, y: -2 }}
-                        className="bg-white dark:bg-[#0C0E1A] p-2.5 rounded-lg text-center shadow-sm  w-20 sm:w-24"
-                        {...statAnimationProps}
-                      >
-                        {stat.label === 'Streak' ? (
-                          <motion.div
-                            animate={{ y: [0, -1.2, 0.4, -1.8, 0, -0.9, 0.3, -1.4, 0] }}
-                            transition={{ duration: 0.75, repeat: Infinity, ease: "easeInOut" }}
-                            className="inline-block leading-none"
-                          >
-                            <stat.icon className={`w-5 h-5 sm:w-6 sm:h-6 mx-auto ${stat.color}`} />
-                          </motion.div>
-                        ) : (
-                          <stat.icon className={`w-5 h-5 sm:w-6 sm:h-6 mx-auto mb-0.5 ${stat.color}`} />
-                        )}
-                        <p className={`text-xl sm:text-2xl font-semibold text-transparent bg-clip-text bg-gradient-to-r ${stat.gradient} ${stat.label === 'Streak' ? 'mt-0.5' : ''}`}>{stat.value}</p>
-                        <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">{stat.label}</p>
-                      </motion.div>
-                    );
-                  })}
+                    { label: 'Points', value: userProfile.points ?? 0, icon: TrendingUp, iconClass: 'icon-points' },
+                    { label: 'Level', value: userProfile.level ?? 0, icon: Award, iconClass: 'icon-level' },
+                    { label: 'Streak', value: userProfile.overallStreakCount ?? 0, icon: Flame, iconClass: 'icon-streak' },
+                    { label: 'Badges', value: (userProfile.badges || []).length, icon: Trophy, iconClass: 'icon-badge' },
+                  ].map(stat => (
+                    <div key={stat.label} className="flex items-center gap-2 bg-[var(--bg-highlight)] backdrop-blur-sm rounded-full px-3 py-1.5 stats-text-responsive" title={`${stat.label}: ${stat.value}`}>
+                      <stat.icon className={`stats-icon-responsive ${stat.iconClass} icon-theme-adaptive`} />
+                      <span className="font-semibold text-[var(--text-primary)]">{stat.value}</span>
+                      <span className="text-[var(--text-muted)] opacity-80 hidden md:inline">{stat.label}</span>
+                    </div>
+                  ))}
                 </div>
-                <div className="flex-grow md:flex-grow-0 md:ml-3 mt-3 md:mt-0 text-xs text-gray-600 dark:text-gray-300 bg-gray-100/50 dark:bg-[#0C0E1A] p-2 rounded-lg  text-center sm:text-left flex items-center gap-2 shadow-inner">
-                  <Lightbulb className="w-7 h-7 sm:w-8 sm:h-8 text-yellow-400 flex-shrink-0 animate-pulse" />
-                  <span className="leading-snug whitespace-nowrap">
-                    {encouragement}
-                  </span>
+
+                <div className="flex items-center gap-4">
+                  <div className="text-xs text-[var(--text-secondary)] bg-[var(--bg-highlight)] p-2 rounded-lg flex items-center gap-2 shadow-inner max-w-fit">
+                    <Lightbulb className="w-4 h-4 sm:w-5 sm:h-5 text-[var(--text-primary)] flex-shrink-0" />
+                    <span className="leading-snug whitespace-nowrap">
+                      {encouragement}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap justify-center gap-1.5 sm:gap-2">
+                      {quickActions.map(action => (
+                          <button
+                              key={action.label}
+                              onClick={() => handleQuickAction(action.prompt)}
+                              disabled={!selectedFolder}
+                              className="text-[10px] sm:text-xs bg-indigo-500 hover:bg-indigo-600 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white font-medium py-1 px-2 sm:py-1.5 sm:px-2.5 rounded-md shadow-sm transition-all transform hover:scale-105 active:scale-95 flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
+                              title={!selectedFolder ? "Select a folder to use quick actions" : action.label}
+                          >
+                             <action.icon className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                             {action.label}
+                          </button>
+                      ))}
+                  </div>
                 </div>
               </div>
 
@@ -3762,79 +3788,25 @@ return (
                   </div>
                 </motion.div>
               )}
-
-              <div className="mt-4 pt-3  flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-2">
-                <div className="flex flex-wrap justify-center sm:justify-start gap-1.5 sm:gap-2">
-                    {quickActions.map(action => (
-                        <button
-                            key={action.label}
-                            onClick={() => handleQuickAction(action.prompt)}
-                            disabled={!selectedFolder}
-                            className="text-[10px] sm:text-xs bg-indigo-500 hover:bg-indigo-600 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white font-medium py-1 px-2 sm:py-1.5 sm:px-2.5 rounded-md shadow-sm transition-all transform hover:scale-105 active:scale-95 flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
-                            title={!selectedFolder ? "Select a folder to use quick actions" : action.label}
-                        >
-                           <action.icon className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                           {action.label}
-                        </button>
-                    ))}
-                </div>
-                <div className="text-center sm:text-right mt-2 sm:mt-0">
-                  <button
-                    onClick={() => setShowProfileModal(true)}
-                    className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors flex items-center gap-1 mx-auto sm:mx-0 py-1 px-2 rounded-md hover:bg-indigo-100 dark:hover:bg-indigo-700/30"
-                    title="View full profile"
-                  >
-                    <UserIconLucide className="w-3.5 h-3.5" />
-                    View Full Profile
-                  </button>
-                </div>
-              </div>
             </motion.div>
         )}
-        <div className="max-w-7xl mx-auto space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] lg:grid-cols-[350px_1fr] gap-6">
-                <section className={`md:col-span-1 bg-[#F7F8FA] dark:bg-[#161922] p-4 sm:p-5 rounded-xl shadow-lg animate-fadeIn delay-100 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'} flex flex-col max-h-[calc(106vh-12rem)] min-h-[300px]`}>
-                    <div className="flex justify-between items-center mb-3 pb-3 ">
-                        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center"><FoldersIcon className="w-5 h-5 mr-2 text-indigo-500 dark:text-indigo-400" /> My Folders</h2>
-                        <button onClick={() => { resetFolderForm(); setShowNewFolderForm(true); setNewFolderParentId(null); }} className="p-1.5 rounded-lg text-indigo-500 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-700/30 transition-colors" title="New Root Folder"><FolderPlus className="w-4 h-4" /></button>
+        <div className="w-full min-h-screen">
+            <div className="flex flex-col lg:flex-row gap-8 min-h-screen">
+                <section className={`flex-1 animate-fadeIn delay-200 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'} px-6 py-8`}>
+                  {selectedFolder && !isFoldersSidebarVisible && (
+                    <div className="mb-4">
+                      <button
+                        onClick={() => setIsFoldersSidebarVisible(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] rounded-lg text-[var(--text-primary)] transition-colors"
+                      >
+                        <FoldersIcon className="w-4 h-4" />
+                        <span className="text-sm font-medium">Change Folder</span>
+                      </button>
                     </div>
-                    <div className="mb-2 relative">
-                        <input type="text" placeholder="Search folders..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-white dark:bg-[#0C0E1A] border-gray-200 dark:border-gray-700/60 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-colors shadow-sm"/>
-                        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
-                    </div>
-                    {showNewFolderForm && (
-                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mb-3 p-3 rounded-lg  bg-gray-50 dark:bg-[#161922] overflow-hidden">
-                            <h3 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-200">{editingFolder ? 'Edit Folder' : (newFolderParentId ? `New Subfolder in "${folders.find(f=>f.id===newFolderParentId)?.name || Object.values(subFolders).flat().find(f=>f.id===newFolderParentId)?.name || 'Folder'}"` : 'New Folder')}</h3>
-                            <div className="space-y-2">
-                                <input type="text" placeholder="Folder Name" value={newFolderName} onChange={e => setNewFolderName(e.target.value)} className="w-full bg-white dark:bg-[#0C0E1A] border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs focus:ring-indigo-500 focus:border-indigo-500"/>
-                                <textarea placeholder="Description (optional)" value={newFolderDescription} onChange={e => setNewFolderDescription(e.target.value)} rows={2} className="w-full bg-white dark:bg-[#0C0E1A] border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs focus:ring-indigo-500 focus:border-indigo-500"/>
-                                <div className="flex items-center gap-2">
-                                <select value={newFolderType} onChange={e => setNewFolderType(e.target.value as any)} className="flex-1 bg-white dark:bg-[#0C0E1A] border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs focus:ring-indigo-500 focus:border-indigo-500">
-                                    <option value="mixed">Mixed</option><option value="flashcard">Flashcards</option><option value="question">Questions</option>
-                                </select>
-                                <input type="color" value={newFolderColor} onChange={e => setNewFolderColor(e.target.value)} className="w-8 h-7 p-0.5 border-none rounded-md cursor-pointer bg-transparent dark:bg-gray-700"/>
-                                </div>
-                                <div className="flex justify-end gap-2 pt-1">
-                                    <button onClick={resetFolderForm} className="px-3 py-1 rounded-md text-xs bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200 transition">Cancel</button>
-                                    <button onClick={handleSaveFolder} className="px-3 py-1 rounded-md text-xs bg-indigo-500 hover:bg-indigo-600 text-white transition">Save</button>
-                                </div>
-                            </div>
-                        </motion.div>
-                    )}
-                    <div className="flex-1 overflow-y-auto space-y-0.5 px-1 pt-1 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">                        {renderFolderTree(null)}
-                        {filteredFolders.length === 0 && folders.length === 0 && !searchQuery && !showNewFolderForm && (
-                            <p className="text-xs text-center text-gray-500 dark:text-gray-400 py-4">No folders yet. Create one to get started!</p>
-                        )}
-                         {filteredFolders.length === 0 && folders.length > 0 && searchQuery && !showNewFolderForm && (
-                            <p className="text-xs text-center text-gray-500 dark:text-gray-400 py-4">No folders match your search.</p>
-                        )}
-                    </div>
-                </section>
-
-                <section className={`md:col-span-1 animate-fadeIn delay-200 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
+                  )}
                  {!activeStudyMode && selectedFolder && (
-                    <div className="bg-[#F7F8FA] dark:bg-[#161922] p-4 sm:p-5 rounded-xl shadow-lg mb-6">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 pb-3 ">
+                    <div className="mb-12">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 pb-4 border-b border-[var(--border-primary)]">
                             <div className="flex items-center gap-2 min-w-0">
                                 <FolderIconLucide className="w-5 h-5 text-indigo-500 dark:text-indigo-400 flex-shrink-0" style={{color: selectedFolder.color || undefined }}/>
                                 <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 truncate" title={selectedFolder.name}>{selectedFolder.name}</h2>
@@ -3843,19 +3815,19 @@ return (
                                 {selectedFolder.dailyStreakCount > 0 && <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-md dark:bg-orange-700 dark:text-orange-100 font-semibold flex items-center gap-1"><Flame className="w-3 h-3"/>{selectedFolder.dailyStreakCount}</span>}
                             </div>
                             <div className="flex items-center gap-2 mt-2 sm:mt-0 flex-shrink-0">
-                                <button onClick={() => setViewMode(prev => prev === 'grid' ? 'list' : 'grid')} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/60 text-gray-500 dark:text-gray-400 transition-colors" title={viewMode === 'grid' ? "List View" : "Grid View"}>
+                                <button onClick={() => setViewMode(prev => prev === 'grid' ? 'list' : 'grid')} className="p-2 rounded-lg hover:bg-[var(--interactive-hover)] text-[var(--text-muted)] transition-colors" title={viewMode === 'grid' ? "List View" : "Grid View"}>
                                     {viewMode === 'grid' ? <List className="w-4 h-4" /> : <LayoutGrid className="w-4 h-4" />}
                                 </button>
                                 <button onClick={() => setShowNewItemForm(true)} className="px-3 py-1.5 rounded-lg text-xs bg-indigo-500 hover:bg-indigo-600 text-white transition-colors flex items-center gap-1 shadow-sm"><Plus className="w-3.5 h-3.5"/>Add Item</button>
                                  <div className="relative">
-                                     <button onClick={() => setOpenDropdownId(selectedFolder.id === openDropdownId ? null : selectedFolder.id)} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/60 text-gray-500 dark:text-gray-400 transition-colors"><MoreHorizontal className="w-4 h-4"/></button>
+                                     <button onClick={() => setOpenDropdownId(selectedFolder.id === openDropdownId ? null : selectedFolder.id)} className="p-2 rounded-lg hover:bg-[var(--interactive-hover)] text-[var(--text-muted)] transition-colors"><MoreHorizontal className="w-4 h-4"/></button>
                                      {openDropdownId === selectedFolder.id && (
-                                         <div ref={dropdownRef} className="absolute right-0 mt-1 w-52 bg-white dark:bg-[#0C0E1A] rounded-lg shadow-xl z-20 border border-gray-200 dark:border-gray-700/50 overflow-hidden text-xs">
-                                            <button onClick={() => {setShowTagManagement(prev => !prev); setOpenDropdownId(null);}} className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/60 flex items-center gap-2"><Tag className="w-3.5 h-3.5"/>Manage Tags</button>
-                                            <button onClick={() => {setShowSetGoalModal(true); setOpenDropdownId(null);}} className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/60 flex items-center gap-2"><ShieldCheck className="w-3.5 h-3.5"/>Set Study Goal</button>
-                                            <div className="my-1 border-t border-gray-200 dark:border-gray-700/50"></div>
-                                            <button onClick={() => {setShowImportModal(true); setOpenDropdownId(null);}} className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/60 flex items-center gap-2"><Upload className="w-3.5 h-3.5"/>Import Items</button>
-                                            <button onClick={() => {handleExportItems(); setOpenDropdownId(null);}} className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/60 flex items-center gap-2"><Download className="w-3.5 h-3.5"/>Export Items</button>
+                                         <div ref={dropdownRef} className="absolute right-0 mt-1 w-52 bg-[var(--bg-primary)] rounded-lg shadow-xl z-20 border border-[var(--border-primary)] overflow-hidden text-xs">
+                                            <button onClick={() => {setShowTagManagement(prev => !prev); setOpenDropdownId(null);}} className="w-full text-left px-3 py-2 hover:bg-[var(--interactive-hover)] flex items-center gap-2"><Tag className="w-3.5 h-3.5"/>Manage Tags</button>
+                                            <button onClick={() => {setShowSetGoalModal(true); setOpenDropdownId(null);}} className="w-full text-left px-3 py-2 hover:bg-[var(--interactive-hover)] flex items-center gap-2"><ShieldCheck className="w-3.5 h-3.5"/>Set Study Goal</button>
+                                            <div className="my-1 border-t border-[var(--border-primary)]"></div>
+                                            <button onClick={() => {setShowImportModal(true); setOpenDropdownId(null);}} className="w-full text-left px-3 py-2 hover:bg-[var(--interactive-hover)] flex items-center gap-2"><Upload className="w-3.5 h-3.5"/>Import Items</button>
+                                            <button onClick={() => {handleExportItems(); setOpenDropdownId(null);}} className="w-full text-left px-3 py-2 hover:bg-[var(--interactive-hover)] flex items-center gap-2"><Download className="w-3.5 h-3.5"/>Export Items</button>
                                          </div>
                                      )}
                                  </div>
@@ -3875,7 +3847,7 @@ return (
                                     onClick={() => handleStartStudyMode(m.mode as any)}
                                     className={`flex flex-col items-center justify-center p-3 rounded-lg text-xs font-medium transition-all hover:shadow-md transform hover:-translate-y-0.5
                                                 ${m.highlight ? 'bg-green-100 dark:bg-green-700/30 text-green-700 dark:text-green-200 border-2 border-green-500'
-                                                             : 'bg-white dark:bg-[#0C0E1A] hover:bg-indigo-50 dark:hover:bg-indigo-700/30 text-gray-700 dark:text-gray-200  dark: hover:border-indigo-300 dark:hover:border-indigo-600'}`}
+                                                             : 'bg-[var(--bg-primary)] hover:bg-[var(--interactive-hover)] text-[var(--text-primary)]'}`}
                                 >
                                     <m.icon className={`w-6 h-6 mb-1.5 ${m.highlight ? 'text-green-600 dark:text-green-400' : 'text-indigo-500 dark:text-indigo-400'}`}/>
                                     <span className="font-semibold text-xs sm:text-sm">{m.label}</span>
@@ -3924,9 +3896,9 @@ return (
                         </div>
 
                         {showTagManagement && (
-                            <motion.div initial={{opacity:0, height:0}} animate={{opacity:1, height:'auto'}} exit={{opacity:0, height:0}} className="p-2 mb-2  rounded-md bg-[#F7F8FA] dark:bg-[#0C0E1A] ">
+                            <motion.div initial={{opacity:0, height:0}} animate={{opacity:1, height:'auto'}} exit={{opacity:0, height:0}} className="p-3 mb-3 rounded-md bg-[var(--bg-highlight)]">
                                 <div className="flex items-center gap-2 mb-1">
-                                    <input type="text" value={newTagInput} onChange={e => setNewTagInput(e.target.value)} placeholder="Add new tag..." className="flex-1 bg-white dark:bg-[#0C0E1A] border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 text-xs focus:ring-indigo-500 focus:border-indigo-500"/>
+                                    <input type="text" value={newTagInput} onChange={e => setNewTagInput(e.target.value)} placeholder="Add new tag..." className="flex-1 bg-[var(--bg-primary)] border-[var(--border-primary)] text-[var(--text-primary)] rounded-md px-2 py-1 text-xs focus:ring-[var(--interactive-focus)] focus:border-[var(--interactive-focus)]"/>
                                     <button onClick={() => { if(user && newTagInput.trim() && selectedFolder) { addTagToFolder(user.uid, selectedFolder.id, newTagInput.trim().toLowerCase()); setNewTagInput(""); showToast("Tag added", "success");} }} className="p-1.5 rounded-md bg-indigo-500 hover:bg-indigo-600 text-white text-xs"><Plus className="w-3 h-3"/></button>
                                 </div>
                                 <div className="text-xs text-gray-500 dark:text-gray-400">All your tags: {allUserTags.join(', ') || 'None'}</div>
@@ -3974,32 +3946,32 @@ return (
                         )}
 
                         {showNewItemForm && selectedFolder && (
-                            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="p-3 mb-4  rounded-lg bg-[#F7F8FA] dark:bg-[#161922]   overflow-hidden">
+                            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="p-4 mb-6 rounded-lg bg-[var(--bg-highlight)] overflow-hidden">
                                 <div className="flex justify-between items-center mb-2">
                                     <h4 className="text-md font-semibold text-gray-700 dark:text-gray-200">{editingItem ? 'Edit Item' : 'New Item'}</h4>
                                     {selectedFolder.type === 'mixed' && !editingItem && (
                                         <div className="flex items-center gap-1 border border-gray-300 dark:border-gray-600 rounded-full p-0.5 text-xs">
-                                            <button onClick={() => setNewItemFormType('flashcard')} className={`px-2 py-0.5 rounded-full ${newItemFormType === 'flashcard' ? 'bg-indigo-500 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>Flashcard</button>
-                                            <button onClick={() => setNewItemFormType('question')} className={`px-2 py-0.5 rounded-full ${newItemFormType === 'question' ? 'bg-indigo-500 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>Question</button>
+                                            <button onClick={() => setNewItemFormType('flashcard')} className={`px-2 py-0.5 rounded-full ${newItemFormType === 'flashcard' ? 'bg-[var(--bg-accent)] text-[var(--text-white)]' : 'text-[var(--text-secondary)] hover:bg-[var(--interactive-hover)]'}`}>Flashcard</button>
+                                            <button onClick={() => setNewItemFormType('question')} className={`px-2 py-0.5 rounded-full ${newItemFormType === 'question' ? 'bg-[var(--bg-accent)] text-[var(--text-white)]' : 'text-[var(--text-secondary)] hover:bg-[var(--interactive-hover)]'}`}>Question</button>
                                         </div>
                                     )}
                                 </div>
                                 <div className="space-y-2">
                                 {newItemFormType === 'flashcard' ? (<>
-                                    <input type="text" placeholder="Term" value={flashcardTerm} onChange={e => setFlashcardTerm(e.target.value)} className="w-full bg-white dark:bg-[#0C0E1A] border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs"/>
-                                    <textarea placeholder="Definition" value={flashcardDefinition} onChange={e => setFlashcardDefinition(e.target.value)} rows={3} className="w-full bg-white dark:bg-[#0C0E1A] border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs"/>
-                                    <input type="text" placeholder="Topic (optional)" value={flashcardTopic} onChange={e => setFlashcardTopic(e.target.value)} className="w-full bg-white dark:bg-[#0C0E1A] border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs"/>
+                                    <input type="text" placeholder="Term" value={flashcardTerm} onChange={e => setFlashcardTerm(e.target.value)} className="w-full bg-[var(--bg-primary)] border-[var(--border-primary)] text-[var(--text-primary)] rounded-md px-3 py-1.5 text-xs"/>
+                                    <textarea placeholder="Definition" value={flashcardDefinition} onChange={e => setFlashcardDefinition(e.target.value)} rows={3} className="w-full bg-[var(--bg-primary)] border-[var(--border-primary)] text-[var(--text-primary)] rounded-md px-3 py-1.5 text-xs"/>
+                                    <input type="text" placeholder="Topic (optional)" value={flashcardTopic} onChange={e => setFlashcardTopic(e.target.value)} className="w-full bg-[var(--bg-primary)] border-[var(--border-primary)] text-[var(--text-primary)] rounded-md px-3 py-1.5 text-xs"/>
                                 </>) : (<>
-                                    <textarea placeholder="Question" value={questionText} onChange={e => setQuestionText(e.target.value)} rows={2} className="w-full bg-white dark:bg-[#0C0E1A] border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs"/>
+                                    <textarea placeholder="Question" value={questionText} onChange={e => setQuestionText(e.target.value)} rows={2} className="w-full bg-[var(--bg-primary)] border-[var(--border-primary)] text-[var(--text-primary)] rounded-md px-3 py-1.5 text-xs"/>
                                     {questionOptions.map((opt, i) => (
                                         <div key={i} className="flex items-center gap-2">
                                             <input type="radio" name="correctAnswer" checked={questionCorrectAnswer === i} onChange={() => setQuestionCorrectAnswer(i)} className="form-radio h-3 w-3 text-indigo-500 border-gray-300 dark:border-gray-600 focus:ring-indigo-500"/>
-                                            <input type="text" placeholder={`Option ${i+1}`} value={opt} onChange={e => { const newOpts = [...questionOptions]; newOpts[i] = e.target.value; setQuestionOptions(newOpts); }} className="flex-1 bg-white dark:bg-[#0C0E1A] border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs"/>
+                                            <input type="text" placeholder={`Option ${i+1}`} value={opt} onChange={e => { const newOpts = [...questionOptions]; newOpts[i] = e.target.value; setQuestionOptions(newOpts); }} className="flex-1 bg-[var(--bg-primary)] border-[var(--border-primary)] text-[var(--text-primary)] rounded-md px-3 py-1.5 text-xs"/>
                                             {questionOptions.length > 2 && <button type="button" onClick={() => setQuestionOptions(prev => prev.filter((_,idx) => idx !== i))} className="p-1 text-red-500 hover:text-red-700"><Trash className="w-3 h-3"/></button>}
                                         </div>
                                     ))}
                                     {questionOptions.length < 6 && <button type="button" onClick={() => setQuestionOptions(prev => [...prev, ''])} className="text-xs text-indigo-500 hover:underline">+ Add Option</button>}
-                                    <textarea placeholder="Explanation (optional)" value={questionExplanation} onChange={e => setQuestionExplanation(e.target.value)} rows={2} className="w-full bg-white dark:bg-[#0C0E1A] border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs"/>
+                                    <textarea placeholder="Explanation (optional)" value={questionExplanation} onChange={e => setQuestionExplanation(e.target.value)} rows={2} className="w-full bg-[var(--bg-primary)] border-[var(--border-primary)] text-[var(--text-primary)] rounded-md px-3 py-1.5 text-xs"/>
                                 </>)}
                                 <div className="flex justify-end gap-2 pt-1">
                                     <button type="button" onClick={resetItemForm} className="px-3 py-1 rounded-md text-xs bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500">Cancel</button>
@@ -4035,22 +4007,22 @@ return (
                                 <p className="text-xs mt-1">Add items or import them to start studying.</p>
                             </div>
                          ) : !showNewItemForm && !showImportModal && (
-                            <div className={`max-h-[calc(100vh-30rem)] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent ${viewMode === 'grid' ? 'grid grid-cols-1 lg:grid-cols-2 gap-3' : 'space-y-2'}`}>
+                            <div className={`overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent ${viewMode === 'grid' ? 'grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 gap-6' : 'space-y-4'}`}>
                                 {folderItems.map(item => {
                                     const nextReviewDateObject = item.nextReviewDate ? toDateSafe(item.nextReviewDate) : null;
                                     const isReviewDue = nextReviewDateObject && nextReviewDateObject <= new Date();
                                     return (
-                                    <div key={item.id} className={`p-3 rounded-lg bg-white dark:bg-[#0C0E1A] group relative hover:shadow-md transition-shadow duration-150 ${viewMode === 'list' ? 'flex justify-between items-start gap-3' : ''}`}>
+                                    <div key={item.id} className={`p-6 rounded-xl bg-[var(--bg-primary)] group relative hover:shadow-lg transition-all duration-200 ${viewMode === 'list' ? 'flex justify-between items-start gap-4' : 'min-h-[200px]'}`}>
                                         <div className="flex-1 min-w-0">
                                             {item.type === 'flashcard' ? (<>
-                                                <h5 className="text-sm font-semibold text-gray-800 dark:text-gray-100 break-words">{item.term}</h5>
-                                                {viewMode === 'grid' && <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5 break-words">{item.definition}</p>}
+                                                <h5 className="text-lg font-semibold text-gray-800 dark:text-gray-100 break-words mb-2">{item.term}</h5>
+                                                {viewMode === 'grid' && <p className="text-base text-gray-600 dark:text-gray-400 mt-2 break-words leading-relaxed">{item.definition}</p>}
                                                 {item.topic && <span className="mt-1.5 inline-block px-1.5 py-0.5 text-[9px] rounded-full bg-sky-100 dark:bg-sky-700/50 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-600">{item.topic}</span>}
                                             </>) : (<>
-                                                <h5 className="text-sm font-semibold text-gray-800 dark:text-gray-100 break-words">{item.question}</h5>
+                                                <h5 className="text-lg font-semibold text-gray-800 dark:text-gray-100 break-words mb-2">{item.question}</h5>
                                                 {viewMode === 'grid' && (
-                                                    <ul className="mt-1 space-y-0.5">
-                                                        {item.options.map((opt, i) => <li key={i} className={`text-xs px-1.5 py-0.5 rounded ${i === item.correctAnswer ? 'bg-green-100 dark:bg-green-700/40 text-green-700 dark:text-green-300 font-medium' : 'bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300'}`}>{opt}</li>)}
+                                                    <ul className="mt-1 space-y-0.5 text-responsive-sm">
+                                                        {item.options.map((opt, i) => <li key={i} className={`px-2 py-1 rounded ${i === item.correctAnswer ? 'bg-green-100 dark:bg-green-700/40 text-green-700 dark:text-green-300 font-medium' : 'bg-gray-100 dark:bg-gray-700/50 text-theme-text-secondary'}`}>{opt}</li>)}
                                                     </ul>
                                                 )}
                                                 {viewMode === 'grid' && item.explanation && <p className="text-[10px] italic mt-1 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/30 p-1 rounded">{item.explanation}</p>}
@@ -4075,16 +4047,16 @@ return (
                          )}
                     </div>
                  )}
-                 {!activeStudyMode && !selectedFolder && (
-                    <div className="bg-[#F7F8FA] dark:bg-[#161922] p-8 rounded-xl shadow-lg flex flex-col items-center justify-center min-h-[400px] text-center">
-                        <FolderTree className="w-16 h-16 text-indigo-300 dark:text-indigo-600 mb-4 opacity-70"/>
-                        <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-200">Select or Create a Folder</h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-xs">Your learning journey starts here.</p>
+                                  {!activeStudyMode && !selectedFolder && (
+                    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+                        <FolderTree className="w-20 h-20 text-indigo-300 dark:text-indigo-600 mb-6 opacity-70"/>
+                        <h3 className="text-2xl font-semibold text-[var(--text-primary)] mb-2">Select or Create a Folder</h3>
+                        <p className="text-base text-[var(--text-secondary)] max-w-md mb-6">Your learning journey starts here. Choose a folder to begin organizing your study materials.</p>
                          {userProfile && (
-                            <button onClick={() => setShowProfileModal(true)} className="mt-6 text-sm text-indigo-500 dark:text-indigo-400 hover:underline flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-700/30 px-4 py-2 rounded-lg hover:shadow-md transition-all">
+                            <button onClick={() => setShowProfileModal(true)} className="text-sm text-indigo-500 dark:text-indigo-400 hover:underline flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-700/30 px-4 py-2 rounded-lg hover:shadow-md transition-all">
                                 <UserCheck className="w-4 h-4" /> View Your Profile & Progress
                             </button>
-                        )}
+                         )}
                     </div>
                  )}
                  {activeStudyMode && selectedFolder && <MemoizedStudyModeInterface
@@ -4098,14 +4070,12 @@ return (
                     quizModeAnswers={quizModeAnswers}
                     quizModeScore={quizModeScore}
                     matchGamePairs={matchGamePairs}
-                    selectedMatchCard={selectedMatchCard}
-                    matchScore={matchScore}
+
                     learnInputRef={learnInputRef}
                     user={user}
                     folderItems={folderItems} 
                     reviewQueue={reviewQueue}
-                    showToast={showToast}
-                    addPoints={addPoints}
+
                     handleStartStudyMode={handleStartStudyMode}
                     handleMatchSelect={handleMatchSelect}
                     handleSubmitTest={handleSubmitTest}
@@ -4118,28 +4088,60 @@ return (
                     setQuizModeScore={setQuizModeScore}
                     setQuizModeAnswers={setQuizModeAnswers}
                     updateLastReviewed={updateLastReviewed}
-                    calculateSpacedRepetitionUpdate={calculateSpacedRepetitionUpdate}
-                    updateItemSpacedRepetitionData={updateItemSpacedRepetitionData}
-                    setStudyItems={setStudyItems} 
-                    setMatchGamePairs={setMatchGamePairs}
-                    setSelectedMatchCard={setSelectedMatchCard}
-                    setMatchScore={setMatchScore}
+
                     showTestReview={showTestReview}
                     setShowTestReview={setShowTestReview}
                     showQuizReview={showQuizReview}
                     setShowQuizReview={setShowQuizReview}
                     currentLearnActivity={currentLearnActivity}
-                    setCurrentLearnActivity={setCurrentLearnActivity}
                     learnSessionStats={learnSessionStats}
-                    setLearnSessionStats={setLearnSessionStats}
                     handleLearnItemRated={handleLearnItemRated}
                     handleLearnAnswerSubmit={handleLearnAnswerSubmit}
                     learnQueue={learnQueue}
-                    setLearnQueue={setLearnQueue}
-                    loadNextLearnItemFromQueue={loadNextLearnItemFromQueue}
+
 
                  />}
                 </section>
+
+                {isFoldersSidebarVisible && (
+                <section className={`lg:w-80 xl:w-96 animate-fadeIn delay-100 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'} flex flex-col px-6 py-8`}>
+                    <div className="flex justify-between items-center mb-3 pb-3 ">
+                        <h2 className="text-lg font-semibold text-[var(--text-primary)] flex items-center"><FoldersIcon className="w-5 h-5 mr-2 text-[var(--bg-accent)]" /> My Folders</h2>
+                        <button onClick={() => { resetFolderForm(); setShowNewFolderForm(true); setNewFolderParentId(null); }} className="p-1.5 rounded-lg text-indigo-500 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-700/30 transition-colors" title="New Root Folder"><FolderPlus className="w-4 h-4" /></button>
+                    </div>
+                    <div className="mb-2 relative">
+                        <input type="text" placeholder="Search folders..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-[var(--bg-primary)] border-[var(--border-primary)] text-[var(--text-primary)] placeholder-[var(--text-muted)] rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-[var(--interactive-focus)] focus:border-[var(--interactive-focus)] transition-colors shadow-sm"/>
+                        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)] pointer-events-none" />
+                    </div>
+                    {showNewFolderForm && (
+                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mb-4 p-4 rounded-lg bg-[var(--bg-highlight)] overflow-hidden">
+                            <h3 className="text-sm font-semibold mb-2 text-[var(--text-primary)]">{editingFolder ? 'Edit Folder' : (newFolderParentId ? `New Subfolder in "${folders.find(f=>f.id===newFolderParentId)?.name || Object.values(subFolders).flat().find(f=>f.id===newFolderParentId)?.name || 'Folder'}"` : 'New Folder')}</h3>
+                            <div className="space-y-2">
+                                <input type="text" placeholder="Folder Name" value={newFolderName} onChange={e => setNewFolderName(e.target.value)} className="w-full bg-[var(--bg-primary)] border-[var(--border-primary)] text-[var(--text-primary)] rounded-md px-3 py-1.5 text-xs focus:ring-[var(--interactive-focus)] focus:border-[var(--interactive-focus)]"/>
+                                <textarea placeholder="Description (optional)" value={newFolderDescription} onChange={e => setNewFolderDescription(e.target.value)} rows={2} className="w-full bg-[var(--bg-primary)] border-[var(--border-primary)] text-[var(--text-primary)] rounded-md px-3 py-1.5 text-xs focus:ring-[var(--interactive-focus)] focus:border-[var(--interactive-focus)]"/>
+                                <div className="flex items-center gap-2">
+                                <select value={newFolderType} onChange={e => setNewFolderType(e.target.value as any)} className="flex-1 bg-[var(--bg-primary)] border-[var(--border-primary)] text-[var(--text-primary)] rounded-md px-3 py-1.5 text-xs focus:ring-[var(--interactive-focus)] focus:border-[var(--interactive-focus)]">
+                                    <option value="mixed">Mixed</option><option value="flashcard">Flashcards</option><option value="question">Questions</option>
+                                </select>
+                                <input type="color" value={newFolderColor} onChange={e => setNewFolderColor(e.target.value)} className="w-8 h-7 p-0.5 border-none rounded-md cursor-pointer bg-transparent dark:bg-gray-700"/>
+                                </div>
+                                <div className="flex justify-end gap-2 pt-1">
+                                    <button onClick={resetFolderForm} className="px-3 py-1 rounded-md text-xs bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-primary)] transition">Cancel</button>
+                                    <button onClick={handleSaveFolder} className="px-3 py-1 rounded-md text-xs bg-indigo-500 hover:bg-indigo-600 text-white transition">Save</button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                    <div className="flex-1 overflow-y-auto space-y-1 px-2 pt-2 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">                        {renderFolderTree(null)}
+                        {filteredFolders.length === 0 && folders.length === 0 && !searchQuery && !showNewFolderForm && (
+                            <p className="text-xs text-center text-[var(--text-muted)] py-4">No folders yet. Create one to get started!</p>
+                        )}
+                         {filteredFolders.length === 0 && folders.length > 0 && searchQuery && !showNewFolderForm && (
+                            <p className="text-xs text-center text-[var(--text-muted)] py-4">No folders match your search.</p>
+                        )}
+                    </div>
+                </section>
+                )}
             </div>
         </div>
       </main>
@@ -4158,20 +4160,20 @@ return (
             ></motion.div>
             <motion.div
                  initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                className={`relative w-full max-w-3xl h-[90vh] sm:h-[85vh] max-h-[800px] bg-white dark:bg-[#12141D] rounded-t-2xl sm:rounded-xl shadow-2xl flex flex-col`}
+                className={`relative w-full max-w-3xl h-[90vh] sm:h-[85vh] max-h-[800px] bg-[var(--bg-primary)] rounded-t-2xl sm:rounded-xl shadow-2xl flex flex-col`}
             >
-               <div className="p-3 border-b border-gray-200 dark:border-gray-700/80 bg-gray-50 dark:bg-[#1A1D29]/90 flex justify-between items-center flex-shrink-0 rounded-t-2xl sm:rounded-t-xl">
+               <div className="p-3 border-b border-[var(--border-primary)] bg-[var(--bg-highlight)] flex justify-between items-center flex-shrink-0 rounded-t-2xl sm:rounded-t-xl">
                     <h3 id="ai-assistant-title" className="text-md font-semibold flex items-center gap-1.5 text-indigo-500 dark:text-indigo-400">
                         <FoldersIcon className="w-4.5 h-4.5" /> Folders Agent
                     </h3>
                     <button onClick={() => setIsAiAssistantOpen(false)} className="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700/80 p-1 rounded-lg transition-colors" title="Close Folders Agent"><X className="w-4 h-4" /></button>
                 </div>
-                <div className="flex border-b border-gray-200 dark:border-gray-700/80 flex-shrink-0">
+                <div className="flex border-b border-[var(--border-primary)] flex-shrink-0">
                     {(['chat', 'history', 'analytics'] as const).map(tab => (
                         <button key={tab} onClick={() => setAiChatSidebarTab(tab)}
                             className={`flex-1 py-2 px-2.5 text-sm font-medium transition-all duration-150
                             ${aiChatSidebarTab === tab
-                                ? 'text-indigo-500 dark:text-indigo-400 border-b-2 border-indigo-500 dark:border-indigo-400 bg-indigo-50 dark:bg-[#1A1D29]'
+                                ? 'text-[var(--bg-accent)] border-b-2 border-[var(--bg-accent)] bg-[var(--interactive-hover)]'
                                 : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/70 hover:text-gray-700 dark:hover:text-gray-200'}`}>
                             {tab === 'analytics' ? 'Folder Analytics' : tab.charAt(0).toUpperCase() + tab.slice(1)}
                         </button>
@@ -4179,7 +4181,7 @@ return (
                 </div>
                 {aiChatSidebarTab === 'chat' && (
                 <>
-                <div className="px-3 py-1.5 text-xs text-center bg-gray-100 dark:bg-[#161922] flex-shrink-0">
+                <div className="px-3 py-1.5 text-xs text-center bg-[var(--bg-highlight)] flex-shrink-0">
                     {selectedFolder ? (
                         <span className="text-gray-600 dark:text-gray-300">
                             <FolderIconLucide className="w-3 h-3 inline mr-1 align-[-0.1em]" style={{ color: selectedFolder.color || 'currentColor' }} />
@@ -4189,12 +4191,29 @@ return (
                         <span className="text-gray-500 dark:text-gray-400 italic">Please select a folder to begin.</span>
                     )}
                 </div>
-                <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent bg-white dark:bg-[#0C0E1A]">
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent bg-[var(--bg-primary)]">
                    {(!conversationId && !selectedFolder) && ( <div className="text-center py-8 flex flex-col items-center"><MessageCircle className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-2.5" /><p className="text-gray-500 dark:text-gray-400 text-sm mb-4">Select a folder to start a new chat or choose one from history.</p></div>)}
                    {(!conversationId && selectedFolder) && ( <div className="text-center py-8 flex flex-col items-center"><MessageCircle className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-2.5" /><p className="text-gray-500 dark:text-gray-400 text-sm mb-4">Start a new chat for "{selectedFolder.name}" or select one from history.</p><button onClick={() => handleNewConversation()} className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 text-sm font-semibold rounded-lg hover:shadow-md transition-all duration-200 flex items-center gap-1.5 transform hover:scale-105 active:scale-100"><Plus className="w-4 h-4" /> New Chat</button></div>)}
 {conversationId && chatHistory.map((message, index) => (
     <div key={message.id || `${message.role}-${index}`} className={`flex ${message.role === 'user' || message.role === 'system' ? 'justify-end' : 'justify-start'} animate-fadeIn`} style={{ animationDelay: `${index * 20}ms`, animationDuration: '250ms' }}>
-        <div className={`max-w-[85%] rounded-xl px-3.5 py-2.5 ${message.role === 'user' ? 'text-sm' : 'text-xs'} shadow-md break-words ${message.role === 'user' ? 'bg-indigo-500 text-white' : message.error ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200 border border-red-200 dark:border-red-700/60' : message.role === 'system' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-100 border border-yellow-200 dark:border-yellow-700/60 text-center mx-auto' : 'bg-gray-100 dark:bg-[#161922] text-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700/70'}`}>
+        {/* Show attachments above the message bubble for user messages */}
+        {message.role === 'user' && message.attachedFilesMeta && message.attachedFilesMeta.length > 0 && (
+            <div className="space-y-1.5 mb-1.5 mr-auto w-fit">
+                {message.attachedFilesMeta.map((file, fileIndex) => (
+                    <div key={`${message.id}-file-${file.name}-${fileIndex}`} className="mt-1">
+                        {file.type.startsWith('image/') ? (
+                            <img src={file.base64Data ? `data:${file.type};base64,${file.base64Data}` : file.url || file.localPreviewUrl || ''} alt={file.name} className="max-w-full h-auto max-h-40 object-contain rounded-md border border-indigo-200 dark:border-indigo-500/50 cursor-pointer" onClick={() => window.open(file.url || file.localPreviewUrl || `data:${file.type};base64,${file.base64Data}` || '', '_blank')} title={`View ${file.name}`}/>
+                        ) : (
+                            <div className="flex items-center gap-1.5 p-1.5 rounded-md border bg-indigo-400/20 dark:bg-indigo-600/20 border-indigo-300 dark:border-indigo-600/40 text-indigo-100 dark:text-indigo-300 text-[10px] max-w-xs">
+                                <FileText className="w-3 h-3 flex-shrink-0" /> <span className="truncate flex-1" title={file.name}>{file.name} ({formatBytes(file.size)})</span>
+                                {file.url && (<a href={file.url} target="_blank" rel="noopener noreferrer" title="Download file" className="p-0.5 rounded-full hover:bg-indigo-300/30 dark:hover:bg-indigo-500/30"><Download className="w-2.5 h-2.5" /></a>)}
+                            </div>
+                        )}
+                    </div>
+                ))}
+            </div>
+        )}
+        <div className={`max-w-[85%] rounded-xl px-3.5 py-2.5 ${message.role === 'user' ? 'text-sm' : 'text-xs'} shadow-md break-words ${message.role === 'user' ? 'bg-[var(--bg-accent)] text-[var(--text-white)]' : message.error ? 'bg-[var(--status-error)]/20 text-[var(--status-error)] border border-[var(--status-error)]/60' : message.role === 'system' ? 'bg-[var(--status-warning)]/20 text-[var(--status-warning)] border border-[var(--status-warning)]/60 text-center mx-auto' : 'bg-[var(--bg-highlight)] text-[var(--text-primary)] border border-[var(--border-primary)]'}`}>
             {message.isLoading && (
     <div className="flex flex-col items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 p-1">
         {message.isProcessingNotion ? (
@@ -4213,22 +4232,6 @@ return (
 )}
                                 {message.role === 'user' && (
                                     <>
-                                        {message.attachedFilesMeta && message.attachedFilesMeta.length > 0 && (
-                                            <div className="space-y-1.5 mb-1.5">
-                                                {message.attachedFilesMeta.map((file, fileIndex) => (
-                                                    <div key={`${message.id}-file-${file.name}-${fileIndex}`} className="mt-1">
-                                                        {file.type.startsWith('image/') ? (
-                                                            <img src={file.base64Data ? `data:${file.type};base64,${file.base64Data}` : file.url || file.localPreviewUrl || ''} alt={file.name} className="max-w-full h-auto max-h-40 object-contain rounded-md border border-indigo-200 dark:border-indigo-500/50 cursor-pointer" onClick={() => window.open(file.url || file.localPreviewUrl || `data:${file.type};base64,${file.base64Data}` || '', '_blank')} title={`View ${file.name}`}/>
-                                                        ) : (
-                                                            <div className="flex items-center gap-1.5 p-1.5 rounded-md border bg-indigo-400/20 dark:bg-indigo-600/20 border-indigo-300 dark:border-indigo-600/40 text-indigo-100 dark:text-indigo-300 text-[10px] max-w-xs">
-                                                                <FileText className="w-3 h-3 flex-shrink-0" /> <span className="truncate flex-1" title={file.name}>{file.name} ({formatBytes(file.size)})</span>
-                                                                {file.url && (<a href={file.url} target="_blank" rel="noopener noreferrer" title="Download file" className="p-0.5 rounded-full hover:bg-indigo-300/30 dark:hover:bg-indigo-500/30"><Download className="w-2.5 h-2.5" /></a>)}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
                                         <div className="whitespace-pre-wrap text-sm">{message.content}</div>
                                     </>
                                 )}
@@ -4241,8 +4244,19 @@ return (
                                                 <button onClick={() => handleDownloadImageFromUrl(message.imageUrl!, message.imageMeta?.name)} className="absolute top-1 right-1 p-1 rounded-full opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-200 bg-gray-200/70 dark:bg-gray-900/70 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300" title="Download"><Download className="w-3 h-3" /></button>
                                             </div>
                                         )}
-                                        {message.flashcard && <FlashcardsQuestions type="flashcard" data={message.flashcard.data.map(fc => ({...fc, question: fc.term, answer: fc.definition}))} onComplete={() => {}} />}
-                                        {message.question && <FlashcardsQuestions type="question" data={message.question.data} onComplete={() => {}} />}
+                                        {/* Render multiple educational content or legacy single content */}
+                                        {message.multipleEducationalContent ? (
+                                          <MultiEducationalContent 
+                                            flashcards={message.multipleEducationalContent.flashcards}
+                                            questions={message.multipleEducationalContent.questions}
+                                            onComplete={() => {}} 
+                                          />
+                                        ) : (
+                                          <>
+                                            {message.flashcard && <FlashcardsQuestions type="flashcard" data={message.flashcard.data.map(fc => ({...fc, question: fc.term, answer: fc.definition}))} onComplete={() => {}} />}
+                                            {message.question && <FlashcardsQuestions type="question" data={message.question.data} onComplete={() => {}} />}
+                                          </>
+                                        )}
                                     </>
                                 )}
                                 {message.role === 'system' && !message.isLoading && (
@@ -4253,7 +4267,7 @@ return (
                     ))}
                     <div ref={chatEndRef} />
                 </div>
-                <div className="p-3  bg-white dark:bg-[#0C0E1A] flex-shrink-0">
+                <div className="p-3 bg-[var(--bg-primary)] flex-shrink-0">
                     {/* Usage display moved above chatbox */}
                     {userTier !== 'premium' && userTier !== 'loading' && (
                         <div className="pt-2 text-xs text-center mb-3">
@@ -4285,7 +4299,7 @@ return (
                             onDragOver={handleDragEvents}
                             onDragEnter={handleDragEnter}
                             onDragLeave={handleDragLeave}
-                            className="relative bg-[#F7F8FA] dark:bg-[#161922]  rounded-2xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-400 dark:focus-within:ring-indigo-600 transition-all duration-200 flex flex-col"
+                            className="relative bg-[var(--bg-card)] rounded-2xl shadow-sm focus-within:ring-2 focus-within:ring-[var(--interactive-focus)] transition-all duration-200 flex flex-col"
                         >
                             <AnimatePresence>
                                 {isDraggingOver && (
@@ -4338,8 +4352,6 @@ return (
                       <ChatControls
                     onStyleSelect={handleStyleSelect}
                     activeStyle={activeStyle}
-                    isIlluminateEnabled={!isDarkMode}
-                    isBlackoutEnabled={false} 
                 />
 
                                           <IntegrationsControl
@@ -4382,11 +4394,11 @@ return (
                 </>
             )}
              {aiChatSidebarTab === 'history' && ( 
-                <div className="flex-1 overflow-y-auto p-3 space-y-1.5 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent bg-white dark:bg-[#0C0E1A]">
+                <div className="flex-1 overflow-y-auto p-3 space-y-1.5 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent bg-[var(--bg-primary)]">
                     <button onClick={() => handleNewConversation()} disabled={!selectedFolder} className="mb-2 w-full flex items-center justify-center gap-2 p-2.5 rounded-lg transition-all duration-200 text-sm font-medium shadow-sm bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"><Plus className="w-4 h-4" /> New Chat</button>
                     {conversationList.length === 0 && <p className="text-gray-500 dark:text-gray-400 text-center text-sm py-4 italic">No chat history.</p>}
                     {conversationList.sort((a,b) => ((b.updatedAt ? toDateSafe(b.updatedAt)!.getTime() : 0)) - ((a.updatedAt ? toDateSafe(a.updatedAt)!.getTime() : 0))).map((conv) => (
-                    <div key={conv.id} className={`flex items-center justify-between cursor-pointer p-2.5 rounded-lg transition-all duration-150 text-sm ${conversationId === conv.id ? 'bg-indigo-50 dark:bg-indigo-700/30 text-indigo-700 dark:text-white' : 'bg-gray-50 dark:bg-[#161922] hover:bg-gray-100 dark:hover:bg-gray-700/80 text-gray-700 dark:text-gray-200'}`} onClick={() => handleSelectConversation(conv.id)} >
+                    <div key={conv.id} className={`flex items-center justify-between cursor-pointer p-2.5 rounded-lg transition-all duration-150 text-sm ${conversationId === conv.id ? 'bg-[var(--interactive-hover)] text-[var(--bg-accent)]' : 'bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-primary)]'}`} onClick={() => handleSelectConversation(conv.id)} >
                         <div className="flex items-center gap-2 flex-1 min-w-0"> <MessageCircle className="w-4 h-4 flex-shrink-0" /> <span className="truncate font-medium">{conv.chatName}</span> </div>
                         <div className="relative flex-shrink-0">
                             <button onClick={(e) => { e.stopPropagation(); setOpenDropdownId(openDropdownId === conv.id ? null : conv.id); }} className="p-1.5 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"> <MoreHorizontal className="w-4 h-4" /> </button>
@@ -4406,7 +4418,7 @@ return (
                 </div>
             )}
             {aiChatSidebarTab === 'analytics' && ( 
-                <div className="flex-1 overflow-y-auto p-3 space-y-2.5 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent bg-white dark:bg-[#0C0E1A]">
+                <div className="flex-1 overflow-y-auto p-3 space-y-2.5 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent bg-[var(--bg-primary)]">
                     <button onClick={generateFolderStats} disabled={isFolderStatsLoading || !user || !selectedFolder} className="w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 shadow-sm bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 disabled:opacity-70 transform hover:scale-[1.02] active:scale-[0.98]"><BarChart3 className="w-4 h-4" />{isFolderStatsLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : "Get Folder Analytics"}</button>
                     {folderStats && (
                         <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700/70 animate-fadeIn shadow-sm">
@@ -4443,9 +4455,9 @@ return (
   );
 
   function StudyModeInterface({
-      activeStudyMode, selectedFolder, studyItems, currentStudyIndex, isCardFlipped, testModeAnswers, testModeScore, quizModeAnswers, quizModeScore, matchGamePairs, selectedMatchCard, matchScore, learnInputRef, user, folderItems, reviewQueue, showToast, addPoints, handleStartStudyMode, handleMatchSelect, handleSubmitTest, handleSubmitQuiz, setActiveStudyMode, setIsCardFlipped, setCurrentStudyIndex, setTestModeScore, setTestModeAnswers, setQuizModeScore, setQuizModeAnswers, updateLastReviewed, calculateSpacedRepetitionUpdate, updateItemSpacedRepetitionData, setStudyItems, setMatchGamePairs, setSelectedMatchCard, setMatchScore,
+      activeStudyMode, selectedFolder, studyItems, currentStudyIndex, isCardFlipped, testModeAnswers, testModeScore, quizModeAnswers, quizModeScore, matchGamePairs, learnInputRef, user, folderItems, reviewQueue, handleStartStudyMode, handleMatchSelect, handleSubmitTest, handleSubmitQuiz, setActiveStudyMode, setIsCardFlipped, setCurrentStudyIndex, setTestModeScore, setTestModeAnswers, setQuizModeScore, setQuizModeAnswers, updateLastReviewed,
       showTestReview, setShowTestReview, showQuizReview, setShowQuizReview,
-      currentLearnActivity, setCurrentLearnActivity, learnSessionStats, setLearnSessionStats, handleLearnItemRated, handleLearnAnswerSubmit, learnQueue: learnQueueProp, setLearnQueue: setLearnQueueProp, loadNextLearnItemFromQueue
+      currentLearnActivity, learnSessionStats, handleLearnItemRated, handleLearnAnswerSubmit, learnQueue: learnQueueProp
     }: {
         activeStudyMode: "flashcards" | "learn" | "quiz" | "match" | "test" | "review";
         selectedFolder: FolderData;
@@ -4457,14 +4469,12 @@ return (
         quizModeAnswers: {[itemId: string]: number | undefined};
         quizModeScore: number | null;
         matchGamePairs: { id: string, content: string, type: 'term'|'definition', matched: boolean, selected: boolean, originalId: string }[];
-        selectedMatchCard: { id: string, content: string, type: 'term'|'definition', originalId: string } | null;
-        matchScore: number;
+
         learnInputRef: React.RefObject<HTMLInputElement>;
         user: FirebaseUser | null;
         folderItems: FolderItem[];
         reviewQueue: FolderItem[];
-        showToast: (message: string, type?: 'success' | 'error' | 'info', icon?: React.FC<any>) => void;
-        addPoints: (pointsAmount: number, type: 'user_profile' | 'folder', folderIdToUpdate?: string) => Promise<void>;
+
         handleStartStudyMode: (mode: "flashcards" | "learn" | "quiz" | "match" | "test" | "review") => Promise<void>;
         handleMatchSelect: (card: any) => void;
         handleSubmitTest: () => void;
@@ -4477,25 +4487,18 @@ return (
         setQuizModeScore: React.Dispatch<React.SetStateAction<number | null>>;
         setQuizModeAnswers: React.Dispatch<React.SetStateAction<{[itemId: string]: number | undefined}>>;
         updateLastReviewed: (userId: string, folderId: string, itemId: string) => Promise<void>;
-        calculateSpacedRepetitionUpdate: (item: FolderItem, quality: 0 | 1 | 2 | 3 | 4 | 5) => Partial<FolderItemBase> & { nextReviewDate: Date | null };
-        updateItemSpacedRepetitionData: (userId: string, folderId: string, itemId: string, srData: any) => Promise<void>;
-        setStudyItems: React.Dispatch<React.SetStateAction<FolderItem[]>>;
-        setMatchGamePairs: React.Dispatch<React.SetStateAction<{ id: string, content: string, type: 'term'|'definition', matched: boolean, selected: boolean, originalId: string }[]>>;
-        setSelectedMatchCard: React.Dispatch<React.SetStateAction<{ id: string, content: string, type: 'term'|'definition', originalId: string } | null>>;
-        setMatchScore: React.Dispatch<React.SetStateAction<number>>;
+
+
         showTestReview: boolean;
         setShowTestReview: React.Dispatch<React.SetStateAction<boolean>>;
         showQuizReview: boolean;
         setShowQuizReview: React.Dispatch<React.SetStateAction<boolean>>;
         currentLearnActivity: CurrentLearnActivityType | null;
-        setCurrentLearnActivity: React.Dispatch<React.SetStateAction<CurrentLearnActivityType | null>>;
         learnSessionStats: { masteredThisSession: number, totalForSession: number };
-        setLearnSessionStats: React.Dispatch<React.SetStateAction<{ masteredThisSession: number, totalForSession: number }>>;
         handleLearnItemRated: (quality: 0 | 1 | 2 | 3 | 4 | 5) => void;
         handleLearnAnswerSubmit: (answerOrOptionId: string | number) => void;
         learnQueue: FolderItem[];
-        setLearnQueue: React.Dispatch<React.SetStateAction<FolderItem[]>>;
-        loadNextLearnItemFromQueue: (queue: FolderItem[]) => void;
+
     }) {
 
     const itemsForCurrentModeSession = useMemo(() => {
@@ -4532,7 +4535,7 @@ return (
         );
         if (relevantItemsForMode.length === 0) return true;
 
-        if (activeStudyMode !== 'learn' && activeStudyMode !== 'review' && activeStudyMode !== 'match') {
+        if (activeStudyMode === 'flashcards' || activeStudyMode === 'quiz' || activeStudyMode === 'test') {
              return currentStudyIndex >= itemsForCurrentModeSession.length && itemsForCurrentModeSession.length > 0;
         }
         
@@ -4570,7 +4573,7 @@ return (
 
 
         return (
-            <div className="bg-white dark:bg-[#161922] p-6 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700/50 flex flex-col items-center justify-center text-center min-h-[250px]">
+            <div className="bg-[var(--bg-primary)] p-6 rounded-xl shadow-xl border border-[var(--border-primary)] flex flex-col items-center justify-center text-center min-h-[250px]">
                 <CheckCircle className="w-12 h-12 text-green-500 mb-3"/>
                 <h3 className="text-lg font-semibold mb-1">All Done or No Items!</h3>
                 <p className="text-xs text-gray-600 dark:text-gray-300 mb-3">
@@ -4649,7 +4652,7 @@ return (
 
     return (
         <div 
-            className="bg-[#F7F8FA] dark:bg-[#161922] p-4 sm:p-5 rounded-xl shadow-2xl "
+            className=""
         >
             <div className="flex justify-between items-center mb-4 pb-3 ">
                  <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
@@ -4665,8 +4668,8 @@ return (
             </div>
 
             {activeStudyMode === 'flashcards' && currentItemFromSession?.type === 'flashcard' && (
-                <div className="flex flex-col items-center min-h-[300px]">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                <div className="flex flex-col items-center min-h-[400px]">
+                    <p className="stats-text-responsive text-gray-500 dark:text-gray-400 mb-4">
                         Card {itemsForCurrentModeSession.findIndex(it => it.id === currentItemFromSession!.id) + 1} of {itemsForCurrentModeSession.length}
                     </p>
                     <div
@@ -4677,19 +4680,19 @@ return (
                                 updateLastReviewed(user.uid, selectedFolder.id, currentItemFromSession.id); 
                             } 
                         }}
-                        className={`w-full max-w-md h-60 md:h-64 rounded-xl shadow-lg cursor-pointer relative overflow-hidden border border-indigo-200 dark:border-indigo-700 bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-[#0C0E1A] dark:via-[#0C0E1A] dark:[#0C0E1A] perspective-1000`}
+                        className={`study-card-responsive rounded-xl shadow-lg cursor-pointer relative overflow-hidden border border-[var(--border-primary)] bg-[var(--bg-card)] perspective-1000`}
                     >
                         <div
-                            className="absolute inset-0 flex items-center justify-center p-4 text-center"
+                            className="absolute inset-0 flex items-center justify-center p-6 text-center"
                             style={{ backfaceVisibility: "hidden", transform: isCardFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)', transition: 'transform 0.6s' }}
                         >
-                            <p className="text-lg md:text-xl font-semibold text-gray-800 dark:text-gray-100 break-words">{(currentItemFromSession as Flashcard).term}</p>
+                            <p className="study-card-text-responsive font-semibold text-gray-800 dark:text-gray-100 break-words">{(currentItemFromSession as Flashcard).term}</p>
                         </div>
                         <div
-                            className="absolute inset-0 flex items-center justify-center p-4 text-center bg-gradient-to-br from-purple-50 via-white to-indigo-50 dark:from-[#0C0E1A] dark:via-[#0C0E1A ]dark:to-[#0C0E1A]"
+                            className="absolute inset-0 flex items-center justify-center p-6 text-center bg-[var(--bg-card)]"
                             style={{ backfaceVisibility: "hidden", transform: isCardFlipped ? 'rotateY(0deg)' : 'rotateY(-180deg)', transition: 'transform 0.6s' }}
                         >
-                            <p className="text-md md:text-lg text-gray-700 dark:text-gray-200 break-words">{(currentItemFromSession as Flashcard).definition}</p>
+                            <p className="study-card-text-responsive text-gray-700 dark:text-gray-200 break-words">{(currentItemFromSession as Flashcard).definition}</p>
                         </div>
                     </div>
                     <div className="flex justify-between w-full max-w-md mt-4 gap-3">
@@ -4753,7 +4756,7 @@ return (
                     {testModeScore !== null && showTestReview ? (
                         <div className="space-y-3 max-w-xl mx-auto">
                             <h4 className="text-xl font-semibold mb-3 text-center">Test Review - Score: {testModeScore}%</h4>
-                             {itemsForCurrentModeSession.filter(i => i.type === 'flashcard').map((item, idx) => {
+                             {itemsForCurrentModeSession.filter(i => i.type === 'flashcard').map((item) => {
                                 const userAnswer = testModeAnswers[item.id] || "";
                                 const isCorrect = userAnswer.trim().toLowerCase() === (item as Flashcard).definition.trim().toLowerCase();
                                 return (
@@ -4779,7 +4782,7 @@ return (
                     ) : (
                         <div className="space-y-3 max-w-xl mx-auto">
                             <p className="text-center text-gray-500 dark:text-gray-400 text-xs">Define the following terms:</p>
-                            {itemsForCurrentModeSession.filter(i=>i.type==='flashcard').map((item, idx) => (
+                            {itemsForCurrentModeSession.filter(i=>i.type==='flashcard').map((item) => (
                                 <div key={item.id} className="p-3 rounded-lg border border-gray-200 dark:border-gray-700/70 bg-gray-50 dark:bg-gray-800/50 shadow-sm">
                                     <label htmlFor={`test-${item.id}`} className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1.5">{(item as Flashcard).term}</label>
                                     <textarea id={`test-${item.id}`} value={testModeAnswers[item.id] || ""} onChange={e => setTestModeAnswers(prev => ({...prev, [item.id]: e.target.value}))} rows={2} className="w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-xs focus:ring-indigo-500 focus:border-indigo-500" placeholder="Your definition..."/>
@@ -4792,11 +4795,11 @@ return (
             )}
             {activeStudyMode === 'match' && matchGamePairs.length > 0 && (
                 <div className="text-center">
-                    <p className="text-md text-gray-600 dark:text-gray-300 mb-3 font-medium">Matches: {matchScore} / {matchGamePairs.length / 2}</p>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                    <p className="study-card-text-responsive text-gray-600 dark:text-gray-300 mb-6 font-medium">Matches: {matchScore} / {matchGamePairs.length / 2}</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                         {matchGamePairs.map(pair => (
                             <button key={pair.id} onClick={() => handleMatchSelect(pair)} disabled={pair.matched || pair.selected}
-                                className={`p-3 min-h-[70px] rounded-lg border-2 text-xs font-medium transition-all duration-150 flex items-center justify-center text-center shadow-sm
+                                className={`match-game-card-responsive p-4 rounded-lg border-2 match-game-text-responsive font-medium transition-all duration-150 flex items-center justify-center text-center shadow-sm
                                 ${pair.matched ? 'bg-green-100 dark:bg-green-700/30 border-green-400 dark:border-green-600 opacity-60 cursor-default' :
                                  pair.selected ? 'bg-indigo-100 dark:bg-indigo-700/40 border-indigo-500 dark:border-indigo-500 ring-2 ring-indigo-500 dark:ring-indigo-400' :
                                  'bg-white dark:bg-gray-800/80 hover:bg-indigo-50 dark:hover:bg-indigo-700/40 border-gray-300 dark:border-gray-600 hover:border-indigo-400 dark:hover:border-indigo-500 text-gray-700 dark:text-gray-200'}`}>

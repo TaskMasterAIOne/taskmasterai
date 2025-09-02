@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
+import { useScrollLock } from '../hooks/useScrollLock';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import {
-  Menu, Search, Bell, Moon, Sun, PlusCircle, Edit, Trash, CheckCircle, MessageCircle, Crown, RotateCcw, X, TimerIcon, Send, ChevronLeft, ChevronRight, Calendar, Clock, MoreHorizontal, ArrowUpRight, Bookmark, BookOpen, Lightbulb, Award, TrendingUp, Target as GoalIcon, Layers, Clipboard as ClipboardIcon, AlertCircle, ThumbsUp, ThumbsDown, BrainCircuit, ArrowRight, Flag, Filter, Tag, BarChart3, PieChart, ChevronDown, Folder, ListChecks, Paperclip, ImageIcon, Settings, FileText, Users, Columns, Eye, AlignLeft, UserCheck, Hourglass, Notebook, Wand, SortAsc, CalendarCheck, Bot, Loader2, Check, Info, Download, User as UserIcon, Link as LinkIcon, Zap, SlidersHorizontal, BookCopy, ListTodo, Maximize, Minimize, CalendarDays, Brain, Mic, Video, FileQuestion, Sparkles, Play, CalendarRange,
+  Menu, Search, Bell, Moon, Sun, Target, PlusCircle, Edit, Trash, Trash2, CheckCircle, MessageCircle, Crown, RotateCcw, X, TimerIcon, Send, ChevronLeft, ChevronRight, Calendar, Clock, MoreHorizontal, ArrowUpRight, Bookmark, BookOpen, Lightbulb, LightbulbOff, Award, TrendingUp, Target as GoalIcon, Layers, Clipboard as ClipboardIcon, AlertCircle, ThumbsUp, ThumbsDown, BrainCircuit, ArrowRight, Flag, Filter, Tag, BarChart3, PieChart, ChevronDown, Folder, ListChecks, Paperclip, ImageIcon, Settings, FileText, Users, Columns, Eye, EyeOff, AlignLeft, UserCheck, Hourglass, Notebook, Wand, SortAsc, CalendarCheck, Bot, Loader2, Check, Info, Download, User as UserIcon, Link as LinkIcon, Zap, SlidersHorizontal, BookCopy, ListTodo, Maximize, Minimize, CalendarDays, Brain, Mic, Video, FileQuestion, Sparkles, Play, CalendarRange,
   GraduationCap, Milestone, BarChart, ShieldCheck, Plus, LayoutDashboard, User as UserIconLucide, PackagePlus, InfoIcon, Palette, MessageSquarePlus, Edit3, Flame, Trophy, Lock, Globe,   CheckSquare,
   Square, StopCircle
 } from 'lucide-react';
@@ -11,9 +12,12 @@ import { Sidebar } from './Sidebar';
 import { Timer } from './Timer';
 import { ChatControls } from './chat-controls';
 import { FlashcardsQuestions } from './FlashcardsQuestions';
-import { getTimeBasedGreeting } from '../lib/greetings';
-import { getFunctions, httpsCallable } from 'firebase/functions'; 
-import { getUserData } from '../lib/settings-firebase';
+import { MultiEducationalContent } from './MultiEducationalContent';
+import { generateAIGreeting, AIGreetingResult } from '../lib/ai-greetings';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+
+const functions = getFunctions(); 
+import { getUserData, getThinkHarderEnabled } from '../lib/settings-firebase';
 import { IntegrationsControl } from './integrations-control';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
@@ -33,6 +37,9 @@ import {
   type EventData as FirebaseEventData,
   getDailyBriefRefreshStatus, // <-- ADD THIS
   updateDailyBriefRefreshStatus as updateFirebaseBriefRefreshStatus, // <-- ADD THIS
+  saveUserPreferences,
+  getUserPreferences,
+  subscribeToUserPreferences,
 } from '../lib/dashboard-firebase';
 
 import {
@@ -49,11 +56,14 @@ import {
   addUserBadge
 } from '../lib/current-paying-user';
 import { getUserTier } from '../lib/current-paying-user';
+import { savePersonalNote, NoteData } from '../lib/notes-firebase';
+import { createFolder, onFoldersSnapshot, FolderData } from '../lib/folders-firebase';
 
 import { auth, db } from '../lib/firebase';
 import { User as FirebaseUser } from 'firebase/auth';
-import { getDoc, doc, serverTimestamp, Timestamp, updateDoc } from 'firebase/firestore';
-import { getCurrentUser } from '../lib/settings-firebase';
+import { getDoc, doc, serverTimestamp, Timestamp, updateDoc, collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { getCurrentUser, getDefaultChatStyle } from '../lib/settings-firebase';
+import { getStylePrompt } from '../lib/chat-styles';
 import { PriorityBadge } from './PriorityBadge';
 
 import {
@@ -114,6 +124,11 @@ export interface ChatMessageData {
   timer?: TimerMessage;
   flashcard?: FlashcardMessage;
   question?: QuestionMessage;
+  // Support for multiple educational content types
+  multipleEducationalContent?: {
+    flashcards?: FlashcardMessage;
+    questions?: QuestionMessage;
+  };
   error?: boolean;
   // --- MODIFY THIS PART ---
   actionDetails?: {
@@ -291,7 +306,8 @@ const verifyEducationalContent = async (content: FlashcardMessage | QuestionMess
         responseMimeType: "application/json",
         temperature: 0.1,
       },
-      isImageGen: false
+      isImageGen: false,
+      useThinkHarder: false  // Don't use Reasoning for verification tasks
     };
     
     const result = await geminiProxyCallable(apiRequestBody);
@@ -432,8 +448,8 @@ const calculatePriority = (itemInput: any): 'high' | 'medium' | 'low' => {
   let itemDateToConsider: Date | Timestamp | null = itemData.dueDate || itemData.targetDate;
   let dueDate: Date | null = null;
 
-  if (itemDateToConsider?.toDate) {
-    dueDate = itemDateToConsider.toDate();
+  if (itemDateToConsider && typeof itemDateToConsider === 'object' && 'toDate' in itemDateToConsider) {
+    dueDate = (itemDateToConsider as Timestamp).toDate();
   } else if (itemDateToConsider instanceof Date) {
     dueDate = itemDateToConsider;
   } else if (typeof itemDateToConsider === 'string' || typeof itemDateToConsider === 'number') {
@@ -462,20 +478,25 @@ const calculatePriority = (itemInput: any): 'high' | 'medium' | 'low' => {
 interface OverviewAction {
   id: string;
   description: string;
-  action_type: 'create_task' | 'create_goal' | 'suggestion' | 'link_to_feature';
+  action_type: 'create_task' | 'create_goal' | 'suggestion' | 'link_to_feature' | 'create_note' | 'create_folder' | 'view_notes' | 'view_folders' | 'view_chat';
   details?: {
-    name: string;
+    name?: string;
     due_date?: string;
     due_time?: string;
     priority?: 'high' | 'medium' | 'low';
     target_date?: string;
     target_time?: string;
+    content?: string;
+    topic?: string;
+    folder_id?: string;
+    search_term?: string;
   };
 }
 
 interface SmartDailyBriefData {
   summaryText: string;
   pendingTasksCount: number;
+  upcomingGoalsInfo?: string;
   upcomingEventsSummary?: string;
   upcomingQuizzesInfo?: string;
   suggestedFocusBlocks?: Array<{ name: string; duration: number }>;
@@ -542,6 +563,25 @@ const combineDateAndTime = (dateStr: string | undefined | null, timeStr: string 
 
 
 
+// Helper function to determine if a color is light or dark
+const isColorLight = (color: string): boolean => {
+  // Convert hex to RGB
+  const hex = color.replace('#', '');
+  const r = parseInt(hex.substr(0, 2), 16);
+  const g = parseInt(hex.substr(2, 2), 16);
+  const b = parseInt(hex.substr(4, 2), 16);
+
+  // Calculate brightness (YIQ formula)
+  const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+  return brightness > 128;
+};
+
+// Helper function to get appropriate text color for calendar events
+const getEventTextColor = (bgColor: string): string => {
+  if (!bgColor || bgColor === '#8884d8') return 'text-white'; // Default color
+  return isColorLight(bgColor) ? 'text-gray-900' : 'text-white';
+};
+
 // 3. REPLACE them with these new cache-only helpers:
 const getCachedBrief = (): SmartDailyBriefData | null => {
   let cachedBrief: SmartDailyBriefData | null = null;
@@ -590,7 +630,7 @@ const ActionGroupRenderer = ({ actionType, actions }: { actionType: string, acti
             <div className="text-[11px] font-medium">
                 <button
                     onClick={() => setIsExpanded(prev => !prev)}
-                    className="w-full flex justify-between items-center p-1.5 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700/50 transition-colors"
+                    className="w-full flex justify-between items-center p-1.5 rounded-md hover:bg-theme-highlight transition-colors"
                 >
                     <div className="flex items-center gap-1.5">
                         {isSuccess ? <CheckCircle className="w-3.5 h-3.5 text-green-600 dark:text-green-400" /> : <AlertCircle className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />}
@@ -606,9 +646,9 @@ const ActionGroupRenderer = ({ actionType, actions }: { actionType: string, acti
                             exit={{ height: 0, opacity: 0 }}
                             className="overflow-hidden pl-4"
                         >
-                            <ul className="list-disc list-outside ml-4 py-1 space-y-1">
+                            <ul className="list-disc list-outside ml-4 py-1 space-y-1 text-responsive-sm">
                                 {actions.map((action, index) => (
-                                    <li key={index} className={`flex items-start gap-1 ${action.status === 'error' ? 'text-red-600 dark:text-red-400' : ''}`}>
+                                    <li key={index} className={`flex items-start gap-1 ${action.status === 'error' ? 'text-red-600 dark:text-red-400' : 'text-theme-text-secondary'}`}>
                                         <span className="whitespace-pre-wrap" title={action.message}>{action.message}</span>
                                     </li>
                                 ))}
@@ -634,8 +674,8 @@ const ActionGroupRenderer = ({ actionType, actions }: { actionType: string, acti
 const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessageData, isDarkMode: boolean }) => {
     const proseClassDashboard = `prose prose-sm max-w-none prose-p:mb-3 prose-p:last:mb-0 prose-p:leading-relaxed prose-ul:my-3 prose-ul:space-y-2 prose-ol:my-3 prose-ol:space-y-2 prose-li:pl-1 prose-code:text-xs prose-code:px-1 prose-code:py-0.5 prose-pre:text-xs prose-pre:my-2 prose-pre:p-2 prose-pre:leading-relaxed
     ${isDarkMode
-        ? 'prose-invert prose-a:text-[#8A85FF] hover:prose-a:text-indigo-300 prose-code:bg-gray-700/70 prose-code:text-pink-400 prose-pre:bg-black/60'
-        : 'prose-a:text-[#635BFF] hover:prose-a:text-indigo-700 prose-code:bg-gray-200/70 prose-code:text-pink-600 prose-pre:bg-gray-800/80 prose-pre:text-white/90'
+        ? 'prose-invert prose-a:text-theme-white hover:prose-a:text-indigo-300 prose-code:bg-gray-700/70 prose-code:text-pink-400 prose-pre:bg-black/60'
+        : 'prose-a:text-theme-white hover:prose-a:text-indigo-700 prose-code:bg-gray-200/70 prose-code:text-pink-600 prose-pre:bg-gray-800/80 prose-pre:text-white/90'
     }`;
 
     return (
@@ -643,7 +683,13 @@ const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessage
             {message.content && (
                 <ReactMarkdown
                     remarkPlugins={[remarkMath, remarkGfm]}
-                    rehypePlugins={[rehypeKatex]}
+                    rehypePlugins={[[rehypeKatex, { 
+                        strict: 'ignore',
+                        throwOnError: false,
+                        errorColor: '#cc0000',
+                        trust: true,
+                        output: 'htmlAndMathml'
+                    }]]}
                     className={proseClassDashboard}
                     components={{
                         a: ({ node, ...props }) => {
@@ -652,7 +698,7 @@ const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessage
                             if (citationMatch && props.href) {
                               return (
                                 <sup className="inline-block mx-0.5 align-super">
-                                  <a href={props.href} target="_blank" rel="noopener noreferrer" className="text-[#635BFF] dark:text-[#8A85FF] no-underline hover:underline font-medium" title={`Source: ${props.href}`}>
+                                  <a href={props.href} target="_blank" rel="noopener noreferrer" className="text-theme-white no-underline hover:underline font-medium" title={`Source: ${props.href}`}>
                                     [{citationMatch[1]}]
                                   </a>
                                 </sup>
@@ -696,7 +742,7 @@ const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessage
                                 href={message.actionDetails.pageUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-200/50 dark:bg-gray-700/50 px-2.5 py-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                                className="inline-flex items-center gap-2 text-xs font-semibold text-theme-text-secondary bg-theme-border-primary px-2.5 py-1.5 rounded-lg hover:bg-theme-border-secondary"
                             >
                                 <NotionIcon className="w-3.5 h-3.5" />
                                 <span>View "{message.actionDetails.pageTitle || "Page"}" in Notion</span>
@@ -709,8 +755,8 @@ const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessage
             )}
             
             {message.sources && message.sources.length > 0 && (
-                 <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700/70">
-                    <h4 className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">{message.sources.length} sources found</h4>
+                 <div className="mt-4 pt-3 border-t border-theme-border-primary">
+                    <h4 className="text-sm font-semibold text-theme-text-secondary mb-2">{message.sources.length} sources found</h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {message.sources.sort((a,b) => a.number - b.number).map(source => {
                             let hostname = "source.com";
@@ -725,16 +771,16 @@ const AssistantMessageContent = ({ message, isDarkMode }: { message: ChatMessage
                                 key={source.number}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="block bg-gray-100/70 dark:bg-[#1A1D29] p-2 rounded-lg border border-gray-200 dark:border-gray-700/80 hover:bg-gray-200/70 dark:hover:bg-gray-700/60 transition-colors duration-150"
+                                className="block bg-theme-highlight p-2 rounded-lg border-theme-border-primary hover:bg-theme-highlight/80 transition-colors duration-150"
                             >
                                 <div className="flex items-center justify-between gap-2 mb-1">
                                     <div className="flex items-center gap-1.5 min-w-0">
                                         <img src={`https://www.google.com/s2/favicons?domain=${hostname}&sz=32`} alt="" className="w-4 h-4 rounded-full bg-white flex-shrink-0" />
-                                        <span className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate">{hostname}</span>
+                                        <span className="text-xs font-semibold text-theme-text-primary truncate">{hostname}</span>
                                     </div>
-                                    <ArrowUpRight className="w-3 h-3 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                                    <ArrowUpRight className="w-3 h-3 text-theme-text-muted flex-shrink-0" />
                                 </div>
-                                <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-3 leading-snug">{source.title}</p>
+                                <p className="text-xs text-theme-text-secondary line-clamp-3 leading-snug">{source.title}</p>
                             </a>
                         )})}
                     </div>
@@ -759,7 +805,11 @@ export function Dashboard() {
   const [userName, setUserName] = useState<string>("Learner");
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const truncatedName = useMemo(() => userName.split(' ')[0] || userName, [userName]);
-  const [greetingInfo, setGreetingInfo] = useState(getTimeBasedGreeting());
+  const [greetingInfo, setGreetingInfo] = useState<AIGreetingResult>({
+    greeting: 'Hey there',
+    color: 'text-theme-text-secondary',
+    motivationalLine: 'Ready to get productive? 🚀'
+  });
 
   const [previousStreak, setPreviousStreak] = useState<number | null>(null);
   const [streakIncreased, setStreakIncreased] = useState(false);
@@ -771,6 +821,25 @@ const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [chatUsageCount, setChatUsageCount] = useState(0);
   const [chatLimit, setChatLimit] = useState(BASIC_CHAT_LIMIT);
   const [isChatDisabledByLimit, setIsChatDisabledByLimit] = useState(true);
+  
+  // Debouncing for streak updates to prevent rapid successive calls
+  const streakUpdateTimeouts = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  
+  const debounceStreakUpdate = useCallback((userId: string, userDetails: { email: string; displayName: string }) => {
+    // Clear any existing timeout for this user
+    const existingTimeout = streakUpdateTimeouts.current.get(userId);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+    }
+    
+    // Set a new timeout
+    const newTimeout = setTimeout(() => {
+      updateUserStreak(userId, userDetails).catch(console.error);
+      streakUpdateTimeouts.current.delete(userId);
+    }, 1000); // 1 second debounce
+    
+    streakUpdateTimeouts.current.set(userId, newTimeout);
+  }, []);
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     // Standardized key
@@ -781,36 +850,64 @@ const [isDraggingOver, setIsDraggingOver] = useState(false);
 
 const [isDarkMode, setIsDarkMode] = useState(false);
 
-useEffect(() => {
-    // This function is the single source of truth for applying the theme
-    const applyTheme = () => {
-        // Always read the latest value from localStorage
-        const savedTheme = localStorage.getItem('appTheme') || 'system';
-        
-        document.documentElement.classList.remove('light', 'dark');
+  // Confirmation modal state
+  const [confirmAction, setConfirmAction] = useState<{ 
+    message: string, 
+    onConfirm: () => void, 
+    onCancel?: () => void,
+    iconType?: 'tasks' | 'goals' | 'events' | 'delete',
+    actionType?: 'positive' | 'destructive'
+  } | null>(null);
 
-        if (savedTheme === 'dark') {
+  // Lock body scroll when confirmation modal is open
+  useScrollLock(!!confirmAction);
+
+// Apply theme immediately on component mount
+useEffect(() => {
+    applyTheme();
+}, []);
+
+// Function to apply theme - can be called from anywhere
+const applyTheme = useCallback(() => {
+    // Check Illuminate mode first
+    const isIlluminateEnabled = JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'false');
+    
+    // Always read the latest value from localStorage
+    const savedTheme = localStorage.getItem('appTheme') || 'system';
+    
+    document.documentElement.classList.remove('light', 'dark');
+
+    if (isIlluminateEnabled) {
+        // Illuminate mode - force light theme
+        document.documentElement.classList.add('light');
+        setIsDarkMode(false);
+    } else if (savedTheme === 'dark') {
+        // User explicitly chose dark mode
+        document.documentElement.classList.add('dark');
+        setIsDarkMode(true);
+    } else if (savedTheme === 'light') {
+        // User explicitly chose light mode
+        document.documentElement.classList.add('light');
+        setIsDarkMode(false);
+    } else { // 'system'
+        // Follow system preference
+        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
             document.documentElement.classList.add('dark');
             setIsDarkMode(true);
-        } else if (savedTheme === 'light') {
-            // No class needed for light mode
+        } else {
+            document.documentElement.classList.add('light');
             setIsDarkMode(false);
-        } else { // 'system'
-            if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                document.documentElement.classList.add('dark');
-                setIsDarkMode(true);
-            } else {
-                setIsDarkMode(false);
-            }
         }
     };
+}, []);
 
+useEffect(() => {
     // Apply the theme on initial load
     applyTheme();
 
     // Listen for changes from other tabs (like the settings page)
     const handleStorageChange = (event: StorageEvent) => {
-        if (event.key === 'appTheme') {
+        if (event.key === 'appTheme' || event.key === 'isIlluminateEnabled') {
             applyTheme();
         }
     };
@@ -825,12 +922,14 @@ useEffect(() => {
         window.removeEventListener('storage', handleStorageChange);
         mediaQuery.removeEventListener('change', applyTheme);
     };
-}, []); // The empty dependency array is crucial. This setup runs once and establishes listeners.
+}, [applyTheme]); // Include applyTheme in dependencies since it's now a useCallback
 
 
   const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<{ message: string, onConfirm: () => void, onCancel?: () => void } | null>(null);
   const [aiChatSidebarTab, setAiChatSidebarTab] = useState<'chat' | 'history' | 'analytics'>('chat');
+  const [agentTasks, setAgentTasks] = useState<{ [key: string]: { status: 'pending' | 'in_progress' | 'completed' | 'error', message: string, resultId?: string } }>({});
+  const [userNotes, setUserNotes] = useState<NoteData[]>([]);
+  const [userFolders, setUserFolders] = useState<FolderData[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversationList, setConversationList] = useState<any[]>([]);
   const [hasGeneratedChatName, setHasGeneratedChatName] = useState(false);
@@ -860,6 +959,7 @@ useEffect(() => {
     const [activeStyle, setActiveStyle] = useState<string | null>(null);
   const [activePrompt, setActivePrompt] = useState<string>('');
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [reasoningEnabled, setReasoningEnabled] = useState<boolean>(false);
 
     // --- ADD THESE NEW STATE VARIABLES ---
   const [isNotionConnected, setIsNotionConnected] = useState(false);
@@ -881,8 +981,6 @@ useEffect(() => {
   const [showGoalsBottomGradient, setShowGoalsBottomGradient] = useState(false);
 
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
-  const [taskCoachTip, setTaskCoachTip] = useState<{[key: string]: string | null}>({});
-  const [taskCoachLoading, setTaskCoachLoading] = useState<{[key: string]: boolean}>({});
 
   const [events, setEvents] = useState<Array<{ id: string; data: EventDisplayData }>>([]);
   const [newEventName, setNewEventName] = useState("");
@@ -915,33 +1013,7 @@ useEffect(() => {
   // Add this state variable inside your Dashboard component
 const [aiActionStatus, setAiActionStatus] = useState<string | null>(null);
 
-  useEffect(() => {
-    const applyTheme = () => {
-        const isIlluminateEnabled = JSON.parse(localStorage.getItem('isIlluminateEnabled') || 'false');
-        if (isIlluminateEnabled) {
-            document.documentElement.classList.remove('dark');
-            document.documentElement.classList.add('light');
-            setIsDarkMode(false);
-        } else {
-            document.documentElement.classList.remove('light');
-            if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                document.documentElement.classList.add('dark');
-                setIsDarkMode(true);
-            } else {
-                document.documentElement.classList.remove('dark');
-                setIsDarkMode(false);
-            }
-        }
-    };
-    applyTheme();
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    mediaQuery.addEventListener('change', applyTheme);
-    window.addEventListener('storage', (event) => { if (event.key === 'isIlluminateEnabled') applyTheme(); });
-    return () => {
-        mediaQuery.removeEventListener('change', applyTheme);
-        window.removeEventListener('storage', (event) => { if (event.key === 'isIlluminateEnabled') applyTheme(); });
-    }
-  }, []);
+
 
   useEffect(() => {
     localStorage.setItem('isSidebarCollapsed', JSON.stringify(isSidebarCollapsed));
@@ -1283,7 +1355,8 @@ const handleDrop = async (e: React.DragEvent) => {
 const generateChatName = async (convId: string, history: ChatMessageData[], currentUser: FirebaseUser | null) => {
     if (!currentUser || !currentUser.uid || history.length < 2) return;
     const relevantHistory = history.slice(0, Math.min(history.length, 4)).map(m => `${m.role}: ${m.content?.substring(0,100) || ""}`).join("\n");
-    const prompt = `Please provide a short 3-5 word title summarizing the conversation so far:\n${relevantHistory}\nReturn ONLY the title, with no extra commentary. USE THE SAME LANGUAGE AS PRESENTED IN THE CONVERSATION!`;
+    const userMessageCount = history.filter(m => m.role === 'user').length;
+    const prompt = `Please provide a short 3-5 word title summarizing this conversation. The user has sent ${userMessageCount} messages so far:\n${relevantHistory}\nReturn ONLY the title, with no extra commentary. USE THE SAME LANGUAGE AS PRESENTED IN THE CONVERSATION!`;
     try {
         // SECURE: Use the geminiProxy function
         const functions = getFunctions();
@@ -1295,16 +1368,21 @@ const generateChatName = async (convId: string, history: ChatMessageData[], curr
                 temperature: 0.5, 
                 maxOutputTokens: 60 
             },
-            isImageGen: false
+            isImageGen: false,
+            useLiteModel: true,
+            useThinkHarder: false  // Don't use Reasoning for chat name generation
         };
         
         const result = await geminiProxyCallable(apiRequestBody);
         const responseData = result.data as any;
         
-        if (responseData.text && responseData.text.trim()) {
-            await updateChatConversationName(convId, responseData.text.trim().substring(0, 50));
-        } else if (responseData.error) { 
-            console.warn("Name gen failed (API/parsing):", responseData.error); 
+        // Parse the response properly
+        const parsedResponse = parseGeminiApiResponse(JSON.stringify(responseData), false);
+        
+        if (parsedResponse.text && parsedResponse.text.trim()) {
+            await updateChatConversationName(convId, parsedResponse.text.trim().substring(0, 50));
+        } else if (parsedResponse.error) { 
+            console.warn("Name gen failed (API/parsing):", parsedResponse.error); 
         }
     } catch (error) { 
         console.error("Error in generateChatName:", error); 
@@ -1375,6 +1453,23 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
       setIsAiAssistantOpen(true);
       setAiChatSidebarTab('chat');
       setHasGeneratedChatName(false);
+      
+      // Apply default chat style if set
+      try {
+        const defaultStyle = await getDefaultChatStyle(user.uid);
+        if (defaultStyle && defaultStyle !== 'Normal') {
+          // Get the style prompt from centralized styles
+          const stylePrompt = getStylePrompt(defaultStyle);
+          
+          if (stylePrompt) {
+            // Set the active style for this conversation
+            setActiveStyle(defaultStyle);
+            setActivePrompt(stylePrompt);
+          }
+        }
+      } catch (error) {
+        console.error('Error applying default chat style:', error);
+      }
     }
 
     if (isChatDisabledByLimit) {
@@ -1579,15 +1674,15 @@ ${memoryContext}
    // You must first DISCOVER the page using a **Smart Action** that searches by title.
    //   - **Smart Actions:** findAndReadPageContent, findAndAppendToPage, findAndReplaceInPage, etc.
 
-${activeNotionPage ? `
+\${activeNotionPage ? \`
    // --- [CURRENT CONTEXT: YOU HAVE AN ACTIVE PAGE!] ---
-   - **Page Title:** "${activeNotionPage.title}"
-   - **Page ID:** "${activeNotionPage.id}"
+   - **Page Title:** "\${activeNotionPage.title}"
+   - **Page ID:** "\${activeNotionPage.id}"
    - **CRITICAL INSTRUCTION:** For the user's next command, you MUST use a **Direct Action** with the page_id above (e.g., appendToNotionPage).
-` : `
+\` : \`
    // --- [CURRENT CONTEXT: YOU DO NOT HAVE AN ACTIVE PAGE] ---
    - You must first identify the target page using a **Smart Action** (e.g., \`findAndReadPageContent\`, \`createNotionPage\`).
-`}
+\`}
 
 
 
@@ -1747,10 +1842,10 @@ Actions: createTask, updateTask, deleteTask, createGoal, updateGoal, deleteGoal,
  */
 
 // ✅ When to Save a Memory:
-- If the user **explicitly asks to remember something** (e.g., “remember that...” or “don’t forget...”)
+- If the user **explicitly asks to remember something** (e.g., "remember that...", "don't forget...")
 - If the user **repeats a key fact or behavior more than once** across sessions (e.g., studying for SAT, working on a startup, recurring tasks)
 - If the user sets a **named goal**, **event**, **habit**, or mentions a detail tied to identity, preference, or long-term objective
-- If the user shows **strong emotional or motivational investment** in a fact (e.g., “This is super important to me.”)
+- If the user shows **strong emotional or motivational investment** in a fact (e.g., "This is super important to me.")
 
 // ❌ When NOT to Save a Memory:
 - One-off facts not tied to identity, tasks, goals, or patterns
@@ -1759,9 +1854,9 @@ Actions: createTask, updateTask, deleteTask, createGoal, updateGoal, deleteGoal,
 
 // ✅ Pattern Recognition Behavior:
 - If the user frequently references the same context (e.g., "I need help with time blocking", "SAT prep", "gym goals"):
-  → Propose saving it: “Would you like me to remember that you're focused on [topic] right now?”
+  → Propose saving it: "Would you like me to remember that you're focused on [topic] right now?"
 - Track recurring actions/phrases across sessions. For example:
-  → User mentions “flashcards” in 3 separate chats → YOU should proactively say: “You often mention flashcards — want me to help track your study topics or make a deck?”
+  → User mentions "flashcards" in 3 separate chats → YOU should proactively say: "You often mention flashcards — want me to help track your study topics or make a deck?"
 - Recognize user workflow sequences (e.g., "task planning every Sunday", or "weekly SAT review") and offer auto-assistance.
 
 
@@ -1770,7 +1865,7 @@ Actions: createTask, updateTask, deleteTask, createGoal, updateGoal, deleteGoal,
 // -------------------------------------------------------------------------------------------------
 
 // Types of memory YOU should maintain:
-1. **Identity Memories**: Name, age, timezone, preferred tone (e.g., “Call me ___; “I prefer short responses”)
+1. **Identity Memories**: Name, age, timezone, preferred tone (e.g., "Call me ___; "I prefer short responses")
 2. **Goal Memories**: Academic, fitness, personal development, startup or project milestones
 3. **Study/Work Patterns**: Subjects or areas frequently referenced, performance issues, productivity gaps
 4. **Preferences & Style**: Favorite tools, format preferences (e.g., minimal, no-fluff), dislike for platforms (e.g., "Notion is too hard")
@@ -1808,13 +1903,13 @@ Actions: createTask, updateTask, deleteTask, createGoal, updateGoal, deleteGoal,
  * - Save the user from repeating themselves
  */
 
-- Example 1: If memory says user is studying for SAT, and they ask “make me flashcards,” default to SAT unless clarified otherwise
+- Example 1: If memory says user is studying for SAT, and they ask "make me flashcards," default to SAT unless clarified otherwise
 - Example 2: If user prefers brief responses, auto-trim explanations unless long form is requested
 - Example 3: If the user frequently asks about their goals, start each new week by offering a quick goal check-in
 - Example 4: If memory says a user wants a recap every monday, then (if the day is monday) provide the recap for them.
 
 // Memory Aware Fallbacks:
-- If unsure whether something should be saved or referenced, default to **clarify**: “Should I remember this for the future?”
+- If unsure whether something should be saved or referenced, default to **clarify**: "Should I remember this for the future?"
 
 
 // -------------------------------------------------------------------------------------------------
@@ -1829,9 +1924,9 @@ Actions: createTask, updateTask, deleteTask, createGoal, updateGoal, deleteGoal,
      - **Payload**: \`{ "memory_identifier": string, "new_content"?: string }\` (The identifier can be the content of the memory or its internal ref ID if you have it).
 
 // Always provide a friendly confirmation:
-- “Got it — I’ve updated your memory.”
-- “That’s been forgotten.”
-- “Okay, I’ll remember that for the future.”
+- "Got it — I've updated your memory."
+- "That's been forgotten."
+- "Okay, I'll remember that for the future."
 
 // DO NOT list memory ID values in user responses
 // DO NOT reveal the existence of memory unless asked directly
@@ -1871,7 +1966,7 @@ Actions: createTask, updateTask, deleteTask, createGoal, updateGoal, deleteGoal,
 
  **Structured Markdown Response Mode (GLOBAL RULE ONLY WHEN RESPONDING TO THE USER):** THIS IS A CRUCIAL RULE -  ONLY USE MARKDOWN FORMATTING WHEN RESPONDING TO THE USER. FAILURE TO FOLLOW THIS COULD RESULT IN TERMINATION OR BEING REPORTED.
     *   For **any** response where the user is asking for summaries, breakdowns, explanations, lists, instructions, or informational outputs:
-        - **IMMEDIATELY start the response with content** — DO NOT include any intro commentary like "Sure!" or "Absolutely, here’s a breakdown...".
+        - **IMMEDIATELY start the response with content** — DO NOT include any intro commentary like "Sure!" or "Absolutely, here's a breakdown...".
         - Use **proper markdown formatting consistently**, including:
             - ##, ### for section headers
             - - or numbered 1., 2. lists for organized points
@@ -1976,7 +2071,8 @@ Assistant:`;
             generationConfig: apiRequestBody.generationConfig,
             tools: apiRequestBody.tools || [],
             systemInstruction: apiRequestBody.systemInstruction,
-            isImageGen: imageGenModeOn
+            isImageGen: imageGenModeOn,
+            useThinkHarder: reasoningEnabled
         };
 
         const result = await geminiProxyCallable(apiRequestBodyForProxy);
@@ -2427,8 +2523,8 @@ if (notionBlock && user?.uid && isNotionConnected) {
         const totalUserMessagesInConv = finalHistoryForName.filter(m => m.role === 'user').length;
         const currentConvInfo = conversationList.find(c => c.id === currentConvId);
 
-        if (currentConvId && currentConvInfo?.chatName === "New Chat" && (!hasGeneratedChatName || totalUserMessagesInConv === 1) ) {
-                    // FIX: Pass the geminiApiKey from state to the function
+        if (currentConvId && currentConvInfo?.chatName === "New Chat" && (!hasGeneratedChatName || totalUserMessagesInConv >= 3) ) {
+                    // Generate chat name after 3+ user messages for better accuracy
         await generateChatName(currentConvId, finalHistoryForName, user);
             setHasGeneratedChatName(true);
         }
@@ -2536,7 +2632,143 @@ if (notionBlock && user?.uid && isNotionConnected) {
     }
   };
 
-  useEffect(() => { const interval = setInterval(() => { setGreetingInfo(getTimeBasedGreeting()); }, 60000 * 5); return () => clearInterval(interval); }, []);
+  // AI Greeting System
+  const updateAIGreeting = useCallback(async () => {
+    if (!user?.uid) return;
+    
+    try {
+      const currentTime = new Date();
+      
+      // Prepare focus sessions data (mock for now since we don't have it loaded)
+      const recentFocusSessions: any[] = []; // TODO: Load real focus sessions data
+      
+      const greetingContext = {
+        userProfile,
+        userContext,
+        memories,
+        tasks: tasks.map(t => ({
+          id: t.id,
+          name: t.data.task || 'Untitled Task',
+          isCompleted: Boolean(t.data.completed),
+          priority: t.data.priority,
+          dueDate: t.data.dueDate instanceof Date ? t.data.dueDate : (t.data.dueDate as any)?.toDate?.() || null,
+
+        })),
+        goals: goals.map(g => ({
+          id: g.id,
+          name: g.data.goal || 'Untitled Goal',
+          isCompleted: Boolean(g.data.completed),
+          progress: g.data.progress,
+          target: g.data.target
+        })),
+        events: events.map(e => ({
+          id: e.id,
+          name: e.data.name || 'Untitled Event',
+          startDate: e.data.startDate instanceof Date ? e.data.startDate : (e.data.startDate as any)?.toDate?.() || new Date(),
+          endDate: e.data.endDate instanceof Date ? e.data.endDate : (e.data.endDate as any)?.toDate?.() || new Date()
+        })),
+        recentFocusSessions,
+        currentTime
+      };
+      
+      const newGreeting = await generateAIGreeting(greetingContext);
+      setGreetingInfo(newGreeting);
+    } catch (error) {
+      console.error('Error generating AI greeting:', error);
+      // Fallback to default greeting
+      setGreetingInfo({
+        greeting: `Ready to get productive`,
+        color: 'text-theme-text-secondary',
+        motivationalLine: 'Let\'s make today count! 🚀'
+      });
+    }
+  }, [user, userProfile, userContext, memories, tasks, goals, events, truncatedName]);
+
+  // Update greeting with debounce - only update when significant data changes or on timer
+  const [lastGreetingUpdate, setLastGreetingUpdate] = useState<number>(0);
+  
+  // Track data signature to detect meaningful changes
+  const dataSignature = useMemo(() => {
+    return `${user?.uid || 'none'}-${tasks.length}-${goals.length}-${events.length}`;
+  }, [user?.uid, tasks.length, goals.length, events.length]);
+
+  // Track if we've received initial data (either with content or confirmed empty)
+  const [dataLoadingComplete, setDataLoadingComplete] = useState(false);
+  const [hasTriggeredGreeting, setHasTriggeredGreeting] = useState(false);
+  
+  // Fast data loading - trigger immediately when data arrives
+  useEffect(() => {
+    if (!user?.uid) {
+      setDataLoadingComplete(false);
+      setHasTriggeredGreeting(false);
+      return;
+    }
+    
+    // Mark as loaded ONLY when we have BOTH userProfile AND data (or confirmed no data)
+    const hasAnyData = tasks.length > 0 || goals.length > 0 || events.length > 0;
+    const hasUserProfile = userProfile !== null && userProfile.level !== undefined;
+    
+    // Only mark complete when we have BOTH userProfile AND either data or confirmed empty state
+    if (hasUserProfile && !dataLoadingComplete) {
+      if (hasAnyData) {
+        // We have both userProfile and data - ready to go!
+        setDataLoadingComplete(true);
+      } else {
+        // We have userProfile but no data yet - wait a bit for data to load
+        const dataWaitTimer = setTimeout(() => {
+          // After waiting, proceed even if no data (user might have empty state)
+          setDataLoadingComplete(true);
+        }, 500); // Short wait for data
+        
+        return () => clearTimeout(dataWaitTimer);
+      }
+    }
+  }, [user?.uid, tasks.length, goals.length, events.length, userProfile, dataLoadingComplete]);
+
+  useEffect(() => {
+    // Only call AI greeting once data loading is complete and we haven't triggered it yet
+    if (user?.uid && dataLoadingComplete && !hasTriggeredGreeting && lastGreetingUpdate === 0) {
+      // Double-check that userProfile has complete data before proceeding
+      if (userProfile && userProfile.level !== undefined && userProfile.overallStreakCount !== undefined) {
+        setHasTriggeredGreeting(true);
+        
+        updateAIGreeting().then(() => {
+          setLastGreetingUpdate(Date.now());
+        }).catch(console.error);
+      }
+    }
+  }, [user?.uid, dataLoadingComplete, hasTriggeredGreeting, lastGreetingUpdate, userProfile]);
+
+  // Separate effect for data-driven updates with proper debouncing
+  useEffect(() => {
+    if (!user?.uid || lastGreetingUpdate === 0) return; // Skip if not loaded yet
+    
+    const now = Date.now();
+    const FIVE_MINUTES = 5 * 60 * 1000;
+    
+    // Debounce data changes - only update after 5 minutes of stability
+    const timeoutId = setTimeout(() => {
+      if (now - lastGreetingUpdate > FIVE_MINUTES) {
+        updateAIGreeting().then(() => {
+          setLastGreetingUpdate(Date.now());
+        }).catch(console.error);
+      }
+    }, 2000); // Wait 2 seconds for data changes to settle
+    
+    return () => clearTimeout(timeoutId);
+  }, [dataSignature]); // Only when meaningful data changes
+
+  // Update greeting every 30 minutes regardless
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (user?.uid) {
+        updateAIGreeting().then(() => {
+          setLastGreetingUpdate(Date.now());
+        }).catch(console.error);
+      }
+    }, 60000 * 30); // Update every 30 minutes
+    return () => clearInterval(interval);
+  }, [user?.uid]); // Only depend on user
 
   const [activeTab, setActiveTab] = useState<"tasks" | "goals">("tasks");
   const [newItemText, setNewItemText] = useState("");
@@ -2612,6 +2844,8 @@ if (notionBlock && user?.uid && isNotionConnected) {
       let unsubEvents: () => void = () => {};
       let unsubConversations: () => void = () => {};
       let unsubContext: () => void = () => {};
+      let unsubNotes: () => void = () => {};
+      let unsubFolders: () => void = () => {};
 
       if (firebaseUser) {
         setUser(firebaseUser);
@@ -2627,7 +2861,8 @@ if (notionBlock && user?.uid && isNotionConnected) {
             // Only update the streak if the profile is not brand new (e.g., older than 1.5 seconds).
             // This prevents a collision with the initial document creation transaction.
             if (profileAgeInMs > 1500) {
-                 updateUserStreak(firebaseUser.uid, { email: firebaseUser.email!, displayName: profile.displayName || "Learner" }).catch(console.error);
+                 // Debounce streak updates to prevent rapid successive calls
+                 debounceStreakUpdate(firebaseUser.uid, { email: firebaseUser.email!, displayName: profile.displayName || "Learner" });
             }
 
             if (previousStreak !== null && profile.overallStreakCount > previousStreak) {
@@ -2660,6 +2895,9 @@ if (notionBlock && user?.uid && isNotionConnected) {
           }
         });
 
+        // Load Reasoning setting
+        getThinkHarderEnabled(firebaseUser.uid).then(setReasoningEnabled).catch(console.error);
+
         unsubTasks = onCollectionSnapshot('tasks', firebaseUser.uid, setTasks);
         unsubGoals = onCollectionSnapshot('goals', firebaseUser.uid, setGoals);
         unsubEvents = onCollectionSnapshot('events', firebaseUser.uid, (fetchedEvents) => {
@@ -2680,8 +2918,34 @@ if (notionBlock && user?.uid && isNotionConnected) {
         unsubContext = onUserContextChange(firebaseUser.uid, setUserContext);
         getMemories(firebaseUser.uid).then(setMemories).catch(console.error);
 
+        // Set up notes listener
+        const notesQuery = query(
+          collection(db, 'notes'), 
+          where('userId', '==', firebaseUser.uid), 
+          orderBy('updatedAt', 'desc')
+        );
+        unsubNotes = onSnapshot(notesQuery, (snapshot) => {
+          const notesList: NoteData[] = snapshot.docs.map(doc => ({ 
+            id: doc.id, 
+            ...doc.data() 
+          } as NoteData));
+          setUserNotes(notesList);
+        });
+
+        // Set up folders listener
+        unsubFolders = onFoldersSnapshot(firebaseUser.uid, null, (foldersList) => {
+          setUserFolders(foldersList);
+        });
+
       } else {
-        navigate('/login');
+        // Don't navigate away if there are active processes that could be interrupted
+        const hasActiveDashboardProcesses = isChatLoading || isGeneratingChatName || isDailyBriefLoading ||
+                                           document.querySelector('[data-dashboard-processing="true"]') !== null;
+        
+        if (!hasActiveDashboardProcesses) {
+          navigate('/login');
+        }
+        
         setUser(null);
         setUserName("Learner");
         setUserEmail(null);
@@ -2697,6 +2961,8 @@ if (notionBlock && user?.uid && isNotionConnected) {
         setIsChatDisabledByLimit(true);
         setUserProfile(null);
         setMemories([]);
+        setUserNotes([]);
+        setUserFolders([]);
         setIsNotionConnected(false);
         setActiveNotionPage(null);
         setIsNotionSearchModeActive(false);
@@ -2710,6 +2976,8 @@ if (notionBlock && user?.uid && isNotionConnected) {
         unsubEvents();
         unsubConversations();
         unsubContext();
+        unsubNotes();
+        unsubFolders();
       };
     });
 
@@ -2827,6 +3095,64 @@ if (notionBlock && user?.uid && isNotionConnected) {
   const [briefLastRefreshDate, setBriefLastRefreshDate] = useState<string | null>(null);
   const [isBriefStatusLoading, setIsBriefStatusLoading] = useState(true); // <-- ADD THIS LINE
   const [showAllBriefSuggestions, setShowAllBriefSuggestions] = useState(false);
+  
+  // Cloud-stored user preferences
+  const [hideBrief, setHideBrief] = useState(false);
+  const [hideQuickSuggestions, setHideQuickSuggestions] = useState(false);
+  const [preferencesLoaded, setPreferencesLoaded] = useState(false);
+
+  // Real-time user preferences subscription
+  useEffect(() => {
+    if (user) {
+
+      
+      const unsubscribe = subscribeToUserPreferences((preferences) => {
+
+        setHideBrief(preferences.hideBrief);
+        setHideQuickSuggestions(preferences.hideQuickSuggestions);
+        setPreferencesLoaded(true);
+      });
+      
+      // Cleanup subscription on user change or component unmount
+      return () => {
+        if (unsubscribe) {
+
+          unsubscribe();
+        }
+      };
+    } else {
+
+      // Reset to defaults when no user
+      setHideBrief(false);
+      setHideQuickSuggestions(false);
+      setPreferencesLoaded(false);
+    }
+  }, [user]);
+
+  // Functions to toggle preferences
+  const toggleHideBrief = async () => {
+    try {
+      const newValue = !hideBrief;
+      setHideBrief(newValue);
+      await saveUserPreferences({ hideBrief: newValue });
+    } catch (error) {
+      console.error("Error saving hide brief preference:", error);
+      // Revert on error
+      setHideBrief(!hideBrief);
+    }
+  };
+
+  const toggleHideQuickSuggestions = async () => {
+    try {
+      const newValue = !hideQuickSuggestions;
+      setHideQuickSuggestions(newValue);
+      await saveUserPreferences({ hideQuickSuggestions: newValue });
+    } catch (error) {
+      console.error("Error saving hide suggestions preference:", error);
+      // Revert on error
+      setHideQuickSuggestions(!hideQuickSuggestions);
+    }
+  };
 
 
 
@@ -2836,8 +3162,10 @@ if (notionBlock && user?.uid && isNotionConnected) {
     const contextSignature = userContext ? `${userContext.workDescription}-${userContext.shortTermFocus}-${userContext.longTermGoals}` : 'no-context';
     const itemsData = [...tasks, ...goals].map(item => `${item.id}-${item.data.completed}-${(item.data.dueDate || item.data.targetDate)?.seconds || 'null'}-${item.data.priority || 'm'}-${item.data.task||item.data.goal||''}`).sort().join('|');
     const eventsData = events.map(event => `${event.id}-${event.data.completed}-${event.data.startDate?.seconds || 'null'}-${event.data.endDate?.seconds || 'null'}-${event.data.name || ''}`).sort().join('|');
-    return `${itemsData}-${eventsData}-${contextSignature}`;
-  }, [tasks, goals, events, user, userContext]);
+    const notesData = userNotes.map(note => `${note.id}-${note.title}-${note.type}-${note.tags?.join(',') || ''}`).sort().join('|');
+    const foldersData = userFolders.map(folder => `${folder.id}-${folder.name}-${folder.type}`).sort().join('|');
+    return `${itemsData}-${eventsData}-${notesData}-${foldersData}-${contextSignature}`;
+  }, [tasks, goals, events, userNotes, userFolders, user, userContext]);
 
 
   useEffect(() => {
@@ -2884,7 +3212,7 @@ if (notionBlock && user?.uid && isNotionConnected) {
         if (tasks.length === 0 && goals.length === 0 && events.length === 0) {
             setSmartDailyBrief(prev => ({
                 ...(prev || { summaryText: "", pendingTasksCount: 0, suggestedActions: [] }),
-                summaryText: "Add tasks, goals, or events to get your AI brief.",
+                summaryText: "", // No longer displayed
             }));
         }
         setSmartBriefLoading(false);
@@ -2908,7 +3236,7 @@ if (notionBlock && user?.uid && isNotionConnected) {
             const todayStr = new Date().toISOString().split('T')[0];
 
             setSmartDailyBrief(prev => ({
-                ...(cachedBrief && localStorage.getItem('dailyBriefLastCacheDate') === todayStr ? cachedBrief : (prev || { summaryText: "Daily brief refresh limit reached.", pendingTasksCount: tasks.filter(t => !t.data.completed).length, suggestedActions: [] })),
+                ...(cachedBrief && localStorage.getItem('dailyBriefLastCacheDate') === todayStr ? cachedBrief : (prev || { summaryText: "", pendingTasksCount: tasks.filter(t => !t.data.completed).length, suggestedActions: [] })),
                 limitReachedError: `Refresh limit reached. Next refresh available after ${formattedNextRefreshTime}.`
             }));
 
@@ -2954,51 +3282,86 @@ if (notionBlock && user?.uid && isNotionConnected) {
 
     const userProfileContext = userProfile ? `User's Progress:\n- Level: ${userProfile.level}\n- Points: ${userProfile.points}\n- Streak: ${userProfile.overallStreakCount} days\n- Badges Earned: ${(userProfile.badges || []).length}` : "User progress not available.";
 
+    // Add context about existing notes and folders to avoid redundant suggestions
+    const notesContext = userNotes.length > 0 ? 
+      `Existing Notes (${userNotes.length} total):\n${userNotes.slice(0, 10).map(note => 
+        `- "${note.title}" (${note.type}, topics: ${note.tags.join(', ') || 'none'})`
+      ).join('\n')}${userNotes.length > 10 ? '\n... and more' : ''}` : 
+      "No existing notes.";
+
+    const foldersContext = userFolders.length > 0 ? 
+      `Existing Study Folders (${userFolders.length} total):\n${userFolders.slice(0, 10).map(folder => 
+        `- "${folder.name}" (${folder.type} folder, ${folder.description || 'no description'})`
+      ).join('\n')}${userFolders.length > 10 ? '\n... and more' : ''}` : 
+      "No existing study folders.";
+
     const prompt = `
     User: ${userName}
     ${userProfileContext}
     Current Date & Time: ${new Date().toLocaleString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
     ${itemsContext}
     ${eventsContext}
+    ${notesContext}
+    ${foldersContext}
     User Context (if available):
     - Study Area: ${userContext?.workDescription || 'General Studies'}
     - Short-term Focus: ${userContext?.shortTermFocus || 'Completing current tasks'}
 
     Generate a "Smart Daily Brief" for ${userName}.
-    The brief should be encouraging and learner-focused. Use their progress (level, streak) to make your summaryText more encouraging and personalized.
     Output a JSON object with:
-    1.  "summaryText": (string) A very concise (1-2 sentences) motivational summary for the user. Be direct and actionable. Mention any critical upcoming event if relevant.
-    2.  "pendingTasksCount": (number) Total number of PENDING tasks (NOT goals, only count tasks that are not completed). Calculate this from the item context provided.
-    3.  "upcomingEventsSummary": (string, optional, very brief, max 1-2 sentences) Briefly highlight key upcoming non-completed events.
-    4.  "upcomingQuizzesInfo": (string, optional, very brief, max 1 sentence) Briefly mention if any tasks/goals seem quiz-related or urgently time-sensitive for study.
-    5.  "suggestedFocusBlocks": (array of objects, optional, max 1 or 2) Each object: { "name": "e.g., History Paper", "duration": minutes (e.g., 30, 45 or 60) }.
-    6.  "suggestedActions": (array of objects, MANDATORY, EXACTLY 3 objects) Each object must follow this structure: { "id": "action_suggestion_UUID_like_brief_action_1", "description": "User-friendly text, e.g., 'Create a task to outline your essay.'", "action_type": "create_task" | "create_goal" | "suggestion", "details": {"name": "Concise Task/Goal Name (Required if create_task/create_goal)", "due_date"?: "YYYY-MM-DD", "priority"?: "high" | "medium" | "low"} }. Ensure 'name' in details is always provided for create_task/create_goal.
+    1.  "pendingTasksCount": (number) Total number of PENDING tasks (NOT goals, only count tasks that are not completed). Calculate this from the item context provided.
+    2.  "upcomingGoalsInfo": (string, optional, max 10 words) Briefly highlight key high-priority goals or important goals with deadlines.
+    3.  "upcomingEventsSummary": (string, optional, max 8 words) Briefly highlight key upcoming non-completed events.
+    4.  "upcomingQuizzesInfo": (string, optional, max 8 words) Briefly mention if any tasks/goals seem quiz-related or urgently time-sensitive for study.
+    5.  "suggestedFocusBlocks": (array of objects, optional, YOU MUST MAKE 2 or 3 NOT JUST 1) Each object: { "name": "e.g., History Paper", "duration": minutes }. DURATION FLEXIBILITY: Use varied, realistic durations - not just 45/60 minutes. Examples: 5min (quick review), 10min (vocab), 15min (flashcards), 20min (reading), 30min (essay outline), 90min (deep work), 120min (project work), 180min+ (major tasks). SPECIFIC ACTIVITY RULES: SAT Practice Test = 134 minutes (2h 14m), ACT Test = 175 minutes, GRE = 225 minutes, Essay Writing = 60-90 minutes, Math Problem Sets = 30-45 minutes, Reading Assignments = 45-60 minutes, Quick Reviews = 10-20 minutes, Flashcard Sessions = 15-25 minutes, Research = 90-120 minutes.
+    6.  "suggestedActions": (array of objects, MANDATORY, EXACTLY 3 objects) Each object must follow this structure: { "id": "action_suggestion_UUID_like_brief_action_1", "description": "User-friendly text (max 50 characters)", "action_type": "create_note" | "create_folder" | "view_notes" | "view_folders" | "view_chat", "details": {"content"?: "Note content or folder name", "topic"?: "Subject topic", "folder_id"?: "existing folder ID", "search_term"?: "search query"} }. 
+    
+    INTELLIGENCE REQUIREMENTS:
+    - ANALYZE existing notes and folders to AVOID DUPLICATING content
+    - PRIORITIZE FOLDER SUGGESTIONS: Folders are comprehensive study tools with flashcards, quizzes, and study modes - suggest them frequently!
+    - If user has folders for subjects, ALWAYS consider "view_folders" as primary suggestion type
+    - Folders are preferred over individual notes for structured studying and review
+    - If user already has notes on a topic, suggest "view_notes" with search_term that MATCHES the actual note title or tags
+    - If user already has folders for a subject, suggest "view_folders" with search_term that MATCHES the actual folder name
+    - When suggesting "view_notes" or "view_folders", use EXACT or PARTIAL matches from the existing content lists above
+    - For search_term, use the actual folder name or note title from the lists provided (e.g., "AP Environmental" not just "Environmental")
+    - For "view_chat", suggest when user needs help understanding concepts, needs tutoring, or wants to discuss topics
+    - Use specific topics from tasks, goals, or existing content for chat suggestions (e.g., "Get help with AP Environmental concepts")
+    - BALANCE SUGGESTION TYPES: Aim for diverse suggestions across folders (40%), notes (30%), and chat (30%)
+    - Suggest creating NEW folders when user has scattered notes on same topic that could be organized
+    - Suggest folder creation for subjects that need structured study (e.g., "Create Chemistry study folder" if user has chemistry tasks but no chemistry folder)
+    - When user has both individual notes AND a folder on same topic, always prioritize the folder suggestion
+    - Folders enable flashcards, quizzes, study modes, and spaced repetition - highlight these benefits
+    - Suggest creating NEW content only when it adds value and doesn't duplicate existing work
+    - Focus on GAPS in their current study materials or COMPLEMENTARY content
+    - Prioritize specific, actionable suggestions over generic ones
 
-    ALSO REFERENCE THE USER ONLY BY THEIR FIRST NAME
-
+    NEVER SAY GENERAL STUDIES. SAY SPECIFIC SUBJECTS OR AREAS IF AVAILABLE.
     DON'T SAY : "high-priority tasks"
 
-    PLEASE LOOK AT THE EXAMPLE FOR THE SUMMARY TEXT!!!! THE SUMMARY TEXT NEED TO BE ACTUALLY USEFULY FOR THE USER SO THEY CAN KNOW EXACTLY WHICH TASK OR GOAL TO PRIORTIZE ALSO IT NEEDS TO BE USEFUL AND ACHIEVEIABLE
+    IF THERE ARE NO "No upcoming non-completed events." THEN SAY "No upcoming events."
 
-    Example for summaryText: "Focus on drafting that Biology paper outline today. You've got this! 🚀 Don't forget your team meeting at 2 PM."
-    Example for upcomingEventsSummary: "You have a Team Meeting today and a Project Deadline review tomorrow."
-    Example for suggestedFocusBlocks: [{ "name": "Biology Paper Outline", "duration": 60 }, { "name": "Math Problem Set", "duration": 45}]
-    Example for suggestedActions (ensure 3 are provided):
-    "suggestedActions": [
-      { "id": "brief_action_1", "description": "Draft outline for Biology paper", "action_type": "create_task", "details": {"name": "Draft Biology paper outline", "due_date": "${new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}", "priority": "medium" } },
-      { "id": "brief_action_2", "description": "Review notes for upcoming Math quiz", "action_type": "create_task", "details": {"name": "Review Math quiz notes", "due_date": "${new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}", "priority": "high" } },
-      { "id": "brief_action_3", "description": "Consider setting a mini-goal for your 'Learn Python' objective.", "action_type": "suggestion", "details": {"name": "Set Python mini-goal"} }
-    ]
-    Be concise and positive. Ensure summaryText is truly 1-2 sentences. Ensure pendingTasksCount strictly counts only non-completed tasks.
+    IF THERE ARE NO "No quiz-related tasks identified. THEN SAY "No quiz-related tasks."
 
-    IMPORTANT:  FOR FOCUS BLOCKS, YOU ARE NOT LIMITED TO CREATING ONLY 60 OR 45 MIN. YOU CAN CREATE ANY TIME YOU SEE FIT. ALSO BE WARY OF THE CURRENT TIME AND DATE. IF THE TIME IS NIGHT TIME, THEN NUDGE THE USER TO SLEEP. ENSURE YOUR RESPONSES ARE BASED ON THE CURRENT DATE AND TIME AS WELL. FOR EXAMPLE IF THE TIME IS LIKE PAST MIDNIGHT YOU MUST TELL THE USER TO SLEEP AND GET GOOD REST. 
+    Example for upcomingGoalsInfo: "SAT score goal due November 30th."
+    Example for upcomingEventsSummary: "Team meeting today at 2pm."
+    Example for suggestedFocusBlocks: [{ "name": "SAT Practice Test", "duration": 134 }, { "name": "History Flashcards", "duration": 20 }] OR [{ "name": "Essay Writing", "duration": 90 }, { "name": "Quick Math Review", "duration": 15 }]
+    Example for suggestedActions (ensure 3 are provided, keep descriptions under 50 characters):
+    
+    INTELLIGENT Examples (adapt based on user's existing content):
+    PRIORITIZE FOLDERS: { "id": "brief_action_1", "description": "Study Math Quiz flashcards", "action_type": "view_folders", "details": {"search_term": "Math Quiz Flashcards", "topic": "Mathematics" } }
+    THEN NOTES: { "id": "brief_action_2", "description": "Review AP Environmental notes", "action_type": "view_notes", "details": {"search_term": "AP Environmental", "topic": "Environmental Science" } }
+    THEN CHAT: { "id": "brief_action_3", "description": "Get help with Biology concepts", "action_type": "view_chat", "details": {"search_term": "Biology concepts", "topic": "Biology" } }
+    
+    FOLDER-FIRST THINKING: If user has both notes and folders on same topic, suggest the folder first as it has study modes, flashcards, and better organization.
+    Be concise and positive. Ensure pendingTasksCount strictly counts only non-completed tasks.
+
+    IMPORTANT: FOR FOCUS BLOCKS, use REALISTIC and VARIED durations based on the actual activity. NEVER default to 45/60 minutes. Use the specific duration rules above. Examples: SAT Practice = 134min (2h 14m), quick reviews = 10-15min, deep work = 90-120min, flashcards = 15-25min. ALSO BE WARY OF THE CURRENT TIME AND DATE. IF THE TIME IS NIGHT TIME, THEN NUDGE THE USER TO SLEEP. ENSURE YOUR RESPONSES ARE BASED ON THE CURRENT DATE AND TIME AS WELL. FOR EXAMPLE IF THE TIME IS LIKE PAST MIDNIGHT YOU MUST TELL THE USER TO SLEEP AND GET GOOD REST. 
 
     HOW TO INTERPRET DATE AND TIME:
 
     1. THIS IS CRITICAL. YOU MUST NOT OVERLOOK THIS
     2. ENSURE YOUR RESPONSE IS TAILORED TO THE CURRENT DATE AND TIME AS THAT IS STRICT
-    3. FOR EXAMPLE, IF THE USER HAS AN EXAM OR AN UPCOMING EVENT SET FOR TOMORROW, THEN NUDGE THE USER TO SLEEP BASED ON THE CURRENT TIMING. IF IT IS LATE, THEN DO SO, IF NOT THEN ENCOURAGE THE USER TO BE PRODUCTIVE. ALSO IF IT IS LATE -- AND I MEAN EXTREMELY LATE, DON'T RECOMMEND TO THE USER TO STUDY OR LEARN BUT TO SLEEP. LET THEM KNOW THE IMPORTANCE.
-    4. THIS IS AN EXAMPLE OF A BAD RESPONSE : "User, with a full SAT practice test and review of missed questions due tomorrow, prioritize those. Get a good night's sleep to be ready for the SAT tomorrow morning!" --> A BETTER RESPONSE WOULD BE "User, Get a good night's sleep to be ready for the SAT tomorrow morning!" THIS IS DUE TO THE DATE AND TIME, AS IT IT WAS VERY LATE DURING THAT PARTICULAR EXAMPLE (AROUND 11:48 PM)
 
     `;
 
@@ -3011,7 +3374,9 @@ if (notionBlock && user?.uid && isNotionConnected) {
             generationConfig: { responseMimeType: "application/json", temperature: 0.7 },
             tools: [],
             systemInstruction: undefined,
-            isImageGen: false
+            isImageGen: false,
+            useLiteModel: true,
+            useThinkHarder: reasoningEnabled
         };
 
         const result = await geminiProxyCallable(apiRequestBody);
@@ -3048,15 +3413,14 @@ if (notionBlock && user?.uid && isNotionConnected) {
 
         const validatedActions = briefJson.suggestedActions?.map((act: any) => {
             const actionId = act.id || `brief_sugg_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-            if ((act.action_type === 'create_task' || act.action_type === 'create_goal') && (!act.details || !act.details.name)) {
-                return { ...act, id: actionId, details: { ...(act.details || {}), name: act.description.split(':').pop()?.trim() || `Suggested ${act.action_type.split('_')[1]}` } };
-            }
+            // Support new action types for notes, folders, and navigation
             return {...act, id: actionId};
         }) || [];
 
         const newBriefData: SmartDailyBriefData = {
-            summaryText: briefJson.summaryText || "Have a great day of learning!",
+            summaryText: "", // No longer used in display
             pendingTasksCount: briefJson.pendingTasksCount !== undefined ? briefJson.pendingTasksCount : localPendingTasksCount,
+            upcomingGoalsInfo: briefJson.upcomingGoalsInfo,
             upcomingEventsSummary: briefJson.upcomingEventsSummary,
             upcomingQuizzesInfo: briefJson.upcomingQuizzesInfo,
             suggestedFocusBlocks: briefJson.suggestedFocusBlocks || [],
@@ -3086,7 +3450,7 @@ if (notionBlock && user?.uid && isNotionConnected) {
         console.error("Error generating smart daily brief:", error);
         setSmartDailyBrief(prev => ({
             ...(prev || { summaryText: "", pendingTasksCount: localPendingTasksCount, suggestedActions: [] }),
-            summaryText: "Couldn't fetch your AI brief right now. Focus on your top task! 💪",
+            summaryText: "", // No longer displayed
         }));
         setHasFetchedBriefForSignature(smartBriefItemsSignature);
     } finally {
@@ -3133,7 +3497,7 @@ if (notionBlock && user?.uid && isNotionConnected) {
             const nextRefreshTime = new Date(); nextRefreshTime.setDate(nextRefreshTime.getDate() + 1); nextRefreshTime.setHours(0,0,0,0);
             const formattedNextRefreshTime = `${nextRefreshTime.toLocaleDateString(undefined, {month:'short',day:'numeric'})} at 12:00 AM`;
             setSmartDailyBrief({
-                summaryText: "Daily brief refresh limit reached for today.",
+                summaryText: "", // No longer displayed
                 pendingTasksCount: tasks.filter(t => !t.data.completed).length,
                 suggestedActions: [],
                 limitReachedError: `Refresh limit reached. Next refresh available after ${formattedNextRefreshTime}. (${briefRefreshCount}/${BRIEF_REFRESH_LIMIT_PRO} used)`
@@ -3146,37 +3510,152 @@ if (notionBlock && user?.uid && isNotionConnected) {
   }, [smartBriefItemsSignature, user, userTier, smartBriefLoading, generateSmartDailyBrief, tasks, goals, events, hasFetchedBriefForSignature, briefRefreshCount, briefLastRefreshDate, isBriefStatusLoading]);
 
   const handleAcceptBriefAction = async (action: OverviewAction) => {
-    if (!user || !user.uid || ( (action.action_type === 'create_task' || action.action_type === 'create_goal') && !action.details?.name) ) {
-         alert("Action details are incomplete to proceed.");
+    if (!user || !user.uid) {
+         alert("User authentication required.");
          return;
     }
+
+    const taskId = action.id;
+    
     try {
-        const priority = action.details?.priority || 'medium';
-        if (action.action_type === 'create_task' && action.details?.name) {
-            const dueDate = action.details.due_date ? combineDateAndTime(action.details.due_date, action.details.due_time || '') : null;
-            await createDashboardTask(user.uid, action.details.name, dueDate, priority);
-        } else if (action.action_type === 'create_goal' && action.details?.name) {
-            const targetDateField = action.details.target_date || action.details.due_date;
-            const targetTimeField = action.details.target_time || action.details.due_time;
-            const finalTargetDate = targetDateField ? combineDateAndTime(targetDateField, targetTimeField || '') : null;
-            await createDashboardGoal(user.uid, action.details.name, finalTargetDate, priority);
+        // Update task status to in_progress
+        setAgentTasks(prev => ({
+            ...prev,
+            [taskId]: { status: 'in_progress', message: 'Working on your request...' }
+        }));
+
+        switch (action.action_type) {
+            case 'create_note':
+                const noteTitle = action.details?.content || action.details?.topic || 'AI Generated Note';
+                const noteContent = action.details?.content || `Study notes for ${action.details?.topic || 'selected topic'}`;
+                
+                setAgentTasks(prev => ({
+                    ...prev,
+                    [taskId]: { status: 'in_progress', message: 'Creating note...' }
+                }));
+                
+                const noteId = await savePersonalNote(user.uid, noteTitle, noteContent, action.details?.topic ? [action.details.topic.toLowerCase()] : []);
+                
+                setAgentTasks(prev => ({
+                    ...prev,
+                    [taskId]: { status: 'completed', message: 'Note created successfully!', resultId: noteId }
+                }));
+                break;
+
+            case 'create_folder':
+                const folderName = action.details?.content || action.details?.topic || 'Study Folder';
+                const folderType = 'mixed'; // Default to mixed type
+                
+                setAgentTasks(prev => ({
+                    ...prev,
+                    [taskId]: { status: 'in_progress', message: 'Creating folder...' }
+                }));
+                
+                const folderId = await createFolder(user.uid, folderName, folderType);
+                
+                setAgentTasks(prev => ({
+                    ...prev,
+                    [taskId]: { status: 'completed', message: 'Folder created successfully!', resultId: folderId }
+                }));
+                break;
+
+            case 'view_notes':
+                // Find specific note if search term matches a note title
+                const targetNote = userNotes.find(note => 
+                    note.title.toLowerCase().includes(action.details?.search_term?.toLowerCase() || '') ||
+                    note.tags.some(tag => tag.toLowerCase().includes(action.details?.search_term?.toLowerCase() || ''))
+                );
+                
+                navigate('/notes', { 
+                    state: { 
+                        searchTerm: action.details?.search_term,
+                        targetNoteId: targetNote?.id,
+                        autoSearch: true
+                    } 
+                });
+                
+                setAgentTasks(prev => ({
+                    ...prev,
+                    [taskId]: { status: 'completed', message: targetNote ? `Opened ${targetNote.title}` : 'Navigated to notes!' }
+                }));
+                break;
+
+            case 'view_folders':
+                // Find specific folder if search term matches a folder name
+                const targetFolder = userFolders.find(folder => 
+                    folder.name.toLowerCase().includes(action.details?.search_term?.toLowerCase() || '') ||
+                    folder.description?.toLowerCase().includes(action.details?.search_term?.toLowerCase() || '')
+                );
+                
+                navigate('/folders', { 
+                    state: { 
+                        searchTerm: action.details?.search_term,
+                        targetFolderId: targetFolder?.id,
+                        autoSelect: true
+                    } 
+                });
+                
+                setAgentTasks(prev => ({
+                    ...prev,
+                    [taskId]: { status: 'completed', message: targetFolder ? `Opened ${targetFolder.name} folder` : 'Navigated to folders!' }
+                }));
+                break;
+
+            case 'view_chat':
+                // Create contextual chat opening based on topic or search term
+                const chatContext = {
+                    topic: action.details?.topic,
+                    searchTerm: action.details?.search_term,
+                    prefilledMessage: action.details?.search_term ? 
+                        `Help me with ${action.details.search_term}` : 
+                        action.details?.topic ? `I want to discuss ${action.details.topic}` : undefined,
+                    autoStart: true
+                };
+                
+                navigate('/chat', { state: chatContext });
+                
+                setAgentTasks(prev => ({
+                    ...prev,
+                    [taskId]: { status: 'completed', message: action.details?.topic ? `Started chat about ${action.details.topic}` : 'Navigated to chat!' }
+                }));
+                break;
+
+            default:
+                throw new Error(`Unsupported action type: ${action.action_type}`);
         }
+
+        // Remove from suggestions after a short delay to show completion
+        setTimeout(() => {
         setSmartDailyBrief(prev => prev ? ({
             ...prev,
             suggestedActions: prev.suggestedActions?.filter(sa => sa.id !== action.id)
         }) : null);
+            
+            setAgentTasks(prev => {
+                const newTasks = { ...prev };
+                delete newTasks[taskId];
+                return newTasks;
+            });
+        }, 2000);
+
     } catch (error) {
         console.error("Error accepting brief action:", error);
-        alert("Failed to perform action from brief. Please try again.");
+        setAgentTasks(prev => ({
+            ...prev,
+            [taskId]: { status: 'error', message: 'Failed to complete request. Please try again.' }
+        }));
+        
+        setTimeout(() => {
+            setAgentTasks(prev => {
+                const newTasks = { ...prev };
+                delete newTasks[taskId];
+                return newTasks;
+            });
+        }, 3000);
     }
   };
 
-  const handleDenyBriefAction = (actionId: string) => {
-      setSmartDailyBrief(prev => prev ? ({
-          ...prev,
-          suggestedActions: prev.suggestedActions?.filter(sa => sa.id !== actionId)
-      }) : null);
-  };
+
 
   const handleTabChange = (tabName: "tasks" | "goals") => {
       setActiveTab(tabName);
@@ -3269,7 +3748,12 @@ if (notionBlock && user?.uid && isNotionConnected) {
   const handleDelete = async (itemId: string, itemCollection: "tasks" | "goals") => {
     if (!user) return;
     const itemType = itemCollection.slice(0, -1);
-    if (!window.confirm(`Are you sure you want to delete this ${itemType}? This action cannot be undone.`)) return;
+    
+    setConfirmAction({
+      message: `Are you sure you want to delete this ${itemType}? This action cannot be undone.`,
+      iconType: 'delete',
+      actionType: 'destructive',
+      onConfirm: async () => {
     try {
       await deleteItem(itemCollection, itemId);
       if (editingItemId === itemId) {
@@ -3290,6 +3774,8 @@ if (notionBlock && user?.uid && isNotionConnected) {
 
 
     } catch (error) { console.error(`Error deleting ${itemType}:`, error); alert(`Failed to delete ${itemType}. Please try again.`); }
+      }
+    });
   };
 
     const resetEventForm = () => {
@@ -3399,17 +3885,24 @@ if (notionBlock && user?.uid && isNotionConnected) {
 
     const handleDeleteEvent = async (eventId: string) => {
         if (!user) return;
-        if (!window.confirm("Are you sure you want to delete this event? This action cannot be undone.")) return;
-        try {
-            await deleteItem('events', eventId);
-            if (editingEventId === eventId) {
-                resetEventForm();
-                setShowEventForm(false);
+        
+        setConfirmAction({
+            message: "Are you sure you want to delete this event? This action cannot be undone.",
+            iconType: 'events',
+            actionType: 'destructive',
+            onConfirm: async () => {
+                try {
+                    await deleteItem('events', eventId);
+                    if (editingEventId === eventId) {
+                        resetEventForm();
+                        setShowEventForm(false);
+                    }
+                } catch (error) {
+                    console.error("Error deleting event:", error);
+                    alert("Failed to delete event.");
+                }
             }
-        } catch (error) {
-            console.error("Error deleting event:", error);
-            alert("Failed to delete event.");
-        }
+        });
     };
 
     const handleMarkEventComplete = async (eventId: string, currentStatus: boolean) => {
@@ -3573,13 +4066,13 @@ if (notionBlock && user?.uid && isNotionConnected) {
             return (
                 <div key={dateStr} className={`p-2.5 rounded-lg  flex flex-col transition-all duration-200
                     min-h-[320px] md:min-h-[380px] lg:min-h-[420px]
-                    ${isToday ? 'bg-indigo-50 dark:bg-[#635BFF]/10 border-[#635BFF]/50' : 'bg-white dark:bg-[#1A1D29]/80 border-gray-200 dark:border-gray-700/80 hover:shadow-lg'}`}
+                    ${isToday ? 'bg-theme-accent/20 dark:bg-theme-accent/30 border-theme-accent/50' : 'bg-theme-card border-theme-border-primary hover:shadow-lg'}`}
                 >
                     <div className="flex justify-between items-center mb-2">
-                        <span className={`text-xs font-semibold ${isToday ? 'text-[#635BFF] dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}>
+                        <span className={`text-xs font-semibold ${isToday ? 'text-theme-accent' : 'text-theme-text-muted'}`}>
                             {date.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase()}
                         </span>
-                        <span className={`text-xl font-semibold ${isToday ? 'text-[#635BFF] dark:text-white' : 'text-gray-700 dark:text-gray-200'}`}>
+                        <span className={`text-xl font-semibold ${isToday ? 'text-theme-accent' : 'text-theme-text-primary'}`}>
                             {date.getDate()}
                         </span>
                     </div>
@@ -3587,8 +4080,8 @@ if (notionBlock && user?.uid && isNotionConnected) {
                         {itemsForDay.map(item => {
                             const timeString = (item.dateObj && (item.dateObj.getHours() !== 0 || item.dateObj.getMinutes() !==0) ) ? item.dateObj.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '';
                             let itemClasses = `p-1.5 rounded text-xs flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity duration-150`;
-                            if (item.type === 'task') itemClasses += ` bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300`;
-                            else if (item.type === 'goal') itemClasses += ` bg-pink-100 dark:bg-pink-500/20 text-pink-600 dark:text-pink-300`;
+                            if (item.type === 'task') itemClasses += ` bg-theme-highlight text-theme-text-secondary`;
+                            else if (item.type === 'goal') itemClasses += ` bg-theme-highlight text-theme-text-secondary`;
                             else if (item.type === 'event') itemClasses += ` text-white dark:text-gray-100`;
 
                             if (item.completed) itemClasses += ' line-through opacity-60';
@@ -3602,16 +4095,16 @@ if (notionBlock && user?.uid && isNotionConnected) {
                             return (
                             <div key={item.id + "_" + item.type} title={`${item.text} ${timeString ? `(${timeString})` : ''}`}
                                  className={itemClasses}
-                                 style={item.type === 'event' ? { backgroundColor: item.color || '#8884d8', color: 'white' } : {}}
+                                 style={item.type === 'event' ? { backgroundColor: item.color || '#8884d8' } : {}}
                                  onClick={handleItemClick}
                             >
-                                {item.type !== 'event' && item.priority === 'high' && <Flag className="w-2.5 h-2.5 text-red-500 flex-shrink-0"/>}
-                                {item.type === 'event' && <CalendarRange className="w-2.5 h-2.5 flex-shrink-0" style={{color: 'white' }}/>}
-                                <span className="truncate flex-1 text-[11px]">{item.text}</span>
+                                {item.type !== 'event' && item.priority === 'high' && <Flag className="w-2.5 h-2.5 text-theme-text-primary flex-shrink-0"/>}
+                                {item.type === 'event' && <CalendarRange className={`w-2.5 h-2.5 flex-shrink-0 ${getEventTextColor(item.color || '#8884d8')}`}/>}
+                                <span className={`truncate flex-1 text-[11px] ${item.type === 'event' ? getEventTextColor(item.color || '#8884d8') : ''}`}>{item.text}</span>
                                 {timeString && item.type !== 'event' && <span className="text-[10px] opacity-70 flex-shrink-0">{timeString}</span>}
                             </div>
                         )})}
-                        {itemsForDay.length === 0 && <div className="h-full flex items-center justify-center text-xs text-gray-400 dark:text-gray-500 italic">No items</div>}
+                        {itemsForDay.length === 0 && <div className="h-full flex items-center justify-center text-xs text-theme-text-muted italic">No items</div>}
                     </div>
                 </div>
             );
@@ -3637,11 +4130,11 @@ if (notionBlock && user?.uid && isNotionConnected) {
             const isToday = dateStr === formatDateForComparison(new Date());
             const itemsForDay = itemsByDateForCalendar.get(dateStr) || [];
 
-            let dayClass = `bg-white dark:bg-[#1A1D29]/70 p-1.5 sm:p-2 text-xs sm:text-sm flex flex-col items-start justify-start
+            let dayClass = `bg-theme-card p-1.5 sm:p-2 text-xs sm:text-sm flex flex-col items-start justify-start
                             min-h-[180px] sm:min-h-[220px] lg:min-h-[250px]
-                            h-auto rounded-lg transition-all duration-150 hover:shadow-xl cursor-pointer hover:ring-1 hover:ring-[#635BFF] `;
-            if (isToday) dayClass += "bg-indigo-50 dark:bg-[#635BFF]/20 border-[#635BFF]/50 dark:border-[#635BFF]/70 ring-1 ring-[#635BFF] ";
-            else if (itemsForDay.length > 0) dayClass += "bg-gray-50/60 dark:bg-gray-800/30 ";
+                            h-auto rounded-lg transition-all duration-150 hover:shadow-xl cursor-pointer hover:ring-1 hover:ring-theme-solid-button `;
+            if (isToday) dayClass += "bg-theme-accent/20 dark:bg-theme-accent/30 border-theme-accent/50 ring-1 ring-theme-accent/30 ";
+            else if (itemsForDay.length > 0) dayClass += "bg-theme-highlight/60 ";
 
             daysArray.push(
               <div key={`month-day-${day}`} className={dayClass} title={date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
@@ -3654,15 +4147,15 @@ if (notionBlock && user?.uid && isNotionConnected) {
                        document.getElementById('event-form-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     }}
               >
-                <span className={`font-semibold mb-1 ${isToday ? 'text-[#635BFF] dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>{day}</span>
+                <span className={`font-semibold mb-1 ${isToday ? 'text-theme-white' : 'text-theme-text-primary'}`}>{day}</span>
                 {itemsForDay.length > 0 && (
                     <div className="mt-1 space-y-0.5 w-full flex-grow overflow-y-auto max-h-[calc(100%-2rem)]
                                 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-500 text-[10px] sm:text-[11px]">
                         {itemsForDay.slice(0, 5).map(item => {
                              const timeString = (item.dateObj && (item.dateObj.getHours() !== 0 || item.dateObj.getMinutes() !==0) ) ? item.dateObj.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '';
                              let itemClasses = `p-1 rounded text-[10px] flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity duration-150`;
-                             if (item.type === 'task') itemClasses += ` bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300`;
-                             else if (item.type === 'goal') itemClasses += ` bg-pink-100 dark:bg-pink-500/20 text-pink-600 dark:text-pink-300`;
+                             if (item.type === 'task') itemClasses += ` bg-theme-highlight text-theme-text-secondary`;
+                             else if (item.type === 'goal') itemClasses += ` bg-theme-highlight text-theme-text-secondary`;
                              else if (item.type === 'event') itemClasses += ` text-white dark:text-gray-100`;
 
                              if (item.completed) itemClasses += ' line-through opacity-50';
@@ -3679,23 +4172,23 @@ if (notionBlock && user?.uid && isNotionConnected) {
                                 key={item.id + "_" + item.type}
                                 title={`${item.text} ${timeString ? `(${timeString})` : ''}`}
                                 className={itemClasses}
-                                style={item.type === 'event' ? { backgroundColor: item.color || '#8884d8', color: 'white' } : {}}
+                                style={item.type === 'event' ? { backgroundColor: item.color || '#8884d8' } : {}}
                                 onClick={handleCalendarItemClick}
                             >
-                                {item.type !== 'event' && item.priority === 'high' && <Flag className="w-2 h-2 text-red-500 flex-shrink-0"/>}
-                                {item.type === 'event' && <CalendarRange className="w-2 h-2 flex-shrink-0" style={{color: 'white'}}/>}
-                                <span className="truncate flex-1">{item.text}</span>
+                                {item.type !== 'event' && item.priority === 'high' && <Flag className="w-2 h-2 text-theme-text-primary flex-shrink-0"/>}
+                                {item.type === 'event' && <CalendarRange className={`w-2 h-2 flex-shrink-0 ${getEventTextColor(item.color || '#8884d8')}`}/>}
+                                <span className={`truncate flex-1 ${item.type === 'event' ? getEventTextColor(item.color || '#8884d8') : ''}`}>{item.text}</span>
                             </div>
                         )})}
                         {itemsForDay.length > 5 && (
-                            <div className="text-center text-gray-400 dark:text-gray-500 text-[10px] mt-0.5">
+                            <div className="text-center text-theme-text-muted text-[10px] mt-0.5">
                                 + {itemsForDay.length - 5} more
                             </div>
                         )}
                     </div>
                 )}
                  {itemsForDay.length === 0 && (
-                    <div className="h-full flex-grow flex items-center justify-center text-[10px] text-gray-400 dark:text-gray-500 italic mt-1">
+                    <div className="h-full flex-grow flex items-center justify-center text-[10px] text-theme-text-muted italic mt-1">
                         No items
                     </div>
                 )}
@@ -3707,100 +4200,23 @@ if (notionBlock && user?.uid && isNotionConnected) {
 
 
     const [expandedGoalId, setExpandedGoalId] = useState<string | null>(null);
-    const [goalCoachTip, setGoalCoachTip] = useState<{[key: string]: string | null}>({});
-    const [goalCoachLoading, setGoalCoachLoading] = useState<{[key: string]: boolean}>({});
 
-    const fetchGoalCoachTip = async (goalId: string, goalText: string) => {
-        if (!user || goalCoachLoading[goalId]) return;
-        setGoalCoachLoading(prev => ({...prev, [goalId]: true}));
 
-        const prompt = `User's learning goal: "${goalText}". Provide 1-2 very short, actionable coaching tips (as a single string, max 150 chars) to help achieve this. Be encouraging and use simple language. Example: "Break it into daily mini-tasks! You can do it! ✨" or "Schedule 20 mins each day for this. Consistent effort is key! 👍"`;
-        try {
-            // --- THIS IS THE NEW LOGIC ---
-            const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
-            
-            const apiRequestBody = {
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: undefined,
-                tools: [],
-                systemInstruction: undefined,
-                isImageGen: false
-            };
 
-            const result = await geminiProxyCallable(apiRequestBody);
-            const responseData = result.data as any; // The data is now the direct response from Gemini
 
-            // Now, parse the responseData as if it came from Google
-            const parsedResponse = parseGeminiApiResponse(JSON.stringify(responseData), false);
-            
-            if (parsedResponse.error || !parsedResponse.text) {
-                 setGoalCoachTip(prev => ({...prev, [goalId]: "Keep breaking it down and track your progress!"}));
-            } else {
-                setGoalCoachTip(prev => ({...prev, [goalId]: parsedResponse.text!.trim()}));
-            }
-        } catch (error: any) {
-            console.error("Error fetching goal coach tip:", error);
-            setGoalCoachTip(prev => ({...prev, [goalId]: "Focus on consistent effort. Every step counts!"}));
-        } finally {
-            setGoalCoachLoading(prev => ({...prev, [goalId]: false}));
-        }
-    };
-
-    const fetchTaskCoachTip = async (taskId: string, taskText: string) => {
-        if (!user || taskCoachLoading[taskId]) return;
-        setTaskCoachLoading(prev => ({...prev, [taskId]: true}));
-      
-        const prompt = `User's task: "${taskText}". Provide 1-2 very short, actionable coaching tips (as a single string, max 150 chars) to help complete this. Be encouraging and use simple language. Example: "Focus on the first step. You've got this! 💪" or "Set a timer for 25 minutes and dive in. Small wins matter! ⏳"`;
-        try {
-            // --- THIS IS THE NEW LOGIC ---
-            const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
-            
-            const apiRequestBody = {
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: undefined,
-                tools: [],
-                systemInstruction: undefined,
-                isImageGen: false
-            };
-
-            const result = await geminiProxyCallable(apiRequestBody);
-            const responseData = result.data as any; // The data is now the direct response from Gemini
-
-            // Now, parse the responseData as if it came from Google
-            const parsedResponse = parseGeminiApiResponse(JSON.stringify(responseData), false);
-            
-            if (parsedResponse.error || !parsedResponse.text) {
-                 setTaskCoachTip(prev => ({...prev, [taskId]: "One step at a time. You can do this!"}));
-            } else {
-                setTaskCoachTip(prev => ({...prev, [taskId]: parsedResponse.text!.trim()}));
-            }
-        } catch (error: any) {
-            console.error("Error fetching task coach tip:", error);
-            setTaskCoachTip(prev => ({...prev, [taskId]: "Remember your 'why' for this task. Stay focused!"}));
-        } finally {
-            setTaskCoachLoading(prev => ({...prev, [taskId]: false}));
-        }
-    };
 
     const toggleGoalExpansion = (goalId: string, goalText: string) => {
         if (expandedGoalId === goalId) {
             setExpandedGoalId(null);
         } else {
             setExpandedGoalId(goalId);
-            if (!goalCoachTip[goalId] && !goalCoachLoading[goalId]) {
-                fetchGoalCoachTip(goalId, goalText);
-            }
         }
     };
-
     const toggleTaskExpansion = (taskId: string, taskText: string) => {
         if (expandedTaskId === taskId) {
             setExpandedTaskId(null);
         } else {
             setExpandedTaskId(taskId);
-            if (!taskCoachTip[taskId] && !taskCoachLoading[taskId]) {
-                fetchTaskCoachTip(taskId, taskText);
-            }
         }
     };
 
@@ -3981,7 +4397,8 @@ if (notionBlock && user?.uid && isNotionConnected) {
                 generationConfig: { responseMimeType: "application/json", temperature: 0.6 },
                 tools: [],
                 systemInstruction: undefined,
-                isImageGen: false
+                isImageGen: false,
+                useThinkHarder: reasoningEnabled
             };
 
             const result = await geminiProxyCallable(apiRequestBody);
@@ -4212,20 +4629,22 @@ if (notionBlock && user?.uid && isNotionConnected) {
 const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
 
  return (
-    <div className="bg-[#F7F8FA] dark:bg-[#0C0E1A] text-gray-900 dark:text-gray-100 min-h-screen w-full overflow-x-hidden relative font-poppins">
+    <div className="bg-theme-primary text-theme-text-primary min-h-screen w-full overflow-x-hidden relative font-clarika selection:bg-[var(--bg-accent)] selection:text-white">
+      
+
       
       {/* --- ADD THE CONFIRMATION MODAL JSX HERE --- */}
       {confirmAction && (
         <div className="fixed inset-0 bg-black/50 z-[90] flex items-center justify-center p-4">
             <motion.div
               initial={{scale:0.9, opacity:0}} animate={{scale:1, opacity:1}}
-              className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-sm w-full"
+              className="bg-theme-card p-6 rounded-lg shadow-xl max-w-sm w-full"
             >
-                <h4 className="text-md font-semibold text-gray-800 dark:text-gray-100 mb-3">Confirm Action</h4>
-                <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">{confirmAction.message}</p>
+                <h4 className="text-md font-semibold text-theme-text-primary mb-3">Confirm Action</h4>
+                <p className="text-sm text-theme-text-secondary mb-4">{confirmAction.message}</p>
                 <div className="flex justify-end gap-3">
-                    <button onClick={() => { confirmAction.onCancel?.(); setConfirmAction(null); }} className="px-4 py-2 text-xs rounded-md bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-100">Cancel</button>
-                    <button onClick={() => { confirmAction.onConfirm(); }} className="px-4 py-2 text-xs rounded-md bg-red-500 hover:bg-red-600 text-white">Confirm</button>
+                    <button onClick={() => { confirmAction.onCancel?.(); setConfirmAction(null); }} className="px-4 py-2 text-xs rounded-md bg-theme-highlight hover:bg-theme-highlight/80 text-theme-text-primary">Cancel</button>
+                    <button onClick={() => { confirmAction.onConfirm(); }} className="px-4 py-2 text-xs rounded-md bg-theme-status-error hover:bg-theme-status-error/80 text-theme-white">Confirm</button>
                 </div>
             </motion.div>
         </div>
@@ -4239,7 +4658,6 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
         isMobileOpen={isMobileSidebarOpen}
         setIsMobileOpen={setIsMobileSidebarOpen}
         userProfile={userProfile}
-        onProfileClick={() => setShowProfileModal(true)}
       />
        <ProfileModal
             isOpen={showProfileModal}
@@ -4248,40 +4666,42 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
             userName={userName}
        />
 
-      <button onClick={() => setIsAiAssistantOpen(prev => !prev)} className={`fixed bottom-5 right-5 z-40 p-3 rounded-full shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-100 bg-gradient-to-br from-[#635BFF] to-[#8A85FF] text-white ${isAiAssistantOpen ? 'rotate-45 bg-gradient-to-br from-pink-500 to-orange-500' : ''}`} title={isAiAssistantOpen ? "Close Dashboard Agent" : "Open Dashboard Agent"} aria-label="Toggle Dashboard Agent">
-        {isAiAssistantOpen ? <X className="w-5 h-5" /> : <Brain className="w-5 h-5" />}
+      <button onClick={() => setIsAiAssistantOpen(prev => !prev)} className={`fixed bottom-5 right-5 z-40 p-3 rounded-full shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-100 bg-theme-header text-theme-white ${isAiAssistantOpen ? 'rotate-45 bg-theme-accent' : ''}`} title={isAiAssistantOpen ? "Close Dashboard Agent" : "Open Dashboard Agent"} aria-label="Toggle Dashboard Agent">
+        {isAiAssistantOpen ? <X className="w-5 h-5" /> : <MessageCircle className="w-5 h-5" />}
       </button>
 
       <main className={`pt-6 transition-transform duration-300 ease-in-out ${isSidebarCollapsed ? 'lg:translate-x-20' : 'lg:translate-x-64'} ${isSidebarCollapsed ? 'lg:w-[calc(100%-5rem)]' : 'lg:w-[calc(100%-16rem)]'} w-full px-4 sm:px-6 pb-20 overflow-x-hidden`}>
         <div className="max-w-7xl mx-auto space-y-6">
         <section
-        className={`bg-gradient-to-br from-[#635BFF] to-[#8A85FF] dark:from-[#5249d9] dark:to-[#736ee8] text-white p-6 sm:p-7 rounded-2xl shadow-xl flex flex-col justify-between gap-4 animate-fadeIn ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}
+        className={`bg-theme-card text-theme-text-primary p-6 sm:p-7 rounded-2xl shadow-xl flex flex-col justify-between gap-4 animate-fadeIn ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}
         style={{ minHeight: '200px' }}
       >
         <div>
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-y-5 gap-x-4">
+                      <div className="flex flex-col sm:flex-row items-start gap-y-5 gap-x-4">
             <div className="flex-grow">
-              <div className="flex items-center gap-2.5">
-                {React.cloneElement(greetingInfo.icon, { className: `w-6 h-6 opacity-80 ${greetingInfo.color.replace('text-', 'text-white/80 dark:text-')}` })}
-                <h1 className="text-xl sm:text-2xl font-semibold">
-                  {greetingInfo.greeting}, <span className="font-semibold">{truncatedName}!</span>
+              <div className="flex flex-col gap-1">
+                <h1 className={`text-xl sm:text-2xl font-semibold ${greetingInfo.color}`}>
+                  {greetingInfo.greeting.replace(/[.!?]$/, '')}, <span className="font-semibold">{truncatedName}</span>{greetingInfo.greeting.match(/[.!?]$/)?.[0] || '.'}
                 </h1>
+                <p className="text-sm sm:text-base text-theme-text-secondary opacity-90">
+                  {greetingInfo.motivationalLine}
+                </p>
               </div>
             </div>
 
             {userProfile && (
               <div className="flex-shrink-0 flex flex-wrap items-center gap-2 sm:gap-3">
                 {[
-                  { label: 'Points', value: userProfile.points, icon: TrendingUp },
-                  { label: 'Level', value: userProfile.level, icon: Award },
+                  { label: 'Points', value: userProfile.points ?? 0, icon: TrendingUp, iconClass: 'icon-points' },
+                  { label: 'Level', value: userProfile.level ?? 0, icon: Award, iconClass: 'icon-level' },
                 ].map(stat => (
-                  <div key={stat.label} className="flex items-center gap-2 bg-white/15 dark:bg-black/15 backdrop-blur-sm rounded-full px-3 py-1.5 text-xs sm:text-sm" title={`${stat.label}: ${stat.value}`}>
-                    <stat.icon className="w-4 h-4 opacity-80" />
+                  <div key={stat.label} className="flex items-center gap-2 bg-theme-highlight backdrop-blur-sm rounded-full px-3 py-1.5 stats-text-responsive" title={`${stat.label}: ${stat.value}`}>
+                    <stat.icon className={`stats-icon-responsive ${stat.iconClass} icon-theme-adaptive`} />
                     <span className="font-semibold">{stat.value}</span>
                     <span className="opacity-80 hidden md:inline">{stat.label}</span>
                   </div>
                 ))}
-                <div className="relative flex items-center gap-2 bg-white/15 dark:bg-black/15 backdrop-blur-sm rounded-full px-3 py-1.5 text-xs sm:text-sm" title={`Streak: ${userProfile.overallStreakCount}`}>
+                <div className="relative flex items-center gap-2 bg-theme-highlight backdrop-blur-sm rounded-full px-3 py-1.5 stats-text-responsive" title={`Streak: ${userProfile.overallStreakCount ?? 0}`}>
                     <AnimatePresence>
                         {streakIncreased && (
                             <motion.div
@@ -4291,50 +4711,69 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                                 transition={{ duration: 1.5, times: [0, 0.2, 0.8, 1], ease: "easeOut" }}
                                 className="absolute -top-4 left-1/2 -translate-x-1/2 text-sm font-semibold text-orange-400 flex items-center"
                             >
-                                <Flame className="w-4 h-4 mr-0.5" /> +1
+                                <Flame className="stats-icon-responsive mr-0.5" /> +1
                             </motion.div>
                         )}
                     </AnimatePresence>
-                    <Flame className="w-4 h-4 opacity-80" />
-                    <span className="font-semibold">{userProfile.overallStreakCount}</span>
+                    <Flame className="stats-icon-responsive icon-streak icon-theme-adaptive" />
+                    <span className="font-semibold">{userProfile.overallStreakCount ?? 0}</span>
                     <span className="opacity-80 hidden md:inline">Streak</span>
                 </div>
-                 <div className="flex items-center gap-2 bg-white/15 dark:bg-black/15 backdrop-blur-sm rounded-full px-3 py-1.5 text-xs sm:text-sm" title={`Badges: ${(userProfile.badges || []).length}`}>
-                    <Trophy className="w-4 h-4 opacity-80" />
+                 <div className="flex items-center gap-2 bg-theme-highlight backdrop-blur-sm rounded-full px-3 py-1.5 stats-text-responsive" title={`Badges: ${(userProfile.badges || []).length}`}>
+                    <Trophy className="stats-icon-responsive icon-badge icon-theme-adaptive" />
                     <span className="font-semibold">{(userProfile.badges || []).length}</span>
                     <span className="opacity-80 hidden md:inline">Badges</span>
                   </div>
-                <button onClick={() => setShowProfileModal(true)} className="flex items-center gap-2 bg-white/15 dark:bg-black/15 backdrop-blur-sm rounded-full px-3 py-1.5 text-xs sm:text-sm group" title="View Full Profile">
-                  <UserIcon className="w-4 h-4 opacity-80" />
+                <button onClick={() => setShowProfileModal(true)} className="flex items-center gap-2 bg-theme-highlight backdrop-blur-sm rounded-full px-3 py-1.5 stats-text-responsive group" title="View Full Profile">
+                  <UserIcon className="stats-icon-responsive icon-theme-adaptive" />
                   <span className="opacity-80 hidden md:inline group-hover:underline">Profile</span>
                 </button>
               </div>
             )}
           </div>
 
-          <div className="mt-4">
-            {userTier === 'basic' && (
-              <p className="mt-2 opacity-80 text-xs">
-                Unlock Smart Daily Brief with Pro or Premium! <Link to="/pricing" className="font-semibold underline hover:opacity-90">Upgrade Now</Link>
-              </p>
-            )}
 
-            {showSmartBriefContent && (
+
+          <div className="mt-4">
+            {showSmartBriefContent && !hideBrief && (
                 <div className="mt-2">
                     {userTier === 'loading' || (smartBriefLoading && !smartDailyBrief) ? (
                         <div className="space-y-2 animate-pulse">
-                            <div className="h-3 bg-white/20 rounded-full w-3/4"></div>
-                            <div className="h-3 bg-white/20 rounded-full w-1/2"></div>
+                            <div className="h-3 bg-theme-highlight rounded-full w-3/4"></div>
+                            <div className="h-3 bg-theme-highlight rounded-full w-1/2"></div>
                         </div>
                     ) : (tasks.length > 0 || goals.length > 0 || events.length > 0) && smartDailyBrief ? (
-                        <div className="space-y-1.5 text-xs animate-fadeIn" style={{ animationDuration: '400ms', animationDelay: '100ms' }}>
-                            <p className="opacity-95 font-medium text-sm leading-snug">{smartDailyBrief.summaryText}</p>
-                            {smartDailyBrief.pendingTasksCount > 0 && <p className="text-xs opacity-80 mt-0.5">You have {smartDailyBrief.pendingTasksCount} pending task{smartDailyBrief.pendingTasksCount === 1 ? '' : 's'}.</p>}
-                            {smartDailyBrief.upcomingEventsSummary && <p className="opacity-80 flex items-center gap-1 text-[11px] mt-1"><CalendarRange className="w-3 h-3 opacity-70" />{smartDailyBrief.upcomingEventsSummary}</p>}
-                            {smartDailyBrief.upcomingQuizzesInfo && <p className="opacity-80 flex items-center gap-1 text-[11px] mt-1"><Lightbulb className="w-3 h-3 opacity-70" />{smartDailyBrief.upcomingQuizzesInfo}</p>}
+                        <div className="animate-fadeIn flex flex-wrap gap-3" style={{ animationDuration: '400ms', animationDelay: '100ms' }}>
+                            {smartDailyBrief.pendingTasksCount > 0 && (
+                                <div className="flex-1 min-w-0 bg-theme-highlight p-3 rounded-lg flex items-center gap-2">
+                                    <ListTodo className="w-4 h-4 text-theme-text-primary flex-shrink-0" />
+                                    <span className="text-sm text-theme-text-primary truncate">
+                                        You have {smartDailyBrief.pendingTasksCount} pending task{smartDailyBrief.pendingTasksCount === 1 ? '' : 's'}.
+                                    </span>
+                                </div>
+                            )}
+                            
+                            {smartDailyBrief.upcomingGoalsInfo && (
+                                <div className="flex-1 min-w-0 bg-theme-highlight p-3 rounded-lg flex items-center gap-2">
+                                    <GoalIcon className="w-4 h-4 text-theme-text-primary flex-shrink-0" />
+                                    <span className="text-sm text-theme-text-primary truncate">{smartDailyBrief.upcomingGoalsInfo}</span>
+                                </div>
+                            )}
+                            
+                            {smartDailyBrief.upcomingEventsSummary && (
+                                <div className="flex-1 min-w-0 bg-theme-highlight p-3 rounded-lg flex items-center gap-2">
+                                    <CalendarRange className="w-4 h-4 text-theme-text-primary flex-shrink-0" />
+                                    <span className="text-sm text-theme-text-primary truncate">{smartDailyBrief.upcomingEventsSummary}</span>
+                                </div>
+                            )}
+                            
+                            {smartDailyBrief.upcomingQuizzesInfo && (
+                                <div className="flex-1 min-w-0 bg-theme-highlight p-3 rounded-lg flex items-center gap-2">
+                                    <Lightbulb className="w-4 h-4 text-theme-text-primary flex-shrink-0" />
+                                    <span className="text-sm text-theme-text-primary truncate">{smartDailyBrief.upcomingQuizzesInfo}</span>
+                                </div>
+                            )}
                         </div>
-                    ) : (tasks.length === 0 && goals.length === 0 && events.length === 0) ? (
-                        <p className="opacity-80 text-xs">Add some tasks, goals, or events to unlock your Smart Daily Brief! 🚀</p>
                     ) : (
                         <p className="opacity-80 text-xs"></p>
                     )}
@@ -4343,62 +4782,147 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
           </div>
         </div>
         
-        {showSmartBriefContent && (
+        {showSmartBriefContent && !hideBrief && (
           <div className="space-y-4">
             {(tasks.length > 0 || goals.length > 0 || events.length > 0) && (
-              <div className="pt-4 border-t border-white/20">
-                <h3 className="text-sm font-semibold text-white mb-2">FOCUS BLOCKS FOR TODAY:</h3>
-                <div className="space-y-2">
+              <div className="pt-4 border-t border-theme-border-primary">
+                <h3 className="text-sm font-medium text-theme-text-primary opacity-90 mb-2">Focus Blocks:</h3>
+                <div className="flex flex-wrap gap-3">
                   {smartBriefLoading && (!smartDailyBrief || !smartDailyBrief.suggestedFocusBlocks || smartDailyBrief.suggestedFocusBlocks.length === 0) ? (
-                    <div className="bg-white/10 p-3 rounded-lg text-sm font-medium flex items-center gap-2.5 cursor-default animate-pulse">
-                      <Loader2 className="w-5 h-5 text-white animate-spin" />
-                      <span className="text-white opacity-80">Refreshing...</span>
+                    <div className="bg-theme-highlight p-3 rounded-lg text-sm font-medium flex items-center gap-2.5 cursor-default animate-pulse flex-1">
+                      <Loader2 className="w-5 h-5 text-theme-text-primary animate-spin" />
+                      <span className="text-theme-text-secondary opacity-80">Refreshing...</span>
                     </div>
                   ) : smartDailyBrief && smartDailyBrief.suggestedFocusBlocks && smartDailyBrief.suggestedFocusBlocks.length > 0 ? (
                     smartDailyBrief.suggestedFocusBlocks.map((block, idx) => (
-                      <button key={idx} onClick={() => navigate('/focus', { state: { autoStartFocus: { name: block.name, duration: block.duration * 60 } } })} className="w-full bg-white/10 hover:bg-white/20 p-3 rounded-lg text-sm font-medium transition-all duration-200 ease-out flex items-center gap-2.5 cursor-pointer text-left transform hover:scale-[1.02] active:scale-[0.98]" title={`Start focus session: ${block.name}`}>
-                        <Play className="w-5 h-5 text-white flex-shrink-0" />
-                        <span className="text-white flex-grow">{block.name} ({block.duration}m)</span>
+                      <button key={idx} onClick={() => navigate('/focus', { state: { autoStartFocus: { name: block.name, duration: block.duration * 60 } } })} className="bg-theme-highlight hover:bg-theme-highlight/80 p-3 rounded-lg text-sm font-medium transition-all duration-200 ease-out flex items-center gap-2.5 cursor-pointer text-left transform hover:scale-[1.02] active:scale-[0.98]" title={`Start focus session: ${block.name}`}>
+                        <Play className="w-5 h-5 text-theme-text-primary flex-shrink-0" />
+                        <div className="flex items-center gap-2">
+                          <span className="text-theme-text-primary truncate">{block.name}</span>
+                        <span className="bg-theme-accent text-theme-white px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0">
+                          {block.duration >= 60 ? `${Math.floor(block.duration / 60)}h${block.duration % 60 > 0 ? ` ${block.duration % 60}m` : ''}` : `${block.duration}m`}
+                        </span>
+                        </div>
                       </button>
                     ))
-                  ) : !smartBriefLoading && <p className="text-xs text-white/70 italic">No specific focus blocks suggested currently.</p>}
+                  ) : !smartBriefLoading && <p className="text-xs text-theme-text-muted italic">No specific focus blocks suggested currently.</p>}
                 </div>
-                {smartDailyBrief?.limitReachedError && <p className="text-amber-300/80 text-[10px] mt-1">{smartDailyBrief.limitReachedError}</p>}
+                {smartDailyBrief?.limitReachedError && <p className="text-theme-status-warning/80 text-[10px] mt-1">{smartDailyBrief.limitReachedError}</p>}
               </div>
             )}
 
-            {smartDailyBrief?.suggestedActions && smartDailyBrief.suggestedActions.length > 0 && (
-              <div className="pt-4 border-t border-white/20">
-                <div className="flex justify-between items-center mb-1">
-                  <p className="text-xs font-medium opacity-90">Quick Suggestions:</p>
-                  {smartDailyBrief.suggestedActions.length > 1 && <button onClick={() => setShowAllBriefSuggestions(!showAllBriefSuggestions)} className="text-[10px] font-medium opacity-80 hover:opacity-100 underline">{showAllBriefSuggestions ? 'Show less' : `Show ${smartDailyBrief.suggestedActions.length - 1} more`}</button>}
-                </div>
-                <div className="space-y-1.5">
-                  {(showAllBriefSuggestions ? smartDailyBrief.suggestedActions : smartDailyBrief.suggestedActions.slice(0, 1)).map(action => (
-                    <div key={action.id} className="text-[11px] bg-white/10 p-1.5 rounded-md flex justify-between items-center gap-1 hover:bg-white/20 transition-colors duration-150">
-                      <span className="opacity-80 flex-1 truncate" title={action.description}>{action.description}</span>
-                      <div className="flex gap-1 flex-shrink-0">
-                        {(action.action_type === 'create_task' || action.action_type === 'create_goal') && action.details?.name && <button onClick={() => handleAcceptBriefAction(action)} className="px-1.5 py-0.5 rounded bg-green-500/80 hover:bg-green-500 text-white text-[10px] font-medium transition-colors duration-150 transform active:scale-95">Accept</button>}
-                        <button onClick={() => handleDenyBriefAction(action.id)} className="px-1.5 py-0.5 rounded bg-red-500/70 hover:bg-red-500 text-white text-[10px] font-medium transition-colors duration-150 transform active:scale-95">Deny</button>
-                      </div>
+          </div>
+        )}
+
+        {/* Show suggestions even when brief is hidden, as long as hideQuickSuggestions is false */}
+        {smartDailyBrief?.suggestedActions && smartDailyBrief.suggestedActions.length > 0 && !hideQuickSuggestions && (
+          <div className="pt-4 border-t border-theme-border-primary">
+            <p className="text-sm font-medium text-theme-text-primary opacity-90 mb-3">Quick Suggestions:</p>
+            <div className="flex flex-wrap gap-3">
+              {smartDailyBrief.suggestedActions
+                .slice(0, 3).map(action => (
+                <div key={action.id} className="flex-1 min-w-0 bg-theme-highlight p-3 rounded-lg hover:bg-theme-highlight/50 transition-colors duration-200 flex items-start gap-3">
+                  <p className="text-sm text-theme-text-primary leading-snug overflow-hidden flex-grow">{action.description}</p>
+                  
+                  {agentTasks[action.id] ? (
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {agentTasks[action.id].status === 'in_progress' && (
+                        <div className="flex items-center gap-2 text-xs text-theme-text-secondary">
+                          <div className="w-3 h-3 border-2 border-theme-accent border-t-transparent rounded-full animate-spin"></div>
+                          <span>{agentTasks[action.id].message}</span>
+                        </div>
+                      )}
+                      {agentTasks[action.id].status === 'completed' && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-theme-status-success">{agentTasks[action.id].message}</span>
+                          {(action.action_type === 'create_note' || action.action_type === 'create_folder') && agentTasks[action.id].resultId && (
+                            <button 
+                              onClick={() => {
+                                if (action.action_type === 'create_note') {
+                                  navigate('/notes', { state: { noteId: agentTasks[action.id].resultId } });
+                                } else if (action.action_type === 'create_folder') {
+                                  navigate('/folders', { state: { folderId: agentTasks[action.id].resultId } });
+                                }
+                              }}
+                              className="px-2 py-1 rounded bg-theme-accent hover:bg-theme-accent/80 text-theme-white text-xs font-medium transition-all duration-200"
+                            >
+                              View
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      {agentTasks[action.id].status === 'error' && (
+                        <span className="text-xs text-theme-status-error">{agentTasks[action.id].message}</span>
+                      )}
                     </div>
-                  ))}
+                  ) : (
+                    <button 
+                      onClick={() => handleAcceptBriefAction(action)} 
+                      className="flex-shrink-0 px-2 py-1 rounded bg-[var(--status-success)] hover:bg-[var(--status-success)]/80 text-[var(--text-white)] text-xs font-medium transition-all duration-200 transform hover:scale-105 active:scale-95"
+                    >
+                      Accept
+                    </button>
+                  )}
                 </div>
-              </div>
-            )}
+              ))}
+            </div>
+          </div>
+        )}
 
+        {(userTier === 'pro' || userTier === 'premium') && (tasks.length === 0 && goals.length === 0 && events.length === 0) && (
+          <div className="mt-4 pt-4 border-t border-theme-border-primary">
+            <p className="opacity-80 text-xs">
+              Add some tasks, goals, or events to unlock your Smart Daily Brief! 🚀
+            </p>
+          </div>
+        )}
+
+        {userTier === 'basic' && (
+          <div className="mt-4 pt-4 border-t border-theme-border-primary">
+            <p className="opacity-80 text-xs">
+              Unlock Smart Daily Brief with Pro or Premium! <Link to="/pricing" className="font-semibold underline hover:opacity-90">Upgrade Now</Link>
+            </p>
+          </div>
+        )}
+
+        {/* Control buttons - visible for pro/premium users when there are tasks, goals, or events */}
+        {(userTier === 'pro' || userTier === 'premium') && (
+          <div className="mt-4 pt-4 border-t border-theme-border-primary">
             {(tasks.length > 0 || goals.length > 0 || events.length > 0) && (
-              <div className="mt-auto pt-4 border-t border-white/20">
+              <div className="flex items-center gap-2 justify-start">
                 <button 
                   onClick={generateSmartDailyBrief} 
                   disabled={smartBriefLoading || (userTier === 'pro' && briefLastRefreshDate === new Date().toISOString().split('T')[0] && briefRefreshCount >= BRIEF_REFRESH_LIMIT_PRO)} 
-                  className="self-start bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50 transform hover:scale-105 active:scale-100"
+                  className="bg-theme-highlight hover:bg-theme-highlight/80 text-theme-text-primary px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50 transform hover:scale-105 active:scale-100"
                 >
                   {smartBriefLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
                   {smartBriefLoading ? 'Refreshing...' : 'Refresh Brief'}
                 </button>
-                {userTier === 'pro' && <p className="text-[10px] opacity-70 mt-1">Refreshes used today: {briefRefreshCount}/{BRIEF_REFRESH_LIMIT_PRO}</p>}
-                {userTier === 'premium' && <p className="text-[10px] opacity-70 mt-1">Unlimited refreshes <Crown className="w-2.5 h-2.5 inline-block" /></p>}
+                
+                <button
+                  onClick={toggleHideBrief}
+                  className="bg-theme-highlight hover:bg-theme-highlight/80 text-theme-text-primary px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 transform hover:scale-105 active:scale-100"
+                  title={hideBrief ? "Show brief" : "Hide brief"}
+                >
+                  {hideBrief ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                  {hideBrief ? "Show Brief" : "Hide Brief"}
+                </button>
+                
+                <button
+                  onClick={toggleHideQuickSuggestions}
+                  className="bg-theme-highlight hover:bg-theme-highlight/80 text-theme-text-primary px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 transform hover:scale-105 active:scale-100"
+                  title={hideQuickSuggestions ? "Show quick suggestions" : "Hide quick suggestions"}
+                >
+                  {hideQuickSuggestions ? <Lightbulb className="w-3 h-3" /> : <LightbulbOff className="w-3 h-3" />}
+                  {hideQuickSuggestions ? "Show Suggestions" : "Hide Suggestions"}
+                </button>
+              </div>
+            )}
+            
+            {(tasks.length > 0 || goals.length > 0 || events.length > 0) && (
+              <div className="flex justify-start mt-1">
+                {userTier === 'pro' && <p className="text-xs text-theme-text-muted opacity-70">Refreshes used today: {briefRefreshCount}/{BRIEF_REFRESH_LIMIT_PRO}</p>}
+                {userTier === 'premium' && <p className="text-xs text-theme-text-muted opacity-70">Unlimited refreshes <Crown className="w-2.5 h-2.5 inline-block" /></p>}
               </div>
             )}
           </div>
@@ -4407,54 +4931,54 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
       </section>
 
 
-      <section className={`p-4 sm:p-5 rounded-xl shadow-lg bg-white dark:bg-[#161922] animate-fadeIn delay-100 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
+      <section className={`animate-fadeIn delay-100 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
         {[
-            { label: "Add Task", icon: ListTodo, action: () => { document.getElementById('new-item-input')?.focus(); setActiveTab('tasks'); }, color: "text-blue-500 dark:text-blue-400", bgColor: "bg-blue-50 dark:bg-blue-500/10", hoverBgColor: "hover:bg-blue-100 dark:hover:bg-blue-500/20" },
-            { label: "Set Goal", icon: GoalIcon, action: () => { document.getElementById('new-item-input')?.focus(); setActiveTab('goals'); }, color: "text-pink-500 dark:text-pink-400", bgColor: "bg-pink-50 dark:bg-pink-500/10", hoverBgColor: "hover:bg-pink-100 dark:hover:bg-pink-500/20" },
-            { label: "New Event", icon: CalendarDays, action: () => { setShowEventForm(true); resetEventForm(); document.getElementById('event-form-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, color: "text-green-500 dark:text-green-400", bgColor: "bg-green-50 dark:bg-green-500/10", hoverBgColor: "hover:bg-green-100 dark:hover:bg-green-500/20" },
-            { label: "New Note", icon: Notebook, action: () => navigate('/notes', { state: { openNewNoteModal: true } }), color: "text-yellow-500 dark:text-yellow-400", bgColor: "bg-yellow-50 dark:bg-yellow-500/10", hoverBgColor: "hover:bg-yellow-100 dark:hover:bg-yellow-500/20" },
-            { label: "New Folder", icon: Folder, action: () => navigate('/folders', { state: { openNewFolderForm: true } }), color: "text-orange-500 dark:text-orange-400", bgColor: "bg-orange-50 dark:bg-orange-500/10", hoverBgColor: "hover:bg-orange-100 dark:hover:bg-orange-500/20" },
-            { label: "AI Chat", icon: Brain, action: () => setIsAiAssistantOpen(true), color: "text-purple-500 dark:text-purple-400", bgColor: "bg-purple-50 dark:bg-purple-500/10", hoverBgColor: "hover:bg-purple-100 dark:hover:bg-purple-500/20" },
+            { label: "Add Task", icon: ListTodo, action: () => { document.getElementById('new-item-input')?.focus(); setActiveTab('tasks'); }, color: "text-theme-text-primary", bgColor: "bg-theme-highlight", hoverBgColor: "hover:bg-theme-highlight/80" },
+            { label: "Set Goal", icon: GoalIcon, action: () => { document.getElementById('new-item-input')?.focus(); setActiveTab('goals'); }, color: "text-theme-text-primary", bgColor: "bg-theme-highlight", hoverBgColor: "hover:bg-theme-highlight/80" },
+            { label: "New Event", icon: CalendarDays, action: () => { setShowEventForm(true); resetEventForm(); document.getElementById('event-form-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, color: "text-theme-text-primary", bgColor: "bg-theme-highlight", hoverBgColor: "hover:bg-theme-highlight/80" },
+            { label: "New Note", icon: Notebook, action: () => navigate('/notes', { state: { openNewNoteModal: true } }), color: "text-theme-text-primary", bgColor: "bg-theme-highlight", hoverBgColor: "hover:bg-theme-highlight/80" },
+            { label: "New Folder", icon: Folder, action: () => navigate('/folders', { state: { openNewFolderForm: true } }), color: "text-theme-text-primary", bgColor: "bg-theme-highlight", hoverBgColor: "hover:bg-theme-highlight/80" },
+            { label: "Chat", icon: MessageCircle, action: () => setIsAiAssistantOpen(true), color: "text-theme-text-primary", bgColor: "bg-theme-highlight", hoverBgColor: "hover:bg-theme-highlight/80" },
         ].map(item => (
             <button
                 key={item.label}
                 onClick={item.action}
-                className={`flex flex-col items-center justify-center gap-1 p-2 rounded-xl w-full h-24 text-xs font-medium transition-all duration-200 ease-out transform hover:scale-105 active:scale-95 shadow-md hover:shadow-lg ${item.bgColor} ${item.hoverBgColor}`}
+                className={`flex flex-row items-center justify-center gap-2 p-2 rounded-xl w-full h-16 text-sm font-medium transition-all duration-200 ease-out transform hover:scale-105 active:scale-95 shadow-sm hover:shadow-md bg-theme-header hover:bg-theme-header-secondary`}
                 title={item.label}
             >
-                <item.icon className={`w-6 h-6 ${item.color}`} />
-                <span className="text-gray-700 dark:text-gray-200">{item.label}</span>
+                <item.icon className="w-4 h-4 text-theme-white" />
+                <span className="text-theme-white">{item.label}</span>
             </button>
         ))}
     </div>
 </section>
 
         
-            <section id="add-edit-form-section" className={`p-4 sm:p-5 rounded-xl shadow-lg bg-white dark:bg-[#161922] animate-fadeIn delay-100 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
-                <h3 className="text-md font-semibold mb-3 text-gray-800 dark:text-gray-100">
+            <section id="add-edit-form-section" className={`p-4 sm:p-5 rounded-xl shadow-lg bg-theme-card animate-fadeIn delay-100 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
+                <h3 className="text-md font-semibold mb-3 text-theme-text-primary">
                     {editingItemId ? `Edit ${activeTab === 'tasks' ? 'Task' : 'Goal'}` : `Quick Add ${activeTab === 'tasks' ? 'Task' : 'Goal'}`}
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-end">
                     <input
                         id="new-item-input"
                         type="text"
-                        className="bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 rounded-lg px-3.5 py-2.5 text-sm focus:ring-1 focus:ring-[#635BFF] focus:border-[#635BFF] transition-colors sm:col-span-2"
+                        className="bg-theme-highlight border-theme-border-primary text-theme-text-primary placeholder-theme-text-muted rounded-lg px-3.5 py-2.5 text-sm focus:ring-1 focus:ring-theme-solid-button focus:border-theme-solid-button transition-colors sm:col-span-2"
                         placeholder={editingItemId ? `Editing ${activeTab.slice(0, -1)}...` : `What's your new ${activeTab.slice(0, -1)}?`}
                         value={editingItemId ? editingText : newItemText}
                         onChange={(e) => editingItemId ? setEditingText(e.target.value) : setNewItemText(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); editingItemId ? handleEditSave(editingItemId) : handleCreate();}}}
                     />
                     <div className="relative">
-                        <label htmlFor="formItemDate" className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 block">Date</label>
-                        <input id="formItemDate" type="date" className="w-full bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 rounded-lg px-3 py-2.5 text-xs focus:ring-1 focus:ring-[#635BFF] focus:border-[#635BFF] transition-colors appearance-none"
+                        <label htmlFor="formItemDate" className="text-[11px] font-medium text-theme-text-secondary mb-0.5 block">Date</label>
+                        <input id="formItemDate" type="date" className="w-full bg-theme-highlight border-theme-border-primary text-theme-text-secondary rounded-lg px-3 py-2.5 text-xs focus:ring-1 focus:ring-theme-solid-button focus:border-theme-solid-button transition-colors appearance-none"
                                value={editingItemId ? editingDate : newItemDate}
                                onChange={(e) => editingItemId ? setEditingDate(e.target.value) : setNewItemDate(e.target.value)}
                                style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}/>
                     </div>
                      <div className="relative">
-                        <label htmlFor="formItemTime" className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 block">Time</label>
-                        <input id="formItemTime" type="time" className="w-full bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 rounded-lg px-3 py-2.5 text-xs focus:ring-1 focus:ring-[#635BFF] focus:border-[#635BFF] transition-colors appearance-none"
+                        <label htmlFor="formItemTime" className="text-[11px] font-medium text-theme-text-secondary mb-0.5 block">Time</label>
+                        <input id="formItemTime" type="time" className="w-full bg-theme-highlight border-theme-border-primary text-theme-text-secondary rounded-lg px-3 py-2.5 text-xs focus:ring-1 focus:ring-theme-solid-button focus:border-theme-solid-button transition-colors appearance-none"
                                value={editingItemId ? editingTime : newItemTime}
                                onChange={(e) => editingItemId ? setEditingTime(e.target.value) : setNewItemTime(e.target.value)}
                                style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}/>
@@ -4462,9 +4986,9 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                     <div className="sm:col-span-2">
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-end">
                             <div>
-                                <label htmlFor="formItemPriority" className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 block">Priority</label>
+                                <label htmlFor="formItemPriority" className="text-[11px] font-medium text-theme-text-muted mb-0.5 block">Priority</label>
                                 <div className="relative">
-                                <select id="formItemPriority" className="w-full bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 rounded-lg px-3 py-2.5 text-xs focus:ring-1 focus:ring-[#635BFF] focus:border-[#635BFF] transition-colors appearance-none"
+                                <select id="formItemPriority" className="w-full bg-theme-highlight border-theme-border-primary text-theme-text-secondary rounded-lg px-3 py-2.5 text-xs focus:ring-1 focus:ring-theme-solid-button focus:border-theme-solid-button transition-colors appearance-none"
                                         value={editingItemId ? editingPriority : newItemPriority}
                                         onChange={(e) => editingItemId ? setEditingPriority(e.target.value as 'high' | 'medium' | 'low') : setNewItemPriority(e.target.value as 'high' | 'medium' | 'low')}>
                                     <option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>
@@ -4475,11 +4999,11 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
 
                             {editingItemId ? (
                                 <>
-                                    <button type="button" className="bg-green-500 hover:bg-green-600 text-white py-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-all duration-200 transform active:scale-95 text-sm font-semibold h-[42px] sm:order-3"
+                                    <button type="button" className="bg-theme-status-success hover:bg-theme-status-success/80 text-theme-white py-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-all duration-200 transform active:scale-95 text-sm font-semibold h-[42px] sm:order-3"
                                         onClick={() => handleEditSave(editingItemId)}>
                                         <CheckCircle className="w-4 h-4" /> Save Changes
                                     </button>
-                                    <button type="button" className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 py-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-all duration-200 transform active:scale-95 text-sm font-semibold h-[42px] sm:order-2"
+                                    <button type="button" className="bg-theme-highlight hover:bg-theme-highlight/80 text-theme-text-primary py-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-all duration-200 transform active:scale-95 text-sm font-semibold h-[42px] sm:order-2"
                                         onClick={() => {
                                             setEditingItemId(null);
                                             setEditingText(""); setEditingDate(""); setEditingTime(""); setEditingPriority("medium");
@@ -4488,7 +5012,7 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                                     </button>
                                 </>
                             ) : (
-                                <button type="button" className="bg-gradient-to-r from-[#635BFF] to-[#8A85FF] text-white py-2.5 rounded-xl flex items-center justify-center gap-1.5 hover:shadow-lg hover:opacity-90 transition-all duration-200 transform active:scale-95 text-sm font-semibold h-[42px] sm:col-span-2"
+                                <button type="button" className="bg-theme-solid-button py-2.5 rounded-xl flex items-center justify-center gap-1.5 hover:shadow-lg hover:opacity-90 transition-all duration-200 transform active:scale-95 text-sm font-semibold h-[42px] sm:col-span-2" style={{color: '#ceccfc'}}
                                     onClick={handleCreate}>
                                     <PlusCircle className="w-4 h-4" /> Add
                                 </button>
@@ -4498,11 +5022,11 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                 </div>
 
                 {activeTab === 'tasks' && (
-                    <div className="sm:col-span-2 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700/50">
+                                            <div className="sm:col-span-2 mt-3 pt-3 border-t border-theme-border-radius">
                         <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 cursor-pointer">
                             <input
                                 type="checkbox"
-                                className="form-checkbox h-4 w-4 text-[#635BFF] rounded border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 focus:ring-[#635BFF]"
+                                className="form-checkbox h-4 w-4 text-theme-white rounded border-theme-border-primary bg-theme-highlight focus:ring-theme-solid-button"
                                 checked={editingItemId ? editingRecurring : newItemRecurring}
                                 onChange={(e) => editingItemId ? setEditingRecurring(e.target.checked) : setNewItemRecurring(e.target.checked)}
                             />
@@ -4512,11 +5036,11 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                         {(editingItemId ? editingRecurring : newItemRecurring) && (
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-2 pl-6 animate-fadeIn" style={{animationDuration: '300ms'}}>
                                 <div>
-                                    <label htmlFor="recurrenceType" className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 block">Repeats</label>
+                                    <label htmlFor="recurrenceType" className="text-[11px] font-medium text-theme-text-muted mb-0.5 block">Repeats</label>
                                     <div className="relative">
                                         <select
                                             id="recurrenceType"
-                                            className="w-full bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 rounded-lg px-3 py-2.5 text-xs focus:ring-1 focus:ring-[#635BFF] focus:border-[#635BFF] transition-colors appearance-none"
+                                            className="w-full bg-theme-highlight border-theme-border-primary text-theme-text-secondary rounded-lg px-3 py-2.5 text-xs focus:ring-1 focus:ring-theme-solid-button focus:border-theme-solid-button transition-colors appearance-none"
                                             value={editingItemId ? editingRecurrenceType : newItemRecurrenceType}
                                             onChange={(e) => editingItemId ? setEditingRecurrenceType(e.target.value as 'daily' | 'weekly' | 'monthly') : setNewItemRecurrenceType(e.target.value as 'daily' | 'weekly' | 'monthly')}
                                         >
@@ -4528,11 +5052,11 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                                     </div>
                                 </div>
                                 <div>
-                                    <label htmlFor="recurrenceEndDate" className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 block">Until (Optional)</label>
+                                    <label htmlFor="recurrenceEndDate" className="text-[11px] font-medium text-theme-text-muted mb-0.5 block">Until (Optional)</label>
                                     <input
                                         id="recurrenceEndDate"
                                         type="date"
-                                        className="w-full bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 rounded-lg px-3 py-2.5 text-xs focus:ring-1 focus:ring-[#635BFF] focus:border-[#635BFF] transition-colors appearance-none"
+                                        className="w-full bg-theme-highlight border-theme-border-primary text-theme-text-secondary rounded-lg px-3 py-2.5 text-xs focus:ring-1 focus:ring-theme-solid-button focus:border-theme-solid-button transition-colors appearance-none"
                                         value={editingItemId ? editingRecurrenceEndDate : newItemRecurrenceEndDate}
                                         onChange={(e) => editingItemId ? setEditingRecurrenceEndDate(e.target.value) : setNewItemRecurrenceEndDate(e.target.value)}
                                         style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}
@@ -4547,25 +5071,76 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                  <section className={`animate-fadeIn delay-200 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
-                    <div className="flex justify-between items-center mb-3">
-                        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
-                            <ListTodo className="w-5 h-5 mr-2 text-[#635BFF]" /> Tasks
+                    <div className="flex items-center mb-3 relative">
+                        <h2 className="text-lg font-semibold text-theme-text-primary flex items-center">
+                            <ListTodo className="w-5 h-5 mr-2 text-theme-text-primary" /> Tasks
                         </h2>
-                        <button
-                            onClick={() => {
-                                setActiveTab('tasks');
-                                setEditingItemId(null);
-                                setShowEventForm(false); resetEventForm();
-                                document.getElementById('new-item-input')?.focus();
-                                const formElement = document.getElementById('add-edit-form-section');
-                                formElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            }}
-                            className="text-xs font-semibold text-[#635BFF] hover:underline flex items-center gap-0.5 transform hover:scale-105 transition-transform">
-                            <PlusCircle className="w-3 h-3" /> Add Task
-                        </button>
+                        {tasks && tasks.filter(t => !t.data.completed).length >= 2 && (
+                            <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-2">
+                                <button
+                                    onClick={() => {
+                                        if (tasks.filter(t => !t.data.completed).length === 0) return;
+                                        setConfirmAction({
+                                            message: 'Mark all current tasks as completed?',
+                                            iconType: 'tasks',
+                                            actionType: 'positive',
+                                            onConfirm: async () => {
+                                                const incompleteTasks = tasks.filter(t => !t.data.completed);
+                                                for (const task of incompleteTasks) {
+                                                    await updateItem('tasks', task.id, { completed: true });
+                                                }
+                                            }
+                                        });
+                                    }}
+                                    className="px-2 py-1 rounded-lg text-theme-white text-xs flex items-center gap-1 bg-theme-status-success hover:bg-theme-status-success/80 font-medium transition-colors duration-150 transform hover:scale-105 active:scale-100"
+                                    title="Mark all tasks as completed">
+                                    <CheckCircle className="w-3 h-3" /> Complete All
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        if (tasks.length === 0) return;
+                                        setConfirmAction({
+                                            message: 'Delete all tasks? This action cannot be undone.',
+                                            iconType: 'delete',
+                                            actionType: 'destructive',
+                                            onConfirm: async () => {
+                                                for (const task of tasks) {
+                                                    await deleteItem('tasks', task.id);
+                                                }
+                                                // Clear editing state if any deleted task was being edited
+                                                if (editingItemId && tasks.some(t => t.id === editingItemId)) {
+                                                    setEditingItemId(null);
+                                                    setEditingText(""); 
+                                                    setEditingDate(""); 
+                                                    setEditingTime(""); 
+                                                    setEditingPriority("medium");
+                                                }
+                                            }
+                                        });
+                                    }}
+                                    className="px-2 py-1 rounded-lg text-theme-white text-xs flex items-center gap-1 bg-theme-status-error hover:bg-theme-status-error/80 font-medium transition-colors duration-150 transform hover:scale-105 active:scale-100"
+                                    title="Delete all tasks">
+                                    <Trash className="w-3 h-3" /> Delete All
+                                </button>
+                            </div>
+                        )}
+                        <div className="ml-auto">
+                            <button
+                                onClick={() => {
+                                    setActiveTab('tasks');
+                                    setEditingItemId(null);
+                                    setShowEventForm(false); resetEventForm();
+                                    document.getElementById('new-item-input')?.focus();
+                                    const formElement = document.getElementById('add-edit-form-section');
+                                    formElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                }}
+                                className="text-sm font-semibold text-theme-text-primary bg-theme-highlight hover:bg-theme-highlight/80 px-3 py-2 rounded-full flex items-center gap-2 transform hover:scale-105 transition-all duration-200">
+                                <PlusCircle className="w-4 h-4" /> Add Task
+                            </button>
+                        </div>
                     </div>
-                    <div className="bg-white dark:bg-[#161922] p-4 sm:p-5 rounded-xl shadow-lg  relative overflow-hidden">
-                        <div className={`absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-white dark:from-[#161922] to-transparent pointer-events-none transition-opacity duration-200 z-10 ${showTopGradient ? 'opacity-100' : 'opacity-0'}`}></div>
+                    <div className="bg-theme-card p-4 sm:p-5 rounded-xl shadow-lg  relative overflow-hidden">
+                        <div className={`absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-theme-bg-primary dark:from-theme-bg-card to-transparent pointer-events-none transition-opacity duration-200 z-10 ${showTopGradient ? 'opacity-100' : 'opacity-0'}`}></div>
                         <div
                             ref={studyTodayScrollContainerRef}
                             className="space-y-3 max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent pr-1 pt-1 pb-2"
@@ -4573,7 +5148,7 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                         >
                             {sortedTasks.length > 0 ? (
                                 sortedTasks.map(task => (
-                                    <div key={task.id} className="bg-gray-50 dark:bg-[#1A1D29] p-3 rounded-xl shadow-md group hover:bg-gray-100 dark:hover:bg-[#1E222D] hover:shadow-lg transition-all duration-200 ease-out">
+                                    <div key={task.id} className="bg-theme-highlight p-3 rounded-xl shadow-md group hover:bg-theme-highlight/80 hover:shadow-lg transition-all duration-200 ease-out">
                                         <div className="flex items-center gap-3" >
                                             <button
                                               onClick={(e) => { e.stopPropagation(); handleMarkComplete(task.id, 'tasks'); }}
@@ -4587,12 +5162,12 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                                             </button>
 
                                             <div className="flex-1 min-w-0 cursor-pointer" onClick={() => toggleTaskExpansion(task.id, task.data.task)}>
-                                                <p className={`text-sm font-medium ${task.data.completed ? 'line-through text-gray-500 dark:text-gray-400' : 'text-gray-800 dark:text-gray-100'} break-words flex items-center gap-1.5`}>
-                                                    {task.data.recurring && !task.data.completed && <RotateCcw className="w-3 h-3 text-blue-500 flex-shrink-0" title={`Recurs ${task.data.recurrenceType}`}/>}
+                                                <p className={`text-sm font-medium ${task.data.completed ? 'line-through text-theme-text-muted' : 'text-theme-text-primary'} break-words flex items-center gap-1.5`}>
+                                                    {task.data.recurring && !task.data.completed && <RotateCcw className="w-3 h-3 text-theme-text-primary flex-shrink-0" title={`Recurs ${task.data.recurrenceType}`}/>}
                                                     {task.data.task}
                                                 </p>
                                                 {!task.data.completed && task.data.dueDate?.toDate && expandedTaskId !== task.id && (
-                                                    <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
+                                                    <p className="text-[10px] text-theme-text-muted mt-0.5">
                                                         Due: {task.data.dueDate.toDate().toLocaleDateString('en-US', {month: 'short', day: 'numeric'})}
                                                         {(task.data.dueDate.toDate().getHours() !== 0 || task.data.dueDate.toDate().getMinutes() !== 0) ? `, ${task.data.dueDate.toDate().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit'})}` : ''}
                                                     </p>
@@ -4601,6 +5176,14 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
 
                                             <div className="flex items-center flex-shrink-0 cursor-pointer" onClick={() => toggleTaskExpansion(task.id, task.data.task)}>
                                                 <PriorityBadge priority={calculatePriority(task)} className="text-[10px] px-1.5 py-0.5" />
+                                                <div className="flex gap-1.5 ml-1.5">
+                                                    <button onClick={(e) => { e.stopPropagation(); handleEditClick(task.id, task.data, 'tasks'); }} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-theme-text-muted transition-colors duration-150 transform hover:scale-110 active:scale-100" title="Edit Task">
+                                                        <Edit className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <button onClick={(e) => { e.stopPropagation(); handleDelete(task.id, 'tasks'); }} className="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-700/50 text-red-500 dark:text-red-400 transition-colors duration-150 transform hover:scale-110 active:scale-100" title="Delete Task">
+                                                        <Trash className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
                                                 <ChevronDown className={`w-4 h-4 text-gray-400 dark:text-gray-500 ml-1.5 transition-transform duration-200 ${expandedTaskId === task.id ? 'rotate-180' : ''}`} />
                                             </div>
                                         </div>
@@ -4608,41 +5191,36 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                                         {expandedTaskId === task.id && (
                                             <div className="mt-2.5 pt-2.5 border-t border-dashed border-gray-200 dark:border-gray-700/70 pl-10 space-y-2 text-xs animate-fadeIn" style={{animationDuration: '300ms'}}>
                                                 {task.data.dueDate?.toDate && (
-                                                    <p className="text-gray-500 dark:text-gray-400">
+                                                    <p className="text-theme-text-muted text-xs">
                                                         <strong>Full Due Date:</strong> {task.data.dueDate.toDate().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
                                                     </p>
                                                 )}
-                                                <p className="text-gray-600 dark:text-gray-300 whitespace-pre-wrap break-words">{task.data.task}</p>
 
-                                                {taskCoachLoading[task.id] && (
-                                                    <p className="italic flex items-center gap-1 text-gray-500 dark:text-gray-400">
-                                                        <Loader2 className="w-3 h-3 animate-spin text-blue-500 dark:text-blue-400" /> Thinking of tips...
+
+                                                {task.data.description && (
+                                                    <p className="text-theme-text-secondary text-xs">
+                                                        <strong className="text-theme-text-primary">Description:</strong> {task.data.description}
                                                     </p>
                                                 )}
-                                                {!taskCoachLoading[task.id] && taskCoachTip[task.id] && (
-                                                    <p className="text-gray-600 dark:text-gray-400">
-                                                        <strong className="text-blue-500 dark:text-blue-400">AI Coach:</strong> {taskCoachTip[task.id]}
+                                                {task.data.priority && (
+                                                    <p className="text-theme-text-secondary text-xs">
+                                                        <strong className="text-theme-text-primary">Priority:</strong> <span className="capitalize">{task.data.priority}</span>
                                                     </p>
                                                 )}
-                                                {!taskCoachLoading[task.id] && !taskCoachTip[task.id] && !task.data.completed && (
-                                                    <p className="italic text-gray-500 dark:text-gray-400">AI coaching tips available.</p>
+                                                {task.data.recurring && (
+                                                    <p className="text-theme-text-secondary text-xs">
+                                                        <strong className="text-theme-text-primary">Recurring:</strong> {task.data.recurrenceType || 'Yes'}
+                                                    </p>
                                                 )}
 
-                                                <div className="flex justify-end gap-1.5">
-                                                    <button onClick={() => handleEditClick(task.id, task.data, 'tasks')} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors duration-150 transform hover:scale-110 active:scale-100" title="Edit Task">
-                                                        <Edit className="w-3.5 h-3.5" />
-                                                    </button>
-                                                    <button onClick={() => handleDelete(task.id, 'tasks')} className="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-700/50 text-red-500 dark:text-red-400 transition-colors duration-150 transform hover:scale-110 active:scale-100" title="Delete Task">
-                                                        <Trash className="w-3.5 h-3.5" />
-                                                    </button>
-                                                </div>
+
                                             </div>
                                         )}
                                     </div>
                                 ))
                             ) : (
                                 <div className="text-center py-10">
-                                    <p className="text-sm text-gray-500 dark:text-gray-400 italic">No active tasks. Looks like you're all caught up! 🎉</p>
+                                    <p className="text-sm text-theme-text-muted italic">No active tasks. Looks like you're all caught up! 🎉</p>
                                      <button
                                         onClick={() => {
                                             setActiveTab('tasks');
@@ -4652,38 +5230,88 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                                             const formElement = document.getElementById('add-edit-form-section');
                                             formElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                                         }}
-                                        className="mt-3 text-xs font-medium bg-[#635BFF] text-white px-4 py-2 rounded-xl hover:opacity-90 transition-opacity flex items-center gap-1.5 mx-auto transform hover:scale-105 active:scale-100"
+                                        className="mt-3 text-xs font-medium bg-theme-solid-button px-4 py-2 rounded-xl hover:opacity-90 transition-opacity flex items-center gap-1.5 mx-auto transform hover:scale-105 active:scale-100" style={{color: '#ceccfc'}}
                                     >
                                         <PlusCircle className="w-4 h-4" /> Add New Task
                                     </button>
                                 </div>
                             )}
                         </div>
-                        <div className={`absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white dark:from-[#161922] to-transparent pointer-events-none transition-opacity duration-200 z-10 ${showBottomGradient ? 'opacity-100' : 'opacity-0'}`}></div>
+                        <div className={`absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-theme-bg-primary dark:from-theme-bg-card to-transparent pointer-events-none transition-opacity duration-200 z-10 ${showBottomGradient ? 'opacity-100' : 'opacity-0'}`}></div>
                     </div>
                 </section>
 
                 <section className={`animate-fadeIn delay-300 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-                    <div className="flex justify-between items-center mb-3">
-                        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
-                            <GoalIcon className="w-5 h-5 mr-2.5 text-[#47E4A6]" /> Goals
+                    <div className="flex items-center mb-3 relative">
+                        <h2 className="text-lg font-semibold text-theme-text-primary flex items-center">
+                            <GoalIcon className="w-5 h-5 mr-2.5 text-theme-text-primary" /> Goals
                         </h2>
-                        <button
-                            onClick={() => {
-                                setActiveTab('goals');
-                                setEditingItemId(null);
-                                setShowEventForm(false); resetEventForm();
-                                document.getElementById('new-item-input')?.focus();
-                                const formElement = document.getElementById('add-edit-form-section');
-                                formElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            }}
-                            className="text-xs font-semibold text-[#47E4A6] hover:underline flex items-center gap-1 transform hover:scale-105 transition-transform"
-                        >
-                            <PlusCircle className="w-3.5 h-3.5" /> Add Goal
-                        </button>
+                        {goals && goals.filter(g => !g.data.completed).length >= 2 && (
+                            <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-2">
+                                <button
+                                    onClick={() => {
+                                        if (goals.filter(g => !g.data.completed).length === 0) return;
+                                        setConfirmAction({
+                                            message: 'Mark all current goals as completed?',
+                                            iconType: 'goals',
+                                            actionType: 'positive',
+                                            onConfirm: async () => {
+                                                const incompleteGoals = goals.filter(g => !g.data.completed);
+                                                for (const goal of incompleteGoals) {
+                                                    await updateItem('goals', goal.id, { completed: true });
+                                                }
+                                            }
+                                        });
+                                    }}
+                                    className="px-2 py-1 rounded-lg text-theme-white text-xs flex items-center gap-1 bg-theme-status-success hover:bg-theme-status-success/80 font-medium transition-colors duration-150 transform hover:scale-105 active:scale-100"
+                                    title="Mark all goals as completed">
+                                    <CheckCircle className="w-3 h-3" /> Complete All
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        if (goals.length === 0) return;
+                                        setConfirmAction({
+                                            message: 'Delete all goals? This action cannot be undone.',
+                                            iconType: 'delete',
+                                            actionType: 'destructive',
+                                            onConfirm: async () => {
+                                                for (const goal of goals) {
+                                                    await deleteItem('goals', goal.id);
+                                                }
+                                                // Clear editing state if any deleted goal was being edited
+                                                if (editingItemId && goals.some(g => g.id === editingItemId)) {
+                                                    setEditingItemId(null);
+                                                    setEditingText(""); 
+                                                    setEditingDate(""); 
+                                                    setEditingTime(""); 
+                                                    setEditingPriority("medium");
+                                                }
+                                            }
+                                        });
+                                    }}
+                                    className="px-2 py-1 rounded-lg text-theme-white text-xs flex items-center gap-1 bg-theme-status-error hover:bg-theme-status-error/80 font-medium transition-colors duration-150 transform hover:scale-105 active:scale-100"
+                                    title="Delete all goals">
+                                    <Trash className="w-3 h-3" /> Delete All
+                                </button>
+                            </div>
+                        )}
+                        <div className="ml-auto">
+                            <button
+                                onClick={() => {
+                                    setActiveTab('goals');
+                                    setEditingItemId(null);
+                                    setShowEventForm(false); resetEventForm();
+                                    document.getElementById('new-item-input')?.focus();
+                                    const formElement = document.getElementById('add-edit-form-section');
+                                    formElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                }}
+                                className="text-sm font-semibold text-theme-text-primary bg-theme-highlight hover:bg-theme-highlight/80 px-3 py-2 rounded-full flex items-center gap-2 transform hover:scale-105 transition-all duration-200">
+                                <PlusCircle className="w-4 h-4" /> Add Goal
+                            </button>
+                        </div>
                     </div>
-                     <div className="bg-white dark:bg-[#161922] p-4 sm:p-5 rounded-xl shadow-lg relative overflow-hidden">
-                        <div className={`absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-white dark:from-[#161922] to-transparent pointer-events-none transition-opacity duration-200 z-10 ${showGoalsTopGradient ? 'opacity-100' : 'opacity-0'}`}></div>
+                     <div className="bg-theme-card p-4 sm:p-5 rounded-xl shadow-lg relative overflow-hidden">
+                        <div className={`absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-theme-bg-primary dark:from-theme-bg-card to-transparent pointer-events-none transition-opacity duration-200 z-10 ${showGoalsTopGradient ? 'opacity-100' : 'opacity-0'}`}></div>
                         <div
                             ref={goalsScrollContainerRef}
                             className="space-y-3 max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent pr-1 pt-1 pb-2"
@@ -4691,7 +5319,7 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                         >
                         {sortedGoals.length > 0 ? (
                              sortedGoals.map(goal => (
-                                <div key={goal.id} className="bg-gray-50 dark:bg-[#1A1D29] p-3 rounded-xl shadow-md  group hover:bg-gray-100 dark:hover:bg-[#1E222D] hover:shadow-lg transition-all duration-200 ease-out">
+                                <div key={goal.id} className="bg-theme-highlight p-3 rounded-xl shadow-md  group hover:bg-theme-highlight/80 hover:shadow-lg transition-all duration-200 ease-out">
                                     <div className="flex items-center gap-3">
                                         <button
                                             onClick={(e) => { e.stopPropagation(); handleMarkComplete(goal.id, 'goals'); }}
@@ -4703,11 +5331,11 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                                             <Check className={`w-3.5 h-3.5 transition-colors ${goal.data.completed ? 'text-white' : 'text-transparent group-hover:text-green-400'}`} />
                                         </button>
                                         <div className="flex-1 min-w-0 cursor-pointer" onClick={() => toggleGoalExpansion(goal.id, goal.data.goal)}>
-                                            <p className={`text-sm font-medium ${goal.data.completed ? 'line-through text-gray-500 dark:text-gray-400' : 'text-gray-800 dark:text-gray-100'} break-words`}>
+                                            <p className={`text-sm font-medium ${goal.data.completed ? 'line-through text-theme-text-muted' : 'text-theme-text-primary'} break-words`}>
                                                 {goal.data.goal}
                                             </p>
                                             {!goal.data.completed && goal.data.targetDate?.toDate && expandedGoalId !== goal.id && (
-                                                <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
+                                                <p className="text-[10px] text-theme-text-muted mt-0.5">
                                                     Target: {goal.data.targetDate.toDate().toLocaleDateString('en-US', {month: 'short', day: 'numeric'})}
                                                     {(goal.data.targetDate.toDate().getHours() !== 0 || goal.data.targetDate.toDate().getMinutes() !== 0) ? `, ${goal.data.targetDate.toDate().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit'})}`:''}
                                                 </p>
@@ -4715,46 +5343,49 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                                         </div>
                                         <div className="flex items-center flex-shrink-0 cursor-pointer" onClick={() => toggleGoalExpansion(goal.id, goal.data.goal)}>
                                             <PriorityBadge priority={calculatePriority(goal)} className="text-[10px] px-1.5 py-0.5" />
+                                            <div className="flex gap-1.5 ml-1.5">
+                                                <button onClick={(e) => { e.stopPropagation(); handleEditClick(goal.id, goal.data, 'goals'); }} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-theme-text-muted transition-colors duration-150 transform hover:scale-110 active:scale-100" title="Edit Goal">
+                                                    <Edit className="w-3.5 h-3.5" />
+                                                </button>
+                                                <button onClick={(e) => { e.stopPropagation(); handleDelete(goal.id, 'goals'); }} className="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-700/50 text-red-500 dark:text-red-400 transition-colors duration-150 transform hover:scale-110 active:scale-100" title="Delete Goal">
+                                                    <Trash className="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
                                             <ChevronDown className={`w-4 h-4 text-gray-400 dark:text-gray-500 ml-1.5 transition-transform duration-200 ${expandedGoalId === goal.id ? 'rotate-180' : ''}`} />
                                         </div>
                                     </div>
                                     {expandedGoalId === goal.id && (
                                         <div className="mt-2.5 pt-2.5 border-t border-dashed border-gray-200 dark:border-gray-700/70 pl-10 space-y-2 text-xs animate-fadeIn" style={{animationDuration: '300ms'}}>
                                             {goal.data.targetDate?.toDate && (
-                                                <p className="text-gray-500 dark:text-gray-400">
+                                                <p className="text-theme-text-muted text-xs">
                                                     <strong>Full Target Date:</strong> {goal.data.targetDate.toDate().toLocaleString('en-US', {dateStyle: 'medium', timeStyle: 'short'})}
                                                 </p>
                                             )}
-                                            <p className="text-gray-600 dark:text-gray-300 whitespace-pre-wrap break-words">{goal.data.goal}</p>
 
-                                            {goalCoachLoading[goal.id] && (
-                                                <p className="italic flex items-center gap-1 text-gray-500 dark:text-gray-400">
-                                                    <Loader2 className="w-3 h-3 animate-spin text-[#47E4A6]" /> Thinking of tips...
+
+                                            {goal.data.description && (
+                                                <p className="text-theme-text-secondary text-xs">
+                                                    <strong className="text-theme-text-primary">Description:</strong> {goal.data.description}
                                                 </p>
                                             )}
-                                            {!goalCoachLoading[goal.id] && goalCoachTip[goal.id] && (
-                                                <p className="text-gray-600 dark:text-gray-400">
-                                                    <strong className="text-[#47E4A6]">AI Coach:</strong> {goalCoachTip[goal.id]}
+                                            {goal.data.priority && (
+                                                <p className="text-theme-text-secondary text-xs">
+                                                    <strong className="text-theme-text-primary">Priority:</strong> <span className="capitalize">{goal.data.priority}</span>
                                                 </p>
                                             )}
-                                            {!goalCoachLoading[goal.id] && !goalCoachTip[goal.id] && !goal.data.completed && (
-                                                <p className="italic text-gray-500 dark:text-gray-400">AI coaching tips available.</p>
+                                            {goal.data.progress !== undefined && goal.data.target && (
+                                                <p className="text-theme-text-secondary text-xs">
+                                                    <strong className="text-theme-text-primary">Progress:</strong> {goal.data.progress} / {goal.data.target}
+                                                </p>
                                             )}
-                                            <div className="flex justify-end gap-1.5">
-                                                <button onClick={() => handleEditClick(goal.id, goal.data, 'goals')} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors duration-150 transform hover:scale-110 active:scale-100" title="Edit Goal">
-                                                    <Edit className="w-3.5 h-3.5" />
-                                                </button>
-                                                <button onClick={() => handleDelete(goal.id, 'goals')} className="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-700/50 text-red-500 dark:text-red-400 transition-colors duration-150 transform hover:scale-110 active:scale-100" title="Delete Goal">
-                                                    <Trash className="w-3.5 h-3.5" />
-                                                </button>
-                                            </div>
+
                                         </div>
                                     )}
                                 </div>
                             ))
                         ) : (
                             <div className="text-center py-10">
-                                <p className="text-sm text-gray-500 dark:text-gray-400 italic">No active goals yet. Aim high! 🌟</p>
+                                <p className="text-sm text-theme-text-muted italic">No active goals yet. Aim high! 🌟</p>
                                 <button
                                     onClick={() => {
                                         setActiveTab('goals');
@@ -4764,63 +5395,63 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                                         const formElement = document.getElementById('add-edit-form-section');
                                         formElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                                     }}
-                                    className="mt-3 text-xs font-medium bg-[#47E4A6] text-white px-4 py-2 rounded-xl hover:opacity-90 transition-opacity flex items-center gap-1.5 mx-auto transform hover:scale-105 active:scale-100"
+                                    className="mt-3 text-xs font-medium bg-theme-solid-button px-4 py-2 rounded-xl hover:opacity-90 transition-opacity flex items-center gap-1.5 mx-auto transform hover:scale-105 active:scale-100" style={{color: '#ceccfc'}}
                                 >
                                     <PlusCircle className="w-4 h-4" /> Set a New Goal
                                 </button>
                             </div>
                         )}
                         </div>
-                        <div className={`absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white dark:from-[#161922] to-transparent pointer-events-none transition-opacity duration-200 z-10 ${showGoalsBottomGradient ? 'opacity-100' : 'opacity-0'}`}></div>
+                        <div className={`absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-theme-bg-primary dark:from-theme-bg-card to-transparent pointer-events-none transition-opacity duration-200 z-10 ${showGoalsBottomGradient ? 'opacity-100' : 'opacity-0'}`}></div>
                     </div>
                 </section>
             </div>
 
-            <section id="event-form-section" className={`p-4 sm:p-5 rounded-xl shadow-lg bg-white dark:bg-[#161922] border border-gray-200 dark:border-gray-700/50 animate-fadeIn delay-100 my-6 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'} ${showEventForm ? 'block' : 'hidden'}`}>
-                <h3 className="text-md font-semibold mb-3 text-gray-800 dark:text-gray-100">
+            <section id="event-form-section" className={`p-4 sm:p-5 rounded-xl shadow-lg bg-theme-card border-theme-border-primary animate-fadeIn delay-100 my-6 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'} ${showEventForm ? 'block' : 'hidden'}`}>
+                <h3 className="text-md font-semibold mb-3 text-theme-text-primary">
                     {editingEventId ? 'Edit Event' : 'Create New Event'}
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <input
                         type="text"
-                        className="bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 rounded-lg px-3.5 py-2.5 text-sm focus:ring-1 focus:ring-teal-500 focus:border-teal-500 transition-colors sm:col-span-2"
+                        className="bg-theme-highlight border-theme-border-primary text-theme-text-primary placeholder-theme-text-muted rounded-lg px-3.5 py-2.5 text-sm focus:ring-1 focus:ring-theme-accent focus:border-theme-accent transition-colors sm:col-span-2"
                         placeholder="Event Name"
                         value={editingEventId ? editingEventName : newEventName}
                         onChange={(e) => editingEventId ? setEditingEventName(e.target.value) : setNewEventName(e.target.value)}
                     />
 
                     <div>
-                        <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 block">Start Date</label>
-                        <input type="date" className="w-full bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 rounded-lg px-3 py-2.5 text-xs focus:ring-1 focus:ring-teal-500 focus:border-teal-500"
+                        <label className="text-[11px] font-medium text-theme-text-muted mb-0.5 block">Start Date</label>
+                        <input type="date" className="w-full bg-theme-highlight border-theme-border-primary text-theme-text-secondary rounded-lg px-3 py-2.5 text-xs focus:ring-1 focus:ring-theme-accent focus:border-theme-accent"
                             value={editingEventId ? editingEventStartDate : newEventStartDate}
                             onChange={(e) => editingEventId ? setEditingEventStartDate(e.target.value) : setNewEventStartDate(e.target.value)}
                             style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}/>
                     </div>
                     <div>
-                        <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 block">Start Time</label>
-                        <input type="time" className="w-full bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 rounded-lg px-3 py-2.5 text-xs focus:ring-1 focus:ring-teal-500 focus:border-teal-500"
+                        <label className="text-[11px] font-medium text-theme-text-muted mb-0.5 block">Start Time</label>
+                        <input type="time" className="w-full bg-theme-highlight border-theme-border-primary text-theme-text-secondary rounded-lg px-3 py-2.5 text-xs focus:ring-1 focus:ring-theme-accent focus:border-theme-accent"
                             value={editingEventId ? editingEventStartTime : newEventStartTime}
                             onChange={(e) => editingEventId ? setEditingEventStartTime(e.target.value) : setNewEventStartTime(e.target.value)}
                             style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}/>
                     </div>
 
                     <div>
-                        <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 block">End Date</label>
-                        <input type="date" className="w-full bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 rounded-lg px-3 py-2.5 text-xs focus:ring-1 focus:ring-teal-500 focus:border-teal-500"
+                        <label className="text-[11px] font-medium text-theme-text-muted mb-0.5 block">End Date</label>
+                        <input type="date" className="w-full bg-theme-highlight border-theme-border-primary text-theme-text-secondary rounded-lg px-3 py-2.5 text-xs focus:ring-1 focus:ring-theme-accent focus:border-theme-accent"
                             value={editingEventId ? editingEventEndDate : newEventEndDate}
                             onChange={(e) => editingEventId ? setEditingEventEndDate(e.target.value) : setNewEventEndDate(e.target.value)}
                             style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}/>
                     </div>
                     <div>
-                        <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 block">End Time</label>
-                        <input type="time" className="w-full bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 rounded-lg px-3 py-2.5 text-xs focus:ring-1 focus:ring-teal-500 focus:border-teal-500"
+                        <label className="text-[11px] font-medium text-theme-text-muted mb-0.5 block">End Time</label>
+                        <input type="time" className="w-full bg-theme-highlight border-theme-border-primary text-theme-text-secondary rounded-lg px-3 py-2.5 text-xs focus:ring-1 focus:ring-theme-accent focus:border-theme-accent"
                             value={editingEventId ? editingEventEndTime : newEventEndTime}
                             onChange={(e) => editingEventId ? setEditingEventEndTime(e.target.value) : setNewEventEndTime(e.target.value)}
                             style={{ colorScheme: isDarkMode ? 'dark' : 'light' }}/>
                     </div>
 
                     <textarea
-                        className="sm:col-span-2 bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 rounded-lg px-3.5 py-2.5 text-sm focus:ring-1 focus:ring-teal-500 focus:border-teal-500 transition-colors"
+                        className="sm:col-span-2 bg-theme-highlight border-theme-border-primary text-theme-text-primary placeholder-theme-text-muted rounded-lg px-3.5 py-2.5 text-sm focus:ring-1 focus:ring-theme-accent focus:border-theme-accent transition-colors"
                         placeholder="Event Description (optional)"
                         rows={3}
                         value={editingEventId ? editingEventDescription : newEventDescription}
@@ -4828,19 +5459,59 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                     />
 
                     <div className="sm:col-span-2">
-                        <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 block">Event Color</label>
-                        <input type="color" className="w-full h-10 p-1 bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700/60 rounded-lg cursor-pointer focus:ring-1 focus:ring-teal-500 focus:border-teal-500"
-                            value={editingEventId ? editingEventColor : newEventColor}
-                            onChange={(e) => editingEventId ? setEditingEventColor(e.target.value) : setNewEventColor(e.target.value)} />
+                        <label className="text-[11px] font-medium text-theme-text-muted mb-0.5 block">Event Color</label>
+                        <div className="grid grid-cols-6 gap-2 p-2 bg-theme-highlight border border-theme-border-primary rounded-lg">
+                            {[
+                                { name: 'Blue', value: '#3B82F6' },
+                                { name: 'Purple', value: '#8B5CF6' },
+                                { name: 'Green', value: '#10B981' },
+                                { name: 'Orange', value: '#F59E0B' },
+                                { name: 'Red', value: '#EF4444' },
+                                { name: 'Pink', value: '#EC4899' },
+                                { name: 'Indigo', value: '#6366F1' },
+                                { name: 'Teal', value: '#14B8A6' },
+                                { name: 'Yellow', value: '#EAB308' },
+                                { name: 'Gray', value: '#6B7280' },
+                                { name: 'Emerald', value: '#059669' },
+                                { name: 'Rose', value: '#F43F5E' }
+                            ].map((color) => {
+                                const currentColor = editingEventId ? editingEventColor : newEventColor;
+                                const isSelected = currentColor === color.value;
+                                return (
+                                    <button
+                                        key={color.value}
+                                        type="button"
+                                        className={`w-8 h-8 rounded-md border-2 transition-all duration-200 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-theme-accent focus:ring-offset-1 focus:ring-offset-bg-primary ${
+                                            isSelected 
+                                                ? 'border-theme-accent shadow-md ring-2 ring-theme-accent ring-offset-1 ring-offset-bg-primary' 
+                                                : 'border-theme-border-primary hover:border-theme-accent'
+                                        }`}
+                                        style={{ backgroundColor: color.value }}
+                                        title={color.name}
+                                        onClick={() => editingEventId ? setEditingEventColor(color.value) : setNewEventColor(color.value)}
+                                    />
+                                );
+                            })}
+                        </div>
+                        <div className="mt-2 flex items-center gap-2">
+                            <input 
+                                type="color" 
+                                className="w-8 h-8 rounded-md border border-theme-border-primary cursor-pointer focus:ring-1 focus:ring-theme-accent focus:border-theme-accent"
+                                value={editingEventId ? editingEventColor : newEventColor}
+                                onChange={(e) => editingEventId ? setEditingEventColor(e.target.value) : setNewEventColor(e.target.value)}
+                                title="Custom color"
+                            />
+                            <span className="text-xs text-theme-text-muted">or choose custom</span>
+                        </div>
                     </div>
 
                     <div className="sm:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
                         <div>
-                            <h4 className="text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Link Tasks:</h4>
-                            <div className="max-h-28 overflow-y-auto space-y-1 p-2 border rounded-md bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 scrollbar-thin">
+                            <h4 className="text-xs font-medium text-theme-text-secondary mb-1">Link Tasks:</h4>
+                            <div className="max-h-28 overflow-y-auto space-y-1 p-2 border rounded-md bg-theme-highlight border-theme-border-primary scrollbar-thin">
                                 {tasks.filter(t => !t.data.completed).length > 0 ? tasks.filter(t => !t.data.completed).map(task => (
-                                    <label key={task.id} className="flex items-center gap-1.5 text-xs text-gray-700 dark:text-gray-200 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 p-1 rounded">
-                                        <input type="checkbox" className="form-checkbox h-3 w-3 text-teal-500 rounded-sm border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 focus:ring-teal-400"
+                                    <label key={task.id} className="flex items-center gap-1.5 text-xs text-theme-text-secondary cursor-pointer hover:bg-theme-highlight p-1 rounded">
+                                        <input type="checkbox" className="form-checkbox h-3 w-3 text-theme-accent rounded-sm border-theme-border-primary bg-theme-highlight focus:ring-theme-accent"
                                             checked={(editingEventId ? editingEventLinkedTasks : newEventLinkedTasks).includes(task.id)}
                                             onChange={() => handleLinkedItemChange(task.id, 'task', !!editingEventId)}
                                         />
@@ -4850,28 +5521,28 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                             </div>
                         </div>
                         <div>
-                            <h4 className="text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Link Goals:</h4>
-                             <div className="max-h-28 overflow-y-auto space-y-1 p-2 border rounded-md bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 scrollbar-thin">
+                            <h4 className="text-xs font-medium text-theme-text-secondary mb-1">Link Goals:</h4>
+                             <div className="max-h-28 overflow-y-auto space-y-1 p-2 border rounded-md bg-theme-highlight border-theme-border-primary scrollbar-thin">
                                 {goals.filter(g => !g.data.completed).length > 0 ? goals.filter(g => !g.data.completed).map(goal => (
-                                    <label key={goal.id} className="flex items-center gap-1.5 text-xs text-gray-700 dark:text-gray-200 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 p-1 rounded">
-                                        <input type="checkbox" className="form-checkbox h-3 w-3 text-teal-500 rounded-sm border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 focus:ring-teal-400"
+                                    <label key={goal.id} className="flex items-center gap-1.5 text-xs text-theme-text-secondary cursor-pointer hover:bg-theme-highlight p-1 rounded">
+                                        <input type="checkbox" className="form-checkbox h-3 w-3 text-theme-accent rounded-sm border-theme-border-primary bg-theme-highlight focus:ring-theme-accent"
                                             checked={(editingEventId ? editingEventLinkedGoals : newEventLinkedGoals).includes(goal.id)}
                                             onChange={() => handleLinkedItemChange(goal.id, 'goal', !!editingEventId)}
                                         />
                                         <span className="truncate" title={goal.data.goal}>{goal.data.goal}</span>
                                     </label>
-                                )) : <p className="text-xs text-gray-400 dark:text-gray-500 italic">No active goals to link.</p>}
+                                )) : <p className="text-xs text-theme-text-muted italic">No active goals to link.</p>}
                             </div>
                         </div>
                     </div>
 
 
                     <div className="sm:col-span-2 flex justify-end gap-2 mt-2">
-                        <button type="button" className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 py-2 px-4 rounded-lg text-sm font-semibold"
+                        <button type="button" className="bg-theme-highlight hover:bg-theme-highlight/80 text-theme-text-primary py-2 px-4 rounded-lg text-sm font-semibold transition-colors"
                             onClick={() => { setShowEventForm(false); resetEventForm(); }}>
                             Cancel
                         </button>
-                        <button type="button" className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white py-2 px-5 rounded-lg text-sm font-semibold hover:opacity-90"
+                        <button type="button" className="bg-theme-header text-theme-white py-2 px-5 rounded-lg text-sm font-semibold hover:opacity-90"
                             onClick={editingEventId ? () => handleEditEventSave(editingEventId) : handleCreateEvent}>
                             {editingEventId ? 'Save Event' : 'Create Event'}
                         </button>
@@ -4881,16 +5552,16 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
 
             <section className={`my-6 animate-fadeIn delay-400 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
                 <div className="flex justify-between items-center mb-3">
-                    <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center"><CalendarCheck className="w-5 h-5 mr-2 text-teal-500 dark:text-teal-400" /> Upcoming Events</h2>
+                    <h2 className="text-lg font-semibold text-theme-text-primary flex items-center"><CalendarCheck className="w-5 h-5 mr-2 text-theme-text-primary" /> Upcoming Events</h2>
                     <button
                         onClick={() => { setShowEventForm(true); resetEventForm(); setEditingEventId(null); document.getElementById('event-form-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });}}
-                        className="text-xs font-semibold text-teal-500 dark:text-teal-400 hover:underline flex items-center gap-1 transform hover:scale-105 transition-transform">
-                        <PlusCircle className="w-3.5 h-3.5" /> Add Event
+                        className="text-sm font-semibold text-theme-text-primary bg-theme-highlight hover:bg-theme-highlight/80 px-3 py-2 rounded-full flex items-center gap-2 transform hover:scale-105 transition-all duration-200">
+                        <PlusCircle className="w-4 h-4" /> Add Event
                     </button>
                 </div>
-                <div className="bg-white dark:bg-[#161922] p-4 sm:p-5 rounded-xl shadow-lg ">
+                <div className="bg-theme-card p-4 sm:p-5 rounded-xl shadow-lg ">
                     {events.length === 0 && !showEventForm && (
-                        <p className="text-sm text-gray-500 dark:text-gray-400 italic text-center py-4">No upcoming events. Plan something exciting! 🗓️</p>
+                        <p className="text-sm text-theme-text-muted italic text-center py-4">No upcoming events. Plan something exciting! 🗓️</p>
                     )}
                     {events.length > 0 && (
                         <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 pr-1">
@@ -4916,8 +5587,8 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                                                 <Check className={`w-3 h-3 transition-colors ${isCompleted ? 'text-white' : 'text-transparent group-hover:text-green-400'}`} />
                                             </button>
                                             <div>
-                                                <h4 className={`text-sm font-semibold text-gray-800 dark:text-gray-100 ${isCompleted ? 'line-through' : ''}`} style={{color: event.data.color}}>{event.data.name}</h4>
-                                                <p className={`text-[11px] text-gray-600 dark:text-gray-400 mt-0.5 ${isCompleted ? 'line-through' : ''}`}>
+                                                <h4 className={`text-sm font-semibold text-theme-text-primary ${isCompleted ? 'line-through' : ''}`} style={{color: event.data.color}}>{event.data.name}</h4>
+                                                <p className={`text-[11px] text-theme-text-secondary mt-0.5 ${isCompleted ? 'line-through' : ''}`}>
                                                     {event.data.startDate?.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                                                     {' - '}
                                                     {event.data.endDate?.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
@@ -4926,7 +5597,7 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                                             </div>
                                         </div>
                                         <div className="flex gap-1.5 flex-shrink-0">
-                                            <button onClick={() => handleEditEventClick(event.id, event.data)} className="p-1.5 rounded-lg hover:bg-gray-200/50 dark:hover:bg-gray-700/50 text-gray-500 dark:text-gray-400 transition-colors" title="Edit Event">
+                                            <button onClick={() => handleEditEventClick(event.id, event.data)} className="p-1.5 rounded-lg hover:bg-gray-200/50 dark:hover:bg-gray-700/50 text-theme-text-muted transition-colors" title="Edit Event">
                                                 <Edit className="w-3.5 h-3.5" />
                                             </button>
                                             <button onClick={() => handleDeleteEvent(event.id)} className="p-1.5 rounded-lg hover:bg-red-100/50 dark:hover:bg-red-700/30 text-red-500 dark:text-red-400 transition-colors" title="Delete Event">
@@ -4936,12 +5607,12 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                                     </div>
                                     {(event.data.linkedTaskIds?.length > 0 || event.data.linkedGoalIds?.length > 0) && (
                                         <div className="mt-2 pt-2 border-t border-dashed dark:border-gray-700/50 pl-10" style={{borderColor: `${event.data.color}50`}}>
-                                            <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5">Linked Items:</p>
+                                            <p className="text-[10px] font-medium text-theme-text-muted mb-0.5">Linked Items:</p>
                                             <div className="flex flex-wrap gap-1 mt-1">
                                                 {event.data.linkedTaskIds?.map((taskId: string) => {
                                                     const task = tasks.find(t => t.id === taskId);
                                                     return task ? (
-                                                        <span key={taskId} className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-500/30 truncate max-w-[100px]" title={task.data.task}>
+                                                        <span key={taskId} className="text-[9px] px-1.5 py-0.5 rounded-full bg-theme-highlight text-theme-text-secondary border border-theme-border-primary truncate max-w-[100px]" title={task.data.task}>
                                                             <ListTodo className="w-2 h-2 inline mr-0.5" /> {task.data.task}
                                                         </span>
                                                     ) : null;
@@ -4949,7 +5620,7 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                                                 {event.data.linkedGoalIds?.map((goalId: string) => {
                                                     const goal = goals.find(g => g.id === goalId);
                                                     return goal ? (
-                                                        <span key={goalId} className="text-[9px] px-1.5 py-0.5 rounded-full bg-pink-100 dark:bg-pink-500/20 text-pink-600 dark:text-pink-300 border border-pink-200 dark:border-pink-500/30 truncate max-w-[100px]" title={goal.data.goal}>
+                                                        <span key={goalId} className="text-[9px] px-1.5 py-0.5 rounded-full bg-theme-highlight text-theme-text-secondary border border-pink-200 dark:border-pink-500/30 truncate max-w-[100px]" title={goal.data.goal}>
                                                            <GoalIcon className="w-2 h-2 inline mr-0.5" /> {goal.data.goal}
                                                         </span>
                                                     ) : null;
@@ -4967,21 +5638,21 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
 
             <section className={`my-6 animate-fadeIn delay-500 ${cardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
                 <div className="flex justify-between items-center mb-3">
-                    <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center"><Calendar className="w-5 h-5 mr-2 text-orange-500 dark:text-orange-400" /> My Schedule</h2>
+                    <h2 className="text-lg font-semibold text-theme-text-primary flex items-center"><Calendar className="w-5 h-5 mr-2 text-theme-text-primary" /> My Schedule</h2>
                     <div className="flex items-center gap-1.5">
-                        <button onClick={() => setCalendarViewMode('week')} className={`px-2.5 py-1 text-[11px] rounded-md font-medium transition-all duration-150 transform hover:scale-105 active:scale-100 ${calendarViewMode === 'week' ? 'bg-[#635BFF] text-white' : 'bg-gray-100 dark:bg-gray-700/70 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600/80'}`}>Week</button>
-                        <button onClick={() => setCalendarViewMode('month')}  className={`px-2.5 py-1 text-[11px] rounded-md font-medium transition-all duration-150 transform hover:scale-105 active:scale-100 ${calendarViewMode === 'month' ? 'bg-[#635BFF] text-white' : 'bg-gray-100 dark:bg-gray-700/70 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600/80'}`}>Month</button>
+                        <button onClick={() => setCalendarViewMode('week')} className={`px-2.5 py-1 text-[11px] rounded-md font-medium transition-all duration-150 transform hover:scale-105 active:scale-100 ${calendarViewMode === 'week' ? 'bg-theme-solid-button' : 'bg-theme-highlight text-theme-text-secondary hover:bg-theme-highlight/80'}`} style={calendarViewMode === 'week' ? {color: '#ceccfc'} : {}}>Week</button>
+                        <button onClick={() => setCalendarViewMode('month')}  className={`px-2.5 py-1 text-[11px] rounded-md font-medium transition-all duration-150 transform hover:scale-105 active:scale-100 ${calendarViewMode === 'month' ? 'bg-theme-solid-button' : 'bg-theme-highlight text-theme-text-secondary hover:bg-theme-highlight/80'}`} style={calendarViewMode === 'month' ? {color: '#ceccfc'} : {}}>Month</button>
                     </div>
                 </div>
-                 <div className="bg-white dark:bg-[#161922] p-4 sm:p-5 rounded-xl shadow-lg ">
+                 <div className="bg-theme-card p-4 sm:p-5 rounded-xl shadow-lg ">
                     {calendarViewMode === 'week' ? (
                         <>
                         <div className="flex items-center justify-between mb-3">
-                            <button onClick={handlePreviousWeek} className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/80 transition-colors duration-150 transform hover:scale-110 active:scale-100" title="Previous Week"><ChevronLeft className="w-4 h-4" /></button>
-                            <h3 className="text-sm font-medium text-center text-gray-700 dark:text-gray-300">
+                            <button onClick={handlePreviousWeek} className="p-1.5 rounded-lg text-theme-text-muted hover:bg-gray-100 dark:hover:bg-gray-700/80 transition-colors duration-150 transform hover:scale-110 active:scale-100" title="Previous Week"><ChevronLeft className="w-4 h-4" /></button>
+                            <h3 className="text-sm font-medium text-center text-theme-text-secondary">
                                 {startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate() + 6).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                             </h3>
-                            <button onClick={handleNextWeek} className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/80 transition-colors duration-150 transform hover:scale-110 active:scale-100" title="Next Week"><ChevronRight className="w-4 h-4" /></button>
+                            <button onClick={handleNextWeek} className="p-1.5 rounded-lg text-theme-text-muted hover:bg-gray-100 dark:hover:bg-gray-700/80 transition-colors duration-150 transform hover:scale-110 active:scale-100" title="Next Week"><ChevronRight className="w-4 h-4" /></button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-7 gap-2">
                             {renderWeekCalendarDays()}
@@ -4990,11 +5661,11 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                     ) : (
                         <>
                         <div className="flex items-center justify-between mb-3">
-                            <button onClick={() => setCurrentDateCal(prev => new Date(prev.getFullYear(), prev.getMonth() -1, 1))} className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/80 transition-colors duration-150 transform hover:scale-110 active:scale-100" title="Previous Month"><ChevronLeft className="w-4 h-4" /></button>
-                            <h3 className="text-sm font-medium text-center text-gray-700 dark:text-gray-300"> {currentDateCal.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })} </h3>
-                            <button onClick={() => setCurrentDateCal(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))} className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/80 transition-colors duration-150 transform hover:scale-110 active:scale-100" title="Next Month"><ChevronRight className="w-4 h-4" /></button>
+                            <button onClick={() => setCurrentDateCal(prev => new Date(prev.getFullYear(), prev.getMonth() -1, 1))} className="p-1.5 rounded-lg text-theme-text-muted hover:bg-gray-100 dark:hover:bg-gray-700/80 transition-colors duration-150 transform hover:scale-110 active:scale-100" title="Previous Month"><ChevronLeft className="w-4 h-4" /></button>
+                            <h3 className="text-sm font-medium text-center text-theme-text-secondary"> {currentDateCal.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })} </h3>
+                            <button onClick={() => setCurrentDateCal(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))} className="p-1.5 rounded-lg text-theme-text-muted hover:bg-gray-100 dark:hover:bg-gray-700/80 transition-colors duration-150 transform hover:scale-110 active:scale-100" title="Next Month"><ChevronRight className="w-4 h-4" /></button>
                         </div>
-                        <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-medium mb-1.5 text-gray-500 dark:text-gray-400">
+                        <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-medium mb-1.5 text-theme-text-muted">
                             {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map(day => (<div key={day}>{day}</div>))}
                         </div>
                         <div className="grid grid-cols-7 gap-1.5 sm:gap-2"> {renderMonthCalendarDays()} </div>
@@ -5015,48 +5686,65 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
     >
         <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className={`fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm`}
+            className={`fixed inset-0 bg-theme-overlay-dark backdrop-blur-sm`}
             onClick={() => setIsAiAssistantOpen(false)}
         ></motion.div>
         <motion.div
              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className={`relative w-full max-w-3xl h-[90vh] sm:h-[85vh] max-h-[800px] bg-white dark:bg-[#12141D] rounded-t-2xl sm:rounded-xl shadow-2xl flex flex-col`}
+            className={`relative w-full max-w-3xl h-[90vh] sm:h-[85vh] max-h-[800px] bg-theme-card rounded-t-2xl sm:rounded-xl shadow-2xl flex flex-col`}
         >
-           <div className="p-3 border-b border-gray-200 dark:border-gray-700/80 bg-gray-50 dark:bg-[#1A1D29]/90 flex justify-between items-center flex-shrink-0 rounded-t-2xl sm:rounded-t-xl">
-                <h3 id="ai-assistant-title" className="text-md font-semibold flex items-center gap-1.5 text-indigo-500 dark:text-indigo-400">
+           <div className="p-3 border-b border-theme-border-radius bg-theme-highlight flex justify-between items-center flex-shrink-0 rounded-t-2xl sm:rounded-t-xl">
+                                  <h3 id="ai-assistant-title" className="text-md font-semibold flex items-center gap-1.5 text-theme-text-primary">
                     <LayoutDashboard className="w-4.5 h-4.5" /> Dashboard Agent
                 </h3>
-                <button onClick={() => setIsAiAssistantOpen(false)} className="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700/80 p-1 rounded-lg transition-colors" title="Close Dashboard Agent"><X className="w-4 h-4" /></button>
+                <button onClick={() => setIsAiAssistantOpen(false)} className="text-theme-text-muted hover:text-theme-text-primary hover:bg-theme-interactive-hover p-1 rounded-lg transition-colors" title="Close Dashboard Agent"><X className="w-4 h-4" /></button>
             </div>
-            <div className="flex border-b border-gray-200 dark:border-gray-700/80 flex-shrink-0">
+            <div className="flex border-b border-theme-border-radius flex-shrink-0">
                 {(['chat', 'history', 'analytics'] as const).map(tab => (
                     <button key={tab} onClick={() => setAiChatSidebarTab(tab)}
                         className={`flex-1 py-2 px-2.5 text-sm font-medium transition-all duration-150
                         ${aiChatSidebarTab === tab
-                            ? 'text-indigo-500 dark:text-indigo-400 border-b-2 border-indigo-500 dark:border-indigo-400 bg-indigo-50 dark:bg-[#1A1D29]'
-                            : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/70 hover:text-gray-700 dark:hover:text-gray-200'}`}>
+                            ? 'text-theme-white border-b-2 border-theme-solid-button bg-theme-highlight'
+                            : 'text-theme-text-muted hover:bg-theme-highlight hover:text-theme-text-primary'}`}>
                         {tab.charAt(0).toUpperCase() + tab.slice(1)}
                     </button>
                 ))}
             </div>
             {aiChatSidebarTab === 'chat' && (
             <>
-                <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent bg-white dark:bg-[#0C0E1A]">
-                   {!conversationId && ( <div className="text-center py-8 flex flex-col items-center"><MessageCircle className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-3" /><p className="text-gray-500 dark:text-gray-400 text-sm mb-4">Start a new chat or select one from history.</p><button onClick={() => handleNewConversation()} className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 text-sm font-semibold rounded-lg hover:shadow-md transition-all duration-200 flex items-center gap-1.5 transform hover:scale-105 active:scale-100"><Plus className="w-4 h-4" /> New Chat</button></div>)}
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-theme-border-secondary scrollbar-track-transparent" style={{ backgroundColor: 'var(--bg-primary)' }}>
+                   {!conversationId && ( <div className="text-center py-8 flex flex-col items-center"><MessageCircle className="w-12 h-12 text-theme-text-primary mb-3" /><p className="text-theme-text-muted text-sm mb-4">Start a new chat or select one from history.</p><button onClick={() => handleNewConversation()} className="bg-theme-header text-theme-white px-4 py-2 text-sm font-semibold rounded-lg hover:shadow-md transition-all duration-200 flex items-center gap-1.5 transform hover:scale-105 active:scale-100"><Plus className="w-4 h-4" /> New Chat</button></div>)}
                     {conversationId && chatHistory.map((message, index) => (
                         <div key={message.id || `${message.role}-${index}`} className={`flex ${message.role === 'user' || message.role === 'system' ? 'justify-end' : 'justify-start'} animate-fadeIn`} style={{ animationDelay: `${index * 20}ms`, animationDuration: '250ms' }}>
-                            <div className={`max-w-[85%] rounded-xl px-3.5 py-2.5 ${message.role === 'user' ? 'text-sm' : 'text-xs'} shadow-md break-words ${message.role === 'user' ? 'bg-indigo-500 text-white' : message.error ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200 border border-red-200 dark:border-red-700/60' : message.role === 'system' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-100 border border-yellow-200 dark:border-yellow-700/60 text-center mx-auto' : 'bg-gray-100 dark:bg-[#161922] text-gray-800 dark:text-gray-100 '}`}>
+                            {/* Show attachments above the message bubble for user messages */}
+                            {message.role === 'user' && message.attachedFilesMeta && message.attachedFilesMeta.length > 0 && (
+                                <div className="space-y-2 mb-2 mr-auto w-fit">
+                                    {message.attachedFilesMeta.map((file, fileIndex) => (
+                                        <div key={`${message.id}-file-${file.name}-${fileIndex}`} className="mt-1">
+                                            {file.type.startsWith('image/') ? (
+                                                <img src={file.base64Data ? `data:${file.type};base64,${file.base64Data}` : file.url || file.localPreviewUrl || ''} alt={file.name} className="max-w-full h-auto max-h-48 object-contain rounded-lg border border-theme-border-primary cursor-pointer" onClick={() => window.open(file.url || file.localPreviewUrl || `data:${file.type};base64,${file.base64Data}` || '', '_blank')} title={`View ${file.name}`}/>
+                                            ) : (
+                                                <div className="flex items-center gap-2 p-2 rounded-lg border bg-theme-accent/20 border-theme-accent/40 text-theme-text-primary text-xs max-w-xs">
+                                                    <FileText className="w-4 h-4 flex-shrink-0" /> <span className="truncate flex-1" title={file.name}>{file.name} ({formatBytes(file.size)})</span>
+                                                    {file.url && (<a href={file.url} target="_blank" rel="noopener noreferrer" title="Download file" className="p-1 rounded-full hover:bg-theme-accent/30"><Download className="w-3 h-3" /></a>)}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            <div className={`max-w-[85%] rounded-xl px-3.5 py-2.5 ${message.role === 'user' ? 'text-sm' : 'text-xs'} shadow-md break-words ${message.role === 'user' ? 'bg-theme-solid-button text-theme-text-solid-button' : message.error ? 'bg-theme-status-error/10 text-theme-status-error border border-theme-status-error/30' : message.role === 'system' ? 'bg-theme-status-warning/10 text-theme-status-warning border border-theme-status-warning/30 text-center mx-auto' : 'bg-theme-highlight text-theme-text-primary '}`}>
   {message.isLoading && (
-    <div className="flex flex-col items-center gap-1.5 text-gray-500 dark:text-gray-400 p-1">
+    <div className="flex flex-col items-center gap-1.5 text-theme-text-muted p-1">
         {/* --- THIS IS THE CORRECTED LOGIC --- */}
         {message.isProcessingNotion ? (
-            <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <div className="flex items-center gap-2 text-sm text-theme-text-secondary">
                 <NotionIcon className="w-4 h-4 animate-pulse" />
                 <span>Working with Notion...</span>
             </div>
         ) : message.isVerifyingContent ? (
-            <div className="flex flex-col items-center gap-2 text-sm text-gray-600 dark:text-gray-400 p-2">
-                <ShieldCheck className="w-7 h-7 text-green-500 animate-pulse" />
+            <div className="flex flex-col items-center gap-2 text-sm text-theme-text-secondary p-2">
+                <ShieldCheck className="w-7 h-7 text-theme-text-primary animate-pulse" />
                 <span className="font-medium">Ensuring accuracy...</span>
             </div>
         ) : message.isSearching ? (
@@ -5067,7 +5755,7 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                 </div>
             </div>
         ) : message.isGeneratingImage ? (
-            <div className="flex items-center gap-2 text-sm"><Palette className="w-4 h-4 animate-pulse text-purple-500" /><span>Creating image...</span></div>
+            <div className="flex items-center gap-2 text-sm"><Palette className="w-4 h-4 animate-pulse text-theme-text-primary" /><span>Creating image...</span></div>
         ) : (
             <div className="flex space-x-0.5 p-1"><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce"></div><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div><div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div></div>
         )}
@@ -5075,36 +5763,31 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
 )}
                                 {message.role === 'user' && (
                                     <>
-                                        {message.attachedFilesMeta && message.attachedFilesMeta.length > 0 && (
-                                    <div className="space-y-2 mb-2">
-                                        {message.attachedFilesMeta.map((file, fileIndex) => (
-                                            <div key={`${message.id}-file-${file.name}-${fileIndex}`} className="mt-1">
-                                                {file.type.startsWith('image/') ? (
-                                                    <img src={file.base64Data ? `data:${file.type};base64,${file.base64Data}` : file.url || file.localPreviewUrl || ''} alt={file.name} className="max-w-full h-auto max-h-48 object-contain rounded-lg border border-indigo-200 dark:border-indigo-500/50 cursor-pointer" onClick={() => window.open(file.url || file.localPreviewUrl || `data:${file.type};base64,${file.base64Data}` || '', '_blank')} title={`View ${file.name}`}/>
-                                                ) : (
-                                                    <div className="flex items-center gap-2 p-2 rounded-lg border bg-indigo-400/20 dark:bg-indigo-600/20 border-indigo-300 dark:border-indigo-600/40 text-indigo-100 dark:text-indigo-200 text-xs max-w-xs">
-                                                        <FileText className="w-4 h-4 flex-shrink-0" /> <span className="truncate flex-1" title={file.name}>{file.name} ({formatBytes(file.size)})</span>
-                                                        {file.url && (<a href={file.url} target="_blank" rel="noopener noreferrer" title="Download file" className="p-1 rounded-full hover:bg-indigo-300/30 dark:hover:bg-indigo-500/30"><Download className="w-3 h-3" /></a>)}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
+                                        <div className="whitespace-pre-wrap">{message.content}</div>
+                                    </>
                                 )}
-                                <div className="whitespace-pre-wrap">{message.content}</div>
-                            </>
-                        )}
                         {message.role === 'assistant' && !message.isLoading && (
                             <>
                                 <AssistantMessageContent message={message} isDarkMode={isDarkMode} />
                                 {message.imageUrl && message.wasImageGenerated && (
                                     <div className="relative group mt-2">
-                                        <img src={message.imageUrl} alt={message.imageMeta?.name || "Generated"} className="max-w-full h-auto max-h-56 object-contain rounded-lg border border-gray-300 dark:border-gray-600 cursor-pointer" onClick={() => window.open(message.imageUrl, '_blank')} title="View full"/>
-                                        <button onClick={() => handleDownloadImageFromUrl(message.imageUrl!, message.imageMeta?.name)} className="absolute top-1.5 right-1.5 p-1.5 rounded-full opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-200 bg-gray-200/70 dark:bg-gray-900/70 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300" title="Download"><Download className="w-3.5 h-3.5" /></button>
+                                        <img src={message.imageUrl} alt={message.imageMeta?.name || "Generated"} className="max-w-full h-auto max-h-56 object-contain rounded-lg border border-theme-border-primary cursor-pointer" onClick={() => window.open(message.imageUrl, '_blank')} title="View full"/>
+                                        <button onClick={() => handleDownloadImageFromUrl(message.imageUrl!, message.imageMeta?.name)} className="absolute top-1.5 right-1.5 p-1.5 rounded-full opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-200 bg-theme-highlight hover:bg-theme-interactive-hover text-theme-text-primary" title="Download"><Download className="w-3.5 h-3.5" /></button>
                                     </div>
                                 )}
-                                {message.flashcard && <FlashcardsQuestions type="flashcard" data={message.flashcard.data} onComplete={() => {}} />}
-                                {message.question && <FlashcardsQuestions type="question" data={message.question.data} onComplete={() => {}} />}
+                                {/* Render multiple educational content or legacy single content */}
+                                {message.multipleEducationalContent ? (
+                                  <MultiEducationalContent 
+                                    flashcards={message.multipleEducationalContent.flashcards}
+                                    questions={message.multipleEducationalContent.questions}
+                                    onComplete={() => {}} 
+                                  />
+                                ) : (
+                                  <>
+                                    {message.flashcard && <FlashcardsQuestions type="flashcard" data={message.flashcard.data} onComplete={() => {}} />}
+                                    {message.question && <FlashcardsQuestions type="question" data={message.question.data} onComplete={() => {}} />}
+                                  </>
+                                )}
                             </>
                         )}
                         {message.role === 'system' && !message.isLoading && (
@@ -5115,14 +5798,14 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                     ))}
                     <div ref={chatEndRef} />
                 </div>
-                <div className="p-3  bg-white dark:bg-[#0C0E1A] flex-shrink-0">
+                <div className="p-3 flex-shrink-0" style={{ backgroundColor: 'var(--bg-primary)' }}>
                     {/* Usage display moved above chatbox */}
                     {userTier !== 'premium' && userTier !== 'loading' && (
                         <div className="pt-2 text-xs text-center mb-3">
-                            <span className="text-gray-500 dark:text-gray-400">Messages: {chatUsageCount} / {currentChatLimitDisplay}</span>
-                            {isChatDisabledByLimit && <span className="text-red-500 dark:text-red-400 ml-1 font-medium">(Limit Reached)</span>}
+                            <span className="text-theme-text-muted">Messages: {chatUsageCount} / {currentChatLimitDisplay}</span>
+                            {isChatDisabledByLimit && <span className="text-theme-status-error ml-1 font-medium">(Limit Reached)</span>}
                             {!isChatDisabledByLimit && userTier === 'basic' && (
-                                <Link to="/pricing" className="ml-1 font-medium text-indigo-500 dark:text-indigo-400 hover:underline">
+                                <Link to="/pricing" className="ml-1 font-medium text-theme-accent hover:underline">
                                     <Crown className="w-3 h-3 inline mr-0.5"/>Upgrade
                                 </Link>
                             )}
@@ -5130,13 +5813,13 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                     )}
                     
                     {selectedFiles.length > 0 && !isImageGenModeActive && !isSearchModeActive && (
-                        <div className="mb-2 flex flex-wrap gap-1.5 p-1.5 max-h-16 overflow-y-auto scrollbar-thin border border-dashed rounded-lg border-gray-300 dark:border-gray-600">
+                        <div className="mb-2 flex flex-wrap gap-1.5 p-1.5 max-h-16 overflow-y-auto scrollbar-thin border border-dashed rounded-lg border-theme-border-primary">
                             {selectedFiles.map(file => (
-                                <div key={file.name} className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg border bg-indigo-100 dark:bg-indigo-600/20 border-indigo-200 dark:border-indigo-600/40 text-indigo-700 dark:text-indigo-300">
+                                <div key={file.name} className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg border bg-theme-accent/20 border-theme-accent/40 text-theme-text-primary">
                                     {file.type.startsWith("image/") && file.localPreviewUrl && (<img src={file.localPreviewUrl} alt={file.name} className="w-4 h-4 rounded-sm object-cover"/>)}
                                     {!file.type.startsWith("image/") && <FileText className="w-3 h-3 flex-shrink-0" />}
                                     <span className="truncate max-w-[80px]">{file.name}</span>
-                                    <button type="button" onClick={() => handleRemoveFile(file.name)} className="ml-1 p-0.5 rounded-full hover:bg-indigo-200 dark:hover:bg-indigo-600/40" title="Remove"> <X className="w-2.5 h-2.5" /> </button>
+                                    <button type="button" onClick={() => handleRemoveFile(file.name)} className="ml-1 p-0.5 rounded-full hover:bg-theme-accent/30" title="Remove"> <X className="w-2.5 h-2.5" /> </button>
                                 </div>
                             ))}
                         </div>
@@ -5148,7 +5831,8 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
         onDragOver={handleDragEvents}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
-        className={`relative bg-[#F7F8FA] dark:bg-[#161922] rounded-2xl shadow-sm transition-all duration-200 flex flex-col ${isDraggingOver ? 'ring-2 ring-indigo-400 dark:ring-indigo-600 ring-offset-2 ring-offset-white dark:ring-offset-[#12141D]' : 'focus-within:ring-2 focus-within:ring-indigo-400 dark:focus-within:ring-indigo-600'}`}
+        className={`relative rounded-2xl shadow-sm transition-all duration-200 flex flex-col ${isDraggingOver ? 'ring-2 ring-theme-accent ring-offset-2 ring-offset-bg-primary' : 'focus-within:ring-2 focus-within:ring-theme-accent'}`}
+        style={{ backgroundColor: 'var(--bg-card)' }}
     >
         <AnimatePresence>
         {isDraggingOver && (
@@ -5156,11 +5840,12 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-indigo-50/90 dark:bg-indigo-900/90 z-10 flex items-center justify-center rounded-2xl pointer-events-none border-2 border-dashed border-indigo-400"
+                className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl pointer-events-none border-2 border-dashed border-theme-accent"
+                style={{ backgroundColor: 'var(--bg-highlight)' }}
             >
                 <div className="text-center">
-                    <ImageIcon className="w-8 h-8 text-indigo-500 dark:text-indigo-400 mx-auto mb-2"/>
-                    <p className="font-semibold text-indigo-600 dark:text-indigo-300">Drop files to attach</p>
+                    <ImageIcon className="w-8 h-8 text-theme-text-primary mx-auto mb-2"/>
+                    <p className="font-semibold text-theme-accent">Drop files to attach</p>
                 </div>
             </motion.div>
         )}
@@ -5172,7 +5857,8 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
-                    className="text-center text-sm p-2 text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600/50"
+                    className="text-center text-sm p-2 text-theme-text-muted border-b border-theme-border-primary"
+        style={{ backgroundColor: 'var(--bg-highlight)' }}
                 >
                     {aiActionStatus}
                 </motion.div>
@@ -5191,20 +5877,20 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
           !conversationId ? "Start a new chat to begin..." :
           "Ask anything..."
       }
-            className="w-full bg-transparent text-gray-800 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 p-3.5 text-sm focus:ring-0 focus:outline-none border-0 resize-none overflow-y-auto max-h-44 leading-relaxed"
+            className="w-full bg-transparent text-theme-text-primary placeholder-theme-text-muted p-3.5 text-sm focus:ring-0 focus:outline-none border-0 resize-none overflow-y-auto max-h-44 leading-relaxed"
             disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading' || !conversationId}
         />
         <div className="flex justify-between items-center px-2 py-1.5 mt-1">
             <div className="flex items-center gap-1">
                 <input type="file" ref={fileInputRef} onChange={handleFileSelect} multiple accept={SUPPORTED_FILE_TYPES} className="hidden" disabled={isImageGenModeActive || isSearchModeActive || isChatLoading || isChatDisabledByLimit || !conversationId} />
-                <button type="button" onClick={triggerFileSelect} disabled={isImageGenModeActive || isSearchModeActive || isChatLoading || isChatDisabledByLimit || !conversationId} className="p-2 rounded-lg transition-colors duration-150 text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600 disabled:cursor-not-allowed" title="Attach Files">
+                <button type="button" onClick={triggerFileSelect} disabled={isImageGenModeActive || isSearchModeActive || isChatLoading || isChatDisabledByLimit || !conversationId} className="p-2 rounded-lg transition-colors duration-150 text-theme-text-muted hover:bg-theme-interactive-hover disabled:text-theme-text-muted/50 disabled:cursor-not-allowed" title="Attach Files">
                     <Plus className="w-4 h-4" />
                 </button>
-                <button type="button" onClick={handleToggleSearchMode} disabled={isChatLoading || isChatDisabledByLimit || !conversationId} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isSearchModeActive ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'}`} title={isSearchModeActive ? "Disable Search" : "Enable Search"}>
+                <button type="button" onClick={handleToggleSearchMode} disabled={isChatLoading || isChatDisabledByLimit || !conversationId} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isSearchModeActive ? 'bg-theme-accent/20 text-theme-accent' : 'text-theme-text-muted hover:bg-theme-interactive-hover disabled:text-theme-text-muted/50'}`} title={isSearchModeActive ? "Disable Search" : "Enable Search"}>
                     <Globe className="w-4 h-4" />
                     <span className="hidden sm:inline">Search</span>
                 </button>
-                <button type="button" onClick={handleToggleImageGenMode} disabled={isChatLoading || isChatDisabledByLimit || !conversationId} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isImageGenModeActive ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'}`} title={isImageGenModeActive ? "Switch to Normal" : "Generate Image"}>
+                <button type="button" onClick={handleToggleImageGenMode} disabled={isChatLoading || isChatDisabledByLimit || !conversationId} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isImageGenModeActive ? 'bg-theme-accent/20 text-theme-accent' : 'text-theme-text-muted hover:bg-theme-interactive-hover disabled:text-theme-text-muted/50'}`} title={isImageGenModeActive ? "Switch to Normal" : "Generate Image"}>
                     <ImageIcon className="w-4 h-4" />
                     <span className="hidden sm:inline">Image</span>
                 </button>
@@ -5230,7 +5916,7 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                         transition={{ duration: 0.15 }}
                     >
                         {(chatMessage.trim() || selectedFiles.length > 0 || (isImageGenModeActive && chatMessage.trim())) ? (
-                            <button type="submit" disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading' || !conversationId} className="p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-indigo-500 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20" title="Send" aria-label="Send chat message">
+                            <button type="submit" disabled={isChatLoading || isChatDisabledByLimit || userTier === 'loading' || !conversationId} className="p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-theme-accent hover:bg-theme-accent/20" title="Send" aria-label="Send chat message">
                                 {isChatLoading ? <Loader2 className="w-5 h-5 animate-spin"/> : <Send className="w-5 h-5" />}
                             </button>
                         ) : (
@@ -5238,7 +5924,7 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
           type="button" 
           onClick={handleToggleRecording} 
           disabled={isChatLoading || isChatDisabledByLimit || !conversationId || !browserSupportsSpeechRecognition} 
-          className={`p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${listening ? 'text-red-500 bg-red-100 dark:bg-red-500/20 animate-pulse' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/70'}`} 
+          className={`p-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${listening ? 'text-theme-status-error bg-theme-status-error/20 animate-pulse' : 'text-theme-text-muted hover:bg-theme-interactive-hover'}`} 
           title={!browserSupportsSpeechRecognition ? "Browser not supported" : listening ? "Stop Recording" : "Start Recording"}
       >
           {listening ? <StopCircle className="w-5 h-5"/> : <Mic className="w-5 h-5" />}
@@ -5254,23 +5940,23 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
             </>
         )}
          {aiChatSidebarTab === 'history' && (
-<div className="flex-1 overflow-y-auto p-3 space-y-1.5 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent bg-white dark:bg-[#0C0E1A]">             <button onClick={() => handleNewConversation()} className="mb-2 w-full flex items-center justify-center gap-2 p-2.5 rounded-lg transition-all duration-200 text-sm font-medium shadow-sm bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 transform hover:scale-[1.02] active:scale-[0.98]"><Plus className="w-4 h-4" /> New Chat</button>
-             {conversationList.length === 0 && <p className="text-gray-500 dark:text-gray-400 text-center text-sm py-4 italic">No chat history.</p>}
+<div className="flex-1 overflow-y-auto p-3 space-y-1.5 scrollbar-thin scrollbar-thumb-theme-border-secondary scrollbar-track-transparent" style={{ backgroundColor: 'var(--bg-primary)' }}>             <button onClick={() => handleNewConversation()} className="mb-2 w-full flex items-center justify-center gap-2 p-2.5 rounded-lg transition-all duration-200 text-sm font-medium shadow-sm bg-theme-header text-theme-white hover:opacity-90 transform hover:scale-[1.02] active:scale-[0.98]"><Plus className="w-4 h-4" /> New Chat</button>
+             {conversationList.length === 0 && <p className="text-theme-text-muted text-center text-sm py-4 italic">No chat history.</p>}
              {conversationList.sort((a,b) => (b.updatedAt?.toDate?.() || 0) - (a.updatedAt?.toDate?.() || 0)).map((conv) => (
-               <div key={conv.id} className={`flex items-center justify-between cursor-pointer p-2.5 rounded-lg transition-all duration-150 text-sm ${conversationId === conv.id ? 'bg-indigo-50 dark:bg-indigo-700/30 text-indigo-700 dark:text-white' : 'bg-gray-50 dark:bg-[#161922] hover:bg-gray-100 dark:hover:bg-gray-700/80 text-gray-700 dark:text-gray-200'}`} onClick={() => handleSelectConversation(conv.id)} >
+               <div key={conv.id} className={`flex items-center justify-between cursor-pointer p-2.5 rounded-lg transition-all duration-150 text-sm ${conversationId === conv.id ? 'bg-theme-highlight text-theme-text-primary' : 'bg-theme-highlight/50 hover:bg-theme-highlight text-theme-text-secondary'}`} onClick={() => handleSelectConversation(conv.id)} >
                  <div className="flex items-center gap-2 flex-1 min-w-0"> <MessageCircle className="w-4 h-4 flex-shrink-0" /> <span className="truncate font-medium">{conv.chatName}</span> </div>
                  <div className="relative flex-shrink-0">
-                   <button onClick={(e) => { e.stopPropagation(); setOpenDropdownId(openDropdownId === conv.id ? null : conv.id); }} className="p-1.5 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"> <MoreHorizontal className="w-4 h-4" /> </button>
+                   <button onClick={(e) => { e.stopPropagation(); setOpenDropdownId(openDropdownId === conv.id ? null : conv.id); }} className="p-1.5 rounded-md hover:bg-theme-interactive-hover transition-colors"> <MoreHorizontal className="w-4 h-4" /> </button>
                    {openDropdownId === conv.id && (
-                     <div ref={dropdownRef} className="absolute top-7 right-0 rounded-lg shadow-xl z-50 text-xs bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700/80 overflow-hidden" style={{ minWidth: '120px' }} onClick={(e) => e.stopPropagation()}>
+                     <div ref={dropdownRef} className="absolute top-7 right-0 rounded-lg shadow-xl z-50 text-xs bg-theme-card text-theme-text-primary border border-theme-border-primary overflow-hidden" style={{ minWidth: '120px' }} onClick={(e) => e.stopPropagation()}>
                        {[
                          { label: 'Rename', icon: Edit, action: () => handleRenameConversation(conv) },
-                         { label: 'Delete', icon: Trash, action: () => confirmDeleteConversation(conv), colorClass: 'text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-800/50' }
+                         { label: 'Delete', icon: Trash, action: () => confirmDeleteConversation(conv), colorClass: 'text-theme-status-error hover:bg-theme-status-error/10' }
                        ].map(item => (
                          <button
                            key={item.label}
                            onClick={item.action}
-                           className={`flex items-center w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700/80 ${item.colorClass || ''} transition-colors`}
+                           className={`flex items-center w-full text-left px-3 py-2 hover:bg-theme-interactive-hover ${item.colorClass || ''} transition-colors`}
                          >
                            <item.icon className="w-3.5 h-3.5 mr-2" /> {item.label}
                          </button>
@@ -5282,28 +5968,28 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
              ))}
            </div>
          )}
-        {aiChatSidebarTab === 'analytics' && ( <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent bg-white dark:bg-[#0C0E1A]">
-            <button onClick={generateProductivityAnalysis} disabled={isProductivityAnalysisLoading || !user} className="w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 shadow-sm bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 disabled:opacity-70 transform hover:scale-[1.02] active:scale-[0.98]">
+        {aiChatSidebarTab === 'analytics' && ( <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-theme-border-secondary scrollbar-track-transparent" style={{ backgroundColor: 'var(--bg-primary)' }}>
+            <button onClick={generateProductivityAnalysis} disabled={isProductivityAnalysisLoading || !user} className="w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 shadow-sm bg-theme-header text-theme-white hover:opacity-90 disabled:opacity-70 transform hover:scale-[1.02] active:scale-[0.98]">
                 <BarChart3 className="w-4 h-4" />
                 {isProductivityAnalysisLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : "Get Insights"}
             </button>
             {productivityAnalysisResult && (
-                <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700/70 animate-fadeIn shadow-sm">
-                    <h4 className="text-md font-semibold mb-2 text-indigo-500 dark:text-indigo-400">Score: {productivityAnalysisResult.productivity_score}%</h4>
-                    <div className="w-full h-2.5 rounded-full mb-3 bg-gray-200 dark:bg-gray-700/80 overflow-hidden">
-                        <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-green-500" style={{width: `${productivityAnalysisResult.productivity_score}%`}}></div>
+                <div className="p-3 rounded-lg bg-theme-highlight border border-theme-border-primary animate-fadeIn shadow-sm">
+                    <h4 className="text-md font-semibold mb-2 text-theme-header">Score: {productivityAnalysisResult.productivity_score}%</h4>
+                                            <div className="w-full h-2.5 rounded-full mb-3 bg-theme-highlight overflow-hidden">
+                        <div className="h-full rounded-full bg-theme-header" style={{width: `${productivityAnalysisResult.productivity_score}%`}}></div>
                     </div>
-                    <h5 className="text-xs font-semibold mt-3 mb-1 text-gray-700 dark:text-gray-100">Analysis:</h5>
-                    <p className="text-xs mb-3 text-gray-600 dark:text-gray-300 leading-relaxed">{productivityAnalysisResult.text_analysis}</p>
+                    <h5 className="text-xs font-semibold mt-3 mb-1 text-theme-text-primary">Analysis:</h5>
+                    <p className="text-xs mb-3 text-theme-text-secondary leading-relaxed">{productivityAnalysisResult.text_analysis}</p>
                     {productivityAnalysisResult.recommended_actions && productivityAnalysisResult.recommended_actions.length > 0 && (
                     <>
-                        <h5 className="text-xs font-semibold mt-3 mb-1.5 text-gray-700 dark:text-gray-100">Suggestions:</h5>
+                        <h5 className="text-xs font-semibold mt-3 mb-1.5 text-theme-text-primary">Suggestions:</h5>
                         <ul className="space-y-1.5">
                             {productivityAnalysisResult.recommended_actions.map((action: OverviewAction) => (
-                                <li key={action.id} className="p-2 rounded-md text-xs flex items-center justify-between gap-2 bg-indigo-50 dark:bg-indigo-700/20 border border-indigo-100 dark:border-indigo-700/40 text-gray-700 dark:text-gray-200">
+                                <li key={action.id} className="p-2 rounded-md text-xs flex items-center justify-between gap-2 bg-theme-highlight border border-theme-border-primary text-theme-text-primary">
                                     <span className="truncate" title={action.description}>{action.description}</span>
                                     {(action.action_type === "create_task" || action.action_type === "create_goal") && action.details?.name && (
-                                        <button onClick={() => handleAcceptProductivityAction(action)} className="px-2 py-1 rounded text-white text-xs flex items-center gap-1 bg-green-500 hover:bg-green-600 font-medium transition-colors duration-150 transform hover:scale-105 active:scale-100">
+                                        <button onClick={() => handleAcceptProductivityAction(action)} className="px-2 py-1 rounded-lg text-theme-white text-xs flex items-center gap-1 bg-theme-status-success hover:bg-theme-status-success/80 font-medium transition-colors duration-150 transform hover:scale-105 active:scale-100">
                                             <Check className="w-3 h-3"/> Accept
                                         </button>
                                     )}
@@ -5315,8 +6001,8 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                 </div>
             )}
             {!isProductivityAnalysisLoading && !productivityAnalysisResult && (
-                <div className="text-center py-6 text-gray-500 dark:text-gray-400 text-sm italic">
-                    <InfoIcon className="w-10 h-10 mx-auto mb-2 text-gray-400 dark:text-gray-600" />Click to get insights about your productivity.
+                <div className="text-center py-6 text-theme-text-muted text-sm italic">
+                    <InfoIcon className="w-10 h-10 mx-auto mb-2 text-theme-text-primary" />Click to get insights about your productivity.
                 </div>
             )}
             </div>
@@ -5334,12 +6020,55 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
       />
 
         {lastCompletedItem && (
-            <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 bg-gray-800 text-white px-4 py-2.5 rounded-lg shadow-xl flex items-center gap-3 text-sm animate-fadeIn">
+            <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 bg-theme-bg-card text-theme-text-primary px-4 py-2.5 rounded-lg shadow-xl flex items-center gap-3 text-sm animate-fadeIn border border-theme-border-primary">
                 <span>Item marked complete.</span>
-                <button onClick={handleUndoComplete} className="font-semibold hover:underline text-indigo-300">Undo</button>
-                <button onClick={() => setLastCompletedItem(null)} className="text-gray-400 hover:text-white ml-2"><X className="w-4 h-4" /></button>
+                <button onClick={handleUndoComplete} className="font-semibold hover:underline text-theme-header">Undo</button>
+                <button onClick={() => setLastCompletedItem(null)} className="text-theme-text-muted hover:text-theme-text-primary ml-2"><X className="w-4 h-4" /></button>
             </div>
+        )}
+
+
+
+        {/* Confirmation Modal */}
+        {confirmAction && (
+          <div className="fixed inset-0 bg-[var(--overlay-dark)] z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] shadow-xl rounded-xl p-5 sm:p-6 max-w-md w-full">
+              <h3 className="text-lg font-semibold mb-3 text-[var(--text-primary)] flex items-center gap-2">
+                {confirmAction.iconType === 'tasks' && <ListTodo className="w-5 h-5" />}
+                {confirmAction.iconType === 'goals' && <Target className="w-5 h-5" />}
+                {confirmAction.iconType === 'events' && <Calendar className="w-5 h-5" />}
+                {confirmAction.iconType === 'delete' && <Trash2 className="w-5 h-5" />}
+                Confirm Action
+              </h3>
+              <p className="text-sm text-[var(--text-secondary)] mb-4">{confirmAction.message}</p>
+              <div className="flex justify-end gap-3">
+                <button 
+                  onClick={() => { 
+                    confirmAction.onCancel?.(); 
+                    setConfirmAction(null); 
+                  }} 
+                  className="px-4 py-2 text-sm font-medium rounded-lg bg-[var(--bg-highlight)] border border-[var(--border-primary)] hover:bg-[var(--interactive-hover)] text-[var(--text-primary)]"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={() => { 
+                    confirmAction.onConfirm(); 
+                    setConfirmAction(null);
+                  }} 
+                  className={`px-4 py-2 text-sm font-medium rounded-lg text-[var(--text-white)] ${
+                    confirmAction.actionType === 'positive' 
+                      ? 'bg-[var(--status-success)] hover:bg-[var(--status-success)]/80' 
+                      : 'bg-[var(--status-error)] hover:bg-[var(--status-error)]/80'
+                  }`}
+                >
+                  Confirm
+                </button>
+              </div>
+            </div>
+          </div>
         )}
     </div>
   );
 }
+

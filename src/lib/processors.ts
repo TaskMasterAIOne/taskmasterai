@@ -7,6 +7,9 @@ import { getFunctions } from 'firebase/functions';
 import { processPDF, ProcessedPDF } from './pdf-processor';
 import { processYouTube, ProcessedYouTube } from './youtube-processor';
 import { processTextForPodcast, PodcastTextProcessResult, SpeakerProfileForProcessor, PodcastPlaybackSettingsForProcessor } from './podcast-processor';
+import { AI_MODELS } from '../config/constants';
+import { checkRateLimit, recordUsage } from './rate-limiter';
+import { getUserTier } from './current-paying-user';
 
 // Re-export all processor types for easy importing
 export type {
@@ -24,9 +27,22 @@ export {
     processTextForPodcast
 };
 
-// Helper function to get the geminiProxy callable
+// Helper function to get the geminiProxy callable with rate limiting
 export const getGeminiProxy = () => {
-    return httpsCallable(getFunctions(), 'geminiProxy');
+    const originalCallable = httpsCallable(getFunctions(), 'geminiProxy');
+    
+    // Wrap with error handling for rate limits
+    return async (data: any) => {
+        try {
+            return await originalCallable(data);
+        } catch (error: any) {
+            if (error.code === 'functions/resource-exhausted') {
+                // Server-side rate limit hit - this is the real protection
+                throw new Error('Rate limit exceeded. Please try again in a few minutes.');
+            }
+            throw error;
+        }
+    };
 };
 
 // Utility function to extract text from Gemini API responses

@@ -7,6 +7,7 @@ import {
     AI_CONFIGS, 
     PROMPT_TEMPLATES 
 } from './processors';
+import { API_CONFIG, EXTERNAL_APIS, FILE_CONFIG } from '../config/constants';
 
 interface ProcessedYouTube {
     title: string;
@@ -17,10 +18,10 @@ interface ProcessedYouTube {
     sourceUrl: string;
 }
 
-const YOUTUBE_API_KEY = 'AIzaSyCoxefrJ80LuyxLAdv0t55BN8SJ9_-orcM';
+const YOUTUBE_API_KEY = API_CONFIG.youtubeApiKey;
 
 function sleep(ms: number): Promise<void> { return new Promise(resolve => setTimeout(resolve, ms)); }
-async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delayMs = 3000): Promise<Response> {
+async function fetchWithRetry(url: string, options: RequestInit, retries = FILE_CONFIG.retryAttempts, delayMs = FILE_CONFIG.retryDelayMs): Promise<Response> {
     for (let attempt = 0; attempt < retries; attempt++) {
         try {
             const response = await fetch(url, options);
@@ -76,7 +77,7 @@ export async function processYouTube(
         if (!videoId) { throw new Error('Invalid YouTube URL.'); }
         const youtubeVideoUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
-        const videoDetailsUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${YOUTUBE_API_KEY}`;
+        const videoDetailsUrl = `${EXTERNAL_APIS.youtube}/videos?part=snippet&id=${videoId}&key=${YOUTUBE_API_KEY}`;
         const videoResponse = await fetchWithRetry(videoDetailsUrl, {});
         if (!videoResponse.ok) { throw new Error(`Failed to fetch video details (${videoResponse.status}).`); }
         const videoData = await videoResponse.json();
@@ -86,7 +87,7 @@ export async function processYouTube(
         safeProgress(15);
         
         let fetchedTranscriptText = '';
-        const captionsListUrl = `https://www.googleapis.com/youtube/v3/captions?part=snippet&videoId=${videoId}&key=${YOUTUBE_API_KEY}`;
+        const captionsListUrl = `${EXTERNAL_APIS.youtube}/captions?part=snippet&videoId=${videoId}&key=${YOUTUBE_API_KEY}`;
         try {
             const captionsListResponse = await fetchWithRetry(captionsListUrl, {});
             if (captionsListResponse.ok) {

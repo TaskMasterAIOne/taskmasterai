@@ -1,0 +1,23 @@
+/* 
+ * Clarika Geometric Medium Font Family
+ * Using OnlineWebFonts CDN
+ */
+
+@font-face {
+    font-family: "Clarika Geometric Medium";
+    src: url("https://db.onlinewebfonts.com/t/87ac07a4a6ff7e0603908b6a1354e998.eot");
+    src: url("https://db.onlinewebfonts.com/t/87ac07a4a6ff7e0603908b6a1354e998.eot?#iefix")format("embedded-opentype"),
+    url("https://db.onlinewebfonts.com/t/87ac07a4a6ff7e0603908b6a1354e998.woff2")format("woff2"),
+    url("https://db.onlinewebfonts.com/t/87ac07a4a6ff7e0603908b6a1354e998.woff")format("woff"),
+    url("https://db.onlinewebfonts.com/t/87ac07a4a6ff7e0603908b6a1354e998.ttf")format("truetype"),
+    url("https://db.onlinewebfonts.com/t/87ac07a4a6ff7e0603908b6a1354e998.svg#Clarika Geometric Medium")format("svg");
+    font-display: swap;
+}
+
+/* Fallback font for when Clarika is not available */
+@font-face {
+  font-family: 'Clarika Fallback';
+  src: local('Arial'), local('Helvetica'), local('sans-serif');
+  font-weight: 400;
+  font-style: normal;
+}

@@ -1,0 +1,1282 @@
+/* Global Theme Colors - No Gradients, Pure Theme-Based Colors */
+:root {
+  /* Light Mode Colors */
+  --bg-primary: #FFFFFF;
+  --bg-sidebar: #FAFAFA;
+  --bg-card: #F3F3F3;
+  --bg-highlight: #E8E8E8;
+  --bg-solid-button: #635BFF;
+  --bg-border-radius: #E5E5E5;
+  --bg-header: #4E46DC;
+  --bg-header-secondary: #635BFF;
+  --bg-accent: #8A85FF;
+  --bg-accent-secondary: #736ee8;
+  --bg-gradient-start: #4E46DC;
+  --bg-gradient-end: #8A85FF;
+  --bg-gradient-start-dark: #5249d9;
+  --bg-gradient-end-dark: #736ee8;
+
+  --text-primary: #0D0D0D;
+  --text-secondary: #3D3D3D;
+  --text-muted: #9CA3AF;
+  --text-white: #FFFFFF;
+  --text-white-muted: rgba(255, 255, 255, 0.8);
+
+  /* Solid Button Text Color */
+  --text-solid-button: #8A85FF;
+
+  --border-primary: #E5E7EB;
+  --border-secondary: #9CA3AF;
+  
+  /* Status Colors */
+  --status-success: #10B981;
+  --status-warning: #F59E0B;
+  --status-error: #EF4444;
+  --status-info: #3B82F6;
+  
+  /* Interactive Colors */
+  --interactive-hover: #E0E0E0;
+  --interactive-active: rgba(0, 0, 0, 0.25);
+  --interactive-focus: rgba(0, 0, 0, 0.35);
+  
+  /* Overlay Colors */
+  --overlay-light: rgba(255, 255, 255, 0.15);
+  --overlay-dark: rgba(0, 0, 0, 0.15);
+  
+  /* Shadow Colors */
+  --shadow-light: rgba(0, 0, 0, 0.1);
+  --shadow-medium: rgba(0, 0, 0, 0.15);
+  --shadow-heavy: rgba(0, 0, 0, 0.25);
+  
+  
+  
+  /* Link Colors */
+  --link-primary: #4f46e5;
+  --link-primary-dark: #818cf8;
+  
+  /* Scrollbar Colors */
+  --scrollbar-thumb: #d1d5db;
+  --scrollbar-thumb-dark: #4b5563;
+  --scrollbar-thumb-hover: #9ca3af;
+  --scrollbar-thumb-hover-dark: #6b7280;
+  
+  /* Font Families - Centralized */
+  --font-heading: 'Clarika Geometric Medium', 'Clarika Fallback', sans-serif;
+  --font-body: 'Clarika Geometric Medium', 'Clarika Fallback', sans-serif;
+  --font-mono: 'Menlo', 'Monaco', 'Courier New', monospace;
+  --font-katex: 'KaTeX_Main', 'KaTeX_Math', 'KaTeX_AMS', 'KaTeX_Caligraphic', 'KaTeX_Fraktur', 'KaTeX_SansSerif', 'KaTeX_Script', 'KaTeX_Typewriter', 'KaTeX_Size1', 'KaTeX_Size2', 'KaTeX_Size3', 'KaTeX_Size4', serif;
+}
+
+/* Dark Mode Colors */
+.dark {
+  --bg-primary: #171717;
+  --bg-sidebar: #1F1F1F;
+  --bg-card: #1E1E1E;
+  --bg-highlight: #343434;
+  --bg-solid-button: #635BFF;
+  --bg-border-radius: #2C2C2C;
+  --bg-header: #5249d9;
+  --bg-header-secondary: #635BFF;
+  --bg-accent: #736ee8;
+  --bg-accent-secondary: #8A85FF;
+  --bg-gradient-start: #5249d9;
+  --bg-gradient-end: #736ee8;
+  --bg-gradient-start-dark: #4E46DC;
+  --bg-gradient-end-dark: #8A85FF;
+
+  --text-primary: #E5E7EB;
+  --text-secondary: #D1D5DB;
+  --text-muted: #9CA3AF;
+  --text-white: #FFFFFF;
+  --text-white-muted: rgba(255, 255, 255, 0.8);
+
+  /* Solid Button Text Color */
+  --text-solid-button: #8A85FF;
+
+  --border-primary: #2A2A2A;
+  --border-secondary: #3f3f3f;
+  
+  /* Status Colors - Dark Mode */
+  --status-success: #16A34A;
+  --status-warning: #FBBF24;
+  --status-error: #EF5050;
+  --status-info: #60A5FA;
+  
+  /* Interactive Colors - Dark Mode */
+  --interactive-hover: rgba(255, 255, 255, 0.12);
+  --interactive-active: rgba(255, 255, 255, 0.18);
+  --interactive-focus: rgba(255, 255, 255, 0.25);
+  
+  /* Overlay Colors - Dark Mode */
+  --overlay-light: rgba(255, 255, 255, 0.1);
+  --overlay-dark: rgba(0, 0, 0, 0.25);
+  
+  /* Shadow Colors - Dark Mode */
+  --shadow-light: rgba(0, 0, 0, 0.3);
+  --shadow-medium: rgba(0, 0, 0, 0.4);
+  --shadow-heavy: rgba(0, 0, 0, 0.6);
+  
+  
+  
+  
+  /* Link Colors - Dark Mode */
+  --link-primary: #818cf8;
+  --link-primary-dark: #818cf8;
+  
+  /* Scrollbar Colors - Dark Mode */
+  --scrollbar-thumb: #4b5563;
+  --scrollbar-thumb-dark: #4b5563;
+  --scrollbar-thumb-hover: #6b7280;
+  --scrollbar-thumb-hover-dark: #6b7280;
+  
+  /* Font Families - Centralized (same for both modes) */
+  --font-heading: 'Clarika Geometric Medium', 'Clarika Fallback', sans-serif;
+  --font-body: 'Clarika Geometric Medium', 'Clarika Fallback', sans-serif;
+  --font-mono: 'Menlo', 'Monaco', 'Courier New', monospace;
+  --font-katex: 'KaTeX_Main', 'KaTeX_Math', 'KaTeX_AMS', 'KaTeX_Caligraphic', 'KaTeX_Fraktur', 'KaTeX_SansSerif', 'KaTeX_Script', 'KaTeX_Typewriter', 'KaTeX_Size1', 'KaTeX_Size2', 'KaTeX_Size3', 'KaTeX_Size4', serif;
+}
+
+/* ===== TYPOGRAPHY SYSTEM ===== */
+/* Industry-standard, responsive typography using clamp() for fluid scaling */
+
+/* Base Font Families */
+.font-heading {
+  font-family: var(--font-heading);
+}
+
+.font-body {
+  font-family: var(--font-body);
+}
+
+/* ===== CLARIKA FONT OPTIMIZATION ===== */
+/* Optimized Clarika font settings for better spacing and number display */
+
+.font-clarika {
+  font-family: var(--font-heading);
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+  font-variant-numeric: tabular-nums;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.font-clarika-pricing {
+  font-family: var(--font-heading);
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1, "tnum" 1;
+  font-variant-numeric: tabular-nums;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
+}
+
+.font-clarika-numbers {
+  font-family: var(--font-heading);
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1, "tnum" 1;
+  font-variant-numeric: tabular-nums;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.02em;
+}
+
+/* Optimized number display for pricing and statistics */
+.text-price {
+  font-family: var(--font-heading);
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1, "tnum" 1;
+  font-variant-numeric: tabular-nums;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+}
+
+.text-price-large {
+  font-family: var(--font-heading);
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1, "tnum" 1;
+  font-variant-numeric: tabular-nums;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  font-size: clamp(1.875rem, 1.375rem + 1.4vw, 2.75rem);
+  line-height: 1.1;
+}
+
+/* Optimized text sizing for better readability */
+.text-optimized {
+  font-family: var(--font-heading);
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.005em;
+}
+
+/* Additional utility classes for better number display */
+.text-tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+.text-oldstyle {
+  font-variant-numeric: oldstyle-nums;
+  font-feature-settings: "onum" 1;
+}
+
+.text-lining {
+  font-variant-numeric: lining-nums;
+  font-feature-settings: "lnum" 1;
+}
+
+/* Optimized spacing for different text sizes */
+.text-tight {
+  letter-spacing: -0.025em;
+}
+
+.text-normal {
+  letter-spacing: 0;
+}
+
+.text-wide {
+  letter-spacing: 0.025em;
+}
+
+/* Responsive font optimization */
+@media (max-width: 640px) {
+  .text-price-large {
+    font-size: clamp(2rem, 1.5rem + 1.5vw, 2.75rem);
+    letter-spacing: -0.025em;
+  }
+  
+  .text-optimized {
+    letter-spacing: -0.01em;
+  }
+}
+
+@media (min-width: 1024px) {
+  .text-price-large {
+    font-size: clamp(2.25rem, 1.875rem + 0.9vw, 3.125rem);
+    letter-spacing: -0.035em;
+  }
+}
+
+/* ===== RESPONSIVE HEADING SCALE ===== */
+/* Fluid heading scale: min (mobile) → max (desktop) using clamp() */
+
+/* H1 - Main headlines, hero text */
+h1, .h1, .text-h1 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: clamp(1.5rem, 1.25rem + 0.8vw, 2rem); /* 24px → 32px */
+  line-height: 1.2;
+  margin: 1.25rem 0 0.75rem;
+  color: var(--text-primary);
+}
+
+/* H2 - Section headers, major sections */
+h2, .h2, .text-h2 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(1.25rem, 1.125rem + 0.5vw, 1.5rem); /* 20px → 24px */
+  line-height: 1.3;
+  margin: 1rem 0 0.5rem;
+  color: var(--text-primary);
+}
+
+/* H3 - Subsection headers */
+h3, .h3, .text-h3 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(1.125rem, 1rem + 0.4vw, 1.25rem); /* 18px → 20px */
+  line-height: 1.4;
+  margin: 0.75rem 0 0.5rem;
+  color: var(--text-primary);
+}
+
+/* H4 - Minor headers */
+h4, .h4, .text-h4 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(1rem, 0.9rem + 0.3vw, 1.125rem); /* 16px → 18px */
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+
+/* H5 & H6 - Small headers */
+h5, .h5, .text-h5,
+h6, .h6, .text-h6 {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: clamp(0.875rem, 0.8rem + 0.2vw, 1rem); /* 14px → 16px */
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+/* ===== BODY TEXT & PARAGRAPHS ===== */
+/* All body text uses Geist for optimal readability */
+
+p, .text-body, .text-paragraph {
+  font-family: var(--font-body);
+  font-size: clamp(0.875rem, 0.8rem + 0.2vw, 1rem); /* 14px → 16px */
+  line-height: 1.5;
+  margin: 0.5rem 0;
+  color: var(--text-secondary);
+}
+
+/* ===== LISTS ===== */
+ul, ol, .text-list {
+  font-family: var(--font-body);
+  font-size: clamp(0.875rem, 0.8rem + 0.2vw, 1rem);
+  line-height: 1.5;
+  margin: 0.5rem 0;
+  padding-left: 1rem;
+  color: var(--text-secondary);
+}
+
+li, .text-list-item {
+  font-family: var(--font-body);
+  font-size: clamp(0.875rem, 0.8rem + 0.2vw, 1rem);
+  line-height: 1.5;
+  margin-bottom: 0.5rem;
+  color: var(--text-secondary);
+}
+
+/* ===== RESPONSIVE LIST BULLET STYLING ===== */
+/* Ensure bullet points match text size consistently */
+ul.list-disc li::marker,
+ul li::marker {
+  font-size: inherit;
+  color: inherit;
+}
+
+ol.list-decimal li::marker,
+ol li::marker {
+  font-size: inherit;
+  color: inherit;
+}
+
+/* Force consistent bullet sizing for all list items */
+li::marker {
+  font-size: inherit;
+  color: inherit;
+}
+
+/* Ensure Settings page list items maintain correct sizing */
+.text-responsive-sm li {
+  font-size: clamp(0.875rem, 0.8rem + 0.2vw, 1rem) !important; /* 14px → 16px */
+  line-height: 1.5;
+}
+
+.text-responsive-sm li::marker {
+  font-size: clamp(0.875rem, 0.8rem + 0.2vw, 1rem) !important; /* 14px → 16px */
+}
+
+/* Additional specificity for bullet sizing */
+ul.list-disc.text-responsive-sm li::marker,
+ul.text-responsive-sm li::marker {
+  font-size: 0.875rem !important; /* Force 14px for bullets */
+}
+
+/* Settings page specific bullet styling with highest specificity */
+.settings-feature-list li {
+  font-size: 0.875rem !important; /* 14px */
+  line-height: 1.5;
+}
+
+.settings-feature-list li::marker {
+  font-size: 0.75rem !important; /* 12px for bullets - smaller than text */
+}
+
+/* ===== SPECIAL ELEMENTS ===== */
+blockquote, .text-blockquote {
+  font-family: var(--font-body);
+  font-size: clamp(0.875rem, 0.8rem + 0.2vw, 1rem);
+  line-height: 1.5;
+  padding: 0.75rem 1rem;
+  border-left: 3px solid var(--border-primary);
+  background: var(--bg-highlight);
+  color: var(--text-secondary);
+  font-style: italic;
+  margin: 0.75rem 0;
+}
+
+code, .text-code {
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  background: var(--bg-highlight);
+  padding: 0.15em 0.3em;
+  border-radius: 3px;
+  color: var(--text-primary);
+}
+
+pre, .text-pre {
+  font-family: var(--font-mono);
+  font-size: clamp(0.75rem, 0.7rem + 0.15vw, 0.875rem);
+  line-height: 1.4;
+  background: var(--bg-card);
+  padding: 0.75rem;
+  border-radius: 4px;
+  overflow-x: auto;
+  color: var(--text-primary);
+}
+
+/* ===== SUNEDITOR & PROSE TYPOGRAPHY ===== */
+/* Consistent typography for both SunEditor and prose content using proper CSS specificity */
+
+.sun-editor-editable h1, .prose h1,
+.sun-editor-editable .h1, .prose .h1 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: clamp(1.5rem, 1.25rem + 0.8vw, 2rem);
+  line-height: 1.2;
+  margin: 1.25rem 0 0.75rem;
+  color: var(--text-primary);
+}
+
+.sun-editor-editable h2, .prose h2,
+.sun-editor-editable .h2, .prose .h2 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(1.25rem, 1.125rem + 0.5vw, 1.5rem);
+  line-height: 1.3;
+  margin: 1rem 0 0.5rem;
+  color: var(--text-primary);
+}
+
+.sun-editor-editable h3, .prose h3,
+.sun-editor-editable .h3, .prose .h3 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(1.125rem, 1rem + 0.4vw, 1.25rem);
+  line-height: 1.4;
+  margin: 0.75rem 0 0.5rem;
+  color: var(--text-primary);
+}
+
+.sun-editor-editable h4, .prose h4,
+.sun-editor-editable .h4, .prose .h4 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(1rem, 0.9rem + 0.3vw, 1.125rem);
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+
+.sun-editor-editable h5, .prose h5,
+.sun-editor-editable h6, .prose h6,
+.sun-editor-editable .h5, .prose .h5,
+.sun-editor-editable .h6, .prose .h6 {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: clamp(0.875rem, 0.8rem + 0.2vw, 1rem);
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+.sun-editor-editable p, .prose p,
+.sun-editor-editable .text-body, .prose .text-body {
+  font-family: var(--font-body);
+  font-size: clamp(0.875rem, 0.8rem + 0.2vw, 1rem);
+  line-height: 1.5;
+  margin: 0.5rem 0;
+  color: var(--text-secondary);
+}
+
+.sun-editor-editable li, .prose li,
+.sun-editor-editable .text-list-item, .prose .text-list-item {
+  font-family: var(--font-body);
+  font-size: clamp(0.875rem, 0.8rem + 0.2vw, 1rem);
+  line-height: 1.5;
+  margin-bottom: 0.5rem;
+  color: var(--text-secondary);
+}
+
+.sun-editor-editable ul, .prose ul,
+.sun-editor-editable ol, .prose ol {
+  margin: 0.5rem 0;
+  padding-left: 1rem;
+}
+
+.sun-editor-editable blockquote, .prose blockquote {
+  font-family: var(--font-body);
+  font-size: clamp(0.875rem, 0.8rem + 0.2vw, 1rem);
+  line-height: 1.5;
+  padding: 0.75rem 1rem;
+  border-left: 3px solid var(--border-primary);
+  background: var(--bg-highlight);
+  color: var(--text-secondary);
+  font-style: italic;
+  margin: 0.75rem 0;
+}
+
+.sun-editor-editable code, .prose code {
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  background: var(--bg-highlight);
+  border: 1px solid var(--border-primary);
+  padding: 0.15em 0.3em;
+  border-radius: 3px;
+  color: var(--text-primary);
+}
+
+/* ===== RESPONSIVE UTILITIES ===== */
+/* Mobile-first responsive text sizing */
+
+.text-responsive-xs {
+  font-size: clamp(0.75rem, 0.7rem + 0.2vw, 0.875rem); /* 12px → 14px */
+}
+
+.text-responsive-sm {
+  font-size: clamp(0.875rem, 0.8rem + 0.2vw, 1rem); /* 14px → 16px */
+}
+
+.text-responsive-base {
+  font-size: clamp(0.9375rem, 0.85rem + 0.3vw, 1.0625rem); /* 15px → 17px */
+}
+
+.text-responsive-lg {
+  font-size: clamp(1.0625rem, 0.95rem + 0.3vw, 1.125rem); /* 17px → 18px */
+}
+
+.text-responsive-xl {
+  font-size: clamp(1.125rem, 1rem + 0.4vw, 1.25rem); /* 18px → 20px */
+}
+
+/* ===== RESPONSIVE ICON SIZING ===== */
+/* Responsive icon sizes for better scaling across devices */
+
+.icon-responsive-xs {
+  width: clamp(0.75rem, 0.7rem + 0.2vw, 0.875rem);
+  height: clamp(0.75rem, 0.7rem + 0.2vw, 0.875rem);
+}
+
+.icon-responsive-sm {
+  width: clamp(1rem, 0.9rem + 0.3vw, 1.125rem);
+  height: clamp(1rem, 0.9rem + 0.3vw, 1.125rem);
+}
+
+.icon-responsive-base {
+  width: clamp(1.125rem, 1rem + 0.4vw, 1.25rem);
+  height: clamp(1.125rem, 1rem + 0.4vw, 1.25rem);
+}
+
+.icon-responsive-lg {
+  width: clamp(1.25rem, 1.125rem + 0.5vw, 1.5rem);
+  height: clamp(1.25rem, 1.125rem + 0.5vw, 1.5rem);
+}
+
+.icon-responsive-xl {
+  width: clamp(1.5rem, 1.25rem + 0.8vw, 2rem);
+  height: clamp(1.5rem, 1.25rem + 0.8vw, 2rem);
+}
+
+/* ===== RESPONSIVE COMPONENT SIZING ===== */
+/* Quizlet-like responsive sizing for study components */
+
+.study-card-responsive {
+  width: clamp(280px, 90vw, 400px);
+  height: clamp(200px, 25vh, 300px);
+  min-height: clamp(200px, 25vh, 300px);
+}
+
+.study-card-width-only {
+  width: clamp(280px, 90vw, 400px);
+}
+
+.study-card-text-responsive {
+  font-size: clamp(1rem, 0.9rem + 0.4vw, 1.25rem);
+  line-height: 1.4;
+}
+
+.match-game-card-responsive {
+  width: clamp(120px, 15vw, 180px);
+  height: clamp(80px, 12vh, 120px);
+  min-height: clamp(80px, 12vh, 120px);
+}
+
+.match-game-text-responsive {
+  font-size: clamp(0.75rem, 0.7rem + 0.3vw, 1rem);
+  line-height: 1.3;
+}
+
+.sidebar-text-responsive {
+  font-size: clamp(0.875rem, 0.8rem + 0.3vw, 1rem);
+  line-height: 1.4;
+}
+
+.sidebar-menu-text {
+  font-size: 0.78125rem;
+  line-height: 1.4;
+}
+
+@media (min-width: 640px) {
+  .sidebar-menu-text {
+    font-size: 0.90625rem;
+  }
+}
+
+.sidebar-icon-responsive {
+  width: clamp(1rem, 0.9rem + 0.3vw, 1.125rem);
+  height: clamp(1rem, 0.9rem + 0.3vw, 1.125rem);
+}
+
+.stats-icon-responsive {
+  width: clamp(1rem, 0.9rem + 0.3vw, 1.25rem);
+  height: clamp(1rem, 0.9rem + 0.3vw, 1.25rem);
+}
+
+.stats-text-responsive {
+  font-size: clamp(0.75rem, 0.7rem + 0.2vw, 0.875rem);
+  line-height: 1.3;
+}
+
+/* ===== COLOR CLEANUP ===== */
+/* Reduce purple overload - use neutral colors for most text */
+
+.text-heading {
+  color: var(--text-primary);
+}
+
+.text-body {
+  color: var(--text-secondary);
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+.text-accent {
+  color: var(--bg-accent); /* Keep purple only for emphasis */
+}
+
+/* ===== THEME UTILITY CLASSES ===== */
+.bg-theme-header {
+  background-color: var(--bg-header);
+}
+
+.bg-theme-header-secondary {
+  background-color: var(--bg-header-secondary);
+}
+
+.bg-theme-accent {
+  background-color: var(--bg-accent);
+}
+
+.bg-theme-accent-secondary {
+  background-color: var(--bg-accent-secondary);
+}
+
+.bg-theme-status-success {
+  background-color: var(--status-success);
+}
+
+.bg-theme-status-error {
+  background-color: var(--status-error);
+}
+
+.text-theme-white {
+  color: var(--text-white);
+}
+
+.text-theme-white-muted {
+  color: var(--text-white-muted);
+}
+
+.text-theme-solid-button {
+  color: var(--text-solid-button);
+}
+
+.text-theme-accent {
+  color: var(--bg-accent);
+}
+
+/* ===== THEME-AWARE ICON COLORS ===== */
+/* Icons that should adapt to theme (black in light, white in dark) */
+.icon-theme-adaptive {
+  color: var(--text-primary);
+}
+
+.icon-theme-adaptive-muted {
+  color: var(--text-secondary);
+}
+
+/* Specific icon colors for different contexts */
+.icon-streak {
+  color: var(--text-primary);
+}
+
+.icon-level {
+  color: var(--text-primary);
+}
+
+.icon-points {
+  color: var(--text-primary);
+}
+
+.icon-badge {
+  color: var(--text-primary);
+}
+
+.bg-theme-overlay-light {
+  background-color: var(--overlay-light);
+}
+
+.bg-theme-overlay-dark {
+  background-color: var(--overlay-dark);
+}
+
+.border-theme-primary {
+  border-color: var(--border-primary);
+}
+
+.border-theme-secondary {
+  border-color: var(--border-secondary);
+}
+
+.border-theme-status-success {
+  border-color: var(--status-success);
+}
+
+.border-theme-status-warning {
+  border-color: var(--status-warning);
+}
+
+.border-theme-status-error {
+  border-color: var(--status-error);
+}
+
+.border-theme-status-info {
+  border-color: var(--status-info);
+}
+
+.text-theme-status-success {
+  color: var(--status-success);
+}
+
+.text-theme-status-warning {
+  color: var(--status-warning);
+}
+
+.text-theme-status-error {
+  color: var(--status-error);
+}
+
+.text-theme-status-info {
+  color: var(--status-info);
+}
+
+/* Focus and Interactive States */
+.focus\:ring-theme-focus:focus {
+  --tw-ring-color: var(--interactive-focus);
+}
+
+.hover\:bg-theme-interactive:hover {
+  background-color: var(--interactive-hover);
+}
+
+.active\:bg-theme-interactive:active {
+  background-color: var(--interactive-active);
+}
+
+/* Shadow Utilities */
+.shadow-theme-light {
+  box-shadow: 0 1px 3px 0 var(--shadow-light);
+}
+
+.shadow-theme-medium {
+  box-shadow: 0 4px 6px -1px var(--shadow-medium);
+}
+
+.shadow-theme-heavy {
+  box-shadow: 0 10px 15px -3px var(--shadow-heavy);
+}
+
+/* Animation Utilities */
+.animate-fadeIn {
+  animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Ensure smooth transitions between themes */
+* {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+/* ===== COMPREHENSIVE SUNEDITOR STYLES ===== */
+/* Complete SunEditor styling system for consistent theming */
+
+.sun-editor {
+    font-family: var(--font-heading);
+    border: none;
+}
+
+.sun-editor .se-toolbar {
+    font-family: var(--font-heading);
+    background-color: var(--bg-highlight);
+    border-bottom: 1px solid var(--border-primary);
+    padding: 0.25rem;
+}
+
+.sun-editor .se-wrapper,
+.sun-editor .se-wrapper-inner {
+    height: 100%;
+    width: 100%;
+    background-color: transparent;
+}
+
+.sun-editor .se-wrapper-wysiwyg {
+    padding: 1.5rem;
+}
+
+.sun-editor .se-resizing-bar {
+    border-top: 1px solid var(--border-primary);
+}
+
+.sun-editor-editable {
+    font-family: var(--font-body);
+    font-size: clamp(0.875rem, 0.8rem + 0.2vw, 1rem);
+    line-height: 1.5;
+    color: var(--text-secondary);
+}
+
+.se-component.se-image-container,
+.se-component.se-video-container {
+    border: none;
+    outline: none;
+}
+
+.se-component.se-video-container {
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.se-component.se-video-container iframe {
+    width: 100%;
+    height: 100%;
+    border-radius: 12px;
+}
+
+.se-resizing-bar.sun-editor-common {
+    display: none;
+}
+
+.se-toolbar.sun-editor-common.se-toolbar-shadow {
+    box-shadow: none;
+    display: none;
+}
+
+.se-btn-module.se-btn-module-border {
+    border: none;
+}
+
+/* ===== LIST STYLING WITH RESPONSIVE TYPOGRAPHY ===== */
+.sun-editor-editable ul,
+.sun-editor-editable ol {
+    margin: 0.75rem 0;
+    padding-left: 1rem;
+    font-family: var(--font-body);
+    font-size: clamp(0.9375rem, 0.85rem + 0.3vw, 1.0625rem);
+    line-height: 1.6;
+    color: var(--text-secondary);
+}
+
+.sun-editor-editable ul {
+    list-style-type: disc;
+}
+
+.sun-editor-editable ul li,
+.sun-editor-editable ol li {
+    font-family: var(--font-body);
+    font-size: clamp(0.9375rem, 0.85rem + 0.3vw, 1.0625rem);
+    line-height: 1.6;
+    margin-bottom: 0.75rem;
+    padding-left: 0.5rem;
+    color: var(--text-secondary);
+}
+
+.sun-editor-editable ul ul,
+.sun-editor-editable ol ol,
+.sun-editor-editable ul ol,
+.sun-editor-editable ol ul {
+    margin-left: 0;
+    padding-left: 1rem;
+}
+
+/* ===== RESPONSIVE TABLE STYLING ===== */
+.sun-editor-editable table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 1px solid var(--border-primary);
+    margin: 1.5rem 0;
+    font-family: var(--font-body);
+    font-size: clamp(0.875rem, 0.8rem + 0.2vw, 1rem);
+    overflow: hidden;
+}
+
+.sun-editor-editable th,
+.sun-editor-editable td {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    line-height: 1.6;
+    border: 1px solid var(--border-primary);
+}
+
+.sun-editor-editable th {
+    background-color: var(--bg-card);
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.sun-editor-editable td {
+    color: var(--text-secondary);
+}
+
+.sun-editor-editable tr {
+    border-bottom: 1px solid var(--border-primary);
+}
+
+.sun-editor-editable tr:last-child {
+    border-bottom: none;
+}
+
+/* ===== RESPONSIVE PARAGRAPH STYLING ===== */
+.sun-editor-editable p {
+    font-family: var(--font-body);
+    font-size: clamp(0.9375rem, 0.85rem + 0.3vw, 1.0625rem);
+    line-height: 1.6;
+    margin: 0.75rem 0;
+    color: var(--text-secondary);
+}
+
+/* ===== RESPONSIVE BLOCKQUOTE STYLING ===== */
+.sun-editor-editable blockquote {
+    font-family: var(--font-body);
+    font-size: clamp(0.9375rem, 0.85rem + 0.3vw, 1.0625rem);
+    line-height: 1.6;
+    margin: 1rem 0;
+    padding: 1rem 1.25rem;
+    border-left: 4px solid var(--border-primary);
+    background-color: var(--bg-highlight);
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.sun-editor-editable blockquote p:last-child {
+    margin-bottom: 0;
+}
+
+/* ===== RESPONSIVE CODE STYLING ===== */
+.sun-editor-editable code {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    background: var(--bg-highlight);
+    border: 1px solid var(--border-primary);
+    padding: 0.2em 0.4em;
+    border-radius: 4px;
+    color: var(--text-primary);
+}
+
+.sun-editor-editable pre {
+    font-family: var(--font-mono);
+    font-size: clamp(0.875rem, 0.8rem + 0.2vw, 1rem);
+    line-height: 1.5;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-primary);
+    padding: 1rem;
+    border-radius: 6px;
+    overflow-x: auto;
+    color: var(--text-primary);
+}
+
+/* ===== DARK MODE STYLES ===== */
+.dark .sun-editor-editable {
+    color: var(--text-primary);
+}
+
+.dark .sun-editor-editable a {
+    color: var(--bg-accent);
+}
+
+.dark .sun-editor-editable table {
+    border: 1px solid var(--border-primary);
+}
+
+.dark .sun-editor-editable th,
+.dark .sun-editor-editable td {
+    border: 1px solid var(--border-primary);
+}
+
+.dark .sun-editor-editable th {
+    background-color: var(--bg-card);
+    color: var(--text-primary);
+}
+
+.dark .sun-editor-editable td {
+    color: var(--text-secondary);
+}
+
+.dark .sun-editor-editable tr {
+    border-bottom: 1px solid var(--border-secondary);
+}
+
+.dark .sun-editor-editable tr:last-child {
+    border-bottom: none;
+}
+
+.dark .sun-editor .se-toolbar {
+    background-color: var(--bg-primary);
+    border-bottom: 1px solid var(--border-primary);
+}
+
+.dark .sun-editor .se-toolbar .se-btn,
+.dark .sun-editor .se-toolbar .se-btn-select {
+    background-color: transparent;
+    color: var(--text-secondary);
+    border: none;
+}
+
+.dark .sun-editor .se-toolbar .se-btn:hover,
+.dark .sun-editor .se-toolbar .se-btn:active,
+.dark .sun-editor .se-toolbar .se-btn:focus,
+.dark .sun-editor .se-toolbar .se-btn-select:hover,
+.dark .sun-editor .se-toolbar .se-btn-select:active,
+.dark .sun-editor .se-toolbar .se-btn-select:focus {
+    background-color: var(--bg-primary);
+}
+
+.dark .sun-editor .se-toolbar .se-btn svg,
+.dark .sun-editor .se-toolbar .se-btn-select svg {
+    fill: var(--text-secondary);
+}
+
+.dark .sun-editor .se-navigation {
+    background-color: var(--bg-primary);
+    border-top: 1px solid var(--border-secondary);
+    color: var(--text-secondary);
+}
+
+.dark .sun-editor .se-wrapper-inner,
+.dark .sun-editor-editable {
+    background-color: var(--bg-primary);
+}
+
+/* ===== DIALOG STYLES (MODALS) ===== */
+.dark .se-dialog .se-dialog-header {
+    background-color: var(--bg-primary);
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-secondary);
+}
+
+.dark .se-dialog .se-dialog-header .se-dialog-title {
+     color: var(--text-secondary);
+}
+
+.dark .se-dialog .se-dialog-header .se-btn-primary {
+    color: var(--text-secondary);
+    background-color: var(--bg-accent-secondary);
+}
+
+.dark .se-dialog .se-dialog-body {
+    background-color: var(--bg-primary);
+    color: var(--text-secondary);
+}
+
+.dark .se-dialog label {
+    color: var(--text-secondary);
+}
+
+.dark .se-dialog input[type="text"],
+.dark .se-dialog input[type="url"] {
+    background-color: var(--bg-highlight);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-secondary);
+}
+
+.dark .se-dialog input[type="text"]:focus,
+.dark .se-dialog input[type="url"]:focus {
+    border-color: var(--bg-accent);
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(138, 133, 255, 0.2);
+}
+
+.dark .se-dialog .se-dialog-footer {
+    background-color: var(--bg-primary);
+    border-top: 1px solid var(--border-secondary);
+}
+
+.dark .se-dialog .se-dialog-footer .se-btn {
+    background-color: var(--bg-highlight);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-secondary);
+}
+
+.dark .se-dialog .se-dialog-footer .se-btn:hover {
+    background-color: var(--bg-accent);
+    color: var(--text-white);
+}
+
+.dark .se-dialog .se-dialog-footer .se-btn-primary {
+    background-color: var(--bg-accent);
+    color: var(--text-white);
+    border-color: var(--bg-accent);
+}
+
+.dark .se-dialog .se-dialog-footer .se-btn-primary:hover {
+    background-color: var(--bg-accent-secondary);
+}
+
+/* ===== FILE UPLOAD DIALOG STYLES ===== */
+.dark .se-dialog-form-files {
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-secondary);
+}
+
+.dark .se-dialog-form-files .se-dialog-form-files-header {
+    background-color: var(--bg-highlight);
+    border-bottom: 1px solid var(--border-secondary);
+    color: var(--text-secondary);
+}
+
+.dark .se-dialog-form-files .se-dialog-form-files-body {
+    background-color: var(--bg-primary);
+    color: var(--text-secondary);
+}
+
+.dark .se-dialog-form-files .se-dialog-form-files-footer {
+    background-color: var(--bg-highlight);
+    border-top: 1px solid var(--border-secondary);
+}
+
+.dark .se-dialog-form-files .se-dialog-form-files-upload {
+    background-color: var(--bg-highlight);
+    border: 2px dashed var(--border-secondary);
+    color: var(--text-secondary);
+}
+
+.dark .se-dialog-form-files .se-dialog-form-files-upload:hover {
+    border-color: var(--bg-accent);
+    background-color: var(--bg-accent-secondary);
+}
+
+.dark .se-dialog-form-files .se_btn_file_remove {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0 12px;
+    height: 40px;
+    flex-shrink: 0;
+    transition: color 0.2s ease;
+}
+
+.dark .se-dialog-form-files .se_btn_file_remove:hover {
+    color: var(--text-white);
+}
+
+/* ===== KATEX FONT SIZE & RENDERING FIX ===== */
+.sun-editor-editable .katex {
+    font-size: 0.9em;
+    font-family: var(--font-katex);
+}
+
+.sun-editor-editable .katex-display {
+    font-size: 0.85em;
+}
+
+/* ===== CUSTOM BOLD STYLING ===== */
+.sun-editor-editable p strong,
+.sun-editor-editable li strong,
+.sun-editor-editable p b,
+.sun-editor-editable li b {
+    color: var(--bg-accent);
+    font-weight: 600;
+}
+
+.dark .sun-editor-editable p strong,
+.dark .sun-editor-editable li strong,
+.dark .sun-editor-editable p b,
+.dark .sun-editor-editable li b {
+    color: var(--bg-accent-secondary);
+}
+
+/* Prevents bolded text within headers from getting the custom color */
+.sun-editor-editable h1 strong, .sun-editor-editable h1 b,
+.sun-editor-editable h2 strong, .sun-editor-editable h2 b,
+.sun-editor-editable h3 strong, .sun-editor-editable h3 b,
+.sun-editor-editable h4 strong, .sun-editor-editable h4 b,
+.sun-editor-editable h5 strong, .sun-editor-editable h5 b,
+.sun-editor-editable h6 strong, .sun-editor-editable h6 b {
+    color: inherit;
+}
+
+/* ===== PLACEHOLDER TEXT STYLING ===== */
+/* Themed placeholder text that adapts to light/dark modes */
+
+::placeholder {
+    color: var(--text-muted);
+    opacity: 1; /* Ensure consistent opacity across browsers */
+}
+
+::-webkit-input-placeholder {
+    color: var(--text-muted);
+    opacity: 1;
+}
+
+::-moz-placeholder {
+    color: var(--text-muted);
+    opacity: 1;
+}
+
+:-ms-input-placeholder {
+    color: var(--text-muted);
+    opacity: 1;
+}
+
+input::placeholder,
+textarea::placeholder {
+    color: var(--text-muted);
+    opacity: 1;
+}
+
+/* Specific placeholder styling for form inputs */
+input[type="text"]::placeholder,
+input[type="password"]::placeholder,
+input[type="email"]::placeholder,
+textarea::placeholder {
+    color: var(--text-muted);
+    opacity: 1;
+}
+
+/* Utility class for explicit placeholder styling */
+.placeholder-theme::placeholder {
+    color: var(--text-muted) !important;
+    opacity: 1 !important;
+}
+
+.placeholder-theme::-webkit-input-placeholder {
+    color: var(--text-muted) !important;
+    opacity: 1 !important;
+}
+
+.placeholder-theme::-moz-placeholder {
+    color: var(--text-muted) !important;
+    opacity: 1 !important;
+}
+
+.placeholder-theme:-ms-input-placeholder {
+    color: var(--text-muted) !important;
+    opacity: 1 !important;
+}

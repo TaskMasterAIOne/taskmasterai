@@ -1,41 +1,42 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useScrollLock } from '../hooks/useScrollLock';
 import {
-  User as UserProfileIcon, Settings as SettingsIcon, Mail, Key, LogOut,
-  Trash2, Save, X, AlertCircle, Crown as CrownIcon, Upload, Camera, Moon, Sun, Laptop,
-  Loader2, Info, BrainCircuit, Star, CreditCard, Activity, Edit, Check,
-  Sparkles, DatabaseBackup, Cable, Workflow, PanelLeftDashed,
-  TrendingUp, Award, Flame, Trophy, Lock, Pencil, FileText, Youtube, Layers,
-  Briefcase, MessageCircle, Share2, SplitSquareVertical, FolderPlus,
-  Folders as FoldersIcon, FolderTree, PackagePlus, ListTodo, Play,
-  BookOpen, Brain, CheckSquare as CheckSquareIcon, MessageCircle as MessageCircleIcon, Target,
-  Palette, SlidersHorizontal, UserCheck, GraduationCap, BarChart3, BarChart,
-  Milestone, Zap, ShieldCheck, FileQuestion, User as UserIconLucide,
+  User as UserProfileIcon, Settings as SettingsIcon, LogOut,
+  Trash2, AlertCircle, Crown as CrownIcon, Upload, Camera,
+  Loader2, Info, CreditCard, Activity, Check,
+  Sparkles, Mic, Lock, FileText, Youtube, Notebook, Podcast,
+  Brain, ShieldCheck, Gift, MessageCircle, X,
+  Sun, Moon, Laptop, Edit, Pencil, Layers, Briefcase, Share2, SplitSquareVertical, Award, GraduationCap, Zap, TrendingUp, BarChart3, BarChart, Milestone, Flame, FolderPlus, Folders as FoldersIcon, FolderTree, PackagePlus, FileQuestion, ListTodo, Play, BookOpen, CheckSquare as CheckSquareIcon, MessageCircle as MessageCircleIcon, Target, Palette, SlidersHorizontal, UserCheck, User as UserIconLucide, Trophy, BrainCircuit, DatabaseBackup, Workflow
 } from 'lucide-react';
 import ReactCrop, { centerCrop, makeAspectCrop, type Crop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import { Sidebar } from './Sidebar';
 import {
   updateUserProfile, signOutUser, deleteUserAccount, AuthError,
-  getCurrentUser, getUserData, deleteProfilePicture,
+  getUserData, deleteProfilePicture, getDefaultChatStyle,
+  getThinkHarderEnabled, setThinkHarderEnabled,
 } from '../lib/settings-firebase';
 import { saveUserContext, getUserContext, UserContext } from '../lib/ai-context-firebase';
+import { createCustomStyle, updateCustomStyle, deleteCustomStyle, onCustomStylesSnapshot, type CustomStyle } from '../lib/chat-controls-firebase';
 import {
   getUserTier, UserTier,
   getChatLimitForTier, getNoteLimitsForTier,
   getCurrentMonthUserChatUsage, getUserNoteUsage,
   ChatUsageData, NoteUsageData, onUserProfileSnapshot,
-  UserProfileData,
+  POINTS_FOR_FREE_PREMIUM,
 } from '../lib/current-paying-user';
 import {
   getMemories, updateMemory, deleteMemory, type Memory,
 } from '../lib/ai-memories-firebase';
 import { createPortalSession } from '../lib/stripe-client';
-import { User } from 'firebase/auth';
+
 import { Timestamp } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { useAuth } from '../contexts/AuthContext';
+import { motion } from 'framer-motion';
 
-export interface UserProfileData {
+interface UserProfileData {
     uid: string;
     email: string | null;
     displayName: string | null;
@@ -260,7 +261,7 @@ ${LEARNING_PROFILE_END_MARKER}`;
 
 export function Settings() {
   const navigate = useNavigate();
-  const [user, setUser] = useState<User | null>(null);
+  const { user, loading: authLoading } = useAuth(); // Use the useAuth hook instead of local state
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -288,7 +289,7 @@ export function Settings() {
   const [chatUsage, setChatUsage] = useState<ChatUsageData | null>(null);
   const [noteUsage, setNoteUsage] = useState<NoteUsageData | null>(null);
   const [isLoadingUsage, setIsLoadingUsage] = useState(true);
-  const [usageError, setUsageError] = useState<string | null>(null);
+  const [usageError] = useState<string | null>(null);
   const [memories, setMemories] = useState<Memory[]>([]);
   const [isLoadingMemories, setIsLoadingMemories] = useState(true);
   const [editingMemoryId, setEditingMemoryId] = useState<string | null>(null);
@@ -303,12 +304,73 @@ export function Settings() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [userProfileData, setUserProfileData] = useState<UserProfileData | null>(null);
   const [learningProfile, setLearningProfile] = useState<LearningProfile | null>(null);
-    const [isHandlingRedirect, setIsHandlingRedirect] = useState(false);
+  const [isHandlingRedirect, setIsHandlingRedirect] = useState(false);
+  const [isProfileImageValid, setIsProfileImageValid] = useState(true);
+  const [profileImageUrl, setProfileImageUrl] = useState<string>('');
 
   const [isNotionConnected, setIsNotionConnected] = useState(false);
   const [isNotionConnecting, setIsNotionConnecting] = useState(false);
   const [isNotionDisconnecting, setIsNotionDisconnecting] = useState(false); // ADD THIS LINE
+  
+  // Confirmation modal state
+  const [confirmAction, setConfirmAction] = useState<{ 
+    message: string, 
+    onConfirm: () => void, 
+    onCancel?: () => void,
+    iconType?: 'profile' | 'style' | 'memory' | 'notion' | 'delete',
+    actionType?: 'positive' | 'destructive'
+  } | null>(null);
+  
+  // Chat Style Settings
+  const [defaultChatStyle, setDefaultChatStyle] = useState<string>('Normal');
+  const [originalDefaultChatStyle, setOriginalDefaultChatStyle] = useState<string>('Normal');
+  const [isSavingDefaultStyle, setIsSavingDefaultStyle] = useState(false);
+  const [defaultStyleSaved, setDefaultStyleSaved] = useState(false);
+
+  // Reasoning Settings
+  const [reasoningEnabled, setReasoningEnabledState] = useState<boolean>(false);
+  const [customStyles, setCustomStyles] = useState<CustomStyle[]>([]);
+  const [isCustomStyleModalOpen, setIsCustomStyleModalOpen] = useState(false);
+
+  // Lock body scroll when any modal is open
+  useScrollLock(isCustomStyleModalOpen || showDeleteConfirm || isCropModalOpen || !!confirmAction);
+  const [editingCustomStyle, setEditingCustomStyle] = useState<CustomStyle | null>(null);
+  const [customStyleFormData, setCustomStyleFormData] = useState({
+    name: '',
+    description: '',
+    prompt: '',
+    color: 'bg-[var(--bg-solid-button)]',
+    hoverColor: 'hover:bg-[var(--interactive-hover)]',
+    lightBg: 'bg-[var(--bg-highlight)]',
+    textColor: 'text-[var(--bg-accent)]'
+  });
   const functions = getFunctions();
+
+  // Function to validate profile picture URL
+  const validateProfilePicture = (url: string): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (!url) {
+        resolve(false);
+        return;
+      }
+      
+      const img = new Image();
+      img.onload = () => resolve(true);
+      img.onerror = () => resolve(false);
+      img.src = url;
+      
+      // Timeout after 3 seconds to prevent hanging
+      setTimeout(() => resolve(false), 3000);
+    });
+  };
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/login');
+      return;
+    }
+  }, [user, authLoading, navigate]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -334,31 +396,46 @@ export function Settings() {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get('code');
-    const currentUser = getCurrentUser(); // Get user directly
 
     // Only run if there's a code, a user, and we aren't already handling it.
-    if (code && currentUser && !isHandlingRedirect) {
+    if (code && user && !isHandlingRedirect) {
         setIsHandlingRedirect(true); // Set the flag immediately to prevent re-runs
         setIsNotionConnecting(true);
+        
+        // Scroll to integrations section to show "Connecting..." status
+        setTimeout(() => {
+            const integrationsElement = document.getElementById('integrations-section');
+            if (integrationsElement) {
+                integrationsElement.scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'center' 
+                });
+            }
+        }, 100);
 
         const isProduction = window.location.hostname === 'www.taskmaster.one';
         const redirectUri = isProduction
             ? 'https://www.taskmaster.one/settings'
             : 'http://localhost:5173/settings';
 
-        console.log("handleNotionRedirect: Detected auth code. Calling cloud function once with:", {
-            code,
-            redirectUri
-        });
-
         const processRedirect = async () => {
             try {
                 const notionConnect = httpsCallable(functions, 'notionOAuthCallback');
                 await notionConnect({ code: code, redirectUri: redirectUri });
                 
-                console.log("Successfully connected to Notion.");
                 setIsNotionConnected(true);
                 navigate('/settings', { replace: true }); // Clean URL
+                
+                // Scroll to integrations section after navigation
+                setTimeout(() => {
+                    const integrationsElement = document.getElementById('integrations-section');
+                    if (integrationsElement) {
+                        integrationsElement.scrollIntoView({ 
+                            behavior: 'smooth', 
+                            block: 'center' 
+                        });
+                    }
+                }, 100); // Small delay to ensure DOM is updated
 
             } catch (error: any) {
                 console.error("Error connecting to Notion. Full error:", error);
@@ -371,7 +448,7 @@ export function Settings() {
 
         processRedirect();
     }
-  }, [navigate, functions, isHandlingRedirect]); // Minimal dependencies
+  }, [navigate, functions, isHandlingRedirect, user]); // Add user to dependencies
 
 
   useEffect(() => {
@@ -390,22 +467,17 @@ export function Settings() {
   }, [isIlluminateEnabled, isBlackoutEnabled]);
 
   useEffect(() => {
+    if (!user) return; // Don't run if user is not available yet
+    
     setIsLoading(true);
     setIsLoadingAiContext(true);
     setUserCurrentTier('loading');
     setIsLoadingUsage(true);
     setIsLoadingMemories(true);
 
-    const currentUser = getCurrentUser();
-    if (!currentUser) {
-      navigate('/login');
-      return;
-    }
-    setUser(currentUser);
-
     const checkNotionConnection = async () => {
-        if (currentUser) {
-            const fetchedUserData = await getUserData(currentUser.uid);
+        if (user) {
+            const fetchedUserData = await getUserData(user.uid);
             if (fetchedUserData && fetchedUserData.notionAccessData) {
                 setIsNotionConnected(true);
             }
@@ -413,17 +485,33 @@ export function Settings() {
     };
     checkNotionConnection();
 
-
-    const googleFlag = currentUser.providerData?.some((p) => p.providerId === 'google.com');
+    const googleFlag = user.providerData?.some((p: any) => p.providerId === 'google.com');
     setIsGoogleUser(!!googleFlag);
 
-    const unsubscribeProfile = onUserProfileSnapshot(currentUser.uid, (profileDoc) => {
+    const unsubscribeProfile = onUserProfileSnapshot(user.uid, (profileDoc) => {
       if (profileDoc) {
         setUserProfileData(profileDoc as UserProfileData);
         const updatedName = profileDoc.displayName || userData.name;
-        const updatedPhoto = profileDoc.photoURL || userData.photoURL;
+        const updatedPhoto = profileDoc.photoURL || ''; // Use empty string if photoURL is null/undefined
+        
         setUserData(prev => ({ ...prev, name: updatedName, photoURL: updatedPhoto }));
         setFormData(prev => ({ ...prev, name: updatedName }));
+        
+        // Update profile picture validation when data changes
+        if (updatedPhoto) {
+          validateProfilePicture(updatedPhoto).then((isValid) => {
+            if (isValid) {
+              setProfileImageUrl(updatedPhoto);
+              setIsProfileImageValid(true);
+            } else {
+              setProfileImageUrl('');
+              setIsProfileImageValid(false);
+            }
+          });
+        } else {
+          setProfileImageUrl('');
+          setIsProfileImageValid(false);
+        }
       }
       setIsLoading(false);
     });
@@ -432,18 +520,37 @@ export function Settings() {
       const currentMonthStr = new Date().toISOString().slice(0, 7);
       try {
         const [tier, firestoreData, fetchedChatUsage, fetchedNoteUsage, fetchedMemories, context] = await Promise.all([
-          getUserTier(currentUser.uid, currentUser.email),
-          getUserData(currentUser.uid),
-          getCurrentMonthUserChatUsage(currentUser.uid, currentMonthStr),
-          getUserNoteUsage(currentUser.uid),
-          getMemories(currentUser.uid, 50),
-          getUserContext(currentUser.uid)
+          getUserTier(user.uid, user.email),
+          getUserData(user.uid),
+          getCurrentMonthUserChatUsage(user.uid, currentMonthStr),
+          getUserNoteUsage(user.uid),
+          getMemories(user.uid, 50),
+          getUserContext(user.uid)
         ]);
         
-        const initialName = firestoreData?.name || currentUser.displayName || '';
-        const initialEmail = currentUser.email || '';
-        const initialPhotoURL = firestoreData?.photoURL || currentUser.photoURL || '';
-        setUserData({ name: initialName, email: initialEmail, photoURL: initialPhotoURL });
+        const initialName = firestoreData?.name || user.displayName || '';
+        const initialEmail = user.email || '';
+        const initialPhotoURL = firestoreData?.photoURL || ''; // Only use Firestore data for photo
+        
+        // Validate the profile picture URL before setting it
+        if (initialPhotoURL) {
+          validateProfilePicture(initialPhotoURL).then((isValid) => {
+            if (isValid) {
+              setUserData({ name: initialName, email: initialEmail, photoURL: initialPhotoURL });
+              setProfileImageUrl(initialPhotoURL);
+              setIsProfileImageValid(true);
+            } else {
+              setUserData({ name: initialName, email: initialEmail, photoURL: '' });
+              setProfileImageUrl('');
+              setIsProfileImageValid(false);
+            }
+          });
+        } else {
+          setUserData({ name: initialName, email: initialEmail, photoURL: '' });
+          setProfileImageUrl('');
+          setIsProfileImageValid(false);
+        }
+        
         setFormData(prev => ({ ...prev, name: initialName, email: initialEmail, currentPassword: '', newPassword: '', confirmPassword: '' }));
 
         setStripeCustomerId(firestoreData?.stripeCustomerId || null);
@@ -480,11 +587,47 @@ export function Settings() {
     return () => {
       unsubscribeProfile();
     };
-  }, [navigate, functions, user]);
+  }, [user]); // Only depend on user, remove navigate and functions
 
   useEffect(() => {
     localStorage.setItem('isSidebarCollapsed', JSON.stringify(isSidebarCollapsed));
   }, [isSidebarCollapsed]);
+
+  // Load default chat style and custom styles
+  useEffect(() => {
+    if (!user?.uid) return;
+    
+    const loadChatStyleSettings = async () => {
+      try {
+        const defaultStyle = await getDefaultChatStyle(user.uid);
+        if (defaultStyle) {
+          setDefaultChatStyle(defaultStyle);
+          setOriginalDefaultChatStyle(defaultStyle);
+        }
+      } catch (error) {
+        console.error('Error loading default chat style:', error);
+      }
+    };
+
+    const loadReasoningSettings = async () => {
+      try {
+        const reasoningSetting = await getThinkHarderEnabled(user.uid);
+        setReasoningEnabledState(reasoningSetting);
+      } catch (error) {
+        console.error('Error loading Reasoning settings:', error);
+      }
+    };
+
+    loadChatStyleSettings();
+    loadReasoningSettings();
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    
+    const unsubscribe = onCustomStylesSnapshot(user.uid, setCustomStyles);
+    return () => unsubscribe();
+  }, [user?.uid]);
 
   const handleToggleIlluminate = (checked: boolean) => {
     setIsIlluminateEnabled(checked);
@@ -526,11 +669,28 @@ export function Settings() {
     try {
       const croppedImageBlob = await getCroppedImg(imgRef.current, completedCrop, 'profile.jpg');
       const croppedImageFile = new File([croppedImageBlob], "profile.jpg", { type: "image/jpeg" });
-      const updatedProfile = await updateUserProfile({ photoFile: croppedImageFile }, user.uid);
-      const newPhotoURL = updatedProfile?.photoURL || getCurrentUser()?.photoURL || '';
+      await updateUserProfile(user.uid, { photoFile: croppedImageFile });
       const refreshedFirestoreData = await getUserData(user.uid);
-      setUserData(prev => ({ ...prev, photoURL: refreshedFirestoreData?.photoURL || newPhotoURL, name: refreshedFirestoreData?.name || prev.name }));
-      const refreshedUser = getCurrentUser(); if (refreshedUser) setUser(refreshedUser);
+      
+      // Update both the userData and the validated image URL  
+      const finalPhotoURL = refreshedFirestoreData?.photoURL || '';
+      setUserData(prev => ({ ...prev, photoURL: finalPhotoURL, name: refreshedFirestoreData?.name || prev.name }));
+      
+      // Validate and set the new profile picture URL
+      if (finalPhotoURL) {
+        validateProfilePicture(finalPhotoURL).then((isValid) => {
+          if (isValid) {
+            setProfileImageUrl(finalPhotoURL);
+            setIsProfileImageValid(true);
+          } else {
+            setProfileImageUrl('');
+            setIsProfileImageValid(false);
+          }
+        });
+      } else {
+        setProfileImageUrl('');
+        setIsProfileImageValid(false);
+      }
     } catch (err) {
       console.error("Crop/Upload Error:", err);
       setError('Failed to upload cropped image.');
@@ -541,15 +701,147 @@ export function Settings() {
   };
 
   const handleRemoveProfilePicture = async () => {
-    if (!user || !userData.photoURL) return; if (!window.confirm('Remove profile picture?')) return;
-    setIsUploading(true); setError(null);
+    if (!user || !userData.photoURL) return; 
+    
+    setConfirmAction({
+      message: 'Are you sure you want to remove your profile picture?',
+      onConfirm: () => {
+        setConfirmAction(null);
+        executeRemoveProfilePicture();
+      },
+      onCancel: () => setConfirmAction(null),
+      iconType: 'profile',
+      actionType: 'destructive'
+    });
+  };
+
+  const executeRemoveProfilePicture = async () => {
+    if (!user) return;
+    
+    setIsUploading(true); 
+    setError(null);
+    
     try {
         await deleteProfilePicture(user.uid);
-        setUserData(prev => ({ ...prev, photoURL: '' }));
-        const refreshedUser = getCurrentUser(); if (refreshedUser) setUser(refreshedUser);
+        
+        // Force reload the user to get the updated auth state
+        await user.reload();
+        
+        // Clear the photoURL immediately to show the default icon
+        setUserData(prev => ({ 
+          ...prev, 
+          photoURL: '' 
+        }));
+        
+        // Clear the validated image URL
+        setProfileImageUrl('');
+        // Reset the image validity state
+        setIsProfileImageValid(false);
+        
+        // Also update form data to reflect the removal
+        setFormData(prev => ({ 
+          ...prev, 
+          photoURL: ''
+        }));
+        
+    } catch (err) { 
+        console.error("Remove Pic Error:", err); 
+        setError(err instanceof AuthError ? err.message : 'Failed to remove.'); 
+    } finally { 
+        setIsUploading(false); 
     }
-    catch (err) { console.error("Remove Pic Error:", err); setError(err instanceof AuthError ? err.message : 'Failed to remove.'); }
-    finally { setIsUploading(false); }
+  };
+
+  // Chat Style Handlers
+  const handleDefaultStyleChange = async (styleName: string) => {
+    if (!user?.uid) return;
+    setIsSavingDefaultStyle(true);
+    try {
+      await setDefaultChatStyle(styleName);
+      setOriginalDefaultChatStyle(styleName);
+      setDefaultStyleSaved(true);
+      setTimeout(() => setDefaultStyleSaved(false), 3000); // Hide success message after 3 seconds
+    } catch (error) {
+      console.error('Error setting default chat style:', error);
+      setError('Failed to set default chat style');
+    } finally {
+      setIsSavingDefaultStyle(false);
+    }
+  };
+
+  const handleReasoningChange = async (enabled: boolean) => {
+    if (!user?.uid) return;
+    try {
+      await setThinkHarderEnabled(user.uid, enabled);
+    } catch (error) {
+      console.error('Error saving Reasoning setting:', error);
+      setError('Failed to save Reasoning setting');
+      // Revert the UI state if save failed
+      setReasoningEnabledState(!enabled);
+    }
+  };
+
+  const handleEditCustomStyle = (style: CustomStyle) => {
+    setEditingCustomStyle(style);
+    setCustomStyleFormData({
+      name: style.name,
+      description: style.description,
+      prompt: style.prompt,
+      color: style.color || 'bg-[var(--bg-solid-button)]',
+      hoverColor: style.hoverColor || 'hover:bg-[var(--interactive-hover)]',
+      lightBg: style.lightBg || 'bg-[var(--bg-highlight)]',
+      textColor: style.textColor || 'text-[var(--bg-accent)]'
+    });
+    setIsCustomStyleModalOpen(true);
+  };
+
+  const handleDeleteCustomStyle = async (styleId: string) => {
+    setConfirmAction({
+      message: 'Are you sure you want to delete this chat style? This action cannot be undone.',
+      onConfirm: () => {
+        setConfirmAction(null);
+        executeDeleteCustomStyle(styleId);
+      },
+      onCancel: () => setConfirmAction(null),
+      iconType: 'style',
+      actionType: 'destructive'
+    });
+  };
+
+  const executeDeleteCustomStyle = async (styleId: string) => {
+    try {
+      await deleteCustomStyle(styleId);
+    } catch (error) {
+      console.error('Error deleting custom style:', error);
+      setError('Failed to delete custom style');
+    }
+  };
+
+  const handleSaveCustomStyle = async () => {
+    if (!user?.uid || !customStyleFormData.name || !customStyleFormData.description || !customStyleFormData.prompt) return;
+    
+    try {
+      if (editingCustomStyle) {
+        await updateCustomStyle(editingCustomStyle.id, customStyleFormData);
+      } else {
+        await createCustomStyle(user.uid, customStyleFormData);
+      }
+      
+      setIsCustomStyleModalOpen(false);
+      setEditingCustomStyle(null);
+      setCustomStyleFormData({
+        name: '',
+        description: '',
+        prompt: '',
+        color: 'bg-[var(--bg-solid-button)]',
+        hoverColor: 'hover:bg-[var(--interactive-hover)]',
+        lightBg: 'bg-[var(--bg-highlight)]',
+        textColor: 'text-[var(--bg-accent)]'
+      });
+    } catch (error) {
+      console.error('Error saving custom style:', error);
+      setError('Failed to save custom style');
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -572,15 +864,13 @@ export function Settings() {
           if (requiresPassword && formData.currentPassword) updateData.currentPassword = formData.currentPassword;
       }
       if (Object.keys(updateData).length > 0 || (updateData.newPassword && !isGoogleUser)) {
-          await updateUserProfile(updateData, user.uid);
-          const refreshedUser = getCurrentUser();
+          await updateUserProfile(user.uid, updateData);
           const refreshedFirestoreData = await getUserData(user.uid);
-          const newName = refreshedFirestoreData?.name || refreshedUser?.displayName || userData.name;
-          const newEmail = refreshedUser?.email || userData.email;
-          const newPhotoURL = refreshedFirestoreData?.photoURL || refreshedUser?.photoURL || userData.photoURL;
+          const newName = refreshedFirestoreData?.name || user?.displayName || userData.name;
+          const newEmail = user?.email || userData.email;
+          const newPhotoURL = refreshedFirestoreData?.photoURL || '';
           setUserData({ name: newName, email: newEmail, photoURL: newPhotoURL });
           setFormData(prev => ({ ...prev, name: newName, email: newEmail, currentPassword: '', newPassword: '', confirmPassword: '' }));
-          if(refreshedUser) setUser(refreshedUser);
           setIsEditing(false);
       } else {
           setIsEditing(false); setFormData(prev => ({ ...prev, currentPassword: '', newPassword: '', confirmPassword: '' }));
@@ -644,7 +934,22 @@ export function Settings() {
     } catch (error) { console.error("Error updating memory:", error); } finally { setIsSavingMemory(false); }
   };
   const handleDeleteMemory = async (memoryId: string) => {
-    if (!user || !window.confirm("Are you sure you want to delete this memory? This cannot be undone.")) return;
+    if (!user) return;
+    
+    setConfirmAction({
+      message: 'Are you sure you want to delete this memory? This action cannot be undone.',
+      onConfirm: () => {
+        setConfirmAction(null);
+        executeDeleteMemory(memoryId);
+      },
+      onCancel: () => setConfirmAction(null),
+      iconType: 'memory',
+      actionType: 'destructive'
+    });
+  };
+
+  const executeDeleteMemory = async (memoryId: string) => {
+    if (!user) return;
     setIsDeletingMemory(memoryId);
     try {
       await deleteMemory(user.uid, memoryId);
@@ -681,8 +986,20 @@ const handleNotionConnect = () => {
     // Prevent function from running if user is not set or if it's already running
     if (!user || isNotionDisconnecting) return;
     
-    // Ask for user confirmation before proceeding
-    if (!window.confirm("Are you sure you want to disconnect from Notion? This will revoke access.")) return;
+    setConfirmAction({
+      message: 'Are you sure you want to disconnect from Notion? This will revoke access to your Notion workspace.',
+      onConfirm: () => {
+        setConfirmAction(null);
+        executeNotionDisconnect();
+      },
+      onCancel: () => setConfirmAction(null),
+      iconType: 'notion',
+      actionType: 'destructive'
+    });
+  };
+
+  const executeNotionDisconnect = async () => {
+    if (!user || isNotionDisconnecting) return;
 
     // Set loading state ON and clear any previous errors
     setIsNotionDisconnecting(true); 
@@ -707,18 +1024,18 @@ const handleNotionConnect = () => {
   const ProgressBar = ({ current, total, label }: { current: number; total: number; label: string }) => {
     const displayTotal = total === Infinity ? '∞' : total;
     const percentage = total > 0 && total !== Infinity ? Math.min((current / total) * 100, 100) : total === Infinity ? 100 : 0;
-    let barColorClass = 'bg-blue-500 dark:bg-blue-400';
-    if (percentage > 85 && total !== Infinity) barColorClass = 'bg-red-500 dark:bg-red-400';
-    else if (percentage > 60 && total !== Infinity) barColorClass = 'bg-yellow-500 dark:bg-yellow-400';
-    else if (total === Infinity) barColorClass = 'bg-green-500 dark:bg-green-400';
+    let barColorClass = 'bg-[var(--bg-accent)]';
+    if (percentage > 85 && total !== Infinity) barColorClass = 'bg-[var(--status-error)]';
+    else if (percentage > 60 && total !== Infinity) barColorClass = 'bg-[var(--status-warning)]';
+    else if (total === Infinity) barColorClass = 'bg-[var(--status-success)]';
 
     return (
       <div className='flex-1'>
         <div className="flex justify-between items-baseline mb-1">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-200">{label}</label>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{current} / {displayTotal}</p>
+            <label className="text-sm font-medium text-[var(--text-primary)]">{label}</label>
+            <p className="text-xs text-[var(--text-secondary)]">{current} / {displayTotal}</p>
         </div>
-        <div className="h-2.5 w-full rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700">
+        <div className="h-2.5 w-full rounded-full overflow-hidden bg-[var(--border-primary)]">
           <div className={`h-full ${barColorClass} transition-all duration-500 ease-out`} style={{ width: `${percentage}%` }} />
         </div>
       </div>
@@ -736,39 +1053,37 @@ const handleNotionConnect = () => {
   else if (isBlackoutEnabled) currentThemeMode = 'dark';
   
   return (
-    <div className="min-h-screen font-poppins bg-[#F7F8FA] dark:bg-[#0C0E1A] text-gray-900 dark:text-gray-200">
+    <div className="min-h-screen font-clarika bg-theme-primary text-theme-text-primary selection:bg-[var(--bg-accent)] selection:text-white">
       <Sidebar
         isCollapsed={isSidebarCollapsed}
-        onToggleCollapse={() => setIsSidebarCollapsed(prev => !prev)}
+        onToggleCollapse={() => setIsSidebarCollapsed((prev: boolean) => !prev)}
         isMobileOpen={isMobileSidebarOpen}
         setIsMobileOpen={setIsMobileSidebarOpen}
         userName={userData.name || 'Learner'}
-        userProfile={{ photoURL: userData.photoURL } as any}
-        isIlluminateEnabled={isIlluminateEnabled}
-        isBlackoutEnabled={isBlackoutEnabled}
+        userProfile={userData}
       />
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-[#161922] border border-gray-200 dark:border-gray-700/50 shadow-xl rounded-xl p-5 sm:p-6 max-w-md w-full">
-            <h3 className="text-lg font-semibold mb-3 text-gray-800 dark:text-gray-100">Delete Account</h3>
-            <p className="mb-4 text-sm text-gray-600 dark:text-gray-300">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[var(--overlay-dark)] backdrop-blur-sm">
+          <div className="bg-theme-card border border-theme-border-secondary shadow-xl rounded-xl p-5 sm:p-6 max-w-md w-full">
+            <h3 className="text-lg font-semibold mb-3 text-theme-text-primary">Delete Account</h3>
+            <p className="mb-4 text-sm text-theme-text-secondary">
                 Are you sure? This permanently deletes your account and all associated data. Cannot be undone.
             </p>
             {!isGoogleUser && (
               <div className="mb-4">
-                <label htmlFor="deleteConfirmPassword" className="block text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">Enter Current Password</label>
-                <input id="deleteConfirmPassword" type="password" name="currentPassword" value={formData.currentPassword} onChange={handleInputChange} placeholder="Required to delete" className="w-full bg-gray-100 dark:bg-gray-800/60 border-gray-300 dark:border-gray-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-red-500" disabled={isDeleting}/>
+                <label htmlFor="deleteConfirmPassword" className="block text-xs font-medium mb-1 text-theme-text-secondary">Enter Current Password</label>
+                <input id="deleteConfirmPassword" type="password" name="currentPassword" value={formData.currentPassword} onChange={handleInputChange} placeholder="Required to delete" className="w-full bg-[var(--bg-highlight)] border border-[var(--border-primary)] rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--status-error)] text-[var(--text-primary)] placeholder-theme" disabled={isDeleting}/>
               </div>
             )}
             {error && showDeleteConfirm && (
-              <div className="mb-4 p-2 rounded-md flex items-start gap-2 text-xs bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300">
+              <div className="mb-4 p-2 rounded-md flex items-start gap-2 text-xs bg-[var(--status-error)]/10 text-[var(--status-error)]">
                 <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-px" />
                 <span>{error}</span>
               </div>
             )}
             <div className="flex gap-2 sm:gap-3 justify-end">
-              <button onClick={closeDeleteModal} className="px-4 py-2 text-xs sm:text-sm font-medium rounded-lg bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200" disabled={isDeleting}>Cancel</button>
-              <button onClick={handleDeleteAccount} className="px-4 py-2 text-xs sm:text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 flex items-center justify-center min-w-[100px]" disabled={isDeleting || (!isGoogleUser && !formData.currentPassword)}>
+              <button onClick={closeDeleteModal} className="px-4 py-2 text-xs sm:text-sm font-medium rounded-lg bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-primary)]" disabled={isDeleting}>Cancel</button>
+              <button onClick={handleDeleteAccount} className="px-4 py-2 text-xs sm:text-sm font-medium rounded-lg bg-[var(--status-error)] text-[var(--text-white)] hover:bg-[var(--status-error)]/80 flex items-center justify-center min-w-[100px]" disabled={isDeleting || (!isGoogleUser && !formData.currentPassword)}>
                 {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Yes, Delete'}
               </button>
             </div>
@@ -776,17 +1091,17 @@ const handleNotionConnect = () => {
         </div>
       )}
       {isCropModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-              <div className="bg-white dark:bg-[#161922] border border-gray-200 dark:border-gray-700/50 shadow-xl rounded-xl p-5 sm:p-6 max-w-lg w-full">
-                  <h3 className="text-lg font-semibold mb-3 text-gray-800 dark:text-gray-100">Crop Profile Picture</h3>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[var(--overlay-dark)] backdrop-blur-sm">
+              <div className="bg-[var(--bg-highlight)] border border-[var(--border-primary)] shadow-xl rounded-xl p-5 sm:p-6 max-w-lg w-full">
+                  <h3 className="text-lg font-semibold mb-3 text-[var(--text-primary)]">Crop Profile Picture</h3>
                   {imgSrcForCrop && (
                     <ReactCrop crop={crop} onChange={(_, percentCrop) => setCrop(percentCrop)} onComplete={(c) => setCompletedCrop(c)} aspect={1}>
                         <img ref={imgRef} alt="Crop me" src={imgSrcForCrop} onLoad={onImageLoad} style={{ maxHeight: '70vh' }}/>
                     </ReactCrop>
                   )}
                   <div className="flex gap-2 sm:gap-3 justify-end mt-4">
-                      <button onClick={() => setIsCropModalOpen(false)} className="px-4 py-2 text-xs sm:text-sm font-medium rounded-lg bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200">Cancel</button>
-                      <button onClick={handleCropImage} className="px-4 py-2 text-xs sm:text-sm font-medium rounded-lg bg-gradient-to-r from-[#635BFF] to-[#8A85FF] text-white hover:opacity-90">Crop & Save</button>
+                      <button onClick={() => setIsCropModalOpen(false)} className="px-4 py-2 text-xs sm:text-sm font-medium rounded-lg bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-primary)]">Cancel</button>
+                      <button onClick={handleCropImage} className="px-4 py-2 text-xs sm:text-sm font-medium rounded-lg bg-[var(--bg-header)] hover:bg-[var(--interactive-hover)] text-[var(--text-white)]">Crop & Save</button>
                   </div>
               </div>
           </div>
@@ -794,164 +1109,274 @@ const handleNotionConnect = () => {
       <main className={`transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} pt-6`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-20">
             <div className="mb-6 sm:mb-8">
-              <h1 className="text-xl sm:text-2xl font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100">
-                <SettingsIcon className="w-5 h-5 sm:w-6 sm:h-6 text-[#635BFF]" />Settings
+              <h1 className="text-xl sm:text-2xl font-semibold flex items-center gap-2 text-[var(--text-primary)]">
+                <SettingsIcon className="w-5 h-5 sm:w-6 sm:h-6 text-[var(--text-primary)]" />Settings
               </h1>
-              <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">Manage your account settings and preferences</p>
+              <p className="text-theme-text-secondary mt-1 text-sm">Manage your account settings and preferences</p>
             </div>
             {error && !showDeleteConfirm && ( 
-              <div className="mb-4 p-3 rounded-lg flex items-start gap-2 bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300">
+              <div className="mb-4 p-3 rounded-lg flex items-start gap-2 bg-[var(--status-error)]/10 text-[var(--status-error)]">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-px" />
                 <p className="text-xs sm:text-sm">{error}</p>
               </div>
             )}
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                <div className="flex flex-col gap-6">
-                 <div className="bg-white dark:bg-[#161922] shadow-lg border border-gray-200 dark:border-gray-700/50 rounded-xl p-4 sm:p-5">
-                   <h2 className="text-base sm:text-lg font-semibold mb-4 text-gray-800 dark:text-gray-100">Profile Picture</h2>
+                 <div className="bg-[var(--bg-card)] shadow-lg border border-[var(--border-primary)] rounded-xl p-4 sm:p-5">
+                   <h2 className="text-base sm:text-lg font-semibold mb-4 text-[var(--text-primary)]">Profile Picture</h2>
                    <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-5">
                      <div className="relative group flex-shrink-0">
-                       <div className="w-20 h-20 rounded-full overflow-hidden flex items-center justify-center border-2 border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
-                         {isUploading ? (<div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full"><Loader2 className="w-5 h-5 animate-spin text-white" /></div>)
-                          : userData.photoURL ? (<img src={userData.photoURL} alt="Profile" className="w-full h-full object-cover" />)
-                          : (<UserProfileIcon className="w-10 h-10 text-gray-400 dark:text-gray-500" />)}
+                       <div className="w-20 h-20 rounded-full overflow-hidden flex items-center justify-center border-2 border-[var(--border-primary)] bg-[var(--bg-highlight)]">
+                         {isUploading ? (
+                           <div className="absolute inset-0 flex items-center justify-center bg-[var(--overlay-dark)] rounded-full">
+                             <Loader2 className="w-5 h-5 animate-spin text-[var(--text-white)]" />
+                           </div>
+                         ) : (profileImageUrl && isProfileImageValid) ? (
+                           <img 
+                             src={profileImageUrl} 
+                             alt="Profile" 
+                             className="w-full h-full object-cover"
+                           />
+                         ) : (
+                           <UserProfileIcon className="w-10 h-10 text-[var(--text-muted)]" />
+                         )}
                        </div>
                        {!isUploading && (
-                         <button onClick={handleProfilePictureClick} className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-full cursor-pointer" title="Change picture" aria-label="Change profile picture">
-                           <Camera className="w-5 h-5 text-white" />
+                         <button onClick={handleProfilePictureClick} className="absolute inset-0 flex items-center justify-center bg-[var(--overlay-dark)] opacity-0 group-hover:opacity-100 transition-opacity rounded-full cursor-pointer" title="Change picture" aria-label="Change profile picture">
+                           <Camera className="w-5 h-5 text-[var(--text-white)]" />
                          </button>
                        )}
                        <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" disabled={isUploading} />
                      </div>
                      <div className="flex flex-row sm:flex-col gap-2 w-full sm:w-auto justify-center sm:justify-start">
-                       <button onClick={handleProfilePictureClick} disabled={isUploading} className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200">
+                       <button onClick={handleProfilePictureClick} disabled={isUploading} className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg bg-[var(--bg-highlight)] border border-[var(--border-primary)] hover:bg-[var(--interactive-hover)] text-[var(--text-primary)]">
                          <Upload className="w-4 h-4" /> {isUploading ? 'Uploading...' : 'Upload'}
                        </button>
-                       {userData.photoURL && !isUploading && (
-                         <button onClick={handleRemoveProfilePicture} disabled={isUploading} className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg bg-red-100 hover:bg-red-200 dark:bg-red-900/50 dark:hover:bg-red-800/60 text-red-700 dark:text-red-400">
+                       {(profileImageUrl && isProfileImageValid) && !isUploading && (
+                         <button onClick={handleRemoveProfilePicture} disabled={isUploading} className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg bg-[var(--status-error)] border border-[var(--status-error)] hover:bg-[var(--status-error)]/80 text-white">
                            <Trash2 className="w-4 h-4" /> Remove
                          </button>
                        )}
                      </div>
                    </div>
                  </div>
-                 <div className="bg-white dark:bg-[#161922] shadow-lg border border-gray-200 dark:border-gray-700/50 rounded-xl p-4 sm:p-5">
+                 <div className="bg-[var(--bg-card)] shadow-lg border border-[var(--border-primary)] rounded-xl p-4 sm:p-5">
                     <div className="flex items-center justify-between mb-4">
-                      <h2 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-100">Profile Details</h2>
-                      {!isEditing && (<button type="button" onClick={() => { setIsEditing(true); setError(null); }} disabled={isLoading || isSaving} className="px-3 py-1 text-xs sm:text-sm font-medium rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200">Edit</button>)}
+                      <h2 className="text-base sm:text-lg font-semibold text-[var(--text-primary)]">Profile Details</h2>
+                      {!isEditing && (<button type="button" onClick={() => { setIsEditing(true); setError(null); }} disabled={isLoading || isSaving} className="px-3 py-1 text-xs sm:text-sm font-medium rounded-lg bg-[var(--bg-highlight)] border border-[var(--border-primary)] hover:bg-[var(--interactive-hover)] text-[var(--text-primary)]">Edit</button>)}
                     </div>
                     <form onSubmit={handleSave}>
                        <div className="space-y-4">
                           <div>
-                            <label htmlFor="name" className="block text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">Name</label>
-                            <input id="name" type="text" name="name" value={formData.name} onChange={handleInputChange} disabled={!isEditing || isSaving || isLoading} className="w-full bg-gray-100 dark:bg-gray-800/60 border-gray-300 dark:border-gray-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#635BFF] disabled:opacity-60 disabled:cursor-not-allowed" required/>
+                            <label htmlFor="name" className="block text-xs font-medium mb-1 text-theme-text-secondary">Name</label>
+                            <input id="name" type="text" name="name" value={formData.name} onChange={handleInputChange} disabled={!isEditing || isSaving || isLoading} className="w-full bg-[var(--bg-highlight)] border border-[var(--border-primary)] rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--interactive-focus)] disabled:opacity-60 disabled:cursor-not-allowed text-[var(--text-primary)]" required/>
                           </div>
                           <div>
-                            <label htmlFor="email" className="flex items-center text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">Email {isGoogleUser && <span className="ml-1.5 text-[10px] text-gray-500">(Managed by Google)</span>}</label>
-                            <input id="email" type="email" name="email" value={formData.email} onChange={handleInputChange} disabled={!isEditing || isSaving || isGoogleUser || isLoading} className="w-full bg-gray-100 dark:bg-gray-800/60 border-gray-300 dark:border-gray-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#635BFF] disabled:opacity-60 disabled:cursor-not-allowed" required/>
+                            <label htmlFor="email" className="flex items-center text-xs font-medium mb-1 text-theme-text-secondary">Email {isGoogleUser && <span className="ml-1.5 text-[10px] text-[var(--text-muted)]"></span>}</label>
+                            <input id="email" type="email" name="email" value={formData.email} onChange={handleInputChange} disabled={!isEditing || isSaving || isGoogleUser || isLoading} className="w-full bg-[var(--bg-highlight)] border border-[var(--border-primary)] rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--interactive-focus)] disabled:opacity-60 disabled:cursor-not-allowed text-[var(--text-primary)]" required/>
                           </div>
                           {isEditing && !isGoogleUser && (
                               <>
-                                  <hr className="my-3 border-gray-200 dark:border-gray-700/50" />
-                                  <p className="text-sm font-medium -mb-1 text-gray-800 dark:text-gray-100">Change Password</p>
+                                  <hr className="my-3 border-[var(--border-primary)]" />
+                                  <p className="text-sm font-medium -mb-1 text-[var(--text-primary)]">Change Password</p>
                                   <div>
-                                      <label htmlFor="currentPassword" className="block text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">Current Password</label>
-                                      <input id="currentPassword" type="password" name="currentPassword" value={formData.currentPassword} onChange={handleInputChange} disabled={isSaving} placeholder="Required to change email or password" className="w-full bg-gray-100 dark:bg-gray-800/60 border-gray-300 dark:border-gray-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#635BFF] disabled:opacity-60" />
+                                      <label htmlFor="currentPassword" className="block text-xs font-medium mb-1 text-theme-text-secondary">Current Password</label>
+                                      <input id="currentPassword" type="password" name="currentPassword" value={formData.currentPassword} onChange={handleInputChange} disabled={isSaving} placeholder="Required to change email or password" className="w-full bg-[var(--bg-highlight)] border border-[var(--border-primary)] rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--interactive-focus)] disabled:opacity-60 text-[var(--text-primary)] placeholder-theme" />
                                   </div>
                                   <div>
-                                      <label htmlFor="newPassword" className="block text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">New Password</label>
-                                      <input id="newPassword" type="password" name="newPassword" value={formData.newPassword} onChange={handleInputChange} disabled={isSaving} placeholder="Leave blank to keep current (min 6 chars)" className="w-full bg-gray-100 dark:bg-gray-800/60 border-gray-300 dark:border-gray-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#635BFF] disabled:opacity-60" />
+                                      <label htmlFor="newPassword" className="block text-xs font-medium mb-1 text-theme-text-secondary">New Password</label>
+                                      <input id="newPassword" type="password" name="newPassword" value={formData.newPassword} onChange={handleInputChange} disabled={isSaving} placeholder="Leave blank to keep current (min 6 chars)" className="w-full bg-[var(--bg-highlight)] border border-[var(--border-primary)] rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--interactive-focus)] disabled:opacity-60 text-[var(--text-primary)] placeholder-theme" />
                                   </div>
                                   <div>
-                                      <label htmlFor="confirmPassword" className="block text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">Confirm New Password</label>
-                                      <input id="confirmPassword" type="password" name="confirmPassword" value={formData.confirmPassword} onChange={handleInputChange} disabled={isSaving} placeholder="Confirm if changing" className="w-full bg-gray-100 dark:bg-gray-800/60 border-gray-300 dark:border-gray-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#635BFF] disabled:opacity-60" />
+                                      <label htmlFor="confirmPassword" className="block text-xs font-medium mb-1 text-theme-text-secondary">Confirm New Password</label>
+                                      <input id="confirmPassword" type="password" name="confirmPassword" value={formData.confirmPassword} onChange={handleInputChange} disabled={isSaving} placeholder="Confirm if changing" className="w-full bg-[var(--bg-highlight)] border border-[var(--border-primary)] rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--interactive-focus)] disabled:opacity-60 text-[var(--text-primary)] placeholder-theme" />
                                   </div>
                               </>
                           )}
                       </div>
                       {isEditing && (
                         <div className="flex justify-end gap-2 mt-5">
-                          <button type="button" onClick={() => { setIsEditing(false); setError(null); setFormData({name: userData.name, email: userData.email, currentPassword: '', newPassword: '', confirmPassword: ''}); }} disabled={isSaving} className="px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200">Cancel</button>
-                          <button type="submit" disabled={isSaving || isLoading} className="px-4 py-1.5 text-xs sm:text-sm font-medium rounded-lg bg-gradient-to-r from-[#635BFF] to-[#8A85FF] text-white hover:opacity-90 flex items-center justify-center min-w-[80px]">
-                              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 mr-1.5" /> Save</>}
+                          <button type="button" onClick={() => { setIsEditing(false); setError(null); setFormData({name: userData.name, email: userData.email, currentPassword: '', newPassword: '', confirmPassword: ''}); }} disabled={isSaving} className="px-4 py-1.5 text-xs sm:text-sm font-medium rounded-lg bg-[var(--bg-highlight)] border border-[var(--border-primary)] hover:bg-[var(--interactive-hover)] text-[var(--text-primary)] min-w-[80px]">Cancel</button>
+                          <button type="submit" disabled={isSaving || isLoading} className="px-4 py-1.5 text-xs sm:text-sm font-medium rounded-lg bg-[var(--status-success)] hover:bg-[var(--status-success)]/80 text-white flex items-center justify-center min-w-[80px]">
+                              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save'}
                           </button>
                         </div>
                       )}
                     </form>
                  </div>
-                 <div className="bg-white dark:bg-[#161922] shadow-lg border border-gray-200 dark:border-gray-700/50 rounded-xl p-4 sm:p-5">
-                    <h2 className="text-base sm:text-lg font-semibold mb-4 text-gray-800 dark:text-gray-100">Account Actions</h2>
+                 <div className="bg-[var(--bg-card)] shadow-lg border border-[var(--border-primary)] rounded-xl p-4 sm:p-5">
+                    <h2 className="text-base sm:text-lg font-semibold mb-4 text-[var(--text-primary)]">Account Actions</h2>
                     <div className="space-y-3">
-                        <Link to="/contact" className="w-full flex items-center justify-center gap-2.5 px-3 py-2.5 text-sm font-medium rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200">
+                        <Link to="/contact" className="w-full flex items-center justify-center gap-2.5 px-3 py-2.5 text-sm font-medium rounded-lg bg-[var(--bg-highlight)] border border-[var(--border-primary)] hover:bg-[var(--interactive-hover)] text-[var(--text-primary)]">
                             <Info className="w-4 h-4" /> Help
                         </Link>
-                        <button onClick={handleSignOut} className="w-full flex items-center justify-center gap-2.5 px-3 py-2.5 text-sm font-medium rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200"><LogOut className="w-4 h-4" /> Sign Out</button>
-                        <button onClick={() => { setShowDeleteConfirm(true); setFormData(prev => ({ ...prev, currentPassword: '' })); setError(null); }} className="w-full flex items-center justify-center gap-2.5 px-3 py-2.5 text-sm font-medium rounded-lg bg-red-100 hover:bg-red-200 dark:bg-red-900/50 dark:hover:bg-red-800/60 text-red-700 dark:text-red-400"><Trash2 className="w-4 h-4" /> Delete Account</button>
+                        <button onClick={handleSignOut} className="w-full flex items-center justify-center gap-2.5 px-3 py-2.5 text-sm font-medium rounded-lg bg-[var(--bg-highlight)] border border-[var(--border-primary)] hover:bg-[var(--interactive-hover)] text-[var(--text-primary)]"><LogOut className="w-4 h-4" /> Sign Out</button>
+                        <button onClick={() => { setShowDeleteConfirm(true); setFormData(prev => ({ ...prev, currentPassword: '' })); setError(null); }} className="w-full flex items-center justify-center gap-2.5 px-3 py-2.5 text-sm font-medium rounded-lg bg-[var(--status-error)] border border-[var(--status-error)] hover:bg-[var(--status-error)]/80 text-white"><Trash2 className="w-4 h-4" /> Delete Account</button>
                     </div>
                  </div>
                </div>
                <div className="flex flex-col gap-6">
-                 <div className="bg-white dark:bg-[#161922] shadow-lg border border-gray-200 dark:border-gray-700/50 rounded-xl p-4 sm:p-5">
-                    <h2 className="text-base sm:text-lg font-semibold mb-4 text-gray-800 dark:text-gray-100">Appearance</h2>
+                 <div className="bg-[var(--bg-card)] shadow-lg border border-[var(--border-primary)] rounded-xl p-4 sm:p-5">
+                    <h2 className="text-base sm:text-lg font-semibold mb-4 text-[var(--text-primary)]">Appearance</h2>
                      <div className="space-y-4">
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                            {themeModes.map(mode => (
                                <button
                                    key={mode.name}
                                    onClick={mode.handler}
-                                   className={`p-3 rounded-lg border-2 transition-all duration-200 flex flex-col items-center gap-2 text-sm font-medium ${
+                                   className={`p-3 rounded-lg border-2 transition-all duration-200 flex flex-col items-center gap-2 text-sm font-medium bg-[var(--bg-highlight)] ${
                                        currentThemeMode === mode.name 
-                                       ? 'border-[#635BFF] bg-indigo-50 dark:bg-indigo-500/10' 
-                                       : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                                       ? 'border-[var(--bg-accent)]' 
+                                       : 'border-[var(--border-primary)] hover:border-[var(--border-secondary)]'
                                    }`}
                                >
                                    <mode.icon className={`w-5 h-5 ${
                                      mode.name === 'light' ? 'text-yellow-500' : 
-                                     mode.name === 'dark' ? 'text-indigo-400' : 'text-gray-500'
+                                     mode.name === 'dark' ? 'text-[var(--bg-accent)]' : 'text-[var(--text-secondary)]'
                                    }`} />
-                                   <span className="capitalize text-gray-700 dark:text-gray-200">{mode.name}</span>
+                                   <span className="capitalize text-theme-text-primary">{mode.name}</span>
                                </button>
                            ))}
                         </div>
                      </div>
                  </div>
-                 <div className="bg-white dark:bg-[#161922] shadow-lg border border-gray-200 dark:border-gray-700/50 rounded-xl p-4 sm:p-5 flex flex-col flex-grow">
+                 <div className="bg-[var(--bg-card)] shadow-lg border border-[var(--border-primary)] rounded-xl p-4 sm:p-5 flex flex-col flex-grow">
                    <div className="flex items-center justify-between mb-4">
-                     <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100">
-                       <CreditCard className="w-5 h-5 text-green-500 dark:text-green-400"/>
+                     <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
                        Subscription
                      </h2>
-                     {userCurrentTier === 'loading' && <span className="text-xs text-gray-500">Checking...</span>}
-                     {userCurrentTier === 'premium' && (<span className="px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wider bg-gradient-to-br from-[#635BFF] to-[#8A85FF] text-white shadow-sm">Premium</span>)}
+                     {userCurrentTier === 'loading' && <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Checking...</span>}
+                     {userCurrentTier === 'premium' && (<span className="px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wider bg-gradient-to-br from-[var(--bg-header)] to-[var(--bg-accent)] text-white shadow-sm">Premium</span>)}
                      {userCurrentTier === 'pro' && (<span className="px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wider bg-gradient-to-r from-teal-400 to-cyan-500 text-white shadow-sm">Pro</span>)}
-                     {userCurrentTier === 'basic' && (<span className="px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wider bg-blue-100 text-blue-800 dark:bg-blue-900/70 dark:text-blue-200">Basic</span>)}
+                     {userCurrentTier === 'basic' && (<span className="px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wider bg-[var(--bg-highlight)] border border-[var(--border-primary)]" style={{ color: 'var(--text-secondary)' }}>Basic</span>)}
                    </div>
+
+
+
                    <div className="flex flex-col flex-grow">
                       <div className="space-y-3">
-                        {userCurrentTier === 'premium' && (<p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Your premium plan includes unlimited access to all features.</p>)}
-                        {userCurrentTier === 'pro' && (<p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Your pro plan includes increased limits and access to advanced features.</p>)}
-                        {userCurrentTier === 'basic' && (<p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Your free plan includes basic access to core features.</p>)}
 
-                        <ul className="list-disc list-outside pl-5 space-y-1.5 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-                          {userCurrentTier === 'basic' && (<><li>5 PDF/Text Notes per month</li><li>3 YouTube Notes per month</li><li>25 AI Chat Interactions per month</li></>)}
-                          {userCurrentTier === 'pro' && (<><li>25 PDF/Text Notes per month</li><li>15 YouTube Notes per month</li><li>500 AI Chat Interactions per month</li><li>Limited access to Smart Daily Brief</li></>)}
-                          {userCurrentTier === 'premium' && (<><li>Unlimited PDF & Text Notes</li><li>Unlimited YouTube Notes</li><li>Unlimited AI Chat Interactions</li><li>Unlimited Smart Daily Brief</li><li>Unlimited Podcasts</li><li>Priority Support</li></>)}
-                        </ul>
+                        <div className="space-y-2.5">
+                          {userCurrentTier === 'basic' && (
+                            <>
+                              <div className="flex items-center gap-3">
+                                <Notebook className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--bg-accent)' }} />
+                                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>5 PDF/Text Notes per month</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <Youtube className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--bg-accent)' }} />
+                                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>3 YouTube Notes per month</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <MessageCircle className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--bg-accent)' }} />
+                                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>25 Chat Messages per month</span>
+                              </div>
+                            </>
+                          )}
+                          {userCurrentTier === 'pro' && (
+                            <>
+                              <div className="flex items-center gap-3">
+                                <Notebook className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--bg-accent)' }} />
+                                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>25 PDF/Text Notes per month</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <Youtube className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--bg-accent)' }} />
+                                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>15 YouTube Notes per month</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <MessageCircle className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--bg-accent)' }} />
+                                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>500 Chat Messages per month</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <Sparkles className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--bg-accent)' }} />
+                                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Limited access to Smart Daily Brief</span>
+                              </div>
+                            </>
+                          )}
+                          {userCurrentTier === 'premium' && (
+                            <>
+                              <div className="flex items-center gap-3">
+                                <Notebook className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--bg-accent)' }} />
+                                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Unlimited PDF & Text Notes</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <Youtube className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--bg-accent)' }} />
+                                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Unlimited YouTube Notes</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <MessageCircle className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--bg-accent)' }} />
+                                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Unlimited Chat Messages</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <Brain className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--bg-accent)' }} />
+                                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Unlimited Smarter AI Responses</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <Sparkles className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--bg-accent)' }} />
+                                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Unlimited Smart Daily Brief</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <Podcast className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--bg-accent)' }} />
+                                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Unlimited Podcasts</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <ShieldCheck className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--bg-accent)' }} />
+                                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Priority Support</span>
+                              </div>
+                            </>
+                          )}
+                        </div>
+
+
                       </div>
 
                       <div className="mt-auto space-y-3">
+                        {/* Free Premium Days Display */}
+                        {userProfileData?.premiumAwardedUntil && (toDateSafe(userProfileData.premiumAwardedUntil) || new Date(0)) > new Date() && (() => {
+                          const premiumUntil = toDateSafe(userProfileData.premiumAwardedUntil);
+                          const daysRemaining = premiumUntil ? Math.max(0, Math.ceil((premiumUntil.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))) : 0;
+                          return (
+                            <div className="p-3 rounded-lg bg-[var(--status-success)] border border-[var(--status-success)] text-center">
+                              <div className="flex items-center justify-center gap-2 mb-1">
+                                <CrownIcon className="w-4 h-4 text-white" />
+                                <span className="text-sm font-semibold text-white">Free Premium Active!</span>
+                              </div>
+                              <p className="text-xs text-white/90">
+                                {daysRemaining} day{daysRemaining !== 1 ? 's' : ''} remaining • Expires: {premiumUntil?.toLocaleDateString()}
+                              </p>
+                            </div>
+                          );
+                        })()}
+
+                        {/* Points Needed for Free Premium Display */}
+                        {(userCurrentTier === 'basic' || userCurrentTier === 'pro') && userProfileData && (() => {
+                          const pointsNeededForPremium = Math.max(0, POINTS_FOR_FREE_PREMIUM - (userProfileData.points || 0));
+                          const hasActivePremium = userProfileData.premiumAwardedUntil && (toDateSafe(userProfileData.premiumAwardedUntil) || new Date(0)) > new Date();
+                          return pointsNeededForPremium > 0 && !hasActivePremium ? (
+                            <div className="p-3 rounded-lg bg-[var(--bg-accent)] border border-[var(--bg-accent)] text-center">
+                              <div className="flex items-center justify-center gap-2 mb-1">
+                                <Gift className="w-4 h-4 text-white" />
+                                <span className="text-sm font-semibold text-white">Earn Free Premium!</span>
+                              </div>
+                              <p className="text-xs text-white/90">
+                                Collect {pointsNeededForPremium} more points to earn <span className="font-semibold text-white">1 FREE week of Premium</span>!
+                              </p>
+                            </div>
+                          ) : null;
+                        })()}
+
                         {(userCurrentTier === 'pro' || userCurrentTier === 'premium') && stripeCustomerId && (
-                          <div className="pt-4 border-t border-gray-200 dark:border-gray-700/50">
-                            {portalError && (<p className="text-xs text-red-500 dark:text-red-400 mb-2 flex items-center gap-1"><AlertCircle size={14} /> {portalError}</p>)}
-                            <button onClick={handleManageSubscription} disabled={isManagingSubscription} className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 disabled:opacity-70">
+                          <div className="pt-4 border-t border-[var(--border-primary)]">
+                            {portalError && (<p className="text-xs mb-2 flex items-center gap-1" style={{ color: 'var(--status-error)' }}><AlertCircle size={14} /> {portalError}</p>)}
+                            <button onClick={handleManageSubscription} disabled={isManagingSubscription} className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-[var(--bg-highlight)] border border-[var(--border-primary)] hover:bg-[var(--interactive-hover)] disabled:opacity-70" style={{ color: 'var(--text-primary)' }}>
                               {isManagingSubscription ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
                               {isManagingSubscription ? 'Loading Portal...' : 'Manage Billing'}
                             </button>
                           </div>
                         )}
                         {userCurrentTier !== 'premium' && (
-                          <Link to="/pricing" className="block w-full bg-gradient-to-r from-[#635BFF] to-[#8A85FF] text-white hover:opacity-90 rounded-lg">
-                            <span className="flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium"><Star className="w-4 h-4" /> Upgrade Plan</span>
+                          <Link to="/pricing" className="block w-full bg-[var(--bg-highlight)] border border-[var(--border-primary)] hover:bg-[var(--interactive-hover)] rounded-lg" style={{ color: 'var(--text-primary)' }}>
+                            <span className="flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium">Upgrade Plan</span>
                           </Link>
                         )}
                       </div>
@@ -960,33 +1385,33 @@ const handleNotionConnect = () => {
                </div>
             </div>
 
-            {isLoading ? (<div className="mt-6 flex justify-center items-center h-48 bg-white dark:bg-[#161922] shadow-lg border border-gray-200 dark:border-gray-700/50 rounded-xl"><Loader2 className="w-8 h-8 animate-spin text-[#635BFF]" /></div>)
+            {isLoading ? (<div className="mt-6 flex justify-center items-center h-48 bg-[var(--bg-card)] shadow-lg border border-[var(--border-primary)] rounded-xl"><Loader2 className="w-8 h-8 animate-spin text-[var(--bg-accent)]" /></div>)
             : userProfileData && (
-                <div className="mt-6 bg-white dark:bg-[#161922] shadow-lg border border-gray-200 dark:border-gray-700/50 p-4 sm:p-5 rounded-xl">
-                    <h2 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2 text-gray-800 dark:text-gray-100">
-                        <Trophy className="w-5 h-5 text-amber-400" /> My Progress & Achievements
+                <div className="mt-6 bg-[var(--bg-card)] shadow-lg border border-[var(--border-primary)] p-4 sm:p-5 rounded-xl">
+                    <h2 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2 text-[var(--text-primary)]">
+                                                 My Progress
                     </h2>
                     
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-5">
                         {[
-                            { label: 'Points', value: userProfileData.points, icon: TrendingUp, color: 'text-indigo-500 dark:text-indigo-400', gradient: 'from-indigo-400 to-purple-500' },
-                            { label: 'Level', value: userProfileData.level, icon: Award, color: 'text-green-500 dark:text-green-400', gradient: 'from-green-400 to-emerald-500' },
-                            { label: 'Streak', value: userProfileData.overallStreakCount, icon: Flame, color: 'text-orange-500 dark:text-orange-400', gradient: 'from-orange-400 to-amber-500' },
-                            { label: 'Badges', value: (userProfileData.badges || []).length, icon: Trophy, color: 'text-yellow-500 dark:text-yellow-400', gradient: 'from-yellow-400 to-amber-500' },
+                            { label: 'Points', value: userProfileData.points ?? 0, icon: TrendingUp, color: 'text-[var(--text-primary)]', gradient: 'from-[var(--text-primary)] to-[var(--text-primary)]' },
+                            { label: 'Level', value: userProfileData.level ?? 0, icon: Award, color: 'text-[var(--text-primary)]', gradient: 'from-[var(--text-primary)] to-[var(--text-primary)]' },
+                            { label: 'Streak', value: userProfileData.overallStreakCount ?? 0, icon: Flame, color: 'text-[var(--text-primary)]', gradient: 'from-[var(--text-primary)] to-[var(--text-primary)]' },
+                            { label: 'Badges', value: (userProfileData.badges || []).length, icon: Trophy, color: 'text-[var(--text-primary)]', gradient: 'from-[var(--text-primary)] to-[var(--text-primary)]' },
                         ].map(stat => (
                             <div
                                 key={stat.label}
-                                className="bg-gray-50 dark:bg-gray-800/50 p-2.5 rounded-lg text-center shadow-sm border border-gray-200 dark:border-gray-700/50"
+                                className="bg-[var(--bg-highlight)] p-2.5 rounded-lg text-center shadow-sm border border-[var(--border-primary)]"
                             >
                                 <stat.icon className={`w-5 h-5 mx-auto mb-0.5 ${stat.color}`} />
                                 <p className={`text-xl font-semibold text-transparent bg-clip-text bg-gradient-to-r ${stat.gradient}`}>{stat.value}</p>
-                                <p className="text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider">{stat.label}</p>
+                                <p className="text-[11px] text-theme-text-secondary uppercase tracking-wider">{stat.label}</p>
                             </div>
                         ))}
                     </div>
 
-                    <h3 className="text-md font-semibold mb-3 text-gray-700 dark:text-gray-200">Badges Earned</h3>
-                    <div className="grid grid-cols-4 xs:grid-cols-5 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-9 gap-3 max-h-80 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
+                    <h3 className="text-md font-semibold mb-3 text-theme-text-primary">Badges Earned</h3>
+                    <div className="grid grid-cols-4 xs:grid-cols-5 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-9 gap-3 max-h-80 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-[var(--scrollbar-thumb)] dark:scrollbar-thumb-[var(--scrollbar-thumb-dark)]">
                         {Object.entries(ALL_BADGES_CONFIG).map(([badgeKey, badgeConfig]) => {
                             const isUnlocked = (userProfileData.badges || []).includes(badgeKey);
                             const Icon = badgeConfig.icon;
@@ -994,12 +1419,12 @@ const handleNotionConnect = () => {
                                 <div
                                     key={badgeKey}
                                     title={isUnlocked ? `${badgeConfig.name}: ${badgeConfig.description}` : `${badgeConfig.name} (Locked) - Unlock: ${badgeConfig.unlock_criteria_text}`}
-                                    className={`group relative flex flex-col items-center justify-center p-2.5 aspect-square bg-slate-50 dark:bg-slate-800/50 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700/60 text-center transition-all duration-200 ${!isUnlocked ? 'opacity-40 grayscale' : 'hover:border-indigo-400 dark:hover:border-indigo-500'}`}
+                                    className={`group relative flex flex-col items-center justify-center p-2.5 aspect-square bg-[var(--bg-highlight)] rounded-lg shadow-sm border border-[var(--border-primary)] text-center transition-all duration-200 ${!isUnlocked ? 'opacity-40 grayscale' : 'hover:border-[var(--border-secondary)]'}`}
                                 >
-                                    <Icon className={`w-6 h-6 mb-1 ${isUnlocked ? 'text-indigo-500 dark:text-indigo-400' : 'text-gray-400 dark:text-gray-500'}`} />
-                                    <span className={`text-[9px] leading-tight font-medium ${isUnlocked ? 'text-gray-700 dark:text-gray-200' : 'text-gray-500 dark:text-gray-400'}`}>{badgeConfig.name}</span>
-                                    {!isUnlocked && ( <div className="absolute top-1 right-1 bg-gray-500/20 dark:bg-gray-900/40 p-0.5 rounded-full"> <Lock className="w-2.5 h-2.5 text-white dark:text-gray-300" /> </div> )}
-                                    {isUnlocked && ( <div className="absolute top-1 right-1 bg-green-500/20 dark:bg-green-900/40 p-0.5 rounded-full"> <Check className="w-2.5 h-2.5 text-green-600 dark:text-green-300" /> </div> )}
+                                    <Icon className={`w-6 h-6 mb-1 ${isUnlocked ? 'text-[var(--bg-accent)]' : 'text-[var(--text-muted)]'}`} />
+                                    <span className={`text-[9px] leading-tight font-medium ${isUnlocked ? 'text-theme-text-primary' : 'text-theme-text-secondary'}`}>{badgeConfig.name}</span>
+                                    {!isUnlocked && ( <div className="absolute top-1 right-1 bg-[var(--text-muted)]/20 p-0.5 rounded-full"> <Lock className="w-2.5 h-2.5 text-[var(--text-muted)]" /> </div> )}
+                                    {isUnlocked && ( <div className="absolute top-1 right-1 bg-[var(--status-success)]/20 p-0.5 rounded-full"> <Check className="w-2.5 h-2.5 text-[var(--status-success)]" /> </div> )}
                                     {!isUnlocked && (
                                         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-max max-w-[180px] p-1.5 bg-black/80 text-white text-[10px] rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none z-20">
                                             <b>Unlock:</b> {badgeConfig.unlock_criteria_text}
@@ -1013,109 +1438,253 @@ const handleNotionConnect = () => {
             )}
 
             {userCurrentTier !== 'premium' && (
-                <div className="mt-6 bg-white dark:bg-[#161922] shadow-lg border border-gray-200 dark:border-gray-700/50 p-4 sm:p-5 rounded-xl">
-                    <h2 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2 text-gray-800 dark:text-gray-100">
-                        <Activity className="w-5 h-5 text-indigo-400" /> Monthly Usage
+                <div className="mt-6 bg-[var(--bg-card)] shadow-lg border border-[var(--border-primary)] p-4 sm:p-5 rounded-xl">
+                    <h2 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2 text-[var(--text-primary)]">
+                        <Activity className="w-5 h-5 text-[var(--text-primary)]" /> Monthly Usage
                     </h2>
-                    {isLoadingUsage ? (<div className="flex justify-center items-center h-24"><Loader2 className="w-6 h-6 animate-spin text-[#635BFF]" /></div>)
-                    : usageError ? (<div className="p-3 rounded-md flex items-start gap-2 text-xs bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300"><AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-px" /><span>{usageError}</span></div>)
+                    {isLoadingUsage ? (<div className="flex justify-center items-center h-24"><Loader2 className="w-6 h-6 animate-spin text-[var(--bg-accent)]" /></div>)
+                    : usageError ? (<div className="p-3 rounded-md flex items-start gap-2 text-xs bg-[var(--status-error)]/10 border border-[var(--status-error)]/20 text-[var(--status-error)]"><AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-px" /><span>{usageError}</span></div>)
                     : (<>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <ProgressBar label="AI Chat" current={chatUsage?.count || 0} total={getChatLimitForTier(userCurrentTier)} />
+                            <ProgressBar label="Chat Messages" current={chatUsage?.count || 0} total={getChatLimitForTier(userCurrentTier)} />
                             <ProgressBar label="PDF/Text Notes" current={noteUsage?.pdfAi || 0} total={getNoteLimitsForTier(userCurrentTier).pdfAi} />
                             <ProgressBar label="YouTube Notes" current={noteUsage?.youtube || 0} total={getNoteLimitsForTier(userCurrentTier).youtube} />
                         </div>
-                        <p className="mt-5 pt-3 border-t text-center text-xs text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700/50">
+                        <p className="mt-5 pt-3 border-t text-center text-xs text-theme-text-secondary border-[var(--border-primary)]">
                             Usage limits reset on {getNextMonthResetDate()}.
                         </p>
                         </>
                     )}
                 </div>
             )}
-             <div className="mt-6 bg-white dark:bg-[#161922] shadow-lg border border-gray-200 dark:border-gray-700/50 rounded-xl p-4 sm:p-5">
+             <div className="mt-6 bg-[var(--bg-card)] shadow-lg border border-[var(--border-primary)] rounded-xl p-4 sm:p-5">
                 <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100">
-                        <SlidersHorizontal className="w-5 h-5 text-teal-500 dark:text-teal-400"/>
+                    <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2 text-[var(--text-primary)]">
+                        <SlidersHorizontal className="w-5 h-5 text-[var(--text-primary)]"/>
                         Learning Style
                     </h2>
-                    <button onClick={() => navigate('/onboarding')} className="px-3 py-1 text-xs sm:text-sm font-medium rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200">
+                    <button onClick={() => navigate('/onboarding')} className="px-3 py-1 text-xs sm:text-sm font-medium rounded-lg bg-[var(--bg-highlight)] border border-[var(--border-primary)] hover:bg-[var(--interactive-hover)] text-[var(--text-primary)]">
                         Retake Onboarding
                     </button>
                 </div>
                 {isLoadingAiContext ? (
-                    <div className="flex justify-center items-center h-24"><Loader2 className="w-6 h-6 animate-spin text-[#635BFF]" /></div>
+                    <div className="flex justify-center items-center h-24"><Loader2 className="w-6 h-6 animate-spin text-[var(--bg-accent)]" /></div>
                 ) : learningProfile ? (
                     <div className="space-y-3 text-sm">
                         <div className="flex justify-between items-center gap-4">
-                            <span className="text-gray-500 dark:text-gray-400 flex-shrink-0">Primary Goal:</span>
-                            <span className="font-medium text-gray-800 dark:text-gray-200 text-right truncate">{learningProfile.goal}</span>
+                            <span className="text-theme-text-secondary flex-shrink-0">Primary Goal:</span>
+                            <span className="font-medium text-[var(--text-primary)] text-right truncate">{learningProfile.goal}</span>
                         </div>
                         <div className="flex justify-between items-center gap-4">
-                            <span className="text-gray-500 dark:text-gray-400 flex-shrink-0">Motivation:</span>
-                            <span className="font-medium text-gray-800 dark:text-gray-200 text-right truncate">{learningProfile.motivation}</span>
+                            <span className="text-theme-text-secondary flex-shrink-0">Motivation:</span>
+                            <span className="font-medium text-[var(--text-primary)] text-right truncate">{learningProfile.motivation}</span>
                         </div>
                         <div className="flex justify-between items-center gap-4">
-                            <span className="text-gray-500 dark:text-gray-400 flex-shrink-0">Experience Level:</span>
-                            <span className="font-medium text-gray-800 dark:text-gray-200 text-right truncate">{learningProfile.experience}</span>
+                            <span className="text-theme-text-secondary flex-shrink-0">Experience Level:</span>
+                            <span className="font-medium text-[var(--text-primary)] text-right truncate">{learningProfile.experience}</span>
                         </div>
                         <div className="flex justify-between items-center gap-4">
-                            <span className="text-gray-500 dark:text-gray-400 flex-shrink-0">Preferred Style:</span>
-                            <span className="font-medium text-gray-800 dark:text-gray-200 text-right truncate">{learningProfile.style}</span>
+                            <span className="text-theme-text-secondary flex-shrink-0">Preferred Style:</span>
+                            <span className="font-medium text-[var(--text-primary)] text-right truncate">{learningProfile.style}</span>
                         </div>
                     </div>
                 ) : (
                     <div className="text-center py-4">
-                        <p className="text-sm text-gray-500 dark:text-gray-400">No learning style set.</p>
-                        <button onClick={() => navigate('/onboarding')} className="mt-2 text-sm font-semibold text-[#635BFF] hover:underline">
+                        <p className="text-sm text-theme-text-secondary">No learning style set.</p>
+                        <button onClick={() => navigate('/onboarding')} className="mt-2 text-sm font-semibold text-[var(--bg-accent)] hover:underline">
                             Set up now
                         </button>
                     </div>
                 )}
             </div>
 
-            <div className="mt-6">
-                <div className="bg-white dark:bg-[#161922] shadow-lg border border-gray-200 dark:border-gray-700/50 p-4 sm:p-5 rounded-xl">
-                    <div className="flex items-center justify-between mb-3">
-                        <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100"><BrainCircuit className="w-5 h-5 text-purple-400" /> Universal Context</h2>
-                        {!isEditingAiContext && (<button type="button" onClick={() => { setIsEditingAiContext(true); setAiContextError(null); }} disabled={isLoadingAiContext || isSavingAiContext} className="px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200">Edit</button>)}
+            <div className="mt-6 bg-[var(--bg-card)] shadow-lg border border-[var(--border-primary)] rounded-xl p-4 sm:p-5">
+                <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2 text-[var(--text-primary)]">
+                        <Palette className="w-5 h-5 text-[var(--text-primary)]"/>
+                        Chat Styles
+                    </h2>
+                </div>
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium mb-2 text-[var(--text-secondary)]">
+                            Default Chat Style
+                        </label>
+                        <div className="flex gap-2">
+                            <div className="flex-1 relative">
+                                <select 
+                                    value={defaultChatStyle || 'Normal'} 
+                                    onChange={(e) => setDefaultChatStyle(e.target.value)}
+                                    className="w-full px-3 py-2 text-sm bg-[var(--bg-highlight)] border border-[var(--border-primary)] rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--interactive-focus)] text-[var(--text-primary)]"
+                                >
+                                <option value="Normal">Normal</option>
+                                <option value="Formal & Professional">Formal & Professional</option>
+                                <option value="Educational & Motivational">Educational & Motivational</option>
+                                <option value="Casual & Friendly">Casual & Friendly</option>
+                                {customStyles.map(style => (
+                                    <option key={style.id} value={style.name}>{style.name}</option>
+                                ))}
+                            </select>
+                            {defaultChatStyle !== originalDefaultChatStyle && (
+                                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                                    <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                                </div>
+                            )}
+                        </div>
+                            <button
+                                onClick={() => handleDefaultStyleChange(defaultChatStyle || 'Normal')}
+                                disabled={isSavingDefaultStyle || defaultChatStyle === originalDefaultChatStyle}
+                                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                                    isSavingDefaultStyle || defaultChatStyle === originalDefaultChatStyle
+                                        ? 'bg-[var(--bg-highlight)] border border-[var(--border-primary)] cursor-not-allowed text-[var(--text-muted)]'
+                                        : 'bg-[var(--bg-accent)] text-white'
+                                }`}
+                            >
+                                {isSavingDefaultStyle ? 'Saving...' : 'Save'}
+                            </button>
+                        </div>
+                        <p className="text-xs text-theme-text-secondary mt-1">
+                            This style will be automatically applied when starting new conversations.
+                        </p>
+                        {defaultStyleSaved && (
+                            <p className="text-xs text-green-600 dark:text-green-400 mt-1 flex items-center gap-1">
+                                ✓ Default chat style saved successfully!
+                            </p>
+                        )}
                     </div>
-                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-4">Provide background information that TaskMaster can always access to personalize its responses and suggestions for you.</p>
+
+                    <div className="border-t border-[var(--border-primary)] pt-4">
+                        <label className="block text-sm font-medium mb-2 text-[var(--text-secondary)]">
+                            Reasoning
+                        </label>
+                        <div className="flex items-center justify-between p-3 rounded-lg bg-[var(--bg-highlight)] border border-[var(--border-primary)]">
+                            <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                    <Brain className="w-4 h-4 text-[var(--bg-accent)]" />
+                                    <h4 className="text-sm font-medium text-[var(--text-primary)]">Use Reasoning Model</h4>
+                                    {(userCurrentTier === 'basic' || userCurrentTier === 'pro') && (
+                                        <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-[var(--bg-accent)] text-[var(--text-white)]">
+                                            Premium Only
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-xs text-[var(--text-secondary)] mt-1">
+                                    Enables advanced reasoning for complex tasks. Uses a more powerful AI model with detailed thinking process.
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={reasoningEnabled}
+                                        onChange={(e) => {
+                                            const newValue = e.target.checked;
+                                            setReasoningEnabledState(newValue);
+                                            handleReasoningChange(newValue);
+                                        }}
+                                        disabled={userCurrentTier !== 'premium'}
+                                        className="sr-only peer"
+                                    />
+                                    <div className={`relative w-11 h-6 rounded-full peer peer-focus:outline-none peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:rounded-full after:h-5 after:w-5 after:transition-all ${
+                                        userCurrentTier !== 'premium' 
+                                            ? 'bg-[var(--border-secondary)] cursor-not-allowed after:bg-[var(--bg-primary)] after:border-[var(--border-secondary)] after:border after:opacity-60' 
+                                            : reasoningEnabled 
+                                                ? 'bg-[var(--bg-accent)] after:bg-white after:border-white after:border' 
+                                                : 'bg-[var(--bg-card)] after:bg-white after:border-[var(--border-primary)] after:border'
+                                    }`}></div>
+                                </label>
+                            </div>
+                        </div>
+
+                    </div>
+                    
+                    <div className="border-t border-[var(--border-primary)] pt-4">
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-sm font-medium text-[var(--text-secondary)]">Custom Styles</h3>
+                            <button 
+                                onClick={() => setIsCustomStyleModalOpen(true)}
+                                className="px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--bg-accent)] text-white"
+                            >
+                                Create New Style
+                            </button>
+                        </div>
+                        {customStyles.length > 0 ? (
+                            <div className="space-y-2 max-h-48 overflow-y-auto">
+                                {customStyles.map(style => (
+                                    <div key={style.id} className="flex items-center justify-between p-3 rounded-lg bg-[var(--bg-highlight)] border border-[var(--border-primary)]">
+                                        <div className="flex-1">
+                                            <h4 className="text-sm font-medium text-[var(--text-primary)]">{style.name}</h4>
+                                            <p className="text-xs text-theme-text-secondary">{style.description}</p>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={() => handleEditCustomStyle(style)}
+                                                className="p-1.5 text-[var(--text-secondary)] hover:bg-[var(--interactive-hover)] rounded-md"
+                                            >
+                                                <Edit className="w-3.5 h-3.5"/>
+                                            </button>
+                                            <button 
+                                                onClick={() => handleDeleteCustomStyle(style.id)}
+                                                className="p-1.5 text-[var(--status-error)] hover:bg-[var(--status-error)]/10 rounded-md"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5"/>
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-center text-sm text-theme-text-secondary py-4 italic">
+                                No custom styles created yet. Create your first custom chat style!
+                            </p>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            <div className="mt-6">
+                                 <div className="bg-[var(--bg-card)] shadow-lg border border-[var(--border-primary)] p-4 sm:p-5 rounded-xl">
+                    <div className="flex items-center justify-between mb-3">
+                        <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2 text-[var(--text-primary)]"><BrainCircuit className="w-5 h-5 text-[var(--text-primary)]" /> Universal Context</h2>
+                        {!isEditingAiContext && (<button type="button" onClick={() => { setIsEditingAiContext(true); setAiContextError(null); }} disabled={isLoadingAiContext || isSavingAiContext} className="px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg bg-[var(--bg-highlight)] border border-[var(--border-primary)] hover:bg-[var(--interactive-hover)] text-[var(--text-primary)]">Edit</button>)}
+                    </div>
+                    <p className="text-xs sm:text-sm text-theme-text-secondary mb-4">Provide background information that TaskMaster can always access to personalize its responses and suggestions for you.</p>
                     {aiContextError && (<div className="mb-4 p-3 rounded-lg flex items-start gap-2 bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300"><AlertCircle className="w-4 h-4 shrink-0 mt-px" /><p className="text-xs sm:text-sm">{aiContextError}</p></div>)}
-                    {isLoadingAiContext ? (<div className="flex justify-center items-center h-40"><Loader2 className="w-6 h-6 animate-spin text-[#635BFF]" /></div>)
+                    {isLoadingAiContext ? (<div className="flex justify-center items-center h-40"><Loader2 className="w-6 h-6 animate-spin text-[var(--bg-accent)]" /></div>)
                       : (<div className="space-y-4">
-                          <div><label htmlFor="workDescription" className="block text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">Your Role / Primary Area of Study</label><textarea id="workDescription" name="workDescription" rows={2} value={aiContextData.workDescription} onChange={handleAiContextInputChange} disabled={!isEditingAiContext || isSavingAiContext} placeholder="e.g., Computer Science Student at University of..." className="w-full bg-gray-100 dark:bg-gray-800/60 border-gray-300 dark:border-gray-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#635BFF] disabled:opacity-60 resize-y"/></div>
-                          <div><label htmlFor="shortTermFocus" className="block text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">Current Short-Term Focus (Next 1-4 Weeks)</label><textarea id="shortTermFocus" name="shortTermFocus" rows={2} value={aiContextData.shortTermFocus} onChange={handleAiContextInputChange} disabled={!isEditingAiContext || isSavingAiContext} placeholder="e.g., Preparing for mid-term exams in Algorithms and Data Structures." className="w-full bg-gray-100 dark:bg-gray-800/60 border-gray-300 dark:border-gray-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#635BFF] disabled:opacity-60 resize-y"/></div>
-                          <div><label htmlFor="longTermGoals" className="block text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">Main Long-Term Ambitions or Goals</label><textarea id="longTermGoals" name="longTermGoals" rows={2} value={aiContextData.longTermGoals} onChange={handleAiContextInputChange} disabled={!isEditingAiContext || isSavingAiContext} placeholder="e.g., Secure a software engineering internship for next summer, build a portfolio project." className="w-full bg-gray-100 dark:bg-gray-800/60 border-gray-300 dark:border-gray-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#635BFF] disabled:opacity-60 resize-y"/></div>
-                          <div><label htmlFor="otherContext" className="block text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">Other (Additional preferences, communication style, etc.)</label><textarea id="otherContext" name="otherContext" rows={2} value={aiContextData.otherContext} onChange={handleAiContextInputChange} disabled={!isEditingAiContext || isSavingAiContext} placeholder="e.g., My preferred communication style is concise and direct. I enjoy learning through examples." className="w-full bg-gray-100 dark:bg-gray-800/60 border-gray-300 dark:border-gray-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#635BFF] disabled:opacity-60 resize-y"/></div>
-                          {isEditingAiContext && (<div className="flex justify-end gap-2 mt-5"><button type="button" onClick={handleCancelAiContextEdit} disabled={isSavingAiContext} className="px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200">Cancel</button><button type="button" onClick={handleSaveAiContext} disabled={isSavingAiContext} className="px-4 py-1.5 text-xs sm:text-sm font-medium rounded-lg bg-gradient-to-r from-[#635BFF] to-[#8A85FF] text-white hover:opacity-90 flex items-center justify-center min-w-[80px]">{isSavingAiContext ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 mr-1.5" /> Save Context</>}</button></div>)}
+                          <div><label htmlFor="workDescription" className="block text-xs font-medium mb-1 text-theme-text-secondary">Your Role / Primary Area of Study</label><textarea id="workDescription" name="workDescription" rows={2} value={aiContextData.workDescription} onChange={handleAiContextInputChange} disabled={!isEditingAiContext || isSavingAiContext} placeholder="e.g., Computer Science Student at University of..." className="w-full bg-[var(--bg-highlight)] border border-[var(--border-primary)] rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--interactive-focus)] disabled:opacity-60 resize-y text-[var(--text-primary)] placeholder-theme"/></div>
+                          <div><label htmlFor="shortTermFocus" className="block text-xs font-medium mb-1 text-theme-text-secondary">Current Short-Term Focus (Next 1-4 Weeks)</label><textarea id="shortTermFocus" name="shortTermFocus" rows={2} value={aiContextData.shortTermFocus} onChange={handleAiContextInputChange} disabled={!isEditingAiContext || isSavingAiContext} placeholder="e.g., Preparing for mid-term exams in Algorithms and Data Structures." className="w-full bg-[var(--bg-highlight)] border border-[var(--border-primary)] rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--interactive-focus)] disabled:opacity-60 resize-y text-[var(--text-primary)] placeholder-theme"/></div>
+                          <div><label htmlFor="longTermGoals" className="block text-xs font-medium mb-1 text-theme-text-secondary">Main Long-Term Ambitions or Goals</label><textarea id="longTermGoals" name="longTermGoals" rows={2} value={aiContextData.longTermGoals} onChange={handleAiContextInputChange} disabled={!isEditingAiContext || isSavingAiContext} placeholder="e.g., Secure a software engineering internship for next summer, build a portfolio project." className="w-full bg-[var(--bg-highlight)] border border-[var(--border-primary)] rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--interactive-focus)] disabled:opacity-60 resize-y text-[var(--text-primary)] placeholder-theme"/></div>
+                          <div><label htmlFor="otherContext" className="block text-xs font-medium mb-1 text-theme-text-secondary">Other (Additional preferences, communication style, etc.)</label><textarea id="otherContext" name="otherContext" rows={2} value={aiContextData.otherContext} onChange={handleAiContextInputChange} disabled={!isEditingAiContext || isSavingAiContext} placeholder="e.g., My preferred communication style is concise and direct. I enjoy learning through examples." className="w-full bg-[var(--bg-highlight)] border border-[var(--border-primary)] rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--interactive-focus)] disabled:opacity-60 resize-y text-[var(--text-primary)] placeholder-theme"/></div>
+                                                     {isEditingAiContext && (<div className="flex justify-end gap-2 mt-5"><button type="button" onClick={handleCancelAiContextEdit} disabled={isSavingAiContext} className="text-xs font-medium px-2 py-1 rounded-md bg-[var(--bg-highlight)] border border-[var(--border-primary)] hover:bg-[var(--interactive-hover)] text-[var(--text-primary)]">Cancel</button><button type="button" onClick={handleSaveAiContext} disabled={isSavingAiContext} className="text-xs font-medium px-2 py-1 rounded-md bg-[var(--status-success)] text-white hover:bg-[var(--status-success)]/80 flex items-center gap-1">{isSavingAiContext ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Save'}</button></div>)}
                       </div>)}
                 </div>
             </div>
             <div className="mt-6">
-                <div className="bg-white dark:bg-[#161922] shadow-lg border border-gray-200 dark:border-gray-700/50 p-4 sm:p-5 rounded-xl">
-                    <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100"><DatabaseBackup className="w-5 h-5 text-purple-400" /> Memories</h2>
-                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1 mb-4">Manage specific facts TaskMaster has saved from your conversations.</p>
-                    {isLoadingMemories ? (<div className="flex justify-center items-center h-24"><Loader2 className="w-6 h-6 animate-spin text-[#635BFF]" /></div>)
+                                 <div className="bg-[var(--bg-card)] shadow-lg border border-[var(--border-primary)] p-4 sm:p-5 rounded-xl">
+                    <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2 text-[var(--text-primary)]"><DatabaseBackup className="w-5 h-5 text-[var(--text-primary)]" /> Memories</h2>
+                    <p className="text-xs sm:text-sm text-theme-text-secondary mt-1 mb-4">Manage specific facts TaskMaster has saved from your conversations.</p>
+                    {isLoadingMemories ? (<div className="flex justify-center items-center h-24"><Loader2 className="w-6 h-6 animate-spin text-[var(--bg-accent)]" /></div>)
                     : memories.length > 0 ? (
-                        <div className="space-y-2 max-h-96 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
+                        <div className="space-y-2 max-h-96 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-[var(--scrollbar-thumb)] dark:scrollbar-thumb-[var(--scrollbar-thumb-dark)]">
                             {memories.map(memory => (
-                                <div key={memory.id} className="p-3 rounded-lg bg-gray-50 dark:bg-[#1A1D29] border border-gray-100 dark:border-gray-700/70">
+                                <div key={memory.id} className="p-3 rounded-lg bg-[var(--bg-highlight)] border border-[var(--border-primary)]">
                                     {editingMemoryId === memory.id ? (
                                         <div className="space-y-2">
-                                            <textarea value={editingMemoryContent} onChange={(e) => setEditingMemoryContent(e.target.value)} className="w-full text-sm bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded-md p-2 focus:ring-1 focus:ring-[#635BFF]" rows={3} />
+                                                                                         <textarea value={editingMemoryContent} onChange={(e) => setEditingMemoryContent(e.target.value)} className="w-full text-sm bg-[var(--bg-highlight)] border border-[var(--bg-highlight)] rounded-md p-2 focus:outline-none focus:border-[var(--bg-highlight)] text-[var(--text-primary)] selection:bg-[var(--bg-accent)] selection:text-white" rows={3} />
                                             <div className="flex justify-end gap-2">
-                                                <button onClick={handleCancelEditMemory} className="text-xs font-medium px-2 py-1 rounded-md bg-gray-200 dark:bg-gray-600">Cancel</button>
-                                                <button onClick={handleUpdateMemory} disabled={isSavingMemory} className="text-xs font-medium px-2 py-1 rounded-md bg-green-500 text-white flex items-center gap-1">
-                                                    {isSavingMemory ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />} Save
+                                                <button onClick={handleCancelEditMemory} className="text-xs font-medium px-2 py-1 rounded-md bg-[var(--bg-card)] border border-[var(--border-primary)] hover:bg-[var(--interactive-hover)] text-[var(--text-primary)]">Cancel</button>
+                                                <button onClick={handleUpdateMemory} disabled={isSavingMemory} className="text-xs font-medium px-2 py-1 rounded-md bg-[var(--status-success)] text-white hover:bg-[var(--status-success)]/80 flex items-center gap-1">
+                                                    {isSavingMemory ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Save'}
                                                 </button>
                                             </div>
                                         </div>
                                     ) : (
                                         <div className="flex justify-between items-start gap-2">
-                                            <p className="text-sm text-gray-700 dark:text-gray-300 flex-1 break-words">{memory.content}</p>
+                                            <p className="text-sm text-[var(--text-secondary)] flex-1 break-words">{memory.content}</p>
                                             <div className="flex gap-1 flex-shrink-0">
-                                                <button onClick={() => handleEditMemory(memory)} className="p-1.5 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-md"><Edit className="w-3.5 h-3.5"/></button>
-                                                <button onClick={() => handleDeleteMemory(memory.id)} disabled={isDeletingMemory === memory.id} className="p-1.5 text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-md">
+                                                <button onClick={() => handleEditMemory(memory)} className="p-1.5 text-[var(--text-secondary)] hover:bg-[var(--interactive-hover)] rounded-md"><Edit className="w-3.5 h-3.5"/></button>
+                                                <button onClick={() => handleDeleteMemory(memory.id)} disabled={isDeletingMemory === memory.id} className="p-1.5 text-[var(--status-error)] hover:bg-[var(--status-error)]/10 rounded-md">
                                                     {isDeletingMemory === memory.id ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Trash2 className="w-3.5 h-3.5"/>}
                                                 </button>
                                             </div>
@@ -1124,28 +1693,30 @@ const handleNotionConnect = () => {
                                 </div>
                             ))}
                         </div>
-                    ) : (<p className="text-center text-sm text-gray-500 dark:text-gray-400 py-4 italic">No memories saved yet. TaskMaster will learn as you interact.</p>)}
+                    ) : (<p className="text-center text-sm text-theme-text-secondary py-4 italic">No memories saved yet. TaskMaster will learn as you interact.</p>)}
                 </div>
             </div>
-            <div className="mt-6">
-                <div className="bg-white dark:bg-[#161922] shadow-lg border border-gray-200 dark:border-gray-700/50 p-4 sm:p-5 rounded-xl">
-                    <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100">
-                        <Workflow className="w-5 h-5 text-amber-500 dark:text-amber-400"/> Integrations
+            <div className="mt-6" id="integrations-section">
+                                 <div className="bg-[var(--bg-card)] shadow-lg border border-[var(--border-primary)] p-4 sm:p-5 rounded-xl">
+                    <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2 text-[var(--text-primary)]">
+                        <Workflow className="w-5 h-5 text-[var(--text-primary)]"/> Integrations
                     </h2>
-                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1 mb-4">Connect your favorite apps to supercharge your learning.</p>
+                    <p className="text-xs sm:text-sm text-theme-text-secondary mt-1 mb-4">Connect your favorite apps to supercharge your learning.</p>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-[#1A1D29] border border-gray-100 dark:border-gray-700/70">
+                        <div className="flex items-center justify-between p-4 rounded-lg bg-[var(--bg-highlight)] border border-[var(--border-primary)]">
                             <div className="flex items-center gap-3">
                                 <NotionIcon className="w-8 h-8"/>
-                                <span className="font-medium text-gray-700 dark:text-gray-200">Notion</span>
+                                <span className="font-medium text-theme-text-primary">Notion</span>
                             </div>
                             {isNotionConnected ? (
                                 <div className="flex items-center gap-2">
-                                    <span className="text-xs font-semibold px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400">Connected</span>
-                                    <button onClick={handleNotionDisconnect} className="text-xs font-medium px-2 py-1 rounded-full bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400">Disconnect</button>
+                                    <span className="text-xs font-semibold px-2 py-1 rounded-lg bg-[var(--status-success)]/10 text-[var(--status-success)]">Connected</span>
+                                    <button onClick={handleNotionDisconnect} disabled={isNotionDisconnecting} className="text-xs font-medium px-2 py-1 rounded-lg bg-[var(--status-error)] text-[var(--text-white)] hover:bg-[var(--status-error)]/80 disabled:opacity-50">
+                                        {isNotionDisconnecting ? 'Disconnecting...' : 'Disconnect'}
+                                    </button>
                                 </div>
                             ) : (
-                                <button onClick={handleNotionConnect} disabled={isNotionConnecting} className="text-xs font-semibold px-3 py-1.5 rounded-full bg-[#635BFF] text-white hover:opacity-90 disabled:opacity-50">
+                                <button onClick={handleNotionConnect} disabled={isNotionConnecting} className="text-xs font-semibold px-2 py-1 rounded-lg bg-[var(--bg-accent)] text-[var(--text-white)] hover:bg-[var(--interactive-hover)] disabled:opacity-50">
                                     {isNotionConnecting ? 'Connecting...' : 'Connect'}
                                 </button>
                             )}
@@ -1154,12 +1725,12 @@ const handleNotionConnect = () => {
                             { name: 'Google Drive', icon: GoogleDriveIcon },
                             { name: 'Google Calendar', icon: GoogleCalendarIcon },
                         ].map(integration => (
-                            <div key={integration.name} className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-[#1A1D29] border border-gray-100 dark:border-gray-700/70">
+                            <div key={integration.name} className="flex items-center justify-between p-4 rounded-lg bg-[var(--bg-highlight)] border border-[var(--border-primary)]">
                                 <div className="flex items-center gap-3">
                                     <integration.icon className="w-8 h-8"/>
-                                    <span className="font-medium text-gray-700 dark:text-gray-200">{integration.name}</span>
+                                    <span className="font-medium text-theme-text-primary">{integration.name}</span>
                                 </div>
-                                <span className="text-xs font-semibold px-2 py-1 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400">Coming Soon</span>
+                                <span className="text-xs font-semibold px-2 py-1 rounded-full bg-theme-card text-theme-text-secondary">Coming Soon</span>
                             </div>
                         ))}
                     </div>
@@ -1167,6 +1738,154 @@ const handleNotionConnect = () => {
             </div>
           </div>
       </main>
+
+      {/* Custom Style Modal */}
+      {isCustomStyleModalOpen && (
+        <div className="fixed inset-0 bg-theme-overlay-dark z-[90] flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }} 
+            animate={{ scale: 1, opacity: 1 }} 
+            className="bg-[var(--bg-card)] p-6 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-[var(--border-primary)]"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-[var(--text-primary)]">
+                {editingCustomStyle ? 'Edit Custom Style' : 'Create Custom Style'}
+              </h3>
+              <button 
+                onClick={() => {
+                  setIsCustomStyleModalOpen(false);
+                  setEditingCustomStyle(null);
+                  setCustomStyleFormData({
+                    name: '',
+                    description: '',
+                    prompt: '',
+                    color: 'bg-[var(--bg-accent)]',
+                    hoverColor: 'hover:bg-[var(--interactive-hover)]',
+                    lightBg: 'bg-[var(--interactive-hover)]',
+                    textColor: 'text-[var(--text-primary)]'
+                  });
+                }}
+                className="p-1 rounded-md hover:bg-[var(--interactive-hover)]"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2 text-[var(--text-secondary)]">
+                  Style Name 
+                </label>
+                <input
+                  type="text"
+                  value={customStyleFormData.name}
+                  onChange={(e) => setCustomStyleFormData(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm bg-[var(--bg-highlight)] border border-[var(--border-primary)] rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--interactive-focus)] text-[var(--text-primary)] placeholder-theme"
+                  placeholder="e.g., Academic Writing, Creative Writing"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2 text-[var(--text-secondary)]">
+                  Description
+                </label>
+                <input
+                  type="text"
+                  value={customStyleFormData.description}
+                  onChange={(e) => setCustomStyleFormData(prev => ({ ...prev, description: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm bg-[var(--bg-highlight)] border border-[var(--border-primary)] rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--interactive-focus)] text-[var(--text-primary)] placeholder-theme"
+                  placeholder="Brief description of this style"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2 text-[var(--text-secondary)]">
+                  Style Instructions
+                </label>
+                <textarea
+                  value={customStyleFormData.prompt}
+                  onChange={(e) => setCustomStyleFormData(prev => ({ ...prev, prompt: e.target.value }))}
+                  rows={6}
+                  className="w-full px-3 py-2 text-sm bg-[var(--bg-highlight)] border border-[var(--border-primary)] rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--interactive-focus)] resize-y text-[var(--text-primary)] placeholder-theme"
+                  placeholder="Detailed instructions for how the AI should behave with this style..."
+                />
+                <p className="text-xs text-theme-text-secondary mt-1">
+                  Be specific about tone, language, structure, and any special requirements.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  onClick={() => {
+                    setIsCustomStyleModalOpen(false);
+                    setEditingCustomStyle(null);
+                    setCustomStyleFormData({
+                      name: '',
+                      description: '',
+                      prompt: '',
+                      color: 'bg-[var(--bg-accent)]',
+                      hoverColor: 'hover:bg-[var(--interactive-hover)]',
+                      lightBg: 'bg-[var(--interactive-hover)]',
+                      textColor: 'text-[var(--text-primary)]'
+                    });
+                  }}
+                  className="px-4 py-2 text-sm font-medium rounded-lg bg-[var(--bg-highlight)] border border-[var(--border-primary)] hover:bg-[var(--interactive-hover)] text-[var(--text-primary)]"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveCustomStyle}
+                  disabled={!customStyleFormData.name || !customStyleFormData.description || !customStyleFormData.prompt}
+                  className="px-4 py-2 text-sm font-medium rounded-lg bg-[var(--bg-accent)] text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {editingCustomStyle ? 'Update Style' : 'Create Style'}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {confirmAction && (
+        <div className="fixed inset-0 bg-[var(--overlay-dark)] z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] shadow-xl rounded-xl p-5 sm:p-6 max-w-md w-full">
+            <h3 className="text-lg font-semibold mb-3 text-[var(--text-primary)] flex items-center gap-2">
+              {confirmAction.iconType === 'profile' && <UserProfileIcon className="w-5 h-5" />}
+              {confirmAction.iconType === 'style' && <Palette className="w-5 h-5" />}
+              {confirmAction.iconType === 'memory' && <DatabaseBackup className="w-5 h-5" />}
+              {confirmAction.iconType === 'notion' && <NotionIcon className="w-5 h-5" />}
+              {confirmAction.iconType === 'delete' && <Trash2 className="w-5 h-5" />}
+              Confirm Action
+            </h3>
+            <p className="text-sm text-[var(--text-secondary)] mb-4">{confirmAction.message}</p>
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => { 
+                  confirmAction.onCancel?.(); 
+                  setConfirmAction(null); 
+                }} 
+                className="px-4 py-2 text-sm font-medium rounded-lg bg-[var(--bg-highlight)] border border-[var(--border-primary)] hover:bg-[var(--interactive-hover)] text-[var(--text-primary)]"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => { 
+                  confirmAction.onConfirm(); 
+                  setConfirmAction(null);
+                }} 
+                className={`px-4 py-2 text-sm font-medium rounded-lg text-[var(--text-white)] ${
+                  confirmAction.actionType === 'positive' 
+                    ? 'bg-[var(--status-success)] hover:bg-[var(--status-success)]/80' 
+                    : 'bg-[var(--status-error)] hover:bg-[var(--status-error)]/80'
+                }`}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

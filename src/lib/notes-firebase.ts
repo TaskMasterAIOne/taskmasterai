@@ -133,7 +133,7 @@ export async function processTextToAINoteData( text: string, userId: string, onP
     }
     safeProgress(100);
 
-    return { title, content, keyPoints, questions, flashcards, type: 'personal', userId, isPublic: false, tags: ['ai-processed'] };
+    return { title, content, keyPoints, questions, flashcards, type: 'personal', userId, isPublic: false, tags: [] };
   } catch (error) {
     throw new Error(`AI processing failed: ${error instanceof Error ? error.message : 'Unknown'}`);
   }
