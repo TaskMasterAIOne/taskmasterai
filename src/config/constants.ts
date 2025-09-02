@@ -5,13 +5,15 @@
 // =================================================================================================
 
 // Firebase Configuration
+// IMPORTANT: Using hardcoded values for production stability
+// Consider using environment variables for security in the future
 export const FIREBASE_CONFIG = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "",
+  apiKey: "AIzaSyDaMAlQRMXiDsZ4P0b06P18id3y5xBiZ1k",
+  authDomain: "deepworkai-c3419.firebaseapp.com",
+  projectId: "deepworkai-c3419",
+  storageBucket: "deepworkai-c3419.appspot.com",
+  messagingSenderId: "367439182644",
+  appId: "1:367439182644:web:304216430df97eff68c361",
 } as const;
 
 // API Configuration
