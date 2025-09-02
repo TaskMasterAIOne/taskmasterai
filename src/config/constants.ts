@@ -57,7 +57,8 @@ export const PREMIUM_EMAILS = [
   "amrish.naranappa@gmail.com",
   "navaneeth.ravindranath@gmail.com",
   "Goduwin_Ravi@yahoo.com",
-  "gautham.paddu@outlook.com", 
+  "gautham.paddu@outlook.com",
+  "draco77654@gmail.com",
   "Isha.kandhaluram@gmail.com",
   "learner@example.com",
   "draco77654@gmail.com",
@@ -73,7 +74,7 @@ export const PRO_EMAILS = [
 ] as const;
 
 export const DEV_EMAILS = [
-  "bajinsrinivasr@lexington1.net"
+  "bajinsrinivasr@lexington1.net", "draco77654@gmail.com"
 ] as const;
 
 export const INTERN_EMAILS = [
