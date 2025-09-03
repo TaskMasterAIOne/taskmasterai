@@ -2,7 +2,7 @@ import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { storage } from './firebase';
 import { v4 as uuidv4 } from 'uuid';
 import { 
-    getGeminiProxy, 
+    getTaskMasterProxy, 
     extractCandidateText, 
     AI_CONFIGS, 
     PROMPT_TEMPLATES,
@@ -79,7 +79,7 @@ export async function processYouTube(
     onProgress: (progress: number) => void
 ): Promise<ProcessedYouTube> {
     const safeProgress = typeof onProgress === 'function' ? onProgress : () => {};
-    const geminiProxyCallable = getGeminiProxy();
+    const taskMasterProxyCallable = getTaskMasterProxy();
 
     if (!YOUTUBE_API_KEY || ['YOUR_YOUTUBE_API_KEY', 'YOUR_ACTUAL_YOUTUBE_API_KEY_HERE'].includes(YOUTUBE_API_KEY) ) {
         throw new Error('YouTube API Key missing/invalid. Please configure a valid key in your environment variables.');

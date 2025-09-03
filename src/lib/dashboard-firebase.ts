@@ -22,6 +22,7 @@ import {
   type DocumentData,
   getDocs,
   type Unsubscribe,
+  runTransaction,
 } from "firebase/firestore"
 
 
@@ -49,48 +50,113 @@ export interface DailyBriefStatus {
 /**
  * Fetches the user's daily brief refresh status from Firestore.
  * If the last refresh was not today, it automatically returns a reset count.
+ * Uses transactions to ensure data consistency.
  */
 export async function getDailyBriefRefreshStatus(userId: string): Promise<DailyBriefStatus> {
     if (!userId) return { count: 0, lastRefreshDate: '' };
-    try {
-        const userRef = doc(db, 'users', userId);
-        const docSnap = await getDoc(userRef);
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            const todayStr = new Date().toISOString().split('T')[0];
+    
+    const maxRetries = 3;
+    let retryCount = 0;
+    
+    while (retryCount < maxRetries) {
+        try {
+            const userRef = doc(db, 'users', userId);
+            const docSnap = await getDoc(userRef);
             
-            // If the last refresh date stored in the DB is not today, the count is effectively 0 for today.
-            if (data.dailyBriefStatus?.lastRefreshDate !== todayStr) {
-                return { count: 0, lastRefreshDate: todayStr };
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                const todayStr = new Date().toISOString().split('T')[0];
+                
+                // If the last refresh date stored in the DB is not today, the count is effectively 0 for today.
+                if (data.dailyBriefStatus?.lastRefreshDate !== todayStr) {
+                    return { count: 0, lastRefreshDate: todayStr };
+                }
+                return data.dailyBriefStatus || { count: 0, lastRefreshDate: todayStr };
             }
-            return data.dailyBriefStatus || { count: 0, lastRefreshDate: '' };
+            // If no document or status exists, return a fresh start.
+            const todayStr = new Date().toISOString().split('T')[0];
+            return { count: 0, lastRefreshDate: todayStr };
+            
+        } catch (error: any) {
+            console.error(`Error fetching daily brief status (attempt ${retryCount + 1}):`, error);
+            
+            if ((error?.code === 'failed-precondition' || error?.code === 'aborted' || error?.code === 'unavailable') && retryCount < maxRetries - 1) {
+                // Wait before retrying with exponential backoff
+                const delay = Math.pow(2, retryCount) * 100 + Math.random() * 100;
+                await new Promise(resolve => setTimeout(resolve, delay));
+                retryCount++;
+                continue;
+            }
+            
+            // If it's not a retryable error or we've exhausted retries, return default
+            console.error("Failed to fetch daily brief status after retries:", error);
+            const todayStr = new Date().toISOString().split('T')[0];
+            return { count: 0, lastRefreshDate: todayStr };
         }
-        // If no document or status exists, return a fresh start.
-        return { count: 0, lastRefreshDate: '' };
-    } catch (error) {
-        console.error("Error fetching daily brief status:", error);
-        // Return a default, non-blocking value on error to avoid breaking the UI.
-        return { count: 0, lastRefreshDate: '' };
     }
+    
+    // Fallback (should never reach here)
+    const todayStr = new Date().toISOString().split('T')[0];
+    return { count: 0, lastRefreshDate: todayStr };
 }
 
 /**
  * Updates the user's daily brief refresh count in Firestore for the current day.
+ * Uses transactions with retry logic to handle concurrent updates safely.
  */
 export async function updateDailyBriefRefreshStatus(userId: string, newCount: number): Promise<void> {
     if (!userId) return;
-    try {
-        const userRef = doc(db, "users", userId);
-        const todayStr = new Date().toISOString().split('T')[0];
-        // Use setDoc with merge to create or update the dailyBriefStatus object safely.
-        await setDoc(userRef, {
-            dailyBriefStatus: {
-                count: newCount,
-                lastRefreshDate: todayStr
+    
+    const userRef = doc(db, "users", userId);
+    const todayStr = new Date().toISOString().split('T')[0];
+    const maxRetries = 5;
+    let retryCount = 0;
+    
+    while (retryCount < maxRetries) {
+        try {
+            await runTransaction(db, async (transaction) => {
+                const userSnap = await transaction.get(userRef);
+                
+                if (!userSnap.exists()) {
+                    // If user document doesn't exist, create it with the brief status
+                    transaction.set(userRef, {
+                        dailyBriefStatus: {
+                            count: newCount,
+                            lastRefreshDate: todayStr
+                        },
+                        createdAt: serverTimestamp(),
+                        updatedAt: serverTimestamp()
+                    });
+                } else {
+                    // Update existing document
+                    transaction.update(userRef, {
+                        dailyBriefStatus: {
+                            count: newCount,
+                            lastRefreshDate: todayStr
+                        },
+                        updatedAt: serverTimestamp()
+                    });
+                }
+            });
+            
+            // Success - break out of retry loop
+            break;
+            
+        } catch (error: any) {
+            console.error(`Error updating daily brief status (attempt ${retryCount + 1}):`, error);
+            
+            if ((error?.code === 'failed-precondition' || error?.code === 'aborted') && retryCount < maxRetries - 1) {
+                // Wait before retrying with exponential backoff + jitter
+                const delay = Math.pow(2, retryCount) * 200 + Math.random() * 200;
+                await new Promise(resolve => setTimeout(resolve, delay));
+                retryCount++;
+                continue;
             }
-        }, { merge: true });
-    } catch (error) {
-        console.error("Could not update daily brief status in Firestore:", error);
+            
+            // If it's not a retryable error or we've exhausted retries, log and break
+            console.error("Failed to update daily brief status after retries:", error);
+            break;
+        }
     }
 }
 

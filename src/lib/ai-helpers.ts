@@ -1,6 +1,6 @@
 // AI Helper functions for Gemini integration
 
-export const geminiEndpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+export const aiEndpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 
 export const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 30000) => {
   const controller = new AbortController()
@@ -62,7 +62,7 @@ export const extractCandidateText = (text: string): string => {
       candidateText = jsonResponse.candidates[0].content.parts[0].text
     }
   } catch (err) {
-    console.error("Error parsing Gemini response:", err)
+    console.error("Error parsing TaskMaster response:", err)
   }
   return candidateText
 }

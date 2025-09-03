@@ -46,7 +46,8 @@ import {
   updateUserPointsAndLevel,
   updateUserStreak,
   addUserBadge,
-  POINTS_FOR_FREE_PREMIUM
+  POINTS_FOR_FREE_PREMIUM,
+  getCurrentMonthLocal
 } from '../lib/current-paying-user';
 
 import {
@@ -101,7 +102,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { ContextDialog } from './context-dialog';
 import { ChatControls } from './chat-controls';
-import { IntegrationsControl } from './integrations-control';
+import { ConnectorsControl } from './connectors-control';
 import { saveUserContext, onUserContextChange, type UserContext } from '../lib/ai-context-firebase';
 import { AMBIENT_SOUND_FILES, type AmbientSound as AmbientSoundFile } from '../lib/ambientSounds';
 import { getDefaultChatStyle } from '../lib/settings-firebase';
@@ -174,7 +175,7 @@ import {
 import { ProfileModal } from './ProfileModal';
 
 
-// SECURE: API calls now go through the geminiProxy function
+// SECURE: API calls now go through the taskMasterProxy function
 
 
 
@@ -680,7 +681,7 @@ const combineDateAndTime = (dateStr: string | undefined | null, timeStr: string 
 };
 
 
-// SECURE: Use the geminiProxy function instead of direct API calls
+// SECURE: Use the taskMasterProxy function instead of direct API calls
 const verifyEducationalContent = async (content: FlashcardMessage | QuestionMessage): Promise<FlashcardMessage | QuestionMessage> => {
   const contentType = content.type;
   const contentJsonString = JSON.stringify(content.data, null, 2);
@@ -701,8 +702,8 @@ const verifyEducationalContent = async (content: FlashcardMessage | QuestionMess
     `;
     
   try {
-    // SECURE: Use the geminiProxy function
-    const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+    // SECURE: Use the taskMasterProxy function
+    const taskMasterProxyCallable = httpsCallable(functions, 'taskMasterProxy');
     
     const apiRequestBody = {
       contents: [{ parts: [{ text: prompt }] }],
@@ -713,7 +714,7 @@ const verifyEducationalContent = async (content: FlashcardMessage | QuestionMess
       isImageGen: false
     };
     
-    const result = await geminiProxyCallable(apiRequestBody);
+    const result = await taskMasterProxyCallable(apiRequestBody);
     const responseData = result.data as any;
     
     if (responseData.error || !responseData.text) {
@@ -1207,7 +1208,7 @@ export function FocusModeOriginal() {
           setChatLimit(limit);
           setCurrentChatLimitDisplay(limit === Infinity ? '∞' : limit);
           if (tier !== 'premium') {
-            const currentMonth = new Date().toISOString().slice(0, 7);
+            const currentMonth = getCurrentMonthLocal();
         getCurrentMonthUserChatUsage(user.uid, currentMonth).then(usage => setChatUsageCount(usage?.count || 0));
           } else {
             setChatUsageCount(0);
@@ -1810,7 +1811,7 @@ export function FocusModeOriginal() {
     const prompt = `Please provide a short 3-5 word title summarizing this focus conversation. The user has sent ${userMessageCount} messages so far:\n${relevantHistory}\nReturn ONLY the title, with no extra commentary. USE THE SAME LANGUAGE AS PRESENTED IN THE CONVERSATION!`;
     
     try {
-      const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+      const taskMasterProxyCallable = httpsCallable(functions, 'taskMasterProxy');
       
       const apiRequestBody = {
         contents: [{ parts: [{ text: prompt }] }],
@@ -1822,7 +1823,7 @@ export function FocusModeOriginal() {
         useLiteModel: true
       };
       
-      const result = await geminiProxyCallable(apiRequestBody);
+      const result = await taskMasterProxyCallable(apiRequestBody);
       const responseData = result.data as any;
       
       // Parse the response properly
@@ -2586,7 +2587,7 @@ export function FocusModeOriginal() {
         Keep it concise (3-4 sentences) and positive.
       `;
 
-      const aiResult = await httpsCallable(functions, 'geminiProxy')({
+      const aiResult = await httpsCallable(functions, 'taskMasterProxy')({
         contents: [{ parts: [{ text: reflectionPrompt }] }],
         generationConfig: { temperature: 0.7, maxOutputTokens: 200 }
       });
@@ -3181,7 +3182,7 @@ Assistant:`;
 
     try {
         // --- THIS IS THE NEW LOGIC ---
-        const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+        const taskMasterProxyCallable = httpsCallable(functions, 'taskMasterProxy');
         
         const apiRequestBodyForProxy = {
             contents: apiRequestBody.contents,
@@ -3191,7 +3192,7 @@ Assistant:`;
             isImageGen: imageGenModeOn
         };
 
-        const result = await geminiProxyCallable(apiRequestBodyForProxy);
+        const result = await taskMasterProxyCallable(apiRequestBodyForProxy);
         const responseData = result.data as any; // The data is now the direct response from Gemini
 
         // Now, parse the responseData as if it came from Google
@@ -3602,7 +3603,7 @@ RECOMMENDATIONS SHOULD:
 
 Format each recommendation as a clear, concise sentence starting with an action verb.`;
 
-      const aiResult = await httpsCallable(functions, 'geminiProxy')({
+      const aiResult = await httpsCallable(functions, 'taskMasterProxy')({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { temperature: 0.7, maxOutputTokens: 500 }
       });
@@ -4114,7 +4115,7 @@ Format each recommendation as a clear, concise sentence starting with an action 
                                            isIlluminateEnabled={isIlluminateEnabled}
                                            isBlackoutEnabled={isDarkMode && !isIlluminateEnabled}
                                        />
-                                       <IntegrationsControl
+                                       <ConnectorsControl
                                            isNotionConnected={isNotionConnected}
                                            isNotionSearchModeActive={isNotionSearchModeActive}
                                            onToggleNotionSearchMode={handleToggleNotionSearchMode}
@@ -5397,14 +5398,14 @@ Format each recommendation as a clear, concise sentence starting with an action 
                                         <button type="button" onClick={handleToggleSearchMode} disabled={isChatLoading || isChatDisabledByLimit || !conversationId} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isSearchModeActive ? 'bg-theme-accent/20 text-theme-accent' : 'text-theme-text-muted hover:bg-theme-interactive-hover disabled:text-theme-text-muted/50'}`} title={isSearchModeActive ? "Disable Search" : "Enable Search"}><Globe className="w-4 h-4" /><span className="hidden sm:inline">Search</span></button>
                                         <button type="button" onClick={handleToggleImageGenMode} disabled={isChatLoading || isChatDisabledByLimit || !conversationId} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isImageGenModeActive ? 'bg-theme-accent/20 text-theme-accent' : 'text-theme-text-muted hover:bg-theme-interactive-hover disabled:text-theme-text-muted/50'}`} title={isImageGenModeActive ? "Switch to Normal" : "Generate Image"}><ImageIcon className="w-4 h-4" /><span className="hidden sm:inline">Image</span></button>
                                         
-                                        {/* Add ChatControls and IntegrationsControl like Dashboard */}
+                                        {/* Add ChatControls and ConnectorsControl like Dashboard */}
                                         <ChatControls
                                             onStyleSelect={handleStyleSelect}
                                             activeStyle={activeStyle}
                                             isIlluminateEnabled={isIlluminateEnabled}
                                             isBlackoutEnabled={isDarkMode && !isIlluminateEnabled}
                                         />
-                                        <IntegrationsControl
+                                        <ConnectorsControl
                                             isNotionConnected={isNotionConnected}
                                             isNotionSearchModeActive={isNotionSearchModeActive}
                                             onToggleNotionSearchMode={handleToggleNotionSearchMode}

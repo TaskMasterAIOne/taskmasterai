@@ -90,8 +90,22 @@ import {
     saveNote, savePersonalNote, updateNote, processTextToAINoteData,
     deleteNote, toggleNotePublicStatus, regenerateStudyQuestions, getNoteById,
     addPodcastToNote, deletePodcastFromNote,
-    NoteData as FirebaseNoteData, Podcast, PodcastSegment, Flashcard
+    NoteData as FirebaseNoteData, 
+    Podcast, 
+    PodcastSegment, 
+    PodcastSettings,
+    createDefaultPodcastSettings,
+    validatePodcastSettings,
+    validatePodcast,
+    Flashcard
 } from '../lib/notes-firebase';
+import {
+    generatePodcastScript,
+    PREDEFINED_PODCAST_SPEAKERS,
+    getSpeakerDisplayName,
+    getPodcastSpeakersText,
+    PodcastTextObjects
+} from '../lib/podcast-script-generator';
 
 // Quiz types
 interface QuizTopic {
@@ -128,7 +142,8 @@ import {
     updateUserStreak,
     addUserBadge,
     incrementUserProfileCounter,
-    POINTS_FOR_FREE_PREMIUM
+    POINTS_FOR_FREE_PREMIUM,
+    getCurrentMonthLocal
 } from '../lib/current-paying-user';
 import { pdfjs, Document, Page } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
@@ -154,7 +169,7 @@ import 'suneditor/dist/css/suneditor.min.css';
 // Use react-pdf's bundled worker to avoid version conflicts
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
-// SECURE: API calls now go through the geminiProxy function
+// SECURE: API calls now go through the taskMasterProxy function
 
 interface SunEditorWrapperProps {
   initialContent?: string;
@@ -366,30 +381,13 @@ interface Note extends FirebaseNoteData {
 interface UploadProgressState { progress: number; status: string; error: string | null; icon?: React.FC<any>; type?: 'success' | 'error' | 'info'; customStyle?: { backgroundColor?: string; color?: string; border?: string }; }
 interface NoteUsage { pdfAi: number; youtube: number; }
 
-interface PodcastSpeakerProfile extends SpeakerProfileForProcessor {
-    description: string;
-    avatarUrl: string;
-    sampleAudioUrl: string;
-}
-
-const PREDEFINED_PODCAST_SPEAKERS: PodcastSpeakerProfile[] = [
-    {
-        id: 'felicity', name: 'Felicity', description: 'Polished, articulate, and easy on the ears.',
-        avatarUrl: 'https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/girl%20-%20felicity.jpg?alt=media&token=2515318d-1917-4561-9abb-400285733ef4',
-        elevenLabsVoiceId: 'aTbnroHRGIomiKpqAQR8',
-        sampleAudioUrl: 'https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/felicity_sample_voice.mp3?alt=media&token=d7c5bef0-cb45-491e-8e36-e792e63133e0'
-    },
-    {
-        id: 'christopher', name: 'Christopher', description: 'Lifelike, expressive, and professionally tuned.',
-        avatarUrl: 'https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/boy%20-%20christopher.jpg?alt=media&token=92d53b92-48a7-4b04-826e-bca0a8f0507f',
-        elevenLabsVoiceId: 'G17SuINrv2H9FC6nvetn',
-        sampleAudioUrl: 'https://firebasestorage.googleapis.com/v0/b/deepworkai-c3419.appspot.com/o/christopher_sample_voice.mp3?alt=media&token=fd0d094a-dbbb-40b3-8019-b8bd1b6c17aa'
-    },
-];
+// PodcastSpeakerProfile is now imported from podcast-script-generator
+// PREDEFINED_PODCAST_SPEAKERS is now imported from podcast-script-generator
 
 interface TriggerPodcastRequest {
   noteId: string;
   segments: ProcessedPodcastSegment[];
+  settings: PodcastSettings;
 }
 
 interface TriggerPodcastResponse {
@@ -402,6 +400,25 @@ const triggerPodcastGenerationFn = httpsCallable<
     TriggerPodcastRequest,
     TriggerPodcastResponse
 >(firebaseFunctions, 'triggerPodcastGeneration');
+
+// Helper functions are now imported from podcast-script-generator
+
+// Wrapper function to call the Firebase function with proper data structure
+async function triggerPodcastGeneration(
+    noteId: string, 
+    segments: ProcessedPodcastSegment[], 
+    settings: PodcastSettings
+): Promise<TriggerPodcastResponse> {
+    // Validate settings before sending
+    const validatedSettings = validatePodcastSettings(settings);
+    
+    const result = await triggerPodcastGenerationFn({
+        noteId,
+        segments,
+        settings: validatedSettings
+    });
+    return result.data;
+}
 
 const SimpleModal = ({ isOpen, onClose, title, children, maxWidth = "max-w-md" }: { isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; maxWidth?: string}) => {
     // Lock body scroll when modal is open
@@ -582,12 +599,12 @@ export function Notes() {
     const [showPodcastConfigModal, setShowPodcastConfigModal] = useState(false);
     const [showVoiceSelectionModal, setShowVoiceSelectionModal] = useState(false);
     const [speakerSlotToConfigure, setSpeakerSlotToConfigure] = useState<1 | 2 | null>(null);
-    const [podcastPlaybackSettings, setPodcastPlaybackSettings] = useState<Podcast['settings']>({
-        language: 'en',
-        speaker1Id: PREDEFINED_PODCAST_SPEAKERS[0]?.id || null,
-        speaker2Id: null,
-        length: 'short',
-        instructions: '',
+    const [podcastPlaybackSettings, setPodcastPlaybackSettings] = useState<PodcastSettings>(() => {
+        const defaults = createDefaultPodcastSettings();
+        return {
+            ...defaults,
+            speaker1Id: PREDEFINED_PODCAST_SPEAKERS[0]?.id || null
+        };
     });
 
     const [questionAnswers, setQuestionAnswers] = useState<{[key: string]: number | null}>({});
@@ -887,7 +904,7 @@ const handlePodcastToggle = () => {
 
                 determineUserTier(firebaseUser.uid, firebaseUser.email, profile).then(resolvedTier => {
                   setUserTier(resolvedTier);
-                  const currentMonthYear = new Date().toISOString().slice(0, 7);
+                  const currentMonthYear = getCurrentMonthLocal();
                   setUsageMonth(currentMonthYear);
                   if (resolvedTier !== 'premium') {
                     const usageData = profile.noteUsageByMonth?.[currentMonthYear];
@@ -904,7 +921,7 @@ const handlePodcastToggle = () => {
               } else {
                 setUserTier('basic');
                 setNoteUsage({ pdfAi: 0, youtube: 0 });
-                setUsageMonth(new Date().toISOString().slice(0, 7));
+                setUsageMonth(getCurrentMonthLocal());
               }
             });
 
@@ -1903,109 +1920,33 @@ const handleYoutubeLink = async (url: string, onProgress: (progress: number) => 
     try {
         const { title, contentHtml, keyPoints } = podcastTextObjects;
 
-        const speaker1Profile = PREDEFINED_PODCAST_SPEAKERS.find(s => s.id === podcastPlaybackSettings.speaker1Id);
-        const speaker2Profile = podcastPlaybackSettings.speaker2Id ? PREDEFINED_PODCAST_SPEAKERS.find(s => s.id === podcastPlaybackSettings.speaker2Id) : null;
-
-        let speakerInstructions = `There is one speaker: [SPEAKER_1].
-- **Name**: ${speaker1Profile?.name}
-- **Persona**: "${speaker1Profile?.description}"
-- **Role**: They are the sole narrator and host. They must embody their persona fully, making the script sound like a captivating monologue or story, not a dry reading.`;
-        if (speaker2Profile) {
-            speakerInstructions = `There are two speakers. Their interaction is the heart of the podcast. It must be a living, breathing conversation.
-- **[SPEAKER_1] (The Host)**:
-  - **Name**: ${speaker1Profile?.name}
-  - **Persona**: "${speaker1Profile?.description}"
-  - **Role**: To steer the conversation, introduce the main ideas, and pose thoughtful questions. They are the anchor of the show.
-
-- **[SPEAKER_2] (The Co-Host)**:
-  - **Name**: ${speaker2Profile.name}
-  - **Persona**: "${speaker2Profile.description}"
-  - **Role**: To be the voice of the listener. They must actively interject with clarifying questions ("So, what you're saying is..."), provide real-world examples, challenge assumptions ("But does that always hold true?"), and offer alternative viewpoints to create a rich, multi-faceted dialogue.`;
-        }
-
-        const lengthInstruction = {
-            short: "The target length is 'short' (approx. 5-15 minutes). Every line must serve a purpose. Be ruthless in cutting fluff. The goal is maximum impact in minimum time.",
-        }[podcastPlaybackSettings.length || 'short'];
-
-        const scriptGenPrompt = `You are a world-class podcast scriptwriter and narrative designer. Your job is not to summarize text, but to transmute it into a deeply engaging and authentic audio experience. You will adhere to every single rule in this prompt with absolute fidelity.
-
-**Your Secret Raw Material (Source Note Content):**
-"""
-${contentHtml.replace(/<[^>]+>/g, '\n')}
-"""
-
-**Core Themes to Weave into the Conversation:**
-- ${keyPoints.join('\n- ')}
-
-**DIRECTIVE 1: THE SOUL OF THE SCRIPT - RADICAL AUTHENTICITY**
-- **This is a Conversation, Not a Recitation:** The source content is your inspiration, not your script. You must completely re-imagine it as a natural dialogue. The final script should have no trace of its origin as written notes.
-- **Embrace Spoken Language:** Use contractions (it's, that's, you're), conversational phrasing, and rhetorical questions. Write for the ear, not the eye.
-- **No Monologues:** A speaker should rarely deliver more than 3-4 sentences before the other speaker contributes. The dialogue must be a rapid, engaging volley of ideas. Keep the pace brisk and the exchanges tight.
-- **Show, Don't Just Tell:** Instead of stating a fact, have the hosts discuss its implications. Use analogies, stories, and examples to illustrate complex points.
-
-**DIRECTIVE 2: MASTER THE SPEAKER PERSONAS & DYNAMICS**
-- ${speakerInstructions}
-- **FOR TWO-SPEAKER SCRIPTS:** The interplay is everything. [SPEAKER_2] must not be a passive listener. They should interrupt, question, and push the conversation in new directions. Their lines should sound like genuine reactions to [SPEAKER_1]. For example:
-    - "Hang on, let me stop you there. What does that actually mean for someone who isn't an expert?"
-    - "That's a great point, and it reminds me of a situation where..."
-    - "I'm not sure I totally agree with that. Couldn't you also argue that...?"
-
-**DIRECTIVE 3: THE UNBREAKABLE RULES OF FORMATTING (ZERO TOLERANCE FOR ERRORS)**
-- **THE ONE TRUE FORMAT:** Every single line of dialogue MUST start with either \`[SPEAKER_1]:\` or \`[SPEAKER_2]:\`. This is a non-negotiable, absolute rule.
-- **VALID TAGS ONLY:** The only tags you are permitted to use are \`[SPEAKER_1]:\` and \`[SPEAKER_2]:\`.
-- **NO DEVIATION:** There must be a colon directly after the bracketed tag, followed by a space.
-- **OUTPUT MUST BE PURE SCRIPT:** Your entire output must be nothing but the script itself. It must begin with the first speaker tag and end with the last line of dialogue.
-
-**DIRECTIVE 4: A COMPENDIUM OF FORBIDDEN ACTIONS (CRITICAL)**
-- **NEVER MENTION THE SOURCE MATERIAL:** The audience must never know this was generated from notes. You are strictly forbidden from using phrases like: "The notes say...", "According to the text...", "The author mentions...", "As we see in the source content...". This breaks the illusion and is an immediate failure.
-- **NO IMAGINARY TAGS:** You are forbidden from creating, modifying, or using any speaker tags other than the two specified above. Do not use \`SPEAKER_1_MALE\`, \`[SPEAKER 1]\`, \`Host:\`, or any other variation. This will be considered a critical error.
-- **NO METADATA OR EXPLANATIONS:** Do not include a title, scene settings, author notes, sound effect cues (e.g., "[upbeat music]"), or any explanatory text. The response must be 100% raw script.
-- **DO NOT ANNOUNCE THE TOPIC:** Avoid openings like, "Welcome to today's podcast on [Topic]." The conversation should start naturally and reveal the topic organically.
-- **NO SELF-CORRECTION IN THE OUTPUT:** Do not include phrases like "Oops, let me rephrase that" or notes about your own process.
-
-**DIRECTIVE 5: THE ANATOMY OF A PERFECT PODCAST EPISODE**
-1.  **The Hook (First 30 Seconds):** Start in the middle of a thought, with a provocative question, or a bold statement. Grab the listener's attention immediately.
-2.  **The Body (The Conversation):** Unfold the key points through a natural, back-and-forth discussion. Use the speaker dynamics to explore the topic from multiple angles. Guide the listener logically from one idea to the next.
-3.  **The Landing (The Conclusion):** Don't just stop. Bring the conversation to a satisfying close. Have the speakers summarize the one or two most important takeaways. Leave the listener with a clear, memorable final thought.
-
-**DIRECTIVE 6: LENGTH, PACE, AND USER INSTRUCTIONS**
-- **Adhere to Length:** ${lengthInstruction}
-- **Pacing is Key:** The script should feel energetic. Vary sentence length. Short, punchy lines create speed; longer, more thoughtful sentences can be used for emphasis.
-- **Custom Instructions:** ${podcastPlaybackSettings.instructions || 'None provided. Adhere to the core directives above.'}
-
-**FINAL MANDATE:** Review all directives. Your mission is to produce a flawless script. The formatting must be perfect. The conversation must be authentic. The illusion must not be broken. Generate only the script. Begin now.
-`;
+        // Validate podcast settings before proceeding
+        const validatedSettings = validatePodcastSettings(podcastPlaybackSettings);
         
-        const functions = getFunctions();
-        const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+        // Generate podcast script using the new service
+        const scriptResult = await generatePodcastScript(podcastTextObjects, validatedSettings);
         
-        const scriptGenBody = {
-            contents: [{ role: "user", parts: [{ text: scriptGenPrompt }] }],
-            generationConfig: { temperature: 0.75, maxOutputTokens: 8192, topP: 0.95 }
-        };
-
-        const result = await geminiProxyCallable(scriptGenBody);
-        const scriptResponseData = result.data as any; // The data is now the direct response from Gemini
-
-        const parsedScriptResult = parseGeminiResponse(JSON.stringify(scriptResponseData));
-
-        if (parsedScriptResult.error || !parsedScriptResult.text) {
-            throw new Error(parsedScriptResult.error || "Failed to generate podcast script from note.");
+        if (!scriptResult.success || !scriptResult.script) {
+            throw new Error(scriptResult.error || "Failed to generate podcast script.");
         }
         
-        const podcastScript = parsedScriptResult.text;
+        const podcastScript = scriptResult.script;
 
+        // Get speaker profiles for audio processing
+        const speaker1Profile = PREDEFINED_PODCAST_SPEAKERS.find(s => s.id === validatedSettings.speaker1Id);
+        const speaker2Profile = validatedSettings.speaker2Id ? PREDEFINED_PODCAST_SPEAKERS.find(s => s.id === validatedSettings.speaker2Id) : null;
+        
         const textProcessingResult: PodcastTextProcessResult = await processTextForPodcast(
             podcastScript,
-            { id: podcastPlaybackSettings.speaker1Id!, voiceId: speaker1Profile?.elevenLabsVoiceId! },
-            speaker2Profile ? { id: podcastPlaybackSettings.speaker2Id!, voiceId: speaker2Profile.elevenLabsVoiceId! } : undefined
+            { id: validatedSettings.speaker1Id!, voiceId: speaker1Profile?.elevenLabsVoiceId! },
+            speaker2Profile ? { id: validatedSettings.speaker2Id!, voiceId: speaker2Profile.elevenLabsVoiceId! } : undefined
         );
 
         if (textProcessingResult.error || !textProcessingResult.processedSegments) {
             throw new Error(textProcessingResult.error || "Failed to process script for podcast generation.");
         }
 
-        await triggerPodcastGeneration(selectedNote.id, textProcessingResult.processedSegments, podcastPlaybackSettings);
+        await triggerPodcastGeneration(selectedNote.id, textProcessingResult.processedSegments, validatedSettings);
         showToast("Your podcast is being generated!", 'success', Check);
 
     } catch (error: any) {
@@ -2902,7 +2843,7 @@ useEffect(() => {
                                                         Podcast from {toDateSafe(p.createdAt)?.toLocaleString()}
                                                     </p>
                                                     <p className="text-xs text-[var(--text-muted)]">
-                                                        {p.settings.speaker2Id ? `${PREDEFINED_PODCAST_SPEAKERS.find(s=>s.id===p.settings.speaker1Id)?.name} & ${PREDEFINED_PODCAST_SPEAKERS.find(s=>s.id===p.settings.speaker2Id)?.name}` : PREDEFINED_PODCAST_SPEAKERS.find(s=>s.id===p.settings.speaker1Id)?.name}
+                                                        {getPodcastSpeakersText(p.settings)}
                                                     </p>
                                                 </div>
                                             </div>
@@ -3675,7 +3616,7 @@ useEffect(() => {
                                         Podcast from {toDateSafe(p.createdAt)?.toLocaleString()}
                                     </p>
                                     <p className="text-xs text-[var(--text-muted)]">
-                                        {p.settings.speaker2Id ? `${PREDEFINED_PODCAST_SPEAKERS.find(s=>s.id===p.settings.speaker1Id)?.name} & ${PREDEFINED_PODCAST_SPEAKERS.find(s=>s.id===p.settings.speaker2Id)?.name}` : PREDEFINED_PODCAST_SPEAKERS.find(s=>s.id===p.settings.speaker1Id)?.name}
+                                        {getPodcastSpeakersText(p.settings)}
                                     </p>
                                 </div>
                             </div>
@@ -4327,7 +4268,7 @@ useEffect(() => {
                                 onClick={() => { setSpeakerSlotToConfigure(1); setShowVoiceSelectionModal(true); }}
                                 className="w-full p-2 border border-[var(--border-primary)] rounded-md bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-left flex items-center justify-between"
                             >
-                                <span>{podcastPlaybackSettings.speaker1Id ? PREDEFINED_PODCAST_SPEAKERS.find(s => s.id === podcastPlaybackSettings.speaker1Id)?.name : "Choose Speaker 1"}</span>
+                                <span>{podcastPlaybackSettings?.speaker1Id ? PREDEFINED_PODCAST_SPEAKERS.find(s => s.id === podcastPlaybackSettings.speaker1Id)?.name : "Choose Speaker 1"}</span>
                                 <ChevronDown className="w-4 h-4" />
                             </button>
                         </div>
@@ -4337,10 +4278,10 @@ useEffect(() => {
                                 onClick={() => { setSpeakerSlotToConfigure(2); setShowVoiceSelectionModal(true); }}
                                 className="w-full p-2 border border-[var(--border-primary)] rounded-md bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-left flex items-center justify-between"
                             >
-                                <span>{podcastPlaybackSettings.speaker2Id ? PREDEFINED_PODCAST_SPEAKERS.find(s => s.id === podcastPlaybackSettings.speaker2Id)?.name : "Choose Speaker 2"}</span>
+                                <span>{podcastPlaybackSettings?.speaker2Id ? PREDEFINED_PODCAST_SPEAKERS.find(s => s.id === podcastPlaybackSettings.speaker2Id)?.name : "Choose Speaker 2"}</span>
                                 <ChevronDown className="w-4 h-4" />
                             </button>
-                             {podcastPlaybackSettings.speaker2Id && podcastPlaybackSettings.speaker2Id === podcastPlaybackSettings.speaker1Id && (
+                             {podcastPlaybackSettings?.speaker2Id && podcastPlaybackSettings.speaker2Id === podcastPlaybackSettings?.speaker1Id && (
                                 <p className="text-red-500 text-xs mt-1">Speaker 2 cannot be the same as Speaker 1.</p>
                             )}
                         </div>
@@ -4349,7 +4290,7 @@ useEffect(() => {
                             <label htmlFor="podcastLength" className="block text-xs font-medium mb-1">Podcast Length:</label>
                             <select
                                 id="podcastLength"
-                                value={podcastPlaybackSettings.length || 'short'}
+                                value={podcastPlaybackSettings?.length || 'short'}
                                 onChange={(e) => setPodcastPlaybackSettings(prev => ({ ...prev, length: e.target.value as 'short' | 'medium' | 'long' | null }))}
                                 className="w-full p-2 border border-[var(--border-primary)] rounded-md bg-[var(--bg-highlight)] text-[var(--text-secondary)] focus:ring-indigo-500 focus:border-indigo-500"
                             >
@@ -4363,7 +4304,7 @@ useEffect(() => {
                             <label htmlFor="podcastInstructions" className="block text-xs font-medium mb-1">Special Instructions:</label>
                             <textarea
                                 id="podcastInstructions"
-                                value={podcastPlaybackSettings.instructions}
+                                value={podcastPlaybackSettings?.instructions || ''}
                                 onChange={(e) => setPodcastPlaybackSettings(prev => ({...prev, instructions: e.target.value}))}
                                 rows={3}
                                 placeholder="e.g., 'Explain this for a beginner', 'Focus on the historical context', 'Make the tone humorous'"
@@ -4373,8 +4314,8 @@ useEffect(() => {
 
                         <button
                             onClick={handleStartAIPodcast}
-                            disabled={isPodcastProcessing || !podcastPlaybackSettings.speaker1Id || (podcastPlaybackSettings.speaker1Id === podcastPlaybackSettings.speaker2Id && !!podcastPlaybackSettings.speaker2Id) }
-                            className={`w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2.5 px-4 rounded-full transition-colors flex items-center justify-center gap-2 ${(!podcastPlaybackSettings.speaker1Id || isPodcastProcessing || (podcastPlaybackSettings.speaker1Id === podcastPlaybackSettings.speaker2Id && !!podcastPlaybackSettings.speaker2Id) ) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            disabled={isPodcastProcessing || !podcastPlaybackSettings?.speaker1Id || (podcastPlaybackSettings?.speaker1Id === podcastPlaybackSettings?.speaker2Id && !!podcastPlaybackSettings?.speaker2Id) }
+                            className={`w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2.5 px-4 rounded-full transition-colors flex items-center justify-center gap-2 ${(!podcastPlaybackSettings?.speaker1Id || isPodcastProcessing || (podcastPlaybackSettings?.speaker1Id === podcastPlaybackSettings?.speaker2Id && !!podcastPlaybackSettings?.speaker2Id) ) ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                             {isPodcastProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
                             {isPodcastProcessing ? 'Generating...' : 'Generate Podcast'}
@@ -4394,7 +4335,7 @@ useEffect(() => {
                                     if (speakerSlotToConfigure === 1) {
                                         setPodcastPlaybackSettings(prev => ({ ...prev, speaker1Id: speaker.id, ...(prev.speaker2Id === speaker.id && { speaker2Id: null }) }));
                                     } else if (speakerSlotToConfigure === 2) {
-                                         setPodcastPlaybackSettings(prev => ({ ...prev, speaker2Id: prev.speaker1Id === speaker.id ? null : speaker.id }));
+                                         setPodcastPlaybackSettings(prev => ({ ...prev, speaker2Id: prev?.speaker1Id === speaker.id ? null : speaker.id }));
                                     }
                                     setShowVoiceSelectionModal(false);
                                 }}

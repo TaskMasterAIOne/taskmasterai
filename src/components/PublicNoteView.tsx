@@ -77,6 +77,37 @@ const PREDEFINED_PODCAST_SPEAKERS: PodcastSpeakerProfile[] = [
     },
 ];
 
+// Helper function to safely get speaker display name
+const getSpeakerDisplayName = (speakerId: string | null | undefined): string => {
+    if (!speakerId) return 'Unknown Speaker';
+    const speaker = PREDEFINED_PODCAST_SPEAKERS.find(s => s.id === speakerId);
+    return speaker?.name || 'Unknown Speaker';
+};
+
+// Helper function to safely get podcast speakers display text
+const getPodcastSpeakersText = (settings: any): string => {
+    // Simple validation for settings
+    if (!settings || typeof settings !== 'object') {
+        return 'No speakers configured';
+    }
+    
+    const speaker1Id = typeof settings.speaker1Id === 'string' ? settings.speaker1Id : null;
+    const speaker2Id = typeof settings.speaker2Id === 'string' ? settings.speaker2Id : null;
+    
+    if (!speaker1Id) {
+        return 'No speakers configured';
+    }
+    
+    const speaker1Name = getSpeakerDisplayName(speaker1Id);
+    
+    if (speaker2Id && speaker2Id !== speaker1Id) {
+        const speaker2Name = getSpeakerDisplayName(speaker2Id);
+        return `${speaker1Name} & ${speaker2Name}`;
+    }
+    
+    return speaker1Name;
+};
+
 const toDateSafe = (value: any): Date | null => {
     if (!value) return null;
     if (value instanceof Date) return value;
@@ -876,7 +907,7 @@ export function PublicNoteView() {
                                                                 Podcast from {toDateSafe(p.createdAt)?.toLocaleString()}
                                                             </p>
                                                             <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                                {p.settings.speaker2Id ? `${PREDEFINED_PODCAST_SPEAKERS.find(s=>s.id===p.settings.speaker1Id)?.name} & ${PREDEFINED_PODCAST_SPEAKERS.find(s=>s.id===p.settings.speaker2Id)?.name}` : PREDEFINED_PODCAST_SPEAKERS.find(s=>s.id===p.settings.speaker1Id)?.name}
+                                                                {getPodcastSpeakersText(p.settings)}
                                                             </p>
                                                         </div>
                                                     </div>

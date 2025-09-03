@@ -220,7 +220,7 @@ export async function generateAIGreeting(context: AIGreetingContext): Promise<AI
 
     // Call Gemini API to generate personalized greeting
     const functions = getFunctions();
-    const geminiProxy = httpsCallable(functions, 'geminiProxy');
+    const taskMasterProxy = httpsCallable(functions, 'taskMasterProxy');
     
 
 
@@ -307,7 +307,7 @@ export async function generateAIGreeting(context: AIGreetingContext): Promise<AI
     }
     `;
 
-    const response = await geminiProxy({
+    const response = await taskMasterProxy({
       contents: [{
         role: 'user',
         parts: [{

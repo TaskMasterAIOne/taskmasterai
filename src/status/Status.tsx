@@ -163,7 +163,7 @@ Assistant:`;
 
     try {
         // --- THIS IS THE NEW LOGIC ---
-        const geminiProxyCallable = httpsCallable(getFunctions(), 'geminiProxy');
+        const taskMasterProxyCallable = httpsCallable(getFunctions(), 'taskMasterProxy');
         
         const apiRequestBody = {
             contents: [{ parts: [{ text: prompt }] }],
@@ -173,7 +173,7 @@ Assistant:`;
             isImageGen: false
         };
 
-        const result = await geminiProxyCallable(apiRequestBody);
+        const result = await taskMasterProxyCallable(apiRequestBody);
         const responseData = result.data as any; // The data is now the direct response from Gemini
 
         // Extract the text from the response

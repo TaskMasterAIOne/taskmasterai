@@ -1,6 +1,6 @@
 # src/lib
 
-This directory contains helper libraries and integrations for the TaskMasterAI app.
+This directory contains helper libraries and connectors for the TaskMasterAI app.
 
 ## Key Files
 
@@ -20,4 +20,4 @@ import { stripePromise } from './lib/stripe';
 
 ---
 
-_This README describes common helpers and integrations. Add documentation if custom files are added!_
+_This README describes common helpers and connectors. Add documentation if custom files are added!_

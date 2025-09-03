@@ -535,7 +535,7 @@ const LogoIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const integrations = [
+const connectors = [
     { name: 'Notion', Icon: NotionIcon, positionClass: 'top-[5%] left-[40%] -translate-x-1/2', lineEnd: { x: '50%', y: '16%' }, isComingSoon: false },
     { name: 'Khan Academy', Icon: KhanAcademyIcon, positionClass: 'top-[20%] left-[8%]', lineEnd: { x: '19%', y: '32%' }, isComingSoon: true },
     { name: 'Desmos', Icon: DesmosIcon, positionClass: 'top-[20%] right-[8%]', lineEnd: { x: '81%', y: '32%' }, isComingSoon: true },
@@ -545,7 +545,7 @@ const integrations = [
     { name: 'Google Calendar', Icon: GoogleCalendarIcon, positionClass: 'bottom-[10%] right-[20%]', lineEnd: { x: '70%', y: '80%' }, isComingSoon: false },
 ];
 
-export function IntegrationsSection() {
+export function ConnectorsSection() {
     const cardVariants = {
         offscreen: { y: 50, opacity: 0 },
         onscreen: { y: 0, opacity: 1, transition: { type: "spring" as const, bounce: 0.4, duration: 0.8 } }
@@ -579,7 +579,7 @@ export function IntegrationsSection() {
                             transition={{ duration: 0.5, delay: 0.5 }}
                             viewport={{ once: true, amount: 0.8 }}
                         >
-                            {integrations.map(({ name, lineEnd }) => (
+                            {connectors.map(({ name, lineEnd }) => (
                                 <motion.line
                                     key={`line-${name}`}
                                     x1="50%"
@@ -609,7 +609,7 @@ export function IntegrationsSection() {
             <LogoIcon className="w-10 h-10 lg:w-12 lg:h-12" />
         </div>
     </motion.div>
-                        {integrations.map(({ name, Icon, positionClass, isComingSoon }, index) => (
+                        {connectors.map(({ name, Icon, positionClass, isComingSoon }, index) => (
                             <motion.div
                                 key={`node-${name}`}
                                 className={`absolute group ${positionClass}`}
@@ -900,7 +900,7 @@ function App() {
             <TestimonialsSection />
             <AgenticSection />
             <LearningSuperchargedSection />
-            <IntegrationsSection/>
+            <ConnectorsSection/>
         </main>
 
         <footer className="bg-[var(--bg-primary)] mt-16 ">

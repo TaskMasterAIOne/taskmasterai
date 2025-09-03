@@ -25,6 +25,7 @@ import {
   getCurrentMonthUserChatUsage, getUserNoteUsage,
   ChatUsageData, NoteUsageData, onUserProfileSnapshot,
   POINTS_FOR_FREE_PREMIUM,
+  getCurrentMonthLocal,
 } from '../lib/current-paying-user';
 import {
   getMemories, updateMemory, deleteMemory, type Memory,
@@ -445,11 +446,11 @@ export function Settings() {
         setIsHandlingRedirect(true); // Set the flag immediately to prevent re-runs
         setIsNotionConnecting(true);
         
-        // Scroll to integrations section to show "Connecting..." status
+        // Scroll to connectors section to show "Connecting..." status
         setTimeout(() => {
-            const integrationsElement = document.getElementById('integrations-section');
-            if (integrationsElement) {
-                integrationsElement.scrollIntoView({ 
+            const connectorsElement = document.getElementById('connectors-section');
+            if (connectorsElement) {
+                connectorsElement.scrollIntoView({ 
                     behavior: 'smooth', 
                     block: 'center' 
                 });
@@ -469,11 +470,11 @@ export function Settings() {
                 setIsNotionConnected(true);
                 navigate('/settings', { replace: true }); // Clean URL
                 
-                // Scroll to integrations section after navigation
+                // Scroll to connectors section after navigation
                 setTimeout(() => {
-                    const integrationsElement = document.getElementById('integrations-section');
-                    if (integrationsElement) {
-                        integrationsElement.scrollIntoView({ 
+                    const connectorsElement = document.getElementById('connectors-section');
+                    if (connectorsElement) {
+                        connectorsElement.scrollIntoView({ 
                             behavior: 'smooth', 
                             block: 'center' 
                         });
@@ -560,7 +561,7 @@ export function Settings() {
     });
 
     const fetchInitialData = async () => {
-      const currentMonthStr = new Date().toISOString().slice(0, 7);
+      const currentMonthStr = getCurrentMonthLocal();
       try {
         const [tier, firestoreData, fetchedChatUsage, fetchedNoteUsage, fetchedMemories, context] = await Promise.all([
           getUserTier(user.uid, user.email),
@@ -1456,10 +1457,7 @@ const handleNotionConnect = () => {
                     </div>
 
                     <h3 className="text-md font-semibold mb-3 text-theme-text-primary">Badges Earned</h3>
-                    {/* Debug info */}
-                    <div className="mb-2 text-xs text-[var(--text-secondary)]">
-                        Debug: {userProfileData ? `${Object.entries(ALL_BADGES_CONFIG).length} badges configured, ${(userProfileData.badges || []).length} unlocked` : 'No user data'}
-                    </div>
+
                     <BadgesErrorBoundary>
                         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-9 gap-2 sm:gap-3 max-h-80 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-[var(--scrollbar-thumb)] dark:scrollbar-thumb-[var(--scrollbar-thumb-dark)]">
                             {Object.entries(ALL_BADGES_CONFIG)
@@ -1782,10 +1780,10 @@ const handleNotionConnect = () => {
                     ) : (<p className="text-center text-sm text-theme-text-secondary py-4 italic">No memories saved yet. TaskMaster will learn as you interact.</p>)}
                 </div>
             </div>
-            <div className="mt-6" id="integrations-section">
+            <div className="mt-6" id="connectors-section">
                                  <div className="bg-[var(--bg-card)] shadow-lg border border-[var(--border-primary)] p-4 sm:p-5 rounded-xl">
                     <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2 text-[var(--text-primary)]">
-                        <Workflow className="w-5 h-5 text-[var(--text-primary)]"/> Integrations
+                        <Workflow className="w-5 h-5 text-[var(--text-primary)]"/> Connectors
                     </h2>
                     <p className="text-xs sm:text-sm text-theme-text-secondary mt-1 mb-4">Connect your favorite apps to supercharge your learning.</p>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

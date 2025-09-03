@@ -46,7 +46,7 @@ export interface AttachedFileMeta {
 
 export interface ChatMessage {
   id?: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
   createdAt?: any;
   timer?: { type: 'timer'; duration: number; id: string; };
@@ -71,6 +71,10 @@ export interface ChatMessage {
   audioDuration?: number; // Duration in seconds
   isVoiceMessage?: boolean; // Flag to indicate this is a voice message
   transcription?: string; // Text transcription of voice content
+  
+  // Voice chat ended message fields
+  isVoiceChatEnded?: boolean; // Flag to indicate this is a voice chat ended message
+  voiceChatDuration?: string; // Duration of the voice chat session
 }
 
 export async function findItemByName(collectionName: string, userId: string, itemName: string, fieldName: string): Promise<string | null> {
@@ -122,6 +126,16 @@ export async function saveChatMessage(conversationId: string, message: Partial<C
   if (message.actionDetails && typeof message.actionDetails === 'object') messageData.actionDetails = { ...message.actionDetails };
   if (typeof message.isGeneratingImage === 'boolean') messageData.isGeneratingImage = message.isGeneratingImage; // Client might want to save this state
   if (typeof message.wasImageGenerated === 'boolean') messageData.wasImageGenerated = message.wasImageGenerated;
+  
+  // Voice message fields
+  if (typeof message.isVoiceMessage === 'boolean') messageData.isVoiceMessage = message.isVoiceMessage;
+  if (message.audioUrl && typeof message.audioUrl === 'string') messageData.audioUrl = message.audioUrl;
+  if (typeof message.audioDuration === 'number') messageData.audioDuration = message.audioDuration;
+  if (message.transcription && typeof message.transcription === 'string') messageData.transcription = message.transcription;
+  
+  // Voice chat ended fields
+  if (typeof message.isVoiceChatEnded === 'boolean') messageData.isVoiceChatEnded = message.isVoiceChatEnded;
+  if (message.voiceChatDuration && typeof message.voiceChatDuration === 'string') messageData.voiceChatDuration = message.voiceChatDuration;
 
   // Save imageUrl and imageMeta (NO BASE64)
   if (message.imageUrl && typeof message.imageUrl === 'string') {
@@ -202,6 +216,16 @@ export async function saveChatMessageWithId(conversationId: string, messageId: s
   if (typeof message.wasImageGenerated === 'boolean') messageData.wasImageGenerated = message.wasImageGenerated;
   if (message.thinkingContent && typeof message.thinkingContent === 'string') messageData.thinkingContent = message.thinkingContent;
   if (message.sources && Array.isArray(message.sources)) messageData.sources = message.sources;
+  
+  // Voice message fields
+  if (typeof message.isVoiceMessage === 'boolean') messageData.isVoiceMessage = message.isVoiceMessage;
+  if (message.audioUrl && typeof message.audioUrl === 'string') messageData.audioUrl = message.audioUrl;
+  if (typeof message.audioDuration === 'number') messageData.audioDuration = message.audioDuration;
+  if (message.transcription && typeof message.transcription === 'string') messageData.transcription = message.transcription;
+  
+  // Voice chat ended fields
+  if (typeof message.isVoiceChatEnded === 'boolean') messageData.isVoiceChatEnded = message.isVoiceChatEnded;
+  if (message.voiceChatDuration && typeof message.voiceChatDuration === 'string') messageData.voiceChatDuration = message.voiceChatDuration;
 
   // Save imageUrl and imageMeta (NO BASE64)
   if (message.imageUrl && typeof message.imageUrl === 'string') {

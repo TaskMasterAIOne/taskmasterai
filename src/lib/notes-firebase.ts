@@ -3,7 +3,7 @@ import { db } from './firebase';
 import { httpsCallable } from 'firebase/functions';
 import { getFunctions } from 'firebase/functions';
 import { 
-    getGeminiProxy, 
+    getTaskMasterProxy, 
     extractCandidateText, 
     AI_CONFIGS, 
     PROMPT_TEMPLATES,
@@ -24,20 +24,66 @@ export interface PodcastSegment {
     endTime: number;
 }
 
+// New robust podcast interfaces with proper defaults and validation
+export interface PodcastSettings {
+    language: string;
+    speaker1Id: string | null;
+    speaker2Id: string | null;
+    length: 'short' | 'medium' | 'long' | null;
+    instructions: string;
+}
+
 export interface Podcast {
     id: string;
     createdAt: Timestamp;
-    settings: {
-        language: string;
-        speaker1Id: string | null;
-        speaker2Id: string | null;
-        length: 'short' | 'medium' | 'long' | null;
-        instructions: string;
-    };
+    settings: PodcastSettings;
     segments: PodcastSegment[];
     combinedUrl: string;
     totalDuration: number;
 }
+
+// Helper functions for safe podcast data handling
+export const createDefaultPodcastSettings = (): PodcastSettings => ({
+    language: 'en',
+    speaker1Id: null,
+    speaker2Id: null,
+    length: 'short',
+    instructions: ''
+});
+
+export const validatePodcastSettings = (settings: any): PodcastSettings => {
+    if (!settings || typeof settings !== 'object') {
+        return createDefaultPodcastSettings();
+    }
+    
+    return {
+        language: typeof settings.language === 'string' ? settings.language : 'en',
+        speaker1Id: typeof settings.speaker1Id === 'string' ? settings.speaker1Id : null,
+        speaker2Id: typeof settings.speaker2Id === 'string' ? settings.speaker2Id : null,
+        length: ['short', 'medium', 'long'].includes(settings.length) ? settings.length : 'short',
+        instructions: typeof settings.instructions === 'string' ? settings.instructions : ''
+    };
+};
+
+export const validatePodcast = (podcast: any): Podcast | null => {
+    if (!podcast || typeof podcast !== 'object') {
+        return null;
+    }
+    
+    // Validate required fields
+    if (!podcast.id || !podcast.createdAt || !Array.isArray(podcast.segments)) {
+        return null;
+    }
+    
+    return {
+        id: podcast.id,
+        createdAt: podcast.createdAt,
+        settings: validatePodcastSettings(podcast.settings),
+        segments: podcast.segments || [],
+        combinedUrl: podcast.combinedUrl || '',
+        totalDuration: typeof podcast.totalDuration === 'number' ? podcast.totalDuration : 0
+    };
+};
 
 export interface Topic {
     id: string;
@@ -85,7 +131,7 @@ export interface ChatUsageData {
 function removeUndefinedFields(obj: any): any { const newObj: any = {}; Object.keys(obj).forEach(key => { if (obj[key] !== undefined) { newObj[key] = obj[key]; } }); return newObj; }
 async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delayMs = 3000): Promise<Response> { for (let attempt = 0; attempt < retries; attempt++) { try { const response = await fetch(url, options); if (!response.ok && (response.status === 429 || response.status >= 500)) { await new Promise(resolve => setTimeout(resolve, delayMs * (attempt + 1))); continue; } return response; } catch (error) { if (attempt === retries - 1) throw error; await new Promise(resolve => setTimeout(resolve, delayMs * (attempt + 1))); } } throw new Error(`Max retries reached: ${url}`); }
 
-// SECURE: API calls now go through the geminiProxy function
+// SECURE: API calls now go through the taskMasterProxy function
 
 export async function getNoteById(noteId: string): Promise<NoteData | null> { if (!noteId) throw new Error("Note ID is required."); try { const noteRef = doc(db, 'notes', noteId); const docSnap = await getDoc(noteRef); return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } as NoteData : null; } catch (error) { throw new Error(`Failed to fetch note ${noteId}: ${error instanceof Error ? error.message : 'Unknown error'}`); } }
 export async function saveNote(noteData: Omit<NoteData, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> { try { const dataToSave = removeUndefinedFields(noteData); if (!dataToSave.title || !dataToSave.content || !dataToSave.userId || !dataToSave.type) { throw new Error("Cannot save note: Missing required fields."); } const docRef = await addDoc(collection(db, 'notes'), { ...dataToSave, createdAt: Timestamp.now(), updatedAt: Timestamp.now() }); return docRef.id; } catch (error) { throw new Error(`Failed to save note: ${error instanceof Error ? error.message : 'Unknown error'}`); } }
@@ -190,11 +236,11 @@ export async function processTextToAINoteData( text: string, userId: string, onP
 
 export async function regenerateStudyQuestions( noteId: string, content: string, topics?: Topic[] ): Promise<Question[]> {
    if (!noteId || !content.trim()) throw new Error("Note ID/content required.");
-   const geminiProxyCallable = getGeminiProxy();
+   const taskMasterProxyCallable = getTaskMasterProxy();
   try {
     const topicsString = topics ? topics.map(t => `Topic: ${t.name}\nID: ${t.id}\nDescription: ${t.description}`).join('\n---DIVIDER---\n') : undefined;
     const questionsPrompt = PROMPT_TEMPLATES.QUESTIONS(content, undefined, topicsString);
-    const qResult = await geminiProxyCallable({ contents: [{ parts: [{ text: questionsPrompt }] }], generationConfig: AI_CONFIGS.QUESTIONS });
+    const qResult = await taskMasterProxyCallable({ contents: [{ parts: [{ text: questionsPrompt }] }], generationConfig: AI_CONFIGS.QUESTIONS });
     const qRawText = extractCandidateText(JSON.stringify(qResult.data));
     let questions: Question[] = [];
     if (!qRawText.startsWith("Error:")) {

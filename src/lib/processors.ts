@@ -1,6 +1,6 @@
 // src/lib/processors.ts
 // Main processors file that consolidates all AI processing functions
-// All API calls go through the secure geminiProxy function
+// All API calls go through the secure taskMasterProxy function
 
 import { httpsCallable } from 'firebase/functions';
 import { getFunctions } from 'firebase/functions';
@@ -23,9 +23,9 @@ export {
     processTextForPodcast
 };
 
-// Helper function to get the geminiProxy callable with rate limiting
-export const getGeminiProxy = () => {
-    const originalCallable = httpsCallable(getFunctions(), 'geminiProxy');
+// Helper function to get the taskMasterProxy callable with rate limiting
+export const getTaskMasterProxy = () => {
+    const originalCallable = httpsCallable(getFunctions(), 'taskMasterProxy');
     
     // Wrap with error handling for rate limits
     return async (data: any) => {
@@ -478,10 +478,10 @@ export const makeAICall = async (
     prompt: string, 
     config: typeof AI_CONFIGS[keyof typeof AI_CONFIGS]
 ) => {
-    const geminiProxy = getGeminiProxy();
+    const taskMasterProxy = getTaskMasterProxy();
     
     try {
-        const result = await geminiProxy({
+        const result = await taskMasterProxy({
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: config
         });
@@ -526,7 +526,7 @@ export const makeParallelAICalls = async (
     }>,
     onProgress?: (progress: number) => void
 ) => {
-    const geminiProxy = getGeminiProxy();
+    const taskMasterProxy = getTaskMasterProxy();
     const results: Record<string, string> = {};
     const DEBUG_MODE = false; // Set to true for debugging
     
@@ -534,7 +534,7 @@ export const makeParallelAICalls = async (
         // Execute all AI calls in parallel with individual error handling
         const promises = calls.map(async (call) => {
             try {
-                const result = await geminiProxy({
+                const result = await taskMasterProxy({
                     contents: [{ parts: [{ text: call.prompt }] }],
                     generationConfig: call.config
                 });
@@ -597,7 +597,7 @@ export default {
     processTextForPodcast,
     
     // Utility functions
-    getGeminiProxy,
+    getTaskMasterProxy,
     extractCandidateText,
     makeAICall,
     makeParallelAICalls,

@@ -29,9 +29,10 @@ import {
     getCurrentMonthUserChatUsage,
     incrementUserChatUsage,
     getChatLimitForTier,
+    getCurrentMonthLocal,
 } from '../lib/current-paying-user';
 
-import { IntegrationsControl } from './integrations-control';
+import { ConnectorsControl } from './connectors-control';
 
 
 interface TimerMessage { type: 'timer'; duration: number; id: string; }
@@ -326,7 +327,7 @@ const parseGeminiApiResponse = (responseText: string, isImageGenCall: boolean): 
         return { text: textContent, imageData: imageContent, error: errorMessage, finishReason: reason, suggestions: isImageGenCall ? [] : responseSuggestions, sources };
 
     } catch (err) {
-        console.error("Error parsing Gemini response:", err, responseText);
+        console.error("Error parsing TaskMaster response:", err, responseText);
         return { text: null, imageData: null, error: "Error: Could not process AI response (Invalid format).", finishReason: null, suggestions: [] };
     }
 };
@@ -392,8 +393,8 @@ const verifyEducationalContent = async (content: FlashcardMessage | QuestionMess
       `;
     
     try {
-      // SECURE: Use the geminiProxy function
-      const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+      // SECURE: Use the taskMasterProxy function
+      const taskMasterProxyCallable = httpsCallable(functions, 'taskMasterProxy');
       
       const apiRequestBody = {
         contents: [{ parts: [{ text: prompt }] }],
@@ -404,7 +405,7 @@ const verifyEducationalContent = async (content: FlashcardMessage | QuestionMess
         isImageGen: false
       };
       
-      const result = await geminiProxyCallable(apiRequestBody);
+      const result = await taskMasterProxyCallable(apiRequestBody);
       const responseData = result.data as any;
       
       if (responseData.error || !responseData.text) {
@@ -910,7 +911,7 @@ useEffect(() => {
         if (userTier === 'loading' || !user) { setIsLoadingUsage(true); setChatCount(0); setIsChatLimitReached(userTier === 'loading'); return; }
         setIsLoadingUsage(true);
         if (userTier !== 'premium') {
-            const currentMonthYear = new Date().toISOString().slice(0, 7);
+            const currentMonthYear = getCurrentMonthLocal();
             getCurrentMonthUserChatUsage(user.uid, currentMonthYear)
                 .then(usageData => {
                     const limit = getChatLimitForTier(userTier);
@@ -1670,8 +1671,8 @@ Be efficient. Be minimal. Don't explain unless asked.
 `;
 
             try {
-                // SECURE: Use the geminiProxy function
-                const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+                // SECURE: Use the taskMasterProxy function
+                const taskMasterProxyCallable = httpsCallable(functions, 'taskMasterProxy');
 
                 const requestBody: any = {
                     generationConfig: {
@@ -1715,7 +1716,7 @@ recentHistory.forEach(msg => {
                 // Add isImageGen flag for the proxy
                 requestBody.isImageGen = isUsingImageGenModel;
                 
-                const result = await geminiProxyCallable(requestBody);
+                const result = await taskMasterProxyCallable(requestBody);
                 const responseData = result.data as any;
                 
                 if (responseData.error) {
@@ -2170,7 +2171,7 @@ const handleToggleNotionSearchMode = () => {
                                              <button type="button" onClick={handleToggleImageGenMode} disabled={isChatLoading || isChatLimitReached} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed ${isImageGenModeActive ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 disabled:text-gray-400/50 dark:disabled:text-gray-600'}`} title={isImageGenModeActive ? "Switch to Normal" : "Generate Image"}><ImageIcon className="w-4 h-4"/><span className="hidden sm:inline">Image</span></button>
                                              <ChatControls onStyleSelect={handleStyleSelect} activeStyle={activeStyle} isIlluminateEnabled={isIlluminateEnabled} isBlackoutEnabled={isBlackoutEnabled}/>
 
-                                          <IntegrationsControl
+                                          <ConnectorsControl
             isNotionConnected={isNotionConnected}
             isNotionSearchModeActive={isNotionSearchModeActive}
             onToggleNotionSearchMode={handleToggleNotionSearchMode}

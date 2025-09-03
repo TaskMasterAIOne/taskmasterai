@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { useScrollLock } from '../hooks/useScrollLock';
 import { motion, AnimatePresence } from 'framer-motion';
-import { IntegrationsControl } from './integrations-control'; // ADD THIS IMPORT
+import { ConnectorsControl } from './connectors-control'; // ADD THIS IMPORT
+import { VoiceChatEndedMessage } from './VoiceChatEndedMessage';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import {
-  Search, Bell, Sun, CheckCircle, MessageCircle, Crown, X, TimerIcon, Calendar, ArrowUpRight, ArrowUp, Lightbulb, TrendingUp, Target as GoalIcon, Layers, Clipboard as ClipboardIcon, AlertCircle, PieChart, ChevronDown, ListChecks, ImageIcon, Settings, FileText, Columns, Eye, AlignLeft, Hourglass, Notebook, Wand, SortAsc, CalendarCheck, Loader2, Download, Brain, Mic, Globe, Goal, BarChart2, LayoutDashboard, CheckSquare, ShieldCheck, Plus, Palette, MoreHorizontal, Edit2, Trash2, Check, Volume2, Copy, VolumeX, Pin, Library, Code, File, Image, SquareArrowOutUpRight,
+  Search, Bell, Sun, CheckCircle, MessageCircle, Crown, X, TimerIcon, Calendar, ArrowUpRight, ArrowUp, Lightbulb, TrendingUp, Target as GoalIcon, Layers, Clipboard as ClipboardIcon, AlertCircle, PieChart, ChevronDown, ListChecks, ImageIcon, Settings, FileText, Columns, Eye, AlignLeft, Hourglass, Notebook, Wand, SortAsc, CalendarCheck, Loader2, Download, Brain, Mic, Globe, Goal, BarChart2, LayoutDashboard, CheckSquare, ShieldCheck, Plus, Palette, MoreHorizontal, Edit2, Trash2, Check, Volume2, Copy, VolumeX, Pin, Library, Code, File, Image, SquareArrowOutUpRight, Square,
   Zap, AudioLines, RefreshCw
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -27,7 +28,7 @@ import {
 import { getFunctions, httpsCallable } from 'firebase/functions'; 
 import { getUserData, getDefaultChatStyle, getThinkHarderEnabled, setThinkHarderEnabled } from '../lib/settings-firebase'; // Ensure this is imported
 import { ProfileModal } from './ProfileModal';
-import { UserTier, BASIC_CHAT_LIMIT, getUserTier, getChatLimitForTier, getCurrentMonthUserChatUsage, incrementUserChatUsage, onUserProfileSnapshot, type UserProfileData, updateUserStreak } from '../lib/current-paying-user';
+import { UserTier, BASIC_CHAT_LIMIT, getUserTier, getChatLimitForTier, getCurrentMonthUserChatUsage, incrementUserChatUsage, onUserProfileSnapshot, type UserProfileData, updateUserStreak, getCurrentMonthLocal } from '../lib/current-paying-user';
 import { createChatConversation, saveChatMessage, saveChatMessageWithId, onChatMessagesSnapshot, onChatConversationsSnapshot, uploadBase64ImageToStorage, uploadFileToStorage, updateChatConversationName, deleteChatConversation, pinChatConversation, unpinChatConversation, type ChatMessage as FirebaseChatMessage, type ImageMeta as FirebaseImageMeta, type AttachedFileMeta as FirebaseAttachedFileMeta } from '../lib/ai-chat-firebase';
 import { saveUserContext, onUserContextChange, type UserContext } from '../lib/ai-context-firebase';
 import { saveMemory, getMemories, updateMemory, deleteMemory, type Memory } from '../lib/ai-memories-firebase';
@@ -39,6 +40,7 @@ import { ContextDialog } from './context-dialog';
 import { ChatControls } from './chat-controls';
 import { getStylePrompt } from '../lib/chat-styles';
 import { FullscreenVoiceChat } from './FullscreenVoiceChat';
+
 
 // Real-time Audio Waveform Component (ChatGPT-style)
 const AudioWaveform = () => {
@@ -216,6 +218,16 @@ export interface ChatMessageData {
   isSearching?: boolean;
   attachedFilesMeta?: Array<{ name: string; type: string; size: number; url?: string; base64Data?: string; localPreviewUrl?: string; storagePath?: string }>;
   localPlaceholderId?: string;
+  
+  // Voice message fields
+  audioUrl?: string;
+  audioDuration?: number;
+  isVoiceMessage?: boolean;
+  transcription?: string;
+  
+  // Voice chat ended message fields
+  isVoiceChatEnded?: boolean;
+  voiceChatDuration?: string;
   isLoading?: boolean;
   isVerifyingContent?: boolean;
   isProcessingActions?: boolean;
@@ -223,12 +235,6 @@ export interface ChatMessageData {
   sources?: any[];
   thinkingContent?: string; // AI reasoning process for premium users
   thoughtsExpanded?: boolean; // Whether thoughts UI is expanded for this message
-  
-  // Voice message fields
-  audioUrl?: string; // For voice messages from Live API
-  audioDuration?: number; // Duration in seconds
-  isVoiceMessage?: boolean; // Flag to indicate this is a voice message
-  transcription?: string; // Text transcription of voice content
 }
 interface SelectedFile { name: string; type: string; size: number; base64Data: string; fileObject: File; localPreviewUrl: string; }
 
@@ -528,8 +534,8 @@ const verifyEducationalContent = async (content: FlashcardMessage | QuestionMess
     `;
     
   try {
-    // SECURE: Use the geminiProxy function instead of direct API calls
-    const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+    // SECURE: Use the taskMasterProxy function instead of direct API calls
+    const taskMasterProxyCallable = httpsCallable(functions, 'taskMasterProxy');
     
     const apiRequestBody = {
       contents: [{ parts: [{ text: prompt }] }],
@@ -541,7 +547,7 @@ const verifyEducationalContent = async (content: FlashcardMessage | QuestionMess
       useThinkHarder: false  // Don't use Reasoning for verification tasks
     };
     
-    const result = await geminiProxyCallable(apiRequestBody);
+    const result = await taskMasterProxyCallable(apiRequestBody);
     const responseData = result.data as any;
     
     if (responseData.error || !responseData.text) {
@@ -2250,7 +2256,7 @@ const [isDraggingOver, setIsDraggingOver] = useState(false);
       
       if (currentConvId && finalContent) {
         try {
-          const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
+          const { doc, setDoc } = await import('firebase/firestore');
           const { db } = await import('../lib/firebase');
           
           // Prepare data for Firestore, only updating relevant fields.
@@ -2290,12 +2296,12 @@ const [isDraggingOver, setIsDraggingOver] = useState(false);
           if (currentConvId) {
             const isNewConversation = !currentConversation || currentConversation.id !== currentConvId;
             setChatHistory(prevHistory => {
-              const finalHistoryForName = prevHistory.filter(m => m.content?.trim());
+              const finalHistoryForName = prevHistory.filter(m => m.content?.trim() && !m.isVoiceChatEnded);
               const totalUserMessagesInConv = finalHistoryForName.filter(m => m.role === 'user').length;
               if ((isNewConversation || (currentConversation?.chatName === 'New Chat')) &&
                   finalHistoryForName.some(m => m.role === 'user' && m.content?.trim()) &&
                   totalUserMessagesInConv >= 2) { // Wait for 2 user messages like non-reasoning mode
-                generateChatName(currentConvId, finalHistoryForName, user);
+                generateChatName(currentConvId, prevHistory, user); // Pass full history, filtering happens in generateChatName
               }
               return prevHistory;
             });
@@ -2312,12 +2318,12 @@ const [isDraggingOver, setIsDraggingOver] = useState(false);
         if (currentConvId && finalContent) {
           const isNewConversation = !currentConversation || currentConversation.id !== currentConvId;
           setChatHistory(prevHistory => {
-            const finalHistoryForName = prevHistory.filter(m => m.content?.trim());
+            const finalHistoryForName = prevHistory.filter(m => m.content?.trim() && !m.isVoiceChatEnded);
             const totalUserMessagesInConv = finalHistoryForName.filter(m => m.role === 'user').length;
             if ((isNewConversation || (currentConversation?.chatName === 'New Chat')) &&
                 finalHistoryForName.some(m => m.role === 'user' && m.content?.trim()) &&
                 totalUserMessagesInConv >= 2) { // Wait for 2 user messages like non-reasoning mode
-              generateChatName(currentConvId, finalHistoryForName, user);
+              generateChatName(currentConvId, prevHistory, user); // Pass full history, filtering happens in generateChatName
             }
             return prevHistory;
           });
@@ -2490,6 +2496,18 @@ const [isDraggingOver, setIsDraggingOver] = useState(false);
     }
   };
 
+  const handleCancelRecording = () => {
+    if (!browserSupportsSpeechRecognition) {
+      return;
+    }
+    
+    if (listening) {
+      SpeechRecognition.stopListening();
+      resetTranscript();
+      // Don't send the transcript - just cancel
+    }
+  };
+
 
   
   useEffect(() => {
@@ -2541,7 +2559,7 @@ const [isDraggingOver, setIsDraggingOver] = useState(false);
         }).catch(console.error);
 
         if (userTier !== 'premium' && userTier !== 'loading') {
-          const currentMonth = new Date().toISOString().slice(0, 7);
+          const currentMonth = getCurrentMonthLocal();
           getCurrentMonthUserChatUsage(fbUser.uid, currentMonth).then(usage => setChatUsageCount(usage?.count || 0));
         } else {
           setChatUsageCount(0);
@@ -3904,7 +3922,7 @@ const generateContentName = async (type: 'image' | 'code', userPrompt: string, c
   try {
     const { getFunctions, httpsCallable } = await import('firebase/functions');
     const functions = getFunctions();
-    const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+    const taskMasterProxyCallable = httpsCallable(functions, 'taskMasterProxy');
     
     let namePrompt = '';
     let requestParts: any[] = [];
@@ -3974,7 +3992,7 @@ Analyze the actual code functionality and respond with ONLY the filename, nothin
       requestParts = [{ text: namePrompt }];
     }
 
-    const response = await geminiProxyCallable({
+    const response = await taskMasterProxyCallable({
       contents: [{ parts: requestParts }],
       generationConfig: {
         temperature: 0.2, // Lower temperature for more consistent naming
@@ -4012,13 +4030,15 @@ const generateChatName = async (convId: string, history: ChatMessageData[], curr
         return;
     }
 
-    const relevantHistory = history.slice(0, Math.min(history.length, 4)).map(m => `${m.role}: ${m.content?.substring(0, 100) || ""}`).join("\n");
-    const userMessageCount = history.filter(m => m.role === 'user').length;
+    // Filter out voice chat ended messages for name generation as they don't contain conversational content
+    const conversationalHistory = history.filter(m => !m.isVoiceChatEnded);
+    const relevantHistory = conversationalHistory.slice(0, Math.min(conversationalHistory.length, 4)).map(m => `${m.role}: ${m.content?.substring(0, 100) || ""}`).join("\n");
+    const userMessageCount = conversationalHistory.filter(m => m.role === 'user').length;
     const prompt = `Please provide a short 3-5 word title summarizing this conversation. The user has sent ${userMessageCount} messages so far:\n${relevantHistory}\nReturn ONLY the title, with no extra commentary. USE THE SAME LANGUAGE AS PRESENTED IN THE CONVERSATION!`;
     
     try {
-        // SECURE: Use the geminiProxy function instead of direct API calls
-        const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+        // SECURE: Use the taskMasterProxy function instead of direct API calls
+        const taskMasterProxyCallable = httpsCallable(functions, 'taskMasterProxy');
         
         const apiRequestBody = {
             contents: [{ parts: [{ text: prompt }] }],
@@ -4031,7 +4051,7 @@ const generateChatName = async (convId: string, history: ChatMessageData[], curr
             useThinkHarder: false  // Don't use Reasoning for chat name generation
         };
         
-        const result = await geminiProxyCallable(apiRequestBody);
+        const result = await taskMasterProxyCallable(apiRequestBody);
         const responseData = result.data as any;
         
         // Parse the response properly
@@ -4426,8 +4446,8 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
               };
           }
 
-      // SECURE: Use the geminiProxy function instead of direct API calls
-      const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+      // SECURE: Use the taskMasterProxy function instead of direct API calls
+      const taskMasterProxyCallable = httpsCallable(functions, 'taskMasterProxy');
       
       // THIS IS THE FIX: Determine the effective reasoning state for this specific run.
       const useReasoning = forceReasoningState !== undefined ? forceReasoningState : reasoningEnabled;
@@ -4467,9 +4487,9 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
       
       let result, responseData;
       try {
-        result = await geminiProxyCallable(requestBodyForProxy);
+        result = await taskMasterProxyCallable(requestBodyForProxy);
         if (requestCancelledRef.current) {
-          console.log("Request was cancelled by user. Aborting response processing.");
+
           return; // <-- IMPORTANT: Exit if cancelled
         }
         responseData = result.data as any;
@@ -5254,15 +5274,16 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
           ? { ...msg, ...finalAssistantDataPayload, content: finalContent || msg.content }
           : msg
       );
-      const totalUserMessagesInConv = finalHistoryForName.filter(m => m.role === 'user').length;
-      
       // Generate chat name after 2 user messages for consistency between reasoning and non-reasoning modes
+      // Filter out voice chat ended messages when counting user messages
+      const conversationalHistory = finalHistoryForName.filter(m => !m.isVoiceChatEnded);
+      const conversationalUserMessages = conversationalHistory.filter(m => m.role === 'user').length;
       const shouldGenerateChatName = (isNewConversation || (currentConversation?.chatName === 'New Chat')) &&
-                                   finalHistoryForName.some(m => m.role === 'user' && m.content?.trim()) &&
-                                   totalUserMessagesInConv >= 2;
+                                   conversationalHistory.some(m => m.role === 'user' && m.content?.trim()) &&
+                                   conversationalUserMessages >= 2;
       
       if (shouldGenerateChatName) {
-          generateChatName(currentConvId, finalHistoryForName, user);
+          generateChatName(currentConvId, finalHistoryForName, user); // Pass full history, filtering happens in generateChatName
       }
 
     } catch (err: any) {
@@ -5654,7 +5675,7 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
               });
               
               await batch.commit();
-              console.log('✅ File deletion persisted to Firebase');
+
             } catch (error) {
               console.error('❌ Error persisting file deletion to Firebase:', error);
             }
@@ -5707,7 +5728,7 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
               });
               
               await batch.commit();
-              console.log('✅ Generated image deletion persisted to Firebase');
+
             } catch (error) {
               console.error('❌ Error persisting image deletion to Firebase:', error);
             }
@@ -5716,7 +5737,7 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
           // For generated code, we can't really "delete" it from the message content
           // We could potentially mark it somehow or remove code blocks, but that's complex
           // For now, we'll just refresh the data
-          console.log('Generated code deletion not implemented yet');
+
         }
         
         setDeleteConfirmation({ show: false, type: 'single', category: '', onConfirm: () => {} });
@@ -5780,7 +5801,7 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
               }
               
               await batch.commit();
-              console.log('✅ All generated images deletion persisted to Firebase');
+
             } catch (error) {
               console.error('❌ Error persisting all images deletion to Firebase:', error);
             }
@@ -5828,7 +5849,7 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
               }
               
               await batch.commit();
-              console.log('✅ All uploaded images deletion persisted to Firebase');
+
             } catch (error) {
               console.error('❌ Error persisting all uploaded images deletion to Firebase:', error);
             }
@@ -5876,7 +5897,7 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
               }
               
               await batch.commit();
-              console.log('✅ All uploaded files deletion persisted to Firebase');
+
             } catch (error) {
               console.error('❌ Error persisting all uploaded files deletion to Firebase:', error);
             }
@@ -6008,23 +6029,33 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
   }, []);
 
   // Voice chat handlers [[memory:7781174]]
-  const handleOpenVoiceChat = useCallback(() => {
-    if (!conversationId) {
-      // Create a new conversation if none exists
-      handleNewConversation();
+  const handleOpenVoiceChat = useCallback(async () => {
+    // Stop any active speech recognition in AI-Chat to prevent conflicts
+    if (listening) {
+      SpeechRecognition.stopListening();
+      resetTranscript();
+    }
+    
+    if (!conversationId && user) {
+      // Create a new conversation if none exists - use "New Chat" so automatic naming works
+      const newId = await createChatConversation(user.uid, "New Chat");
+      if (newId) {
+        setConversationId(newId);
+      }
     }
     setIsVoiceChatOpen(true);
-  }, [conversationId]);
+  }, [conversationId, user, listening, resetTranscript]);
 
   const handleCloseVoiceChat = useCallback(() => {
     setIsVoiceChatOpen(false);
   }, []);
 
-  const handleVoiceMessage = useCallback((message: any) => {
-    // Add voice message to chat history
+  const handleVoiceMessage = useCallback(async (message: any) => {
+    // Add voice message to chat history and save to Firestore
     // Reset auto-scroll flag so voice messages will scroll to bottom
     userScrolledUpRef.current = false;
-    setChatHistory(prev => [...prev, {
+    
+    const voiceMessage = {
       id: `voice-${Date.now()}`,
       role: message.role,
       content: message.content,
@@ -6033,7 +6064,13 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
       audioDuration: message.audioDuration,
       isVoiceMessage: true,
       transcription: message.transcription
-    }]);
+    };
+    
+    // Add to local chat history immediately
+    setChatHistory(prev => [...prev, voiceMessage]);
+    
+    // Save to Firestore if we have conversation and user (will be handled by FullscreenVoiceChat)
+    // The FullscreenVoiceChat component already saves messages to Firestore
   }, []);
 
   const handleVoiceTranscription = useCallback((_text: string, _isUser: boolean) => {
@@ -6043,6 +6080,8 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
 
   return (
     <div className={`flex h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] font-clarika overflow-hidden selection:bg-[var(--bg-accent)] selection:text-white`}>
+
+
       {/* Confirmation Modal */}
       {confirmAction && (
         <div className="fixed inset-0 bg-[var(--overlay-dark)] z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
@@ -6247,6 +6286,17 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
                       
                       return (
                         <React.Fragment key={message.id || `msg-${index}`}>
+                          {/* Voice Chat Ended Message */}
+                          {message.isVoiceChatEnded && (
+                            <VoiceChatEndedMessage
+                              duration={message.voiceChatDuration}
+                              onClose={() => {
+                                // Handle close/dismiss
+                                setChatHistory(prev => prev.filter(msg => msg.id !== message.id));
+                              }}
+                            />
+                          )}
+                          
                           {/* Render ThoughtsUI above AI message only for reasoning mode with thinking content */}
                           {shouldShowThoughtsUI && (
                             <div data-message-id={message.id || `msg-${index}`} className="w-full flex justify-start mb-4">
@@ -6377,6 +6427,8 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
                             </div>
                           )}
                           
+                          {/* Skip rendering regular message content for voice chat ended messages */}
+                          {!message.isVoiceChatEnded && (
                           <div data-message-id={message.id || `msg-${index}`} className={`flex w-full ${message.role === 'assistant' ? 'justify-start' : ''}`}>
                             {message.role === 'assistant' ? (
                         // AI message - constrained width to match user message bubbles exactly
@@ -6627,6 +6679,7 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
                         </div>
                       )}
                     </div>
+                          )}
                   </React.Fragment>
                   )
                   })}
@@ -6814,7 +6867,7 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
                                     onStyleSelect={handleStyleSelect}
                                     activeStyle={activeStyle}
                                 />
-                                <IntegrationsControl
+                                <ConnectorsControl
                                     isNotionConnected={isNotionConnected}
                                     isNotionSearchModeActive={isNotionSearchModeActive}
                                     onToggleNotionSearchMode={handleToggleNotionSearchMode}
@@ -6824,10 +6877,10 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
                             <div className="flex items-center gap-2 flex-shrink-0">
                                 <button 
                                     type="button" 
-                                    onClick={handleToggleRecording} 
-                                    disabled={isChatLoading || isChatDisabledByLimit || !browserSupportsSpeechRecognition} 
+                                    onClick={listening ? handleCancelRecording : handleToggleRecording} 
+                                    disabled={isChatLoading || isChatDisabledByLimit || !browserSupportsSpeechRecognition || isVoiceChatOpen} 
                                         className={`p-2 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 ${listening ? 'text-[var(--text-primary)] bg-transparent' : 'text-[var(--text-primary)] hover:bg-[var(--bg-highlight)]'}`} 
-                                    title={!browserSupportsSpeechRecognition ? "Browser not supported" : listening ? "Stop Recording" : "Dictate"}
+                                    title={!browserSupportsSpeechRecognition ? "Browser not supported" : isVoiceChatOpen ? "Voice chat is active" : listening ? "Cancel Recording" : "Dictate"}
                                 >
                                     {listening ? <X className="w-5 h-5"/> : <Mic className="w-5 h-5" />}
                                 </button>
@@ -7690,6 +7743,15 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
         onMessage={handleVoiceMessage}
         onTranscription={handleVoiceTranscription}
         isOpen={isVoiceChatOpen}
+        // Pass user contextual data
+        userProfile={userProfile}
+        userContext={userContext}
+        tasks={tasks}
+        goals={goals}
+        events={events}
+        memories={memories}
+        activePrompt={activePrompt}
+        isNotionConnected={isNotionConnected}
         onClose={handleCloseVoiceChat}
       />
     </div>

@@ -53,7 +53,7 @@ import {
 } from '../lib/ai-memories-firebase';
 
 
-import { IntegrationsControl } from './integrations-control';
+import { ConnectorsControl } from './connectors-control';
 
 
 import {
@@ -70,6 +70,7 @@ import {
   addUserBadge,
   POINTS_FOR_FREE_PREMIUM,
   getUserTier,
+  getCurrentMonthLocal,
 } from '../lib/current-paying-user';
 import { db } from '../lib/firebase';
 import { User as FirebaseUser } from 'firebase/auth';
@@ -119,8 +120,8 @@ import {
 } from '../lib/folders-firebase';
 import { ProfileModal } from './ProfileModal';
 
-// SECURE: API calls now go through the geminiProxy function
-// SECURE: API calls now go through the geminiProxy function
+// SECURE: API calls now go through the taskMasterProxy function
+// SECURE: API calls now go through the taskMasterProxy function
 
 
 interface TimerMessage { type: 'timer'; duration: number; id: string; }
@@ -254,7 +255,7 @@ const parseGeminiApiResponse = (responseText: string, isImageGenCall: boolean): 
         }
         return { text: textContent, localImageData: imageContent, error: errorMessage, finishReason: reason, sources };
     } catch (err) {
-        console.error("Error parsing Gemini API response:", responseText, err);
+        console.error("Error parsing TaskMaster API response:", responseText, err);
         return { text: null, localImageData: null, error: "Error: Could not process AI response (Invalid format).", finishReason: null };
     }
 };
@@ -951,7 +952,7 @@ export function Folders() {
         setChatLimit(typeof limitForTier === 'number' ? limitForTier : Number.MAX_SAFE_INTEGER);
         setCurrentChatLimitDisplay(limitForTier === Infinity ? '∞' : limitForTier);
         if (currentTier !== 'premium' && currentTier !== 'loading') {
-          const currentMonthYear = new Date().toISOString().slice(0, 7);
+          const currentMonthYear = getCurrentMonthLocal();
           try {
             const usageData = await getCurrentMonthUserChatUsage(user.uid, currentMonthYear);
             setChatUsageCount(usageData?.count || 0);
@@ -1375,7 +1376,7 @@ const generateChatName = useCallback(async (convId: string, history: ChatMessage
     
     try {
         // --- THIS IS THE NEW LOGIC ---
-        const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+        const taskMasterProxyCallable = httpsCallable(functions, 'taskMasterProxy');
         
         const apiRequestBody = {
             contents: [{ parts: [{ text: prompt }] }],
@@ -1386,7 +1387,7 @@ const generateChatName = useCallback(async (convId: string, history: ChatMessage
             useLiteModel: true
         };
 
-        const result = await geminiProxyCallable(apiRequestBody);
+        const result = await taskMasterProxyCallable(apiRequestBody);
         const responseData = result.data as any; // The data is now the direct response from Gemini
 
         // Now, parse the responseData as if it came from Google
@@ -2120,7 +2121,7 @@ Assistant:`;
     
     try {
         // --- THIS IS THE NEW LOGIC ---
-        const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+        const taskMasterProxyCallable = httpsCallable(functions, 'taskMasterProxy');
         
         const apiRequestBodyForProxy = {
             contents: apiRequestBody.contents,
@@ -2130,7 +2131,7 @@ Assistant:`;
             isImageGen: imageGenModeOn
         };
 
-        const result = await geminiProxyCallable(apiRequestBodyForProxy);
+        const result = await taskMasterProxyCallable(apiRequestBodyForProxy);
         const responseData = result.data as any; // The data is now the direct response from Gemini
 
         // Now, parse the responseData as if it came from Google
@@ -3325,7 +3326,7 @@ const generateFolderStats = useCallback(async () => {
     `;
     try {
         // --- THIS IS THE NEW LOGIC ---
-        const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+        const taskMasterProxyCallable = httpsCallable(functions, 'taskMasterProxy');
         
         const apiRequestBody = {
             contents: [{ parts: [{ text: prompt }] }],
@@ -3335,7 +3336,7 @@ const generateFolderStats = useCallback(async () => {
             isImageGen: false
         };
 
-        const result = await geminiProxyCallable(apiRequestBody);
+        const result = await taskMasterProxyCallable(apiRequestBody);
         const responseData = result.data as any; // The data is now the direct response from Gemini
 
         // Now, parse the responseData as if it came from Google
@@ -4354,7 +4355,7 @@ return (
                     activeStyle={activeStyle}
                 />
 
-                                          <IntegrationsControl
+                                          <ConnectorsControl
             isNotionConnected={isNotionConnected}
             isNotionSearchModeActive={isNotionSearchModeActive}
             onToggleNotionSearchMode={handleToggleNotionSearchMode}

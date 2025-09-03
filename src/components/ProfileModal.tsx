@@ -84,10 +84,13 @@ interface ProfileModalProps {
 }
 
 export const ProfileModal = ({ isOpen, onClose, userProfile, userName }: ProfileModalProps) => {
-    if (!userProfile) return null;
-
-    // Lock body scroll when modal is open
+    // Always call useScrollLock to follow rules of hooks
     useScrollLock(isOpen);
+
+    // Early return if no profile
+    if (!userProfile) {
+        return null;
+    }
 
     const statCardAnimation = {
         whileHover: { scale: 1.05, y: -2 },
@@ -102,11 +105,15 @@ export const ProfileModal = ({ isOpen, onClose, userProfile, userName }: Profile
     <AnimatePresence>
     {isOpen && (
         <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            key="profile-modal"
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }}
             className="fixed inset-0 bg-[var(--overlay-dark)] backdrop-blur-sm z-[200] flex items-center justify-center p-4 overflow-y-auto"
             onClick={onClose}
         >
             <motion.div
+                key="profile-modal-content"
                 initial={{ scale: 0.9, y: 15, opacity: 0 }}
                 animate={{ scale: 1, y: 0, opacity: 1 }}
                 exit={{ scale: 0.9, y: 15, opacity: 0 }}
@@ -193,33 +200,24 @@ export const ProfileModal = ({ isOpen, onClose, userProfile, userName }: Profile
                                 title={isUnlocked ? `${badgeConfig.name}: ${badgeConfig.description}` : `${badgeConfig.name} (Locked) - Unlock: ${badgeConfig.unlock_criteria_text}`}
                                 className={`group relative flex flex-col items-center p-2 ${isUnlocked ? 'bg-[var(--bg-highlight)]' : 'bg-[var(--bg-card)]'} rounded-md shadow-sm border border-[var(--border-primary)] text-center transition-all duration-200 ${!isUnlocked ? 'opacity-50 grayscale filter' : 'hover:border-[var(--bg-accent)]'}`}
                                 {...badgeItemAnimation}
-                                layout
                             >
                                 <IconComponent className="w-5 h-5 mb-1" style={{ color: isUnlocked ? 'var(--bg-accent)' : 'var(--text-muted)' }} />
                                 <span className="text-[9px] leading-snug font-medium" style={{ color: isUnlocked ? 'var(--text-primary)' : 'var(--text-muted)' }}>{badgeConfig.name}</span>
 
-                                {!isUnlocked && (
-                                    <div key={`${badgeKey}-lock`} className="absolute top-0.5 right-0.5 bg-[var(--text-muted)]/20 p-0.5 rounded-full">
+                                {!isUnlocked ? (
+                                    <div className="absolute top-0.5 right-0.5 bg-[var(--text-muted)]/20 p-0.5 rounded-full">
                                         <Lock className="w-2 h-2 text-white" />
                                     </div>
-                                )}
-                                {isUnlocked && (
-                                    <div key={`${badgeKey}-check`} className="absolute top-0.5 right-0.5 bg-[var(--status-success)]/20 p-0.5 rounded-full">
+                                ) : (
+                                    <div className="absolute top-0.5 right-0.5 bg-[var(--status-success)]/20 p-0.5 rounded-full">
                                         <Check className="w-2 h-2 text-white" />
                                     </div>
                                 )}
-                                <AnimatePresence mode="wait">
-                                  {!isUnlocked && (
-                                    <motion.div
-                                      key={`${badgeKey}-tooltip`}
-                                      initial={{ opacity: 0, y: 8 }}
-                                      exit={{ opacity: 0, y: 8, transition: { duration: 0.1 } }}
-                                      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-max max-w-[180px] p-1.5 bg-[var(--overlay-dark)] text-white text-[9px] rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none z-20"
-                                    >
+                                {!isUnlocked && (
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-max max-w-[180px] p-1.5 bg-[var(--overlay-dark)] text-white text-[9px] rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none z-20">
                                       {badgeConfig.unlock_criteria_text}
-                                    </motion.div>
-                                  )}
-                                </AnimatePresence>
+                                    </div>
+                                )}
                             </motion.div>
                         );
                     })}

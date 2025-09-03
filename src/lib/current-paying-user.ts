@@ -5,7 +5,6 @@ import {
   doc,
   getDoc,
   setDoc,
-  updateDoc,
   serverTimestamp,
   Timestamp,
   increment,
@@ -18,7 +17,6 @@ import {
 import { 
     PREMIUM_EMAILS, 
     PRO_EMAILS, 
-    USER_TIERS, 
     CHAT_LIMITS, 
     NOTE_LIMITS,
     RATE_LIMITS,
@@ -80,6 +78,12 @@ export interface UserProfileData {
   uploadBonusCount: number;
   abuseWarningCount: number;
 }
+
+// Helper to get current month in local timezone (YYYY-MM format)
+export const getCurrentMonthLocal = (): string => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+};
 
 const toDateSafe = (timestampField: any): Date | null => {
     if (!timestampField) return null;
@@ -217,7 +221,7 @@ export const incrementUserChatUsage = async (userId: string): Promise<void> => {
   if (!userId) {
       throw new Error("Invalid parameters for incrementing chat usage.");
   }
-  const currentMonth = new Date().toISOString().slice(0, 7);
+  const currentMonth = getCurrentMonthLocal();
   const usageRef = doc(db, `users/${userId}/usage/chat`);
   try {
     await runTransaction(db, async (transaction) => {
@@ -243,7 +247,7 @@ export const incrementUserChatUsage = async (userId: string): Promise<void> => {
 
 export const getUserNoteUsage = async (userId: string): Promise<NoteUsageData | null> => {
     if (!userId) return null;
-    const currentMonthYear = new Date().toISOString().slice(0, 7);
+    const currentMonthYear = getCurrentMonthLocal();
     try {
         const userRef = doc(db, 'users', userId);
         const docSnap = await getDoc(userRef);
@@ -275,34 +279,54 @@ export const updateUserNoteUsage = async (userId: string, typeToIncrement: 'pdfA
     const updatePath = `noteUsageByMonth.${currentMonth}.${typeToIncrement}`;
     const lastUpdatedPath = `noteUsageByMonth.${currentMonth}.lastUpdated`;
     const now = serverTimestamp();
-    try {
-        await runTransaction(db, async (transaction) => {
-            const userSnap = await transaction.get(userRef);
-            if (!userSnap.exists()) {
-                 return;
+    
+    // Add retry logic for race conditions
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount < maxRetries) {
+        try {
+            await runTransaction(db, async (transaction) => {
+                const userSnap = await transaction.get(userRef);
+                if (!userSnap.exists()) {
+                     return;
+                }
+                const currentData = userSnap.data() as UserProfileData;
+                const monthUsage = currentData.noteUsageByMonth?.[currentMonth];
+                if (monthUsage) {
+                    transaction.update(userRef, {
+                        [updatePath]: increment(1),
+                        [lastUpdatedPath]: now,
+                        updatedAt: now
+                    });
+                } else {
+                     transaction.update(userRef, {
+                        [`noteUsageByMonth.${currentMonth}`]: {
+                            pdfAi: typeToIncrement === 'pdfAi' ? 1 : 0,
+                            youtube: typeToIncrement === 'youtube' ? 1 : 0,
+                            lastUpdated: Timestamp.now()
+                        },
+                        updatedAt: now
+                    });
+                }
+            });
+            
+            // Success - break out of retry loop
+            break;
+            
+        } catch (error: any) {
+            if (error?.code === 'failed-precondition' && retryCount < maxRetries - 1) {
+                // Wait before retrying with exponential backoff + jitter
+                const delay = Math.pow(2, retryCount) * 100 + Math.random() * 100;
+                await new Promise(resolve => setTimeout(resolve, delay));
+                retryCount++;
+                continue;
             }
-            const currentData = userSnap.data() as UserProfileData;
-            const monthUsage = currentData.noteUsageByMonth?.[currentMonth];
-            if (monthUsage) {
-                transaction.update(userRef, {
-                    [updatePath]: increment(1),
-                    [lastUpdatedPath]: now,
-                    updatedAt: now
-                });
-            } else {
-                 transaction.update(userRef, {
-                    [`noteUsageByMonth.${currentMonth}`]: {
-                        pdfAi: typeToIncrement === 'pdfAi' ? 1 : 0,
-                        youtube: typeToIncrement === 'youtube' ? 1 : 0,
-                        lastUpdated: Timestamp.now()
-                    },
-                    updatedAt: now
-                });
-            }
-        });
-    } catch (error) {
-        console.error(`Error updating note usage for ${userId}:`, error);
-        throw new Error(`Failed to update note usage.`);
+            
+            // If it's not a retryable error or we've exhausted retries, log and rethrow
+            console.error(`Error updating note usage for ${userId} after retries:`, error);
+            throw new Error(`Failed to update note usage.`);
+        }
     }
 };
 
@@ -529,19 +553,47 @@ export const incrementUserProfileCounter = async (
     userDetailsForCreation?: { email?: string | null; displayName?: string | null; photoURL?: string | null; }
 ): Promise<void> => {
     const userRef = doc(db, 'users', userId);
-    await runTransaction(db, async (transaction) => {
-        const userSnap = await transaction.get(userRef);
-        if (!userSnap.exists()) {
-            const initialData = createProfileInTransaction(transaction, userRef, userId, userDetailsForCreation);
-            (initialData as any)[counterField] = incrementValue;
-            transaction.update(userRef, { [counterField]: incrementValue });
-        } else {
-            transaction.update(userRef, {
-                [counterField]: increment(incrementValue),
-                updatedAt: serverTimestamp()
+    
+    // Use a more robust approach with retry logic for race conditions
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount < maxRetries) {
+        try {
+            await runTransaction(db, async (transaction) => {
+                const userSnap = await transaction.get(userRef);
+                if (!userSnap.exists()) {
+                    const initialData = createProfileInTransaction(transaction, userRef, userId, userDetailsForCreation);
+                    (initialData as any)[counterField] = incrementValue;
+                    transaction.update(userRef, { 
+                        [counterField]: incrementValue,
+                        updatedAt: serverTimestamp()
+                    });
+                } else {
+                    transaction.update(userRef, {
+                        [counterField]: increment(incrementValue),
+                        updatedAt: serverTimestamp()
+                    });
+                }
             });
+            
+            // Success - break out of retry loop
+            break;
+            
+        } catch (error: any) {
+            if (error?.code === 'failed-precondition' && retryCount < maxRetries - 1) {
+                // Wait before retrying with exponential backoff + jitter
+                const delay = Math.pow(2, retryCount) * 100 + Math.random() * 100;
+                await new Promise(resolve => setTimeout(resolve, delay));
+                retryCount++;
+                continue;
+            }
+            
+            // If it's not a retryable error or we've exhausted retries, log and rethrow
+            console.error(`Failed to increment user profile counter ${counterField} after retries:`, error);
+            throw error;
         }
-    });
+    }
 };
 
 export const calculateLevel = (points: number): number => {

@@ -18,7 +18,7 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 
 const functions = getFunctions(); 
 import { getUserData, getThinkHarderEnabled } from '../lib/settings-firebase';
-import { IntegrationsControl } from './integrations-control';
+import { ConnectorsControl } from './connectors-control';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
@@ -55,7 +55,7 @@ import {
   updateUserStreak,
   addUserBadge
 } from '../lib/current-paying-user';
-import { getUserTier } from '../lib/current-paying-user';
+import { getUserTier, getCurrentMonthLocal } from '../lib/current-paying-user';
 import { savePersonalNote, NoteData } from '../lib/notes-firebase';
 import { createFolder, onFoldersSnapshot, FolderData } from '../lib/folders-firebase';
 
@@ -102,7 +102,7 @@ import {
 import { ProfileModal } from './ProfileModal';
 
 
-// SECURE: API calls now go through the geminiProxy function
+// SECURE: API calls now go through the taskMasterProxy function
 
 
 interface TimerMessage { type: 'timer'; duration: number; id: string; }
@@ -276,7 +276,7 @@ const parseGeminiApiResponse = (responseText: string, isImageGenCall: boolean): 
     }
 };
 
-// SECURE: Use the geminiProxy function instead of direct API calls
+// SECURE: Use the taskMasterProxy function instead of direct API calls
 const verifyEducationalContent = async (content: FlashcardMessage | QuestionMessage): Promise<FlashcardMessage | QuestionMessage> => {
   const contentType = content.type;
   const contentJsonString = JSON.stringify(content.data, null, 2);
@@ -297,8 +297,8 @@ const verifyEducationalContent = async (content: FlashcardMessage | QuestionMess
     `;
     
   try {
-    // SECURE: Use the geminiProxy function
-    const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+    // SECURE: Use the taskMasterProxy function
+    const taskMasterProxyCallable = httpsCallable(functions, 'taskMasterProxy');
     
     const apiRequestBody = {
       contents: [{ parts: [{ text: prompt }] }],
@@ -310,7 +310,7 @@ const verifyEducationalContent = async (content: FlashcardMessage | QuestionMess
       useThinkHarder: false  // Don't use Reasoning for verification tasks
     };
     
-    const result = await geminiProxyCallable(apiRequestBody);
+    const result = await taskMasterProxyCallable(apiRequestBody);
     const responseData = result.data as any;
     
     if (responseData.error || !responseData.text) {
@@ -1351,16 +1351,16 @@ const handleDrop = async (e: React.DragEvent) => {
 
 // src/components/Dashboard.tsx -> defined outside the component
 
-// SECURE: Use the geminiProxy function instead of direct API calls
+// SECURE: Use the taskMasterProxy function instead of direct API calls
 const generateChatName = async (convId: string, history: ChatMessageData[], currentUser: FirebaseUser | null) => {
     if (!currentUser || !currentUser.uid || history.length < 2) return;
     const relevantHistory = history.slice(0, Math.min(history.length, 4)).map(m => `${m.role}: ${m.content?.substring(0,100) || ""}`).join("\n");
     const userMessageCount = history.filter(m => m.role === 'user').length;
     const prompt = `Please provide a short 3-5 word title summarizing this conversation. The user has sent ${userMessageCount} messages so far:\n${relevantHistory}\nReturn ONLY the title, with no extra commentary. USE THE SAME LANGUAGE AS PRESENTED IN THE CONVERSATION!`;
     try {
-        // SECURE: Use the geminiProxy function
+        // SECURE: Use the taskMasterProxy function
         const functions = getFunctions();
-        const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+        const taskMasterProxyCallable = httpsCallable(functions, 'taskMasterProxy');
         
         const apiRequestBody = {
             contents: [{ parts: [{ text: prompt }] }],
@@ -1373,7 +1373,7 @@ const generateChatName = async (convId: string, history: ChatMessageData[], curr
             useThinkHarder: false  // Don't use Reasoning for chat name generation
         };
         
-        const result = await geminiProxyCallable(apiRequestBody);
+        const result = await taskMasterProxyCallable(apiRequestBody);
         const responseData = result.data as any;
         
         // Parse the response properly
@@ -2064,7 +2064,7 @@ Assistant:`;
 
     try {
         // --- THIS IS THE NEW LOGIC ---
-        const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+        const taskMasterProxyCallable = httpsCallable(functions, 'taskMasterProxy');
         
         const apiRequestBodyForProxy = {
             contents: apiRequestBody.contents,
@@ -2075,7 +2075,7 @@ Assistant:`;
             useThinkHarder: reasoningEnabled
         };
 
-        const result = await geminiProxyCallable(apiRequestBodyForProxy);
+        const result = await taskMasterProxyCallable(apiRequestBodyForProxy);
         const responseData = result.data as any; // The data is now the direct response from Gemini
 
         // Now, parse the responseData as if it came from Google
@@ -2880,7 +2880,7 @@ if (notionBlock && user?.uid && isNotionConnected) {
           setChatLimit(limit);
           setCurrentChatLimitDisplay(limit === Infinity ? '∞' : limit);
           if (tier !== 'premium') {
-            const currentMonth = new Date().toISOString().slice(0, 7);
+            const currentMonth = getCurrentMonthLocal();
             getCurrentMonthUserChatUsage(firebaseUser.uid, currentMonth).then(usage => setChatUsageCount(usage?.count || 0));
           } else {
             setChatUsageCount(0);
@@ -3367,7 +3367,7 @@ if (notionBlock && user?.uid && isNotionConnected) {
 
     try {
         // --- THIS IS THE NEW LOGIC ---
-        const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+        const taskMasterProxyCallable = httpsCallable(functions, 'taskMasterProxy');
         
         const apiRequestBody = {
             contents: [{ parts: [{ text: prompt }] }],
@@ -3379,7 +3379,7 @@ if (notionBlock && user?.uid && isNotionConnected) {
             useThinkHarder: reasoningEnabled
         };
 
-        const result = await geminiProxyCallable(apiRequestBody);
+        const result = await taskMasterProxyCallable(apiRequestBody);
         const responseData = result.data as any; // The data is now the direct response from Gemini
 
         // Now, parse the responseData as if it came from Google
@@ -4390,7 +4390,7 @@ if (notionBlock && user?.uid && isNotionConnected) {
 
         try {
             // --- THIS IS THE NEW LOGIC ---
-            const geminiProxyCallable = httpsCallable(functions, 'geminiProxy');
+            const taskMasterProxyCallable = httpsCallable(functions, 'taskMasterProxy');
             
             const apiRequestBody = {
                 contents: [{ parts: [{ text: prompt }] }],
@@ -4401,7 +4401,7 @@ if (notionBlock && user?.uid && isNotionConnected) {
                 useThinkHarder: reasoningEnabled
             };
 
-            const result = await geminiProxyCallable(apiRequestBody);
+            const result = await taskMasterProxyCallable(apiRequestBody);
             const responseData = result.data as any; // The data is now the direct response from Gemini
 
             // Now, parse the responseData as if it came from Google
@@ -5900,7 +5900,7 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
                     isIlluminateEnabled={!isDarkMode}
                     isBlackoutEnabled={false} 
                 />
-                        <IntegrationsControl
+                        <ConnectorsControl
             isNotionConnected={isNotionConnected}
             isNotionSearchModeActive={isNotionSearchModeActive}
             onToggleNotionSearchMode={handleToggleNotionSearchMode}
