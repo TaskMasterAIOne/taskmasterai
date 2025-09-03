@@ -22,7 +22,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { getCurrentUser } from '../lib/settings-firebase';
 // MODIFICATION: Import getUserContext to fetch existing user data.
 import { saveUserContext, getUserContext, UserContext } from '../lib/ai-context-firebase';
-import { createCheckoutSession, getStripe } from '../lib/stripe-client';
+import { createCheckoutSession } from '../lib/stripe-client';
 // NOTE: You need to have these files and functions available in your project.
 // This is a placeholder for the actual import.
 import { getUserTier, UserTier } from '../lib/current-paying-user';
@@ -344,14 +344,9 @@ Preferred Usage Style: ${usageStyleText}
         const planKey = selectedPlan.toUpperCase() as 'PRO' | 'PREMIUM';
         const priceId = STRIPE_PRICE_IDS[planKey][isYearly ? 'yearly' : 'monthly'];
         
-        const { sessionId } = await createCheckoutSession(priceId, user.uid);
-        const stripe = await getStripe();
-        if (!stripe) throw new Error('Stripe.js failed to load.');
-        
-        const { error } = await stripe.redirectToCheckout({ sessionId });
-        if (error) {
-            throw error;
-        }
+        // The createCheckoutSession function now handles the redirect automatically
+        await createCheckoutSession(priceId);
+        // If we reach here, redirect was successful (though user will be navigated away)
 
     } catch (error) {
         console.error("Failed during finish process:", error);

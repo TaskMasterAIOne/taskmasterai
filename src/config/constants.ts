@@ -21,10 +21,8 @@ export const API_CONFIG = {
   youtubeApiKey: import.meta.env.VITE_YOUTUBE_API_KEY || '', // No fallback for security
 } as const;
 
-// Stripe Configuration
-export const STRIPE_CONFIG = {
-  publishableKey: import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '', // No fallback for security
-} as const;
+// Stripe Configuration - Handled server-side through Firebase Functions
+// No client-side Stripe configuration needed
 
 // AI Model Configurations - ONLY using allowed Gemini 2.5 models
 export const AI_MODELS = {
@@ -66,7 +64,9 @@ export const PREMIUM_EMAILS = [
   "Mithun.kutuva@gmail.com",
   "rickmrreddy@gmail.com",
   "shankartkraj@gmail.com",
-  "akaash.chirravuri@gmail.com"
+  "akaash.chirravuri@gmail.com",
+  "rebba.harsha@gmail.com",
+  "rikhilmajji32@gmail.com"
 ] as const;
 
 export const PRO_EMAILS = [
@@ -90,7 +90,9 @@ export const INTERN_EMAILS = [
   "Mithun.kutuva@gmail.com",
   "rickmrreddy@gmail.com", 
   "shankartkraj@gmail.com",
-  "akaash.chirravuri@gmail.com"
+  "akaash.chirravuri@gmail.com",
+  "rebba.harsha@gmail.com",
+  "rikhilmajji32@gmail.com"
 ] as const;
 
 // Chat Limits by Tier

@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth as useGlobalAuth } from '../contexts/AuthContext';
-import { Loader2, Crown, Gem, Check, AlertCircle, GraduationCap } from 'lucide-react';
+import { Loader2, Check, AlertCircle, GraduationCap } from 'lucide-react';
 import { subscribeToAuthState } from '../lib/pricing-firebase';
 import { Logo } from './Logo';
-import { createCheckoutSession, getStripe } from '../lib/stripe-client';
-import { motion, AnimatePresence } from 'framer-motion';
+import { createCheckoutSession } from '../lib/stripe-client';
+import { motion } from 'framer-motion';
 import {
     UserTier,
     getUserTier,
@@ -177,11 +177,9 @@ function Pricing() {
     setIsCheckingOut(priceId);
     setCheckoutError(null);
     try {
-      const { sessionId } = await createCheckoutSession(priceId);
-      const stripe = await getStripe();
-      if (!stripe) throw new Error('Stripe.js failed to load.');
-      const { error } = await stripe.redirectToCheckout({ sessionId });
-      if (error) throw error;
+      // The createCheckoutSession function now handles the redirect automatically
+      await createCheckoutSession(priceId);
+      // If we reach here, redirect was successful (though user will be navigated away)
     } catch (error: any) {
       setCheckoutError(error.message || 'Failed to initiate subscription.');
       setIsCheckingOut(null);
@@ -228,7 +226,10 @@ function Pricing() {
   const premiumAnnualSavings = ((14.99 * 12) - (9.99 * 12)).toFixed(2);
   const recommendationText = `Save $${premiumAnnualSavings} / year!`;
 
-  const headerMotionVariants = { hidden: { opacity: 0, y: -30 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } } };
+  const headerMotionVariants = { 
+    hidden: { opacity: 0, y: -30 }, 
+    visible: { opacity: 1, y: 0, transition: { duration: 0.5 } } 
+  };
   
   const premiumStripePriceId = STRIPE_PRICE_IDS.PREMIUM[isYearly ? 'yearly' : 'monthly'];
   const proStripePriceId = STRIPE_PRICE_IDS.PRO[isYearly ? 'yearly' : 'monthly'];
