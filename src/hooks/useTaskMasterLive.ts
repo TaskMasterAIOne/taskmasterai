@@ -5,6 +5,7 @@ import { GoogleGenAI, Modality, StartSensitivity, EndSensitivity, Session } from
 import { AudioPlaybackQueue } from '../lib/AudioPlaybackQueue';
 import { createBlob, decode } from '../lib/utils';
 import processorUrl from '../lib/audio-processor.js?url';
+import { sanitizeErrorMessage } from '../lib/error-sanitizer';
 
 export interface TaskMasterLiveConfig {
   systemInstruction?: string;
@@ -311,6 +312,16 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
             setIsConnecting(false);
             connectionAttemptsRef.current = 0; // Reset attempts on successful connection
             setUnexpectedDisconnectCount(0); // Reset disconnect counter on successful connection
+            
+            // Console logging for quota and model status
+            if (fallbackUsed) {
+              console.warn(`⚠️  USING FREE MODEL: Premium quota reached, using ${finalModel}`);
+              console.log(`👤 User tier: ${tokenData.userTier} | Model: ${finalModel} | Fallback: true`);
+            } else {
+              console.log(`✅ CONNECTED TO PREMIUM MODEL: ${finalModel}`);
+              console.log(`👤 User tier: ${tokenData.userTier} | Model: ${finalModel} | Fallback: false`);
+            }
+            
             addMessage({ type: 'connected', content: 'Connected to TaskMaster Live API' });
           },
           onmessage: (message: any) => {
@@ -408,18 +419,26 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
               localStorage.setItem('taskmaster-client-side-fallback', 'true');
               setIsConnecting(false);
               
-              // Clean up session without full disconnect to preserve clientSideFallback state
+              // Gracefully handle session transition without stopping audio
+              const isAudioPlaying = audioPlaybackQueueRef.current?.isPlaying() || false;
+              
               if (sessionRef.current) {
                 sessionRef.current.close();
                 sessionRef.current = null;
               }
               
-              // Retry with client-side fallback after a short delay
+              // Wait for current audio to finish playing before retrying, or retry immediately if no audio
+              const retryDelay = isAudioPlaying ? 4000 : 1000; // 4 seconds if audio is playing, 1 second otherwise
+              
+              console.warn(`🚨 QUOTA LIMIT REACHED: Premium model quota exhausted for user ${tokenData.userTier}`);
+              console.log(`📱 Switching to free model (${finalModel || 'gemini-live-2.5-flash-preview'})`);
+              console.log(`🎵 Audio playing: ${isAudioPlaying}, retry delay: ${retryDelay}ms`);
+              
               setTimeout(() => {
                 // Ensure clean state before retry
                 setError(null);
                 connect(config, true);
-              }, 2000); // Increased delay to 2 seconds
+              }, retryDelay);
               return;
             } else if (isQuotaError && clientSideFallback) {
               setError('All voice models are currently at capacity. Please try again later.');
@@ -427,7 +446,7 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
               return;
             }
             
-            setError('Connection error: ' + error.message);
+            setError('Connection error: ' + sanitizeErrorMessage(error));
             addMessage({ type: 'error', content: 'Connection error' });
             setIsConnecting(false);
           },
@@ -435,8 +454,7 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
 
             setIsConnected(false);
             setIsConnecting(false);
-            addMessage({ type: 'disconnected', content: 'Disconnected from TaskMaster Live API' });
-
+            
             // Check if this is a quota error for premium users
             const isQuotaError = event.reason && (
               event.reason.includes('quota') || 
@@ -446,6 +464,11 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
               event.reason.includes('Resource has been exhausted') ||
               event.reason.includes('You exceeded your current quota')
             );
+            
+            // Only show disconnection message if this isn't a quota retry
+            if (!isQuotaError) {
+              addMessage({ type: 'disconnected', content: 'Disconnected from TaskMaster Live API' });
+            }
             
             if (isQuotaError && tokenData.userTier === 'premium' && !clientSideFallback) {
 
@@ -461,9 +484,18 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
                 sessionRef.current = null;
               }
               stopRecording();
-              audioPlaybackQueueRef.current?.stop();
+              
+              // Don't stop audio immediately if it's playing - let it finish naturally
+              const isAudioPlaying = audioPlaybackQueueRef.current?.isPlaying() || false;
+              if (!isAudioPlaying) {
+                audioPlaybackQueueRef.current?.stop();
+              }
+              
               setIsConnected(false);
               setIsConnecting(false);
+              
+              console.warn(`🚨 QUOTA LIMIT REACHED (onclose): Premium model quota exhausted for user ${tokenData.userTier}`);
+              console.log(`📱 Switching to free model after connection close`);
               
               // Retry with client-side fallback after a short delay
               setTimeout(() => {
@@ -549,6 +581,31 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
     lastConfigRef.current = null; // Clear stored config
     addMessage({ type: 'disconnected', content: 'Disconnected from voice chat' });
   }, [addMessage, finalizeOutputTranscription, finalizeInputTranscription]);
+
+  // Quota status logger - accessible from browser console
+  const logQuotaStatus = useCallback(() => {
+    if (!isConnected) {
+      console.log('🔌 Voice chat not connected');
+      return;
+    }
+    
+    const status = fallbackUsed ? 'FREE MODEL (Quota reached)' : `${userTier?.toUpperCase()} MODEL`;
+    console.log('='.repeat(50));
+    console.log('📊 TASKMASTER LIVE QUOTA STATUS');
+    console.log('='.repeat(50));
+    console.log(`🎭 Current Model: ${currentModel}`);
+    console.log(`👤 User Tier: ${userTier}`);
+    console.log(`📈 Status: ${status}`);
+    console.log(`🔄 Fallback Used: ${fallbackUsed ? 'Yes' : 'No'}`);
+    console.log(`🔗 Connected: ${isConnected ? 'Yes' : 'No'}`);
+    console.log('='.repeat(50));
+    console.log('💡 Tip: Run logQuotaStatus() anytime to check your status');
+  }, [isConnected, fallbackUsed, currentModel, userTier]);
+
+  // Make quota status logger available globally for debugging
+  if (typeof window !== 'undefined') {
+    (window as any).logQuotaStatus = logQuotaStatus;
+  }
 
   const sendText = useCallback((text: string) => {
     if (!sessionRef.current || !isConnected) {

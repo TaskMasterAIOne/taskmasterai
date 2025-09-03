@@ -11,6 +11,13 @@ export class AudioPlaybackQueue {
     this.audioContext = audioContext;
   }
 
+  /**
+   * Check if audio is currently playing
+   */
+  public isPlaying(): boolean {
+    return this.sources.size > 0;
+  }
+
   public setOnPlayingChange(callback: (isPlaying: boolean) => void) {
     this.onPlayingChangeCallback = callback;
   }

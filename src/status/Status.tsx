@@ -14,6 +14,7 @@ import {
 
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { Logo } from '../components/Logo';
+import { sanitizeErrorMessage } from '../lib/error-sanitizer';
 
 // --- REMOVED: Old AI helper functions no longer needed ---
 
@@ -185,7 +186,7 @@ Assistant:`;
 
     } catch (err: any) {
         console.error('Status Chat Submit Error:', err);
-        const errorMsgContent = `Sorry, I encountered an error retrieving status information${err.message ? ': ' + err.message : '.'}`;
+        const errorMsgContent = `Sorry, I encountered an error retrieving status information${err.message ? ': ' + sanitizeErrorMessage(err) : '.'}`;
         setChatHistory(prev => prev.map(msg =>
             msg.id === assistantMsgId ? { ...msg, content: errorMsgContent, error: true } : msg
         ));

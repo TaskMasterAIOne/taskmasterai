@@ -108,9 +108,6 @@ export const FullscreenVoiceChat: React.FC<FullscreenVoiceChatProps> = ({
     isAISpeaking,
     messages,
     error,
-    fallbackUsed,
-    currentModel,
-    userTier,
     connect,
     disconnect,
     sendText,
@@ -134,7 +131,7 @@ export const FullscreenVoiceChat: React.FC<FullscreenVoiceChatProps> = ({
   const [isLoadingOnboardingStatus, setIsLoadingOnboardingStatus] = useState(true);
   const [showVoiceSelection, setShowVoiceSelection] = useState(false);
   const [isSettingsVoiceSelection, setIsSettingsVoiceSelection] = useState(false);
-  const [selectedVoiceIndex, setSelectedVoiceIndex] = useState(1); // Start with Vale (middle)
+  const [selectedVoiceIndex, setSelectedVoiceIndex] = useState(2); // Start with Kore (warm and engaging voice)
   const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
   const [activeNotionPage, setActiveNotionPage] = useState<{ id: string; title: string } | null>(null);
   const [config, setConfig] = useState<TaskMasterLiveConfig>({
@@ -142,7 +139,7 @@ export const FullscreenVoiceChat: React.FC<FullscreenVoiceChatProps> = ({
     speechConfig: {
       voiceConfig: {
         prebuiltVoiceConfig: {
-          voiceName: 'Puck'
+          voiceName: 'Kore'
         }
       }
     },
@@ -781,12 +778,19 @@ Your ultimate goal is to be a world-class productivity partner for ${truncatedNa
     }
   };
 
-  // Voice selection options for onboarding
+  // Voice selection options for onboarding - Using Gemini Live API voice names
+  // Note: Half-cascade models (basic/pro users) support: Puck, Charon, Kore, Fenrir, Aoede, Leda, Orus, Zephyr
+  // Native audio models (premium users) support a longer list of voices
   const getOnboardingVoices = () => {
     return [
-      { id: 'Puck', name: 'Sol', description: 'Sunny and relaxed' },
-      { id: 'Kore', name: 'Vale', description: 'Bright and inquisitive' },
-      { id: 'Charon', name: 'Cove', description: 'Composed and direct' }
+      { id: 'Puck', name: 'Puck', description: 'Bright and energetic', gender: 'Male' },
+      { id: 'Charon', name: 'Charon', description: 'Deep and authoritative', gender: 'Male' },
+      { id: 'Kore', name: 'Kore', description: 'Warm and engaging', gender: 'Female' },
+      { id: 'Fenrir', name: 'Fenrir', description: 'Strong and confident', gender: 'Male' },
+      { id: 'Aoede', name: 'Aoede', description: 'Melodic and expressive', gender: 'Female' },
+      { id: 'Leda', name: 'Leda', description: 'Clear and professional', gender: 'Female' },
+      { id: 'Orus', name: 'Orus', description: 'Calm and thoughtful', gender: 'Male' },
+      { id: 'Zephyr', name: 'Zephyr', description: 'Gentle and soothing', gender: 'Male' }
     ];
   };
 
@@ -961,6 +965,8 @@ Your ultimate goal is to be a world-class productivity partner for ${truncatedNa
           </div>
         )}
 
+
+
         
 
         {/* Close button for onboarding only */}
@@ -990,26 +996,26 @@ Your ultimate goal is to be a world-class productivity partner for ${truncatedNa
           </div>
         ) : showVoiceSelection ? (
           /* Voice Selection Screen */
-          <div className="flex flex-col items-center justify-center px-8 max-w-md mx-auto text-center" style={{ zIndex: 10 }}>
+          <div className="flex flex-col items-center justify-center px-4 sm:px-8 w-full max-w-4xl mx-auto text-center" style={{ zIndex: 10 }}>
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className="space-y-8"
+              className="space-y-6 sm:space-y-8 w-full"
             >
               {/* Title */}
               <h1 
-                className="text-3xl font-bold mb-40"
+                className="text-2xl sm:text-3xl font-bold mb-8 sm:mb-12"
                 style={{ color: 'var(--text-primary)' }}
               >
                 Choose a voice
               </h1>
 
               {/* Voice Display */}
-              <div className="flex flex-col items-center space-y-36">
+              <div className="flex flex-col items-center space-y-8 sm:space-y-12">
                 {/* Voice Image */}
                 <div
-                  className="w-52 h-52 rounded-full overflow-hidden flex items-center justify-center"
+                  className="w-32 h-32 sm:w-44 md:w-52 sm:h-44 md:h-52 rounded-full overflow-hidden flex items-center justify-center"
                   style={{
                     boxShadow: 'var(--shadow-heavy)'
                   }}
@@ -1022,7 +1028,7 @@ Your ultimate goal is to be a world-class productivity partner for ${truncatedNa
                 </div>
 
                                   {/* Voice Carousel */}
-                  <div className="text-center">
+                  <div className="text-center w-full px-4">
                     <AnimatePresence mode="wait">
                       <motion.div 
                         key={selectedVoiceIndex}
@@ -1030,47 +1036,96 @@ Your ultimate goal is to be a world-class productivity partner for ${truncatedNa
                         animate={{ x: 0 }}
                         exit={{ x: -20 }}
                         transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
-                        className="flex items-center justify-center w-full"
+                        className="flex items-center justify-center w-full max-w-4xl mx-auto"
                       >
-                        {/* Previous Voice */}
-                        <div className="flex-1 text-center opacity-40">
-                          <h3 
-                            className="text-xl font-semibold mb-2"
-                            style={{ color: 'var(--text-primary)' }}
-                          >
-                            {getOnboardingVoices()[(selectedVoiceIndex - 1 + getOnboardingVoices().length) % getOnboardingVoices().length].name}
-                          </h3>
-                          <p 
-                            className="text-sm whitespace-nowrap"
-                            style={{ color: 'var(--text-secondary)' }}
-                          >
-                            {getOnboardingVoices()[(selectedVoiceIndex - 1 + getOnboardingVoices().length) % getOnboardingVoices().length].description}
-                          </p>
+                        {/* Previous Voice - Hidden on mobile */}
+                        <div className="hidden sm:flex flex-1 text-center opacity-40 min-w-0 px-2">
+                          <div className="w-full">
+                            <h3 
+                              className="text-base lg:text-xl font-semibold mb-2 flex items-baseline justify-center gap-1 lg:gap-2 flex-wrap"
+                              style={{ color: 'var(--text-primary)' }}
+                            >
+                              <span className="truncate">
+                                {getOnboardingVoices()[(selectedVoiceIndex - 1 + getOnboardingVoices().length) % getOnboardingVoices().length].name}
+                              </span>
+                              <span 
+                                className="text-xs px-1 rounded-full font-normal inline-flex items-center flex-shrink-0"
+                                style={{ 
+                                  background: 'var(--bg-secondary)', 
+                                  color: 'var(--text-secondary)',
+                                  fontSize: '0.65rem',
+                                  lineHeight: '1.2',
+                                  paddingTop: '0.15rem',
+                                  paddingBottom: '0.15rem'
+                                }}
+                              >
+                                {getOnboardingVoices()[(selectedVoiceIndex - 1 + getOnboardingVoices().length) % getOnboardingVoices().length].gender}
+                              </span>
+                            </h3>
+                            <p 
+                              className="text-xs lg:text-sm text-center px-1"
+                              style={{ 
+                                color: 'var(--text-secondary)',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                                lineHeight: '1.3'
+                              }}
+                            >
+                              {getOnboardingVoices()[(selectedVoiceIndex - 1 + getOnboardingVoices().length) % getOnboardingVoices().length].description}
+                            </p>
+                          </div>
                         </div>
 
                         {/* Previous Button */}
                         <button
                           onClick={prevVoice}
-                          className="p-2 mx-4 rounded-full transition-all duration-200 hover:scale-110"
+                          className="p-2 mx-2 lg:mx-4 rounded-full transition-all duration-200 hover:scale-110 flex-shrink-0"
                           style={{ 
                             background: 'transparent',
                             color: 'var(--text-secondary)' 
                           }}
                         >
-                          <ChevronLeft className="w-6 h-6" />
+                          <ChevronLeft className="w-5 h-5 lg:w-6 lg:h-6" />
                         </button>
 
                         {/* Current Voice */}
-                        <div className="flex-1 text-center">
+                        <div className="flex-1 text-center min-w-0 max-w-xs px-2">
                           <h3 
-                            className="text-xl font-semibold mb-2"
+                            className="text-xl lg:text-2xl font-semibold mb-2 flex items-baseline justify-center gap-2 flex-wrap"
                             style={{ color: 'var(--text-primary)' }}
                           >
-                            {getOnboardingVoices()[selectedVoiceIndex].name}
+                            <span className="truncate">
+                              {getOnboardingVoices()[selectedVoiceIndex].name}
+                            </span>
+                            <span 
+                              className="text-xs px-1 rounded-full font-normal inline-flex items-center flex-shrink-0"
+                              style={{ 
+                                background: 'var(--bg-secondary)', 
+                                color: 'var(--text-secondary)',
+                                fontSize: '0.7rem',
+                                lineHeight: '1',
+                                paddingTop: '0.2rem',
+                                paddingBottom: '0.2rem',
+                                transform: 'translateY(-1px)'
+                              }}
+                            >
+                              {getOnboardingVoices()[selectedVoiceIndex].gender}
+                            </span>
                           </h3>
                           <p 
-                            className="text-sm whitespace-nowrap"
-                            style={{ color: 'var(--text-secondary)' }}
+                            className="text-sm lg:text-base text-center px-2"
+                            style={{ 
+                              color: 'var(--text-secondary)',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              lineHeight: '1.4'
+                            }}
                           >
                             {getOnboardingVoices()[selectedVoiceIndex].description}
                           </p>
@@ -1079,29 +1134,54 @@ Your ultimate goal is to be a world-class productivity partner for ${truncatedNa
                         {/* Next Button */}
                         <button
                           onClick={nextVoice}
-                          className="p-2 mx-4 rounded-full transition-all duration-200 hover:scale-110"
+                          className="p-2 mx-2 lg:mx-4 rounded-full transition-all duration-200 hover:scale-110 flex-shrink-0"
                           style={{ 
                             background: 'transparent',
                             color: 'var(--text-secondary)' 
                           }}
                         >
-                          <ChevronRight className="w-6 h-6" />
+                          <ChevronRight className="w-5 h-5 lg:w-6 lg:h-6" />
                         </button>
 
-                        {/* Next Voice */}
-                        <div className="flex-1 text-center opacity-40">
-                          <h3 
-                            className="text-xl font-semibold mb-2"
-                            style={{ color: 'var(--text-primary)' }}
-                          >
-                            {getOnboardingVoices()[(selectedVoiceIndex + 1) % getOnboardingVoices().length].name}
-                          </h3>
-                          <p 
-                            className="text-sm whitespace-nowrap"
-                            style={{ color: 'var(--text-secondary)' }}
-                          >
-                            {getOnboardingVoices()[(selectedVoiceIndex + 1) % getOnboardingVoices().length].description}
-                          </p>
+                        {/* Next Voice - Hidden on mobile */}
+                        <div className="hidden sm:flex flex-1 text-center opacity-40 min-w-0 px-2">
+                          <div className="w-full">
+                            <h3 
+                              className="text-base lg:text-xl font-semibold mb-2 flex items-baseline justify-center gap-1 lg:gap-2 flex-wrap"
+                              style={{ color: 'var(--text-primary)' }}
+                            >
+                              <span className="truncate">
+                                {getOnboardingVoices()[(selectedVoiceIndex + 1) % getOnboardingVoices().length].name}
+                              </span>
+                              <span 
+                                className="text-xs px-1 rounded-full font-normal inline-flex items-center flex-shrink-0"
+                                style={{ 
+                                  background: 'var(--bg-secondary)', 
+                                  color: 'var(--text-secondary)',
+                                  fontSize: '0.65rem',
+                                  lineHeight: '1.2',
+                                  paddingTop: '0.15rem',
+                                  paddingBottom: '0.15rem'
+                                }}
+                              >
+                                {getOnboardingVoices()[(selectedVoiceIndex + 1) % getOnboardingVoices().length].gender}
+                              </span>
+                            </h3>
+                            <p 
+                              className="text-xs lg:text-sm text-center px-1"
+                              style={{ 
+                                color: 'var(--text-secondary)',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                                lineHeight: '1.3'
+                              }}
+                            >
+                              {getOnboardingVoices()[(selectedVoiceIndex + 1) % getOnboardingVoices().length].description}
+                            </p>
+                          </div>
                         </div>
                       </motion.div>
                     </AnimatePresence>
@@ -1109,15 +1189,15 @@ Your ultimate goal is to be a world-class productivity partner for ${truncatedNa
               </div>
 
               {/* Action Buttons */}
-              <div className="space-y-3 mt-[-50px]">
+              <div className="space-y-3 mt-4 sm:mt-6 w-full max-w-sm mx-auto">
                 {/* Primary Action Button */}
                 <motion.button
                   onClick={isSettingsVoiceSelection ? handleApplyVoiceSettings : handleStartNewChat}
-                  className="py-3 px-8 rounded-full text-white font-medium text-base transition-all duration-200 mx-auto"
+                  className="w-full sm:w-auto py-3 px-8 rounded-full text-white font-medium text-base transition-all duration-200 mx-auto block"
                   style={{
                     background: 'var(--text-primary)',
                     color: 'var(--bg-primary)',
-                    width: 'calc(100% / 3)'
+                    minWidth: '180px'
                   }}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
@@ -1141,17 +1221,17 @@ Your ultimate goal is to be a world-class productivity partner for ${truncatedNa
           </div>
         ) : isFirstTimeUser ? (
           /* Onboarding Screen */
-          <div className="flex flex-col items-center justify-center px-8 max-w-md mx-auto text-center" style={{ zIndex: 10 }}>
+          <div className="flex flex-col items-center justify-center px-4 sm:px-8 w-full max-w-lg mx-auto text-center" style={{ zIndex: 10 }}>
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className="space-y-8"
+              className="space-y-6 sm:space-y-8 w-full"
             >
               {/* Title */}
               <div className="space-y-4">
                 <h1 
-                  className="text-2xl sm:text-3xl font-bold whitespace-nowrap"
+                  className="text-xl sm:text-2xl md:text-3xl font-bold leading-tight"
                   style={{ color: 'var(--text-primary)' }}
                 >
                   Say hello to advanced voice mode
@@ -1159,21 +1239,21 @@ Your ultimate goal is to be a world-class productivity partner for ${truncatedNa
               </div>
 
               {/* Features List */}
-              <div className="space-y-6 text-left">
+              <div className="space-y-4 sm:space-y-6 text-left w-full">
                 {/* Natural Conversations */}
-                <div className="flex items-start gap-4">
+                <div className="flex items-start gap-3 sm:gap-4">
                   <div 
-                    className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
+                    className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center flex-shrink-0"
                     style={{ background: 'var(--bg-highlight)' }}
                   >
                     <MessageCircle 
-                      className="w-6 h-6" 
+                      className="w-5 h-5 sm:w-6 sm:h-6" 
                       style={{ color: 'var(--text-primary)' }}
                     />
                   </div>
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <h3 
-                      className="font-semibold text-lg mb-1"
+                      className="font-semibold text-base sm:text-lg mb-1"
                       style={{ color: 'var(--text-primary)' }}
                     >
                       Natural conversations
@@ -1188,19 +1268,19 @@ Your ultimate goal is to be a world-class productivity partner for ${truncatedNa
                 </div>
 
                 {/* Multiple Voices */}
-                <div className="flex items-start gap-4">
+                <div className="flex items-start gap-3 sm:gap-4">
                   <div 
-                    className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
+                    className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center flex-shrink-0"
                     style={{ background: 'var(--bg-highlight)' }}
                   >
                     <Settings2 
-                      className="w-6 h-6" 
+                      className="w-5 h-5 sm:w-6 sm:h-6" 
                       style={{ color: 'var(--text-primary)' }}
                     />
                   </div>
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <h3 
-                      className="font-semibold text-lg mb-1"
+                      className="font-semibold text-base sm:text-lg mb-1"
                       style={{ color: 'var(--text-primary)' }}
                     >
                       Multiple voices
@@ -1215,19 +1295,19 @@ Your ultimate goal is to be a world-class productivity partner for ${truncatedNa
                 </div>
 
                 {/* Personalized to You */}
-                <div className="flex items-start gap-4">
+                <div className="flex items-start gap-3 sm:gap-4">
                   <div 
-                    className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
+                    className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center flex-shrink-0"
                     style={{ background: 'var(--bg-highlight)' }}
                   >
                     <User 
-                      className="w-6 h-6" 
+                      className="w-5 h-5 sm:w-6 sm:h-6" 
                       style={{ color: 'var(--text-primary)' }}
                     />
                   </div>
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <h3 
-                      className="font-semibold text-lg mb-1"
+                      className="font-semibold text-base sm:text-lg mb-1"
                       style={{ color: 'var(--text-primary)' }}
                     >
                       Personalized to you
@@ -1242,19 +1322,19 @@ Your ultimate goal is to be a world-class productivity partner for ${truncatedNa
                 </div>
 
                 {/* You're in Control */}
-                <div className="flex items-start gap-4">
+                <div className="flex items-start gap-3 sm:gap-4">
                   <div 
-                    className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
+                    className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center flex-shrink-0"
                     style={{ background: 'var(--bg-highlight)' }}
                   >
                     <Lock 
-                      className="w-6 h-6" 
+                      className="w-5 h-5 sm:w-6 sm:h-6" 
                       style={{ color: 'var(--text-primary)' }}
                     />
                   </div>
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <h3 
-                      className="font-semibold text-lg mb-1"
+                      className="font-semibold text-base sm:text-lg mb-1"
                       style={{ color: 'var(--text-primary)' }}
                     >
                       You're in control
@@ -1288,7 +1368,7 @@ Your ultimate goal is to be a world-class productivity partner for ${truncatedNa
               {/* Continue Button */}
               <motion.button
                 onClick={handleCompleteOnboarding}
-                className="w-full py-4 px-6 rounded-full text-white font-medium text-lg transition-all duration-200 hover:scale-105"
+                className="w-full max-w-sm mx-auto py-3 sm:py-4 px-6 rounded-full text-white font-medium text-base sm:text-lg transition-all duration-200 hover:scale-105 block"
                 style={{
                   background: 'var(--text-primary)',
                   color: 'var(--bg-primary)'
