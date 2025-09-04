@@ -1965,7 +1965,7 @@ const handleGoogleDisconnect = async () => {
             <div className="mt-6" id="connectors-section">
                                  <div className="bg-[var(--bg-card)] shadow-lg border border-[var(--border-primary)] p-4 sm:p-5 rounded-xl">
                     <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2 text-[var(--text-primary)]">
-                        <className="w-5 h-5 text-[var(--text-primary)]"/> Connectors
+                        Connectors
                     </h2>
                     <p className="text-xs sm:text-sm text-theme-text-secondary mt-1 mb-4">Connect your favorite apps to supercharge your learning.</p>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
