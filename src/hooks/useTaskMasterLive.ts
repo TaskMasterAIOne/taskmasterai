@@ -202,7 +202,6 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
       });
       
       if (hasRecentDirectResponse) {
-        console.log('🔄 Skipping transcription - already have recent direct text response');
         currentOutputTranscriptionRef.current = '';
         return;
       }
@@ -218,7 +217,6 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
                                  transcriptionText.match(/\{\s*["']?(payload)["']?\s*:/); // JSON with payload
       
       if (containsActualJson) {
-        console.log('🛑 ACTUAL JSON detected in transcription - stopping audio playback IMMEDIATELY');
         audioPlaybackQueueRef.current?.stop(); // This stops and clears all sources
       }
       
@@ -234,7 +232,6 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
         
         // Log processed actions for debugging
         if (processedActions.length > 0) {
-          console.log(`🎯 Voice Chat (Transcription): Processed ${processedActions.length} actions:`, processedActions);
         }
       }).catch(error => {
         console.error('Error processing JSON actions from transcription:', error);
@@ -510,7 +507,6 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
                                           message.text.match(/\{\s*["']?(payload)["']?\s*:/); // JSON with payload
                 
                 if (containsActualJson) {
-                  console.log('🛑 ACTUAL JSON detected in voice response - stopping audio playback IMMEDIATELY');
                   audioPlaybackQueueRef.current?.stop(); // This stops and clears all sources
                 }
                 
@@ -524,7 +520,6 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
                 
                 // Log processed actions for debugging
                 if (processedActions.length > 0) {
-                  console.log(`🎯 Voice Chat: Processed ${processedActions.length} actions:`, processedActions);
                 }
               }).catch(error => {
                 console.error('Error processing JSON actions:', error);
@@ -539,7 +534,6 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
             
             // Handle tool calls (function calling)
             if (message.toolCall && message.toolCall.functionCalls) {
-              console.log('🔧 Tool call received:', message.toolCall.functionCalls);
               
               const functionResponses = [];
               for (const functionCall of message.toolCall.functionCalls) {
@@ -642,7 +636,6 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
               
               // Send tool responses back to the model
               if (sessionRef.current && functionResponses.length > 0) {
-                console.log('📤 Sending tool responses:', functionResponses);
                 sessionRef.current.sendToolResponse({ functionResponses });
               }
             }
@@ -660,7 +653,6 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
               inputTranscriptionTimeoutRef.current = setTimeout(finalizeInputTranscription, 1500);
             } else if (message.serverContent?.inputTranscription?.text && isAISpeaking) {
               // Log when we're ignoring input because AI is speaking
-              console.log('🔇 Ignoring input transcription while AI is speaking to prevent feedback');
             }
             
             // Handle output transcription fragments - accumulate them
@@ -699,7 +691,6 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
               );
               
               if (messageContainsJson) {
-                console.log('🛑 COMPLETELY SKIPPING audio playback - message contains JSON/technical content');
                 audioPlaybackQueueRef.current?.stop(); // Stop any current audio and clear sources
                 
                 // Check if we already processed this text in the direct text handler
@@ -1117,7 +1108,6 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
           },
           callbacks: {
             onopen: () => {
-              console.log(`🎵 Connected for ${voiceId} sample`);
               // Send a simple message to trigger the voice sample
               if (sampleSession) {
                 sampleSession.sendClientContent({ 
@@ -1152,7 +1142,6 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
               reject(error);
             },
             onclose: () => {
-              console.log(`🎵 Voice sample session closed for ${voiceId}`);
             }
           }
         }).then(session => {
