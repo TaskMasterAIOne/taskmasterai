@@ -1,11 +1,26 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { auth } from '../lib/firebase';
-import { GoogleGenAI, Modality, StartSensitivity, EndSensitivity, Session } from '@google/genai';
+import { GoogleGenAI, Modality, StartSensitivity, EndSensitivity, Session, Type } from '@google/genai';
 import { AudioPlaybackQueue } from '../lib/AudioPlaybackQueue';
 import { createBlob, decode } from '../lib/utils';
 import processorUrl from '../lib/audio-processor.js?url';
 import { sanitizeErrorMessage } from '../lib/error-sanitizer';
+import { useActionProcessor, type CompletedAction } from './useActionProcessor';
+
+// Helper function to calculate text similarity
+const calculateSimilarity = (str1: string, str2: string): number => {
+  const words1 = str1.toLowerCase().split(/\s+/);
+  const words2 = str2.toLowerCase().split(/\s+/);
+  
+  const set1 = new Set(words1);
+  const set2 = new Set(words2);
+  
+  const intersection = new Set([...set1].filter(x => set2.has(x)));
+  const union = new Set([...set1, ...set2]);
+  
+  return intersection.size / union.size;
+};
 
 export interface TaskMasterLiveConfig {
   systemInstruction?: string;
@@ -46,12 +61,16 @@ export interface UseTaskMasterLiveReturn {
   userTier: string | null;
   fallbackUsed: boolean;
   currentModel: string | null;
+  completedActions: CompletedAction[];
+  isProcessingActions: boolean;
   connect: (config?: TaskMasterLiveConfig) => Promise<void>;
   disconnect: () => void;
-  sendText: (text: string) => void;
+  sendText: (text: string, files?: { type: string; base64Data: string; name: string }[]) => void;
   startRecording: () => Promise<void>;
   stopRecording: () => void;
   clearMessages: () => void;
+  clearCompletedActions: () => void;
+  createVoiceSample: (voiceId: string, sampleText?: string) => Promise<ArrayBuffer | null>;
 }
 
 export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
@@ -64,6 +83,16 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
   const [userTier, setUserTier] = useState<string | null>(null);
   const [fallbackUsed, setFallbackUsed] = useState(false);
   const [currentModel, setCurrentModel] = useState<string | null>(null);
+  
+  // Action processing hook
+  const { 
+    completedActions, 
+    isProcessing: isProcessingActions, 
+    processJsonBlocks, 
+    processAction,
+    clearCompletedActions,
+    addCompletedAction
+  } = useActionProcessor();
   const [clientSideFallback, setClientSideFallback] = useState(() => {
     // Initialize from localStorage to persist across page reloads
     return localStorage.getItem('taskmaster-client-side-fallback') === 'true';
@@ -90,6 +119,7 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
   const currentInputTranscriptionRef = useRef<string>('');
   const outputTranscriptionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const inputTranscriptionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const recentMessagesRef = useRef<TaskMasterLiveMessage[]>([]);
 
   useEffect(() => {
     // Initialize output audio context and playback queue
@@ -101,6 +131,16 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
       // Set up callback to track AI speaking state
       audioPlaybackQueueRef.current.setOnPlayingChange((isPlaying) => {
         setIsAISpeaking(isPlaying);
+        
+        // Clear any accumulated input transcription when AI starts speaking
+        // to prevent feedback from partial user input that was interrupted
+        if (isPlaying) {
+          currentInputTranscriptionRef.current = '';
+          if (inputTranscriptionTimeoutRef.current) {
+            clearTimeout(inputTranscriptionTimeoutRef.current);
+            inputTranscriptionTimeoutRef.current = null;
+          }
+        }
       });
 
     }
@@ -112,11 +152,16 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
   }, []);
 
   const addMessage = useCallback((message: Omit<TaskMasterLiveMessage, 'timestamp'>) => {
-    setMessages(prev => [...prev, { ...message, timestamp: Date.now() }]);
+    const newMessage = { ...message, timestamp: Date.now() };
+    setMessages(prev => [...prev, newMessage]);
+    
+    // Update ref for deduplication logic
+    recentMessagesRef.current = [...recentMessagesRef.current, newMessage].slice(-10); // Keep last 10 messages
   }, []);
 
   const clearMessages = useCallback(() => {
     setMessages([]);
+    recentMessagesRef.current = []; // Clear the ref as well
     // Clear transcription accumulation
     currentOutputTranscriptionRef.current = '';
     currentInputTranscriptionRef.current = '';
@@ -133,17 +178,81 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
   // Helper function to finalize accumulated transcription
   const finalizeOutputTranscription = useCallback(() => {
     if (currentOutputTranscriptionRef.current.trim()) {
-      addMessage({ 
-        type: 'output', 
-        content: currentOutputTranscriptionRef.current.trim() 
+      const transcriptionText = currentOutputTranscriptionRef.current.trim();
+      
+      // Check if we already have a recent direct text response to avoid duplication
+      // Look for messages in the last 2 seconds that were marked as direct text responses
+      const recentMessages = recentMessagesRef.current.filter(msg => 
+        msg.type === 'output' && 
+        msg.data?.isDirectTextResponse && 
+        Date.now() - msg.timestamp < 2000
+      );
+      
+      // If we have a recent direct text response that contains similar content, skip transcription
+      const hasRecentDirectResponse = recentMessages.some(msg => {
+        const msgContent = msg.content?.toLowerCase() || '';
+        const transcriptionLower = transcriptionText.toLowerCase();
+        
+        // Check if the transcription is substantially similar to recent direct response
+        // (either contains the text or has high overlap)
+        return msgContent.includes(transcriptionLower.substring(0, 50)) || 
+               transcriptionLower.includes(msgContent.substring(0, 50)) ||
+               (msgContent.length > 10 && transcriptionLower.length > 10 && 
+                calculateSimilarity(msgContent, transcriptionLower) > 0.7);
       });
+      
+      if (hasRecentDirectResponse) {
+        console.log('🔄 Skipping transcription - already have recent direct text response');
+        currentOutputTranscriptionRef.current = '';
+        return;
+      }
+      
+      // Check if transcription contains ACTUAL JSON actions (not just content with braces)
+      const containsActualJson = transcriptionText.includes('```json') || 
+                                 transcriptionText.includes('```') || // Code blocks
+                                 transcriptionText.includes('json') || // "json" word
+                                 transcriptionText.includes('JSON') || // "JSON" word
+                                 (transcriptionText.toLowerCase().includes('j') && transcriptionText.length < 10) || // Single "J" or "j"
+                                 transcriptionText.match(/```json[\s\S]*?```/) || // JSON code blocks
+                                 transcriptionText.match(/\{\s*["']?(action|type)["']?\s*:/) || // Actual JSON actions
+                                 transcriptionText.match(/\{\s*["']?(payload)["']?\s*:/); // JSON with payload
+      
+      if (containsActualJson) {
+        console.log('🛑 ACTUAL JSON detected in transcription - stopping audio playback IMMEDIATELY');
+        audioPlaybackQueueRef.current?.stop(); // This stops and clears all sources
+      }
+      
+      // Process JSON actions in the background before saving the message
+      processJsonBlocks(transcriptionText).then(({ cleanedText, processedActions, enhancedText }) => {
+        // Save the enhanced text (includes friendly messages from actions)
+        const finalText = enhancedText || cleanedText || transcriptionText;
+        addMessage({ 
+          type: 'output', 
+          content: finalText,
+          data: { isTranscriptionResponse: true }
+        });
+        
+        // Log processed actions for debugging
+        if (processedActions.length > 0) {
+          console.log(`🎯 Voice Chat (Transcription): Processed ${processedActions.length} actions:`, processedActions);
+        }
+      }).catch(error => {
+        console.error('Error processing JSON actions from transcription:', error);
+        // Fallback to original text if processing fails
+        addMessage({ 
+          type: 'output', 
+          content: transcriptionText,
+          data: { isTranscriptionResponse: true }
+        });
+      });
+      
       currentOutputTranscriptionRef.current = '';
     }
     if (outputTranscriptionTimeoutRef.current) {
       clearTimeout(outputTranscriptionTimeoutRef.current);
       outputTranscriptionTimeoutRef.current = null;
     }
-  }, [addMessage]);
+  }, [addMessage, processJsonBlocks]);
 
   const finalizeInputTranscription = useCallback(() => {
     if (currentInputTranscriptionRef.current.trim()) {
@@ -287,6 +396,68 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
             }
           }
         },
+        tools: [
+          { googleSearch: {} }, // Enable built-in Google Search
+          { codeExecution: {} }, // Enable code execution
+          { 
+            functionDeclarations: [
+              {
+                name: 'searchNotion',
+                description: 'Search the user\'s Notion workspace for pages and content',
+                parameters: {
+                  type: Type.OBJECT,
+                  properties: {
+                    query: {
+                      type: Type.STRING,
+                      description: 'Search query for Notion pages. Leave empty to get all pages.'
+                    }
+                  }
+                }
+              },
+              {
+                name: 'readNotionPage',
+                description: 'Read the content of a specific Notion page',
+                parameters: {
+                  type: Type.OBJECT,
+                  properties: {
+                    pageTitle: {
+                      type: Type.STRING,
+                      description: 'The title of the Notion page to read'
+                    }
+                  },
+                  required: ['pageTitle']
+                }
+              },
+              {
+                name: 'listGoogleDriveFiles',
+                description: 'List files in the user\'s Google Drive',
+                parameters: {
+                  type: Type.OBJECT,
+                  properties: {
+                    query: {
+                      type: Type.STRING,
+                      description: 'Search query for Google Drive files. Leave empty to get all files.'
+                    }
+                  }
+                }
+              },
+              {
+                name: 'readGoogleDriveFile',
+                description: 'Read the content of a specific Google Drive file',
+                parameters: {
+                  type: Type.OBJECT,
+                  properties: {
+                    fileName: {
+                      type: Type.STRING,
+                      description: 'The name of the Google Drive file to read'
+                    }
+                  },
+                  required: ['fileName']
+                }
+              }
+            ]
+          }
+        ] as any,
         systemInstruction: tokenData.systemInstruction,
         realtimeInputConfig: {
           automaticActivityDetection: {
@@ -315,27 +486,170 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
             
             // Console logging for quota and model status
             if (fallbackUsed) {
-              console.warn(`⚠️  USING FREE MODEL: Premium quota reached, using ${finalModel}`);
-              console.log(`👤 User tier: ${tokenData.userTier} | Model: ${finalModel} | Fallback: true`);
-            } else {
-              console.log(`✅ CONNECTED TO PREMIUM MODEL: ${finalModel}`);
-              console.log(`👤 User tier: ${tokenData.userTier} | Model: ${finalModel} | Fallback: false`);
+              console.warn(`⚠️  USING FREE MODEL: Premium quota reached, using `);
             }
             
             addMessage({ type: 'connected', content: 'Connected to TaskMaster Live API' });
           },
-          onmessage: (message: any) => {
-            
-
-
+          onmessage: async (message: any) => {
             // Handle text responses and transcriptions
             if (message.text) {
-              // For direct text responses, save immediately (these are usually complete)
-              addMessage({ type: 'output', content: message.text, data: message });
+              // IMMEDIATELY process and clean the text BEFORE any audio processing
+              processJsonBlocks(message.text).then(({ cleanedText, processedActions, enhancedText }) => {
+                // Use enhanced text for conversation - this includes friendly messages from actions
+                const finalCleanText = enhancedText || cleanedText || message.text;
+                
+                // Check if original text contained ACTUAL JSON actions (not just content with braces)
+                const containsActualJson = message.text.includes('```json') || 
+                                          message.text.includes('```') || // Code blocks
+                                          message.text.includes('json') || // "json" word
+                                          message.text.includes('JSON') || // "JSON" word
+                                          (message.text.toLowerCase().includes('j') && message.text.length < 10) || // Single "J" or "j"
+                                          message.text.match(/```json[\s\S]*?```/) || // JSON code blocks
+                                          message.text.match(/\{\s*["']?(action|type)["']?\s*:/) || // Actual JSON actions
+                                          message.text.match(/\{\s*["']?(payload)["']?\s*:/); // JSON with payload
+                
+                if (containsActualJson) {
+                  console.log('🛑 ACTUAL JSON detected in voice response - stopping audio playback IMMEDIATELY');
+                  audioPlaybackQueueRef.current?.stop(); // This stops and clears all sources
+                }
+                
+                // Save the cleaned text (without JSON blocks) as the message
+                // Mark this message as from direct text response to avoid duplication with transcription
+                addMessage({ 
+                  type: 'output', 
+                  content: finalCleanText, 
+                  data: { ...message, text: finalCleanText, isDirectTextResponse: true } 
+                });
+                
+                // Log processed actions for debugging
+                if (processedActions.length > 0) {
+                  console.log(`🎯 Voice Chat: Processed ${processedActions.length} actions:`, processedActions);
+                }
+              }).catch(error => {
+                console.error('Error processing JSON actions:', error);
+                // Fallback to original text if processing fails
+                addMessage({ 
+                  type: 'output', 
+                  content: message.text, 
+                  data: { ...message, isDirectTextResponse: true } 
+                });
+              });
+            }
+            
+            // Handle tool calls (function calling)
+            if (message.toolCall && message.toolCall.functionCalls) {
+              console.log('🔧 Tool call received:', message.toolCall.functionCalls);
+              
+              const functionResponses = [];
+              for (const functionCall of message.toolCall.functionCalls) {
+                try {
+                  let result;
+                  
+                  switch (functionCall.name) {
+                    case 'searchNotion':
+                      const notionSearchResult = await processAction('searchNotion', functionCall.args);
+                      result = notionSearchResult.friendlyMessage || notionSearchResult.message;
+                      
+                      // Add to completed actions UI
+                      addCompletedAction({
+                        type: 'searchNotion',
+                        title: `Searched Notion${functionCall.args.query ? ` for "${functionCall.args.query}"` : ''}`,
+                        status: notionSearchResult.status,
+                        message: notionSearchResult.message
+                      });
+                      break;
+                      
+                    case 'readNotionPage':
+                      const notionReadResult = await processAction('findAndReadPageContent', { title: functionCall.args.pageTitle });
+                      result = notionReadResult.friendlyMessage || notionReadResult.message;
+                      
+                      // Add to completed actions UI
+                      addCompletedAction({
+                        type: 'readNotionPage',
+                        title: `Read page: "${functionCall.args.pageTitle}"`,
+                        status: notionReadResult.status,
+                        message: notionReadResult.message
+                      });
+                      break;
+                      
+                    case 'listGoogleDriveFiles':
+                      const driveListResult = await processAction('listFilesAndFolders', functionCall.args);
+                      result = driveListResult.friendlyMessage || driveListResult.message;
+                      
+                      // Add to completed actions UI
+                      addCompletedAction({
+                        type: 'listGoogleDriveFiles',
+                        title: `Listed Drive files${functionCall.args.query ? ` for "${functionCall.args.query}"` : ''}`,
+                        status: driveListResult.status,
+                        message: driveListResult.message
+                      });
+                      break;
+                      
+                    case 'readGoogleDriveFile':
+                      // Map fileName to query for the backend findAndReadFile action
+                      const readPayload = { query: functionCall.args.fileName };
+                      const driveReadResult = await processAction('readGoogleDriveFile', readPayload);
+                      result = driveReadResult.friendlyMessage || driveReadResult.message;
+                      
+                      // Add to completed actions UI
+                      addCompletedAction({
+                        type: 'readGoogleDriveFile',
+                        title: `Read file: "${functionCall.args.fileName}"`,
+                        status: driveReadResult.status,
+                        message: driveReadResult.message
+                      });
+                      break;
+                      
+                    default:
+                      result = `Function ${functionCall.name} executed successfully.`;
+                      
+                      // Add generic tool call to completed actions UI
+                      addCompletedAction({
+                        type: functionCall.name,
+                        title: `${functionCall.name} executed`,
+                        status: 'success',
+                        message: result
+                      });
+                  }
+                  
+                  functionResponses.push({
+                    id: functionCall.id,
+                    name: functionCall.name,
+                    response: { result }
+                  });
+                  
+                } catch (error) {
+                  console.error(`Error executing ${functionCall.name}:`, error);
+                  
+                  // Add error to completed actions UI
+                  addCompletedAction({
+                    type: functionCall.name,
+                    title: `${functionCall.name} failed`,
+                    status: 'error',
+                    message: `Couldn't complete ${functionCall.name}. Please try again.`
+                  });
+                  
+                  functionResponses.push({
+                    id: functionCall.id,
+                    name: functionCall.name,
+                    response: { 
+                      result: `Error: Couldn't complete ${functionCall.name}. Please try again.` 
+                    }
+                  });
+                }
+              }
+              
+              // Send tool responses back to the model
+              if (sessionRef.current && functionResponses.length > 0) {
+                console.log('📤 Sending tool responses:', functionResponses);
+                sessionRef.current.sendToolResponse({ functionResponses });
+              }
             }
             
             // Handle input transcription fragments - accumulate them
-            if (message.serverContent?.inputTranscription?.text) {
+            // BUT IGNORE if AI is currently speaking to prevent feedback loops
+            if (message.serverContent?.inputTranscription?.text && !isAISpeaking) {
               const fragment = message.serverContent.inputTranscription.text;
               currentInputTranscriptionRef.current += fragment;
               
@@ -344,6 +658,9 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
                 clearTimeout(inputTranscriptionTimeoutRef.current);
               }
               inputTranscriptionTimeoutRef.current = setTimeout(finalizeInputTranscription, 1500);
+            } else if (message.serverContent?.inputTranscription?.text && isAISpeaking) {
+              // Log when we're ignoring input because AI is speaking
+              console.log('🔇 Ignoring input transcription while AI is speaking to prevent feedback');
             }
             
             // Handle output transcription fragments - accumulate them
@@ -369,19 +686,60 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
 
             
             if (audioData && typeof audioData === 'string') {
-
-              const audioBuffer = decode(audioData);
-
-
+              // Check if this message contains ACTUAL JSON actions (not just content with braces)
+              const messageContainsJson = message.text && (
+                message.text.includes('```json') || 
+                message.text.includes('```') || // Code blocks
+                message.text.includes('json') || // "json" word
+                message.text.includes('JSON') || // "JSON" word
+                (message.text.toLowerCase().includes('j') && message.text.length < 10) || // Single "J" or "j"
+                message.text.match(/```json[\s\S]*?```/) || // JSON code blocks
+                message.text.match(/\{\s*["']?(action|type)["']?\s*:/) || // Actual JSON actions
+                message.text.match(/\{\s*["']?(payload)["']?\s*:/) // JSON with payload
+              );
               
-              // Ensure audio context is resumed before playing
-              if (outputAudioContextRef.current?.state === 'suspended') {
-
-                outputAudioContextRef.current.resume();
+              if (messageContainsJson) {
+                console.log('🛑 COMPLETELY SKIPPING audio playback - message contains JSON/technical content');
+                audioPlaybackQueueRef.current?.stop(); // Stop any current audio and clear sources
+                
+                // Check if we already processed this text in the direct text handler
+                const hasDirectTextResponse = recentMessagesRef.current.some(msg => 
+                  msg.type === 'output' && 
+                  msg.data?.isDirectTextResponse && 
+                  Date.now() - msg.timestamp < 1000 && // Within last second
+                  msg.content === message.text
+                );
+                
+                if (!hasDirectTextResponse) {
+                  // Process the text to get enhanced version with friendly messages, but NO AUDIO
+                  processJsonBlocks(message.text).then(({ cleanedText, enhancedText }) => {
+                    const finalText = enhancedText || cleanedText || message.text;
+                    addMessage({ 
+                      type: 'output', 
+                      content: finalText, 
+                      data: { ...message, text: finalText, isAudioProcessingResponse: true } 
+                    });
+                  }).catch(() => {
+                    addMessage({ 
+                      type: 'output', 
+                      content: message.text, 
+                      data: { ...message, isAudioProcessingResponse: true } 
+                    });
+                  });
+                }
+                
+                return; // Exit early - no audio processing
+              } else {
+                const audioBuffer = decode(audioData);
+                
+                // Ensure audio context is resumed before playing
+                if (outputAudioContextRef.current?.state === 'suspended') {
+                  outputAudioContextRef.current.resume();
+                }
+                
+                audioPlaybackQueueRef.current?.add(audioBuffer);
+                addMessage({ type: 'output', audio: audioBuffer, data: message });
               }
-              
-              audioPlaybackQueueRef.current?.add(audioBuffer);
-              addMessage({ type: 'output', audio: audioBuffer, data: message });
             }
 
             // Handle interruption
@@ -411,8 +769,6 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
             );
             
             if (isQuotaError && tokenData.userTier === 'premium' && !clientSideFallback) {
-
-              
               // Set client-side fallback flag and retry
               setClientSideFallback(true);
               clientSideFallbackRef.current = true;
@@ -431,8 +787,6 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
               const retryDelay = isAudioPlaying ? 4000 : 1000; // 4 seconds if audio is playing, 1 second otherwise
               
               console.warn(`🚨 QUOTA LIMIT REACHED: Premium model quota exhausted for user ${tokenData.userTier}`);
-              console.log(`📱 Switching to free model (${finalModel || 'gemini-live-2.5-flash-preview'})`);
-              console.log(`🎵 Audio playing: ${isAudioPlaying}, retry delay: ${retryDelay}ms`);
               
               setTimeout(() => {
                 // Ensure clean state before retry
@@ -451,7 +805,6 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
             setIsConnecting(false);
           },
           onclose: (event: any) => {
-
             setIsConnected(false);
             setIsConnecting(false);
             
@@ -471,8 +824,6 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
             }
             
             if (isQuotaError && tokenData.userTier === 'premium' && !clientSideFallback) {
-
-              
               // Set client-side fallback flag and retry
               setClientSideFallback(true);
               clientSideFallbackRef.current = true;
@@ -495,7 +846,6 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
               setIsConnecting(false);
               
               console.warn(`🚨 QUOTA LIMIT REACHED (onclose): Premium model quota exhausted for user ${tokenData.userTier}`);
-              console.log(`📱 Switching to free model after connection close`);
               
               // Retry with client-side fallback after a short delay
               setTimeout(() => {
@@ -541,7 +891,6 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
       );
       
       if (isQuotaError && !attemptFallback) {
-
         setIsConnecting(false);
         // Retry with fallback
         setTimeout(() => {
@@ -585,43 +934,53 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
   // Quota status logger - accessible from browser console
   const logQuotaStatus = useCallback(() => {
     if (!isConnected) {
-      console.log('🔌 Voice chat not connected');
       return;
     }
-    
-    const status = fallbackUsed ? 'FREE MODEL (Quota reached)' : `${userTier?.toUpperCase()} MODEL`;
-    console.log('='.repeat(50));
-    console.log('📊 TASKMASTER LIVE QUOTA STATUS');
-    console.log('='.repeat(50));
-    console.log(`🎭 Current Model: ${currentModel}`);
-    console.log(`👤 User Tier: ${userTier}`);
-    console.log(`📈 Status: ${status}`);
-    console.log(`🔄 Fallback Used: ${fallbackUsed ? 'Yes' : 'No'}`);
-    console.log(`🔗 Connected: ${isConnected ? 'Yes' : 'No'}`);
-    console.log('='.repeat(50));
-    console.log('💡 Tip: Run logQuotaStatus() anytime to check your status');
-  }, [isConnected, fallbackUsed, currentModel, userTier]);
+  }, [isConnected, userTier, currentModel, fallbackUsed]);
 
   // Make quota status logger available globally for debugging
   if (typeof window !== 'undefined') {
     (window as any).logQuotaStatus = logQuotaStatus;
   }
 
-  const sendText = useCallback((text: string) => {
+  const sendText = useCallback((text: string, files?: { type: string; base64Data: string; name: string }[]) => {
     if (!sessionRef.current || !isConnected) {
       console.warn('Cannot send text: not connected');
       return;
     }
 
     try {
+      const parts: any[] = [{ text }];
+      
+      // Add files if provided
+      if (files && files.length > 0) {
+        files.forEach(file => {
+          // Only add supported file types for Gemini Live API
+          if (file.type.startsWith('image/') || file.type === 'application/pdf' || file.type === 'text/plain' || file.name.endsWith('.md')) {
+            parts.push({
+              inline_data: {
+                mime_type: file.type,
+                data: file.base64Data
+              }
+            });
+          }
+        });
+      }
+      
       sessionRef.current.sendClientContent({ 
         turns: [{ 
           role: "user", 
-          parts: [{ text }] 
+          parts 
         }],
         turnComplete: true
       });
-      addMessage({ type: 'input', content: text });
+      
+      // Add message with file info
+      const messageContent = files && files.length > 0 
+        ? `${text}\n\n[Attached ${files.length} file${files.length > 1 ? 's' : ''}: ${files.map(f => f.name).join(', ')}]`
+        : text;
+      
+      addMessage({ type: 'input', content: messageContent });
     } catch (error) {
       console.error('Error sending text:', error);
       addMessage({ type: 'error', content: 'Failed to send message' });
@@ -634,12 +993,9 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
     try {
       if (!inputAudioContextRef.current) {
         inputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-
         
         try {
-
           await inputAudioContextRef.current.audioWorklet.addModule(processorUrl);
-
         } catch (error) {
           console.error('❌ Error adding audio worklet module:', error);
           // Fallback or error handling
@@ -648,7 +1004,6 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
         }
       }
       await inputAudioContextRef.current.resume();
-
 
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
@@ -662,18 +1017,16 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
 
       mediaStreamSourceRef.current = inputAudioContextRef.current.createMediaStreamSource(stream);
 
-
       audioWorkletNodeRef.current = new AudioWorkletNode(
         inputAudioContextRef.current,
         'recorder-processor',
       );
 
-
       audioWorkletNodeRef.current.port.onmessage = (event) => {
         const pcmData = event.data;
         
-        // Skip audio chunks if not ready
-        if (!isRecording || !sessionRef.current || !isConnected) {
+        // Skip audio chunks if not ready OR if AI is speaking (to prevent feedback)
+        if (!isRecording || !sessionRef.current || !isConnected || isAISpeaking) {
           return;
         }
         
@@ -690,10 +1043,7 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
       // Set recording state BEFORE connecting to avoid race condition
       setIsRecording(true);
 
-
       mediaStreamSourceRef.current.connect(audioWorkletNodeRef.current);
-
-      
       audioWorkletNodeRef.current.connect(inputAudioContextRef.current.destination);
 
     } catch (err: any) {
@@ -727,9 +1077,94 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
     if (inputAudioContextRef.current && inputAudioContextRef.current.state !== 'closed') {
       inputAudioContextRef.current.suspend();
     }
-    
   }, [isRecording, addMessage]);
 
+  // Create voice sample function
+  const createVoiceSample = useCallback(async (voiceId: string, sampleText?: string): Promise<ArrayBuffer | null> => {
+    try {
+      // Get API key from Firebase Function
+      const functions = getFunctions();
+      const createToken = httpsCallable(functions, 'createTaskMasterLiveToken');
+      
+      const result = await createToken({
+        systemInstruction: sampleText || `You are TaskMaster. Say exactly: "Hi! This is ${voiceId}. I'm here to help you stay productive and organized."`,
+        model: 'gemini-live-2.5-flash-preview' // Use cascade model for samples
+      });
+
+      const tokenData = result.data as any;
+      
+      // Initialize Google GenAI client for sample
+      const { GoogleGenAI, Modality } = await import('@google/genai');
+      const ai = new GoogleGenAI({
+        apiKey: tokenData.token
+      });
+
+      return new Promise((resolve, reject) => {
+        let sampleSession: any = null;
+        
+        ai.live.connect({
+          model: 'gemini-live-2.5-flash-preview',
+          config: {
+            responseModalities: [Modality.AUDIO],
+            speechConfig: {
+              voiceConfig: {
+                prebuiltVoiceConfig: {
+                  voiceName: voiceId
+                }
+              }
+            },
+            systemInstruction: tokenData.systemInstruction
+          },
+          callbacks: {
+            onopen: () => {
+              console.log(`🎵 Connected for ${voiceId} sample`);
+              // Send a simple message to trigger the voice sample
+              if (sampleSession) {
+                sampleSession.sendClientContent({ 
+                  turns: [{ 
+                    role: "user", 
+                    parts: [{ text: "Please introduce yourself" }] 
+                  }],
+                  turnComplete: true
+                });
+              }
+            },
+            onmessage: async (message: any) => {
+              // Handle audio response
+              const audioData = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data || 
+                               message.serverContent?.modelTurn?.parts?.[0]?.audio || 
+                               message.audio;
+              
+              if (audioData && typeof audioData === 'string') {
+                try {
+                  const audioBuffer = decode(audioData);
+                  resolve(audioBuffer);
+                  if (sampleSession) {
+                    sampleSession.close();
+                  }
+                } catch (error) {
+                  reject(error);
+                }
+              }
+            },
+            onerror: (error: any) => {
+              console.error('Voice sample error:', error);
+              reject(error);
+            },
+            onclose: () => {
+              console.log(`🎵 Voice sample session closed for ${voiceId}`);
+            }
+          }
+        }).then(session => {
+          sampleSession = session;
+        }).catch(reject);
+      });
+      
+    } catch (error) {
+      console.error('Error creating voice sample:', error);
+      return null;
+    }
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -748,11 +1183,15 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
     userTier,
     fallbackUsed,
     currentModel,
+    completedActions,
+    isProcessingActions,
     connect,
     disconnect,
     sendText,
     startRecording,
     stopRecording,
-    clearMessages
+    clearMessages,
+    clearCompletedActions,
+    createVoiceSample
   };
 };

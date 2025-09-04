@@ -28,6 +28,66 @@ import {
 import { getFunctions, httpsCallable } from 'firebase/functions'; 
 import { getUserData, getDefaultChatStyle, getThinkHarderEnabled, setThinkHarderEnabled } from '../lib/settings-firebase'; // Ensure this is imported
 import { ProfileModal } from './ProfileModal';
+
+// Google Service Icons
+const GoogleDocsIcon = (props: any) => (
+  <svg viewBox="0 0 64 88" {...props}>
+    <path fill="#3086F6" d="M58,88H6c-3.3,0-6-2.7-6-6V6c0-3.3,2.7-6,6-6h36l22,22v60C64,85.3,61.3,88,58,88z"/>
+    <path fill="#0C67D6" d="M42,0l22,22H42V0z"/>
+    <path fill="#FDFFFF" d="M50,39H14v-5h36V39z M50,46H14v5h36V46z M40,58H14v5h26V58z"/>
+  </svg>
+);
+
+const GoogleSheetsIcon = (props: any) => (
+  <svg viewBox="0 0 49 67" {...props}>
+    <path fill="#0F9D58" d="M29.5833333,0 L4.4375,0 C1.996875,0 0,1.996875 0,4.4375 L0,60.6458333 C0,63.0864583 1.996875,65.0833333 4.4375,65.0833333 L42.8958333,65.0833333 C45.3364583,65.0833333 47.3333333,63.0864583 47.3333333,60.6458333 L47.3333333,17.75 L36.9791667,10.3541667 L29.5833333,0 Z"/>
+    <path fill="#87CEAC" d="M29.5833333,0 L47.3333333,17.75 L34.0208333,17.75 C31.5691146,17.75 29.5833333,15.7642188 29.5833333,13.3125 L29.5833333,0 Z"/>
+    <path fill="#F1F1F1" d="M11.8333333,31.8020833 L11.8333333,53.25 L35.5,53.25 L35.5,31.8020833 L11.8333333,31.8020833 Z M22.1875,50.2916667 L14.7916667,50.2916667 L14.7916667,46.59375 L22.1875,46.59375 L22.1875,50.2916667 Z M22.1875,44.375 L14.7916667,44.375 L14.7916667,40.6770833 L22.1875,40.6770833 L22.1875,44.375 Z M22.1875,38.4583333 L14.7916667,38.4583333 L14.7916667,34.7604167 L22.1875,34.7604167 L22.1875,38.4583333 Z M32.5416667,50.2916667 L25.1458333,50.2916667 L25.1458333,46.59375 L32.5416667,46.59375 L32.5416667,50.2916667 Z M32.5416667,44.375 L25.1458333,44.375 L25.1458333,40.6770833 L32.5416667,40.6770833 L32.5416667,44.375 Z M32.5416667,38.4583333 L25.1458333,38.4583333 L25.1458333,34.7604167 L32.5416667,34.7604167 L32.5416667,38.4583333 Z"/>
+  </svg>
+);
+
+const GoogleDriveIcon = (props: any) => (
+  <svg viewBox="0 0 87.3 78" {...props}>
+    <path fill="#0066DA" d="m6.6 66.85 3.85 6.65c.8 1.4 2.25 2.3 3.85 2.3h58.5c1.6 0 3.05-.9 3.85-2.3l3.85-6.65H6.6z"/>
+    <path fill="#00AC47" d="M43.65 25.5 17.5 67.5h52l26.15-42H43.65z"/>
+    <path fill="#EA4335" d="M17.5 67.5 43.65 25.5 29.9 1.5c-1.6-2.8-5.6-2.8-7.2 0L1.4 40.5c-.8 1.4-.8 3.1 0 4.5L17.5 67.5z"/>
+    <path fill="#00832D" d="M95.65 40.5c.8-1.4.8-3.1 0-4.5L74.35 1.5c-1.6-2.8-5.6-2.8-7.2 0L43.65 25.5 69.8 67.5h6.5c1.6 0 3.05-.9 3.85-2.3L95.65 40.5z"/>
+  </svg>
+);
+
+const GoogleCalendarIcon = (props: any) => (
+  <svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" {...props}>
+    <g>
+      <polygon fill="#FFFFFF" points="195.368421 60.6315789 60.6315789 60.6315789 60.6315789 195.368421 195.368421 195.368421" />
+      <polygon fill="#EA4335" points="195.368421 256 256 195.368421 225.684211 190.196005 195.368421 195.368421 189.835162 223.098002" />
+      <path d="M1.42108547e-14,195.368421 L1.42108547e-14,235.789474 C1.42108547e-14,246.955789 9.04421053,256 20.2105263,256 L60.6315789,256 L66.8568645,225.684211 L60.6315789,195.368421 L27.5991874,190.196005 L1.42108547e-14,195.368421 Z" fill="#188038" />
+      <path d="M256,60.6315789 L256,20.2105263 C256,9.04421053 246.955789,1.42108547e-14 235.789474,1.42108547e-14 L195.368421,1.42108547e-14 C191.679582,15.0358547 189.835162,26.1010948 189.835162,33.1957202 C189.835162,40.2903456 191.679582,49.4356319 195.368421,60.6315789 C208.777986,64.4714866 218.883249,66.3914404 225.684211,66.3914404 C232.485172,66.3914404 242.590435,64.4714866 256,60.6315789 Z" fill="#1967D2" />
+      <polygon fill="#FBBC04" points="256 60.6315789 195.368421 60.6315789 195.368421 195.368421 256 195.368421" />
+      <polygon fill="#34A853" points="195.368421 195.368421 60.6315789 195.368421 60.6315789 256 195.368421 256" />
+      <path d="M195.368421,0 L20.2105263,0 C9.04421053,0 0,9.04421053 0,20.2105263 L0,195.368421 L60.6315789,195.368421 L60.6315789,60.6315789 L195.368421,60.6315789 L195.368421,0 Z" fill="#4285F4" />
+      <path d="M88.2694737,165.153684 C83.2336842,161.751579 79.7473684,156.783158 77.8442105,150.214737 L89.5326316,145.397895 C90.5936842,149.44 92.4463158,152.572632 95.0905263,154.795789 C97.7178947,157.018947 100.917895,158.113684 104.656842,158.113684 C108.48,158.113684 111.764211,156.951579 114.509474,154.627368 C117.254737,152.303158 118.635789,149.338947 118.635789,145.751579 C118.635789,142.08 117.187368,139.082105 114.290526,136.757895 C111.393684,134.433684 107.755789,133.271579 103.410526,133.271579 L96.6568421,133.271579 L96.6568421,121.701053 L102.72,121.701053 C106.458947,121.701053 109.608421,120.690526 112.168421,118.669474 C114.728421,116.648421 116.008421,113.886316 116.008421,110.366316 C116.008421,107.233684 114.863158,104.741053 112.572632,102.871579 C110.282105,101.002105 107.385263,100.058947 103.865263,100.058947 C100.429474,100.058947 97.7010526,100.968421 95.68,102.804211 C93.6602819,104.644885 92.1418208,106.968942 91.2673684,109.557895 L79.6968421,104.741053 C81.2294737,100.395789 84.0421053,96.5557895 88.1684211,93.2378947 C92.2947368,89.92 97.5663158,88.2526316 103.966316,88.2526316 C108.698947,88.2526316 112.96,89.1621053 116.732632,90.9978947 C120.505263,92.8336842 123.469474,95.3768421 125.608421,98.6105263 C127.747368,101.861053 128.808421,105.498947 128.808421,109.541053 C128.808421,113.667368 127.814737,117.153684 125.827368,120.016842 C123.84,122.88 121.397895,125.069474 118.501053,126.602105 L118.501053,127.292632 C122.241568,128.834789 125.490747,131.367752 127.898947,134.618947 C130.341053,137.903158 131.570526,141.827368 131.570526,146.408421 C131.570526,150.989474 130.408421,155.082105 128.084211,158.669474 C125.76,162.256842 122.543158,165.086316 118.467368,167.141053 C114.374737,169.195789 109.776842,170.240124 104.673684,170.240124 C98.7621053,170.256842 93.3052632,168.555789 88.2694737,165.153684 L88.2694737,165.153684 Z M160.067368,107.149474 L147.233684,116.429474 L140.816842,106.694737 L163.84,90.0884211 L172.665263,90.0884211 L172.665263,168.421053 L160.067368,168.421053 L160.067368,107.149474 Z" fill="#4285F4" />
+    </g>
+  </svg>
+);
+
+const GoogleSlidesIcon = (props: any) => (
+  <svg viewBox="0 0 48 66" {...props}>
+    <path d="M29.5833333,0 L4.4375,0 C1.996875,0 0,1.996875 0,4.4375 L0,60.6458333 C0,63.0864583 1.996875,65.0833333 4.4375,65.0833333 L42.8958333,65.0833333 C45.3364583,65.0833333 47.3333333,63.0864583 47.3333333,60.6458333 L47.3333333,17.75 L36.9791667,10.3541667 L29.5833333,0 Z" fill="#F4B400"/>
+    <path d="M33.28125,29.5833333 L14.0520833,29.5833333 C12.8317708,29.5833333 11.8333333,30.5817708 11.8333333,31.8020833 L11.8333333,51.03125 C11.8333333,52.2515625 12.8317708,53.25 14.0520833,53.25 L33.28125,53.25 C34.5015625,53.25 35.5,52.2515625 35.5,51.03125 L35.5,31.8020833 C35.5,30.5817708 34.5015625,29.5833333 33.28125,29.5833333 Z M32.5416667,46.59375 L14.7916667,46.59375 L14.7916667,36.2395833 L32.5416667,36.2395833 L32.5416667,46.59375 Z" fill="#F1F1F1"/>
+    <path d="M26.625,0 L47.3333333,20.7083333 L34.0208333,20.7083333 C31.5691146,20.7083333 29.5833333,18.7225521 29.5833333,16.2708333 L29.5833333,0 Z" fill="#FADA80"/>
+  </svg>
+);
+
+const GmailIcon = (props: any) => (
+  <svg viewBox="52 42 88 66" {...props}>
+    <path fill="#4285f4" d="M58 108h14V74L52 59v43c0 3.32 2.69 6 6 6"/>
+    <path fill="#34a853" d="M120 108h14c3.32 0 6-2.69 6-6V59l-20 15"/>
+    <path fill="#fbbc04" d="M120 48v26l20-15v-8c0-7.42-8.47-11.65-14.4-7.2"/>
+    <path fill="#ea4335" d="M72 74V48l24 18 24-18v26L96 92"/>
+    <path fill="#c5221f" d="M52 51v8l20 15V48l-5.6-4.2c-5.94-4.45-14.4-.22-14.4 7.2"/>
+  </svg>
+);
+
 import { UserTier, BASIC_CHAT_LIMIT, getUserTier, getChatLimitForTier, getCurrentMonthUserChatUsage, incrementUserChatUsage, onUserProfileSnapshot, type UserProfileData, updateUserStreak, getCurrentMonthLocal } from '../lib/current-paying-user';
 import { createChatConversation, saveChatMessage, saveChatMessageWithId, onChatMessagesSnapshot, onChatConversationsSnapshot, uploadBase64ImageToStorage, uploadFileToStorage, updateChatConversationName, deleteChatConversation, pinChatConversation, unpinChatConversation, type ChatMessage as FirebaseChatMessage, type ImageMeta as FirebaseImageMeta, type AttachedFileMeta as FirebaseAttachedFileMeta } from '../lib/ai-chat-firebase';
 import { saveUserContext, onUserContextChange, type UserContext } from '../lib/ai-context-firebase';
@@ -232,6 +292,7 @@ export interface ChatMessageData {
   isVerifyingContent?: boolean;
   isProcessingActions?: boolean;
   isProcessingNotion?: boolean;
+  isProcessingGoogle?: boolean;
   sources?: any[];
   thinkingContent?: string; // AI reasoning process for premium users
   thoughtsExpanded?: boolean; // Whether thoughts UI is expanded for this message
@@ -1177,6 +1238,64 @@ const AssistantMessageContent = ({ message, isDarkMode, onImageClick, onImageDow
                             </a>
                         </div>
                     )}
+                    
+                    {/* Google Drive View Button */}
+                    {message.actionDetails.status === 'success' && (message.actionDetails as any).fileUrl && (
+                        <div className="mt-2">
+                            <a
+                                href={(message.actionDetails as any).fileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--text-secondary)] bg-[var(--bg-highlight)] px-2.5 py-1.5 rounded-lg hover:bg-[var(--interactive-hover)] transition-colors"
+                            >
+                                {(() => {
+                                    const fileType = (message.actionDetails as any).fileType;
+                                    if (fileType?.includes('document')) {
+                                        return <GoogleDocsIcon className="w-3.5 h-3.5" />;
+                                    } else if (fileType?.includes('spreadsheet')) {
+                                        return <GoogleSheetsIcon className="w-3.5 h-3.5" />;
+                                    } else if (fileType?.includes('presentation')) {
+                                        return <GoogleSlidesIcon className="w-3.5 h-3.5" />;
+                                    } else if (fileType?.includes('gmail')) {
+                                        return <GmailIcon className="w-3.5 h-3.5" />;
+                                    } else {
+                                        return <GoogleDriveIcon className="w-3.5 h-3.5" />;
+                                    }
+                                })()}
+                                <span>View "{(message.actionDetails as any).fileName || "File"}" in {(() => {
+                                    const fileType = (message.actionDetails as any).fileType;
+                                    if (fileType?.includes('document')) {
+                                        return 'Docs';
+                                    } else if (fileType?.includes('spreadsheet')) {
+                                        return 'Sheets';
+                                    } else if (fileType?.includes('presentation')) {
+                                        return 'Slides';
+                                    } else if (fileType?.includes('gmail')) {
+                                        return 'Gmail';
+                                    } else {
+                                        return 'Drive';
+                                    }
+                                })()}</span>
+                                <ArrowUpRight className="w-3 h-3" />
+                            </a>
+                        </div>
+                    )}
+                    
+                    {/* Google Calendar View Button */}
+                    {message.actionDetails.status === 'success' && (message.actionDetails as any).eventUrl && (
+                        <div className="mt-2">
+                            <a
+                                href={(message.actionDetails as any).eventUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--text-secondary)] bg-[var(--bg-highlight)] px-2.5 py-1.5 rounded-lg hover:bg-[var(--interactive-hover)] transition-colors"
+                            >
+                                <GoogleCalendarIcon className="w-3.5 h-3.5" />
+                                <span>View "{(message.actionDetails as any).eventTitle || "Event"}" in Calendar</span>
+                                <ArrowUpRight className="w-3 h-3" />
+                            </a>
+                        </div>
+                    )}
                     {/* --- END OF NEW BLOCK --- */}
                                    </div>
             )}
@@ -1336,6 +1455,113 @@ const UserMessageActions = memo(({ message, onEdit, onCopy }: {
 const NotionIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" {...props}>
       <path className="fill-black dark:fill-white" d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z"/>
+    </svg>
+);
+
+const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg version="1.1" viewBox="0 0 268.1522 273.8827" overflow="hidden" xmlSpace="preserve" xmlns="http://www.w3.org/2000/svg" {...props}>
+    <defs>
+      <linearGradient id="google-a">
+        <stop offset="0" stopColor="#0fbc5c"/>
+        <stop offset="1" stopColor="#0cba65"/>
+      </linearGradient>
+      <linearGradient id="google-g">
+        <stop offset=".2312727" stopColor="#0fbc5f"/>
+        <stop offset=".3115468" stopColor="#0fbc5f"/>
+        <stop offset=".3660131" stopColor="#0fbc5e"/>
+        <stop offset=".4575163" stopColor="#0fbc5d"/>
+        <stop offset=".540305" stopColor="#12bc58"/>
+        <stop offset=".6993464" stopColor="#28bf3c"/>
+        <stop offset=".7712418" stopColor="#38c02b"/>
+        <stop offset=".8605665" stopColor="#52c218"/>
+        <stop offset=".9150327" stopColor="#67c30f"/>
+        <stop offset="1" stopColor="#86c504"/>
+      </linearGradient>
+      <linearGradient id="google-h">
+        <stop offset=".1416122" stopColor="#1abd4d"/>
+        <stop offset=".2475151" stopColor="#6ec30d"/>
+        <stop offset=".3115468" stopColor="#8ac502"/>
+        <stop offset=".3660131" stopColor="#a2c600"/>
+        <stop offset=".4456735" stopColor="#c8c903"/>
+        <stop offset=".540305" stopColor="#ebcb03"/>
+        <stop offset=".6156363" stopColor="#f7cd07"/>
+        <stop offset=".6993454" stopColor="#fdcd04"/>
+        <stop offset=".7712418" stopColor="#fdce05"/>
+        <stop offset=".8605661" stopColor="#ffce0a"/>
+      </linearGradient>
+      <linearGradient id="google-f">
+        <stop offset=".3159041" stopColor="#ff4c3c"/>
+        <stop offset=".6038179" stopColor="#ff692c"/>
+        <stop offset=".7268366" stopColor="#ff7825"/>
+        <stop offset=".884534" stopColor="#ff8d1b"/>
+        <stop offset="1" stopColor="#ff9f13"/>
+      </linearGradient>
+      <linearGradient id="google-b">
+        <stop offset=".2312727" stopColor="#ff4541"/>
+        <stop offset=".3115468" stopColor="#ff4540"/>
+        <stop offset=".4575163" stopColor="#ff4640"/>
+        <stop offset=".540305" stopColor="#ff473f"/>
+        <stop offset=".6993464" stopColor="#ff5138"/>
+        <stop offset=".7712418" stopColor="#ff5b33"/>
+        <stop offset=".8605665" stopColor="#ff6c29"/>
+        <stop offset="1" stopColor="#ff8c18"/>
+      </linearGradient>
+      <linearGradient id="google-d">
+        <stop offset=".4084578" stopColor="#fb4e5a"/>
+        <stop offset="1" stopColor="#ff4540"/>
+      </linearGradient>
+      <linearGradient id="google-c">
+        <stop offset=".1315461" stopColor="#0cba65"/>
+        <stop offset=".2097843" stopColor="#0bb86d"/>
+        <stop offset=".2972969" stopColor="#09b479"/>
+        <stop offset=".3962575" stopColor="#08ad93"/>
+        <stop offset=".4771242" stopColor="#0aa6a9"/>
+        <stop offset=".5684245" stopColor="#0d9cc6"/>
+        <stop offset=".667385" stopColor="#1893dd"/>
+        <stop offset=".7687273" stopColor="#258bf1"/>
+        <stop offset=".8585063" stopColor="#3086ff"/>
+      </linearGradient>
+      <linearGradient id="google-e">
+        <stop offset=".3660131" stopColor="#ff4e3a"/>
+        <stop offset=".4575163" stopColor="#ff8a1b"/>
+        <stop offset=".540305" stopColor="#ffa312"/>
+        <stop offset=".6156363" stopColor="#ffb60c"/>
+        <stop offset=".7712418" stopColor="#ffcd0a"/>
+        <stop offset=".8605665" stopColor="#fecf0a"/>
+        <stop offset=".9150327" stopColor="#fecf08"/>
+        <stop offset="1" stopColor="#fdcd01"/>
+      </linearGradient>
+      <linearGradient xlinkHref="#google-a" id="google-s" x1="219.6997" y1="329.5351" x2="254.4673" y2="329.5351" gradientUnits="userSpaceOnUse"/>
+      <radialGradient xlinkHref="#google-b" id="google-m" gradientUnits="userSpaceOnUse" gradientTransform="matrix(-1.936885,1.043001,1.455731,2.555422,290.5254,-400.6338)" cx="109.6267" cy="135.8619" fx="109.6267" fy="135.8619" r="71.46001"/>
+      <radialGradient xlinkHref="#google-c" id="google-n" gradientUnits="userSpaceOnUse" gradientTransform="matrix(-3.512595,-4.45809,-1.692547,1.260616,870.8006,191.554)" cx="45.25866" cy="279.2738" fx="45.25866" fy="279.2738" r="71.46001"/>
+      <radialGradient xlinkHref="#google-d" id="google-l" cx="304.0166" cy="118.0089" fx="304.0166" fy="118.0089" r="47.85445" gradientTransform="matrix(2.064353,-4.926832e-6,-2.901531e-6,2.592041,-297.6788,-151.7469)" gradientUnits="userSpaceOnUse"/>
+      <radialGradient xlinkHref="#google-e" id="google-o" gradientUnits="userSpaceOnUse" gradientTransform="matrix(-0.2485783,2.083138,2.962486,0.3341668,-255.1463,-331.1636)" cx="181.001" cy="177.2013" fx="181.001" fy="177.2013" r="71.46001"/>
+      <radialGradient xlinkHref="#google-f" id="google-p" cx="207.6733" cy="108.0972" fx="207.6733" fy="108.0972" r="41.1025" gradientTransform="matrix(-1.249206,1.343263,-3.896837,-3.425693,880.5011,194.9051)" gradientUnits="userSpaceOnUse"/>
+      <radialGradient xlinkHref="#google-g" id="google-r" gradientUnits="userSpaceOnUse" gradientTransform="matrix(-1.936885,-1.043001,1.455731,-2.555422,290.5254,838.6834)" cx="109.6267" cy="135.8619" fx="109.6267" fy="135.8619" r="71.46001"/>
+      <radialGradient xlinkHref="#google-h" id="google-j" gradientUnits="userSpaceOnUse" gradientTransform="matrix(-0.081402,-1.93722,2.926737,-0.1162508,-215.1345,632.8606)" cx="154.8697" cy="145.9691" fx="154.8697" fy="145.9691" r="71.46001"/>
+      <filter id="google-q" x="-.04842873" y="-.0582241" width="1.096857" height="1.116448" colorInterpolationFilters="sRGB">
+        <feGaussianBlur stdDeviation="1.700914"/>
+      </filter>
+      <filter id="google-k" x="-.01670084" y="-.01009856" width="1.033402" height="1.020197" colorInterpolationFilters="sRGB">
+        <feGaussianBlur stdDeviation=".2419367"/>
+      </filter>
+      <clipPath clipPathUnits="userSpaceOnUse" id="google-i">
+        <path d="M371.3784 193.2406H237.0825v53.4375h77.167c-1.2405 7.5627-4.0259 15.0024-8.1049 21.7862-4.6734 7.7723-10.4511 13.6895-16.373 18.1957-17.7389 13.4983-38.42 16.2584-52.7828 16.2584-36.2824 0-67.2833-23.2865-79.2844-54.9287-.4843-1.1482-.8059-2.3344-1.1975-3.5068-2.652-8.0533-4.101-16.5825-4.101-25.4474 0-9.226 1.5691-18.0575 4.4301-26.3985 11.2851-32.8967 42.9849-57.4674 80.1789-57.4674 7.4811 0 14.6854.8843 21.5173 2.6481 15.6135 4.0309 26.6578 11.9698 33.4252 18.2494l40.834-39.7111c-24.839-22.616-57.2194-36.3201-95.8444-36.3201-30.8782-.00066-59.3863 9.55308-82.7477 25.6992-18.9454 13.0941-34.4833 30.6254-44.9695 50.9861-9.75366 18.8785-15.09441 39.7994-15.09441 62.2934 0 22.495 5.34891 43.6334 15.10261 62.3374v.126c10.3023 19.8567 25.3678 36.9537 43.6783 49.9878 15.9962 11.3866 44.6789 26.5516 84.0307 26.5516 22.6301 0 42.6867-4.0517 60.3748-11.6447 12.76-5.4775 24.0655-12.6217 34.3012-21.8036 13.5247-12.1323 24.1168-27.1388 31.3465-44.4041 7.2297-17.2654 11.097-36.7895 11.097-57.957 0-9.858-.9971-19.8694-2.6881-28.9684Z" fill="#000"/>
+      </clipPath>
+    </defs>
+    <g transform="matrix(0.957922,0,0,0.985255,-90.17436,-78.85577)">
+      <g clipPath="url(#google-i)">
+        <path d="M92.07563 219.9585c.14844 22.14 6.5014 44.983 16.11767 63.4234v.1269c6.9482 13.3919 16.4444 23.9704 27.2604 34.4518l65.326-23.67c-12.3593-6.2344-14.2452-10.0546-23.1048-17.0253-9.0537-9.0658-15.8015-19.4735-20.0038-31.677h-.1693l.1693-.1269c-2.7646-8.0587-3.0373-16.6129-3.1393-25.5029Z" fill="url(#google-j)" filter="url(#google-k)"/>
+        <path d="M237.0835 79.02491c-6.4568 22.52569-3.988 44.42139 0 57.16129 7.4561.0055 14.6388.8881 21.4494 2.6464 15.6135 4.0309 26.6566 11.97 33.424 18.2496l41.8794-40.7256c-24.8094-22.58904-54.6663-37.2961-96.7528-37.33169Z" fill="url(#google-l)" filter="url(#google-k)"/>
+        <path d="M236.9434 78.84678c-31.6709-.00068-60.9107 9.79833-84.8718 26.35902-8.8968 6.149-17.0612 13.2521-24.3311 21.1509-1.9045 17.7429 14.2569 39.5507 46.2615 39.3702 15.5284-17.9373 38.4946-29.5427 64.0561-29.5427.0233 0 .046.0019.0693.002l-1.0439-57.33536c-.0472-.00003-.0929-.00406-.1401-.00406Z" fill="url(#google-m)" filter="url(#google-k)"/>
+        <path d="m341.4751 226.3788-28.2685 19.2848c-1.2405 7.5627-4.0278 15.0023-8.1068 21.7861-4.6734 7.7723-10.4506 13.6898-16.3725 18.196-17.7022 13.4704-38.3286 16.2439-52.6877 16.2553-14.8415 25.1018-17.4435 37.6749 1.0439 57.9342 22.8762-.0167 43.157-4.1174 61.0458-11.7965 12.9312-5.551 24.3879-12.7913 34.7609-22.0964 13.7061-12.295 24.4421-27.5034 31.7688-45.0003 7.3267-17.497 11.2446-37.2822 11.2446-58.7336Z" fill="url(#google-n)" filter="url(#google-k)"/>
+        <path d="M234.9956 191.2104v57.4981h136.0062c1.1962-7.8745 5.1523-18.0644 5.1523-26.5001 0-9.858-.9963-21.899-2.6873-30.998Z" fill="#3086ff" filter="url(#google-k)"/>
+        <path d="M128.3894 124.3268c-8.393 9.1191-15.5632 19.326-21.2483 30.3646-9.75351 18.8785-15.09402 41.8295-15.09402 64.3235 0 .317.02642.6271.02855.9436 4.31953 8.2244 59.66647 6.6495 62.45617 0-.0035-.3103-.0387-.6128-.0387-.9238 0-9.226 1.5696-16.0262 4.4306-24.3672 3.5294-10.2885 9.0557-19.7628 16.1223-27.9257 1.6019-2.0309 5.8748-6.3969 7.1214-9.0157.4749-.9975-.8621-1.5574-.9369-1.9085-.0836-.3927-1.8762-.0769-2.2778-.3694-1.2751-.9288-3.8001-1.4138-5.3334-1.8449-3.2772-.9215-8.7085-2.9536-11.7252-5.0601-9.5357-6.6586-24.417-14.6122-33.5047-24.2164Z" fill="url(#google-o)" filter="url(#google-k)"/>
+        <path d="M162.0989 155.8569c22.1123 13.3013 28.4714-6.7139 43.173-12.9771L179.698 90.21568c-9.4075 3.92642-18.2957 8.80465-26.5426 14.50442-12.316 8.5122-23.192 18.8995-32.1763 30.7204Z" fill="url(#google-p)" filter="url(#google-q)"/>
+        <path d="M171.0987 290.222c-29.6829 10.6413-34.3299 11.023-37.0622 29.2903 5.2213 5.0597 10.8312 9.74 16.7926 13.9835 15.9962 11.3867 46.766 26.5517 86.1178 26.5517.0462 0 .0904-.004.1366-.004v-59.1574c-.0298.0001-.064.002-.0938.002-14.7359 0-26.5113-3.8435-38.5848-10.5273-2.9768-1.6479-8.3775 2.7772-11.1229.799-3.7865-2.7284-12.8991 2.3508-16.1833-.9378Z" fill="url(#google-r)" filter="url(#google-k)"/>
+        <path d="M219.6997 299.0227v59.9959c5.506.6402 11.2361 1.0289 17.2472 1.0289 6.0259 0 11.8556-.3073 17.5204-.8723v-59.7481c-6.3482 1.0777-12.3272 1.461-17.4776 1.461-5.9318 0-11.7005-.6858-17.29-1.8654Z" opacity=".5" fill="url(#google-s)" filter="url(#google-k)"/>
+      </g>
+    </g>
     </svg>
 );
 
@@ -2344,6 +2570,8 @@ const [isDraggingOver, setIsDraggingOver] = useState(false);
 
    const [isNotionConnected, setIsNotionConnected] = useState(false);
   const [isNotionSearchModeActive, setIsNotionSearchModeActive] = useState(false);
+  const [isGoogleDriveConnected, setIsGoogleDriveConnected] = useState(false);
+  const [isGoogleCalendarConnected, setIsGoogleCalendarConnected] = useState(false);
 
 
 
@@ -2550,6 +2778,19 @@ const [isDraggingOver, setIsDraggingOver] = useState(false);
           } else {
             setIsNotionConnected(false);
           }
+          
+          // Check Google connections
+          if (userData && (userData as any).googleDriveConnected) {
+            setIsGoogleDriveConnected(true);
+          } else {
+            setIsGoogleDriveConnected(false);
+          }
+          
+          if (userData && (userData as any).googleCalendarConnected) {
+            setIsGoogleCalendarConnected(true);
+          } else {
+            setIsGoogleCalendarConnected(false);
+          }
         });
 
         // Load Reasoning setting
@@ -2604,92 +2845,12 @@ const [isDraggingOver, setIsDraggingOver] = useState(false);
 
     const state = location.state as any;
 
-    // Handle prefilled message from Dashboard context
+    // Handle prefilled message from Dashboard context (for other navigation cases)
     if (state.prefilledMessage && state.autoStart && user) {
-      // Check if we've already sent this exact message to prevent duplicates
-      if (autoSentRef.current === state.prefilledMessage) return;
-      
-      // Also check if we're currently processing this message
-      if (autoSentRef.current === `processing_${state.prefilledMessage}`) return;
-
-      // Mark that we're handling this specific message
-      autoSentRef.current = state.prefilledMessage;
-
-      // Clear navigation state IMMEDIATELY to prevent re-execution
+      // This is now only used for non-Dashboard navigation cases
+      // Dashboard AI suggestions now use direct handleChatSubmit approach
+      setChatMessage(state.prefilledMessage);
       window.history.replaceState({}, document.title, window.location.pathname);
-      
-      // Also clear the location.state reference to prevent re-triggers
-      (location as any).state = null;
-      
-            // Add a delay to ensure chat is loaded, then send the message
-      const timer = setTimeout(async () => {
-        if (!isChatLoading && autoSentRef.current === state.prefilledMessage) {
-          // Ensure we only send once by checking the ref again
-          autoSentRef.current = `sent_${state.prefilledMessage}`;
-
-          // Clear any existing message first
-          setChatMessage('');
-          
-          // Set a flag to prevent further auto-sends during this execution
-          autoSentRef.current = `processing_${state.prefilledMessage}`;
-          
-          try {
-            let currentConvId = conversationId;
-            
-            // Create new conversation if needed
-            if (!currentConvId) {
-              const newId = await createChatConversation(user.uid, "New Chat");
-              if (!newId) throw new Error("Failed to create conversation");
-              currentConvId = newId;
-              // Set conversation ID and wait for the chat history to be cleared and Firebase listener to be set up
-              setConversationId(newId);
-              // Add a minimal delay to ensure the conversation state is properly set
-              await new Promise(resolve => setTimeout(resolve, 50));
-            }
-            
-            // Save the user message to Firebase - the listener will add it to the UI
-            await saveChatMessage(currentConvId, { role: 'user', content: state.prefilledMessage });
-            
-            // IMMEDIATELY add the user message to local state to ensure it shows up
-            // Use a unique ID that we can track to prevent Firebase duplicates
-            const autoMessageId = `auto-user-${currentConvId}-${Date.now()}`;
-            const userMessage: ChatMessageData = {
-              id: autoMessageId,
-              role: 'user',
-              content: state.prefilledMessage,
-              createdAt: new Date()
-            };
-
-            // Reset auto-scroll flag so auto-sent messages will scroll to bottom
-            userScrolledUpRef.current = false;
-            setChatHistory(prev => [...prev, userMessage]);
-            
-
-            
-            // Delay to ensure the user message appears in the UI via Firebase listener  
-            setTimeout(async () => {
-
-              try {
-                // Now call handleChatSubmit with the message to trigger full AI response
-                // We pass the message as incomingMessage to prevent reading from chatMessage state
-                // Create a custom event to signal this is from auto-send
-                const autoEvent = new Event('auto-submit') as any;
-                autoEvent.isAutoSend = true;
-                await handleChatSubmit(autoEvent, state.prefilledMessage);
-              } catch (error) {
-                console.error("Error calling handleChatSubmit:", error);
-                setIsChatLoading(false);
-              }
-                          }, 200); // Reduced delay for faster response
-            
-          } catch (error) {
-            console.error("Auto-send error:", error);
-            setIsChatLoading(false);
-          }
-        }
-      }, 1500);
-      
-      return () => clearTimeout(timer);
     }
     
     // Handle just prefilled message without auto-send
@@ -3183,7 +3344,13 @@ const [isDraggingOver, setIsDraggingOver] = useState(false);
       return `${type}: ${name}${detailsString}`;
     };
     [...tasks.map(t => ({ item: t, type: 'Task' })), ...goals.map(g => ({ item: g, type: 'Goal' })), ...events.map(e => ({ item: e, type: 'Event' }))]
-      .filter(({ item }) => !item.data.completed)
+      .filter(({ item, type }) => {
+        if (type === 'Event') {
+          const endDate = item.data.endDate instanceof Date ? item.data.endDate : (item.data.endDate?.toDate ? item.data.endDate.toDate() : new Date(item.data.endDate || 0));
+          return endDate >= new Date() && !item.data.completed;
+        }
+        return !item.data.completed;
+      })
       .forEach(({ item, type }) => {
         if (type === 'Task') lines.push(formatLine(item, 'Task', 'task', 'dueDate'));
         else if (type === 'Goal') lines.push(formatLine(item, 'Goal', 'goal', 'targetDate'));
@@ -3240,6 +3407,8 @@ ${activePrompt || 'Respond in a standard, helpful manner.'}
   - Long-term Learning Goals: ${userContext?.longTermGoals || 'Not specified'}
   - Additional Notes: ${userContext?.otherContext || 'Not specified'}
   - Notion Integration: ${isNotionConnected ? 'Connected' : 'Not Connected'}
+  - Google Calendar Integration: ${isGoogleCalendarConnected ? 'Connected' : 'Not Connected'}
+  - Google Drive Integration: ${isGoogleDriveConnected ? 'Connected' : 'Not Connected'}
 
 // [B. DYNAMIC DATA CONTEXT] - This is the live data you are working with.
 
@@ -3256,6 +3425,8 @@ ${memoryContext}${forceSearchContext}
 1.  **JSON Action System**: To interact with the application's database by outputting structured JSON. This is how you create, update, or delete items.
 2.  **Web Search Tool**: To find current information, definitions, or facts not present in the provided context.
 3.  **Notion Tool**: To search, create, and update pages in the user's connected Notion workspace.
+4.  **Google Calendar Tool**: To read, create, update, and delete events in the user's Google Calendar.
+5.  **Google Drive Tool**: To read, create, and update files, documents, and spreadsheets in the user's Google Drive.
 
 // =================================================================================================
 // [CRITICAL REASONING & TOOL CALL PROTOCOL]
@@ -3311,9 +3482,11 @@ NEVER give just conversational confirmation without the actual JSON execution!
 
 **DECISION HIERARCHY:**
 1.  **Does the query explicitly involve Notion (e.g., "in Notion", "find my Notion page") AND is the Notion integration "Connected"?** -> **[NOTION ACTION PROTOCOL]**.
-2.  **Is the user issuing a direct command to modify data (create, update, delete, remember, generate quiz/flashcards)?**
+2.  **Does the query explicitly involve Google Calendar (e.g., "add to calendar", "check my schedule", "calendar event") AND is Google connected?** -> **[GOOGLE CALENDAR PROTOCOL]**.
+3.  **Does the query explicitly involve Google Drive (e.g., "read my document", "create a spreadsheet", "update my sheet", "what is in my [filename]") AND is Google connected?** -> **[GOOGLE DRIVE PROTOCOL]**.
+4.  **Is the user issuing a direct command to modify data (create, update, delete, remember, generate quiz/flashcards)?**
     -> If YES, proceed to the **[JSON ACTION PROTOCOL]**.
-3.  **Does the user's query require external, real-time, or specific information not available in the context?**
+5.  **Does the user's query require external, real-time, or specific information not available in the context?**
     -> Use your intelligent judgment to determine if web search is needed. You have constant access to search tools.
     -> **AUTOMATIC SEARCH CRITERIA**: Use web search when queries involve:
        • Current events, news, or recent developments
@@ -3478,7 +3651,163 @@ ${activeNotionPage ? `
    - **Important**: If the integration is not connected, respond in plain text telling them to connect Notion in the settings. Do not output JSON.
 
 // -------------------------------------------------------------------------------------------------
-// [PROTOCOL 1: JSON ACTION PROTOCOL]
+// [PROTOCOL 2: GOOGLE CALENDAR PROTOCOL]
+// This is your complete guide for all Google Calendar interactions.
+// -------------------------------------------------------------------------------------------------
+
+   // --- [GOOGLE CALENDAR CAPABILITIES] ---
+   // You can perform all calendar operations agentically - reading, creating, updating, and deleting events.
+   // Always be proactive and perform the exact action the user requests.
+
+   // --- [GOOGLE CALENDAR ACTIONS] ---
+   - **listCalendarEvents**: View all upcoming events. Payload: \`{"timeMin"?: "ISO-date", "timeMax"?: "ISO-date", "maxResults"?: number}\`
+   - **createCalendarEvent**: Create a new event. Payload: \`{"summary": string, "description"?: string, "start": "ISO-datetime", "end": "ISO-datetime", "location"?: string, "attendees"?: ["email1", "email2"]}\`
+   - **updateCalendarEvent**: Update an existing event. Payload: \`{"eventId": string, "summary"?: string, "description"?: string, "start"?: "ISO-datetime", "end"?: "ISO-datetime", "location"?: string, "attendees"?: ["email1", "email2"]}\`
+   - **deleteCalendarEvent**: Delete an event. Payload: \`{"eventId": string}\`
+   - **searchCalendarEvents**: Search for specific events. Payload: \`{"query": string, "timeMin"?: "ISO-date", "timeMax"?: "ISO-date"}\`
+
+   // --- [DATE/TIME HANDLING FOR CALENDAR] ---
+   - Always convert user-provided dates/times to ISO format (e.g., "2024-01-15T10:00:00Z")
+   - For events, always ensure both start and end times are provided
+   - Default to 1-hour duration if only start time is given
+
+   // --- [CALENDAR JSON FORMAT] ---
+   \\\`\\\`\\\`json
+   { "type": "googleCalendar", "action": "the_action_to_perform", "payload": { ... } }
+   \\\`\\\`\\\`
+
+   // --- [CALENDAR EXAMPLES] ---
+   // User: "Add a meeting tomorrow at 2pm"
+   // Assistant: "I'll add that meeting to your calendar!"
+   // \\\`\\\`\\\`json
+   // { "type": "googleCalendar", "action": "createCalendarEvent", "payload": {"summary": "Meeting", "start": "2024-01-16T14:00:00Z", "end": "2024-01-16T15:00:00Z"} }
+   // \\\`\\\`\\\`
+
+// -------------------------------------------------------------------------------------------------
+// [PROTOCOL 3: GOOGLE WORKSPACE PROTOCOL]  
+// This is your complete guide for all Google Workspace interactions including Drive, Docs, Sheets, Slides, and Gmail.
+// -------------------------------------------------------------------------------------------------
+
+   // --- [GOOGLE WORKSPACE CAPABILITIES] ---
+   // You can read ALL Google Drive files, create Google Docs/Sheets/Slides, send Gmail, and make precise updates.
+   // Always be proactive and access the exact files or create the exact documents the user needs.
+   // 
+   // **CRITICAL SMART BEHAVIOR - CHOOSE THE RIGHT ACTION**:
+   // 
+   // **When user wants to READ content** (e.g., "what is in my resume", "read my notes", "show me my document"):
+   // → Use **findAndReadFile** to find and read the file in one action
+   // 
+   // **When user wants to BROWSE** (e.g., "list my files", "show my Google Drive", "what files do I have"):
+   // → Use **listFilesAndFolders** to show all files
+   // 
+   // **When user wants to CREATE**:
+   // → **Documents**: Use **createGoogleDoc** (NOT createDriveFile)
+   // → **Spreadsheets**: Use **createGoogleSheet** 
+   // → **Presentations**: Use **createGoogleSlides**
+   // → **Folders**: Use **createDriveFolder**
+   // 
+   // **When user wants to send EMAIL**:
+   // → Use **sendGmail** for sending emails
+   // → Use **readGmailMessages** for reading emails
+   // 
+   // **NEVER** just list files when the user clearly wants to read content. Be proactive!
+
+   // --- [GOOGLE DRIVE ACTIONS] ---
+   - **findAndReadFile**: Find and read a file in one action. Payload: \`{"query": string}\` (PREFERRED for reading files)
+   - **searchDrive**: Find files by name. Payload: \`{"query": string}\`
+   - **listFilesAndFolders**: List contents of a folder. Payload: \`{"folderId"?: string}\` (omit for root)
+   - **readDriveFile**: Read any file content. Payload: \`{"fileId": string, "mimeType"?: string}\`
+   - **createDriveFolder**: Create a new folder. Payload: \`{"name": string, "parentId"?: string}\`
+   - **updateDriveFile**: Update an existing file. Payload: \`{"fileId": string, "content": string, "updateMode"?: "replace"|"append"|"prepend"}\`
+
+   // --- [GOOGLE DOCS API ACTIONS] ---
+   - **createGoogleDoc**: Create a new Google Document. Payload: \`{"title": string, "content"?: string}\`
+   - **readGoogleDoc**: Read Google Doc content. Payload: \`{"documentId": string}\`
+   - **updateGoogleDoc**: Update Google Doc content. Payload: \`{"documentId": string, "content": string, "updateMode"?: "replace"|"append"|"prepend"}\`
+
+   // --- [GOOGLE SHEETS API ACTIONS] ---
+   - **createGoogleSheet**: Create a new spreadsheet. Payload: \`{"name": string, "parentId"?: string, "initialData"?: [["Header1", "Header2"], ["Row1Col1", "Row1Col2"]]}\`
+   - **readGoogleSheet**: Read spreadsheet data. Payload: \`{"fileId": string, "range"?: string}\`
+   - **updateGoogleSheet**: Update spreadsheet cells. Payload: \`{"fileId": string, "range": string, "values": [["value1", "value2"]], "append"?: boolean}\`
+   - **batchUpdateGoogleSheet**: Multiple cell updates. Payload: \`{"fileId": string, "updates": [{"range": "A1:B2", "values": [["val1", "val2"]]}]}\`
+
+   // --- [GOOGLE SLIDES API ACTIONS] ---
+   - **createGoogleSlides**: Create a new presentation. Payload: \`{"title": string, "content"?: string}\`
+   - **addSlideToPresentation**: Add a slide to existing presentation. Payload: \`{"presentationId": string, "title"?: string, "content"?: string}\`
+
+   // --- [GMAIL API ACTIONS] ---
+   - **sendGmail**: Send an email. Payload: \`{"to": string, "subject": string, "body": string, "cc"?: string, "bcc"?: string}\`
+   - **readGmailMessages**: Read Gmail messages. Payload: \`{"maxResults"?: number, "query"?: string}\`
+
+   // --- [DRIVE JSON FORMAT] ---
+   \\\`\\\`\\\`json
+   { "type": "googleDrive", "action": "the_action_to_perform", "payload": { ... } }
+   \\\`\\\`\\\`
+
+   // --- [GOOGLE WORKSPACE EXAMPLES] ---
+   
+   // **READING FILES:**
+   // User: "Read my study notes document" or "what is in my top 5 colleges" or "pull up my resume"
+   // Assistant: "I'll find and read your study notes!"
+   // \\\`\\\`\\\`json
+   // { "type": "googleDrive", "action": "findAndReadFile", "payload": {"query": "study notes"} }
+   // \\\`\\\`\\\`
+   
+   // **BROWSING FILES:**
+   // User: "list my files" or "show my Google Drive"
+   // Assistant: "I'll show you your Google Drive files!"
+   // \\\`\\\`\\\`json
+   // { "type": "googleDrive", "action": "listFilesAndFolders", "payload": {} }
+   // \\\`\\\`\\\`
+
+   // **CREATING DOCUMENTS:**
+   // User: "Create a Google Doc for my essay" or "create a document about history"
+   // Assistant: "I'll create a Google Doc for your essay!"
+   // \\\`\\\`\\\`json
+   // { "type": "googleDrive", "action": "createGoogleDoc", "payload": {"title": "My Essay", "content": "Essay outline and notes..."} }
+   // \\\`\\\`\\\`
+
+   // **CREATING SPREADSHEETS:**
+   // User: "Create a spreadsheet for my budget with income and expenses columns"
+   // Assistant: "I'll create a budget spreadsheet for you!"
+   // \\\`\\\`\\\`json
+   // { "type": "googleDrive", "action": "createGoogleSheet", "payload": {"name": "Budget Tracker", "initialData": [["Category", "Amount", "Date"], ["Income", "", ""], ["Expenses", "", ""]]} }
+   // \\\`\\\`\\\`
+
+   // **CREATING PRESENTATIONS:**
+   // User: "Create a Google Slides presentation about AP World History Unit 1" or "make a slide deck for my project"
+   // Assistant: "I'll create a Google Slides presentation for AP World History Unit 1!"
+   // \\\`\\\`\\\`json
+   // { "type": "googleDrive", "action": "createGoogleSlides", "payload": {"title": "AP World History Unit 1", "content": "Introduction to early civilizations and their development..."} }
+   // \\\`\\\`\\\`
+
+   // **SENDING EMAILS:**
+   // User: "Send an email to my teacher about my project progress"
+   // Assistant: "I'll send an email to your teacher!"
+   // \\\`\\\`\\\`json
+   // { "type": "googleDrive", "action": "sendGmail", "payload": {"to": "teacher@school.edu", "subject": "Project Progress Update", "body": "Dear Teacher, I wanted to update you on my project progress..."} }
+   // \\\`\\\`\\\`
+   
+   // **CRITICAL RULE**: When user asks "what is in [filename]" or "read [filename]", you MUST:
+   // 1. Search for the file: searchDrive with the filename
+   // 2. Read the file content: readDriveFile with the found fileId
+   // 3. Display the content to the user
+   // DO NOT just search and list files - always read the content when that's what the user wants!
+   //
+   // **EXAMPLE OF CHAINED GOOGLE DRIVE ACTIONS:**
+   // User: "what is in my top 5 colleges document"
+   // Assistant: "I'll find and read your Top 5 Colleges document!"
+   // \\\`\\\`\\\`json
+   // { "type": "googleDrive", "action": "searchDrive", "payload": {"query": "top 5 colleges"} }
+   // \\\`\\\`\\\`
+   // \\\`\\\`\\\`json
+   // { "type": "googleDrive", "action": "readDriveFile", "payload": {"fileId": "WILL_BE_FOUND_FROM_SEARCH", "mimeType": "application/vnd.google-apps.document"} }
+   // \\\`\\\`\\\`
+   //
+   // **IMPORTANT**: You MUST execute BOTH actions in the same response - search AND read!
+
+// -------------------------------------------------------------------------------------------------
+// [PROTOCOL 4: JSON ACTION PROTOCOL]
 // Use this for creating, updating, or deleting data.
 // FORMAT: Conversational Confirmation (1-2 sentences) + Newline + JSON block(s).
 // For commands to create MULTIPLE items, use a batch format, e.g., {"tasks": [{...}, {...}]}.
@@ -3488,14 +3817,18 @@ ${activeNotionPage ? `
 // • Create Notion page + related tasks
 // • Generate both flashcards AND quiz questions 
 // • Create tasks + set up goals + save memories
+// • Search Google Drive + read file content (when user wants to read a file)
 // • Any logical combination that saves the user multiple requests
 //
 // EXAMPLES OF MULTIPLE TOOL CALLS:
 // User: "set up calculus study plan" → Create Notion page + tasks + goals
 // User: "help me learn Spanish verbs" → Flashcards + quiz questions + practice tasks  
 // User: "prepare for my interview" → Tasks + Notion prep page + memory notes
+// User: "what is in my resume" → Search Google Drive + Read the found file
+// User: "read my project notes" → Search Google Drive + Read the found file
 //
 // 🎯 EDUCATIONAL CONTENT RULE: Create what the user specifically requests - flashcards, quiz questions, or both!
+// 🎯 GOOGLE DRIVE RULE: When user wants to read a file, ALWAYS search first, then read the file content automatically!
 // 
 // MULTIPLE EDUCATIONAL EXAMPLE:
 // User: "help me study photosynthesis"
@@ -4586,10 +4919,12 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
 
       // Categorize action blocks for sequential/parallel processing
       const notionBlocks = jsonActionBlocks.filter(b => b.type === 'notion' && b.action);
+      const googleCalendarBlocks = jsonActionBlocks.filter(b => b.type === 'googleCalendar' && b.action);
+      const googleDriveBlocks = jsonActionBlocks.filter(b => b.type === 'googleDrive' && b.action);
       const flashcardBlocks = jsonActionBlocks.filter(b => b.type === 'flashcard');
       const questionBlocks = jsonActionBlocks.filter(b => b.type === 'question');
       const otherActionBlocks = jsonActionBlocks.filter(b => 
-        b.type !== 'notion' && b.type !== 'flashcard' && b.type !== 'question'
+        b.type !== 'notion' && b.type !== 'googleCalendar' && b.type !== 'googleDrive' && b.type !== 'flashcard' && b.type !== 'question'
       );
       
       // Check if we need sequential processing (Notion + other actions)
@@ -4894,6 +5229,7 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
           ...msg, 
           isLoading: true, 
           isProcessingNotion: notionBlocks.length > 0,
+          isProcessingGoogle: googleCalendarBlocks.length > 0 || googleDriveBlocks.length > 0,
           isProcessingActions: otherActionBlocks.length > 0,
           isVerifyingContent: flashcardBlocks.length > 0 || questionBlocks.length > 0
         } : msg ));
@@ -4901,6 +5237,8 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
         const actionPromises: Promise<any>[] = [];
         let combinedResults: any = {
           notionResults: [],
+          googleCalendarResults: [],
+          googleDriveResults: [],
           educationalResults: { flashcards: undefined, questions: undefined },
           otherActionResults: [],
           overallStatus: 'success' as 'success' | 'error'
@@ -5029,7 +5367,165 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
           );
         }
 
-        // 2. Process Educational content (flashcards and questions) in parallel
+        // 2. Process Google Calendar actions in parallel
+        if (googleCalendarBlocks.length > 0 && user?.uid) {
+          actionPromises.push(
+            Promise.all(googleCalendarBlocks.map(async (googleCalendarBlock) => {
+              try {
+                const googleAction = httpsCallable(functions, 'googleProxy');
+                const requestData = {
+                  service: 'calendar',
+                  action: googleCalendarBlock.action,
+                  payload: googleCalendarBlock.payload
+                };
+                const result = await googleAction(requestData);
+                const actionResult = result.data as any;
+                
+                // Create user-friendly messages
+                let friendlyMessage = '';
+                switch (googleCalendarBlock.action) {
+                  case 'listCalendarEvents':
+                    friendlyMessage = 'Retrieved calendar events.';
+                    break;
+                  case 'createCalendarEvent':
+                    friendlyMessage = 'Created calendar event.';
+                    break;
+                  case 'updateCalendarEvent':
+                    friendlyMessage = 'Updated calendar event.';
+                    break;
+                  case 'deleteCalendarEvent':
+                    friendlyMessage = 'Deleted calendar event.';
+                    break;
+                  case 'searchCalendarEvents':
+                    friendlyMessage = 'Searched calendar events.';
+                    break;
+                  default:
+                    friendlyMessage = 'Completed calendar action.';
+                }
+                
+                return { 
+                  type: 'googleCalendar', 
+                  status: 'success', 
+                  message: friendlyMessage,
+                  data: actionResult
+                };
+              } catch (err: any) {
+                combinedResults.overallStatus = 'error';
+                return { 
+                  type: 'googleCalendar', 
+                  status: 'error', 
+                  message: `Google Calendar: ${googleCalendarBlock.action || 'operation'} failed: ${err.message || 'Unknown error'}` 
+                };
+              }
+            })).then(results => {
+              combinedResults.googleCalendarResults = results;
+              return results;
+            })
+          );
+        }
+
+        // 3. Process Google Drive actions in parallel
+        if (googleDriveBlocks.length > 0 && user?.uid) {
+          actionPromises.push(
+            Promise.all(googleDriveBlocks.map(async (googleDriveBlock) => {
+              try {
+                const googleAction = httpsCallable(functions, 'googleProxy');
+                const requestData = {
+                  service: 'drive',
+                  action: googleDriveBlock.action,
+                  payload: googleDriveBlock.payload
+                };
+                const result = await googleAction(requestData);
+                const actionResult = result.data as any;
+                
+                // Create user-friendly messages
+                let friendlyMessage = '';
+                switch (googleDriveBlock.action) {
+                  case 'listFilesAndFolders':
+                    friendlyMessage = 'Browsed Google Drive.';
+                    break;
+                  case 'searchDrive':
+                    friendlyMessage = 'Searched Google Drive.';
+                    break;
+                  case 'findAndReadFile':
+                    friendlyMessage = 'Found and read file.';
+                    break;
+                  case 'readDriveFile':
+                    friendlyMessage = 'Read Google Drive file.';
+                    break;
+                  case 'createDriveFile':
+                    friendlyMessage = 'Created Google Doc.';
+                    break;
+                  case 'createGoogleDoc':
+                    friendlyMessage = 'Created Google Doc.';
+                    break;
+                  case 'createGoogleSheet':
+                    friendlyMessage = 'Created Google Sheet.';
+                    break;
+                  case 'createGoogleSlides':
+                    friendlyMessage = 'Created Google Slides.';
+                    break;
+                  case 'readGoogleDoc':
+                    friendlyMessage = 'Read Google Doc.';
+                    break;
+                  case 'readGoogleSheet':
+                    friendlyMessage = 'Read Google Sheet.';
+                    break;
+                  case 'updateGoogleDoc':
+                    friendlyMessage = 'Updated Google Doc.';
+                    break;
+                  case 'updateGoogleSheet':
+                    friendlyMessage = 'Updated Google Sheet.';
+                    break;
+                  case 'updateDriveFile':
+                    friendlyMessage = 'Updated Google Drive file.';
+                    break;
+                  case 'addSlideToPresentation':
+                    friendlyMessage = 'Added slide to presentation.';
+                    break;
+                  case 'sendGmail':
+                    friendlyMessage = 'Sent email.';
+                    break;
+                  case 'readGmailMessages':
+                    friendlyMessage = 'Read Gmail messages.';
+                    break;
+                  default:
+                    friendlyMessage = 'Completed Google Drive action.';
+                }
+                
+                return { 
+                  type: 'googleDrive', 
+                  status: 'success', 
+                  message: friendlyMessage,
+                  data: actionResult
+                };
+              } catch (err: any) {
+                combinedResults.overallStatus = 'error';
+                
+                // Provide more helpful error messages for common issues
+                let errorMessage = err.message || 'Unknown error';
+                if (errorMessage.includes('Google connection has expired')) {
+                  errorMessage = 'Your Google connection has expired. Please go to Settings and reconnect your Google account to continue using Google Drive features.';
+                } else if (errorMessage.includes('Google services are not connected')) {
+                  errorMessage = 'Google Drive is not connected. Please go to Settings to connect your Google account first.';
+                } else if (errorMessage.includes('authentication credential') || errorMessage.includes('access token')) {
+                  errorMessage = 'There was an authentication issue with Google Drive. Please try reconnecting your Google account in Settings.';
+                }
+                
+                return { 
+                  type: 'googleDrive', 
+                  status: 'error', 
+                  message: `Google Drive: ${googleDriveBlock.action || 'operation'} failed: ${errorMessage}` 
+                };
+              }
+            })).then(results => {
+              combinedResults.googleDriveResults = results;
+              return results;
+            })
+          );
+        }
+
+        // 4. Process Educational content (flashcards and questions) in parallel
         if ((flashcardBlocks.length > 0 || questionBlocks.length > 0) && user?.uid) {
           actionPromises.push(
             Promise.all([
@@ -5113,7 +5609,7 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
           // For sequential processing, we don't update actionDetails here as it's handled in the follow-up call
           return; // Early return to avoid duplicate processing
         }
-      } else if (notionBlocks.length > 0 || flashcardBlocks.length > 0 || questionBlocks.length > 0 || otherActionBlocks.length > 0) {
+      } else if (notionBlocks.length > 0 || googleCalendarBlocks.length > 0 || googleDriveBlocks.length > 0 || flashcardBlocks.length > 0 || questionBlocks.length > 0 || otherActionBlocks.length > 0) {
         // Process normally in parallel for non-sequential cases
         actionResults = await processAllActionsInParallel();
         
@@ -5133,6 +5629,8 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
       if (actionResults) {
         let combinedActionMessages: string[] = [];
         let notionPageInfo: { pageUrl?: string, pageTitle?: string } = {};
+        let googleDriveInfo: { fileUrl?: string, fileName?: string, fileType?: string } = {};
+        let googleCalendarInfo: { eventUrl?: string, eventTitle?: string } = {};
         
         // Process Notion results
         if (actionResults.notionResults.length > 0) {
@@ -5143,6 +5641,195 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
             }
             if (result.pageUrl) notionPageInfo.pageUrl = result.pageUrl;
             if (result.pageTitle) notionPageInfo.pageTitle = result.pageTitle;
+          });
+        }
+        
+        // Process Google Calendar results
+        if (actionResults.googleCalendarResults && actionResults.googleCalendarResults.length > 0) {
+          actionResults.googleCalendarResults.forEach((result: any) => {
+            if (result.message) combinedActionMessages.push(result.message);
+            if (result.status === 'success' && result.data) {
+              // Display actual Google Calendar data content
+              let calendarContent = '';
+              
+              if (result.message.includes('Retrieved calendar events') || result.message.includes('listCalendarEvents')) {
+                // Display list of calendar events
+                const events = result.data.items || [];
+                if (events.length > 0) {
+                  calendarContent = `**Your upcoming calendar events:**\n\n${events.slice(0, 10).map((event: any) => {
+                    const startTime = event.start?.dateTime || event.start?.date;
+                    const eventDate = startTime ? new Date(startTime).toLocaleDateString() : 'No date';
+                    const eventTime = startTime && event.start?.dateTime ? new Date(startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
+                    return `🗓️ [**${event.summary || 'Untitled Event'}**](${event.htmlLink || '#'}) - ${eventDate}${eventTime ? ` at ${eventTime}` : ''}`;
+                  }).join('\n\n')}${events.length > 10 ? `\n\n*And ${events.length - 10} more events...*` : ''}`;
+                } else {
+                  calendarContent = 'No upcoming events found.';
+                }
+              } else if (result.message.includes('Searched calendar events') || result.message.includes('searchCalendarEvents')) {
+                // Display search results
+                const events = result.data.items || [];
+                if (events.length > 0) {
+                  calendarContent = `**Found ${events.length} event(s):**\n\n${events.map((event: any) => {
+                    const startTime = event.start?.dateTime || event.start?.date;
+                    const eventDate = startTime ? new Date(startTime).toLocaleDateString() : 'No date';
+                    const eventTime = startTime && event.start?.dateTime ? new Date(startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
+                    return `🗓️ [**${event.summary || 'Untitled Event'}**](${event.htmlLink || '#'}) - ${eventDate}${eventTime ? ` at ${eventTime}` : ''}`;
+                  }).join('\n\n')}`;
+                } else {
+                  calendarContent = 'No events found matching your search.';
+                }
+              } else if (result.message.includes('Created calendar event') || result.message.includes('createCalendarEvent')) {
+                // Handle calendar event creation - set info for "View in Calendar" button
+                if (result.data && result.data.htmlLink && result.data.summary) {
+                  googleCalendarInfo.eventUrl = result.data.htmlLink;
+                  googleCalendarInfo.eventTitle = result.data.summary;
+                }
+              }
+              
+              if (calendarContent && !assistantTextForDisplay.includes(calendarContent)) {
+                assistantTextForDisplay = [assistantTextForDisplay.trim(), calendarContent].filter(Boolean).join('\n\n');
+              }
+            }
+          });
+        }
+        
+        // Process Google Drive results
+        if (actionResults.googleDriveResults && actionResults.googleDriveResults.length > 0) {
+          actionResults.googleDriveResults.forEach((result: any) => {
+            if (result.message) combinedActionMessages.push(result.message);
+            if (result.status === 'success' && result.data) {
+              // Display actual Google Drive data content
+              let driveContent = '';
+              
+              if (result.message.includes('Browsed Google Drive') || result.message.includes('listFilesAndFolders')) {
+                // Display list of files and folders with clickable links
+                const files = result.data.files || [];
+                if (files.length > 0) {
+                  driveContent = `**Your Google Drive files:**\n\n${files.map((file: any) => {
+                    const isFolder = file.mimeType?.includes('folder');
+                    const isDoc = file.mimeType?.includes('document');
+                    const isSheet = file.mimeType?.includes('spreadsheet');
+                    const isSlides = file.mimeType?.includes('presentation');
+                    
+                    let iconText = '';
+                    if (isFolder) iconText = '';
+                    else if (isDoc) iconText = ''; // Docs icon
+                    else if (isSheet) iconText = ''; // Sheets icon
+                    else if (isSlides) iconText = ''; // Slides icon (using same as sheets since they're both charts)
+                    else iconText = ''; // Default file icon
+                    
+                    return `${iconText} [**${file.name}**](${file.webViewLink || '#'})`;
+                  }).join('\n\n')}`;
+                } else {
+                  driveContent = 'No files found in this location.';
+                }
+              } else if (result.message.includes('Searched Google Drive') || result.message.includes('searchDrive')) {
+                // Display search results with clickable links
+                const files = result.data.files || [];
+                if (files.length > 0) {
+                  // If only one file found and it's a document, suggest the user can ask to read it
+                  if (files.length === 1 && !files[0].mimeType?.includes('folder')) {
+                    driveContent = `**Found your file:**\n\n[**${files[0].name}**](${files[0].webViewLink || '#'})\n\n*Ask me to "read ${files[0].name}" to see its content!*`;
+                  } else {
+                    driveContent = `**Found ${files.length} file(s):**\n\n${files.map((file: any) => {
+                      return `[**${file.name}**](${file.webViewLink || '#'})`;
+                    }).join('\n\n')}`;
+                  }
+                } else {
+                  driveContent = 'No files found matching your search.';
+                }
+              } else if (result.message.includes('Found and read file') || result.message.includes('findAndReadFile')) {
+                // Display file content from findAndReadFile action
+                driveContent = `**${result.data.name}**\n\n${result.data.content || 'No content found in this file.'}`;
+                
+                // Set Google Drive info for "View in Google" button
+                if (result.data.searchResults && result.data.searchResults.length > 0) {
+                  const firstFile = result.data.searchResults[0];
+                  googleDriveInfo.fileUrl = firstFile.webViewLink;
+                  googleDriveInfo.fileName = firstFile.name;
+                  googleDriveInfo.fileType = firstFile.mimeType;
+                }
+                
+                // If multiple files were found, show alternatives
+                if (result.data.searchResults && result.data.searchResults.length > 1) {
+                  const otherFiles = result.data.searchResults.slice(1);
+                  driveContent += `\n\n*Other files found:*\n${otherFiles.map((file: any) => 
+                    `[${file.name}](${file.webViewLink || '#'})`
+                  ).join('\n')}`;
+                }
+              } else if (result.message.includes('readDriveFile')) {
+                // Display file content
+                driveContent = `**${result.data.name}**\n\n${result.data.content || 'No content found in this file.'}`;
+                
+                // For readDriveFile, we need to get the file info from the result data
+                if (result.data.name) {
+                  googleDriveInfo.fileName = result.data.name;
+                  // Try to get URL from the result if available
+                  if (result.data.webViewLink) {
+                    googleDriveInfo.fileUrl = result.data.webViewLink;
+                  }
+                  if (result.data.mimeType) {
+                    googleDriveInfo.fileType = result.data.mimeType;
+                  }
+                }
+              } else if (result.message.includes('readGoogleSheet')) {
+                // Display spreadsheet data
+                const values = result.data.values || [];
+                if (values.length > 0) {
+                  driveContent = `**${result.data.name}**\n\n${values.map((row: any[]) => 
+                    `| ${row.join(' | ')} |`
+                  ).join('\n')}`;
+                } else {
+                  driveContent = `**${result.data.name}**\n\nThis spreadsheet appears to be empty.`;
+                }
+              } else if (result.message.includes('createGoogleSheet') || result.message.includes('Created Google Sheet')) {
+                // Handle Google Sheet creation
+                
+                // Set Google Drive info for created sheet
+                if (result.data.webViewLink) {
+                  googleDriveInfo.fileUrl = result.data.webViewLink;
+                  googleDriveInfo.fileName = result.data.name || 'New Sheet';
+                  googleDriveInfo.fileType = 'application/vnd.google-apps.spreadsheet';
+                }
+              } else if (result.message.includes('Created Google Doc')) {
+                // Handle Google Doc creation
+                
+                // Set Google Drive info for created doc
+                if (result.data.webViewLink) {
+                  googleDriveInfo.fileUrl = result.data.webViewLink;
+                  googleDriveInfo.fileName = result.data.name || 'New Document';
+                  googleDriveInfo.fileType = 'application/vnd.google-apps.document';
+                }
+              } else if (result.message.includes('Created Google Slides')) {
+                // Handle Google Slides creation
+                
+                // Set Google Drive info for created presentation
+                if (result.data.webViewLink) {
+                  googleDriveInfo.fileUrl = result.data.webViewLink;
+                  googleDriveInfo.fileName = result.data.name || 'New Presentation';
+                  googleDriveInfo.fileType = 'application/vnd.google-apps.presentation';
+                }
+              } else if (result.message.includes('Updated Google Sheet') || result.message.includes('Updated Google Drive file')) {
+                // Handle Google file updates
+                const fileType = result.message.includes('Sheet') ? 'Sheet' : 'file';
+                
+                // Set Google Drive info for updated file
+                if (result.data.webViewLink) {
+                  googleDriveInfo.fileUrl = result.data.webViewLink;
+                  googleDriveInfo.fileName = result.data.name || 'Document';
+                  googleDriveInfo.fileType = result.message.includes('Sheet') ? 
+                    'application/vnd.google-apps.spreadsheet' : 
+                    'application/vnd.google-apps.document';
+                }
+              } else {
+                // Generic success message for other operations
+
+              }
+              
+              if (driveContent && !assistantTextForDisplay.includes(driveContent)) {
+                assistantTextForDisplay = [assistantTextForDisplay.trim(), driveContent].filter(Boolean).join('\n\n');
+              }
+            }
           });
         }
         
@@ -5158,7 +5845,9 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
           actionTakenDetails = { 
             status: actionResults.overallStatus, 
             message: combinedActionMessages.join('\n'),
-            ...notionPageInfo
+            ...notionPageInfo,
+            ...googleDriveInfo,
+            ...googleCalendarInfo
           };
         }
       }
@@ -6441,6 +7130,11 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
                                   <NotionIcon className="w-4 h-4 animate-pulse fill-current" />
                                   <span>Working with Notion...</span>
                                 </div>
+                              ) : message.isProcessingGoogle ? (
+                                <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                                  <GoogleIcon className="w-4 h-4 animate-pulse" />
+                                  <span>Working with Google...</span>
+                                </div>
                               ) : message.isProcessingActions ? (
                                 <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
                                   <LayoutDashboard className="w-4 h-4 animate-pulse text-[var(--bg-accent)]" />
@@ -6541,6 +7235,11 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
                                   <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
                                 <NotionIcon className="w-4 h-4 animate-pulse fill-current" />
                                 <span>Working with Notion...</span>
+                              </div>
+                            ) : message.isProcessingGoogle ? (
+                                  <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                                <GoogleIcon className="w-4 h-4 animate-pulse" />
+                                <span>Working with Google...</span>
                               </div>
                             ) : message.isProcessingActions ? (
                                   <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
@@ -6871,6 +7570,7 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
                                     isNotionConnected={isNotionConnected}
                                     isNotionSearchModeActive={isNotionSearchModeActive}
                                     onToggleNotionSearchMode={handleToggleNotionSearchMode}
+                                    isGoogleConnected={isGoogleDriveConnected && isGoogleCalendarConnected}
                                 />
                             </div>
 
@@ -7752,6 +8452,11 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
         memories={memories}
         activePrompt={activePrompt}
         isNotionConnected={isNotionConnected}
+        isGoogleDriveConnected={isGoogleDriveConnected}
+        isGoogleCalendarConnected={isGoogleCalendarConnected}
+        isForceSearchModeActive={isForceSearchModeActive}
+        isNotionSearchModeActive={isNotionSearchModeActive}
+        isImageGenModeActive={isImageGenModeActive}
         onClose={handleCloseVoiceChat}
       />
     </div>

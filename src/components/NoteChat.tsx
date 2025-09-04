@@ -693,6 +693,8 @@ const functions = getFunctions();
   const [isNotionSearchModeActive, setIsNotionSearchModeActive] = useState(false);
   const [activeNotionPage, setActiveNotionPage] = useState<{ id: string, title: string } | null>(null);
   const [isProcessingNotion, setIsProcessingNotion] = useState(false);
+  const [isGoogleDriveConnected, setIsGoogleDriveConnected] = useState(false);
+  const [isGoogleCalendarConnected, setIsGoogleCalendarConnected] = useState(false);
 
     const {
         transcript,
@@ -880,12 +882,25 @@ useEffect(() => {
 
     if (!currentAuthUser) return;
 
-    // --- ADD THIS BLOCK ---
+    // --- Check all integrations ---
     getUserData(currentAuthUser.uid).then(userData => {
         if (userData && userData.notionAccessData) {
             setIsNotionConnected(true);
         } else {
             setIsNotionConnected(false);
+        }
+        
+        // Check Google connections
+        if (userData && (userData as any).googleDriveConnected) {
+            setIsGoogleDriveConnected(true);
+        } else {
+            setIsGoogleDriveConnected(false);
+        }
+        
+        if (userData && (userData as any).googleCalendarConnected) {
+            setIsGoogleCalendarConnected(true);
+        } else {
+            setIsGoogleCalendarConnected(false);
         }
     });
     // --- END OF BLOCK ---
@@ -2175,6 +2190,7 @@ const handleToggleNotionSearchMode = () => {
             isNotionConnected={isNotionConnected}
             isNotionSearchModeActive={isNotionSearchModeActive}
             onToggleNotionSearchMode={handleToggleNotionSearchMode}
+            isGoogleConnected={isGoogleDriveConnected && isGoogleCalendarConnected}
         />
                                          </div>
                                          <div className="flex items-center">

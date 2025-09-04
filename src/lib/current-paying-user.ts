@@ -384,131 +384,200 @@ export const updateUserPointsAndLevel = async (
     userDetailsForCreation?: { email?: string | null; displayName?: string | null; photoURL?: string | null; }
 ): Promise<{ newPoints: number, newLevel: number, newTier?: UserTier }> => {
   const userRef = doc(db, 'users', userId);
-  const maxRetries = 5;
+  const maxRetries = 3;
   let retryCount = 0;
   
   while (retryCount < maxRetries) {
     try {
-      return await runTransaction(db, async (transaction) => {
-        const userSnap = await transaction.get(userRef);
+      // Read current data first
+      const userSnap = await getDoc(userRef);
+      
+      if (!userSnap.exists()) {
+        // Create new user with initial points
+        const initialData = {
+          uid: userId,
+          email: userDetailsForCreation?.email || null,
+          displayName: userDetailsForCreation?.displayName || null,
+          photoURL: userDetailsForCreation?.photoURL || null,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          points: pointsToAdd,
+          level: calculateLevel(pointsToAdd),
+          badges: [],
+          overallStreakCount: 0,
+          notesCreatedCount: 0,
+          pdfNotesCreatedCount: 0,
+          youtubeNotesCreatedCount: 0,
+          aiNotesCreatedCount: 0,
+          noteFlashcardsCreatedCount: 0,
+          noteChatsStartedCount: 0,
+        };
+        
+        await setDoc(userRef, initialData, { merge: true });
+        return { newPoints: pointsToAdd, newLevel: calculateLevel(pointsToAdd), newTier: undefined };
+      } else {
+        const currentProfileData = userSnap.data() as UserProfileData;
+        const currentPoints = currentProfileData.points || 0;
+        const newPoints = currentPoints + pointsToAdd;
+        const newLevel = calculateLevel(newPoints);
         let newTierAwarded: UserTier | undefined = undefined;
         
-        if (!userSnap.exists()) {
-            const initialData = createProfileInTransaction(transaction, userRef, userId, userDetailsForCreation);
-            const newPoints = pointsToAdd;
-            const newLevel = calculateLevel(newPoints);
-            transaction.update(userRef, { points: newPoints, level: newLevel });
-            return { newPoints: initialData.points, newLevel: initialData.level, newTier: undefined };
-        } else {
-            const currentProfileData = userSnap.data() as UserProfileData;
-            const currentPoints = currentProfileData.points || 0;
-            const newPoints = currentPoints + pointsToAdd;
-            const newLevel = calculateLevel(newPoints);
-            const updateData: any = {
-                points: newPoints,
-                level: newLevel,
-                updatedAt: serverTimestamp(),
-            };
-            const currentTier = await getUserTier(userId, currentProfileData.email);
-            if ( (currentTier === 'basic' || currentTier === 'pro') &&
-                (!currentProfileData.premiumAwardedUntil || toDateSafe(currentProfileData.premiumAwardedUntil)! < new Date()) &&
-                newPoints >= POINTS_FOR_FREE_PREMIUM && currentPoints < POINTS_FOR_FREE_PREMIUM
-            ) {
-                const oneWeekFromNow = new Date();
-                oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7);
-                updateData.premiumAwardedUntil = Timestamp.fromDate(oneWeekFromNow);
-                newTierAwarded = 'premium';
-            }
-            transaction.update(userRef, updateData);
-            return { newPoints, newLevel, newTier: newTierAwarded };
+        const updateData: any = {
+          points: newPoints,
+          level: newLevel,
+          updatedAt: serverTimestamp(),
+        };
+        
+        const currentTier = await getUserTier(userId, currentProfileData.email);
+        if ((currentTier === 'basic' || currentTier === 'pro') &&
+            (!currentProfileData.premiumAwardedUntil || toDateSafe(currentProfileData.premiumAwardedUntil)! < new Date()) &&
+            newPoints >= POINTS_FOR_FREE_PREMIUM && currentPoints < POINTS_FOR_FREE_PREMIUM
+        ) {
+          const oneWeekFromNow = new Date();
+          oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7);
+          updateData.premiumAwardedUntil = Timestamp.fromDate(oneWeekFromNow);
+          newTierAwarded = 'premium';
         }
-      });
+        
+        // Use setDoc with merge to avoid conflicts
+        await setDoc(userRef, updateData, { merge: true });
+        return { newPoints, newLevel, newTier: newTierAwarded };
+      }
     } catch (error: any) {
       console.error(`Error updating user points/level (attempt ${retryCount + 1}):`, error);
       
-      if ((error?.code === 'failed-precondition' || error?.code === 'aborted') && retryCount < maxRetries - 1) {
+      if (error?.code === 'failed-precondition' && retryCount < maxRetries - 1) {
         // Wait before retrying with exponential backoff + jitter
-        const delay = Math.pow(2, retryCount) * 200 + Math.random() * 200;
+        const delay = Math.pow(2, retryCount) * 500 + Math.random() * 500;
         await new Promise(resolve => setTimeout(resolve, delay));
         retryCount++;
         continue;
       }
       
-      // If it's not a retryable error or we've exhausted retries, throw
+      // If it's not a retryable error or we've exhausted retries, return safe defaults
       console.error("Failed to update user points/level after retries:", error);
-      throw error;
+      return { newPoints: 0, newLevel: 1, newTier: undefined };
     }
   }
   
-  // This should never be reached, but TypeScript requires it
-  throw new Error("Transaction failed after all retries");
+  // Return safe defaults
+  return { newPoints: 0, newLevel: 1, newTier: undefined };
 };
+
+// Debounced streak updates to prevent conflicts
+const streakUpdateTimers = new Map<string, NodeJS.Timeout>();
 
 export const updateUserStreak = async (
     userId: string,
     userDetailsForCreation?: { email?: string | null; displayName?: string | null; photoURL?: string | null; }
 ): Promise<{ newStreakCount: number, streakBroken: boolean }> => {
+  // Clear any existing timer for this user
+  const existingTimer = streakUpdateTimers.get(userId);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+  }
+
+  // Debounce streak updates by 2 seconds to prevent conflicts
+  return new Promise((resolve) => {
+    const timer = setTimeout(async () => {
+      try {
+        streakUpdateTimers.delete(userId);
+        const result = await performStreakUpdate(userId, userDetailsForCreation);
+        resolve(result);
+      } catch (error) {
+        console.error('Error in debounced streak update:', error);
+        resolve({ newStreakCount: 0, streakBroken: false });
+      }
+    }, 2000);
+    
+    streakUpdateTimers.set(userId, timer);
+  });
+};
+
+// Non-transaction based streak update to prevent conflicts
+const performStreakUpdate = async (
+    userId: string,
+    userDetailsForCreation?: { email?: string | null; displayName?: string | null; photoURL?: string | null; }
+): Promise<{ newStreakCount: number, streakBroken: boolean }> => {
   const userRef = doc(db, 'users', userId);
-  const maxRetries = 5;
+  const maxRetries = 3;
   let retryCount = 0;
   
   while (retryCount < maxRetries) {
     try {
-      return await runTransaction(db, async (transaction) => {
-        const userSnap = await transaction.get(userRef);
+      // First, read the current data
+      const userSnap = await getDoc(userRef);
+      
+      if (!userSnap.exists()) {
+        // Create new user with initial streak
+        const initialData = {
+          uid: userId,
+          email: userDetailsForCreation?.email || null,
+          displayName: userDetailsForCreation?.displayName || null,
+          photoURL: userDetailsForCreation?.photoURL || null,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          overallStreakCount: 1,
+          lastOverallStreakUpdate: Timestamp.fromDate(new Date()),
+          points: 0,
+          level: 1,
+          badges: [],
+          notesCreatedCount: 0,
+          pdfNotesCreatedCount: 0,
+          youtubeNotesCreatedCount: 0,
+          aiNotesCreatedCount: 0,
+          noteFlashcardsCreatedCount: 0,
+          noteChatsStartedCount: 0,
+        };
         
-        if (!userSnap.exists()) {
-            const initialData = createProfileInTransaction(transaction, userRef, userId, userDetailsForCreation);
-            // Set the streak data directly in the initial creation instead of updating afterward
-            initialData.overallStreakCount = 1;
-            initialData.lastOverallStreakUpdate = Timestamp.fromDate(new Date());
-            // Note: createProfileInTransaction already calls transaction.set, so no additional update needed
-            return { newStreakCount: 1, streakBroken: false };
+        await setDoc(userRef, initialData, { merge: true });
+        return { newStreakCount: 1, streakBroken: false };
+      } else {
+        const currentProfileData = userSnap.data() as UserProfileData;
+        let currentStreak: number = currentProfileData.overallStreakCount || 0;
+        let lastUpdateRaw: Timestamp | Date | null = currentProfileData.lastOverallStreakUpdate;
+        const now = new Date();
+        let streakBroken = false;
+        const lastUpdate = lastUpdateRaw ? toDateSafe(lastUpdateRaw) : null;
+        let shouldUpdate = false;
+        
+        if (lastUpdate) {
+          const lastUpdateDate = new Date(lastUpdate.getFullYear(), lastUpdate.getMonth(), lastUpdate.getDate());
+          const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const diffTime = todayDate.getTime() - lastUpdateDate.getTime();
+          const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+          if (diffDays === 1) {
+            currentStreak++;
+            shouldUpdate = true;
+          } else if (diffDays > 1) {
+            currentStreak = 1;
+            streakBroken = true;
+            shouldUpdate = true;
+          }
         } else {
-            const currentProfileData = userSnap.data() as UserProfileData;
-            let currentStreak: number = currentProfileData.overallStreakCount || 0;
-            let lastUpdateRaw: Timestamp | Date | null = currentProfileData.lastOverallStreakUpdate;
-            const now = new Date();
-            let streakBroken = false;
-            const lastUpdate = lastUpdateRaw ? toDateSafe(lastUpdateRaw) : null;
-            let shouldUpdate = false;
-            
-            if (lastUpdate) {
-                const lastUpdateDate = new Date(lastUpdate.getFullYear(), lastUpdate.getMonth(), lastUpdate.getDate());
-                const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                const diffTime = todayDate.getTime() - lastUpdateDate.getTime();
-                const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-                if (diffDays === 1) {
-                    currentStreak++;
-                    shouldUpdate = true;
-                } else if (diffDays > 1) {
-                    currentStreak = 1;
-                    streakBroken = true;
-                    shouldUpdate = true;
-                }
-            } else {
-                currentStreak = 1;
-                shouldUpdate = true;
-            }
-            
-            if (shouldUpdate) {
-                const updateData: any = { 
-                    updatedAt: serverTimestamp(),
-                    overallStreakCount: currentStreak,
-                    lastOverallStreakUpdate: Timestamp.fromDate(now)
-                };
-                transaction.update(userRef, updateData);
-            }
-            
-            return { newStreakCount: currentStreak, streakBroken };
+          currentStreak = 1;
+          shouldUpdate = true;
         }
-      });
+        
+        if (shouldUpdate) {
+          const updateData = { 
+            updatedAt: serverTimestamp(),
+            overallStreakCount: currentStreak,
+            lastOverallStreakUpdate: Timestamp.fromDate(now)
+          };
+          
+          // Use setDoc with merge to avoid conflicts
+          await setDoc(userRef, updateData, { merge: true });
+        }
+        
+        return { newStreakCount: currentStreak, streakBroken };
+      }
     } catch (error: any) {
       console.error(`Error updating user streak (attempt ${retryCount + 1}):`, error);
       
-      if ((error?.code === 'failed-precondition' || error?.code === 'aborted') && retryCount < maxRetries - 1) {
+      if (error?.code === 'failed-precondition' && retryCount < maxRetries - 1) {
         // Wait before retrying with exponential backoff + jitter
-        const delay = Math.pow(2, retryCount) * 200 + Math.random() * 200;
+        const delay = Math.pow(2, retryCount) * 500 + Math.random() * 500;
         await new Promise(resolve => setTimeout(resolve, delay));
         retryCount++;
         continue;
@@ -516,12 +585,10 @@ export const updateUserStreak = async (
       
       // If it's not a retryable error or we've exhausted retries, log and return default
       console.error("Failed to update user streak after retries:", error);
-      // Return a safe default instead of throwing to prevent breaking the app flow
       return { newStreakCount: 0, streakBroken: false };
     }
   }
   
-  // This should never be reached, but TypeScript requires it
   return { newStreakCount: 0, streakBroken: false };
 };
 
@@ -531,19 +598,60 @@ export const addUserBadge = async (
   userDetailsForCreation?: { email?: string | null; displayName?: string | null; photoURL?: string | null; }
 ): Promise<void> => {
   const userRef = doc(db, 'users', userId);
-  await runTransaction(db, async (transaction) => {
-    const userSnap = await transaction.get(userRef);
-    if (!userSnap.exists()) {
-        const initialData = createProfileInTransaction(transaction, userRef, userId, userDetailsForCreation);
-        initialData.badges = [badgeId];
-        transaction.update(userRef, { badges: initialData.badges });
-    } else {
-        transaction.update(userRef, {
-            badges: arrayUnion(badgeId),
-            updatedAt: serverTimestamp()
-        });
+  const maxRetries = 3;
+  let retryCount = 0;
+  
+  while (retryCount < maxRetries) {
+    try {
+      const userSnap = await getDoc(userRef);
+      
+      if (!userSnap.exists()) {
+        // Create new user with initial badge
+        const initialData = {
+          uid: userId,
+          email: userDetailsForCreation?.email || null,
+          displayName: userDetailsForCreation?.displayName || null,
+          photoURL: userDetailsForCreation?.photoURL || null,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          points: 0,
+          level: 1,
+          badges: [badgeId],
+          overallStreakCount: 0,
+          notesCreatedCount: 0,
+          pdfNotesCreatedCount: 0,
+          youtubeNotesCreatedCount: 0,
+          aiNotesCreatedCount: 0,
+          noteFlashcardsCreatedCount: 0,
+          noteChatsStartedCount: 0,
+        };
+        
+        await setDoc(userRef, initialData, { merge: true });
+      } else {
+        // Add badge to existing user
+        const updateData = {
+          badges: arrayUnion(badgeId),
+          updatedAt: serverTimestamp()
+        };
+        
+        await setDoc(userRef, updateData, { merge: true });
+      }
+      
+      // Success - break out of retry loop
+      break;
+      
+    } catch (error: any) {
+      if (error?.code === 'failed-precondition' && retryCount < maxRetries - 1) {
+        const delay = Math.pow(2, retryCount) * 500 + Math.random() * 500;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        retryCount++;
+        continue;
+      }
+      
+      console.error('Error adding user badge:', error);
+      throw error;
     }
-  });
+  }
 };
 
 export const incrementUserProfileCounter = async (
@@ -560,22 +668,46 @@ export const incrementUserProfileCounter = async (
     
     while (retryCount < maxRetries) {
         try {
-            await runTransaction(db, async (transaction) => {
-                const userSnap = await transaction.get(userRef);
-                if (!userSnap.exists()) {
-                    const initialData = createProfileInTransaction(transaction, userRef, userId, userDetailsForCreation);
-                    (initialData as any)[counterField] = incrementValue;
-                    transaction.update(userRef, { 
-                        [counterField]: incrementValue,
-                        updatedAt: serverTimestamp()
-                    });
-                } else {
-                    transaction.update(userRef, {
-                        [counterField]: increment(incrementValue),
-                        updatedAt: serverTimestamp()
-                    });
-                }
-            });
+            // Read current data first
+            const userSnap = await getDoc(userRef);
+            
+            if (!userSnap.exists()) {
+                // Create new user with initial counter value
+                const initialData = {
+                    uid: userId,
+                    email: userDetailsForCreation?.email || null,
+                    displayName: userDetailsForCreation?.displayName || null,
+                    photoURL: userDetailsForCreation?.photoURL || null,
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp(),
+                    points: 0,
+                    level: 1,
+                    badges: [],
+                    overallStreakCount: 0,
+                    notesCreatedCount: 0,
+                    pdfNotesCreatedCount: 0,
+                    youtubeNotesCreatedCount: 0,
+                    aiNotesCreatedCount: 0,
+                    noteFlashcardsCreatedCount: 0,
+                    noteChatsStartedCount: 0,
+                    [counterField]: incrementValue
+                };
+                
+                await setDoc(userRef, initialData, { merge: true });
+            } else {
+                // Get current value and increment
+                const currentData = userSnap.data() as UserProfileData;
+                const currentValue = (currentData[counterField] as number) || 0;
+                const newValue = currentValue + incrementValue;
+                
+                const updateData = {
+                    [counterField]: newValue,
+                    updatedAt: serverTimestamp()
+                };
+                
+                // Use setDoc with merge to avoid conflicts
+                await setDoc(userRef, updateData, { merge: true });
+            }
             
             // Success - break out of retry loop
             break;

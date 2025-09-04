@@ -983,6 +983,9 @@ useEffect(() => {
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
 
   const [events, setEvents] = useState<Array<{ id: string; data: EventDisplayData }>>([]);
+  const [googleCalendarEvents, setGoogleCalendarEvents] = useState<any[]>([]);
+  const [isGoogleDriveConnected, setIsGoogleDriveConnected] = useState(false);
+  const [isGoogleCalendarConnected, setIsGoogleCalendarConnected] = useState(false);
   const [newEventName, setNewEventName] = useState("");
   const [newEventStartDate, setNewEventStartDate] = useState("");
   const [newEventStartTime, setNewEventStartTime] = useState("");
@@ -2996,6 +2999,157 @@ if (notionBlock && user?.uid && isNotionConnected) {
     }
   }, [chatUsageCount, chatLimit, userTier]);
 
+  // Fetch Google Calendar events
+  useEffect(() => {
+    const fetchGoogleCalendarEvents = async () => {
+      if (!user?.uid) return;
+      
+      try {
+        const functions = getFunctions();
+        const googleProxyCallable = httpsCallable(functions, 'googleProxy');
+        
+        // Get events for the next 30 days
+        const timeMin = new Date().toISOString();
+        const timeMax = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+        
+        const result = await googleProxyCallable({
+          service: 'calendar',
+          action: 'listCalendarEvents',
+          payload: {
+            timeMin,
+            timeMax,
+            maxResults: 50
+          }
+        });
+        
+        const calendarData = result.data as any;
+        if (calendarData && calendarData.items) {
+          setGoogleCalendarEvents(calendarData.items);
+          setIsGoogleCalendarConnected(true);
+          setIsGoogleDriveConnected(true); // Since they share the same OAuth token
+        }
+      } catch (error: any) {
+        // Set connection status to false if Google services are not connected
+        if (error.message?.includes('not connected')) {
+          setIsGoogleCalendarConnected(false);
+          setIsGoogleDriveConnected(false);
+        } else {
+          console.error('Error fetching Google Calendar events:', error);
+        }
+      }
+    };
+
+    fetchGoogleCalendarEvents();
+    
+    // Refresh every 5 minutes
+    const interval = setInterval(fetchGoogleCalendarEvents, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [user?.uid]);
+
+  // Google Calendar helper functions
+  const createGoogleCalendarEvent = async (eventData: {
+    summary: string;
+    description?: string;
+    start: string;
+    end: string;
+    location?: string;
+  }) => {
+    try {
+      const functions = getFunctions();
+      const googleProxyCallable = httpsCallable(functions, 'googleProxy');
+      
+      const result = await googleProxyCallable({
+        service: 'calendar',
+        action: 'createCalendarEvent',
+        payload: eventData
+      });
+      
+      return result.data;
+    } catch (error: any) {
+      console.error('Error creating Google Calendar event:', error);
+      // Return null if Google Calendar is not connected or fails
+      return null;
+    }
+  };
+
+  const updateGoogleCalendarEvent = async (eventId: string, eventData: {
+    summary?: string;
+    description?: string;
+    start?: string;
+    end?: string;
+    location?: string;
+  }) => {
+    try {
+      const functions = getFunctions();
+      const googleProxyCallable = httpsCallable(functions, 'googleProxy');
+      
+      const result = await googleProxyCallable({
+        service: 'calendar',
+        action: 'updateCalendarEvent',
+        payload: {
+          eventId,
+          ...eventData
+        }
+      });
+      
+      return result.data;
+    } catch (error: any) {
+      console.error('Error updating Google Calendar event:', error);
+      return null;
+    }
+  };
+
+  const deleteGoogleCalendarEvent = async (eventId: string) => {
+    try {
+      const functions = getFunctions();
+      const googleProxyCallable = httpsCallable(functions, 'googleProxy');
+      
+      const result = await googleProxyCallable({
+        service: 'calendar',
+        action: 'deleteCalendarEvent',
+        payload: { eventId }
+      });
+      
+      return result.data;
+    } catch (error: any) {
+      console.error('Error deleting Google Calendar event:', error);
+      return null;
+    }
+  };
+
+  // Refresh Google Calendar events after changes
+  const refreshGoogleCalendarEvents = async () => {
+    if (!user?.uid) return;
+    
+    try {
+      const functions = getFunctions();
+      const googleProxyCallable = httpsCallable(functions, 'googleProxy');
+      
+      const timeMin = new Date().toISOString();
+      const timeMax = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      
+      const result = await googleProxyCallable({
+        service: 'calendar',
+        action: 'listCalendarEvents',
+        payload: {
+          timeMin,
+          timeMax,
+          maxResults: 50
+        }
+      });
+      
+      const calendarData = result.data as any;
+      if (calendarData && calendarData.items) {
+        setGoogleCalendarEvents(calendarData.items);
+      }
+    } catch (error: any) {
+      // Silently fail if Google Calendar is not connected
+      if (!error.message?.includes('not connected')) {
+        console.error('Error refreshing Google Calendar events:', error);
+      }
+    }
+  };
+
     const handleToggleNotionSearchMode = () => {
     if (!isNotionConnected) {
         // Redirect to settings page if Notion is not connected
@@ -3602,21 +3756,29 @@ if (notionBlock && user?.uid && isNotionConnected) {
                 break;
 
             case 'view_chat':
-                // Create contextual chat opening based on topic or search term
-                const chatContext = {
-                    topic: action.details?.topic,
-                    searchTerm: action.details?.search_term,
-                    prefilledMessage: action.details?.search_term ? 
-                        `Help me with ${action.details.search_term}` : 
-                        action.details?.topic ? `I want to discuss ${action.details.topic}` : undefined,
-                    autoStart: true
-                };
-                
-                navigate('/chat', { state: chatContext });
+                // Use the same direct approach as handleAiQuickAction to avoid navigation issues
+                setIsAiAssistantOpen(true);
+                setAiChatSidebarTab('chat');
+
+                const prompt = action.details?.search_term ? 
+                    `Help me with ${action.details.search_term}` : 
+                    action.details?.topic ? `I want to discuss ${action.details.topic}` : 
+                    "How can I help you today?";
+
+                if (conversationId) {
+                    handleChatSubmit(undefined, prompt);
+                } else {
+                    const tempMessage = prompt;
+                    handleNewConversation().then(newConvId => {
+                        if (newConvId) {
+                            handleChatSubmit(undefined, tempMessage);
+                        }
+                    });
+                }
                 
                 setAgentTasks(prev => ({
                     ...prev,
-                    [taskId]: { status: 'completed', message: action.details?.topic ? `Started chat about ${action.details.topic}` : 'Navigated to chat!' }
+                    [taskId]: { status: 'completed', message: action.details?.topic ? `Started chat about ${action.details.topic}` : 'Opened chat!' }
                 }));
                 break;
 
@@ -3807,6 +3969,7 @@ if (notionBlock && user?.uid && isNotionConnected) {
         }
 
         try {
+            // Create in Firebase first
             await createFirebaseEvent(user.uid, {
                 name: newEventName,
                 startDate: combinedStartDateTime,
@@ -3816,6 +3979,25 @@ if (notionBlock && user?.uid && isNotionConnected) {
                 linkedTaskIds: newEventLinkedTasks,
                 linkedGoalIds: newEventLinkedGoals,
             });
+            
+            // Also try to create in Google Calendar
+            const googleEventData = {
+                summary: newEventName,
+                description: newEventDescription || '',
+                start: combinedStartDateTime.toISOString(),
+                end: combinedEndDateTime.toISOString(),
+            };
+            
+            const googleResult = await createGoogleCalendarEvent(googleEventData);
+            if (googleResult) {
+                console.log("Event created in both Firebase and Google Calendar");
+            } else {
+                console.log("Event created in Firebase only (Google Calendar may not be connected)");
+            }
+
+            // Refresh Google Calendar events to show the new event
+            await refreshGoogleCalendarEvents();
+            
             resetEventForm();
             setShowEventForm(false);
         } catch (error) {
@@ -3976,6 +4158,7 @@ if (notionBlock && user?.uid && isNotionConnected) {
     const map = new Map<string, CalendarItemInfo[]>();
     const allCalendarItems: CalendarItemInfo[] = [];
 
+    // Add Firebase events, tasks, and goals
     [...tasks, ...goals].forEach(item => {
         const itemDateRaw = item.data.dueDate || item.data.targetDate;
         if (itemDateRaw) {
@@ -4008,6 +4191,37 @@ if (notionBlock && user?.uid && isNotionConnected) {
                 color: event.data.color || '#8884d8',
                 completed: event.data.completed || false,
             });
+        }
+    });
+
+    // Add Google Calendar events
+    googleCalendarEvents.forEach(googleEvent => {
+        if (googleEvent.start && (googleEvent.start.dateTime || googleEvent.start.date)) {
+            const startDateTime = googleEvent.start.dateTime || googleEvent.start.date;
+            const endDateTime = googleEvent.end?.dateTime || googleEvent.end?.date;
+            
+            const startDate = new Date(startDateTime);
+            const endDate = endDateTime ? new Date(endDateTime) : new Date(startDate.getTime() + 60 * 60 * 1000); // Default 1 hour if no end
+            
+            if (!isNaN(startDate.getTime())) {
+                allCalendarItems.push({
+                    id: `google-${googleEvent.id}`,
+                    text: googleEvent.summary || 'Google Calendar Event',
+                    type: 'event',
+                    itemRef: {
+                        ...googleEvent,
+                        isGoogleEvent: true,
+                        name: googleEvent.summary,
+                        startDate: startDate,
+                        endDate: endDate,
+                        description: googleEvent.description || ''
+                    },
+                    dateObj: startDate,
+                    endDateObj: endDate,
+                    color: '#4285f4', // Google blue color
+                    completed: false,
+                });
+            }
         }
     });
 
@@ -4049,7 +4263,7 @@ if (notionBlock && user?.uid && isNotionConnected) {
         });
     });
     return map;
-  }, [tasks, goals, events, calendarViewMode]);
+  }, [tasks, goals, events, googleCalendarEvents, calendarViewMode]);
 
 
     const renderWeekCalendarDays = () => {
@@ -4164,7 +4378,19 @@ if (notionBlock && user?.uid && isNotionConnected) {
                                 e.stopPropagation();
                                 if (item.type === 'task') handleEditClick(item.id, item.itemRef, 'tasks');
                                 else if (item.type === 'goal') handleEditClick(item.id, item.itemRef, 'goals');
-                                else if (item.type === 'event') handleEditEventClick(item.id, item.itemRef as EventDisplayData);
+                                else if (item.type === 'event') {
+                                  // Check if it's a Google Calendar event
+                                  if (item.itemRef?.isGoogleEvent) {
+                                    // For Google events, just show a toast or modal with event details
+                                    setConfirmAction({
+                                      message: `Google Calendar Event: ${item.text}\n\nStart: ${item.itemRef.startDate?.toLocaleString()}\nEnd: ${item.itemRef.endDate?.toLocaleString()}\n\n${item.itemRef.description || 'No description'}`,
+                                      onConfirm: () => setConfirmAction(null),
+                                      iconType: 'events'
+                                    });
+                                  } else {
+                                    handleEditEventClick(item.id, item.itemRef as EventDisplayData);
+                                  }
+                                }
                              };
 
                             return (
@@ -5904,6 +6130,7 @@ const showSmartBriefContent = (userTier === 'pro' || userTier === 'premium');
             isNotionConnected={isNotionConnected}
             isNotionSearchModeActive={isNotionSearchModeActive}
             onToggleNotionSearchMode={handleToggleNotionSearchMode}
+            isGoogleConnected={isGoogleDriveConnected && isGoogleCalendarConnected}
         />
             </div>
             <div className="flex items-center">
