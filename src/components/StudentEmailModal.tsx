@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Loader2, Send, CheckCircle, AlertTriangle, GraduationCap, Mail, User, Sparkles } from 'lucide-react';
 import emailjs from '@emailjs/browser';
 import { useScrollLock } from '../hooks/useScrollLock';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { useAuth } from '../contexts/AuthContext';
 
 interface StudentEmailModalProps {
   isOpen: boolean;
@@ -19,6 +21,7 @@ const StudentEmailModal: React.FC<StudentEmailModalProps> = ({ isOpen, onClose }
   const [senderEmail, setSenderEmail] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'success' | 'error' | 'verifying'>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const { user: currentUser } = useAuth();
 
   // Lock body scroll when modal is open
   useScrollLock(isOpen);
@@ -36,6 +39,56 @@ const StudentEmailModal: React.FC<StudentEmailModalProps> = ({ isOpen, onClose }
       console.error("EmailJS configuration is missing or incorrect in StudentEmailModal.tsx.");
     }
   }, []);
+
+  // Debug effect to track isVerificationSent changes
+  useEffect(() => {
+    console.log('isVerificationSent changed to:', isVerificationSent);
+  }, [isVerificationSent]);
+
+  // Debug effect to track currentUser changes and auto-grant if they log in
+  useEffect(() => {
+    console.log('currentUser changed:', {
+      currentUser: currentUser,
+      uid: currentUser?.uid,
+      email: currentUser?.email,
+      isAuthenticated: !!currentUser?.uid
+    });
+    
+    // If user becomes authenticated and we have pending verification, auto-grant access
+    if (currentUser?.uid && status === 'success') {
+      const pendingVerification = localStorage.getItem('pendingStudentVerification');
+      if (pendingVerification) {
+        console.log('User logged in with pending verification - attempting to grant access');
+        const verificationData = JSON.parse(pendingVerification);
+        
+        // Call the Firebase function to grant access
+        const grantAccessForLoggedInUser = async () => {
+          try {
+            const functions = getFunctions();
+            const grantStudentAccessFunc = httpsCallable(functions, 'grantStudentAccess');
+            
+            const result = await grantStudentAccessFunc({
+              email: verificationData.email,
+              verificationCode: verificationData.code,
+              sentCode: verificationData.code
+            });
+            
+            if (result.data && result.data.success) {
+              console.log('Auto-granted access for newly logged in user');
+              localStorage.removeItem('pendingStudentVerification');
+              // Force a refresh of the success state to show the correct message
+              setStatus('idle');
+              setTimeout(() => setStatus('success'), 100);
+            }
+          } catch (error) {
+            console.error('Error auto-granting access:', error);
+          }
+        };
+        
+        grantAccessForLoggedInUser();
+      }
+    }
+  }, [currentUser, status]);
 
   // List of known invalid .edu domains that are commonly used for testing
   const invalidEduDomains = [
@@ -109,7 +162,8 @@ const StudentEmailModal: React.FC<StudentEmailModalProps> = ({ isOpen, onClose }
 
   // Check if email is from a valid college/university (international support)
   const isCollegeEmail = (email: string): boolean => {
-    const emailLower = email.toLowerCase();
+    const emailLower = email.toLowerCase().trim();
+    
     
     // Extract domain from email
     const domain = emailLower.split('@')[1];
@@ -187,7 +241,9 @@ const StudentEmailModal: React.FC<StudentEmailModalProps> = ({ isOpen, onClose }
 
   // Generate random verification code
   const generateVerificationCode = (): string => {
-    return Math.floor(100000 + Math.random() * 900000).toString();
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    console.log('Generated code with timestamp:', code, new Date().toISOString());
+    return code;
   };
 
   // Send verification email
@@ -203,11 +259,22 @@ const StudentEmailModal: React.FC<StudentEmailModalProps> = ({ isOpen, onClose }
 
     const code = generateVerificationCode();
     setSentVerificationCode(code);
+    
+    console.log('Generated verification code:', code);
+    console.log('Template params being sent:', {
+      name: name,
+      sender_email: senderEmail,
+      verification_code: code,
+      code: code,
+      student_code: code
+    });
 
     const templateParams = {
       name: name,
       sender_email: senderEmail,
       verification_code: code,
+      code: code,
+      student_code: code,
       message_html: `
         <p>Hello ${name},</p>
         <p>Thank you for requesting your student discount for TaskMaster AI!</p>
@@ -226,10 +293,21 @@ const StudentEmailModal: React.FC<StudentEmailModalProps> = ({ isOpen, onClose }
       );
 
       // Check if email was actually sent successfully
+      console.log('EmailJS response:', response);
       if (response.status === 200) {
-        setIsVerificationSent(true);
+        console.log('Email sent successfully, setting isVerificationSent to true');
+        // Force state update with callback to ensure it happens
+        setIsVerificationSent(() => {
+          console.log('State update callback: setting isVerificationSent to true');
+          return true;
+        });
         setStatus('idle');
+        // Force a small delay to ensure state updates
+        setTimeout(() => {
+          console.log('Timeout check - isVerificationSent should be true now');
+        }, 100);
       } else {
+        console.error('EmailJS returned non-200 status:', response.status);
         throw new Error('Email service returned an error');
       }
     } catch (err: any) {
@@ -295,36 +373,113 @@ const StudentEmailModal: React.FC<StudentEmailModalProps> = ({ isOpen, onClose }
       return;
     }
     
-    if (verificationCode.length !== 6) {
+    // Clean the entered code (remove spaces) for length validation
+    const cleanCode = verificationCode.replace(/\s+/g, '').trim();
+    if (cleanCode.length !== 6) {
       setStatus('error');
       setErrorMsg('Verification code must be exactly 6 digits.');
       return;
     }
 
-    // Check if the entered code matches the sent code
-    if (verificationCode !== sentVerificationCode) {
+    // Clean both codes by removing any spaces and normalizing
+    const cleanEnteredCode = verificationCode.replace(/\s+/g, '').trim();
+    const cleanStoredCode = sentVerificationCode.replace(/\s+/g, '').trim();
+
+    // Debug logging
+    console.log('Verification Debug:', {
+      enteredCode: verificationCode,
+      cleanEnteredCode,
+      storedCode: sentVerificationCode,
+      cleanStoredCode,
+      match: cleanEnteredCode === cleanStoredCode
+    });
+
+    // Check if the entered code matches the sent code (after cleaning)
+    if (cleanEnteredCode !== cleanStoredCode) {
       setStatus('error');
-      setErrorMsg('Invalid verification code. Please check your email and enter the correct 6-digit code.');
+      setErrorMsg(`Invalid verification code. Expected: ${cleanStoredCode}, Got: ${cleanEnteredCode}`);
       return;
     }
 
-    // Add a small delay to show the verification process
-    setTimeout(() => {
-      setStatus('success');
-    }, 500);
+    // Call Firebase function to grant student access
+    try {
+      console.log('Current user check:', {
+        currentUser: currentUser,
+        uid: currentUser?.uid,
+        email: currentUser?.email,
+        isAuthenticated: !!currentUser?.uid
+      });
+      
+      if (!currentUser?.uid) {
+        // User is not logged in - store verification info and show success message
+        const verificationData = {
+          email: senderEmail,
+          verifiedAt: new Date().toISOString(),
+          code: cleanEnteredCode
+        };
+        localStorage.setItem('pendingStudentVerification', JSON.stringify(verificationData));
+        
+        setStatus('success');
+        console.log('User not logged in - stored verification and showing success with signup prompt');
+        return;
+      }
+
+      const functions = getFunctions();
+      const grantStudentAccessFunc = httpsCallable(functions, 'grantStudentAccess');
+      
+      console.log('Calling Firebase function with:', {
+        email: senderEmail,
+        verificationCode,
+        sentCode: sentVerificationCode
+      });
+
+      const result = await grantStudentAccessFunc({
+        email: senderEmail,
+        verificationCode,
+        sentCode: sentVerificationCode
+      });
+
+      console.log('Firebase function result:', result);
+
+      if (result.data && result.data.success) {
+        console.log('Setting status to success - user is authenticated and access granted');
+        setStatus('success');
+      } else {
+        console.log('Firebase function failed:', result);
+        setStatus('error');
+        setErrorMsg('Failed to grant student access. Please try again.');
+      }
+    } catch (error: any) {
+      console.error('Error granting student access:', error);
+      setStatus('error');
+      if (error.code === 'permission-denied') {
+        setErrorMsg('Invalid verification code or email domain.');
+      } else if (error.code === 'unauthenticated') {
+        setErrorMsg('Authentication required. Please log in and try again.');
+      } else if (error.code === 'already-exists') {
+        setErrorMsg('Premium users are not eligible for student discount. You already have access to all features!');
+      } else {
+        setErrorMsg('Failed to grant student access. Please try again.');
+      }
+    }
   };
   
   useEffect(() => {
     if (isOpen) {
-        if (status !== 'success') {
-            setStatus('idle');
+        // Only reset error and verification code when modal opens, preserve isVerificationSent
+        if (status === 'idle' && !isVerificationSent) {
             setErrorMsg(null);
-            setIsVerificationSent(false);
             setVerificationCode('');
-            setSentVerificationCode('');
         }
+    } else {
+        // Reset everything when modal closes
+        setStatus('idle');
+        setErrorMsg(null);
+        setIsVerificationSent(false);
+        setVerificationCode('');
+        setSentVerificationCode('');
     }
-  }, [isOpen, status]);
+  }, [isOpen]); // Only depend on isOpen
 
   const modalVariants = {
     hidden: { opacity: 0, scale: 0.95, y: 20 },
@@ -439,23 +594,78 @@ const StudentEmailModal: React.FC<StudentEmailModalProps> = ({ isOpen, onClose }
                   <h3 className="text-2xl font-bold text-[var(--text-primary)] mb-2 font-heading">
                     Student Status Verified! 🎓
                   </h3>
-                  <p className="text-[var(--text-secondary)] mb-4 leading-relaxed">
-                    Congratulations! Your .edu email has been verified. You now have access to 2 months of PRO features completely free!
-                  </p>
                   
-                  <div className="bg-[var(--bg-card)] rounded-2xl p-4 border border-[var(--border-primary)] mb-4">
-                    <div className="flex items-center justify-center space-x-2 text-sm text-[var(--text-secondary)]">
-                      <div className="w-2 h-2 bg-[var(--status-success)] rounded-full animate-pulse"></div>
-                      <span>Your PRO access is now active!</span>
-                    </div>
-                  </div>
-                  
-                  <button
-                    onClick={onClose}
-                    className="w-full py-3 px-6 bg-[var(--bg-card)] hover:bg-[var(--bg-highlight)] text-[var(--text-primary)] font-semibold rounded-xl transition-all duration-200 border border-[var(--border-primary)] hover:border-[var(--border-secondary)]"
-                  >
-                    Close
-                  </button>
+                  {currentUser?.uid ? (
+                    // User is logged in - access granted
+                    <>
+                      <p className="text-[var(--text-secondary)] mb-4 leading-relaxed">
+                        Congratulations! Your .edu email has been verified. You now have access to 2 months of PRO features completely free!
+                      </p>
+                      
+                      <div className="bg-[var(--bg-card)] rounded-2xl p-4 border border-[var(--border-primary)] mb-4">
+                        <div className="flex items-center justify-center space-x-2 text-sm text-[var(--text-secondary)]">
+                          <div className="w-2 h-2 bg-[var(--status-success)] rounded-full animate-pulse"></div>
+                          <span>Your PRO access is now active!</span>
+                        </div>
+                      </div>
+                      
+                      <button
+                        onClick={onClose}
+                        className="w-full py-3 px-6 bg-[var(--bg-card)] hover:bg-[var(--bg-highlight)] text-[var(--text-primary)] font-semibold rounded-xl transition-all duration-200 border border-[var(--border-primary)] hover:border-[var(--border-secondary)]"
+                      >
+                        Close
+                      </button>
+                    </>
+                  ) : (
+                    // User is not logged in - prompt to sign up
+                    <>
+                      <p className="text-[var(--text-secondary)] mb-4 leading-relaxed">
+                        Great! Your student status has been verified. To claim your 2 months of FREE PRO access, please create an account or log in.
+                      </p>
+                      
+                      <div className="bg-[var(--bg-card)] rounded-2xl p-4 border border-[var(--border-primary)] mb-4">
+                        <div className="flex items-center justify-center space-x-2 text-sm text-[var(--text-secondary)]">
+                          <div className="w-2 h-2 bg-[var(--bg-accent)] rounded-full animate-pulse"></div>
+                          <span>Sign up to activate your student discount!</span>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        <button
+                          onClick={() => {
+                            onClose();
+                            // Navigate to signup
+                            window.location.href = '/signup';
+                          }}
+                          className="w-full py-3 px-6 bg-[var(--bg-accent)] hover:bg-[var(--bg-accent-secondary)] text-white font-semibold rounded-xl transition-all duration-200"
+                        >
+                          Create Account & Claim Discount
+                        </button>
+                        
+                        <button
+                          onClick={() => {
+                            onClose();
+                            // Navigate to login
+                            window.location.href = '/login';
+                          }}
+                          className="w-full py-3 px-6 bg-[var(--bg-card)] hover:bg-[var(--bg-highlight)] text-[var(--text-primary)] font-semibold rounded-xl transition-all duration-200 border border-[var(--border-primary)] hover:border-[var(--border-secondary)]"
+                        >
+                          Already Have Account? Log In
+                        </button>
+                        
+                        <button
+                          onClick={() => {
+                            onClose();
+                            // Navigate to dashboard
+                            window.location.href = '/dashboard';
+                          }}
+                          className="w-full py-3 px-6 bg-[var(--bg-card)] hover:bg-[var(--bg-highlight)] text-[var(--text-primary)] font-semibold rounded-xl transition-all duration-200 border border-[var(--border-primary)] hover:border-[var(--border-secondary)]"
+                        >
+                          Go to Dashboard
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </motion.div>
               </div>
             ) : (
@@ -542,6 +752,7 @@ const StudentEmailModal: React.FC<StudentEmailModalProps> = ({ isOpen, onClose }
                     <div className={`w-2 h-2 rounded-full ${isEduEmail ? 'bg-[var(--status-success)]' : 'bg-[var(--bg-accent)]'}`}></div>
                     <span>{isEduEmail ? 'Valid academic email detected!' : 'Use your college/university academic email address'}</span>
                   </div>
+                  
                   
                   {isVerificationSent && (
                     <div className="relative">

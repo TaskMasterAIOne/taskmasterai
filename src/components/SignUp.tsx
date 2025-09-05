@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
+import { Loader2, CheckCircle } from 'lucide-react';
 import { 
     createUserWithEmailAndPassword, 
     updateProfile,
@@ -9,13 +9,14 @@ import {
     signOut,
     User
 } from 'firebase/auth';
-import { auth, db } from '../lib/firebase';
+import { auth, db, functions } from '../lib/firebase';
 import { 
     doc, 
     setDoc, 
     getDoc, 
     serverTimestamp 
 } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { prepareInitialProfileData } from '../lib/current-paying-user';
 
 export function SignUpForm() {
@@ -129,9 +130,60 @@ export function SignUpForm() {
 export function GoogleSignUp() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [workspaceConnected, setWorkspaceConnected] = useState(false);
   const navigate = useNavigate();
 
-  const saveNewUserData = async (user: User) => {
+  // Handle OAuth callback on component mount
+  useEffect(() => {
+    const handleOAuthCallback = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('code');
+      const state = urlParams.get('state');
+      
+      if (code && state && sessionStorage.getItem('workspace_connecting')) {
+        try {
+          const googleOAuthCallback = httpsCallable(functions, 'googleOAuthCallback');
+          await googleOAuthCallback({ code, state });
+          
+          setWorkspaceConnected(true);
+          sessionStorage.removeItem('workspace_connecting');
+          
+          const isSignupFlow = sessionStorage.getItem('signup_google_workspace');
+          if (isSignupFlow) {
+            sessionStorage.removeItem('signup_google_workspace');
+          }
+          
+          // Clean up URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+          
+          // Navigate appropriately based on flow
+          setTimeout(() => {
+            if (isSignupFlow) {
+              navigate('/onboarding');
+            } else {
+              navigate('/dashboard');
+            }
+          }, 2000);
+        } catch (error: any) {
+          console.error('Error in OAuth callback:', error);
+          setError(`Failed to connect Google Workspace: ${error.message}`);
+          sessionStorage.removeItem('workspace_connecting');
+          sessionStorage.removeItem('signup_google_workspace');
+          
+          // Still navigate to onboarding if this was a signup flow
+          if (sessionStorage.getItem('signup_google_workspace')) {
+            setTimeout(() => {
+              navigate('/onboarding');
+            }, 2000);
+          }
+        }
+      }
+    };
+
+    handleOAuthCallback();
+  }, [navigate]);
+
+  const saveNewUserData = async (user: User, includeGoogleWorkspace = false) => {
     const userDocRef = doc(db, "users", user.uid);
     try {
       const name = user.displayName || "Anonymous User";
@@ -141,17 +193,27 @@ export function GoogleSignUp() {
 
       // Create new user document (we already checked they don't exist)
       const initialData = prepareInitialProfileData(user.uid, user.email, name, photoURL, firstName, lastName);
-      await setDoc(userDocRef, {
-          ...initialData,
-          createdAt: serverTimestamp(),
-          lastLoginAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-      });
+      
+      // Add Google Workspace connection flags if this is a Google signup
+      const userData = {
+        ...initialData,
+        createdAt: serverTimestamp(),
+        lastLoginAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        ...(includeGoogleWorkspace && {
+          // Mark as ready for Google Workspace connection
+          googleWorkspaceRequested: true,
+          // We'll set the actual connection flags after OAuth
+        })
+      };
+      
+      await setDoc(userDocRef, userData);
     } catch (err) {
       console.error("Error saving new user data:", err);
       throw err;
     }
   };
+
 
   const handleGoogleSignUp = async () => {
     setError(''); 
@@ -175,10 +237,35 @@ export function GoogleSignUp() {
         return;
       }
       
-      // New user - proceed with signup
-      await saveNewUserData(result.user); 
+      // New user - create account first
+      await saveNewUserData(result.user, true); 
+      
       sessionStorage.removeItem('signup_in_progress');
-      navigate('/onboarding'); 
+      
+      // Now redirect to Google OAuth for Workspace permissions
+      try {
+        const isProduction = window.location.hostname === 'www.taskmaster.one';
+        const redirectUri = isProduction 
+          ? 'https://www.taskmaster.one/onboarding'
+          : 'http://localhost:5173/onboarding';
+
+        const getGoogleAuthUrl = httpsCallable(functions, 'getGoogleAuthUrl');
+        const authResult = await getGoogleAuthUrl({ redirectUri });
+        
+        // Store that we're connecting workspace during signup
+        sessionStorage.setItem('workspace_connecting', 'true');
+        sessionStorage.setItem('signup_google_workspace', 'true');
+        
+        // Redirect to Google OAuth with full workspace scopes
+        window.location.href = (authResult.data as any).url;
+      } catch (oauthError: any) {
+        console.error("Error starting Google Workspace OAuth:", oauthError);
+        // Still navigate to onboarding even if OAuth fails
+        setError("Account created! You can connect Google Workspace later in Settings.");
+        setTimeout(() => {
+          navigate('/onboarding');
+        }, 2000);
+      }
     }
     catch (err: any) { 
       if (err.code === 'auth/popup-closed-by-user') { 
@@ -200,11 +287,16 @@ export function GoogleSignUp() {
     <>
       <button
         onClick={handleGoogleSignUp}
-        disabled={loading}
+        disabled={loading || workspaceConnected}
         className="w-full py-3.5 mb-4 bg-[var(--bg-primary)] hover:bg-white dark:bg-[var(--bg-highlight)] border border-[var(--border-primary)] text-[var(--text-primary)] font-medium rounded-full flex items-center justify-center gap-3 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[var(--bg-solid-button)] text-sm"
       >
         {loading ? (
              <Loader2 className="animate-spin h-5 w-5 text-[var(--bg-solid-button)]" />
+        ) : workspaceConnected ? (
+         <div className="flex items-center justify-center gap-3">
+            <CheckCircle className="h-5 w-5 text-green-600" />
+            <span>Google Workspace Connected!</span>
+         </div>
         ) : (
          <div className="flex items-center justify-center gap-3">
             <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="20px" height="20px">
@@ -217,6 +309,19 @@ export function GoogleSignUp() {
          </div>
         )}
       </button>
+      
+      {workspaceConnected && (
+        <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+          <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
+            <CheckCircle className="h-4 w-4" />
+            <span className="text-sm font-medium">Google Workspace Connected</span>
+          </div>
+          <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+            Drive, Calendar, Gmail, Docs, Sheets, and Slides are now connected to your account.
+          </p>
+        </div>
+      )}
+      
       {error && <p className="text-sm text-center -mt-2 mb-4 text-red-600 dark:text-red-400">{error}</p>}
     </>
   );

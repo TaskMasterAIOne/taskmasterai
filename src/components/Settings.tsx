@@ -95,6 +95,11 @@ interface UserProfileData {
     googleDriveConnected?: boolean;
     googleCalendarConnected?: boolean;
     googleTokens?: any;
+    studentDiscountGranted?: boolean;
+    studentDiscountEmail?: string;
+    studentDiscountGrantedAt?: Timestamp | Date | string | null;
+    studentDiscountExpiresAt?: Timestamp | Date | string | null;
+    studentDiscountType?: 'pro_access' | 'premium_extension';
 }
 
 const toDateSafe = (value: any): Date | null => {
@@ -1561,8 +1566,55 @@ const handleGoogleDisconnect = async () => {
                       </div>
 
                       <div className="mt-auto space-y-3">
-                        {/* Free Premium Days Display */}
-                        {userProfileData?.premiumAwardedUntil && (toDateSafe(userProfileData.premiumAwardedUntil) || new Date(0)) > new Date() && (() => {
+                        {/* Student Discount Display */}
+                        {userProfileData?.studentDiscountGranted && (() => {
+                          const isProAccess = userProfileData.studentDiscountType === 'pro_access' && userProfileData.studentDiscountExpiresAt;
+                          const isPremiumExtension = userProfileData.studentDiscountType === 'premium_extension' && userProfileData.premiumAwardedUntil;
+                          
+                          if (isProAccess) {
+                            const expiresDate = toDateSafe(userProfileData.studentDiscountExpiresAt);
+                            if (expiresDate && expiresDate > new Date()) {
+                              const daysRemaining = Math.max(0, Math.ceil((expiresDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)));
+                              return (
+                                <div className="p-3 rounded-lg bg-gradient-to-r from-[var(--bg-accent)] to-[var(--bg-accent-secondary)] border border-[var(--bg-accent)] text-center">
+                                  <div className="flex items-center justify-center gap-2 mb-1">
+                                    <GraduationCap className="w-4 h-4 text-white" />
+                                    <span className="text-sm font-semibold text-white">Student Discount Active!</span>
+                                  </div>
+                                  <p className="text-xs text-white/90">
+                                    2 months PRO access • {daysRemaining} day{daysRemaining !== 1 ? 's' : ''} remaining
+                                  </p>
+                                  <p className="text-xs text-white/80 mt-1">
+                                    Expires: {expiresDate?.toLocaleDateString()}
+                                  </p>
+                                </div>
+                              );
+                            }
+                          } else if (isPremiumExtension) {
+                            const premiumUntil = toDateSafe(userProfileData.premiumAwardedUntil);
+                            if (premiumUntil && premiumUntil > new Date()) {
+                              const daysRemaining = Math.max(0, Math.ceil((premiumUntil.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)));
+                              return (
+                                <div className="p-3 rounded-lg bg-gradient-to-r from-[var(--bg-accent)] to-[var(--bg-accent-secondary)] border border-[var(--bg-accent)] text-center">
+                                  <div className="flex items-center justify-center gap-2 mb-1">
+                                    <GraduationCap className="w-4 h-4 text-white" />
+                                    <span className="text-sm font-semibold text-white">Student Discount Applied! 🎓</span>
+                                  </div>
+                                  <p className="text-xs text-white/90">
+                                    Premium extended by 2 months • {daysRemaining} day{daysRemaining !== 1 ? 's' : ''} remaining
+                                  </p>
+                                  <p className="text-xs text-white/80 mt-1">
+                                    Expires: {premiumUntil?.toLocaleDateString()}
+                                  </p>
+                                </div>
+                              );
+                            }
+                          }
+                          return null;
+                        })()}
+
+                        {/* Free Premium Days Display (for non-student discounts) */}
+                        {!userProfileData?.studentDiscountGranted && userProfileData?.premiumAwardedUntil && (toDateSafe(userProfileData.premiumAwardedUntil) || new Date(0)) > new Date() && (() => {
                           const premiumUntil = toDateSafe(userProfileData.premiumAwardedUntil);
                           const daysRemaining = premiumUntil ? Math.max(0, Math.ceil((premiumUntil.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))) : 0;
                           return (
@@ -1578,8 +1630,8 @@ const handleGoogleDisconnect = async () => {
                           );
                         })()}
 
-                        {/* Points Needed for Free Premium Display */}
-                        {(userCurrentTier === 'basic' || userCurrentTier === 'pro') && userProfileData && (() => {
+                        {/* Points Needed for Free Premium Display - only show if no student discount */}
+                        {(userCurrentTier === 'basic' || userCurrentTier === 'pro') && userProfileData && !userProfileData.studentDiscountGranted && (() => {
                           const pointsNeededForPremium = Math.max(0, POINTS_FOR_FREE_PREMIUM - (userProfileData.points || 0));
                           const hasActivePremium = userProfileData.premiumAwardedUntil && (toDateSafe(userProfileData.premiumAwardedUntil) || new Date(0)) > new Date();
                           return pointsNeededForPremium > 0 && !hasActivePremium ? (
@@ -1604,6 +1656,7 @@ const handleGoogleDisconnect = async () => {
                             </button>
                           </div>
                         )}
+                        
                         {userCurrentTier !== 'premium' && (
                           <Link to="/pricing" className="block w-full bg-[var(--bg-highlight)] border border-[var(--border-primary)] hover:bg-[var(--interactive-hover)] rounded-lg" style={{ color: 'var(--text-primary)' }}>
                             <span className="flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium">Upgrade Plan</span>

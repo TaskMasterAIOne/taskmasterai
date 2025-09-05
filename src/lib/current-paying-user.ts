@@ -77,6 +77,10 @@ export interface UserProfileData {
   tokens: number;
   uploadBonusCount: number;
   abuseWarningCount: number;
+  studentDiscountGranted?: boolean;
+  studentDiscountEmail?: string;
+  studentDiscountGrantedAt?: Timestamp | Date | null;
+  studentDiscountExpiresAt?: Timestamp | Date | null;
 }
 
 // Helper to get current month in local timezone (YYYY-MM format)
@@ -143,6 +147,16 @@ export const getUserTier = async (userId: string | null | undefined, emailFromAu
         const docSnap = await getDoc(userRef);
         if (docSnap.exists()) {
             const userProfile = docSnap.data() as UserProfileData;
+            
+            // Check for active student discount first
+            if (userProfile.studentDiscountGranted && userProfile.studentDiscountExpiresAt) {
+                const studentExpiresDate = toDateSafe(userProfile.studentDiscountExpiresAt);
+                if (studentExpiresDate && studentExpiresDate > new Date()) {
+                    console.log('User has active student discount - returning pro tier');
+                    return 'pro';
+                }
+            }
+            
             if (userProfile.premiumAwardedUntil) {
                 const awardedUntilDate = toDateSafe(userProfile.premiumAwardedUntil);
                 if (awardedUntilDate && awardedUntilDate > new Date()) {

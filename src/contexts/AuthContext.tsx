@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from '../lib/firebase';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 interface AuthContextType {
   user: User | null;
@@ -14,10 +15,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       setLoading(false);
+      
+      // Check for pending student verification when user logs in
+      if (user?.uid) {
+        const pendingVerification = localStorage.getItem('pendingStudentVerification');
+        if (pendingVerification) {
+          console.log('User logged in with pending student verification - processing...');
+          try {
+            const verificationData = JSON.parse(pendingVerification);
+            const functions = getFunctions();
+            const grantStudentAccessFunc = httpsCallable(functions, 'grantStudentAccess');
+            
+            const result = await grantStudentAccessFunc({
+              email: verificationData.email,
+              verificationCode: verificationData.code,
+              sentCode: verificationData.code
+            });
+            
+            if (result.data && (result.data as any).success) {
+              console.log('Successfully granted student Pro access after login!');
+              localStorage.removeItem('pendingStudentVerification');
+              
+              // Show a success notification
+              if (typeof window !== 'undefined') {
+                // You could show a toast notification here
+                console.log('Student Pro access has been activated!');
+              }
+            }
+          } catch (error) {
+            console.error('Error processing pending student verification:', error);
+          }
+        }
+      }
     }, (error) => {
       console.error('Auth state change error:', error);
       setUser(null);

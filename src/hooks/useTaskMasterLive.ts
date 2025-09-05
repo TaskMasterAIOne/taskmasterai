@@ -68,6 +68,7 @@ export interface UseTaskMasterLiveReturn {
   sendText: (text: string, files?: { type: string; base64Data: string; name: string }[]) => void;
   startRecording: () => Promise<void>;
   stopRecording: () => void;
+  stopAudio: () => void;
   clearMessages: () => void;
   clearCompletedActions: () => void;
   createVoiceSample: (voiceId: string, sampleText?: string) => Promise<ArrayBuffer | null>;
@@ -91,7 +92,9 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
     processJsonBlocks, 
     processAction,
     clearCompletedActions,
-    addCompletedAction
+    addCompletedAction,
+    updateActionProgress,
+    updateActionStatus
   } = useActionProcessor();
   const [clientSideFallback, setClientSideFallback] = useState(() => {
     // Initialize from localStorage to persist across page reloads
@@ -120,6 +123,10 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
   const outputTranscriptionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const inputTranscriptionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const recentMessagesRef = useRef<TaskMasterLiveMessage[]>([]);
+  
+  // Add buffering for streaming text responses to prevent fragmentation
+  const streamingTextBufferRef = useRef<string>('');
+  const streamingTextTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     // Initialize output audio context and playback queue
@@ -202,23 +209,27 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
       });
       
       if (hasRecentDirectResponse) {
-        console.log('🔄 Skipping transcription - already have recent direct text response');
         currentOutputTranscriptionRef.current = '';
         return;
       }
       
       // Check if transcription contains ACTUAL JSON actions (not just content with braces)
+      const lowerText = transcriptionText.toLowerCase();
       const containsActualJson = transcriptionText.includes('```json') || 
                                  transcriptionText.includes('```') || // Code blocks
-                                 transcriptionText.includes('json') || // "json" word
-                                 transcriptionText.includes('JSON') || // "JSON" word
-                                 (transcriptionText.toLowerCase().includes('j') && transcriptionText.length < 10) || // Single "J" or "j"
+                                 lowerText.includes('json') || // "json" word
+                                 lowerText.includes('action') || // "action" word
+                                 lowerText.includes('payload') || // "payload" word
                                  transcriptionText.match(/```json[\s\S]*?```/) || // JSON code blocks
                                  transcriptionText.match(/\{\s*["']?(action|type)["']?\s*:/) || // Actual JSON actions
-                                 transcriptionText.match(/\{\s*["']?(payload)["']?\s*:/); // JSON with payload
+                                 transcriptionText.match(/\{\s*["']?(payload)["']?\s*:/) || // JSON with payload
+                                 // Catch common spoken JSON patterns
+                                 lowerText.includes('create task') ||
+                                 lowerText.includes('create goal') ||
+                                 lowerText.includes('save memory') ||
+                                 lowerText.includes('generate image');
       
       if (containsActualJson) {
-        console.log('🛑 ACTUAL JSON detected in transcription - stopping audio playback IMMEDIATELY');
         audioPlaybackQueueRef.current?.stop(); // This stops and clears all sources
       }
       
@@ -234,7 +245,6 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
         
         // Log processed actions for debugging
         if (processedActions.length > 0) {
-          console.log(`🎯 Voice Chat (Transcription): Processed ${processedActions.length} actions:`, processedActions);
         }
       }).catch(error => {
         console.error('Error processing JSON actions from transcription:', error);
@@ -267,6 +277,66 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
       inputTranscriptionTimeoutRef.current = null;
     }
   }, [addMessage]);
+
+  // Function to finalize buffered streaming text
+  const finalizeStreamingText = useCallback(() => {
+    if (streamingTextBufferRef.current.trim()) {
+      const bufferedText = streamingTextBufferRef.current.trim();
+      
+      // Process the complete buffered text
+      processJsonBlocks(bufferedText).then(({ cleanedText, processedActions, enhancedText }) => {
+        const finalText = enhancedText || cleanedText || bufferedText;
+        
+        // Check if original text contained ACTUAL JSON actions (not just content with braces)
+        const lowerBufferedText = bufferedText.toLowerCase();
+        const containsActualJson = bufferedText.includes('```json') || 
+                                  bufferedText.includes('```') || // Code blocks
+                                  lowerBufferedText.includes('json') || // "json" word
+                                  lowerBufferedText.includes('action') || // "action" word
+                                  lowerBufferedText.includes('payload') || // "payload" word
+                                  bufferedText.match(/```json[\s\S]*?```/) || // JSON code blocks
+                                  bufferedText.match(/\{\s*["']?(action|type)["']?\s*:/) || // Actual JSON actions
+                                  bufferedText.match(/\{\s*["']?(payload)["']?\s*:/) || // JSON with payload
+                                  // Catch common spoken JSON patterns
+                                  lowerBufferedText.includes('create task') ||
+                                  lowerBufferedText.includes('create goal') ||
+                                  lowerBufferedText.includes('save memory') ||
+                                  lowerBufferedText.includes('generate image');
+        
+        if (containsActualJson) {
+          audioPlaybackQueueRef.current?.stop();
+        }
+        
+        // Add the complete message
+        addMessage({ 
+          type: 'output', 
+          content: finalText, 
+          data: { text: finalText, isDirectTextResponse: true, isBufferedResponse: true } 
+        });
+        
+        // Log processed actions for debugging
+        if (processedActions.length > 0) {
+        }
+      }).catch(error => {
+        console.error('Error processing buffered JSON actions:', error);
+        // Fallback to original text if processing fails
+        addMessage({ 
+          type: 'output', 
+          content: bufferedText, 
+          data: { isDirectTextResponse: true, isBufferedResponse: true } 
+        });
+      });
+      
+      // Clear the buffer
+      streamingTextBufferRef.current = '';
+    }
+    
+    // Clear timeout
+    if (streamingTextTimeoutRef.current) {
+      clearTimeout(streamingTextTimeoutRef.current);
+      streamingTextTimeoutRef.current = null;
+    }
+  }, [addMessage, processJsonBlocks]);
 
   const connect = useCallback(async (config: TaskMasterLiveConfig = {}, attemptFallback = false) => {
 
@@ -403,26 +473,26 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
             functionDeclarations: [
               {
                 name: 'searchNotion',
-                description: 'Search the user\'s Notion workspace for pages and content',
+                description: 'Search the user\'s Notion workspace for pages and content. Do NOT use this for calendar-related queries - use Google Calendar functions instead.',
                 parameters: {
                   type: Type.OBJECT,
                   properties: {
                     query: {
                       type: Type.STRING,
-                      description: 'Search query for Notion pages. Leave empty to get all pages.'
+                      description: 'Search query for Notion pages. Leave empty to get all pages. Do NOT search for calendar events or schedules.'
                     }
                   }
                 }
               },
               {
                 name: 'readNotionPage',
-                description: 'Read the content of a specific Notion page',
+                description: 'Read the content of a specific Notion page. Do NOT use this for calendar-related queries - use Google Calendar functions instead.',
                 parameters: {
                   type: Type.OBJECT,
                   properties: {
                     pageTitle: {
                       type: Type.STRING,
-                      description: 'The title of the Notion page to read'
+                      description: 'The title of the Notion page to read. Do NOT read calendar or schedule pages.'
                     }
                   },
                   required: ['pageTitle']
@@ -483,63 +553,77 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
             setIsConnecting(false);
             connectionAttemptsRef.current = 0; // Reset attempts on successful connection
             setUnexpectedDisconnectCount(0); // Reset disconnect counter on successful connection
-            
-            // Console logging for quota and model status
-            if (fallbackUsed) {
-              console.warn(`⚠️  USING FREE MODEL: Premium quota reached, using `);
-            }
+
             
             addMessage({ type: 'connected', content: 'Connected to TaskMaster Live API' });
           },
           onmessage: async (message: any) => {
-            // Handle text responses and transcriptions
+            // Handle text responses and transcriptions with buffering to prevent fragmentation
             if (message.text) {
-              // IMMEDIATELY process and clean the text BEFORE any audio processing
-              processJsonBlocks(message.text).then(({ cleanedText, processedActions, enhancedText }) => {
-                // Use enhanced text for conversation - this includes friendly messages from actions
-                const finalCleanText = enhancedText || cleanedText || message.text;
-                
-                // Check if original text contained ACTUAL JSON actions (not just content with braces)
-                const containsActualJson = message.text.includes('```json') || 
-                                          message.text.includes('```') || // Code blocks
-                                          message.text.includes('json') || // "json" word
-                                          message.text.includes('JSON') || // "JSON" word
-                                          (message.text.toLowerCase().includes('j') && message.text.length < 10) || // Single "J" or "j"
-                                          message.text.match(/```json[\s\S]*?```/) || // JSON code blocks
-                                          message.text.match(/\{\s*["']?(action|type)["']?\s*:/) || // Actual JSON actions
-                                          message.text.match(/\{\s*["']?(payload)["']?\s*:/); // JSON with payload
-                
-                if (containsActualJson) {
-                  console.log('🛑 ACTUAL JSON detected in voice response - stopping audio playback IMMEDIATELY');
-                  audioPlaybackQueueRef.current?.stop(); // This stops and clears all sources
-                }
-                
-                // Save the cleaned text (without JSON blocks) as the message
-                // Mark this message as from direct text response to avoid duplication with transcription
-                addMessage({ 
-                  type: 'output', 
-                  content: finalCleanText, 
-                  data: { ...message, text: finalCleanText, isDirectTextResponse: true } 
-                });
-                
-                // Log processed actions for debugging
-                if (processedActions.length > 0) {
-                  console.log(`🎯 Voice Chat: Processed ${processedActions.length} actions:`, processedActions);
-                }
-              }).catch(error => {
-                console.error('Error processing JSON actions:', error);
-                // Fallback to original text if processing fails
-                addMessage({ 
-                  type: 'output', 
-                  content: message.text, 
-                  data: { ...message, isDirectTextResponse: true } 
-                });
-              });
+              // IMMEDIATE audio stop on ANY JSON indicator - check BEFORE adding to buffer
+              const newText = message.text.toLowerCase();
+              const originalText = message.text;
+              
+              // INSTANT detection - stop audio on first sign of JSON
+              const hasJsonIndicator = 
+                originalText.includes('{') ||
+                originalText.includes('}') ||
+                originalText.includes('```') ||
+                newText.includes('json') ||
+                newText.includes('action') ||
+                newText.includes('payload') ||
+                newText.includes('create') ||
+                newText.includes('update') ||
+                originalText.includes('"') ||
+                originalText.includes('\\') ||
+                newText.includes('j') && originalText.length < 10;
+              
+              // Stop audio INSTANTLY on ANY JSON indicator
+              if (hasJsonIndicator) {
+                audioPlaybackQueueRef.current?.stop();
+              }
+              
+              // Add text to buffer after checking
+              streamingTextBufferRef.current += message.text;
+              
+              // Additional buffer-level check for accumulated content
+              const currentBuffer = streamingTextBufferRef.current.toLowerCase();
+              const originalBuffer = streamingTextBufferRef.current;
+              
+              // Secondary detection on accumulated buffer
+              const hasBufferJsonIndicators = 
+                originalBuffer.includes('```json') ||
+                originalBuffer.includes('```') ||
+                originalBuffer.includes('{') ||
+                originalBuffer.includes('}') ||
+                currentBuffer.includes('json') ||
+                currentBuffer.includes('action') ||
+                currentBuffer.includes('payload') ||
+                originalBuffer.includes('"action"') ||
+                originalBuffer.includes('"payload"');
+              
+              // Stop audio again if buffer contains JSON
+              if (hasBufferJsonIndicators) {
+                audioPlaybackQueueRef.current?.stop();
+              }
+              
+              // Clear existing timeout and set a new one to finalize after a pause
+              if (streamingTextTimeoutRef.current) {
+                clearTimeout(streamingTextTimeoutRef.current);
+              }
+              
+              // Set timeout to finalize buffered text after 500ms of no new chunks
+              streamingTextTimeoutRef.current = setTimeout(finalizeStreamingText, 500);
             }
             
-            // Handle tool calls (function calling)
+            // Handle tool calls (function calling) - integrate with text buffering to prevent fragmentation
             if (message.toolCall && message.toolCall.functionCalls) {
-              console.log('🔧 Tool call received:', message.toolCall.functionCalls);
+              
+              // Clear any pending text buffer timeout since we're about to process function calls
+              if (streamingTextTimeoutRef.current) {
+                clearTimeout(streamingTextTimeoutRef.current);
+                streamingTextTimeoutRef.current = null;
+              }
               
               const functionResponses = [];
               for (const functionCall of message.toolCall.functionCalls) {
@@ -556,7 +640,8 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
                         type: 'searchNotion',
                         title: `Searched Notion${functionCall.args.query ? ` for "${functionCall.args.query}"` : ''}`,
                         status: notionSearchResult.status,
-                        message: notionSearchResult.message
+                        message: notionSearchResult.message,
+                        viewUrl: 'https://www.notion.so'
                       });
                       break;
                       
@@ -569,21 +654,27 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
                         type: 'readNotionPage',
                         title: `Read page: "${functionCall.args.pageTitle}"`,
                         status: notionReadResult.status,
-                        message: notionReadResult.message
+                        message: notionReadResult.message,
+                        viewUrl: notionReadResult.pageUrl || 'https://www.notion.so'
                       });
                       break;
                       
                     case 'listGoogleDriveFiles':
+                      // Add processing action for user feedback
+                      const listActionId = addCompletedAction({
+                        type: 'listGoogleDriveFiles',
+                        title: `Listed Drive files${functionCall.args.query ? ` for "${functionCall.args.query}"` : ''}`,
+                        status: 'processing',
+                        message: 'Searching your Google Drive...',
+                        progress: 30,
+                        estimatedDuration: '3-5 seconds'
+                      });
+                      
                       const driveListResult = await processAction('listFilesAndFolders', functionCall.args);
                       result = driveListResult.friendlyMessage || driveListResult.message;
                       
-                      // Add to completed actions UI
-                      addCompletedAction({
-                        type: 'listGoogleDriveFiles',
-                        title: `Listed Drive files${functionCall.args.query ? ` for "${functionCall.args.query}"` : ''}`,
-                        status: driveListResult.status,
-                        message: driveListResult.message
-                      });
+                      // Update with final result
+                      updateActionStatus(listActionId, driveListResult.status, driveListResult.message, driveListResult.driveViewUrl || 'https://drive.google.com/drive/my-drive');
                       break;
                       
                     case 'readGoogleDriveFile':
@@ -597,7 +688,8 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
                         type: 'readGoogleDriveFile',
                         title: `Read file: "${functionCall.args.fileName}"`,
                         status: driveReadResult.status,
-                        message: driveReadResult.message
+                        message: driveReadResult.message,
+                        viewUrl: driveReadResult.pageUrl || driveReadResult.driveViewUrl || 'https://drive.google.com/drive/my-drive'
                       });
                       break;
                       
@@ -619,22 +711,36 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
                     response: { result }
                   });
                   
-                } catch (error) {
+                } catch (error: any) {
                   console.error(`Error executing ${functionCall.name}:`, error);
                   
-                  // Add error to completed actions UI
+                  // Get detailed error message
+                  let errorMessage = error.message || error.toString() || 'Unknown error';
+                  
+                  // Provide more helpful error messages for common issues
+                  if (errorMessage.includes('Google services are not connected')) {
+                    errorMessage = 'Google Drive is not connected. Please connect your Google account in Settings first.';
+                  } else if (errorMessage.includes('Google connection has expired')) {
+                    errorMessage = 'Your Google connection has expired. Please reconnect your Google account in Settings.';
+                  } else if (errorMessage.includes('not found') || errorMessage.includes('No files found')) {
+                    errorMessage = `Couldn't find "${functionCall.args.fileName || functionCall.args.query || 'that file'}". Please check the filename or try listing your files first.`;
+                  } else if (errorMessage.includes('permission') || errorMessage.includes('PERMISSION')) {
+                    errorMessage = 'Permission denied. Please make sure you have access to this Google Drive file.';
+                  }
+                  
+                  // Add error to completed actions UI with detailed message
                   addCompletedAction({
                     type: functionCall.name,
                     title: `${functionCall.name} failed`,
                     status: 'error',
-                    message: `Couldn't complete ${functionCall.name}. Please try again.`
+                    message: errorMessage
                   });
                   
                   functionResponses.push({
                     id: functionCall.id,
                     name: functionCall.name,
                     response: { 
-                      result: `Error: Couldn't complete ${functionCall.name}. Please try again.` 
+                      result: `Error: ${errorMessage}` 
                     }
                   });
                 }
@@ -642,8 +748,11 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
               
               // Send tool responses back to the model
               if (sessionRef.current && functionResponses.length > 0) {
-                console.log('📤 Sending tool responses:', functionResponses);
                 sessionRef.current.sendToolResponse({ functionResponses });
+                
+                // Set a longer timeout to finalize any follow-up text response after function calls
+                // This ensures function call results and follow-up text get combined into one message
+                streamingTextTimeoutRef.current = setTimeout(finalizeStreamingText, 2000);
               }
             }
             
@@ -660,7 +769,6 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
               inputTranscriptionTimeoutRef.current = setTimeout(finalizeInputTranscription, 1500);
             } else if (message.serverContent?.inputTranscription?.text && isAISpeaking) {
               // Log when we're ignoring input because AI is speaking
-              console.log('🔇 Ignoring input transcription while AI is speaking to prevent feedback');
             }
             
             // Handle output transcription fragments - accumulate them
@@ -687,19 +795,24 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
             
             if (audioData && typeof audioData === 'string') {
               // Check if this message contains ACTUAL JSON actions (not just content with braces)
-              const messageContainsJson = message.text && (
-                message.text.includes('```json') || 
-                message.text.includes('```') || // Code blocks
-                message.text.includes('json') || // "json" word
-                message.text.includes('JSON') || // "JSON" word
-                (message.text.toLowerCase().includes('j') && message.text.length < 10) || // Single "J" or "j"
-                message.text.match(/```json[\s\S]*?```/) || // JSON code blocks
-                message.text.match(/\{\s*["']?(action|type)["']?\s*:/) || // Actual JSON actions
-                message.text.match(/\{\s*["']?(payload)["']?\s*:/) // JSON with payload
-              );
+              const messageContainsJson = message.text && (() => {
+                const lowerMessageText = message.text.toLowerCase();
+                return message.text.includes('```json') || 
+                       message.text.includes('```') || // Code blocks
+                       lowerMessageText.includes('json') || // "json" word
+                       lowerMessageText.includes('action') || // "action" word
+                       lowerMessageText.includes('payload') || // "payload" word
+                       message.text.match(/```json[\s\S]*?```/) || // JSON code blocks
+                       message.text.match(/\{\s*["']?(action|type)["']?\s*:/) || // Actual JSON actions
+                       message.text.match(/\{\s*["']?(payload)["']?\s*:/) || // JSON with payload
+                       // Catch common spoken JSON patterns
+                       lowerMessageText.includes('create task') ||
+                       lowerMessageText.includes('create goal') ||
+                       lowerMessageText.includes('save memory') ||
+                       lowerMessageText.includes('generate image');
+              })();
               
               if (messageContainsJson) {
-                console.log('🛑 COMPLETELY SKIPPING audio playback - message contains JSON/technical content');
                 audioPlaybackQueueRef.current?.stop(); // Stop any current audio and clear sources
                 
                 // Check if we already processed this text in the direct text handler
@@ -914,6 +1027,11 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
       finalizeInputTranscription();
     }
     
+    // Finalize any buffered streaming text before disconnecting
+    if (streamingTextBufferRef.current.trim()) {
+      finalizeStreamingText();
+    }
+    
     if (sessionRef.current) {
       sessionRef.current.close();
       sessionRef.current = null;
@@ -929,7 +1047,7 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
     setUnexpectedDisconnectCount(0); // Reset disconnect counter
     lastConfigRef.current = null; // Clear stored config
     addMessage({ type: 'disconnected', content: 'Disconnected from voice chat' });
-  }, [addMessage, finalizeOutputTranscription, finalizeInputTranscription]);
+  }, [addMessage, finalizeOutputTranscription, finalizeInputTranscription, finalizeStreamingText]);
 
   // Quota status logger - accessible from browser console
   const logQuotaStatus = useCallback(() => {
@@ -1079,6 +1197,29 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
     }
   }, [isRecording, addMessage]);
 
+  const stopAudio = useCallback(() => {
+    // Immediately stop AI audio playback
+    if (audioPlaybackQueueRef.current) {
+      audioPlaybackQueueRef.current.stop();
+    }
+    
+    // Clear any buffered streaming text that might be causing audio
+    if (streamingTextBufferRef.current.trim()) {
+      streamingTextBufferRef.current = '';
+    }
+    
+    // Clear any pending timeouts
+    if (streamingTextTimeoutRef.current) {
+      clearTimeout(streamingTextTimeoutRef.current);
+      streamingTextTimeoutRef.current = null;
+    }
+    
+    if (outputTranscriptionTimeoutRef.current) {
+      clearTimeout(outputTranscriptionTimeoutRef.current);
+      outputTranscriptionTimeoutRef.current = null;
+    }
+  }, []);
+
   // Create voice sample function
   const createVoiceSample = useCallback(async (voiceId: string, sampleText?: string): Promise<ArrayBuffer | null> => {
     try {
@@ -1117,7 +1258,6 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
           },
           callbacks: {
             onopen: () => {
-              console.log(`🎵 Connected for ${voiceId} sample`);
               // Send a simple message to trigger the voice sample
               if (sampleSession) {
                 sampleSession.sendClientContent({ 
@@ -1152,7 +1292,6 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
               reject(error);
             },
             onclose: () => {
-              console.log(`🎵 Voice sample session closed for ${voiceId}`);
             }
           }
         }).then(session => {
@@ -1190,6 +1329,7 @@ export const useTaskMasterLive = (): UseTaskMasterLiveReturn => {
     sendText,
     startRecording,
     stopRecording,
+    stopAudio,
     clearMessages,
     clearCompletedActions,
     createVoiceSample

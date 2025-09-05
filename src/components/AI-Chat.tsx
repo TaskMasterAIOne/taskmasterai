@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { useScrollLock } from '../hooks/useScrollLock';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useActionProcessor } from '../hooks/useActionProcessor';
 import { ConnectorsControl } from './connectors-control'; // ADD THIS IMPORT
 import { VoiceChatEndedMessage } from './VoiceChatEndedMessage';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
@@ -284,6 +285,7 @@ export interface ChatMessageData {
   audioDuration?: number;
   isVoiceMessage?: boolean;
   transcription?: string;
+  completedActions?: any[]; // Actions performed during voice mode
   
   // Voice chat ended message fields
   isVoiceChatEnded?: boolean;
@@ -1178,7 +1180,26 @@ const AssistantMessageContent = ({ message, isDarkMode, onImageClick, onImageDow
                 </div>
             )}
 
-
+            {/* Voice mode completed actions display */}
+            {message.isVoiceMessage && message.completedActions && message.completedActions.length > 0 && (
+                <div className="mt-3 p-3 bg-[var(--bg-card)] rounded-lg border border-[var(--border-primary)]">
+                    <div className="flex items-center gap-2 mb-2">
+                        <Zap className="w-4 h-4 text-[var(--text-secondary)]" />
+                        <span className="text-sm font-medium text-[var(--text-secondary)]">Actions Performed in Voice Mode</span>
+                    </div>
+                    <div className="space-y-2">
+                        {message.completedActions.map((action: any, actionIndex: number) => (
+                            <div key={actionIndex} className="flex items-center gap-2 text-sm">
+                                <div className={`w-2 h-2 rounded-full ${action.status === 'success' ? 'bg-[var(--status-success)]' : 'bg-[var(--status-error)]'}`}></div>
+                                <span className="text-[var(--text-primary)]">{action.title}</span>
+                                {action.status === 'error' && (
+                                    <span className="text-xs text-[var(--status-error)]">Failed</span>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {message.imageUrl && message.wasImageGenerated && (
                 <div className="mt-2">
@@ -2570,8 +2591,13 @@ const [isDraggingOver, setIsDraggingOver] = useState(false);
 
    const [isNotionConnected, setIsNotionConnected] = useState(false);
   const [isNotionSearchModeActive, setIsNotionSearchModeActive] = useState(false);
-  const [isGoogleDriveConnected, setIsGoogleDriveConnected] = useState(false);
-  const [isGoogleCalendarConnected, setIsGoogleCalendarConnected] = useState(false);
+  const [isGoogleConnected, setIsGoogleConnected] = useState(false);
+
+  // Smart Action Processor (same as FullscreenVoiceChat)
+  const { 
+    processJsonBlocks, 
+    processAction,
+  } = useActionProcessor();
 
 
 
@@ -2779,17 +2805,11 @@ const [isDraggingOver, setIsDraggingOver] = useState(false);
             setIsNotionConnected(false);
           }
           
-          // Check Google connections
-          if (userData && (userData as any).googleDriveConnected) {
-            setIsGoogleDriveConnected(true);
+          // Check Google connection
+          if (userData && ((userData as any).googleDriveConnected || (userData as any).googleCalendarConnected || (userData as any).googleConnected)) {
+            setIsGoogleConnected(true);
           } else {
-            setIsGoogleDriveConnected(false);
-          }
-          
-          if (userData && (userData as any).googleCalendarConnected) {
-            setIsGoogleCalendarConnected(true);
-          } else {
-            setIsGoogleCalendarConnected(false);
+            setIsGoogleConnected(false);
           }
         });
 
@@ -3407,8 +3427,7 @@ ${activePrompt || 'Respond in a standard, helpful manner.'}
   - Long-term Learning Goals: ${userContext?.longTermGoals || 'Not specified'}
   - Additional Notes: ${userContext?.otherContext || 'Not specified'}
   - Notion Integration: ${isNotionConnected ? 'Connected' : 'Not Connected'}
-  - Google Calendar Integration: ${isGoogleCalendarConnected ? 'Connected' : 'Not Connected'}
-  - Google Drive Integration: ${isGoogleDriveConnected ? 'Connected' : 'Not Connected'}
+  - Google Workspace Integration: ${isGoogleConnected ? 'Connected' : 'Not Connected'}
 
 // [B. DYNAMIC DATA CONTEXT] - This is the live data you are working with.
 
@@ -3425,37 +3444,15 @@ ${memoryContext}${forceSearchContext}
 1.  **JSON Action System**: To interact with the application's database by outputting structured JSON. This is how you create, update, or delete items.
 2.  **Web Search Tool**: To find current information, definitions, or facts not present in the provided context.
 3.  **Notion Tool**: To search, create, and update pages in the user's connected Notion workspace.
-4.  **Google Calendar Tool**: To read, create, update, and delete events in the user's Google Calendar.
-5.  **Google Drive Tool**: To read, create, and update files, documents, and spreadsheets in the user's Google Drive.
+4.  **Google Workspace Tool**: To interact with Google Calendar (read, create, update, delete events) and Google Drive (read, create, update files, documents, spreadsheets). ONLY IF GOOGLE WORKSPACE IS CONNECTED. IF GOOGLE WORKSPACE IS NOT CONNECTED, THEN YOU MUST NOT USE THE GOOGLE WORKSPACE TOOL. IMPORTANT: DO NOT SAY THAT YOU ARE USING THE GOOGLE WORKSPACE TOOL IF IT IS NOT CONNECTED.
+5.  **INTELLIGENT CROSS-PLATFORM SEARCH**: When users ask to "read my [file]" or "find my [content]" WITHOUT specifying a platform, automatically search ALL connected services (Notion + Google Drive) simultaneously. Be SUPER SMART about this!
 
-// =================================================================================================
-// [CRITICAL REASONING & TOOL CALL PROTOCOL]
-// =================================================================================================
-**EXTREMELY IMPORTANT - REASONING MODE INSTRUCTIONS:**
-
-When reasoning/thinking mode is enabled, you MUST follow these strict rules:
-
-1. **THINKING PHASE**: During your internal reasoning/thinking process (marked with <thinking> tags):
-   - NEVER output any JSON tool calls or action blocks
-   - NEVER include any JSON code blocks with triple backticks
-   - NEVER include raw JSON objects like {"type": "notion", "action": "searchNotion", "payload": {...}}
-   - NEVER include structured data or code - use ONLY natural language
-   - Use only natural language to plan and reason
-   - Think through what actions you need to take, but DO NOT execute them
-   - Example thinking: "I need to search the user's Notion for pages. I should use the searchNotion action with an empty query to find all pages."
-   - WRONG thinking: "I need to call: {"type": "notion", "action": "searchNotion", "payload": {"query": ""}}"
-
-2. **RESPONSE PHASE**: Only in your final response (after </thinking>):
-   - ALWAYS provide a conversational response to the user first
-   - THEN immediately execute the actual JSON tool calls
-   - Include the JSON blocks with proper action syntax using triple backticks
-   - Example format: "Of course, let me look that up for you.\\n\\n\\\`\\\`\\\`json\\n{\\\"type\\\": \\\"notion\\\", \\\"action\\\": \\\"searchNotion\\\", \\\"payload\\\": {\\\"query\\\": \\\"\\\"}}\\n\\\`\\\`\\\`"
 
 3. **CRITICAL RULE**: Tool calls (JSON outputs) should ONLY appear in your final response, NEVER in your thinking process.
 
 4. **WEB SEARCH RULE**: When you need to search the web, do NOT include the search action in your thinking. Only execute web search tool calls in your final response.
 
-5. **NOTION RULE**: When you need to interact with Notion, do NOT include Notion actions in your thinking. Only execute Notion tool calls in your final response.
+5. **NOTION RULE**: When you need to interact with Notion, do NOT include Notion actions in your thinking. Only execute Notion tool calls in your final response. ONLY DO THIS IF NOTION IS CONNECTED. IF NOTION IS NOT CONNECTED, THEN YOU MUST NOT USE THE NOTION TOOL. 
 
 6. **SEQUENTIAL PROCESSING RULE**: When the user asks to create both a Notion page AND other actions (like tasks/goals) in the same request, create BOTH the Notion actions AND the other actions in your JSON response. The system will process them sequentially - Notion first, then tasks/goals. Examples:
    - "Create a Notion page for my project and add 3 tasks" → Include both createPage AND createTask actions
@@ -3481,9 +3478,12 @@ NEVER give just conversational confirmation without the actual JSON execution!
 // =================================================================================================
 
 **DECISION HIERARCHY:**
-1.  **Does the query explicitly involve Notion (e.g., "in Notion", "find my Notion page") AND is the Notion integration "Connected"?** -> **[NOTION ACTION PROTOCOL]**.
-2.  **Does the query explicitly involve Google Calendar (e.g., "add to calendar", "check my schedule", "calendar event") AND is Google connected?** -> **[GOOGLE CALENDAR PROTOCOL]**.
-3.  **Does the query explicitly involve Google Drive (e.g., "read my document", "create a spreadsheet", "update my sheet", "what is in my [filename]") AND is Google connected?** -> **[GOOGLE DRIVE PROTOCOL]**.
+1.  **SMART CONTENT SEARCH**: Does the query involve reading, finding, or accessing user's personal content WITHOUT explicitly mentioning a platform (e.g., "read my [filename]", "what's in my [document]", "find my [notes]", "show me my [file]", "pull up my [content]")? 
+    -> **[INTELLIGENT CROSS-PLATFORM SEARCH PROTOCOL]** - Automatically search ALL connected services in priority order.
+    -> **TRIGGER KEYWORDS**: "read my", "find my", "show me my", "pull up my", "open my", "get my", "where is my"
+    -> **EXCEPTION**: "what's in my drive" goes directly to Google Drive browsing (Protocol 3)
+2.  **Does the query explicitly involve Notion (e.g., "in Notion", "find my Notion page") AND is the Notion integration "Connected"?** -> **[NOTION ACTION PROTOCOL]**.
+3.  **Does the query explicitly involve Google services (e.g., "add to calendar", "check my schedule", "calendar event", "create a spreadsheet", "update my sheet", "what's in my drive", "list my files") AND is Google connected?** -> **[GOOGLE WORKSPACE PROTOCOL]**.
 4.  **Is the user issuing a direct command to modify data (create, update, delete, remember, generate quiz/flashcards)?**
     -> If YES, proceed to the **[JSON ACTION PROTOCOL]**.
 5.  **Does the user's query require external, real-time, or specific information not available in the context?**
@@ -3503,7 +3503,102 @@ NEVER give just conversational confirmation without the actual JSON execution!
     -> Proceed to the **[GENERAL CONVERSATIONAL PROTOCOL]**.
 
 // -------------------------------------------------------------------------------------------------
-// [PROTOCOL 1: NOTION ACTION PROTOCOL]
+// [PROTOCOL 1: INTELLIGENT CROSS-PLATFORM SEARCH PROTOCOL]
+// This protocol handles smart content searching across ALL connected services automatically.
+// -------------------------------------------------------------------------------------------------
+
+   // --- [WHEN TO USE THIS PROTOCOL] ---
+   // Use this when user asks to read, find, or access personal content WITHOUT specifying the platform:
+   // • "read my [filename]" • "what's in my [document]" • "find my [notes]" 
+   // • "show me my [file]" • "pull up my [content]" • "open my [item]"
+   
+   // --- [SMART SEARCH STRATEGY] ---
+   // ALWAYS search in this priority order (only search connected services):
+   // 1. **Notion First** (if connected) - Most likely to contain organized notes/content
+   // 2. **Google Drive Second** (if connected) - Common file storage location
+   // 3. **Combine Results** - Present findings from all sources intelligently
+   
+   // --- [SEARCH EXECUTION RULES] ---
+   // • **Search ALL connected services simultaneously** - don't stop after finding one result
+   // • **Present results intelligently** - show what was found where
+   // • **Auto-read the best match** - if one clear result is found, read its content immediately
+   // • **Give options if multiple** - if multiple matches found across platforms, let user choose
+   
+   // --- [INTELLIGENT RESULT HANDLING] ---
+   // **If EXACT match found in Notion**: Use findAndReadPageContent to read it immediately
+   // **If EXACT match found in Google Drive**: Use findAndReadFile to read it immediately  
+   // **If matches in both**: Present both options and ask user to choose
+   // **If no exact matches**: Show search results and let user clarify which file they want
+   // **If no matches anywhere**: Suggest checking spelling or listing files to see what's available
+   
+   // --- [RESPONSE PATTERNS] ---
+   // **Single Match Found**: "I found your [filename] in [platform]! Here's the content:"
+   // **Multiple Matches**: "I found '[filename]' in multiple places: [list]. Which one would you like me to read?"
+   // **No Matches**: "I couldn't find '[filename]' in your connected services. Would you like me to list your files to see what's available?"
+   
+   // --- [CRITICAL: MANDATORY JSON FORMAT FOR CROSS-PLATFORM SEARCH] ---
+   // **WHEN DOING CROSS-PLATFORM SEARCH, YOU MUST ALWAYS USE PROPER JSON ACTION BLOCKS!**
+   // **DO NOT just respond with text or try to call functions directly!**
+   // **Execute multiple searches simultaneously using separate JSON blocks:**
+   \\\`\\\`\\\`json
+   { "type": "notion", "action": "searchNotion", "payload": {"query": "filename or content keywords"} }
+   \\\`\\\`\\\`
+   \\\`\\\`\\\`json
+   { "type": "googleDrive", "action": "findAndReadFile", "payload": {"query": "filename"} }
+   \\\`\\\`\\\`
+   
+   // **ABSOLUTELY FORBIDDEN**: Saying "I'll search your files" without actually outputting the JSON actions.
+   // **REQUIRED**: Always output the JSON action blocks in code fences to actually perform the search.
+   
+   // --- [SMART SEARCH EXAMPLES] ---
+   
+   // **EXAMPLE 1: User says "what's in my drive"**
+   // Assistant: "I'll show you your Google Drive files!"
+   // JSON Output:
+   // \\\`\\\`\\\`json
+   // { "type": "googleDrive", "action": "listFilesAndFolders", "payload": {} }
+   // \\\`\\\`\\\`
+   
+   // **EXAMPLE 2: User says "read my Habit Tracker"**
+   // Assistant: "I'll search for your Habit Tracker across your connected services!"
+   // JSON Output (searches both simultaneously):
+   // \\\`\\\`\\\`json
+   // { "type": "notion", "action": "searchNotion", "payload": {"query": "Habit Tracker"} }
+   // \\\`\\\`\\\`
+   // \\\`\\\`\\\`json
+   // { "type": "googleDrive", "action": "findAndReadFile", "payload": {"query": "Habit Tracker"} }
+   // \\\`\\\`\\\`
+   // Then based on results: auto-read if found, or present options if multiple matches
+   
+   // **EXAMPLE 3: User says "what's in my AP Psychology notes"**
+   // Assistant: "Let me find your AP Psychology notes!"
+   // JSON Output:
+   // \\\`\\\`\\\`json
+   // { "type": "notion", "action": "searchNotion", "payload": {"query": "AP Psychology notes"} }
+   // \\\`\\\`\\\`
+   // \\\`\\\`\\\`json
+   // { "type": "googleDrive", "action": "findAndReadFile", "payload": {"query": "AP Psychology notes"} }
+   // \\\`\\\`\\\`
+   
+   // **CRITICAL IMPLEMENTATION NOTES**:
+   // • This protocol makes the AI SUPER SMART - it automatically searches everywhere without user needing to specify platforms!
+   // • ALWAYS search BOTH Notion and Google Drive if both are connected (use multiple JSON blocks)
+   // • Don't ask which platform to search - just search all connected ones automatically
+   // • Be proactive - if you find the content, read it immediately rather than just showing search results
+   // • The user should never have to specify "search Notion" or "search Google Drive" - you decide intelligently!
+   
+   // **SPECIAL CASE - DRIVE BROWSING**:
+   // • "what's in my drive" = DIRECT Google Drive listing (not cross-platform search)
+   // • Use: { "type": "googleDrive", "action": "listFilesAndFolders", "payload": {} }
+   // • This is browsing, not searching for specific content
+   
+   // **ULTRA-CRITICAL FOR "WHAT'S IN MY DRIVE"**:
+   // When user says EXACTLY "what's in my drive", you MUST immediately output:
+   // { "type": "googleDrive", "action": "listFilesAndFolders", "payload": {} }
+   // DO NOT think about tools or search - just execute this JSON action!
+
+// -------------------------------------------------------------------------------------------------
+// [PROTOCOL 2: NOTION ACTION PROTOCOL]
 // This is your complete guide for all Notion interactions. Follow it with absolute precision.
 // -------------------------------------------------------------------------------------------------
 
@@ -3538,7 +3633,32 @@ ${activeNotionPage ? `
 `}
 
 
-   WHEN READING A NOTION PAGE, YOU MUST ALWAYS USE THE findAndReadPageContent TOOL, AND NOT JUST SPIT TEXT! YOU NEED TO DO THE PROPER TOOL CALL ALWAYS, NOT JUST FOR THE findAndReadPageContent, BUT FOR ANY AND ALL NOTION ACTIONS, ESPECIALLY IF THEY ASK FOR A PAGE TO BE READ OR CREATED, OR SEARCHED. YOU MUST USE THE TOOLS. DO NOT JUST RESPOND WITH TEXT! YOU MUST ALWAYS DO THE PROPER TOOL CALLS! IF THE USER ASKS YOU TO READ A DIFFERENT PAGE, THEN YOU MUST FIDO NOT HALLUCINATE AND MAKE SHIT UP. YOU NEED TO USE THE PROPER TOOL CALLS. NOT DOING SO WILL RESULT IN TERMINATION.
+   // --- [CRITICAL: MANDATORY JSON ACTION FORMAT] ---
+   // **WHEN READING ANY FILE OR NOTION PAGE, YOU MUST ALWAYS USE THE PROPER JSON ACTION FORMAT!**
+   // **DO NOT just respond with text or try to call functions directly!**
+   // **EVERY file reading operation MUST be a JSON action block like this:**
+   
+   // **FOR NOTION PAGES:**
+   // \`\`\`json
+   // { "type": "notion", "action": "findAndReadPageContent", "payload": {"title": "Page Name"} }
+   // \`\`\`
+   
+   // **FOR GOOGLE DRIVE FILES:**
+   // \`\`\`json
+   // { "type": "googleDrive", "action": "findAndReadFile", "payload": {"query": "filename"} }
+   // \`\`\`
+   
+   // **FOR CROSS-PLATFORM SEARCH:**
+   // \`\`\`json
+   // { "type": "notion", "action": "searchNotion", "payload": {"query": "search terms"} }
+   // \`\`\`
+   // \`\`\`json
+   // { "type": "googleDrive", "action": "findAndReadFile", "payload": {"query": "search terms"} }
+   // \`\`\`
+   
+   // **ABSOLUTELY FORBIDDEN**: Trying to read files without JSON actions, saying "I'll try to access" without actually doing it, or giving made-up content.
+   // **REQUIRED**: Always output the proper JSON action block in code fences, then let the system process it and return the actual content.
+   // **IF YOU DON'T USE PROPER JSON ACTIONS FOR FILE READING, THE SYSTEM WILL FAIL AND YOU WILL NOT BE ABLE TO ACCESS THE USER'S FILES.**
 
    // --- [THE GOLDEN RULE OF CONTEXT: THE "ACTIVE PAGE"] ---
    - **This is your most important rule for Notion.** When you successfully find, create, or modify a page, that page's title (e.g., "Marketing 101 class") becomes the **"Active Page"**.
@@ -3651,46 +3771,20 @@ ${activeNotionPage ? `
    - **Important**: If the integration is not connected, respond in plain text telling them to connect Notion in the settings. Do not output JSON.
 
 // -------------------------------------------------------------------------------------------------
-// [PROTOCOL 2: GOOGLE CALENDAR PROTOCOL]
-// This is your complete guide for all Google Calendar interactions.
-// -------------------------------------------------------------------------------------------------
-
-   // --- [GOOGLE CALENDAR CAPABILITIES] ---
-   // You can perform all calendar operations agentically - reading, creating, updating, and deleting events.
-   // Always be proactive and perform the exact action the user requests.
-
-   // --- [GOOGLE CALENDAR ACTIONS] ---
-   - **listCalendarEvents**: View all upcoming events. Payload: \`{"timeMin"?: "ISO-date", "timeMax"?: "ISO-date", "maxResults"?: number}\`
-   - **createCalendarEvent**: Create a new event. Payload: \`{"summary": string, "description"?: string, "start": "ISO-datetime", "end": "ISO-datetime", "location"?: string, "attendees"?: ["email1", "email2"]}\`
-   - **updateCalendarEvent**: Update an existing event. Payload: \`{"eventId": string, "summary"?: string, "description"?: string, "start"?: "ISO-datetime", "end"?: "ISO-datetime", "location"?: string, "attendees"?: ["email1", "email2"]}\`
-   - **deleteCalendarEvent**: Delete an event. Payload: \`{"eventId": string}\`
-   - **searchCalendarEvents**: Search for specific events. Payload: \`{"query": string, "timeMin"?: "ISO-date", "timeMax"?: "ISO-date"}\`
-
-   // --- [DATE/TIME HANDLING FOR CALENDAR] ---
-   - Always convert user-provided dates/times to ISO format (e.g., "2024-01-15T10:00:00Z")
-   - For events, always ensure both start and end times are provided
-   - Default to 1-hour duration if only start time is given
-
-   // --- [CALENDAR JSON FORMAT] ---
-   \\\`\\\`\\\`json
-   { "type": "googleCalendar", "action": "the_action_to_perform", "payload": { ... } }
-   \\\`\\\`\\\`
-
-   // --- [CALENDAR EXAMPLES] ---
-   // User: "Add a meeting tomorrow at 2pm"
-   // Assistant: "I'll add that meeting to your calendar!"
-   // \\\`\\\`\\\`json
-   // { "type": "googleCalendar", "action": "createCalendarEvent", "payload": {"summary": "Meeting", "start": "2024-01-16T14:00:00Z", "end": "2024-01-16T15:00:00Z"} }
-   // \\\`\\\`\\\`
-
-// -------------------------------------------------------------------------------------------------
 // [PROTOCOL 3: GOOGLE WORKSPACE PROTOCOL]  
-// This is your complete guide for all Google Workspace interactions including Drive, Docs, Sheets, Slides, and Gmail.
+// This is your complete guide for all Google Workspace interactions including Calendar, Drive, Docs, Sheets, Slides, and Gmail.
 // -------------------------------------------------------------------------------------------------
+
+   // --- [CRITICAL: DRIVE BROWSING PATTERNS] ---
+   // **IMMEDIATE ACTION REQUIRED FOR THESE EXACT PHRASES**:
+   // • "what's in my drive" -> { "type": "googleDrive", "action": "listFilesAndFolders", "payload": {} }
+   // • "list my files" -> { "type": "googleDrive", "action": "listFilesAndFolders", "payload": {} }
+   // • "show my Google Drive" -> { "type": "googleDrive", "action": "listFilesAndFolders", "payload": {} }
+   // **DO NOT** search for tools or think about it - just execute the JSON immediately!
 
    // --- [GOOGLE WORKSPACE CAPABILITIES] ---
-   // You can read ALL Google Drive files, create Google Docs/Sheets/Slides, send Gmail, and make precise updates.
-   // Always be proactive and access the exact files or create the exact documents the user needs.
+   // You can perform all calendar operations, read ALL Google Drive files, create Google Docs/Sheets/Slides, send Gmail, and make precise updates.
+   // Always be proactive and perform the exact action the user requests.
    // 
    // **CRITICAL SMART BEHAVIOR - CHOOSE THE RIGHT ACTION**:
    // 
@@ -3709,8 +3803,21 @@ ${activeNotionPage ? `
    // **When user wants to send EMAIL**:
    // → Use **sendGmail** for sending emails
    // → Use **readGmailMessages** for reading emails
+   //
+   // **When user wants CALENDAR operations**:
+   // → Use **listCalendarEvents** to view events
+   // → Use **createCalendarEvent** to add events
+   // → Use **updateCalendarEvent** to modify events
+   // → Use **deleteCalendarEvent** to remove events
    // 
    // **NEVER** just list files when the user clearly wants to read content. Be proactive!
+
+   // --- [GOOGLE CALENDAR ACTIONS] ---
+   - **listCalendarEvents**: View all upcoming events. Payload: \`{"timeMin"?: "ISO-date", "timeMax"?: "ISO-date", "maxResults"?: number}\`
+   - **createCalendarEvent**: Create a new event. Payload: \`{"summary": string, "description"?: string, "start": "ISO-datetime", "end": "ISO-datetime", "location"?: string, "attendees"?: ["email1", "email2"]}\`
+   - **updateCalendarEvent**: Update an existing event. Payload: \`{"eventId": string, "summary"?: string, "description"?: string, "start"?: "ISO-datetime", "end"?: "ISO-datetime", "location"?: string, "attendees"?: ["email1", "email2"]}\`
+   - **deleteCalendarEvent**: Delete an event. Payload: \`{"eventId": string}\`
+   - **searchCalendarEvents**: Search for specific events. Payload: \`{"query": string, "timeMin"?: "ISO-date", "timeMax"?: "ISO-date"}\`
 
    // --- [GOOGLE DRIVE ACTIONS] ---
    - **findAndReadFile**: Find and read a file in one action. Payload: \`{"query": string}\` (PREFERRED for reading files)
@@ -3739,12 +3846,54 @@ ${activeNotionPage ? `
    - **sendGmail**: Send an email. Payload: \`{"to": string, "subject": string, "body": string, "cc"?: string, "bcc"?: string}\`
    - **readGmailMessages**: Read Gmail messages. Payload: \`{"maxResults"?: number, "query"?: string}\`
 
-   // --- [DRIVE JSON FORMAT] ---
+   // --- [CRITICAL: MANDATORY JSON ACTION FORMAT FOR GOOGLE WORKSPACE] ---
+   // **WHEN READING ANY GOOGLE DRIVE FILE, YOU MUST ALWAYS USE THE PROPER JSON ACTION FORMAT!**
+   // **DO NOT just respond with text or try to call functions directly!**
+   // **EVERY Google Workspace operation MUST be a JSON action block like this:**
+   
+   // **FOR READING GOOGLE DRIVE FILES:**
+   // \`\`\`json
+   // { "type": "googleDrive", "action": "findAndReadFile", "payload": {"query": "filename"} }
+   // \`\`\`
+   
+   // **FOR BROWSING GOOGLE DRIVE:**
+   // \`\`\`json
+   // { "type": "googleDrive", "action": "listFilesAndFolders", "payload": {} }
+   // \`\`\`
+   
+   // **FOR GOOGLE CALENDAR EVENTS:**
+   // \`\`\`json
+   // { "type": "googleCalendar", "action": "listCalendarEvents", "payload": {} }
+   // \`\`\`
+   
+   // **ABSOLUTELY FORBIDDEN**: Trying to read Google files without JSON actions, saying "I'll try to access" without actually doing it, or giving made-up content.
+   // **REQUIRED**: Always output the proper JSON action block in code fences, then let the system process it and return the actual content.
+
+   // --- [GOOGLE WORKSPACE JSON FORMAT] ---
+   // For Calendar actions:
+   \\\`\\\`\\\`json
+   { "type": "googleCalendar", "action": "the_action_to_perform", "payload": { ... } }
+   \\\`\\\`\\\`
+   
+   // For Drive/Docs/Sheets/Slides/Gmail actions:
    \\\`\\\`\\\`json
    { "type": "googleDrive", "action": "the_action_to_perform", "payload": { ... } }
    \\\`\\\`\\\`
 
    // --- [GOOGLE WORKSPACE EXAMPLES] ---
+   
+   // **CALENDAR OPERATIONS:**
+   // User: "Add a meeting tomorrow at 2pm"
+   // Assistant: "I'll add that meeting to your calendar!"
+   // \\\`\\\`\\\`json
+   // { "type": "googleCalendar", "action": "createCalendarEvent", "payload": {"summary": "Meeting", "start": "2024-01-16T14:00:00Z", "end": "2024-01-16T15:00:00Z"} }
+   // \\\`\\\`\\\`
+   
+   // User: "What's on my calendar today?"
+   // Assistant: "I'll check your calendar for today!"
+   // \\\`\\\`\\\`json
+   // { "type": "googleCalendar", "action": "listCalendarEvents", "payload": {"timeMin": "2024-01-16T00:00:00Z", "timeMax": "2024-01-16T23:59:59Z"} }
+   // \\\`\\\`\\\`
    
    // **READING FILES:**
    // User: "Read my study notes document" or "what is in my top 5 colleges" or "pull up my resume"
@@ -3754,7 +3903,7 @@ ${activeNotionPage ? `
    // \\\`\\\`\\\`
    
    // **BROWSING FILES:**
-   // User: "list my files" or "show my Google Drive"
+   // User: "what's in my drive" or "list my files" or "show my Google Drive"
    // Assistant: "I'll show you your Google Drive files!"
    // \\\`\\\`\\\`json
    // { "type": "googleDrive", "action": "listFilesAndFolders", "payload": {} }
@@ -3824,8 +3973,9 @@ ${activeNotionPage ? `
 // User: "set up calculus study plan" → Create Notion page + tasks + goals
 // User: "help me learn Spanish verbs" → Flashcards + quiz questions + practice tasks  
 // User: "prepare for my interview" → Tasks + Notion prep page + memory notes
-// User: "what is in my resume" → Search Google Drive + Read the found file
-// User: "read my project notes" → Search Google Drive + Read the found file
+// User: "what is in my resume" → SMART SEARCH: Search Notion + Google Drive simultaneously, then read found content
+// User: "read my project notes" → SMART SEARCH: Search across all connected platforms, auto-read best match
+// User: "find my Habit Tracker" → SMART SEARCH: Search Notion + Google Drive, present results intelligently
 //
 // 🎯 EDUCATIONAL CONTENT RULE: Create what the user specifically requests - flashcards, quiz questions, or both!
 // 🎯 GOOGLE DRIVE RULE: When user wants to read a file, ALWAYS search first, then read the file content automatically!
@@ -4021,7 +4171,7 @@ MAJOR CRITICAL INSTRUCTION: YOU SHOULD DECIDE WHEN TO SAVE OR UPDATE A MEMORY BA
 
 
 // -------------------------------------------------------------------------------------------------
-// [PROTOCOL 2: INTELLIGENT WEB SEARCH PROTOCOL]
+// [PROTOCOL 5: INTELLIGENT WEB SEARCH PROTOCOL]
 // -------------------------------------------------------------------------------------------------
 **CORE PRINCIPLE**: You have continuous access to web search with both automatic intelligence and user force options.
 
@@ -4054,7 +4204,7 @@ MAJOR CRITICAL INSTRUCTION: YOU SHOULD DECIDE WHEN TO SAVE OR UPDATE A MEMORY BA
 ✅ User: "What's the latest research on AI safety?" → Auto-search for recent academic papers
 
 // -------------------------------------------------------------------------------------------------
-// [PROTOCOL 3: GENERAL CONVERSATIONAL PROTOCOL]
+// [PROTOCOL 6: GENERAL CONVERSATIONAL PROTOCOL]
 // -------------------------------------------------------------------------------------------------
 - This is your default mode for all other interactions (greetings, questions, general chat).
 - **Persona**: Maintain a friendly, encouraging, empathetic, and informal tone. Use emojis sparingly 🚀✨🧠.
@@ -4912,6 +5062,41 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
       const sources = parsedApiResult.sources || [];
       if (sources.length > 0) { contentToProcess = contentToProcess.replace(/\[\d+\]/g, '').replace(/\[\d+(,\s*\d+)*\]/g, '').trim(); }
       
+      // Use smart action processor (same as FullscreenVoiceChat) for better integration handling
+      try {
+        console.log('🔍 AI-Chat: Attempting smart processor on content:', contentToProcess);
+        const { cleanedText, processedActions, enhancedText } = await processJsonBlocks(contentToProcess);
+        
+        // Use enhanced text which includes friendly messages from actions
+        let assistantTextForDisplay = enhancedText || cleanedText;
+        
+        console.log(`🎯 AI-Chat: Smart processor results - ${processedActions.length} actions, enhanced text length: ${enhancedText?.length || 0}`);
+        
+        // If smart processor handled everything, skip the old processing logic
+        if (processedActions.length > 0) {
+          console.log(`🎯 AI-Chat: Smart processor handled ${processedActions.length} actions successfully:`, processedActions.map(a => a.actionType));
+          
+          // Update the message with the processed content
+          setChatHistory(prev => prev.map(msg => msg.id === newAssistantLPHId ? { 
+            ...msg, 
+            content: assistantTextForDisplay,
+            isLoading: false,
+            error: false,
+            isProcessingNotion: false,
+            isProcessingGoogle: false,
+            isProcessingActions: false,
+            isVerifyingContent: false
+          } : msg ));
+          
+          return; // Skip the old processing logic
+        } else {
+          console.log('🔄 AI-Chat: Smart processor found no actions, falling back to legacy processing');
+        }
+      } catch (smartProcessorError) {
+        console.warn('Smart processor failed, falling back to legacy processing:', smartProcessorError);
+      }
+      
+      // Fallback to legacy processing if smart processor didn't handle it
       const { blocks: jsonActionBlocks, cleanedText } = extractJsonBlocks(contentToProcess);
 
       let assistantTextForDisplay = cleanedText;
@@ -4919,8 +5104,7 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
 
       // Categorize action blocks for sequential/parallel processing
       const notionBlocks = jsonActionBlocks.filter(b => b.type === 'notion' && b.action);
-      const googleCalendarBlocks = jsonActionBlocks.filter(b => b.type === 'googleCalendar' && b.action);
-      const googleDriveBlocks = jsonActionBlocks.filter(b => b.type === 'googleDrive' && b.action);
+      const googleBlocks = jsonActionBlocks.filter(b => (b.type === 'googleCalendar' || b.type === 'googleDrive') && b.action);
       const flashcardBlocks = jsonActionBlocks.filter(b => b.type === 'flashcard');
       const questionBlocks = jsonActionBlocks.filter(b => b.type === 'question');
       const otherActionBlocks = jsonActionBlocks.filter(b => 
@@ -5229,7 +5413,7 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
           ...msg, 
           isLoading: true, 
           isProcessingNotion: notionBlocks.length > 0,
-          isProcessingGoogle: googleCalendarBlocks.length > 0 || googleDriveBlocks.length > 0,
+          isProcessingGoogle: googleBlocks.length > 0,
           isProcessingActions: otherActionBlocks.length > 0,
           isVerifyingContent: flashcardBlocks.length > 0 || questionBlocks.length > 0
         } : msg ));
@@ -5237,8 +5421,7 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
         const actionPromises: Promise<any>[] = [];
         let combinedResults: any = {
           notionResults: [],
-          googleCalendarResults: [],
-          googleDriveResults: [],
+          googleResults: [],
           educationalResults: { flashcards: undefined, questions: undefined },
           otherActionResults: [],
           overallStatus: 'success' as 'success' | 'error'
@@ -5367,23 +5550,24 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
           );
         }
 
-        // 2. Process Google Calendar actions in parallel
-        if (googleCalendarBlocks.length > 0 && user?.uid) {
+        // 2. Process Google Workspace actions in parallel
+        if (googleBlocks.length > 0 && user?.uid) {
           actionPromises.push(
-            Promise.all(googleCalendarBlocks.map(async (googleCalendarBlock) => {
+            Promise.all(googleBlocks.map(async (googleBlock) => {
               try {
                 const googleAction = httpsCallable(functions, 'googleProxy');
                 const requestData = {
-                  service: 'calendar',
-                  action: googleCalendarBlock.action,
-                  payload: googleCalendarBlock.payload
+                  service: googleBlock.type === 'googleCalendar' ? 'calendar' : 'drive',
+                  action: googleBlock.action,
+                  payload: googleBlock.payload
                 };
                 const result = await googleAction(requestData);
                 const actionResult = result.data as any;
                 
                 // Create user-friendly messages
                 let friendlyMessage = '';
-                switch (googleCalendarBlock.action) {
+                if (googleBlock.type === 'googleCalendar') {
+                  switch (googleBlock.action) {
                   case 'listCalendarEvents':
                     friendlyMessage = 'Retrieved calendar events.';
                     break;
@@ -5402,47 +5586,10 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
                   default:
                     friendlyMessage = 'Completed calendar action.';
                 }
-                
-                return { 
-                  type: 'googleCalendar', 
-                  status: 'success', 
-                  message: friendlyMessage,
-                  data: actionResult
-                };
-              } catch (err: any) {
-                combinedResults.overallStatus = 'error';
-                return { 
-                  type: 'googleCalendar', 
-                  status: 'error', 
-                  message: `Google Calendar: ${googleCalendarBlock.action || 'operation'} failed: ${err.message || 'Unknown error'}` 
-                };
-              }
-            })).then(results => {
-              combinedResults.googleCalendarResults = results;
-              return results;
-            })
-          );
-        }
-
-        // 3. Process Google Drive actions in parallel
-        if (googleDriveBlocks.length > 0 && user?.uid) {
-          actionPromises.push(
-            Promise.all(googleDriveBlocks.map(async (googleDriveBlock) => {
-              try {
-                const googleAction = httpsCallable(functions, 'googleProxy');
-                const requestData = {
-                  service: 'drive',
-                  action: googleDriveBlock.action,
-                  payload: googleDriveBlock.payload
-                };
-                const result = await googleAction(requestData);
-                const actionResult = result.data as any;
-                
-                // Create user-friendly messages
-                let friendlyMessage = '';
-                switch (googleDriveBlock.action) {
+                } else {
+                  switch (googleBlock.action) {
                   case 'listFilesAndFolders':
-                    friendlyMessage = 'Browsed Google Drive.';
+                      friendlyMessage = 'Searched Google Drive.';
                     break;
                   case 'searchDrive':
                     friendlyMessage = 'Searched Google Drive.';
@@ -5491,10 +5638,11 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
                     break;
                   default:
                     friendlyMessage = 'Completed Google Drive action.';
+                  }
                 }
                 
                 return { 
-                  type: 'googleDrive', 
+                  type: googleBlock.type, 
                   status: 'success', 
                   message: friendlyMessage,
                   data: actionResult
@@ -5505,21 +5653,21 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
                 // Provide more helpful error messages for common issues
                 let errorMessage = err.message || 'Unknown error';
                 if (errorMessage.includes('Google connection has expired')) {
-                  errorMessage = 'Your Google connection has expired. Please go to Settings and reconnect your Google account to continue using Google Drive features.';
+                  errorMessage = 'Your Google connection has expired. Please go to Settings and reconnect your Google account to continue using Google services.';
                 } else if (errorMessage.includes('Google services are not connected')) {
-                  errorMessage = 'Google Drive is not connected. Please go to Settings to connect your Google account first.';
+                  errorMessage = 'Google services are not connected. Please go to Settings to connect your Google account first.';
                 } else if (errorMessage.includes('authentication credential') || errorMessage.includes('access token')) {
-                  errorMessage = 'There was an authentication issue with Google Drive. Please try reconnecting your Google account in Settings.';
+                  errorMessage = 'There was an authentication issue with Google services. Please try reconnecting your Google account in Settings.';
                 }
                 
                 return { 
-                  type: 'googleDrive', 
+                  type: googleBlock.type, 
                   status: 'error', 
-                  message: `Google Drive: ${googleDriveBlock.action || 'operation'} failed: ${errorMessage}` 
+                  message: `Google ${googleBlock.type === 'googleCalendar' ? 'Calendar' : 'Drive'}: ${googleBlock.action || 'operation'} failed: ${errorMessage}` 
                 };
               }
             })).then(results => {
-              combinedResults.googleDriveResults = results;
+              combinedResults.googleResults = results;
               return results;
             })
           );
@@ -5609,7 +5757,7 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
           // For sequential processing, we don't update actionDetails here as it's handled in the follow-up call
           return; // Early return to avoid duplicate processing
         }
-      } else if (notionBlocks.length > 0 || googleCalendarBlocks.length > 0 || googleDriveBlocks.length > 0 || flashcardBlocks.length > 0 || questionBlocks.length > 0 || otherActionBlocks.length > 0) {
+      } else if (notionBlocks.length > 0 || googleBlocks.length > 0 || flashcardBlocks.length > 0 || questionBlocks.length > 0 || otherActionBlocks.length > 0) {
         // Process normally in parallel for non-sequential cases
         actionResults = await processAllActionsInParallel();
         
@@ -5644,12 +5792,14 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
           });
         }
         
-        // Process Google Calendar results
-        if (actionResults.googleCalendarResults && actionResults.googleCalendarResults.length > 0) {
-          actionResults.googleCalendarResults.forEach((result: any) => {
+        // Process Google Workspace results (Calendar & Drive)
+        if (actionResults.googleResults && actionResults.googleResults.length > 0) {
+          actionResults.googleResults.forEach((result: any) => {
             if (result.message) combinedActionMessages.push(result.message);
             if (result.status === 'success' && result.data) {
-              // Display actual Google Calendar data content
+              
+              // Handle Google Calendar results
+              if (result.type === 'googleCalendar') {
               let calendarContent = '';
               
               if (result.message.includes('Retrieved calendar events') || result.message.includes('listCalendarEvents')) {
@@ -5689,16 +5839,10 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
               if (calendarContent && !assistantTextForDisplay.includes(calendarContent)) {
                 assistantTextForDisplay = [assistantTextForDisplay.trim(), calendarContent].filter(Boolean).join('\n\n');
               }
-            }
-          });
-        }
-        
-        // Process Google Drive results
-        if (actionResults.googleDriveResults && actionResults.googleDriveResults.length > 0) {
-          actionResults.googleDriveResults.forEach((result: any) => {
-            if (result.message) combinedActionMessages.push(result.message);
-            if (result.status === 'success' && result.data) {
-              // Display actual Google Drive data content
+              }
+              
+              // Handle Google Drive results
+              else if (result.type === 'googleDrive') {
               let driveContent = '';
               
               if (result.message.includes('Browsed Google Drive') || result.message.includes('listFilesAndFolders')) {
@@ -5828,6 +5972,7 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
               
               if (driveContent && !assistantTextForDisplay.includes(driveContent)) {
                 assistantTextForDisplay = [assistantTextForDisplay.trim(), driveContent].filter(Boolean).join('\n\n');
+                }
               }
             }
           });
@@ -6752,7 +6897,9 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
       audioUrl: message.audioUrl,
       audioDuration: message.audioDuration,
       isVoiceMessage: true,
-      transcription: message.transcription
+      transcription: message.transcription,
+      // Include completed actions to show what the AI did
+      completedActions: message.completedActions
     };
     
     // Add to local chat history immediately
@@ -7570,7 +7717,7 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
                                     isNotionConnected={isNotionConnected}
                                     isNotionSearchModeActive={isNotionSearchModeActive}
                                     onToggleNotionSearchMode={handleToggleNotionSearchMode}
-                                    isGoogleConnected={isGoogleDriveConnected && isGoogleCalendarConnected}
+                                    isGoogleConnected={isGoogleConnected}
                                 />
                             </div>
 
@@ -8452,8 +8599,9 @@ const handleChatSubmit = async (e?: React.FormEvent, incomingMessage?: string, i
         memories={memories}
         activePrompt={activePrompt}
         isNotionConnected={isNotionConnected}
-        isGoogleDriveConnected={isGoogleDriveConnected}
-        isGoogleCalendarConnected={isGoogleCalendarConnected}
+        isGoogleConnected={isGoogleConnected}
+        // Pass chat history for context continuity
+        chatHistory={chatHistory}
         isForceSearchModeActive={isForceSearchModeActive}
         isNotionSearchModeActive={isNotionSearchModeActive}
         isImageGenModeActive={isImageGenModeActive}

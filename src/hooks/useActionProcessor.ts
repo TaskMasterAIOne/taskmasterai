@@ -59,11 +59,39 @@ export const extractJsonBlocks = (text: string) => {
   let match;
   while ((match = regex.exec(text)) !== null) {
     try {
-      const parsedJson = JSON.parse(match[1]);
+      // Try to fix common JSON issues before parsing
+      let jsonText = match[1];
+      
+      // Fix unescaped quotes in content strings
+      jsonText = jsonText.replace(/"content":\s*"([^"]*(?:"[^"]*)*[^"]*)"(?=\s*[,}])/g, (_, content) => {
+        // Escape internal quotes in the content
+        const escapedContent = content.replace(/"/g, '\\"');
+        return `"content": "${escapedContent}"`;
+      });
+      
+      const parsedJson = JSON.parse(jsonText);
       extractedBlocks.push(parsedJson);
       remainingText = remainingText.replace(match[0], "").trim();
     } catch (e) {
       console.warn("Failed to parse JSON block in ```json ... ```:", match[1], e);
+      
+      // Try a more aggressive fix for malformed JSON
+      try {
+        let fixedJson = match[1];
+        
+        // Remove newlines from content strings that break JSON
+        fixedJson = fixedJson.replace(/"content":\s*"([^"]*(?:\n[^"]*)*)"/, (_, content) => {
+          const cleanContent = content.replace(/\n/g, '\\n').replace(/"/g, '\\"');
+          return `"content": "${cleanContent}"`;
+        });
+        
+        const parsedJson = JSON.parse(fixedJson);
+        extractedBlocks.push(parsedJson);
+        remainingText = remainingText.replace(match[0], "").trim();
+        console.log("Successfully fixed and parsed malformed JSON");
+      } catch (fixError) {
+        console.warn("Could not fix malformed JSON:", fixError);
+      }
     }
   }
   
@@ -101,15 +129,19 @@ export interface ActionResult {
   friendlyMessage?: string; // Content to add to conversation
   pageUrl?: string;
   pageTitle?: string;
+  driveViewUrl?: string; // URL to view Google Drive folder/search results
 }
 
 export interface CompletedAction {
   id: string;
   type: string;
   title: string;
-  status: 'success' | 'error';
+  status: 'success' | 'error' | 'processing';
   message: string;
   timestamp: number;
+  viewUrl?: string; // URL to view the created item (Google Doc, Sheet, etc.)
+  progress?: number; // 0-100 for progress tracking
+  estimatedDuration?: string; // Human-readable duration estimate
 }
 
 export const useActionProcessor = () => {
@@ -123,6 +155,23 @@ export const useActionProcessor = () => {
       timestamp: Date.now()
     };
     setCompletedActions(prev => [completedAction, ...prev.slice(0, 4)]); // Keep only last 5 actions
+    return completedAction.id; // Return ID for progress tracking
+  }, []);
+
+  const updateActionProgress = useCallback((actionId: string, progress: number, message?: string) => {
+    setCompletedActions(prev => prev.map(action => 
+      action.id === actionId 
+        ? { ...action, progress, message: message || action.message }
+        : action
+    ));
+  }, []);
+
+  const updateActionStatus = useCallback((actionId: string, status: 'success' | 'error', message: string, viewUrl?: string) => {
+    setCompletedActions(prev => prev.map(action => 
+      action.id === actionId 
+        ? { ...action, status, message, viewUrl, progress: status === 'success' ? 100 : undefined }
+        : action
+    ));
   }, []);
 
   const clearCompletedActions = useCallback(() => {
@@ -432,6 +481,16 @@ export const useActionProcessor = () => {
         case 'createGoogleDriveFile':
         case 'updateGoogleDriveFile':
         case 'deleteGoogleDriveFile':
+        case 'createGoogleDoc':
+        case 'createGoogleSheet':
+        case 'createGoogleSlides':
+        case 'createDriveFolder':
+        case 'findFolder':
+        case 'sendGmail':
+        case 'replyToGmail':
+        case 'forwardGmail':
+        case 'searchGmail':
+        case 'readGmailMessages':
           try {
             const functions = getFunctions();
             const googleAction = httpsCallable(functions, 'googleProxy');
@@ -454,6 +513,36 @@ export const useActionProcessor = () => {
                 // Delete functionality might not be implemented in backend
                 backendActionName = 'deleteDriveFile';
                 break;
+              case 'createGoogleDoc':
+                backendActionName = 'createGoogleDoc';
+                break;
+              case 'createGoogleSheet':
+                backendActionName = 'createGoogleSheet';
+                break;
+              case 'createGoogleSlides':
+                backendActionName = 'createGoogleSlides';
+                break;
+              case 'createDriveFolder':
+                backendActionName = 'createDriveFolder';
+                break;
+              case 'findFolder':
+                backendActionName = 'findFolder';
+                break;
+              case 'sendGmail':
+                backendActionName = 'sendGmail';
+                break;
+              case 'replyToGmail':
+                backendActionName = 'replyToGmail';
+                break;
+              case 'forwardGmail':
+                backendActionName = 'forwardGmail';
+                break;
+              case 'searchGmail':
+                backendActionName = 'searchGmail';
+                break;
+              case 'readGmailMessages':
+                backendActionName = 'readGmailMessages';
+                break;
               // listFilesAndFolders stays the same
             }
             
@@ -468,12 +557,65 @@ export const useActionProcessor = () => {
               case 'listFilesAndFolders':
                 successMessage = "Searched Google Drive.";
                 if (actionResult.files?.length > 0) {
-                  friendlyMessage = `Found ${actionResult.files.length} files:\n` + 
-                    actionResult.files.slice(0, 5).map((file: any) => 
-                      `- ${file.name} (${file.mimeType?.includes('folder') ? 'Folder' : 'File'})`
-                    ).join('\n');
+                  // Show ALL files without truncation and with detailed information
+                  friendlyMessage = `**Found ${actionResult.files.length} item${actionResult.files.length > 1 ? 's' : ''} in Google Drive:**\n\n${actionResult.files.map((file: any) => {
+                    const isFolder = file.mimeType?.includes('folder');
+                    const isDoc = file.mimeType?.includes('document');
+                    const isSheet = file.mimeType?.includes('spreadsheet');
+                    const isSlides = file.mimeType?.includes('presentation');
+                    const isPdf = file.mimeType?.includes('pdf');
+                    const isImage = file.mimeType?.includes('image');
+                    
+                    let iconText = '';
+                    let typeText = '';
+                    if (isFolder) {
+                      iconText = '📁';
+                      typeText = ' (Folder)';
+                    } else if (isDoc) {
+                      iconText = '📄';
+                      typeText = ' (Google Doc)';
+                    } else if (isSheet) {
+                      iconText = '📊';
+                      typeText = ' (Google Sheet)';
+                    } else if (isSlides) {
+                      iconText = '📈';
+                      typeText = ' (Google Slides)';
+                    } else if (isPdf) {
+                      iconText = '📋';
+                      typeText = ' (PDF)';
+                    } else if (isImage) {
+                      iconText = '🖼️';
+                      typeText = ' (Image)';
+                    } else {
+                      iconText = '📄';
+                      typeText = '';
+                    }
+                    
+                    // Include file ID for AI reference and additional details
+                    let details = `${iconText} [**${file.name}**](${file.webViewLink || '#'})${typeText}`;
+                    if (file.id) details += `\n   ID: ${file.id}`;
+                    if (file.size && !isFolder) details += `\n   Size: ${Math.round(parseInt(file.size) / 1024)}KB`;
+                    if (file.modifiedTime) {
+                      const modDate = new Date(file.modifiedTime).toLocaleDateString();
+                      details += `\n   Modified: ${modDate}`;
+                    }
+                    if (file.description) details += `\n   Description: ${file.description}`;
+                    
+                    return details;
+                  }).join('\n\n')}`;
+                  
+                  // Set viewUrl to Google Drive folder or search results
+                  if (payload.folderId) {
+                    // If we have a specific folder ID, link to that folder
+                    actionResult.driveViewUrl = `https://drive.google.com/drive/folders/${payload.folderId}`;
+                  } else {
+                    // Otherwise, link to Google Drive home
+                    actionResult.driveViewUrl = 'https://drive.google.com/drive/my-drive';
+                  }
                 } else {
                   friendlyMessage = "No files found matching your search.";
+                  // Still provide a link to Google Drive even if no files found
+                  actionResult.driveViewUrl = 'https://drive.google.com/drive/my-drive';
                 }
                 break;
               case 'readGoogleDriveFile':
@@ -492,6 +634,75 @@ export const useActionProcessor = () => {
               case 'deleteGoogleDriveFile':
                 successMessage = "Deleted Google Drive file.";
                 break;
+              case 'createGoogleDoc':
+                successMessage = "Created Google Doc.";
+                friendlyMessage = `Created "${actionResult.title || actionResult.name || 'Untitled'}" Google Doc.\n\n**[📄 View Google Doc](${actionResult.webViewLink})**`;
+                break;
+              case 'createGoogleSheet':
+                successMessage = "Created Google Sheet.";
+                friendlyMessage = `Created "${actionResult.name || 'Untitled'}" spreadsheet.\n\n**[📊 View Google Sheet](${actionResult.webViewLink})**`;
+                break;
+              case 'createGoogleSlides':
+                successMessage = "Created Google Slides presentation.";
+                friendlyMessage = `Created "${actionResult.title || actionResult.name || 'Untitled'}" presentation.\n\n**[📈 View Google Slides](${actionResult.webViewLink})**`;
+                break;
+              case 'createDriveFolder':
+                successMessage = "Created Google Drive folder.";
+                friendlyMessage = `Created "${actionResult.name || 'Untitled'}" folder in your Google Drive.`;
+                break;
+              case 'findFolder':
+                successMessage = "Found Google Drive folders.";
+                if (actionResult.files?.length > 0) {
+                  friendlyMessage = `**Found ${actionResult.files.length} folder${actionResult.files.length > 1 ? 's' : ''}:**\n\n${actionResult.files.map((folder: any) => {
+                    let details = `📁 [**${folder.name}**](${folder.webViewLink || '#'}) (Folder)`;
+                    if (folder.id) details += `\n   ID: ${folder.id}`;
+                    if (folder.modifiedTime) {
+                      const modDate = new Date(folder.modifiedTime).toLocaleDateString();
+                      details += `\n   Modified: ${modDate}`;
+                    }
+                    if (folder.description) details += `\n   Description: ${folder.description}`;
+                    return details;
+                  }).join('\n\n')}`;
+                } else {
+                  friendlyMessage = "No folders found matching your search.";
+                }
+                break;
+              case 'sendGmail':
+                successMessage = "Email sent successfully.";
+                friendlyMessage = `Email sent to **${actionResult.to}** with subject "${actionResult.subject}".`;
+                break;
+              case 'replyToGmail':
+                successMessage = "Reply sent successfully.";
+                friendlyMessage = `Reply sent successfully.`;
+                break;
+              case 'forwardGmail':
+                successMessage = "Email forwarded successfully.";
+                friendlyMessage = `Email forwarded to **${actionResult.to}**.`;
+                break;
+              case 'searchGmail':
+                successMessage = "Gmail search completed.";
+                if (actionResult.messages?.length > 0) {
+                  friendlyMessage = `**Found ${actionResult.messages.length} email${actionResult.messages.length > 1 ? 's' : ''}:**\n\n${actionResult.messages.slice(0, 5).map((email: any) => {
+                    const fromName = email.from?.split('<')[0]?.trim() || email.from || 'Unknown';
+                    const subject = email.subject || 'No Subject';
+                    const snippet = email.snippet ? email.snippet.substring(0, 100) + '...' : '';
+                    const date = email.date ? new Date(email.date).toLocaleDateString() : '';
+                    return `📧 **${subject}**\n   From: ${fromName}\n   ${date}\n   ${snippet}`;
+                  }).join('\n\n')}${actionResult.messages.length > 5 ? `\n\n...and ${actionResult.messages.length - 5} more emails.` : ''}`;
+                } else {
+                  friendlyMessage = "No emails found matching your search.";
+                }
+                break;
+              case 'readGmailMessages':
+                successMessage = "Retrieved Gmail messages.";
+                if (actionResult.messages?.length > 0) {
+                  friendlyMessage = `**Found ${actionResult.messages.length} email${actionResult.messages.length > 1 ? 's' : ''}:**\n\n${actionResult.messages.map((email: any) => 
+                    `📧 **From:** ${email.from}\n   **Subject:** ${email.subject}\n   **Date:** ${new Date(email.date).toLocaleDateString()}\n   **Preview:** ${email.snippet.substring(0, 100)}${email.snippet.length > 100 ? '...' : ''}`
+                  ).join('\n\n')}`;
+                } else {
+                  friendlyMessage = "No emails found matching your search.";
+                }
+                break;
               default:
                 successMessage = `Google Drive action '${actionType}' succeeded.`;
             }
@@ -501,7 +712,9 @@ export const useActionProcessor = () => {
               message: successMessage,
               friendlyMessage,
               actionType, 
-              payload: actionResult 
+              payload: actionResult,
+              pageUrl: actionResult.webViewLink,
+              driveViewUrl: actionResult.driveViewUrl
             };
           } catch (error: any) {
             console.error(`Google Drive ${actionType} error:`, error);
@@ -629,21 +842,55 @@ export const useActionProcessor = () => {
               type: actionBlock.type,
               title: getActionTitle(actionBlock.action, actionBlock.payload),
               status: result.status,
-              message: result.message
+              message: result.message,
+              viewUrl: result.driveViewUrl || result.pageUrl || (result.payload?.webViewLink)
             });
           }
           // Handle single action format: {"action": "createTask", "payload": {...}}
           else if (actionBlock.action && actionBlock.payload) {
+            // Check if this is a long-running action that needs background processing
+            const isLongRunningAction = ['createGoogleDoc', 'createGoogleSheet', 'createGoogleSlides', 'updateGoogleDriveFile', 'sendGmail'].includes(actionBlock.action);
+            
+            let actionId: string | undefined;
+            
+            if (isLongRunningAction) {
+              // Add processing action immediately for user feedback
+              actionId = addCompletedAction({
+                type: actionBlock.action,
+                title: getActionTitle(actionBlock.action, actionBlock.payload),
+                status: 'processing',
+                message: 'Working on this in the background...',
+                progress: 20,
+                estimatedDuration: getEstimatedDuration(actionBlock.action)
+              });
+              
+              // Add friendly message about background processing
+              const actionName = getActionDisplayName(actionBlock.action);
+              friendlyMessages.push(`I'm ${actionName} in the background. I'll update you when it's ready!`);
+            }
+            
             const result = await processAction(actionBlock.action, actionBlock.payload);
             processedActions.push(result);
             
-            // Add to completed actions UI
-            addCompletedAction({
-              type: actionBlock.action,
-              title: getActionTitle(actionBlock.action, actionBlock.payload),
-              status: result.status,
-              message: result.message
-            });
+            if (isLongRunningAction && actionId) {
+              // Update the existing action with final result
+              updateActionStatus(actionId, result.status, result.message, result.driveViewUrl || result.pageUrl || (result.payload?.webViewLink));
+              
+              // Add completion message
+              if (result.status === 'success') {
+                const actionName = getActionDisplayName(actionBlock.action);
+                friendlyMessages.push(`✅ ${actionName} completed successfully!`);
+              }
+            } else {
+              // Add to completed actions UI for quick actions
+              addCompletedAction({
+                type: actionBlock.action,
+                title: getActionTitle(actionBlock.action, actionBlock.payload),
+                status: result.status,
+                message: result.message,
+                viewUrl: result.driveViewUrl || result.pageUrl || (result.payload?.webViewLink)
+              });
+            }
           }
           // Handle batch format: {"tasks": [{...}, {...}]}
           else if (Array.isArray(actionBlock.tasks)) {
@@ -721,8 +968,44 @@ export const useActionProcessor = () => {
     processJsonBlocks,
     processAction,
     clearCompletedActions,
-    addCompletedAction
+    addCompletedAction,
+    updateActionProgress,
+    updateActionStatus
   };
+};
+
+// Helper function to get estimated duration for actions
+const getEstimatedDuration = (actionType: string): string => {
+  switch (actionType) {
+    case 'createGoogleDoc':
+    case 'updateGoogleDriveFile':
+      return '10-15 seconds';
+    case 'createGoogleSheet':
+    case 'createGoogleSlides':
+      return '5-10 seconds';
+    case 'sendGmail':
+      return '3-5 seconds';
+    default:
+      return '5-10 seconds';
+  }
+};
+
+// Helper function to get user-friendly action display names
+const getActionDisplayName = (actionType: string): string => {
+  switch (actionType) {
+    case 'createGoogleDoc':
+      return 'creating your Google Doc';
+    case 'createGoogleSheet':
+      return 'creating your Google Sheet';
+    case 'createGoogleSlides':
+      return 'creating your Google Slides presentation';
+    case 'updateGoogleDriveFile':
+      return 'updating your document';
+    case 'sendGmail':
+      return 'sending your email';
+    default:
+      return 'processing your request';
+  }
 };
 
 // Helper function to get action title (shows just the result, not redundant info)
@@ -787,6 +1070,26 @@ const getActionTitle = (actionType: string, payload: any): string => {
       return `Updated file: "${payload.fileName || payload.fileId || 'Unknown'}"`;
     case 'deleteGoogleDriveFile':
       return `Deleted file: "${payload.fileName || payload.fileId || 'Unknown'}"`;
+    case 'createGoogleDoc':
+      return `Created Google Doc: "${payload.title || 'Untitled'}"`;
+    case 'createGoogleSheet':
+      return `Created Google Sheet: "${payload.name || 'Untitled'}"`;
+    case 'createGoogleSlides':
+      return `Created Google Slides: "${payload.title || 'Untitled'}"`;
+    case 'createDriveFolder':
+      return `Created folder: "${payload.name || 'Untitled'}"`;
+    case 'findFolder':
+      return `Searched folders${payload.query ? ` for "${payload.query}"` : ''}`;
+    case 'sendGmail':
+      return `Sent email to "${payload.to}"`;
+    case 'replyToGmail':
+      return `Replied to email`;
+    case 'forwardGmail':
+      return `Forwarded email to "${payload.to}"`;
+    case 'searchGmail':
+      return `Searched Gmail${payload.query ? ` for "${payload.query}"` : ''}`;
+    case 'readGmailMessages':
+      return `Read Gmail messages${payload.query ? ` for "${payload.query}"` : ''}`;
     
     // Note: Web search is handled by built-in Google Search tool
     

@@ -251,6 +251,7 @@ export async function generateAIGreeting(context: AIGreetingContext): Promise<AI
     10. NEVER SAY "badge streak" THAT DOESN'T MAKE SENSE.
     11. DONT ALWAYS DO QUESTIONS - be more creative and diverse 
     12. YOU HAVE A MAX OF 56 CHARACTERS TO MAKE YOUR GREETING. NO MORE.
+    13. NEVER EVER SAY MOMENTUM. IT IS A BIG NO NO.
 
     Current time: ${timeOfDay}
 

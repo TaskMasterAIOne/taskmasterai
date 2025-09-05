@@ -18,22 +18,36 @@ import {
   XCircle,
   Zap,
   Keyboard,
-  Send,
   ArrowUp,
-  Plus,
   Volume2,
   VolumeX,
   Target,
-  Calendar
+  Calendar,
+  Palette,
+  Plus,
+  Check,
+  Trash2,
+  Edit2
 } from 'lucide-react';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 import { useTaskMasterLive, type TaskMasterLiveConfig } from '../hooks/useTaskMasterLive';
 import { auth, db } from '../lib/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { saveChatMessage } from '../lib/ai-chat-firebase';
 import { Timestamp } from 'firebase/firestore';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { createCustomStyle, deleteCustomStyle, updateCustomStyle, onCustomStylesSnapshot, type CustomStyle } from '../lib/chat-controls-firebase';
+import { CHAT_STYLES } from '../lib/chat-styles';
+import { Button } from './ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter
+} from './ui/dialog';
 
 // Integration Icons
 const NotionIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -130,6 +144,13 @@ const getActionIcon = (actionType: string) => {
     case 'createGoogleDriveFile':
     case 'updateGoogleDriveFile':
     case 'deleteGoogleDriveFile':
+    case 'createGoogleDoc':
+    case 'createGoogleSheet':
+    case 'createGoogleSlides':
+    case 'createDriveFolder':
+    case 'findFolder':
+    case 'sendGmail':
+    case 'readGmailMessages':
       return <GoogleDriveIcon className="w-3 h-3 flex-shrink-0" />;
     
     // Note: Web search uses built-in Google Search tool
@@ -171,6 +192,27 @@ const getActionIcon = (actionType: string) => {
 // File upload constants and interfaces (from AI-Chat.tsx)
 const SUPPORTED_FILE_TYPES = "image/jpeg,image/png,image/webp,image/gif,image/svg+xml,application/pdf,text/plain,.md,.txt,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.rtf";
 const MAX_FILE_SIZE_MB = 20;
+
+// Chat styles constants
+const chatStyles = CHAT_STYLES;
+
+const CUSTOM_STYLE_COLORS = [
+  { name: 'Rose', color: 'bg-rose-600', hoverColor: 'hover:bg-rose-700', lightBg: 'bg-rose-100 dark:bg-rose-500/20', textColor: 'text-rose-700 dark:text-rose-300' },
+  { name: 'Sky', color: 'bg-sky-600', hoverColor: 'hover:bg-sky-700', lightBg: 'bg-sky-100 dark:bg-sky-500/20', textColor: 'text-sky-700 dark:text-sky-300' },
+  { name: 'Purple', color: 'bg-purple-600', hoverColor: 'hover:bg-purple-700', lightBg: 'bg-purple-100 dark:bg-purple-500/20', textColor: 'text-purple-700 dark:text-purple-300' },
+  { name: 'Teal', color: 'bg-teal-600', hoverColor: 'hover:bg-teal-700', lightBg: 'bg-teal-100 dark:bg-teal-500/20', textColor: 'text-teal-700 dark:text-teal-300' },
+  { name: 'Fuchsia', color: 'bg-fuchsia-600', hoverColor: 'hover:bg-fuchsia-700', lightBg: 'bg-fuchsia-100 dark:bg-fuchsia-500/20', textColor: 'text-fuchsia-700 dark:text-fuchsia-300' },
+  { name: 'Lime', color: 'bg-lime-600', hoverColor: 'hover:bg-lime-700', lightBg: 'bg-lime-100 dark:bg-lime-500/20', textColor: 'text-lime-700 dark:text-lime-300' },
+  { name: 'Orange', color: 'bg-orange-600', hoverColor: 'hover:bg-orange-700', lightBg: 'bg-orange-100 dark:bg-orange-500/20', textColor: 'text-orange-700 dark:text-orange-300' },
+  { name: 'Pink', color: 'bg-pink-600', hoverColor: 'hover:bg-pink-700', lightBg: 'bg-pink-100 dark:bg-pink-500/20', textColor: 'text-pink-700 dark:text-pink-300' },
+  { name: 'Stone', color: 'bg-stone-600', hoverColor: 'hover:bg-stone-700', lightBg: 'bg-stone-100 dark:bg-stone-500/20', textColor: 'text-stone-700 dark:text-stone-300' },
+  { name: 'Yellow', color: 'bg-yellow-500', hoverColor: 'hover:bg-yellow-600', lightBg: 'bg-yellow-100 dark:bg-yellow-500/20', textColor: 'text-yellow-700 dark:text-yellow-300' },
+  { name: 'Green', color: 'bg-green-600', hoverColor: 'hover:bg-green-700', lightBg: 'bg-green-100 dark:bg-green-500/20', textColor: 'text-green-700 dark:text-green-300' },
+  { name: 'Blue', color: 'bg-blue-600', hoverColor: 'hover:bg-blue-700', lightBg: 'bg-blue-100 dark:bg-blue-500/20', textColor: 'text-blue-700 dark:text-blue-300' },
+];
+
+const { name: _name, ...defaultColorProps } = CUSTOM_STYLE_COLORS[0];
+const DEFAULT_CUSTOM_COLOR_PROPS = defaultColorProps;
 
 interface SelectedFile { 
   name: string; 
@@ -262,11 +304,12 @@ interface FullscreenVoiceChatProps {
   memories?: any[];
   activePrompt?: string;
   isNotionConnected?: boolean;
-  isGoogleDriveConnected?: boolean;
-  isGoogleCalendarConnected?: boolean;
+  isGoogleConnected?: boolean;
   isForceSearchModeActive?: boolean;
   isNotionSearchModeActive?: boolean;
   isImageGenModeActive?: boolean;
+  // Chat history context for voice mode
+  chatHistory?: any[];
 }
 
 export const FullscreenVoiceChat: React.FC<FullscreenVoiceChatProps> = ({
@@ -285,15 +328,16 @@ export const FullscreenVoiceChat: React.FC<FullscreenVoiceChatProps> = ({
   memories = [],
   activePrompt,
   isNotionConnected = false,
-  isGoogleDriveConnected = false,
-  isGoogleCalendarConnected = false,
+  isGoogleConnected = false,
   isForceSearchModeActive = false,
   isNotionSearchModeActive = false,
-  isImageGenModeActive = false
+  isImageGenModeActive = false,
+  chatHistory = []
 }) => {
   const {
     isConnected,
     isConnecting,
+    isRecording,
     isAISpeaking,
     messages,
     error,
@@ -302,6 +346,9 @@ export const FullscreenVoiceChat: React.FC<FullscreenVoiceChatProps> = ({
     connect,
     disconnect,
     sendText,
+    startRecording,
+    stopRecording,
+    stopAudio,
     clearMessages,
     clearCompletedActions,
     createVoiceSample
@@ -326,11 +373,25 @@ export const FullscreenVoiceChat: React.FC<FullscreenVoiceChatProps> = ({
   const [isFirstTimeUser, setIsFirstTimeUser] = useState(true);
   const [isLoadingOnboardingStatus, setIsLoadingOnboardingStatus] = useState(true);
   const [showVoiceSelection, setShowVoiceSelection] = useState(false);
+  const [isMicMuted, setIsMicMuted] = useState(false);
+  const [isAutoReactivating, setIsAutoReactivating] = useState(false);
   const [isSettingsVoiceSelection, setIsSettingsVoiceSelection] = useState(false);
   const [selectedVoiceIndex, setSelectedVoiceIndex] = useState(2); // Start with Kore (warm and engaging voice)
   const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
   const [activeNotionPage, setActiveNotionPage] = useState<{ id: string; title: string } | null>(null);
   const [playingVoiceSample, setPlayingVoiceSample] = useState<string | null>(null);
+  const [completionNotification, setCompletionNotification] = useState<{id: string, message: string} | null>(null);
+  const [activeStyle, setActiveStyle] = useState<string | null>(null);
+  const [currentActivePrompt, setCurrentActivePrompt] = useState<string>(activePrompt || '');
+  const [isStyleDialogOpen, setIsStyleDialogOpen] = useState(false);
+  const [editingStyle, setEditingStyle] = useState<CustomStyle | null>(null);
+  const [styleFormData, setStyleFormData] = useState({
+    name: '',
+    description: '',
+    prompt: '',
+    ...DEFAULT_CUSTOM_COLOR_PROPS,
+  });
+  const [customStyles, setCustomStyles] = useState<CustomStyle[]>([]);
 
   const voicePreferenceSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [autoReconnectAttempts, setAutoReconnectAttempts] = useState(0);
@@ -424,6 +485,17 @@ export const FullscreenVoiceChat: React.FC<FullscreenVoiceChatProps> = ({
     const truncatedName = user?.displayName?.split(' ')[0] || 'User';
     const memoryContext = memories.length > 0 ? `User's Memories:\n${memories.map(m => `- [ID: ${m.id}] ${m.content}`).join('\n')}` : 'User has no saved memories.';
     
+    // Format recent chat history for context (exclude voice chat ended messages and limit to last 10 messages)
+    const recentChatHistory = chatHistory
+      .filter(msg => !msg.isVoiceChatEnded && msg.content?.trim()) // Filter out voice chat ended messages and empty content
+      .slice(-10) // Get last 10 messages
+      .map(msg => `${msg.role === 'user' ? truncatedName : 'Assistant'}: ${msg.content?.substring(0, 500) || ''}`) // Truncate long messages
+      .join('\n');
+    
+    const chatHistoryContext = recentChatHistory ? 
+      `\n// =================================================================================================\n// [RECENT CONVERSATION CONTEXT]\n// =================================================================================================\nHere's the recent conversation history from our text chat before switching to voice mode:\n\n${recentChatHistory}\n\nContinue this conversation naturally in voice mode. Reference previous topics and context as appropriate.` : 
+      '';
+    
     return `// =================================================================================================
 // [CORE IDENTITY & MISSION - VOICE MODE]
 // =================================================================================================
@@ -432,7 +504,7 @@ Your primary mission is to help ${truncatedName} manage their tasks, goals, lear
 
 THIS IS VOICE MODE - YOU ARE SPEAKING TO THE USER, NOT TYPING TO THEM.
 
-${activePrompt || 'Respond in a standard, helpful manner.'}
+${currentActivePrompt || 'Respond in a standard, helpful manner.'}
 
 If asked who made you, say: "I was created by a team of developers at TaskMaster Inc."
 You are an AGENT that can take action: creating and updating tasks, goals, events, flashcards, quizzes, folders, focus sessions, and notes.
@@ -454,15 +526,19 @@ Your Response: "Got it, I'll add that task for you.
 {"action": "createTask", "payload": {"task": "Study for math exam", "dueDate": "2024-01-16"}}
 \`\`\`"
 
-**CRITICAL**: End your spoken response BEFORE the JSON block. The JSON should be completely separate from your voice.
+**ULTRA-CRITICAL**: End your spoken response BEFORE the JSON block. The JSON should be completely separate from your voice.
 
-**CRITICAL RULES**:
-- ALWAYS include the JSON action block when user requests an action
-- The JSON will be processed silently - user only hears the conversational part
-- NEVER speak JSON aloud or mention JSON in your spoken response
+**ABSOLUTE VOICE TERMINATION RULES**:
+- STOP SPEAKING completely before writing ANY JSON
+- NEVER say "JSON", "action", "payload", or any technical terms
+- NEVER read curly braces { } aloud
+- NEVER read quotation marks aloud
+- NEVER read backslashes aloud
+- NEVER say "let me create this" or "here's the JSON"
+- COMPLETE your sentence, THEN write JSON silently
 - If you say you'll do something, you MUST include the corresponding JSON
 
-**ABSOLUTE RULE**: NEVER speak JSON aloud. NEVER say things like "here's the JSON" or read JSON content.
+**ABSOLUTE RULE**: VOICE STOPS → JSON STARTS. These are SEPARATE processes.
     
     // =================================================================================================
 // [VOICE CONVERSATION STYLE]
@@ -485,10 +561,9 @@ Your Response: "Got it, I'll add that task for you.
   - Long-term Learning Goals: ${userContext?.longTermGoals || 'Not specified'}
   - Additional Notes: ${userContext?.otherContext || 'Not specified'}
   - Notion Integration: ${isNotionConnected ? 'Connected' : 'Not Connected'}
-  - Google Calendar Integration: ${isGoogleCalendarConnected ? 'Connected' : 'Not Connected'}
-     - Google Drive Integration: ${isGoogleDriveConnected ? 'Connected' : 'Not Connected'}
+  - Google Workspace Integration: ${isGoogleConnected ? 'Connected' : 'Not Connected'}
 
-${isForceSearchModeActive ? '\n**🔍 SEARCH MODE ACTIVE**: The user has enabled search mode. You MUST perform web searches for this query regardless of whether you think it\'s necessary. Always search when this mode is active.' : ''}${isNotionSearchModeActive ? '\n**📝 NOTION SEARCH MODE ACTIVE**: The user has enabled Notion search mode. Focus on searching and interacting with their Notion workspace.' : ''}${isImageGenModeActive ? '\n**🎨 IMAGE GENERATION MODE ACTIVE**: The user has enabled image generation mode. Focus on creating, editing, or describing images. REMEMBER: You cannot generate images directly - delegate to the image service via JSON actions.' : ''}
+${isForceSearchModeActive ? '\n**🔍 SEARCH MODE ACTIVE**: The user has enabled search mode. You MUST perform web searches for this query regardless of whether you think it\'s necessary. Always search when this mode is active.' : ''}${isNotionSearchModeActive ? '\n**📝 NOTION SEARCH MODE ACTIVE**: The user has enabled Notion search mode. Focus on searching and interacting with their Notion workspace.' : ''}${isImageGenModeActive ? '\n**🎨 IMAGE GENERATION MODE ACTIVE**: The user has enabled image generation mode. Focus on creating, editing, or describing images. REMEMBER: You cannot generate images directly - delegate to the image service via JSON actions.' : ''}${chatHistoryContext}
     
 Dashboard Items:
     ${formatItemsForVoiceChat()}  
@@ -501,12 +576,29 @@ Private Memories (context only - don't reveal unless asked):
     // =================================================================================================
 1. **Search/Information Requests** → Use built-in Google Search or code execution naturally
 2. **Notion Content Requests**: ${isNotionConnected ? 'Use searchNotion() or readNotionPage() function calls' : 'Tell user to connect in Settings'}
-3. **Google Drive Requests**: ${isGoogleDriveConnected ? 'Use listGoogleDriveFiles() or readGoogleDriveFile() function calls' : 'Tell user to connect in Settings'}
+3. **Google Workspace Requests**: ${isGoogleConnected ? 'Use Google Calendar and Drive function calls' : 'Tell user to connect in Settings'}
 4. **Task/Goal/Event Management** → Use JSON actions (createTask, createGoal, etc.)
 5. **Memory Management** → Use JSON actions (saveToMemory, etc.)
 6. **General Chat** → Natural conversational response only
 
+
+FOR NOTION:
+
+Notion createNotionPage error: FirebaseError: A 'title' is required. TO ENSURE THIS ERROR DOENST SHOW UP, ALWAYS INCLUDE A TITLE. IF THEY ASK YOU TO CREATE A PAGE, ALWAYS INCLUDE A TITLE.
+
+
+
 **CRITICAL**: Use function calls for content access, JSON actions for data management!
+
+**GOOGLE DRIVE FOLDER OPERATIONS - STEP BY STEP**:
+1. **User gives folder URL**: Extract folder ID from URL (the part after "folders/")
+2. **User mentions folder name**: Use findFolder to get the folder ID first
+3. **Then use folder ID**: With listFilesAndFolders or searchGoogleDrive
+4. **NEVER say you can't access folders** - you CAN with the right workflow!
+
+**EXAMPLE**: User says "search for police report in https://drive.google.com/folders/ABC123"
+- Extract folder ID: ABC123
+- Use: searchGoogleDrive with folderId: "ABC123" and query: "police report"
     
     // =================================================================================================
 // [WEB SEARCH PROTOCOL - VOICE MODE]
@@ -543,10 +635,11 @@ Private Memories (context only - don't reveal unless asked):
 - **Code Execution**: For calculations, data analysis - just ask for computations
 
 **Function Calls Available:**
-${isNotionConnected ? `- **searchNotion(query)**: Search user's Notion workspace - returns full page listings
-- **readNotionPage(pageTitle)**: Read complete Notion page content (NO TRUNCATION)` : `- Notion functions not available (not connected)`}
-${isGoogleDriveConnected ? `- **listGoogleDriveFiles(query)**: List files in Google Drive with search
-- **readGoogleDriveFile(fileName)**: Read Google Drive file content by name (searches automatically)` : `- Google Drive functions not available (not connected)`}
+${isNotionConnected ? `- **searchNotion(query)**: Search user's Notion workspace - returns full page listings (DO NOT use for calendar queries)
+- **readNotionPage(pageTitle)**: Read complete Notion page content (NO TRUNCATION, DO NOT use for calendar queries)` : `- Notion functions not available (not connected)`}
+${isGoogleConnected ? `- **listGoogleDriveFiles(query)**: List files in Google Drive with search (includes folders)
+- **readGoogleDriveFile(fileName)**: Read Google Drive file content by name (searches automatically)
+- **FOLDER NAVIGATION**: You can search within specific folders and navigate the folder structure` : `- Google Workspace functions not available (not connected)`}
 
 **Manual Actions (use JSON for productivity management):**
 - createTask: {"action": "createTask", "payload": {"task": "string", "dueDate": "YYYY-MM-DD", "priority": "low|medium|high"}}
@@ -556,6 +649,42 @@ ${isGoogleDriveConnected ? `- **listGoogleDriveFiles(query)**: List files in Goo
   * FLEXIBLE: Accepts partial date/time info and fills in reasonable defaults
 - saveToMemory: {"action": "saveToMemory", "payload": {"content": "string"}}
 - generateImage: {"action": "generateImage", "payload": {"prompt": "detailed image description"}}
+${isGoogleConnected ? `
+**Google Workspace Creation & Editing (use JSON):**
+- createGoogleDoc: {"action": "createGoogleDoc", "payload": {"title": "string", "content": "full document content in markdown or plain text"}}
+- updateGoogleDoc: {"action": "updateGoogleDriveFile", "payload": {"fileName": "document name", "content": "new content to replace existing", "fileId": "optional file ID"}}
+- createGoogleSheet: {"action": "createGoogleSheet", "payload": {"name": "string", "initialData": [["Header1", "Header2"], ["Data1", "Data2"]], "worksheetTitle": "optional sheet name"}}
+- updateGoogleSheet: {"action": "updateGoogleDriveFile", "payload": {"fileName": "sheet name", "sheetData": [["new", "data"], ["row2", "col2"]], "worksheetTitle": "optional sheet to update"}}
+- createGoogleSlides: {"action": "createGoogleSlides", "payload": {"title": "string", "slides": [{"title": "Slide 1", "content": "slide content"}, {"title": "Slide 2", "content": "more content"}]}}
+- updateGoogleSlides: {"action": "updateGoogleDriveFile", "payload": {"fileName": "presentation name", "slides": [{"title": "Updated Slide", "content": "new content"}]}}
+- createDriveFolder: {"action": "createDriveFolder", "payload": {"name": "string", "parentId": "optional parent folder ID"}}
+
+**Google Drive Folder Operations (use JSON):**
+- findFolder: {"action": "findFolder", "payload": {"query": "folder name to search for"}}
+- searchGoogleDrive: {"action": "searchGoogleDrive", "payload": {"query": "search term", "folderId": "optional folder ID to search within"}}
+- listFilesAndFolders: {"action": "listFilesAndFolders", "payload": {"folderId": "optional folder ID to browse"}}
+
+**Gmail Operations (use JSON):**
+- sendGmail: {"action": "sendGmail", "payload": {"to": "email@example.com", "subject": "subject", "body": "full email content with formatting", "cc": "optional", "bcc": "optional", "attachments": "optional file IDs"}}
+- replyToGmail: {"action": "replyToGmail", "payload": {"messageId": "message ID to reply to", "body": "reply content", "replyAll": false}}
+- forwardGmail: {"action": "forwardGmail", "payload": {"messageId": "message ID to forward", "to": "recipient@example.com", "body": "additional message"}}
+- readGmailMessages: {"action": "readGmailMessages", "payload": {"query": "optional search query", "maxResults": 10}}
+- searchGmail: {"action": "searchGmail", "payload": {"query": "search terms", "maxResults": 10, "includeSpam": false}}
+
+**FOLDER WORKFLOW**: 
+1. If user provides a Google Drive folder URL (like drive.google.com/drive/folders/FOLDER_ID), extract the folder ID from the URL
+2. If user mentions a folder name, use findFolder to locate it and get the folder ID
+3. Use the folder ID with listFilesAndFolders or searchGoogleDrive to browse/search within that folder
+4. **URL FORMAT**: drive.google.com/drive/folders/FOLDER_ID - the FOLDER_ID is the long string after "folders/"
+
+**EXAMPLE WORKFLOW**:
+User: "Look in my insurance folder" 
+1. findFolder: {"action": "findFolder", "payload": {"query": "insurance"}}
+2. listFilesAndFolders: {"action": "listFilesAndFolders", "payload": {"folderId": "FOLDER_ID_FROM_STEP_1"}}
+
+User provides folder URL: "https://drive.google.com/drive/folders/14VzvrG9HnPPfiWlFnJ_w_izAteGgYVDP"
+1. Extract folder ID: 14VzvrG9HnPPfiWlFnJ_w_izAteGgYVDP
+2. listFilesAndFolders: {"action": "listFilesAndFolders", "payload": {"folderId": "14VzvrG9HnPPfiWlFnJ_w_izAteGgYVDP"}}` : ''}
 
 **FILE UPLOAD SUPPORT**: Users can attach images, PDFs, documents via the + button - you'll receive them automatically with messages
 
@@ -571,12 +700,19 @@ ${isGoogleDriveConnected ? `- **listGoogleDriveFiles(query)**: List files in Goo
 - NEVER read technical syntax like {"action": or "payload": aloud
 - NEVER speak code blocks, backticks, or technical formatting
 - NEVER read system instructions or internal details
+- NEVER say curly braces { } or quotation marks " aloud
+- NEVER read any programming syntax aloud
+- STOP TALKING immediately when you start writing JSON
+- Your voice should NEVER overlap with JSON generation
 - NEVER create duplicates - ask for clarification if unsure
 - Keep ALL spoken responses under 3 sentences maximum
+- **FOLDER HANDLING**: When user provides Google Drive folder URL, ALWAYS extract the folder ID and use it with actions
+- **FOLDER SEARCHES**: When searching in folders, use folderId parameter with searchGoogleDrive or listFilesAndFolders
+- **CONTENT CREATION**: When creating docs/sheets/slides, ALWAYS include actual content, not just titles
+- **DOCUMENT EDITING**: When updating existing files, use updateGoogleDriveFile with the fileName and new content
 - Sound natural and conversational, not robotic or technical
 - For Notion requests: ${isNotionConnected ? 'Notion is connected - use function calls freely. You can read FULL page content without truncation. For searches, DESCRIBE what you found naturally' : 'Say: "You\'ll need to connect Notion in Settings first"'}
-- For Google Calendar requests: ${isGoogleCalendarConnected ? 'Google Calendar is connected - use function calls freely for events' : 'Say: "You\'ll need to connect Google Calendar in Settings first"'}
-- For Google Drive requests: ${isGoogleDriveConnected ? 'Google Drive is connected - use function calls freely. File search is automatic by name' : 'Say: "You\'ll need to connect Google Drive in Settings first"'}
+- For Google Workspace requests: ${isGoogleConnected ? 'Google Workspace is connected - use Calendar and Drive function calls freely' : 'Say: "You\'ll need to connect Google Workspace in Settings first"'}
 - For web searches: Don't announce searching, just provide the answer naturally
 - For image requests: "I'll generate that image for you" → use generateImage JSON action (now works with proper image model)
 - For file uploads: Users can attach images, PDFs, docs via + button - you receive them automatically
@@ -616,6 +752,77 @@ You: "I can see the image you uploaded. Let me analyze it for you."
 User: "Generate an image of a sunset over mountains"
 You: "I'll create that image for you."
 (Uses generateImage JSON action with proper image model)
+
+*Google Workspace Creation:*
+User: "Create a Google Doc for my essay"
+You: "I'll create that Google Doc for you."
+(Uses createGoogleDoc JSON action)
+
+User: "Make a spreadsheet for my budget"
+You: "I'll create that spreadsheet for you."
+(Uses createGoogleSheet JSON action)
+
+User: "Create a presentation for my project"
+You: "I'll create that presentation for you."
+(Uses createGoogleSlides JSON action)
+
+User: "Create a folder called School Work"
+You: "I'll create that folder for you."
+(Uses createDriveFolder JSON action)
+
+User: "Find my Documents folder"
+You: "Let me search for that folder."
+(Uses findFolder JSON action)
+
+User: "Send an email to john@example.com about the meeting"
+You: "I'll send that email for you."
+(Uses sendGmail JSON action)
+
+User: "Check my recent emails"
+You: "Let me check your recent emails."
+(Uses readGmailMessages JSON action)
+
+User: "List files in my Projects folder"
+You: "I'll show you what's in your Projects folder."
+(First uses findFolder to get folder ID, then listFilesAndFolders with folderId)
+
+User: "Search for police report in this folder: https://drive.google.com/drive/folders/ABC123"
+You: "I'll search for the police report in that folder."
+(Extracts folder ID ABC123, then uses searchGoogleDrive with folderId and query)
+
+User: "What's in my insurance folder?"
+You: "Let me see what's in your insurance folder."
+(Uses findFolder for "insurance", then listFilesAndFolders with the found folder ID)
+
+User: "Search for my resume in the Documents folder"
+You: "Let me look for your resume in the Documents folder."
+(Uses enhanced searchDrive with folder-specific search)
+
+**CONTENT CREATION & EDITING EXAMPLES:**
+
+User: "Create a Google Doc with my meeting notes from today"
+You: "I'll create that document with your meeting notes."
+(Uses createGoogleDoc with title and full content)
+
+User: "Update my project plan document with the new timeline"
+You: "I'll update your project plan with the new information."
+(Uses updateGoogleDriveFile to edit existing document content)
+
+User: "Make a spreadsheet tracking my expenses with categories"
+You: "I'll create that expense tracking spreadsheet for you."
+(Uses createGoogleSheet with headers and initial data structure)
+
+User: "Add this week's data to my budget spreadsheet"
+You: "I'll add the new data to your budget spreadsheet."
+(Uses updateGoogleDriveFile to append data to existing sheet)
+
+User: "Create a presentation about our Q4 results with 5 slides"
+You: "I'll create that presentation with your Q4 results."
+(Uses createGoogleSlides with multiple slides and content)
+
+User: "Send an email to the team about tomorrow's meeting with the agenda"
+You: "I'll send that email with the meeting agenda."
+(Uses sendGmail with detailed body content and proper formatting)
 
 ✅ CORRECT VOICE RESPONSES:
 
@@ -839,6 +1046,26 @@ Your goal is to be ${truncatedName}'s perfect voice assistant - natural, helpful
     loadUserPreferences();
   }, [currentUser]);
 
+  // Sync currentActivePrompt with prop changes
+  useEffect(() => {
+    if (activePrompt !== undefined) {
+      setCurrentActivePrompt(activePrompt);
+    }
+  }, [activePrompt]);
+
+  // Style management useEffects
+  useEffect(() => {
+    if (activeStyle === null) {
+      handleStyleSelect('Normal', chatStyles.Normal.prompt);
+    }
+  }, [activeStyle]);
+
+  useEffect(() => {
+    if (!currentUser?.uid) return;
+    const unsubscribe = onCustomStylesSnapshot(currentUser.uid, setCustomStyles);
+    return () => unsubscribe();
+  }, [currentUser?.uid]);
+
   // Sync selected voice index with current config
   useEffect(() => {
     const currentVoiceName = config.speechConfig?.voiceConfig?.prebuiltVoiceConfig?.voiceName;
@@ -885,20 +1112,35 @@ Your goal is to be ${truncatedName}'s perfect voice assistant - natural, helpful
     };
   }, []); // Empty deps - only runs on unmount
 
-  // Handle TaskMaster Live messages and save to conversation
+  // Handle TaskMaster Live messages and save to conversation (with debouncing to prevent fragmentation)
   useEffect(() => {
     if (messages.length > 0) {
       const latestMessage = messages[messages.length - 1];
       
       if (latestMessage.type === 'output' && latestMessage.content) {
-        // Handle AI response - save to conversation and notify AI-Chat
+        // Check if this message was already processed to prevent duplicates
+        const messageKey = `${latestMessage.content?.substring(0, 50)}-${latestMessage.timestamp}`;
+        const processedMessagesKey = 'voice-processed-messages';
+        const processedMessages = JSON.parse(sessionStorage.getItem(processedMessagesKey) || '[]');
+        
+        if (processedMessages.includes(messageKey)) {
+          return;
+        }
+        
+        // Mark this message as processed
+        processedMessages.push(messageKey);
+        sessionStorage.setItem(processedMessagesKey, JSON.stringify(processedMessages.slice(-10))); // Keep last 10
+        
+        // Handle AI response - save to conversation and notify AI-Chat immediately
         const aiMessage = {
           role: 'assistant',
           content: latestMessage.content,
           audioUrl: latestMessage.audio ? URL.createObjectURL(new Blob([latestMessage.audio])) : undefined,
           audioDuration: latestMessage.audio ? undefined : undefined, // Calculate if needed
           isVoiceMessage: true,
-          transcription: latestMessage.content
+          transcription: latestMessage.content,
+          // Include completed actions so AI-Chat can show what was done
+          completedActions: completedActions.length > 0 ? completedActions : undefined
         };
         
         // Reset text processing state when AI responds
@@ -944,29 +1186,55 @@ Your goal is to be ${truncatedName}'s perfect voice assistant - natural, helpful
     }
   }, [messages, conversationId, user, onMessage]);
 
-  // Auto-reactivate microphone after AI finishes speaking
+  // Auto-reactivate microphone ONLY after AI completely finishes speaking (not during)
   useEffect(() => {
-    if (messages.length > 0) {
+    // Only reactivate when AI stops speaking AND we have a recent output message
+    if (!isAISpeaking && messages.length > 0 && !isMicMuted && !listening) {
       const latestMessage = messages[messages.length - 1];
       
-      // If AI just finished responding (with audio or text), restart listening
-      if (latestMessage.type === 'output' && (latestMessage.audio || latestMessage.content) && isConnected && !listening) {
-        // Add delay to ensure audio playback completes, then reactivate mic
-        const delay = latestMessage.audio ? 3000 : 1000; // 3s for audio, 1s for text
-        setTimeout(() => {
-          if (!listening && isConnected && browserSupportsSpeechRecognition && isMicrophoneAvailable) {
-
-            resetTranscript();
-            SpeechRecognition.startListening({ continuous: true, language: 'en-US' });
+      // If we have a recent AI output message and AI is no longer speaking
+      if (latestMessage.type === 'output' && (latestMessage.audio || latestMessage.content) && isConnected) {
+        // Small delay to ensure audio system is fully ready
+        const reactivateTimer = setTimeout(() => {
+          // Final check - make sure AI is still not speaking and conditions are met
+          if (!isAISpeaking && !listening && isConnected && browserSupportsSpeechRecognition && isMicrophoneAvailable && !isMicMuted && isOpen && !isAutoReactivating) {
+            setIsAutoReactivating(true);
+            
+            try {
+              resetTranscript();
+              SpeechRecognition.startListening({ continuous: true, language: 'en-US' });
+              
+              // Reset auto-reactivating flag after successful start
+              setTimeout(() => setIsAutoReactivating(false), 500);
+            } catch (error) {
+              console.error('🎤 Failed to reactivate microphone:', error);
+              setIsAutoReactivating(false);
+              
+              // Try again after a short delay
+              setTimeout(() => {
+                if (!isAISpeaking && !listening && isConnected && !isMicMuted && isOpen) {
+                  try {
+                    SpeechRecognition.startListening({ continuous: true, language: 'en-US' });
+                  } catch (retryError) {
+                    console.error('🎤 Retry failed:', retryError);
+                  }
+                }
+              }, 1000);
+            }
           }
-        }, delay);
+        }, 500); // Small 500ms delay to ensure audio system is ready
+        
+        // Return cleanup function
+        return () => {
+          clearTimeout(reactivateTimer);
+        };
       }
     }
-  }, [messages, isConnected, listening, browserSupportsSpeechRecognition, isMicrophoneAvailable, resetTranscript]);
+  }, [isAISpeaking, messages, isConnected, listening, browserSupportsSpeechRecognition, isMicrophoneAvailable, resetTranscript, isMicMuted, isOpen, isAutoReactivating]);
 
-  // Auto-send after silence detection
+  // Auto-send after silence detection (only if not muted)
   useEffect(() => {
-    if (listening && transcript.trim()) {
+    if (listening && transcript.trim() && !isMicMuted) {
       // Clear existing timer
       if (silenceTimer) {
         clearTimeout(silenceTimer);
@@ -974,7 +1242,7 @@ Your goal is to be ${truncatedName}'s perfect voice assistant - natural, helpful
       
       // Set new timer to auto-send after 2 seconds of silence
       const timer = setTimeout(() => {
-        if (transcript.trim() && isConnected) {
+        if (transcript.trim() && isConnected && !isMicMuted) {
 
           SpeechRecognition.stopListening();
           
@@ -1002,15 +1270,15 @@ Your goal is to be ${truncatedName}'s perfect voice assistant - natural, helpful
         clearTimeout(silenceTimer);
       }
     };
-  }, [transcript, listening, isConnected, sendText, resetTranscript]); // Removed silenceTimer from deps
+  }, [transcript, listening, isConnected, sendText, resetTranscript, isMicMuted]); // Added isMicMuted to deps
 
-  // Auto-start microphone ONLY for FullscreenVoiceChat (not AI-Chat)
+  // Auto-start microphone ONLY for FullscreenVoiceChat (not AI-Chat) and only if not muted
   useEffect(() => {
-    // Only auto-start if we're in the main voice chat (not onboarding/selection) and component is open
-    if (isOpen && !listening && browserSupportsSpeechRecognition && isMicrophoneAvailable && !isFirstTimeUser && !showVoiceSelection) {
+    // Only auto-start if we're in the main voice chat (not onboarding/selection) and component is open and not muted
+    if (isOpen && !listening && browserSupportsSpeechRecognition && isMicrophoneAvailable && !isFirstTimeUser && !showVoiceSelection && !isMicMuted && !isAutoReactivating) {
       const timer = setTimeout(() => {
         // Double-check we're still in the right state and this component is still mounted/open
-        if (isOpen && !listening && browserSupportsSpeechRecognition && isMicrophoneAvailable && !isFirstTimeUser && !showVoiceSelection) {
+        if (isOpen && !listening && browserSupportsSpeechRecognition && isMicrophoneAvailable && !isFirstTimeUser && !showVoiceSelection && !isMicMuted && !isAutoReactivating) {
 
           resetTranscript();
           SpeechRecognition.startListening({ continuous: true, language: 'en-US' });
@@ -1019,7 +1287,7 @@ Your goal is to be ${truncatedName}'s perfect voice assistant - natural, helpful
       
       return () => clearTimeout(timer);
     }
-  }, [isOpen, browserSupportsSpeechRecognition, isMicrophoneAvailable, isFirstTimeUser, showVoiceSelection, resetTranscript]);
+  }, [isOpen, browserSupportsSpeechRecognition, isMicrophoneAvailable, isFirstTimeUser, showVoiceSelection, resetTranscript, isMicMuted, isAutoReactivating]);
 
   // Separate effect to handle cleanup when component closes - only runs on isOpen change
   useEffect(() => {
@@ -1029,6 +1297,47 @@ Your goal is to be ${truncatedName}'s perfect voice assistant - natural, helpful
       resetTranscript();
     }
   }, [isOpen]); // Only depend on isOpen, not listening, to avoid interfering with other components
+
+  // Watch for action completions and show notifications
+  useEffect(() => {
+    const recentlyCompletedActions = completedActions.filter(action => 
+      action.status === 'success' && 
+      Date.now() - action.timestamp < 5000 && // Completed in last 5 seconds
+      ['createGoogleDoc', 'createGoogleSheet', 'createGoogleSlides', 'updateGoogleDriveFile', 'sendGmail'].includes(action.type)
+    );
+    
+    if (recentlyCompletedActions.length > 0) {
+      const latestAction = recentlyCompletedActions[0];
+      const actionName = getActionDisplayName(latestAction.type);
+      setCompletionNotification({
+        id: latestAction.id,
+        message: `✅ ${actionName.charAt(0).toUpperCase() + actionName.slice(1)} completed!`
+      });
+      
+      // Clear notification after 3 seconds
+      setTimeout(() => {
+        setCompletionNotification(null);
+      }, 3000);
+    }
+  }, [completedActions]);
+
+  // Helper function for completion notifications
+  const getActionDisplayName = (actionType: string): string => {
+    switch (actionType) {
+      case 'createGoogleDoc':
+        return 'google doc creation';
+      case 'createGoogleSheet':
+        return 'google sheet creation';
+      case 'createGoogleSlides':
+        return 'google slides creation';
+      case 'updateGoogleDriveFile':
+        return 'document update';
+      case 'sendGmail':
+        return 'email sending';
+      default:
+        return 'action';
+    }
+  };
 
 
   // Auto-reconnect function with exponential backoff
@@ -1066,6 +1375,15 @@ Your goal is to be ${truncatedName}'s perfect voice assistant - natural, helpful
       
       await connect(configWithSystemInstruction);
       setSessionStartTime(new Date());
+      
+      // Start voice recording after successful connection (if not muted)
+      if (!isMicMuted) {
+        try {
+          await startRecording();
+        } catch (recordingError) {
+          console.error('Failed to start recording after connection:', recordingError);
+        }
+      }
       
       // Reset auto-reconnect attempts on successful connection
       setAutoReconnectAttempts(0);
@@ -1138,8 +1456,8 @@ Your goal is to be ${truncatedName}'s perfect voice assistant - natural, helpful
     onClose();
   };
 
-  // Toggle recording (with auto-detection)
-  const handleToggleRecording = () => {
+  // Toggle microphone mute/unmute (without auto-sending)
+  const handleToggleRecording = async () => {
     if (!browserSupportsSpeechRecognition) {
       alert("This browser does not support speech recognition. Please try Google Chrome.");
       return;
@@ -1149,32 +1467,53 @@ Your goal is to be ${truncatedName}'s perfect voice assistant - natural, helpful
       return;
     }
 
-    if (listening) {
-      // Manual stop - clear timer and stop listening
+    if (listening || isRecording) {
+      // Mute microphone - stop BOTH speech recognition AND voice chat recording
       if (silenceTimer) {
         clearTimeout(silenceTimer);
         setSilenceTimer(null);
       }
+      
+      // Stop speech recognition
       SpeechRecognition.stopListening();
-      const finalTranscriptText = transcript.trim();
-      if (finalTranscriptText && isConnected) {
-        // Convert selectedFiles to the format expected by sendText
-        const filesForSending = selectedFiles.map(file => ({
-          type: file.type,
-          base64Data: file.base64Data,
-          name: file.name
-        }));
-        
-        sendText(finalTranscriptText, filesForSending.length > 0 ? filesForSending : undefined);
-        if (filesForSending.length > 0) {
-          setSelectedFiles([]); // Clear files after sending
-        }
+      
+      // Stop voice chat recording
+      stopRecording();
+      
+      setIsMicMuted(true);
+      // Don't reset transcript - keep it for when they unmute
+    } else {
+      // Unmute microphone - start BOTH speech recognition AND voice chat recording
+      setIsMicMuted(false);
+      
+      // Start speech recognition
+      SpeechRecognition.startListening({ continuous: true, language: 'en-US' });
+      
+      // Start voice chat recording
+      try {
+        await startRecording();
+      } catch (error) {
+        console.error('Failed to start voice chat recording:', error);
+      }
+    }
+  };
+
+  // Manual send function for sending transcript when user wants to
+  const handleManualSend = () => {
+    const finalTranscriptText = transcript.trim();
+    if (finalTranscriptText && isConnected) {
+      // Convert selectedFiles to the format expected by sendText
+      const filesForSending = selectedFiles.map(file => ({
+        type: file.type,
+        base64Data: file.base64Data,
+        name: file.name
+      }));
+      
+      sendText(finalTranscriptText, filesForSending.length > 0 ? filesForSending : undefined);
+      if (filesForSending.length > 0) {
+        setSelectedFiles([]); // Clear files after sending
       }
       resetTranscript();
-    } else {
-      // Start listening with auto-detection
-      resetTranscript();
-      SpeechRecognition.startListening({ continuous: true, language: 'en-US' });
     }
   };
 
@@ -1289,8 +1628,8 @@ Your goal is to be ${truncatedName}'s perfect voice assistant - natural, helpful
   // Handle stopping text generation
   const handleStopTextGeneration = () => {
     setIsTextProcessing(false);
-    // In a real implementation, you might want to cancel ongoing requests
-    // For now, we'll just reset the processing state
+    // Also stop any audio that might be playing from text responses
+    stopAudio();
   };
 
   // File handling functions (from AI-Chat.tsx)
@@ -1354,6 +1693,126 @@ Your goal is to be ${truncatedName}'s perfect voice assistant - natural, helpful
   const handleCompleteOnboarding = async () => {
     setIsFirstTimeUser(false);
     setShowVoiceSelection(true);
+  };
+
+  // Handle style selection
+  const handleStyleSelect = async (style: string, prompt: string) => {
+    setActiveStyle(style);
+    setCurrentActivePrompt(prompt);
+    
+    // If we're currently connected, reconnect with the new prompt
+    if (isConnected) {
+      try {
+        // Disconnect first
+        disconnect();
+        
+        // Wait a moment for clean disconnect
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Reconnect with new system instruction
+        await handleConnect();
+      } catch (error) {
+        console.error('Failed to reconnect with new style:', error);
+      }
+    }
+    
+  };
+
+  // Style dialog handlers
+  const handleOpenStyleDialog = (style?: CustomStyle) => {
+    if (style) {
+      setEditingStyle(style);
+      setStyleFormData({
+        name: style.name,
+        description: style.description,
+        prompt: style.prompt,
+        color: style.color || DEFAULT_CUSTOM_COLOR_PROPS.color,
+        hoverColor: style.hoverColor || DEFAULT_CUSTOM_COLOR_PROPS.hoverColor,
+        lightBg: style.lightBg || DEFAULT_CUSTOM_COLOR_PROPS.lightBg,
+        textColor: style.textColor || DEFAULT_CUSTOM_COLOR_PROPS.textColor,
+      });
+    } else {
+      setEditingStyle(null);
+      const randomColorIndex = Math.floor(Math.random() * CUSTOM_STYLE_COLORS.length);
+      const { name: _name, ...randomColorProps } = CUSTOM_STYLE_COLORS[randomColorIndex];
+      setStyleFormData({
+        name: '',
+        description: '',
+        prompt: '',
+        ...randomColorProps,
+      });
+    }
+    setIsStyleDialogOpen(true);
+  };
+
+  const handleCloseStyleDialog = () => setIsStyleDialogOpen(false);
+
+  const handleSaveStyle = async () => {
+    if (!currentUser || !styleFormData.name || !styleFormData.description || !styleFormData.prompt) return;
+    try {
+      const dataToSave = { ...styleFormData };
+      if (editingStyle) {
+        await updateCustomStyle(editingStyle.id, dataToSave);
+      } else {
+        await createCustomStyle(currentUser.uid, dataToSave);
+      }
+      handleCloseStyleDialog();
+    } catch (error) {
+      console.error('Error saving style:', error);
+    }
+  };
+
+  const handleDeleteStyle = async (styleId: string) => {
+    try {
+      await deleteCustomStyle(styleId);
+    } catch (error) {
+      console.error('Error deleting style:', error);
+    }
+  };
+
+  // Get active style details
+  const getActiveStyleDetails = () => {
+    if (!activeStyle || activeStyle === 'Normal') return null;
+    if (activeStyle in chatStyles) {
+      return (chatStyles as any)[activeStyle];
+    }
+    return customStyles.find(s => s.name === activeStyle) || null;
+  };
+
+  // Get active style button colors
+  const getActiveStyleButtonColors = () => {
+    if (!activeStyle || activeStyle === 'Normal') {
+      return {
+        bg: 'bg-[var(--bg-highlight)]',
+        hover: 'hover:bg-[var(--interactive-hover)]',
+        text: 'text-[var(--text-secondary)]'
+      };
+    }
+    
+    if (activeStyle in chatStyles) {
+      const style = (chatStyles as any)[activeStyle];
+      return {
+        bg: style.color || 'bg-[var(--bg-highlight)]',
+        hover: style.hoverColor || 'hover:bg-[var(--interactive-hover)]',
+        text: 'text-white'
+      };
+    }
+    
+    // Check custom styles
+    const customStyle = customStyles.find(style => style.name === activeStyle);
+    if (customStyle) {
+      return {
+        bg: customStyle.color || 'bg-[var(--bg-highlight)]',
+        hover: customStyle.hoverColor || 'hover:bg-[var(--interactive-hover)]',
+        text: 'text-white'
+      };
+    }
+    
+    return {
+      bg: 'bg-[var(--bg-highlight)]',
+      hover: 'hover:bg-[var(--interactive-hover)]',
+      text: 'text-[var(--text-secondary)]'
+    };
   };
 
   // Handle voice selection completion
@@ -1656,7 +2115,7 @@ Your goal is to be ${truncatedName}'s perfect voice assistant - natural, helpful
                             {/* Voice Sample Button - Inline with name */}
                             <button
                               onClick={() => playVoiceSample(getOnboardingVoices()[selectedVoiceIndex].id)}
-                              disabled={isConnected} // Disable if already connected to avoid conflicts
+                              disabled={false} // Allow voice samples during selection
                               className="inline-flex items-center p-2 rounded-full transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed relative z-20"
                               style={{
                                 background: playingVoiceSample === getOnboardingVoices()[selectedVoiceIndex].id 
@@ -2076,35 +2535,78 @@ Your goal is to be ${truncatedName}'s perfect voice assistant - natural, helpful
                           style={{ 
                             background: action.status === 'success' 
                               ? 'var(--status-success-bg)' 
+                              : action.status === 'processing'
+                              ? 'var(--bg-highlight)'
                               : 'var(--status-error-bg)'
                           }}
                         >
                           {action.status === 'success' ? (
                             getActionIcon(action.type)
+                          ) : action.status === 'processing' ? (
+                            <Loader2 className="w-3 h-3 flex-shrink-0 animate-spin" style={{ color: 'var(--accent-primary)' }} />
                           ) : (
                             <XCircle className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--status-error)' }} />
                           )}
-                          <div className="min-w-0 flex-1">
+                          <div className="min-w-0 flex-1 pr-2">
                             <div 
                               className="text-xs font-medium truncate"
                               style={{ color: 'var(--text-primary)' }}
                             >
                               {action.title}
                             </div>
-                            {action.status === 'error' && action.message && (
+                            {(action.status === 'error' || action.status === 'processing') && action.message && (
                               <div 
                                 className="text-xs truncate"
-                                style={{ color: 'var(--text-secondary)' }}
+                                style={{ color: action.status === 'processing' ? 'var(--accent-primary)' : 'var(--text-secondary)' }}
                               >
                                 {action.message}
                               </div>
                             )}
+                            {action.status === 'processing' && action.estimatedDuration && (
+                              <div 
+                                className="text-xs truncate"
+                                style={{ color: 'var(--text-muted)' }}
+                              >
+                                ETA: {action.estimatedDuration}
+                              </div>
+                            )}
+                            {action.status === 'processing' && action.progress !== undefined && (
+                              <div className="mt-1">
+                                <div 
+                                  className="w-full bg-gray-200 rounded-full h-1"
+                                  style={{ background: 'var(--bg-secondary)' }}
+                                >
+                                  <div 
+                                    className="h-1 rounded-full transition-all duration-300"
+                                    style={{ 
+                                      background: 'var(--accent-primary)',
+                                      width: `${action.progress}%`
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            )}
                           </div>
-                          <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                            {new Date(action.timestamp).toLocaleTimeString('en-US', { 
-                              hour: 'numeric', 
-                              minute: '2-digit' 
-                            })}
+                          <div className="flex items-center space-x-2 flex-shrink-0">
+                            {action.viewUrl && action.status !== 'processing' && (
+                              <button
+                                onClick={() => window.open(action.viewUrl, '_blank')}
+                                className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--text-secondary)] bg-[var(--bg-highlight)] px-2.5 py-1.5 rounded-lg hover:bg-[var(--interactive-hover)] transition-colors flex-shrink-0"
+                              >
+                                View
+                              </button>
+                            )}
+                            {action.status === 'processing' && (
+                              <div className="text-xs text-[var(--accent-primary)] font-medium flex-shrink-0">
+                                Processing...
+                              </div>
+                            )}
+                            <div className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
+                              {new Date(action.timestamp).toLocaleTimeString('en-US', { 
+                                hour: 'numeric', 
+                                minute: '2-digit' 
+                              })}
+                            </div>
                           </div>
                         </motion.div>
                       ))}
@@ -2188,17 +2690,98 @@ Your goal is to be ${truncatedName}'s perfect voice assistant - natural, helpful
                     disabled={isTextProcessing || !isConnected} 
                   />
                   
-                  {/* File Upload Button */}
+                  {/* Style Controls */}
                   <div className="flex items-center pb-3.5">
-                    <button 
-                      type="button" 
-                      onClick={triggerFileSelect} 
-                      disabled={isTextProcessing || !isConnected} 
-                      className="p-2 rounded-full transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 shadow-sm hover:shadow-md bg-[var(--bg-highlight)] hover:bg-[var(--interactive-hover)] text-[var(--text-secondary)]" 
-                      title="Attach Files"
-                    >
-                      <Plus className="w-5 h-5" />
-                    </button>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button 
+                          type="button" 
+                          disabled={isTextProcessing || !isConnected} 
+                          className={`p-2 rounded-full transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 shadow-sm hover:shadow-md ${getActiveStyleButtonColors().bg} ${getActiveStyleButtonColors().hover} ${getActiveStyleButtonColors().text}`}
+                          title="Change Chat Style"
+                        >
+                          <Palette className="w-5 h-5" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        className="w-72 p-0 bg-[var(--bg-primary)] shadow-xl rounded-lg border border-[var(--border-primary)] font-clarika z-[10000]"
+                        align="start"
+                        side="top"
+                        sideOffset={8}
+                      >
+                        <div className="flex flex-col max-h-[400px]">
+                          <div className="p-3 border-b border-[var(--border-primary)]">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-semibold text-[var(--text-primary)]">Chat Styles</h4>
+                              {currentUser && (
+                                  <button
+                                      className="p-1.5 rounded-md text-[var(--text-muted)] hover:bg-[var(--interactive-hover)]"
+                                      onClick={() => handleOpenStyleDialog()}
+                                      title="Create Custom Style"
+                                  >
+                                      <Plus className="h-4 w-4" />
+                                  </button>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="overflow-y-auto flex-1 p-2 scrollbar-thin scrollbar-thumb-[var(--border-secondary)]">
+                            <div className="space-y-1 mb-2">
+                              {Object.entries(chatStyles).map(([styleName, { description, prompt, color }]) => (
+                                <button
+                                  key={styleName}
+                                  className={`w-full text-left px-2.5 py-2 rounded-md transition-all duration-200 ${
+                                    activeStyle === styleName
+                                      ? (styleName === 'Normal' ? `bg-[var(--bg-highlight)] text-[var(--text-primary)] font-semibold` : `${color} text-white font-semibold`)
+                                      : `text-[var(--text-secondary)] hover:bg-[var(--interactive-hover)]`
+                                  }`}
+                                  onClick={() => handleStyleSelect(styleName, prompt)}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2 font-medium">{styleName}</div>
+                                    {activeStyle === styleName && <Check className="h-4 w-4" />}
+                                  </div>
+                                  <p className={`text-xs mt-0.5 font-normal ${activeStyle === styleName && styleName !== 'Normal' ? 'text-white/80' : 'text-[var(--text-muted)]'}`}>
+                                    {description}
+                                  </p>
+                                </button>
+                              ))}
+                            </div>
+
+                            {customStyles.length > 0 && (
+                              <div>
+                                <h5 className="text-xs font-semibold uppercase text-[var(--text-muted)] px-2.5 pt-2 pb-1.5">Custom Styles</h5>
+                                <div className="space-y-1">
+                                  {customStyles.map((style) => (
+                                    <div
+                                      key={style.id}
+                                      className={`w-full text-left px-2.5 py-2 rounded-md transition-all duration-200 group cursor-pointer ${
+                                        activeStyle === style.name
+                                          ? `${style.color || DEFAULT_CUSTOM_COLOR_PROPS.color} text-white font-semibold`
+                                          : `text-[var(--text-secondary)] hover:bg-[var(--interactive-hover)]`
+                                      }`}
+                                      onClick={() => handleStyleSelect(style.name, style.prompt)}
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <span className="font-medium truncate pr-2">{style.name}</span>
+                                        <div className="flex items-center gap-1 flex-shrink-0">
+                                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button className="p-1.5 rounded-full hover:bg-[var(--overlay-dark)]" onClick={(e) => { e.stopPropagation(); handleOpenStyleDialog(style); }} title="Edit Style"><Edit2 className="h-3.5 w-3.5" /></button>
+                                            <button className="p-1.5 rounded-full hover:bg-[var(--overlay-dark)]" onClick={(e) => { e.stopPropagation(); handleDeleteStyle(style.id); }} title="Delete Style"><Trash2 className="h-3.5 w-3.5" /></button>
+                                          </div>
+                                          {activeStyle === style.name && <Check className="h-4 w-4 ml-1" />}
+                                        </div>
+                                      </div>
+                                      <p className={`text-xs mt-0.5 font-normal text-left ${activeStyle === style.name ? 'text-white/80' : 'text-[var(--text-muted)]'}`}>{style.description}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </div>
 
                   {/* Textarea - Centered with buttons */}
@@ -2267,6 +2850,8 @@ Your goal is to be ${truncatedName}'s perfect voice assistant - natural, helpful
         )}
         </AnimatePresence>
 
+    
+
         {/* Bottom Controls */}
         {!isFirstTimeUser && !showVoiceSelection && (
           <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center pb-8" style={{ zIndex: 20 }}>
@@ -2282,7 +2867,7 @@ Your goal is to be ${truncatedName}'s perfect voice assistant - natural, helpful
                   border: '1px solid var(--border-primary)',
                   opacity: (!browserSupportsSpeechRecognition || !isMicrophoneAvailable) ? 0.5 : 1
                 }}
-                title={!browserSupportsSpeechRecognition ? "Browser not supported" : !isMicrophoneAvailable ? "Microphone not available" : listening ? "Stop Recording" : "Start Recording"}
+                title={!browserSupportsSpeechRecognition ? "Browser not supported" : !isMicrophoneAvailable ? "Microphone not available" : listening ? "Mute Microphone" : "Unmute Microphone"}
               >
                 {listening ? <Mic className="w-6 h-6" style={{ width: '26px', height: '26px' }} /> : <MicOff className="w-6 h-6" style={{ width: '26px', height: '26px' }} />}
               </button>
@@ -2301,6 +2886,32 @@ Your goal is to be ${truncatedName}'s perfect voice assistant - natural, helpful
                 <Keyboard className="w-6 h-6" style={{ width: '26px', height: '26px' }} />
               </button>
 
+              {/* Stop Button - show when AI is speaking or processing text */}
+              {(isAISpeaking || isTextProcessing) && (
+                <button
+                  onClick={() => {
+                    if (isAISpeaking) {
+                      stopAudio();
+                    }
+                    if (isTextProcessing) {
+                      handleStopTextGeneration();
+                    }
+                  }}
+                  className="rounded-full transition-all duration-200 hover:scale-105"
+                  style={{
+                    padding: '18px',
+                    background: 'var(--status-error)',
+                    color: 'var(--text-white)',
+                    border: '1px solid var(--border-primary)'
+                  }}
+                  title={isAISpeaking ? "Stop AI Voice" : "Stop AI Response"}
+                >
+                  <svg viewBox="-0.5 0 25 25" className="w-6 h-6" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '26px', height: '26px' }}>
+                    <path d="M17 3.42004H7C4.79086 3.42004 3 5.2109 3 7.42004V17.42C3 19.6292 4.79086 21.42 7 21.42H17C19.2091 21.42 21 19.6292 21 17.42V7.42004C21 5.2109 19.2091 3.42004 17 3.42004Z" fill="currentColor" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+              )}
+
               <button
                 onClick={handleDisconnect}
                 className="rounded-full transition-all duration-200 hover:scale-105"
@@ -2316,6 +2927,100 @@ Your goal is to be ${truncatedName}'s perfect voice assistant - natural, helpful
             </div>
           </div>
         )}
+
+        {/* Completion Notification */}
+        <AnimatePresence>
+          {completionNotification && (
+            <motion.div
+              initial={{ opacity: 0, y: -50, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -50, scale: 0.9 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+              className="absolute top-8 left-1/2 transform -translate-x-1/2 z-50"
+            >
+              <div 
+                className="rounded-xl p-3 shadow-lg border"
+                style={{ 
+                  background: 'var(--status-success-bg)',
+                  borderColor: 'var(--status-success)',
+                  color: 'var(--text-primary)'
+                }}
+              >
+                <div className="flex items-center space-x-2">
+                  <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--status-success)' }} />
+                  <span className="text-sm font-medium">{completionNotification.message}</span>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Style Dialog */}
+        <Dialog open={isStyleDialogOpen} onOpenChange={setIsStyleDialogOpen}>
+          <DialogContent className="sm:max-w-xl bg-[var(--bg-primary)] border border-[var(--border-primary)] p-6 rounded-lg shadow-xl font-clarika z-[10001]">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-semibold text-[var(--text-primary)]">
+                {editingStyle ? 'Edit Custom Style' : 'Create Custom Style'}
+              </DialogTitle>
+              <DialogDescription className="text-sm text-[var(--text-muted)]">
+                Create a new personality for TaskMaster to use in your conversations.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <label htmlFor="style-name" className="text-sm font-medium text-[var(--text-secondary)]">Style Name</label>
+                <input id="style-name" value={styleFormData.name} onChange={(e) => setStyleFormData(prev => ({ ...prev, name: e.target.value }))} className="w-full px-3 py-2 bg-[var(--bg-card)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-primary)] focus:ring-2 focus:ring-[var(--bg-accent)] focus:border-[var(--bg-accent)] outline-none transition" placeholder="e.g., Chem Tutor"/>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-[var(--text-secondary)]">Style Color</label>
+                <div className="flex flex-wrap gap-3 pt-1">
+                  {CUSTOM_STYLE_COLORS.map((color) => {
+                      const { name, ...colorData } = color;
+                      return (
+                          <button
+                              key={color.color}
+                              type="button"
+                              onClick={() => setStyleFormData(prev => ({ ...prev, ...colorData }))}
+                              className={`w-8 h-8 rounded-full transition-all duration-150 flex items-center justify-center ${color.color} ${
+                              styleFormData.color === color.color
+                                  ? ''
+                                  : 'hover:opacity-80'
+                              }`}
+                              title={name}
+                          >
+                              {styleFormData.color === color.color && <Check className="w-5 h-5 text-white" />}
+                          </button>
+                      );
+                  })}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="style-description" className="text-sm font-medium text-[var(--text-secondary)]">Description</label>
+                <textarea id="style-description" value={styleFormData.description} onChange={(e) => setStyleFormData(prev => ({ ...prev, description: e.target.value }))} className="w-full px-3 py-2 bg-[var(--bg-card)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-primary)] focus:ring-2 focus:ring-[var(--bg-accent)] focus:border-[var(--bg-accent)] outline-none transition min-h-[60px] resize-none" placeholder="A brief description of this style." rows={2}/>
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="style-prompt" className="text-sm font-medium text-[var(--text-secondary)]">AI's Instructions</label>
+                <textarea id="style-prompt" value={styleFormData.prompt} onChange={(e) => setStyleFormData(prev => ({ ...prev, prompt: e.target.value }))} className="w-full px-3 py-2 bg-[var(--bg-card)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-primary)] focus:ring-2 focus:ring-[var(--bg-accent)] focus:border-[var(--bg-accent)] outline-none transition min-h-[120px] resize-none" placeholder="Instruct TaskMaster on how to behave. For example: 'You're my chill chem tutor who makes hard stuff easy to get.'" rows={5}/>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={handleCloseStyleDialog} className="px-4 py-2 text-sm rounded-md bg-transparent border-[var(--border-secondary)] hover:bg-[var(--interactive-hover)] text-[var(--text-secondary)]">Cancel</Button>
+              <Button
+                type="button"
+                onClick={handleSaveStyle}
+                className={`px-4 py-2 text-sm rounded-md text-white disabled:opacity-60 disabled:cursor-not-allowed transition-colors ${styleFormData.color} ${styleFormData.hoverColor}`}
+                disabled={!styleFormData.name || !styleFormData.description || !styleFormData.prompt}
+              >
+                {editingStyle ? 'Update Style' : 'Create Style'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </motion.div>
     </AnimatePresence>
   );
