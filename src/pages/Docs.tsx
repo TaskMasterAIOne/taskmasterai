@@ -10,7 +10,6 @@ import {
   faFileLines, 
   faRocket,
   faBook,
-  faCode,
   faCubes,
   faKey,
   faQuestionCircle,
@@ -29,7 +28,7 @@ import {
   faTrash,
   faGripLinesVertical
 } from '@fortawesome/free-solid-svg-icons'
-import { faGithub, faDiscord } from '@fortawesome/free-brands-svg-icons'
+import { faDiscord } from '@fortawesome/free-brands-svg-icons'
 // Function to call the ask question endpoint
 const FUNCTION_URL = import.meta.env.VITE_ASK_QUESTION_URL || 'https://us-central1-taskmaster-ai-e2302.cloudfunctions.net/askQuestion'
 
