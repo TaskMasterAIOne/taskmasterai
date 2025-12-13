@@ -1,0 +1,56 @@
+{
+  "name": "taskmaster-ai",
+  "version": "1.0.0",
+  "description": "AI-powered task management CLI for developers. Transform PRDs into actionable task lists.",
+  "main": "src/index.js",
+  "type": "module",
+  "bin": {
+    "taskmaster": "./bin/taskmaster.js",
+    "tm": "./bin/taskmaster.js"
+  },
+  "scripts": {
+    "start": "node bin/taskmaster.js",
+    "test": "node --test",
+    "prepublishOnly": "echo 'Ready to publish!'"
+  },
+  "keywords": [
+    "taskmaster",
+    "ai",
+    "task-management",
+    "prd",
+    "developer-tools",
+    "cli",
+    "mcp",
+    "cursor",
+    "claude"
+  ],
+  "author": "TaskMaster AI LLC",
+  "license": "PROPRIETARY",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/taskmaster-ai/cli"
+  },
+  "homepage": "https://taskmaster.one",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^2.0.18",
+    "@ai-sdk/google": "^2.0.16",
+    "@ai-sdk/openai": "^2.0.34",
+    "@ai-sdk/perplexity": "^2.0.10",
+    "ai": "^5.0.51",
+    "boxen": "^8.0.1",
+    "chalk": "^5.3.0",
+    "cli-table3": "^0.6.5",
+    "commander": "^12.1.0",
+    "dotenv": "^16.4.5",
+    "inquirer": "^12.5.0",
+    "ora": "^8.0.1",
+    "uuid": "^11.1.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0"
+  }
+}

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="TaskMaster AI - AI-powered task management for developers. Turn PRDs into executable tasks with intelligent breakdown, dependencies, and multi-model support." />
+    <meta name="theme-color" content="#171717" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <title>TaskMaster AI - AI-Powered Task Management</title>
+    <!-- Prevent flash of wrong theme - MUST run before any rendering -->
+    <script>
+      (function() {
+        // Check theme-mode first (React ThemeContext), then legacy 'theme' key
+        const savedMode = localStorage.getItem('theme-mode');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        
+        // Determine the actual theme to apply
+        let isDark = false;
+        if (savedMode === 'dark') {
+          isDark = true;
+        } else if (savedMode === 'light') {
+          isDark = false;
+        } else {
+          // 'system' mode or no preference - use system preference
+          isDark = prefersDark;
+        }
+        
+        // Apply theme class immediately
+        if (isDark) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+        
+        // Update theme-color meta tag based on theme
+        const themeColor = isDark ? '#171717' : '#FFFFFF';
+        document.querySelector('meta[name="theme-color"]').setAttribute('content', themeColor);
+      })();
+    </script>
+    <!-- Critical CSS to prevent flash - inline background colors before stylesheet loads -->
+    <style>
+      html { background-color: #FFFFFF; }
+      html.dark { background-color: #171717; }
+      body { background-color: inherit; margin: 0; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

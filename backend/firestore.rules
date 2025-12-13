@@ -1,0 +1,43 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Users collection - users can only read/write their own data
+    match /users/{userId} {
+      // Allow read if the request is from the authenticated user
+      allow read: if request.auth != null && request.auth.uid == userId;
+      
+      // Allow create for new users (during signup)
+      allow create: if request.auth != null && request.auth.uid == userId;
+      
+      // Allow update only for specific fields (not licenseKey or plan - those are server-only)
+      allow update: if request.auth != null 
+        && request.auth.uid == userId
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['licenseKey', 'plan', 'stripeCustomerId', 'stripeSubscriptionId', 'subscriptionStatus']);
+      
+      // Never allow delete
+      allow delete: if false;
+    }
+    
+    // Licenses collection - only server can read/write
+    // CLI validates through the validateLicense Cloud Function, not directly
+    match /licenses/{licenseKey} {
+      // No direct client access - all access through Cloud Functions
+      allow read, write: if false;
+    }
+    
+    // Usage tracking collection (for future usage-based billing)
+    match /usage/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      // Only server can write usage data
+      allow write: if false;
+    }
+    
+    // Invoices collection (synced from Stripe)
+    match /invoices/{invoiceId} {
+      allow read: if request.auth != null 
+        && resource.data.userId == request.auth.uid;
+      allow write: if false;
+    }
+  }
+}
