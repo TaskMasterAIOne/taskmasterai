@@ -135,10 +135,10 @@ For production, configure Stripe:
 
 ## Related
 
-- [TaskMaster AI CLI](https://github.com/eyaltoledano/claude-task-master) - The open-source CLI tool
-- [Documentation](https://docs.taskmaster.one) - Full documentation
+- [TaskMaster AI CLI](https://taskmaster.one/docs) - Official CLI documentation
+- [Documentation](https://taskmaster.one/docs) - Full documentation
 
 ## License
 
-MIT License - see LICENSE file for details.
+Proprietary - TaskMaster AI LLC. All rights reserved.
 

@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../contexts/ThemeContext'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faBars, faXmark, faSun, faMoon, faDesktop } from '@fortawesome/free-solid-svg-icons'
-import { faGithub, faXTwitter } from '@fortawesome/free-brands-svg-icons'
+import { faDiscord, faXTwitter } from '@fortawesome/free-brands-svg-icons'
 
 const LOGO_URL = 'https://firebasestorage.googleapis.com/v0/b/taskmaster-ai-e2302.firebasestorage.app/o/TaskMaster_AI%20Logo%20(1).png?alt=media&token=c309f276-a8a7-438f-a3a0-75576d1fa4d8'
 
@@ -192,7 +192,7 @@ export default function PublicLayout() {
                 <ul className="space-y-2">
                   <li><Link to="/pricing" className="text-sm text-text-muted hover:text-text">Pricing</Link></li>
                   <li><Link to="/docs" className="text-sm text-text-muted hover:text-text">Documentation</Link></li>
-                  <li><a href="https://github.com/eyaltoledano/claude-task-master" target="_blank" rel="noopener noreferrer" className="text-sm text-text-muted hover:text-text">GitHub</a></li>
+                  <li><a href="https://discord.gg/taskmaster" target="_blank" rel="noopener noreferrer" className="text-sm text-text-muted hover:text-text">Community</a></li>
                 </ul>
               </div>
               
@@ -210,8 +210,8 @@ export default function PublicLayout() {
                 © {new Date().getFullYear()} TaskMaster AI. All rights reserved.
               </p>
               <div className="flex items-center gap-4">
-                <a href="https://github.com/eyaltoledano/claude-task-master" target="_blank" rel="noopener noreferrer" className="text-text-muted hover:text-text transition-colors">
-                  <FontAwesomeIcon icon={faGithub} className="w-5 h-5" />
+                <a href="https://discord.gg/taskmaster" target="_blank" rel="noopener noreferrer" className="text-text-muted hover:text-text transition-colors">
+                  <FontAwesomeIcon icon={faDiscord} className="w-5 h-5" />
                 </a>
                 <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" className="text-text-muted hover:text-text transition-colors">
                   <FontAwesomeIcon icon={faXTwitter} className="w-5 h-5" />

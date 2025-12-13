@@ -84,103 +84,103 @@ Cancel anytime. No long-term contracts. You'll have access until the end of your
 
 After subscribing, you receive a license key (format: tm_live_XXXXX). Activate it in the CLI:
 \`\`\`
-task-master activate YOUR_LICENSE_KEY
+taskmaster activate YOUR_LICENSE_KEY
 \`\`\`
 
 # INSTALLATION
 
 Install TaskMaster AI globally:
 \`\`\`bash
-npm install -g task-master-ai
+npm install -g @taskmasterai/cli
 \`\`\`
 
 Or use with npx:
 \`\`\`bash
-npx task-master-ai <command>
+npx @taskmasterai/cli <command>
 \`\`\`
 
 # CLI COMMANDS REFERENCE
 
 ## Project Setup
-- \`task-master init\` - Initialize TaskMaster in current project
-- \`task-master init --name="My Project" --description="Description"\` - Initialize with options
-- \`task-master init --rules cursor,windsurf\` - Initialize with specific rule sets
+- \`taskmaster init\` - Initialize TaskMaster in current project
+- \`taskmaster init --name="My Project" --description="Description"\` - Initialize with options
+- \`taskmaster init --rules cursor,windsurf\` - Initialize with specific rule sets
 
 ## PRD Parsing
-- \`task-master parse-prd <file>\` - Parse PRD and generate tasks
-- \`task-master parse-prd prd.md --num-tasks=15\` - Specify number of tasks
-- \`task-master parse-prd prd.md --append\` - Append to existing tasks
-- \`task-master parse-prd prd.md --tag=feature-x\` - Parse into specific tag
+- \`taskmaster parse-prd <file>\` - Parse PRD and generate tasks
+- \`taskmaster parse-prd prd.md --num-tasks=15\` - Specify number of tasks
+- \`taskmaster parse-prd prd.md --append\` - Append to existing tasks
+- \`taskmaster parse-prd prd.md --tag=feature-x\` - Parse into specific tag
 
 ## Task Viewing
-- \`task-master list\` - List all tasks with status
-- \`task-master list --status=pending\` - Filter by status
-- \`task-master list --with-subtasks\` - Include subtasks
-- \`task-master next\` - Get next available task to work on
-- \`task-master show <id>\` - Show detailed task info (e.g., show 1, show 1.2)
-- \`task-master show 1,2,3\` - Show multiple tasks
+- \`taskmaster list\` - List all tasks with status
+- \`taskmaster list --status=pending\` - Filter by status
+- \`taskmaster list --with-subtasks\` - Include subtasks
+- \`taskmaster next\` - Get next available task to work on
+- \`taskmaster show <id>\` - Show detailed task info (e.g., show 1, show 1.2)
+- \`taskmaster show 1,2,3\` - Show multiple tasks
 
 ## Task Management
-- \`task-master add-task --prompt="description"\` - Add new task
-- \`task-master add-task --prompt="..." --research\` - Add with research
-- \`task-master add-subtask --parent=1 --title="Subtask"\` - Add subtask
-- \`task-master set-status --id=1 --status=done\` - Update status
-- \`task-master set-status --id=1,2,3 --status=in-progress\` - Update multiple
-- \`task-master remove-task --id=5\` - Remove a task
+- \`taskmaster add-task --prompt="description"\` - Add new task
+- \`taskmaster add-task --prompt="..." --research\` - Add with research
+- \`taskmaster add-subtask --parent=1 --title="Subtask"\` - Add subtask
+- \`taskmaster set-status --id=1 --status=done\` - Update status
+- \`taskmaster set-status --id=1,2,3 --status=in-progress\` - Update multiple
+- \`taskmaster remove-task --id=5\` - Remove a task
 
 ## Task Expansion
-- \`task-master expand --id=1\` - Expand task into subtasks
-- \`task-master expand --id=1 --num=5\` - Specify number of subtasks
-- \`task-master expand --id=1 --research\` - Use research for expansion
-- \`task-master expand --id=1 --force\` - Replace existing subtasks
-- \`task-master expand --all\` - Expand all eligible tasks
-- \`task-master clear-subtasks --id=1\` - Clear subtasks
+- \`taskmaster expand --id=1\` - Expand task into subtasks
+- \`taskmaster expand --id=1 --num=5\` - Specify number of subtasks
+- \`taskmaster expand --id=1 --research\` - Use research for expansion
+- \`taskmaster expand --id=1 --force\` - Replace existing subtasks
+- \`taskmaster expand --all\` - Expand all eligible tasks
+- \`taskmaster clear-subtasks --id=1\` - Clear subtasks
 
 ## Task Updates
-- \`task-master update-task --id=1 --prompt="changes"\` - Update specific task
-- \`task-master update-subtask --id=1.1 --prompt="notes"\` - Add notes to subtask
-- \`task-master update --from=5 --prompt="context change"\` - Update tasks from ID onwards
+- \`taskmaster update-task --id=1 --prompt="changes"\` - Update specific task
+- \`taskmaster update-subtask --id=1.1 --prompt="notes"\` - Add notes to subtask
+- \`taskmaster update --from=5 --prompt="context change"\` - Update tasks from ID onwards
 
 ## Complexity Analysis
-- \`task-master analyze-complexity\` - Analyze all tasks
-- \`task-master analyze-complexity --research\` - With research
-- \`task-master complexity-report\` - View analysis report
+- \`taskmaster analyze-complexity\` - Analyze all tasks
+- \`taskmaster analyze-complexity --research\` - With research
+- \`taskmaster complexity-report\` - View analysis report
 
 ## Dependencies
-- \`task-master add-dependency --id=2 --depends-on=1\` - Add dependency
-- \`task-master remove-dependency --id=2 --depends-on=1\` - Remove dependency
-- \`task-master validate-dependencies\` - Check for issues
-- \`task-master fix-dependencies\` - Auto-fix dependency issues
+- \`taskmaster add-dependency --id=2 --depends-on=1\` - Add dependency
+- \`taskmaster remove-dependency --id=2 --depends-on=1\` - Remove dependency
+- \`taskmaster validate-dependencies\` - Check for issues
+- \`taskmaster fix-dependencies\` - Auto-fix dependency issues
 
 ## Task Movement
-- \`task-master move --from=5 --to=7\` - Move task
-- \`task-master move --from=5.2 --to=7.3\` - Move subtask
+- \`taskmaster move --from=5 --to=7\` - Move task
+- \`taskmaster move --from=5.2 --to=7.3\` - Move subtask
 
 ## Tagged Task Lists
-- \`task-master tags\` - List all tags
-- \`task-master add-tag feature-x --description="..."\` - Create new tag
-- \`task-master add-tag --from-branch\` - Create tag from git branch
-- \`task-master use-tag feature-x\` - Switch to tag
-- \`task-master delete-tag feature-x\` - Delete tag
-- \`task-master rename-tag old new\` - Rename tag
-- \`task-master copy-tag source target\` - Copy tag
+- \`taskmaster tags\` - List all tags
+- \`taskmaster add-tag feature-x --description="..."\` - Create new tag
+- \`taskmaster add-tag --from-branch\` - Create tag from git branch
+- \`taskmaster use-tag feature-x\` - Switch to tag
+- \`taskmaster delete-tag feature-x\` - Delete tag
+- \`taskmaster rename-tag old new\` - Rename tag
+- \`taskmaster copy-tag source target\` - Copy tag
 
 ## Research
-- \`task-master research "query"\` - Research a topic
-- \`task-master research "query" --tree\` - Include project tree
-- \`task-master research "query" --save-to=1.1\` - Save to task
+- \`taskmaster research "query"\` - Research a topic
+- \`taskmaster research "query" --tree\` - Include project tree
+- \`taskmaster research "query" --save-to=1.1\` - Save to task
 
 ## Model Configuration
-- \`task-master models\` - View current model config
-- \`task-master models --setup\` - Interactive setup
-- \`task-master models --set-main claude-3-5-sonnet\` - Set main model
-- \`task-master models --set-research perplexity-...\` - Set research model
-- \`task-master models --set-fallback gpt-4o-mini\` - Set fallback model
+- \`taskmaster models\` - View current model config
+- \`taskmaster models --setup\` - Interactive setup
+- \`taskmaster models --set-main claude-3-5-sonnet\` - Set main model
+- \`taskmaster models --set-research perplexity-...\` - Set research model
+- \`taskmaster models --set-fallback gpt-4o-mini\` - Set fallback model
 
 ## Other Commands
-- \`task-master generate\` - Regenerate task markdown files
-- \`task-master rules add cursor\` - Add rule set
-- \`task-master rules remove windsurf\` - Remove rule set
+- \`taskmaster generate\` - Regenerate task markdown files
+- \`taskmaster rules add cursor\` - Add rule set
+- \`taskmaster rules remove windsurf\` - Remove rule set
 
 # TASK STATUSES
 
@@ -213,9 +213,9 @@ TaskMaster AI works with MCP (Model Context Protocol) for IDE integration.
 \`\`\`json
 {
   "mcpServers": {
-    "task-master-ai": {
+    "taskmasterai": {
       "command": "npx",
-      "args": ["-y", "task-master-ai"],
+      "args": ["-y", "@taskmasterai/cli", "taskmaster-mcp"],
       "env": {
         "ANTHROPIC_API_KEY": "your-key",
         "PERPLEXITY_API_KEY": "your-key"
@@ -235,7 +235,7 @@ Set tier via TASK_MASTER_TOOLS env var.
 # CONFIGURATION
 
 ## .taskmaster/config.json
-Main configuration file. Managed via \`task-master models\` command.
+Main configuration file. Managed via \`taskmaster models\` command.
 
 ## API Keys
 Set in .env file (CLI) or mcp.json env section (MCP):
@@ -265,26 +265,26 @@ project/
 
 # WORKFLOW
 
-1. Initialize: \`task-master init\`
+1. Initialize: \`taskmaster init\`
 2. Create/obtain PRD document
-3. Parse PRD: \`task-master parse-prd prd.md\`
-4. Analyze complexity: \`task-master analyze-complexity --research\`
-5. Expand tasks: \`task-master expand --all --research\`
+3. Parse PRD: \`taskmaster parse-prd prd.md\`
+4. Analyze complexity: \`taskmaster analyze-complexity --research\`
+5. Expand tasks: \`taskmaster expand --all --research\`
 6. Work on tasks:
-   - \`task-master next\` - Get next task
-   - \`task-master show <id>\` - View details
-   - \`task-master set-status --id=<id> --status=in-progress\`
+   - \`taskmaster next\` - Get next task
+   - \`taskmaster show <id>\` - View details
+   - \`taskmaster set-status --id=<id> --status=in-progress\`
    - Implement the task
-   - \`task-master update-subtask --id=<id> --prompt="notes"\`
-   - \`task-master set-status --id=<id> --status=done\`
+   - \`taskmaster update-subtask --id=<id> --prompt="notes"\`
+   - \`taskmaster set-status --id=<id> --status=done\`
 7. Repeat until done
 
 # TAGGED TASK LISTS
 
 Tags allow separate task contexts for different features/branches:
 - Default tag is "master"
-- Create feature tags: \`task-master add-tag feature-auth\`
-- Switch context: \`task-master use-tag feature-auth\`
+- Create feature tags: \`taskmaster add-tag feature-auth\`
+- Switch context: \`taskmaster use-tag feature-auth\`
 - Isolate work across branches/features
 - Prevent merge conflicts in tasks.json
 
@@ -292,7 +292,7 @@ Tags allow separate task contexts for different features/branches:
 
 - Website: https://taskmaster.one
 - Documentation: https://taskmaster.one/docs
-- GitHub: https://github.com/eyaltoledano/claude-task-master
+- Documentation: https://taskmaster.one/docs
 - Enterprise inquiries: taskmasteroneai@gmail.com
 
 Answer questions helpfully and concisely. For questions about pricing or billing, always mention the exact prices. For CLI commands, provide the exact syntax. If you're unsure about something specific, say so.`;
@@ -963,6 +963,352 @@ export const cancelSubscription = onRequest(
       console.error('Error canceling subscription:', error);
       res.status(500).json({ 
         error: 'Failed to cancel subscription',
+        details: error.message 
+      });
+    }
+  }
+);
+
+// ============================================
+// GET USER CONFIG (API Keys + Models for CLI)
+// ============================================
+
+export const getUserConfig = onRequest(
+  {
+    cors: true,
+    maxInstances: 50
+  },
+  async (req, res) => {
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Method not allowed' });
+      return;
+    }
+
+    try {
+      const { licenseKey } = req.body;
+
+      if (!licenseKey) {
+        res.status(400).json({ 
+          success: false, 
+          error: 'License key is required' 
+        });
+        return;
+      }
+
+      // First validate the license
+      const licenseDoc = await db.collection('licenses').doc(licenseKey).get();
+
+      if (!licenseDoc.exists) {
+        res.status(404).json({ 
+          success: false, 
+          error: 'License key not found' 
+        });
+        return;
+      }
+
+      const license = licenseDoc.data();
+      
+      // Check if license is active
+      if (license.status !== 'active' && license.status !== 'grace_period') {
+        res.status(403).json({ 
+          success: false, 
+          error: 'License is not active' 
+        });
+        return;
+      }
+
+      const userId = license.userId;
+
+      // Get user's API keys
+      const apiKeysRef = db.collection('users').doc(userId).collection('apiKeys');
+      const apiKeysSnapshot = await apiKeysRef.get();
+      
+      const apiKeys = {};
+      apiKeysSnapshot.forEach((doc) => {
+        const data = doc.data();
+        // Return the full key if stored, otherwise just indicate it's set
+        // Note: In production, you should encrypt keys at rest and decrypt here
+        if (data.fullKey) {
+          apiKeys[data.provider] = data.fullKey;
+        }
+      });
+
+      // Get user's model config
+      const modelsRef = db.collection('users').doc(userId).collection('settings').doc('models');
+      const modelsDoc = await modelsRef.get();
+      
+      let models = null;
+      if (modelsDoc.exists) {
+        models = modelsDoc.data();
+      }
+
+      // Update last synced timestamp
+      await db.collection('licenses').doc(licenseKey).update({
+        lastConfigSync: admin.firestore.Timestamp.now()
+      });
+
+      res.status(200).json({
+        success: true,
+        config: {
+          apiKeys,
+          models,
+          syncedAt: new Date().toISOString()
+        }
+      });
+
+    } catch (error) {
+      console.error('Error getting user config:', error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Failed to get user config',
+        details: error.message 
+      });
+    }
+  }
+);
+
+// ============================================
+// INCREMENT USAGE (Called by CLI after AI operations)
+// ============================================
+
+export const incrementUsage = onRequest(
+  {
+    cors: true,
+    maxInstances: 100
+  },
+  async (req, res) => {
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Method not allowed' });
+      return;
+    }
+
+    try {
+      const { licenseKey, operation, count = 1 } = req.body;
+
+      if (!licenseKey) {
+        res.status(400).json({ 
+          success: false, 
+          error: 'License key is required' 
+        });
+        return;
+      }
+
+      // Validate license
+      const licenseDoc = await db.collection('licenses').doc(licenseKey).get();
+
+      if (!licenseDoc.exists) {
+        res.status(404).json({ 
+          success: false, 
+          error: 'License key not found' 
+        });
+        return;
+      }
+
+      const license = licenseDoc.data();
+      
+      if (license.status !== 'active' && license.status !== 'grace_period') {
+        res.status(403).json({ 
+          success: false, 
+          error: 'License is not active' 
+        });
+        return;
+      }
+
+      const userId = license.userId;
+      const userRef = db.collection('users').doc(userId);
+      const now = admin.firestore.Timestamp.now();
+
+      // Get current usage
+      const userDoc = await userRef.get();
+      const userData = userDoc.exists ? userDoc.data() : {};
+      
+      // Check if we need to reset monthly usage (based on subscription period)
+      let currentTasksUsed = userData.tasksUsed || 0;
+      const lastResetDate = userData.usageResetDate?.toDate();
+      const currentPeriodEnd = userData.currentPeriodEnd?.toDate();
+      
+      // Reset if we're past the current period end
+      if (currentPeriodEnd && new Date() > currentPeriodEnd) {
+        currentTasksUsed = 0;
+      }
+
+      // Increment usage
+      const newTasksUsed = currentTasksUsed + count;
+      const planDetails = PLAN_DETAILS[license.plan] || {};
+      const tasksPerMonth = planDetails.tasksPerMonth || 0;
+      const isOverage = tasksPerMonth > 0 && newTasksUsed > tasksPerMonth;
+      const overageCount = isOverage ? newTasksUsed - tasksPerMonth : 0;
+
+      // Update user document
+      await userRef.set({
+        tasksUsed: newTasksUsed,
+        lastTaskAt: now,
+        updatedAt: now
+      }, { merge: true });
+
+      // Log usage event for analytics
+      await db.collection('users').doc(userId).collection('usageLog').add({
+        operation: operation || 'unknown',
+        count: count,
+        timestamp: now,
+        licenseKey: licenseKey,
+        totalAfter: newTasksUsed
+      });
+
+      res.status(200).json({
+        success: true,
+        usage: {
+          tasksUsed: newTasksUsed,
+          tasksPerMonth: tasksPerMonth,
+          remaining: Math.max(0, tasksPerMonth - newTasksUsed),
+          isOverage: isOverage,
+          overageCount: overageCount,
+          overageRate: planDetails.overageRate || 0
+        }
+      });
+
+    } catch (error) {
+      console.error('Error incrementing usage:', error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Failed to increment usage',
+        details: error.message 
+      });
+    }
+  }
+);
+
+// ============================================
+// GET USAGE STATS (For dashboard)
+// ============================================
+
+export const getUsageStats = onRequest(
+  {
+    cors: true,
+    maxInstances: 50
+  },
+  async (req, res) => {
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Method not allowed' });
+      return;
+    }
+
+    try {
+      const { userId } = req.body;
+
+      if (!userId) {
+        res.status(400).json({ error: 'userId is required' });
+        return;
+      }
+
+      // Get user data
+      const userDoc = await db.collection('users').doc(userId).get();
+      
+      if (!userDoc.exists) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+
+      const userData = userDoc.data();
+      const licenseKey = userData.licenseKey;
+
+      if (!licenseKey) {
+        res.status(200).json({
+          hasLicense: false,
+          message: 'No active license'
+        });
+        return;
+      }
+
+      // Get license details
+      const licenseDoc = await db.collection('licenses').doc(licenseKey).get();
+      const license = licenseDoc.exists ? licenseDoc.data() : {};
+      const planDetails = PLAN_DETAILS[license.plan] || {};
+
+      // Get recent usage log (last 30 entries)
+      const usageLogRef = db.collection('users').doc(userId).collection('usageLog');
+      const recentUsage = await usageLogRef
+        .orderBy('timestamp', 'desc')
+        .limit(30)
+        .get();
+
+      const usageLog = [];
+      recentUsage.forEach(doc => {
+        const data = doc.data();
+        usageLog.push({
+          operation: data.operation,
+          count: data.count,
+          timestamp: data.timestamp?.toDate()?.toISOString(),
+          totalAfter: data.totalAfter
+        });
+      });
+
+      // Get usage by operation type (for current period)
+      const operationCounts = {};
+      const allUsageRef = await usageLogRef.get();
+      allUsageRef.forEach(doc => {
+        const data = doc.data();
+        const op = data.operation || 'unknown';
+        operationCounts[op] = (operationCounts[op] || 0) + (data.count || 1);
+      });
+
+      // Calculate daily usage for the past 7 days
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      
+      const dailyUsage = {};
+      allUsageRef.forEach(doc => {
+        const data = doc.data();
+        const date = data.timestamp?.toDate();
+        if (date && date >= sevenDaysAgo) {
+          const dateKey = date.toISOString().split('T')[0];
+          dailyUsage[dateKey] = (dailyUsage[dateKey] || 0) + (data.count || 1);
+        }
+      });
+
+      const tasksUsed = userData.tasksUsed || 0;
+      const tasksPerMonth = planDetails.tasksPerMonth || 0;
+      const isOverage = tasksPerMonth > 0 && tasksUsed > tasksPerMonth;
+
+      res.status(200).json({
+        success: true,
+        stats: {
+          tasksUsed: tasksUsed,
+          tasksPerMonth: tasksPerMonth,
+          remaining: Math.max(0, tasksPerMonth - tasksUsed),
+          percentUsed: tasksPerMonth > 0 ? Math.round((tasksUsed / tasksPerMonth) * 100) : 0,
+          isOverage: isOverage,
+          overageCount: isOverage ? tasksUsed - tasksPerMonth : 0,
+          overageRate: planDetails.overageRate || 0,
+          estimatedOverageCost: isOverage ? (tasksUsed - tasksPerMonth) * (planDetails.overageRate || 0) : 0,
+          lastTaskAt: userData.lastTaskAt?.toDate()?.toISOString() || null,
+          plan: license.plan,
+          planName: planDetails.name
+        },
+        operationBreakdown: operationCounts,
+        dailyUsage: dailyUsage,
+        recentActivity: usageLog.slice(0, 10)
+      });
+
+    } catch (error) {
+      console.error('Error getting usage stats:', error);
+      res.status(500).json({ 
+        error: 'Failed to get usage stats',
         details: error.message 
       });
     }

@@ -8,9 +8,9 @@ import {
   faCode,
   faTerminal,
   faBrain,
-  faDiagramProject
+  faDiagramProject,
+  faBook
 } from '@fortawesome/free-solid-svg-icons'
-import { faGithub } from '@fortawesome/free-brands-svg-icons'
 import { useAuth } from '../contexts/AuthContext'
 
 const LOGO_URL = 'https://firebasestorage.googleapis.com/v0/b/taskmaster-ai-e2302.firebasestorage.app/o/TaskMaster_AI%20Logo%20(1).png?alt=media&token=c309f276-a8a7-438f-a3a0-75576d1fa4d8'
@@ -29,7 +29,7 @@ const features = [
   {
     icon: faMicrochip,
     title: 'Multi-Model Support',
-    description: 'Use Claude, GPT-4, Gemini, Perplexity, and more. Switch models as needed.',
+    description: 'Use Claude, GPT-4, Gemini, Perplexity, Ollama, and more. Switch models as needed.',
   },
   {
     icon: faDiagramProject,
@@ -105,6 +105,16 @@ const OpenRouterLogo = () => (
       <path d="M16.804 1.957l7.22 4.105v.087L16.73 10.21l.017-2.117-.821-.03c-1.059-.028-1.611.002-2.268.11-1.064.175-2.038.577-3.147 1.352L8.345 11.03c-.284.195-.495.336-.68.455l-.515.322-.397.234.385.23.53.338c.476.314 1.17.796 2.701 1.866 1.11.775 2.083 1.177 3.147 1.352l.3.045c.694.091 1.375.094 2.825.033l.022-2.159 7.22 4.105v.087L16.589 22l.014-1.862-.635.022c-1.386.042-2.137.002-3.138-.162-1.694-.28-3.26-.926-4.881-2.059l-2.158-1.5a21.997 21.997 0 00-.755-.498l-.467-.28a55.927 55.927 0 00-.76-.43C2.908 14.73.563 14.116 0 14.116V9.888l.14.004c.564-.007 2.91-.622 3.809-1.124l1.016-.58.438-.274c.428-.28 1.072-.726 2.686-1.853 1.621-1.133 3.186-1.78 4.881-2.059 1.152-.19 1.974-.213 3.814-.138l.02-1.907z"/>
     </svg>
     <span className="text-xl font-medium">OpenRouter</span>
+  </div>
+)
+
+const OllamaLogo = () => (
+  <div className="provider-logo flex-shrink-0" style={{ height: '40px' }}>
+    <img 
+      src="https://firebasestorage.googleapis.com/v0/b/taskmaster-ai-e2302.firebasestorage.app/o/ollama-logo.png?alt=media&token=d082c9e2-28c6-4cf5-a523-08451c9d3fb0" 
+      alt="Ollama" 
+      style={{ height: '40px' }}
+    />
   </div>
 )
 
@@ -190,15 +200,10 @@ export default function Landing() {
                   Get Started
                 </Link>
               )}
-              <a
-                href="https://github.com/eyaltoledano/claude-task-master"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn-secondary text-base px-6 py-3"
-              >
-                <FontAwesomeIcon icon={faGithub} className="w-4 h-4 mr-2" />
-                View on GitHub
-              </a>
+              <Link to="/docs" className="btn-secondary text-base px-6 py-3">
+                <FontAwesomeIcon icon={faBook} className="w-4 h-4 mr-2" />
+                View Documentation
+              </Link>
             </div>
           </motion.div>
 
@@ -215,14 +220,14 @@ export default function Landing() {
                 <div className="w-3 h-3 rounded-full bg-[#FF5F57]" />
                 <div className="w-3 h-3 rounded-full bg-[#FEBC2E]" />
                 <div className="w-3 h-3 rounded-full bg-[#28C840]" />
-                <span className="text-xs text-text-subtle ml-2 font-mono">task-master</span>
+                <span className="text-xs text-text-subtle ml-2 font-mono">taskmaster</span>
               </div>
               {/* Terminal content */}
               <div className="p-5 font-mono text-sm space-y-2 bg-background">
-                <div className="text-text-subtle">$ task-master parse-prd ./docs/prd.md</div>
+                <div className="text-text-subtle">$ taskmaster parse-prd ./docs/prd.md</div>
                 <div className="text-status-success">✓ Parsed PRD successfully</div>
                 <div className="text-text-muted">  Generated 12 tasks with dependencies</div>
-                <div className="mt-4 text-text-subtle">$ task-master next</div>
+                <div className="mt-4 text-text-subtle">$ taskmaster next</div>
                 <div className="text-text">
                   <span className="text-text-muted">Task 1.1:</span> Set up project structure
                 </div>
@@ -251,6 +256,7 @@ export default function Landing() {
                 <PerplexityLogo />
                 <AzureLogo />
                 <OpenRouterLogo />
+                <OllamaLogo />
               </div>
               {/* Duplicate set for seamless loop */}
               <div className="carousel-set">
@@ -261,6 +267,7 @@ export default function Landing() {
                 <PerplexityLogo />
                 <AzureLogo />
                 <OpenRouterLogo />
+                <OllamaLogo />
               </div>
             </div>
           </div>

@@ -76,6 +76,7 @@ const navigation = [
         ]
       },
       { id: 'api-keys', label: 'API Keys', icon: faKey },
+      { id: 'license-usage', label: 'License & Usage', icon: faKey },
       { id: 'faq', label: 'FAQ', icon: faQuestionCircle },
       { id: 'contribute', label: 'Contribute', icon: faHandshake },
     ]
@@ -94,13 +95,6 @@ const navigation = [
       { id: 'mcp-tools', label: 'MCP Tools', icon: faCubes },
       { id: 'cli-commands', label: 'CLI Commands', icon: faTerminal },
       { id: 'task-structure', label: 'Task Structure', icon: faFileLines },
-    ]
-  },
-  {
-    title: 'TDD Workflow (Autopilot)',
-    items: [
-      { id: 'tdd-quick-start', label: 'TDD Workflow Quick Start', icon: faCode },
-      { id: 'agent-integration', label: 'AI Agent Integration Guide', icon: faComments },
     ]
   },
 ]
@@ -418,7 +412,7 @@ winget install OpenJS.NodeJS.LTS"
 
         <Accordion title="Quick Install for Cursor 1.0+ (One-Click)" defaultOpen>
           <a 
-            href="cursor://anysphere.cursor-deeplink/mcp/install?name=task-master-ai&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsIi0tcGFja2FnZT10YXNrLW1hc3Rlci1haSIsInRhc2stbWFzdGVyLWFpIl0sImVudiI6eyJBTlRIUk9QSUNfQVBJX0tFWSI6IllPVVJfQU5USFJPUElDX0FQSV9LRVlfSEVSRSIsIlBFUlBMRVhJVFlfQVBJX0tFWSI6IllPVVJfUEVSUExFWElUWV9BUElfS0VZX0hFUkUiLCJPUEVOQUlfQVBJX0tFWSI6IllPVVJfT1BFTkFJX0tFWV9IRVJFIiwiR09PR0xFX0FQSV9LRVkiOiJZT1VSX0dPT0dMRV9LRVlfSEVSRSIsIk1JU1RSQUxfQVBJX0tFWSI6IllPVVJfTUlTVFJBTF9LRVlfSEVSRSIsIk9QRU5ST1VURVJfQVBJX0tFWSI6IllPVVJfT1BFTlJPVVRFUl9LRVlfSEVSRSIsIlhBSV9BUElfS0VZIjoiWU9VUl9YQUlfS0VZX0hFUkUiLCJBWlVSRV9PUEVOQUJFX0FQSV9LRVkiOiJZT1VSX0FaVVJFX0tFWV9IRVJFIiwiT0xMQU1BX0FQSV9LRVkiOiJZT1VSX09MTEFNQV9BUElfS0VZX0hFUkUifX0%3D"
+            href="cursor://anysphere.cursor-deeplink/mcp/install?name=taskmasterai&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsIkB0YXNrbWFzdGVyYWkvY2xpIiwidGFza21hc3Rlci1tY3AiXSwiZW52Ijp7IkFOVEhST1BJQ19BUElfS0VZIjoiWU9VUl9BTlRIUk9QSUNfQVBJX0tFWV9IRVJFIiwiUEVSUExFWElUWV9BUElfS0VZIjoiWU9VUl9QRVJQTEVYSVRZX0FQSV9LRVlfSEVSRSIsIk9QRU5BSV9BUElfS0VZIjoiWU9VUl9PUEVOQUlfS0VZX0hFUkUiLCJHT09HTEVfQVBJX0tFWSI6IllPVVJfR09PR0xFX0tFWV9IRVJFIiwiTUlTVFJBTF9BUElfS0VZIjoiWU9VUl9NSVNUUkFMX0tFWV9IRVJFIiwiT1BFTlJPVVRFUl9BUElfS0VZIjoiWU9VUl9PUEVOUk9VVEVSX0tFWV9IRVJFIiwiWEFJX0FQSV9LRVkiOiJZT1VSX1hBSV9LRVlfSEVSRSJ9fQ=="
             className="inline-block mb-4 hover:opacity-90 transition-opacity"
           >
             <img 
@@ -433,7 +427,7 @@ winget install OpenJS.NodeJS.LTS"
           </p>
           
           <CodeBlock 
-            code="cursor://anysphere.cursor-deeplink/mcp/install?name=task-master-ai&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsIi0tcGFja2FnZT10YXNrLW1hc3Rlci1haSIsInRhc2stbWFzdGVyLWFpIl0sImVudiI6eyJBTlRIUk9QSUNfQVBJX0tFWSI6IllPVVJfQU5USFJPUElDX0FQSV9LRVlfSEVSRSIsIlBFUlBMRVhJVFlfQVBJX0tFWSI6IllPVVJfUEVSUExFWElUWV9BUElfS0VZX0hFUkUiLCJPUEVOQUlfQVBJX0tFWSI6IllPVVJfT1BFTkFJX0tFWV9IRVJFIiwiR09PR0xFX0FQSV9LRVkiOiJZT1VSX0dPT0dMRV9LRVlfSEVSRSIsIk1JU1RSQUxfQVBJX0tFWSI6IllPVVJfTUlTVFJBTF9LRVlfSEVSRSIsIk9QRU5ST1VURVJfQVBJX0tFWSI6IllPVVJfT1BFTlJPVVRFUl9LRVlfSEVSRSIsIlhBSV9BUElfS0VZIjoiWU9VUl9YQUlfS0VZX0hFUkUiLCJBWlVSRV9PUEVOQUJFX0FQSV9LRVkiOiJZT1VSX0FaVVJFX0tFWV9IRVJFIiwiT0xMQU1BX0FQSV9LRVkiOiJZT1VSX09MTEFNQV9BUElfS0VZX0hFUkUifX0%3D"
+            code="cursor://anysphere.cursor-deeplink/mcp/install?name=taskmasterai&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsIkB0YXNrbWFzdGVyYWkvY2xpIiwidGFza21hc3Rlci1tY3AiXSwiZW52Ijp7IkFOVEhST1BJQ19BUElfS0VZIjoiWU9VUl9BTlRIUk9QSUNfQVBJX0tFWV9IRVJFIiwiUEVSUExFWElUWV9BUElfS0VZIjoiWU9VUl9QRVJQTEVYSVRZX0FQSV9LRVlfSEVSRSIsIk9QRU5BSV9BUElfS0VZIjoiWU9VUl9PUEVOQUlfS0VZX0hFUkUiLCJHT09HTEVfQVBJX0tFWSI6IllPVVJfR09PR0xFX0tFWV9IRVJFIiwiTUlTVFJBTF9BUElfS0VZIjoiWU9VUl9NSVNUUkFMX0tFWV9IRVJFIiwiT1BFTlJPVVRFUl9BUElfS0VZIjoiWU9VUl9PUEVOUk9VVEVSX0tFWV9IRVJFIiwiWEFJX0FQSV9LRVkiOiJZT1VSX1hBSV9LRVlfSEVSRSJ9fQ=="
             filename="URL"
           />
           
@@ -445,14 +439,14 @@ winget install OpenJS.NodeJS.LTS"
           <p className="text-text-muted text-sm mb-3">For Claude Code users:</p>
           
           <CodeBlock 
-            code="claude mcp add taskmaster-ai -- npx -y task-master-ai"
+            code="claude mcp add taskmasterai -- npx -y @taskmasterai/cli taskmaster-mcp"
             filename="Terminal"
           />
           
           <p className="text-text-muted text-sm mt-4">Don't forget to add your API keys to the configuration:</p>
           <ul className="list-disc list-inside text-text-muted text-sm space-y-1 mt-2">
             <li>in the root .env of your Project</li>
-            <li>in the "env" section of your mcp config for taskmaster-ai</li>
+            <li>in the "env" section of your mcp config for taskmasterai</li>
           </ul>
         </Accordion>
 
@@ -510,9 +504,9 @@ winget install OpenJS.NodeJS.LTS"
           <CodeBlock 
             code={`{
   "mcpServers": {
-    "taskmaster-ai": {
+    "taskmasterai": {
       "command": "npx",
-      "args": ["-y", "task-master-ai"],
+      "args": ["-y", "@taskmasterai/cli", "taskmaster-mcp"],
       "env": {
         "ANTHROPIC_API_KEY": "YOUR_ANTHROPIC_API_KEY_HERE",
         "PERPLEXITY_API_KEY": "YOUR_PERPLEXITY_API_KEY_HERE",
@@ -535,28 +529,56 @@ winget install OpenJS.NodeJS.LTS"
         </Accordion>
 
         <Accordion title="Option 2: Using Command Line">
-          <h4 className="text-lg font-semibold mb-4">CLI Installation</h4>
+          <h4 className="text-lg font-semibold mb-4">Step 1: CLI Installation</h4>
           
           <CodeBlock 
-            code={`# Install globally
-npm install -g task-master-ai
+            code={`# Install globally (recommended)
+npm install -g @taskmasterai/cli
 
 # OR install locally within your project
-npm install task-master-ai`}
+npm install @taskmasterai/cli`}
             filename="Terminal"
           />
 
-          <h4 className="text-lg font-semibold mt-6 mb-4">Initialize a new project</h4>
+          <h4 className="text-lg font-semibold mt-6 mb-4">Step 2: Activate Your License</h4>
+          <p className="text-text-muted mb-4">
+            Before you can use TaskMaster AI, you need to activate your license key. You can find your license key in your <a href="/app/billing" className="text-accent underline">Dashboard → Billing</a> page.
+          </p>
+          
+          <CodeBlock 
+            code={`# Activate your license
+taskmaster activate tm_live_your_license_key_here
+
+# Check license status
+taskmaster license`}
+            filename="Terminal"
+          />
+
+          <TipBox type="info">
+            Your license key starts with <code className="bg-surface-highlight px-1 rounded">tm_live_</code> for production or <code className="bg-surface-highlight px-1 rounded">tm_test_</code> for testing.
+          </TipBox>
+
+          <h4 className="text-lg font-semibold mt-6 mb-4">Step 3: Sync API Keys (Optional)</h4>
+          <p className="text-text-muted mb-4">
+            If you've configured API keys in your <a href="/app/api-keys" className="text-accent underline">Dashboard</a>, you can sync them to your CLI:
+          </p>
+          
+          <CodeBlock 
+            code="taskmaster sync"
+            filename="Terminal"
+          />
+
+          <h4 className="text-lg font-semibold mt-6 mb-4">Step 4: Initialize a New Project</h4>
           
           <CodeBlock 
             code={`# If installed globally
-task-master init
+taskmaster init
 
 # If installed locally
-npx task-master init
+npx taskmaster init
 
 # Initialize project with specific rules
-task-master init --rules cursor,windsurf,vscode`}
+taskmaster init --rules cursor,windsurf,vscode`}
             filename="Terminal"
           />
 
@@ -564,6 +586,48 @@ task-master init --rules cursor,windsurf,vscode`}
             This will prompt you for project details and set up a new project with the necessary files and structure.
           </p>
         </Accordion>
+
+        <h3 className="text-xl font-semibold mb-4 mt-8">License Management</h3>
+        <p className="text-text-muted mb-4">
+          TaskMaster AI requires a valid license to use AI features. Here are the license management commands:
+        </p>
+
+        <div className="overflow-x-auto mb-6">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-left py-2 pr-4 text-text-muted font-medium">Command</th>
+                <th className="text-left py-2 text-text-muted font-medium">Description</th>
+              </tr>
+            </thead>
+            <tbody className="text-text-muted">
+              <tr className="border-b border-border">
+                <td className="py-2 pr-4 font-mono text-xs">taskmaster activate &lt;key&gt;</td>
+                <td className="py-2">Activate your license key on this machine</td>
+              </tr>
+              <tr className="border-b border-border">
+                <td className="py-2 pr-4 font-mono text-xs">taskmaster deactivate</td>
+                <td className="py-2">Deactivate the current license</td>
+              </tr>
+              <tr className="border-b border-border">
+                <td className="py-2 pr-4 font-mono text-xs">taskmaster license</td>
+                <td className="py-2">Show current license status and plan details</td>
+              </tr>
+              <tr className="border-b border-border">
+                <td className="py-2 pr-4 font-mono text-xs">taskmaster usage</td>
+                <td className="py-2">View AI operations usage and remaining limits</td>
+              </tr>
+              <tr className="border-b border-border">
+                <td className="py-2 pr-4 font-mono text-xs">taskmaster sync</td>
+                <td className="py-2">Sync API keys and model config from your dashboard</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <TipBox>
+          Your license key is tied to your subscription plan. Upgrade your plan at any time from your <a href="/app/billing" className="text-accent underline">Dashboard → Billing</a> page.
+        </TipBox>
       </>
     )
   },
@@ -594,7 +658,7 @@ OPENAI_API_KEY=your_openai_key_here`}
         </p>
 
         <CodeBlock 
-          code="task-master models --setup"
+          code="taskmaster models --setup"
           filename="Terminal"
         />
 
@@ -602,13 +666,13 @@ OPENAI_API_KEY=your_openai_key_here`}
 
         <CodeBlock 
           code={`# Set main model
-task-master models --set-main claude-sonnet-4-20250514
+taskmaster models --set-main claude-sonnet-4-20250514
 
 # Set research model
-task-master models --set-research sonar-pro
+taskmaster models --set-research sonar-pro
 
 # Set fallback model
-task-master models --set-fallback gpt-4o-mini`}
+taskmaster models --set-fallback gpt-4o-mini`}
           filename="Terminal"
         />
       </>
@@ -673,13 +737,13 @@ Brief description of your project and its goals.
 
         <CodeBlock 
           code={`# Parse PRD and generate tasks
-task-master parse-prd .taskmaster/docs/prd.md
+taskmaster parse-prd .taskmaster/docs/prd.md
 
 # Limit number of generated tasks
-task-master parse-prd .taskmaster/docs/prd.md --num-tasks=10
+taskmaster parse-prd .taskmaster/docs/prd.md --num-tasks=10
 
 # Append to existing tasks (for additional PRDs)
-task-master parse-prd .taskmaster/docs/new-feature.md --append`}
+taskmaster parse-prd .taskmaster/docs/new-feature.md --append`}
           filename="Terminal"
         />
 
@@ -715,10 +779,10 @@ task-master parse-prd .taskmaster/docs/new-feature.md --append`}
 
         <CodeBlock 
           code={`# Basic complexity analysis
-task-master analyze-complexity
+taskmaster analyze-complexity
 
 # With research model for more informed analysis
-task-master analyze-complexity --research`}
+taskmaster analyze-complexity --research`}
           filename="Terminal"
         />
 
@@ -738,7 +802,7 @@ task-master analyze-complexity --research`}
         </p>
 
         <CodeBlock 
-          code="task-master complexity-report"
+          code="taskmaster complexity-report"
           filename="Terminal"
         />
 
@@ -753,22 +817,22 @@ task-master analyze-complexity --research`}
 
         <CodeBlock 
           code={`# Expand all pending tasks (recommended)
-task-master expand --all
+taskmaster expand --all
 
 # Expand a specific task
-task-master expand --id=5
+taskmaster expand --id=5
 
 # Expand with specific number of subtasks
-task-master expand --id=5 --num=3
+taskmaster expand --id=5 --num=3
 
 # Expand with additional context
-task-master expand --id=5 --prompt="Focus on performance optimization"
+taskmaster expand --id=5 --prompt="Focus on performance optimization"
 
 # Force regenerate existing subtasks
-task-master expand --id=5 --force
+taskmaster expand --id=5 --force
 
 # Use research model for better subtasks
-task-master expand --id=5 --research`}
+taskmaster expand --id=5 --research`}
           filename="Terminal"
         />
 
@@ -795,13 +859,13 @@ task-master expand --id=5 --research`}
         <h4 className="text-lg font-medium mb-3 mt-6">1. View All Tasks</h4>
         <CodeBlock 
           code={`# List all tasks
-task-master list
+taskmaster list
 
 # Filter by status
-task-master list --status=pending
+taskmaster list --status=pending
 
 # Include subtasks
-task-master list --with-subtasks`}
+taskmaster list --with-subtasks`}
           filename="Terminal" 
         />
 
@@ -809,13 +873,13 @@ task-master list --with-subtasks`}
         <p className="text-text-muted mb-4">
           This command identifies the next task considering dependencies and priorities:
         </p>
-        <CodeBlock code="task-master next" filename="Terminal" />
+        <CodeBlock code="taskmaster next" filename="Terminal" />
 
         <h4 className="text-lg font-medium mb-3 mt-6">3. View Task Details</h4>
         <p className="text-text-muted mb-4">
           Get comprehensive details about a specific task including status, priority, dependencies, and implementation notes:
         </p>
-        <CodeBlock code="task-master show --id=1.1" filename="Terminal" />
+        <CodeBlock code="taskmaster show --id=1.1" filename="Terminal" />
 
         <h4 className="text-lg font-medium mb-3 mt-6">4. Execute the Task</h4>
         <p className="text-text-muted mb-4">
@@ -823,10 +887,10 @@ task-master list --with-subtasks`}
         </p>
         <CodeBlock 
           code={`# Add implementation notes
-task-master update-subtask --id=1.1 --prompt="Implemented the database schema with the following tables..."
+taskmaster update-subtask --id=1.1 --prompt="Implemented the database schema with the following tables..."
 
 # Use research for AI-powered insights
-task-master update-subtask --id=1.1 --prompt="Need to optimize query performance" --research`}
+taskmaster update-subtask --id=1.1 --prompt="Need to optimize query performance" --research`}
           filename="Terminal"
         />
 
@@ -836,7 +900,7 @@ task-master update-subtask --id=1.1 --prompt="Need to optimize query performance
         </p>
         <CodeBlock 
           code={`# Mark as done
-task-master set-status --id=1.1 --status=done
+taskmaster set-status --id=1.1 --status=done
 
 # Other status options: pending, in-progress, blocked, deferred`}
           filename="Terminal" 
@@ -848,7 +912,7 @@ task-master set-status --id=1.1 --status=done
         </p>
         <CodeBlock 
           code={`# Update tasks from a specific ID onwards
-task-master update --from=5 --prompt="We switched from MongoDB to PostgreSQL"`}
+taskmaster update --from=5 --prompt="We switched from MongoDB to PostgreSQL"`}
           filename="Terminal" 
         />
 
@@ -973,9 +1037,9 @@ export PERPLEXITY_API_KEY="pplx-your-key-here"`}
           <CodeBlock 
             code={`{
   "mcpServers": {
-    "task-master-ai": {
+    "taskmasterai": {
       "command": "npx",
-      "args": ["-y", "task-master-ai"],
+      "args": ["-y", "@taskmasterai/cli", "taskmaster-mcp"],
       "env": {
         "ANTHROPIC_API_KEY": "your-key-here",
         "PERPLEXITY_API_KEY": "your-key-here"
@@ -997,6 +1061,148 @@ export PERPLEXITY_API_KEY="pplx-your-key-here"`}
         <TipBox type="warning">
           <strong>Security Best Practices:</strong> Never commit API keys to version control. Add <code className="bg-surface-highlight px-1 rounded">.env</code> to your <code className="bg-surface-highlight px-1 rounded">.gitignore</code> file.
         </TipBox>
+      </>
+    )
+  },
+  'license-usage': {
+    title: 'License & Usage',
+    breadcrumb: 'Getting Started',
+    content: (
+      <>
+        <p className="text-text-muted mb-6">
+          TaskMaster AI requires a valid license to use AI-powered features. Your license determines your monthly AI operation limits.
+        </p>
+
+        <h3 className="text-xl font-semibold mb-4">License Activation</h3>
+        <p className="text-text-muted mb-4">
+          After purchasing a subscription, you'll receive a license key. Activate it on your machine:
+        </p>
+
+        <CodeBlock 
+          code={`# Activate your license key
+taskmaster activate tm_live_your_license_key_here
+
+# Verify activation
+taskmaster license`}
+          filename="Terminal"
+        />
+
+        <TipBox type="info">
+          Find your license key in your <a href="/app/billing" className="text-accent underline">Dashboard → Billing</a> page. License keys start with <code className="bg-surface-highlight px-1 rounded">tm_live_</code> or <code className="bg-surface-highlight px-1 rounded">tm_test_</code>.
+        </TipBox>
+
+        <h3 className="text-xl font-semibold mb-4 mt-8">License Commands</h3>
+        
+        <div className="overflow-x-auto mb-6">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-left py-2 pr-4 text-text-muted font-medium">Command</th>
+                <th className="text-left py-2 text-text-muted font-medium">Description</th>
+              </tr>
+            </thead>
+            <tbody className="text-text-muted">
+              <tr className="border-b border-border">
+                <td className="py-2 pr-4 font-mono text-xs">taskmaster activate &lt;key&gt;</td>
+                <td className="py-2">Activate a license key on this machine</td>
+              </tr>
+              <tr className="border-b border-border">
+                <td className="py-2 pr-4 font-mono text-xs">taskmaster deactivate</td>
+                <td className="py-2">Deactivate the current license (allows activation on another machine)</td>
+              </tr>
+              <tr className="border-b border-border">
+                <td className="py-2 pr-4 font-mono text-xs">taskmaster license</td>
+                <td className="py-2">Show current license status, plan details, and expiration</td>
+              </tr>
+              <tr className="border-b border-border">
+                <td className="py-2 pr-4 font-mono text-xs">taskmaster usage</td>
+                <td className="py-2">View current AI operations count and remaining limits for the billing period</td>
+              </tr>
+              <tr className="border-b border-border">
+                <td className="py-2 pr-4 font-mono text-xs">taskmaster sync</td>
+                <td className="py-2">Sync API keys and model configuration from your dashboard</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 className="text-xl font-semibold mb-4 mt-8">Usage Tracking</h3>
+        <p className="text-text-muted mb-4">
+          Each AI-powered operation counts toward your monthly limit. Check your usage anytime:
+        </p>
+
+        <CodeBlock 
+          code="taskmaster usage"
+          filename="Terminal"
+        />
+
+        <p className="text-text-muted mb-4 mt-4">
+          AI operations that count toward your limit include:
+        </p>
+
+        <ul className="list-disc list-inside space-y-2 text-text-muted mb-6">
+          <li><code className="bg-surface-highlight px-1 rounded">parse-prd</code> - Parsing a PRD to generate tasks</li>
+          <li><code className="bg-surface-highlight px-1 rounded">expand</code> - Expanding tasks into subtasks</li>
+          <li><code className="bg-surface-highlight px-1 rounded">add-task</code> - Adding a task with AI-generated content</li>
+          <li><code className="bg-surface-highlight px-1 rounded">update-task</code> - Updating a task with AI assistance</li>
+          <li><code className="bg-surface-highlight px-1 rounded">update-subtask</code> - Updating a subtask with AI assistance</li>
+          <li><code className="bg-surface-highlight px-1 rounded">analyze-complexity</code> - Analyzing task complexity</li>
+        </ul>
+
+        <h3 className="text-xl font-semibold mb-4 mt-8">Dashboard Sync</h3>
+        <p className="text-text-muted mb-4">
+          Configure your API keys and model preferences in your dashboard, then sync them to the CLI:
+        </p>
+
+        <CodeBlock 
+          code={`# Configure keys in dashboard, then sync
+taskmaster sync
+
+# This syncs:
+# - API keys from your dashboard
+# - Model configuration (main, research, fallback)
+# - Any updated settings`}
+          filename="Terminal"
+        />
+
+        <TipBox>
+          Dashboard sync is optional. You can also configure API keys directly via environment variables or <code className="bg-surface-highlight px-1 rounded">.env</code> files.
+        </TipBox>
+
+        <h3 className="text-xl font-semibold mb-4 mt-8">Plan Limits</h3>
+        
+        <div className="overflow-x-auto mb-6">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-left py-2 pr-4 text-text-muted font-medium">Plan</th>
+                <th className="text-left py-2 pr-4 text-text-muted font-medium">Price</th>
+                <th className="text-left py-2 text-text-muted font-medium">AI Operations/Month</th>
+              </tr>
+            </thead>
+            <tbody className="text-text-muted">
+              <tr className="border-b border-border">
+                <td className="py-2 pr-4 font-medium">Plus</td>
+                <td className="py-2 pr-4">$29/month</td>
+                <td className="py-2">500</td>
+              </tr>
+              <tr className="border-b border-border">
+                <td className="py-2 pr-4 font-medium">Pro</td>
+                <td className="py-2 pr-4">$199/month</td>
+                <td className="py-2">2,000</td>
+              </tr>
+              <tr className="border-b border-border">
+                <td className="py-2 pr-4 font-medium">Enterprise</td>
+                <td className="py-2 pr-4">Custom</td>
+                <td className="py-2">Unlimited</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p className="text-text-muted">
+          Upgrade your plan anytime from your <a href="/app/billing" className="text-accent underline">Dashboard → Billing</a> page. Usage resets at the start of each billing cycle.
+        </p>
       </>
     )
   },
@@ -1071,16 +1277,14 @@ export PERPLEXITY_API_KEY="pplx-your-key-here"`}
 
         <div className="grid md:grid-cols-2 gap-4 mb-8 mt-8">
           <a
-            href="https://github.com/eyaltoledano/claude-task-master"
-            target="_blank"
-            rel="noopener noreferrer"
+            href="mailto:taskmasteroneai@gmail.com"
             className="card hover:border-border-light p-5 group"
           >
             <div className="flex items-center gap-3 mb-2">
-              <FontAwesomeIcon icon={faGithub} className="w-5 h-5" />
-              <span className="font-medium">GitHub Repository</span>
+              <FontAwesomeIcon icon={faComments} className="w-5 h-5" />
+              <span className="font-medium">Contact Support</span>
             </div>
-            <p className="text-sm text-text-muted">View source code, report issues, and submit PRs</p>
+            <p className="text-sm text-text-muted">Report issues, suggest features, or get help</p>
           </a>
           
           <a 
@@ -1093,19 +1297,20 @@ export PERPLEXITY_API_KEY="pplx-your-key-here"`}
               <FontAwesomeIcon icon={faDiscord} className="w-5 h-5" />
               <span className="font-medium">Discord Community</span>
             </div>
-            <p className="text-sm text-text-muted">Join discussions and get help from the team</p>
+            <p className="text-sm text-text-muted">Join discussions and get help from the community</p>
           </a>
         </div>
 
-        <h3 className="text-xl font-semibold mb-4">🚀 Quick Start for Contributors</h3>
+        <h3 className="text-xl font-semibold mb-4">🚀 Getting Help</h3>
         
-        <Accordion title="1. Fork and Clone" defaultOpen>
-          <CodeBlock 
-            code={`git clone https://github.com/YOUR_USERNAME/claude-task-master.git
-cd claude-task-master
-npm install`}
-            filename="Terminal"
-          />
+        <Accordion title="Report an Issue" defaultOpen>
+          <p className="text-text-muted mb-3">
+            If you encounter a bug or have a feature request, please reach out to us:
+          </p>
+          <ul className="text-text-muted space-y-2">
+            <li>📧 Email: <a href="mailto:taskmasteroneai@gmail.com" className="text-accent hover:underline">taskmasteroneai@gmail.com</a></li>
+            <li>💬 Discord: <a href="https://discord.gg/taskmaster" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">Join our community</a></li>
+          </ul>
         </Accordion>
 
         <Accordion title="2. Create a Feature Branch">
@@ -1300,16 +1505,17 @@ npm run format`}
           </ul>
         </Accordion>
 
-        <h3 className="text-xl font-semibold mb-4 mt-8">🏗️ Project Structure</h3>
+        <h3 className="text-xl font-semibold mb-4 mt-8">🏗️ TaskMaster Project Structure</h3>
         <CodeBlock 
-          code={`claude-task-master/
-├── bin/                    # CLI executables
-├── mcp-server/            # MCP server implementation
-├── scripts/               # Core task management logic
-├── src/                   # Shared utilities and providers
-├── tests/                 # Test files
-├── docs/                  # Documentation
-└── .cursor/               # Cursor IDE rules and configuration`}
+          code={`your-project/
+├── .taskmaster/
+│   ├── tasks/
+│   │   └── tasks.json     # Main task database
+│   ├── docs/              # PRDs and documentation
+│   ├── reports/           # Complexity reports
+│   ├── templates/         # PRD templates
+│   └── config.json        # Configuration
+└── .env                   # API keys`}
           filename="Project Structure"
         />
 
@@ -1358,15 +1564,15 @@ npm run format`}
         <h3 className="text-xl font-semibold mb-4">Project Setup</h3>
         <div className="space-y-3 mb-8">
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">task-master init</code>
+            <code className="text-sm text-accent font-mono">taskmaster init</code>
             <p className="text-sm text-text-muted mt-1">Initialize a new TaskMaster project with necessary directories and configuration files.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">task-master parse-prd &lt;file&gt; [--num-tasks=N]</code>
+            <code className="text-sm text-accent font-mono">taskmaster parse-prd &lt;file&gt; [--num-tasks=N]</code>
             <p className="text-sm text-text-muted mt-1">Parse a PRD file to generate tasks. Use --num-tasks to limit the number of tasks generated.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">task-master models --setup</code>
+            <code className="text-sm text-accent font-mono">taskmaster models --setup</code>
             <p className="text-sm text-text-muted mt-1">Interactive setup for configuring AI models (main, research, fallback).</p>
           </div>
         </div>
@@ -1374,15 +1580,15 @@ npm run format`}
         <h3 className="text-xl font-semibold mb-4">Task Viewing</h3>
         <div className="space-y-3 mb-8">
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">task-master list [--status=STATUS] [--with-subtasks]</code>
+            <code className="text-sm text-accent font-mono">taskmaster list [--status=STATUS] [--with-subtasks]</code>
             <p className="text-sm text-text-muted mt-1">Display all tasks. Filter by status or include subtasks in the listing.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">task-master next</code>
+            <code className="text-sm text-accent font-mono">taskmaster next</code>
             <p className="text-sm text-text-muted mt-1">Show the next task to work on based on dependencies and priorities.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">task-master show --id=&lt;id&gt;</code>
+            <code className="text-sm text-accent font-mono">taskmaster show --id=&lt;id&gt;</code>
             <p className="text-sm text-text-muted mt-1">Display comprehensive details about a specific task including implementation notes.</p>
           </div>
         </div>
@@ -1390,19 +1596,19 @@ npm run format`}
         <h3 className="text-xl font-semibold mb-4">Task Management</h3>
         <div className="space-y-3 mb-8">
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">task-master add-task --prompt="&lt;description&gt;" [--research]</code>
+            <code className="text-sm text-accent font-mono">taskmaster add-task --prompt="&lt;description&gt;" [--research]</code>
             <p className="text-sm text-text-muted mt-1">Create a new task using AI. Use --research for more informed task creation.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">task-master set-status --id=&lt;id&gt; --status=&lt;status&gt;</code>
+            <code className="text-sm text-accent font-mono">taskmaster set-status --id=&lt;id&gt; --status=&lt;status&gt;</code>
             <p className="text-sm text-text-muted mt-1">Update task status (pending, in-progress, done, blocked, deferred).</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">task-master update-subtask --id=&lt;id&gt; --prompt="&lt;notes&gt;"</code>
+            <code className="text-sm text-accent font-mono">taskmaster update-subtask --id=&lt;id&gt; --prompt="&lt;notes&gt;"</code>
             <p className="text-sm text-text-muted mt-1">Add implementation notes or progress updates to a subtask.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">task-master update --from=&lt;id&gt; --prompt="&lt;changes&gt;"</code>
+            <code className="text-sm text-accent font-mono">taskmaster update --from=&lt;id&gt; --prompt="&lt;changes&gt;"</code>
             <p className="text-sm text-text-muted mt-1">Update multiple tasks from a specific ID onwards with new context.</p>
           </div>
         </div>
@@ -1410,60 +1616,84 @@ npm run format`}
         <h3 className="text-xl font-semibold mb-4">Task Expansion</h3>
         <div className="space-y-3 mb-8">
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">task-master expand --id=&lt;id&gt; [--num=N] [--force] [--research]</code>
+            <code className="text-sm text-accent font-mono">taskmaster expand --id=&lt;id&gt; [--num=N] [--force] [--research]</code>
             <p className="text-sm text-text-muted mt-1">Break down a task into subtasks. Use --force to regenerate existing subtasks.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">task-master expand --all [--research]</code>
+            <code className="text-sm text-accent font-mono">taskmaster expand --all [--research]</code>
             <p className="text-sm text-text-muted mt-1">Expand all pending tasks at once, processing by complexity order.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">task-master analyze-complexity [--research]</code>
+            <code className="text-sm text-accent font-mono">taskmaster analyze-complexity [--research]</code>
             <p className="text-sm text-text-muted mt-1">Analyze task complexity and generate recommendations for subtask counts.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">task-master complexity-report</code>
-            <p className="text-sm text-text-muted mt-1">Display formatted complexity analysis report with ready-to-use commands.</p>
+            <code className="text-sm text-accent font-mono">taskmaster clear-subtasks --id=&lt;id&gt; | --all</code>
+            <p className="text-sm text-text-muted mt-1">Clear subtasks from a specific task or all tasks.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">task-master clear-subtasks --id=&lt;id&gt; | --all</code>
-            <p className="text-sm text-text-muted mt-1">Clear subtasks from a specific task or all tasks.</p>
+            <code className="text-sm text-accent font-mono">taskmaster remove-task --id=&lt;id&gt; [-y]</code>
+            <p className="text-sm text-text-muted mt-1">Remove a task or subtask. Use -y to skip confirmation.</p>
           </div>
         </div>
 
-        <h3 className="text-xl font-semibold mb-4">Task Organization</h3>
+        <h3 className="text-xl font-semibold mb-4">Dependencies</h3>
         <div className="space-y-3 mb-8">
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">task-master move --id=&lt;id&gt; --to=&lt;new-id&gt;</code>
-            <p className="text-sm text-text-muted mt-1">Move a subtask to a different parent task or reorganize task hierarchy.</p>
-          </div>
-          <div className="card p-4">
-            <code className="text-sm text-accent font-mono">task-master add-dependency --id=&lt;id&gt; --depends-on=&lt;id&gt;</code>
+            <code className="text-sm text-accent font-mono">taskmaster add-dependency --id=&lt;id&gt; --depends-on=&lt;id&gt;</code>
             <p className="text-sm text-text-muted mt-1">Add a dependency between tasks.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">task-master remove-dependency --id=&lt;id&gt; --depends-on=&lt;id&gt;</code>
+            <code className="text-sm text-accent font-mono">taskmaster remove-dependency --id=&lt;id&gt; --depends-on=&lt;id&gt;</code>
             <p className="text-sm text-text-muted mt-1">Remove a dependency between tasks.</p>
-          </div>
-          <div className="card p-4">
-            <code className="text-sm text-accent font-mono">task-master validate-dependencies</code>
-            <p className="text-sm text-text-muted mt-1">Validate dependencies without fixing them.</p>
-          </div>
-          <div className="card p-4">
-            <code className="text-sm text-accent font-mono">task-master fix-dependencies</code>
-            <p className="text-sm text-text-muted mt-1">Find and fix invalid dependencies automatically.</p>
-          </div>
-          <div className="card p-4">
-            <code className="text-sm text-accent font-mono">task-master generate</code>
-            <p className="text-sm text-text-muted mt-1">Generate individual task files from tasks.json.</p>
           </div>
         </div>
 
-        <h3 className="text-xl font-semibold mb-4">Research & AI</h3>
+        <h3 className="text-xl font-semibold mb-4">License & Usage</h3>
+        <div className="space-y-3 mb-8">
+          <div className="card p-4">
+            <code className="text-sm text-accent font-mono">taskmaster activate &lt;license-key&gt;</code>
+            <p className="text-sm text-text-muted mt-1">Activate your TaskMaster AI license on this machine.</p>
+          </div>
+          <div className="card p-4">
+            <code className="text-sm text-accent font-mono">taskmaster deactivate</code>
+            <p className="text-sm text-text-muted mt-1">Deactivate your license to use on another machine.</p>
+          </div>
+          <div className="card p-4">
+            <code className="text-sm text-accent font-mono">taskmaster license</code>
+            <p className="text-sm text-text-muted mt-1">Display current license status, plan details, and expiration date.</p>
+          </div>
+          <div className="card p-4">
+            <code className="text-sm text-accent font-mono">taskmaster usage</code>
+            <p className="text-sm text-text-muted mt-1">View AI operations usage count and remaining limit for current billing period.</p>
+          </div>
+          <div className="card p-4">
+            <code className="text-sm text-accent font-mono">taskmaster sync</code>
+            <p className="text-sm text-text-muted mt-1">Sync API keys and model configuration from your TaskMaster dashboard.</p>
+          </div>
+        </div>
+
+        <h3 className="text-xl font-semibold mb-4">Configuration</h3>
         <div className="space-y-3">
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">task-master research "&lt;query&gt;" [--save-to=&lt;id&gt;]</code>
-            <p className="text-sm text-text-muted mt-1">Perform AI-powered research. Optionally save results to a task.</p>
+            <code className="text-sm text-accent font-mono">taskmaster models</code>
+            <p className="text-sm text-text-muted mt-1">Display current AI model configuration (main, research, fallback).</p>
+          </div>
+          <div className="card p-4">
+            <code className="text-sm text-accent font-mono">taskmaster models --setup</code>
+            <p className="text-sm text-text-muted mt-1">Interactive setup for configuring AI models.</p>
+          </div>
+          <div className="card p-4">
+            <code className="text-sm text-accent font-mono">taskmaster models --set-main &lt;model&gt;</code>
+            <p className="text-sm text-text-muted mt-1">Set the main AI model for task generation.</p>
+          </div>
+          <div className="card p-4">
+            <code className="text-sm text-accent font-mono">taskmaster models --set-research &lt;model&gt;</code>
+            <p className="text-sm text-text-muted mt-1">Set the research model for research-backed operations.</p>
+          </div>
+          <div className="card p-4">
+            <code className="text-sm text-accent font-mono">taskmaster models --set-fallback &lt;model&gt;</code>
+            <p className="text-sm text-text-muted mt-1">Set the fallback model if primary fails.</p>
           </div>
         </div>
       </>
@@ -1514,68 +1744,30 @@ npm run format`}
           
           <div className="card p-4">
             <div className="flex items-center gap-2 mb-2">
-              <span className="font-medium">standard</span>
-              <span className="text-xs bg-surface-highlight text-text-muted px-2 py-0.5 rounded">15 tools</span>
-            </div>
-            <p className="text-sm text-text-muted mb-2">Commonly used tools balancing functionality with context efficiency.</p>
-            <p className="text-sm text-text-muted">All core tools plus: <code className="bg-surface-highlight px-1 rounded">initialize_project</code>, <code className="bg-surface-highlight px-1 rounded">analyze_project_complexity</code>, <code className="bg-surface-highlight px-1 rounded">expand_all</code>, <code className="bg-surface-highlight px-1 rounded">add_subtask</code>, <code className="bg-surface-highlight px-1 rounded">remove_task</code>, <code className="bg-surface-highlight px-1 rounded">generate</code>, <code className="bg-surface-highlight px-1 rounded">add_task</code>, <code className="bg-surface-highlight px-1 rounded">complexity_report</code></p>
-          </div>
-          
-          <div className="card p-4">
-            <div className="flex items-center gap-2 mb-2">
               <span className="font-medium">all</span>
-              <span className="text-xs bg-surface-highlight text-text-muted px-2 py-0.5 rounded">36+ tools - Full Mode</span>
+              <span className="text-xs bg-surface-highlight text-text-muted px-2 py-0.5 rounded">Full Mode</span>
             </div>
-            <p className="text-sm text-text-muted">Full functionality including tag management, dependencies, research, and autopilot TDD workflow.</p>
-          </div>
-
-          <div className="card p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="font-medium">Custom Tool Selection</span>
-            </div>
-            <p className="text-sm text-text-muted mb-2">Specify exactly which tools to load using a comma-separated list:</p>
-            <CodeBlock 
-              code={`"TASK_MASTER_TOOLS": "get_tasks,next_task,set_task_status,update_subtask"`}
-              filename="mcp.json env"
-            />
+            <p className="text-sm text-text-muted mb-2">Full functionality including all task management and analysis tools.</p>
+            <p className="text-sm text-text-muted">All core tools plus: <code className="bg-surface-highlight px-1 rounded">init</code>, <code className="bg-surface-highlight px-1 rounded">analyze_complexity</code>, <code className="bg-surface-highlight px-1 rounded">expand_all</code>, <code className="bg-surface-highlight px-1 rounded">remove_task</code>, <code className="bg-surface-highlight px-1 rounded">add_task</code>, <code className="bg-surface-highlight px-1 rounded">add_dependency</code>, <code className="bg-surface-highlight px-1 rounded">remove_dependency</code></p>
           </div>
         </div>
 
         <h3 className="text-xl font-semibold mb-4">Choosing the Right Configuration</h3>
         <ul className="space-y-2 text-text-muted mb-6">
-          <li>• Use <code className="bg-surface-highlight px-1.5 py-0.5 rounded">core/lean</code>: Default setting, ideal for basic task management or when context limits are strict</li>
-          <li>• Use <code className="bg-surface-highlight px-1.5 py-0.5 rounded">standard</code>: For most development workflows that include task creation and analysis</li>
-          <li>• Use <code className="bg-surface-highlight px-1.5 py-0.5 rounded">all</code>: When you need full functionality including tag management, dependencies, and advanced features</li>
-          <li>• Use <strong>custom list</strong>: When you have specific tool requirements or want to experiment with minimal sets</li>
+          <li>• Use <code className="bg-surface-highlight px-1.5 py-0.5 rounded">core</code>: Default setting, ideal for basic task management or when context limits are strict</li>
+          <li>• Use <code className="bg-surface-highlight px-1.5 py-0.5 rounded">all</code>: When you need full functionality including task creation, analysis, and dependencies</li>
         </ul>
-
-        <h3 className="text-xl font-semibold mb-4">Verification</h3>
-        <p className="text-text-muted mb-4">
-          When the MCP server starts, it logs which tools were loaded:
-        </p>
-        <CodeBlock 
-          code={`Task Master MCP Server starting...
-Tool mode configuration: standard
-Loading standard tools
-Registering 15 MCP tools (mode: standard)
-Successfully registered 15/15 tools`}
-          filename="Console Output"
-        />
 
         <h3 className="text-xl font-semibold mb-4 mt-8">Tool Categories</h3>
         <p className="text-text-muted mb-4">The MCP tools are organized into the following categories:</p>
 
-        <Accordion title="1. Task and Subtask Management" defaultOpen>
+        <Accordion title="1. Task Management" defaultOpen>
           <ul className="text-text-muted space-y-2">
-            <li>• <code className="bg-surface-highlight px-1 rounded">add_task</code> - Creates a new task</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">add_subtask</code> - Adds a subtask to a parent task</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">remove_task</code> - Removes one or more tasks or subtasks</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">remove_subtask</code> - Removes a subtask from its parent</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">update_task</code> - Updates a single task</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">update_subtask</code> - Appends information to a subtask</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">update</code> - Updates multiple tasks</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">move_task</code> - Moves a task or subtask</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">clear_subtasks</code> - Clears all subtasks from one or more tasks</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">add_task</code> - Creates a new task with AI assistance</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">remove_task</code> - Removes a task or subtask</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">update_task</code> - Updates a task with new information</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">update_subtask</code> - Appends timestamped notes to a subtask</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">clear_subtasks</code> - Clears all subtasks from a task</li>
           </ul>
         </Accordion>
 
@@ -1592,38 +1784,22 @@ Successfully registered 15/15 tools`}
           <ul className="text-text-muted space-y-2">
             <li>• <code className="bg-surface-highlight px-1 rounded">parse_prd</code> - Parses a PRD to generate tasks</li>
             <li>• <code className="bg-surface-highlight px-1 rounded">expand_task</code> - Expands a task into subtasks</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">expand_all</code> - Expands all eligible tasks</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">analyze_project_complexity</code> - Analyzes task complexity</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">complexity_report</code> - Displays the complexity analysis report</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">expand_all</code> - Expands all pending tasks</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">analyze_complexity</code> - Analyzes task complexity</li>
           </ul>
         </Accordion>
 
-        <Accordion title="4. Dependency Management">
+        <Accordion title="4. Dependencies">
           <ul className="text-text-muted space-y-2">
             <li>• <code className="bg-surface-highlight px-1 rounded">add_dependency</code> - Adds a dependency to a task</li>
             <li>• <code className="bg-surface-highlight px-1 rounded">remove_dependency</code> - Removes a dependency from a task</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">validate_dependencies</code> - Validates the dependencies of all tasks</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">fix_dependencies</code> - Fixes any invalid dependencies</li>
           </ul>
         </Accordion>
 
         <Accordion title="5. Project and Configuration">
           <ul className="text-text-muted space-y-2">
-            <li>• <code className="bg-surface-highlight px-1 rounded">initialize_project</code> - Initializes a new project</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">generate</code> - Generates individual task files</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">init</code> - Initializes a new project</li>
             <li>• <code className="bg-surface-highlight px-1 rounded">models</code> - Manages AI model configurations</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">research</code> - Performs AI-powered research</li>
-          </ul>
-        </Accordion>
-
-        <Accordion title="6. Tag Management">
-          <ul className="text-text-muted space-y-2">
-            <li>• <code className="bg-surface-highlight px-1 rounded">add_tag</code> - Creates a new tag</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">delete_tag</code> - Deletes a tag</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">list_tags</code> - Lists all tags</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">use_tag</code> - Switches to a different tag</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">rename_tag</code> - Renames a tag</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">copy_tag</code> - Copies a tag</li>
           </ul>
         </Accordion>
       </>
@@ -1805,15 +1981,15 @@ Deploy and confirm 'Hello World' response.`}
           <p className="text-text-muted mb-2"><strong>Example workflow:</strong></p>
           <CodeBlock 
             code={`# Generate the complexity analysis report with research
-task-master analyze-complexity --research
+taskmaster analyze-complexity --research
 
 # Review the report in a readable format
-task-master complexity-report
+taskmaster complexity-report
 
 # Expand tasks using the optimized recommendations
-task-master expand --id=8
+taskmaster expand --id=8
 # or expand all tasks
-task-master expand --all`}
+taskmaster expand --all`}
             filename="Terminal"
           />
         </Accordion>
@@ -1898,47 +2074,40 @@ task-master expand --all`}
           Advanced patterns and workflows for power users to maximize productivity with TaskMaster AI.
         </p>
 
-        <h3 className="text-xl font-semibold mb-4">Tagged Task Lists</h3>
+        <h3 className="text-xl font-semibold mb-4">Dashboard Sync Workflow</h3>
         <p className="text-text-muted mb-4">
-          Introduced in version 0.17, Task Master supports a tagged task list system for multi-context task management. This allows you to maintain separate task lists for different features, branches, or experiments.
+          Configure your API keys and model preferences once in the dashboard, then sync them across all your projects:
         </p>
         
         <CodeBlock 
-          code={`# Create a new tag
-task-master add-tag feature-auth --description="Authentication feature"
+          code={`# After configuring keys in https://taskmaster.one/app/api-keys
+taskmaster sync
 
-# Create tag from current Git branch
-task-master add-tag --from-branch
-
-# Switch to a different tag
-task-master use-tag feature-auth
-
-# List all tags with task counts
-task-master tags
-
-# Delete a tag
-task-master delete-tag feature-auth`}
+# This syncs:
+# - All your API keys (Anthropic, OpenAI, Google, etc.)
+# - Model configuration (main, research, fallback)
+# - Any other dashboard settings`}
           filename="Terminal"
         />
 
         <TipBox>
-          Tags provide user control without automatic switching. TaskMaster tracks the current active tag in <code className="bg-surface-highlight px-1 rounded">.taskmaster/state.json</code>.
+          Dashboard sync is especially useful when working across multiple machines or projects. Configure once, sync everywhere.
         </TipBox>
 
-        <h3 className="text-xl font-semibold mb-4 mt-8">Research-Driven Development</h3>
+        <h3 className="text-xl font-semibold mb-4 mt-8">Usage Monitoring</h3>
         <p className="text-text-muted mb-4">
-          Use the research command to get AI-powered insights before implementing tasks:
+          Keep track of your AI operations to stay within your plan limits:
         </p>
         
         <CodeBlock 
-          code={`# Basic research query
-task-master research "Best practices for JWT authentication in Node.js"
+          code={`# Check your current usage
+taskmaster usage
 
-# Save research results to a specific task
-task-master research "React Query v5 migration guide" --save-to=3.2
-
-# Include project context
-task-master research "How to optimize database queries" --tree --files=src/db/`}
+# View breakdown of operations:
+# - Tasks from PRD
+# - Tasks expanded  
+# - Tasks added
+# - Complexity analyses`}
           filename="Terminal"
         />
 
@@ -1947,8 +2116,8 @@ task-master research "How to optimize database queries" --tree --files=src/db/`}
         <Accordion title="1. Task Discovery and Selection">
           <p className="text-text-muted mb-3">Inquire about available tasks:</p>
           <CodeBlock 
-            code={`task-master list
-task-master next`}
+            code={`taskmaster list
+taskmaster next`}
             filename="Terminal"
           />
           <p className="text-text-muted mt-3">The agent analyzes dependencies and priorities to suggest the next tasks.</p>
@@ -1957,7 +2126,7 @@ task-master next`}
         <Accordion title="2. Task Implementation">
           <p className="text-text-muted mb-3">Before starting, request implementation details:</p>
           <CodeBlock 
-            code="task-master show --id=<task_id>"
+            code="taskmaster show --id=<task_id>"
             filename="Terminal"
           />
           <p className="text-text-muted mt-3">This provides specifics including dependencies and coding standards.</p>
@@ -1966,7 +2135,7 @@ task-master next`}
         <Accordion title="3. Verification and Completion">
           <p className="text-text-muted mb-3">After implementation, verify according to the test strategy:</p>
           <CodeBlock 
-            code="task-master set-status --id=<task_id> --status=done"
+            code="taskmaster set-status --id=<task_id> --status=done"
             filename="Terminal"
           />
         </Accordion>
@@ -1974,7 +2143,7 @@ task-master next`}
         <Accordion title="4. Handling Implementation Changes">
           <p className="text-text-muted mb-3">If changes arise during implementation:</p>
           <CodeBlock 
-            code={`task-master update --from=<task_id> --prompt="Update to reflect new implementation choices."`}
+            code={`taskmaster update --from=<task_id> --prompt="Update to reflect new implementation choices."`}
             filename="Terminal"
           />
         </Accordion>
@@ -2025,27 +2194,27 @@ task-master next`}
         />
 
         <TipBox type="warning">
-          Do not manually edit the config file. Use <code className="bg-surface-highlight px-1 rounded">task-master models</code> commands to modify configuration.
+          Do not manually edit the config file. Use <code className="bg-surface-highlight px-1 rounded">taskmaster models</code> commands to modify configuration.
         </TipBox>
 
         <h3 className="text-xl font-semibold mb-4 mt-8">Model Configuration</h3>
         <CodeBlock 
           code={`# Interactive setup (recommended)
-task-master models --setup
+taskmaster models --setup
 
 # View current configuration
-task-master models
+taskmaster models
 
 # Set specific models
-task-master models --set-main claude-sonnet-4-20250514
-task-master models --set-research sonar-pro
-task-master models --set-fallback gpt-4o-mini
+taskmaster models --set-main claude-sonnet-4-20250514
+taskmaster models --set-research sonar-pro
+taskmaster models --set-fallback gpt-4o-mini
 
 # Use custom Ollama model
-task-master models --set-main llama3 --ollama
+taskmaster models --set-main llama3 --ollama
 
 # Use custom OpenRouter model
-task-master models --set-main gpt-4-turbo --openrouter`}
+taskmaster models --set-main gpt-4-turbo --openrouter`}
           filename="Terminal"
         />
 
@@ -2061,17 +2230,19 @@ task-master models --set-main gpt-4-turbo --openrouter`}
           language="json"
         />
 
-        <h3 className="text-xl font-semibold mb-4 mt-8">State Management</h3>
+        <h3 className="text-xl font-semibold mb-4 mt-8">Project Structure</h3>
         <p className="text-text-muted mb-4">
-          TaskMaster tracks runtime information in <code className="bg-surface-highlight px-1.5 py-0.5 rounded">.taskmaster/state.json</code>:
+          TaskMaster stores all data in the <code className="bg-surface-highlight px-1.5 py-0.5 rounded">.taskmaster</code> directory:
         </p>
         <CodeBlock 
           code={`{
-  "currentTag": "feature-auth",
-  "lastSwitched": "2024-01-15T10:30:00Z",
-  "migrationNoticeShown": true
+  ".taskmaster/": {
+    "config.json": "Project configuration",
+    "tasks/tasks.json": "All tasks data",
+    "reports/": "Complexity reports"
+  }
 }`}
-          filename=".taskmaster/state.json"
+          filename=".taskmaster/"
           language="json"
         />
 
@@ -2103,42 +2274,19 @@ OPENAI_API_KEY=sk-...
           Advanced task management techniques for complex projects and team workflows.
         </p>
         
-        <h3 className="text-xl font-semibold mb-4">Batch Updates</h3>
+        <h3 className="text-xl font-semibold mb-4">Updating Tasks</h3>
         <p className="text-text-muted mb-4">
-          When implementation changes affect multiple future tasks, update them in batch:
+          When implementation changes affect tasks, update them with new context:
         </p>
         <CodeBlock 
-          code={`# Update all tasks from ID 5 onwards
-task-master update --from=5 --prompt="We're now using PostgreSQL instead of MongoDB"
+          code={`# Update a task with new information
+taskmaster update-task --id=5 --prompt="We're now using PostgreSQL instead of MongoDB"
+
+# Append notes without replacing (like update-subtask)
+taskmaster update-task --id=5 --prompt="Added migration scripts" --append
 
 # Update with research for more informed changes
-task-master update --from=5 --prompt="Switching to TypeScript" --research`}
-          filename="Terminal"
-        />
-
-        <h3 className="text-xl font-semibold mb-4 mt-8">Reorganizing Tasks</h3>
-        <p className="text-text-muted mb-4">
-          Move tasks within the hierarchy to reorganize your project structure:
-        </p>
-        <CodeBlock 
-          code={`# Move a task to become a subtask
-task-master move --id=5 --to=3.1
-
-# Move a subtask to a different parent
-task-master move --id=3.2 --to=7.1
-
-# Move multiple tasks at once
-task-master move --from=10,11,12 --to=16,17,18`}
-          filename="Terminal"
-        />
-
-        <h3 className="text-xl font-semibold mb-4 mt-8">Resolving Merge Conflicts</h3>
-        <p className="text-text-muted mb-4">
-          When encountering merge conflicts in <code className="bg-surface-highlight px-1.5 py-0.5 rounded">tasks.json</code>, use the move command:
-        </p>
-        <CodeBlock 
-          code={`# Move conflicting tasks to new positions
-task-master move --from=<conflicting_task_id> --to=<new_task_id>`}
+taskmaster update-task --id=5 --prompt="Switching to TypeScript" --research`}
           filename="Terminal"
         />
 
@@ -2148,42 +2296,36 @@ task-master move --from=<conflicting_task_id> --to=<new_task_id>`}
         </p>
         <CodeBlock 
           code={`# Expand with specific number of subtasks
-task-master expand --id=7 --num=5
+taskmaster expand --id=7 --num=5
 
 # Expand with additional context
-task-master expand --id=7 --prompt="Focus on error handling and edge cases"
+taskmaster expand --id=7 --prompt="Focus on error handling and edge cases"
 
 # Force regenerate existing subtasks
-task-master expand --id=7 --force --research`}
+taskmaster expand --id=7 --force --research`}
           filename="Terminal"
         />
 
         <h3 className="text-xl font-semibold mb-4 mt-8">Dependency Management</h3>
         <CodeBlock 
           code={`# Add a dependency
-task-master add-dependency --id=5 --depends-on=3
+taskmaster add-dependency --id=5 --depends-on=3
 
 # Remove a dependency
-task-master remove-dependency --id=5 --depends-on=3
-
-# Validate all dependencies
-task-master validate-dependencies
-
-# Auto-fix dependency issues
-task-master fix-dependencies`}
+taskmaster remove-dependency --id=5 --depends-on=3`}
           filename="Terminal"
         />
 
         <h3 className="text-xl font-semibold mb-4 mt-8">Manual Task Creation</h3>
         <CodeBlock 
           code={`# Add a new task with AI structuring
-task-master add-task --prompt="Implement user authentication with JWT"
+taskmaster add-task --prompt="Implement user authentication with JWT"
 
 # Add with dependencies and priority
-task-master add-task --prompt="Add rate limiting" --dependencies=3,4 --priority=high
+taskmaster add-task --prompt="Add rate limiting" --dependencies=3,4 --priority=high
 
-# Add a subtask manually
-task-master add-subtask --parent=5 --title="Write unit tests" --description="Test auth functions"`}
+# Use research model for more informed task creation
+taskmaster add-task --prompt="Implement caching layer" --research`}
           filename="Terminal"
         />
       </>
@@ -3365,15 +3507,6 @@ export default function Docs() {
             {/* External Links */}
             <div className="flex gap-4 mb-6 px-1">
               <a 
-                href="https://github.com/eyaltoledano/claude-task-master" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 text-text-muted hover:text-text transition-colors text-sm"
-              >
-                <FontAwesomeIcon icon={faGithub} className="w-4 h-4" />
-                <span>Github</span>
-              </a>
-              <a 
                 href="https://discord.gg/taskmaster" 
                 target="_blank" 
                 rel="noopener noreferrer"
@@ -3381,6 +3514,13 @@ export default function Docs() {
               >
                 <FontAwesomeIcon icon={faDiscord} className="w-4 h-4" />
                 <span>Discord</span>
+              </a>
+              <a 
+                href="mailto:taskmasteroneai@gmail.com"
+                className="flex items-center gap-2 text-text-muted hover:text-text transition-colors text-sm"
+              >
+                <FontAwesomeIcon icon={faComments} className="w-4 h-4" />
+                <span>Support</span>
               </a>
             </div>
 

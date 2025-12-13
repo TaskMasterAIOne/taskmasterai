@@ -7,10 +7,14 @@ import {
   signOut,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   sendPasswordResetEmail,
+  updateProfile as firebaseUpdateProfile,
 } from 'firebase/auth'
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore'
-import { auth, db } from '../lib/firebase'
+import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore'
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { auth, db, storage } from '../lib/firebase'
 import { getLicenseInfo, LicenseInfo } from '../lib/stripe'
 
 export type UserPlan = 'plus' | 'pro' | 'team' | 'enterprise' | null
@@ -37,6 +41,7 @@ interface AuthContextType {
   logout: () => Promise<void>
   resetPassword: (email: string) => Promise<void>
   refreshLicenseInfo: () => Promise<void>
+  updateUserProfile: (data: { displayName?: string; photoFile?: File }) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -167,19 +172,54 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const signInWithGoogle = async () => {
     const provider = new GoogleAuthProvider()
-    const result = await signInWithPopup(auth, provider)
     
-    // Check if user document exists
-    const userDoc = await getDoc(doc(db, 'users', result.user.uid))
-    if (!userDoc.exists()) {
-      await setDoc(doc(db, 'users', result.user.uid), {
-        uid: result.user.uid,
-        email: result.user.email,
-        plan: null,
-        createdAt: serverTimestamp(),
-      })
+    try {
+      // Try popup first (better UX)
+      const result = await signInWithPopup(auth, provider)
+      
+      // Check if user document exists
+      const userDoc = await getDoc(doc(db, 'users', result.user.uid))
+      if (!userDoc.exists()) {
+        await setDoc(doc(db, 'users', result.user.uid), {
+          uid: result.user.uid,
+          email: result.user.email,
+          plan: null,
+          createdAt: serverTimestamp(),
+        })
+      }
+    } catch (error: unknown) {
+      const err = error as { code?: string }
+      // If popup is blocked or COOP policy blocks it, fall back to redirect
+      if (err.code === 'auth/popup-blocked' || err.code === 'auth/popup-closed-by-user') {
+        throw error // Re-throw user-cancelled errors
+      }
+      // For other errors (like COOP), try redirect as fallback
+      await signInWithRedirect(auth, provider)
     }
   }
+
+  // Handle redirect result on page load
+  useEffect(() => {
+    const handleRedirectResult = async () => {
+      try {
+        const result = await getRedirectResult(auth)
+        if (result?.user) {
+          const userDoc = await getDoc(doc(db, 'users', result.user.uid))
+          if (!userDoc.exists()) {
+            await setDoc(doc(db, 'users', result.user.uid), {
+              uid: result.user.uid,
+              email: result.user.email,
+              plan: null,
+              createdAt: serverTimestamp(),
+            })
+          }
+        }
+      } catch (error) {
+        console.error('Redirect sign-in error:', error)
+      }
+    }
+    handleRedirectResult()
+  }, [])
 
   const logout = async () => {
     await signOut(auth)
@@ -187,6 +227,39 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const resetPassword = async (email: string) => {
     await sendPasswordResetEmail(auth, email)
+  }
+
+  const updateUserProfile = async (data: { displayName?: string; photoFile?: File }) => {
+    if (!user) throw new Error('No user logged in')
+
+    let photoURL = user.photoURL
+
+    // Upload new photo if provided
+    if (data.photoFile) {
+      const photoRef = ref(storage, `users/${user.uid}/profile.${data.photoFile.name.split('.').pop()}`)
+      await uploadBytes(photoRef, data.photoFile)
+      photoURL = await getDownloadURL(photoRef)
+    }
+
+    // Update Firebase Auth profile
+    await firebaseUpdateProfile(user, {
+      displayName: data.displayName ?? user.displayName,
+      photoURL: photoURL,
+    })
+
+    // Update Firestore user document
+    await updateDoc(doc(db, 'users', user.uid), {
+      displayName: data.displayName ?? user.displayName,
+      photoURL: photoURL,
+      updatedAt: serverTimestamp(),
+    })
+
+    // Update local state
+    setUserData(prev => prev ? {
+      ...prev,
+      displayName: data.displayName ?? prev.displayName,
+      photoURL: photoURL,
+    } : null)
   }
 
   const value = {
@@ -200,6 +273,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     logout,
     resetPassword,
     refreshLicenseInfo,
+    updateUserProfile,
   }
 
   return (

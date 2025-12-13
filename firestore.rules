@@ -2,42 +2,168 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Users collection - users can only read/write their own data
+    // ============================================
+    // USERS COLLECTION
+    // ============================================
     match /users/{userId} {
-      // Allow read if the request is from the authenticated user
-      allow read: if request.auth != null && request.auth.uid == userId;
+      
+      // Helper function to check if user is authenticated and owns the document
+      function isOwner() {
+        return request.auth != null && request.auth.uid == userId;
+      }
+      
+      // Fields that only the server (Cloud Functions) can modify
+      function serverOnlyFields() {
+        return ['licenseKey', 'plan', 'stripeCustomerId', 'stripeSubscriptionId', 'subscriptionStatus'];
+      }
+      
+      // Fields that should never be modified after creation
+      function immutableFields() {
+        return ['uid', 'createdAt'];
+      }
+      
+      // Check if update doesn't touch server-only fields
+      function noServerFieldChanges() {
+        return !request.resource.data.diff(resource.data).affectedKeys().hasAny(serverOnlyFields());
+      }
+      
+      // Check if update doesn't touch immutable fields
+      function noImmutableFieldChanges() {
+        return !request.resource.data.diff(resource.data).affectedKeys().hasAny(immutableFields());
+      }
+      
+      // Allow read if the user owns this document
+      allow read: if isOwner();
       
       // Allow create for new users (during signup)
-      allow create: if request.auth != null && request.auth.uid == userId;
+      // Validate that they can only create their own document
+      allow create: if isOwner()
+        && request.resource.data.uid == userId
+        && request.resource.data.keys().hasAll(['uid', 'email', 'createdAt']);
       
-      // Allow update only for specific fields (not licenseKey or plan - those are server-only)
-      allow update: if request.auth != null 
-        && request.auth.uid == userId
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['licenseKey', 'plan', 'stripeCustomerId', 'stripeSubscriptionId', 'subscriptionStatus']);
+      // Allow update for profile changes
+      // Users CAN update: displayName, photoURL, email, preferences, settings, etc.
+      // Users CANNOT update: licenseKey, plan, stripe fields, uid, createdAt
+      allow update: if isOwner()
+        && noServerFieldChanges()
+        && noImmutableFieldChanges();
       
-      // Never allow delete
+      // Never allow direct delete (account deletion should go through Cloud Functions)
       allow delete: if false;
+      
+      // ----------------------------------------
+      // API Keys subcollection
+      // Users can fully manage their own API keys
+      // ----------------------------------------
+      match /apiKeys/{keyId} {
+        allow read: if isOwner();
+        allow create: if isOwner()
+          && request.resource.data.keys().hasAll(['provider', 'maskedKey', 'createdAt']);
+        allow update: if isOwner();
+        allow delete: if isOwner();
+      }
+      
+      // ----------------------------------------
+      // Config subcollection
+      // Users can fully manage their own configuration
+      // ----------------------------------------
+      match /config/{configId} {
+        allow read, write: if isOwner();
+      }
+      
+      // ----------------------------------------
+      // Settings subcollection
+      // Users can manage their settings (models, etc.)
+      // ----------------------------------------
+      match /settings/{settingId} {
+        allow read, write: if isOwner();
+      }
+      
+      // ----------------------------------------
+      // Preferences subcollection
+      // Users can manage their preferences (theme, notifications, etc.)
+      // ----------------------------------------
+      match /preferences/{prefId} {
+        allow read, write: if isOwner();
+      }
+      
+      // ----------------------------------------
+      // Projects subcollection (if you add project management)
+      // ----------------------------------------
+      match /projects/{projectId} {
+        allow read, write: if isOwner();
+      }
+      
+      // ----------------------------------------
+      // Tasks subcollection (if you add task management)
+      // ----------------------------------------
+      match /tasks/{taskId} {
+        allow read, write: if isOwner();
+      }
     }
     
-    // Licenses collection - only server can read/write
-    // CLI validates through the validateLicense Cloud Function, not directly
+    // ============================================
+    // LICENSES COLLECTION
+    // Only server (Cloud Functions) can read/write
+    // CLI validates through the validateLicense Cloud Function
+    // ============================================
     match /licenses/{licenseKey} {
-      // No direct client access - all access through Cloud Functions
       allow read, write: if false;
     }
     
-    // Usage tracking collection (for future usage-based billing)
+    // ============================================
+    // USAGE TRACKING COLLECTION
+    // For usage-based billing and analytics
+    // ============================================
     match /usage/{userId} {
+      // Users can read their own usage data
       allow read: if request.auth != null && request.auth.uid == userId;
       // Only server can write usage data
       allow write: if false;
     }
     
-    // Invoices collection (synced from Stripe)
+    // ============================================
+    // INVOICES COLLECTION
+    // Synced from Stripe webhooks
+    // ============================================
     match /invoices/{invoiceId} {
+      // Users can only read their own invoices
       allow read: if request.auth != null 
         && resource.data.userId == request.auth.uid;
+      // Only server can write invoice data
       allow write: if false;
+    }
+    
+    // ============================================
+    // FEEDBACK COLLECTION
+    // For user feedback and support requests
+    // ============================================
+    match /feedback/{feedbackId} {
+      // Users can create feedback
+      allow create: if request.auth != null
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.keys().hasAll(['userId', 'message', 'createdAt']);
+      // Users can read their own feedback
+      allow read: if request.auth != null 
+        && resource.data.userId == request.auth.uid;
+      // No updates or deletes from client
+      allow update, delete: if false;
+    }
+    
+    // ============================================
+    // NOTIFICATIONS COLLECTION
+    // For user notifications
+    // ============================================
+    match /notifications/{notificationId} {
+      // Users can read their own notifications
+      allow read: if request.auth != null 
+        && resource.data.userId == request.auth.uid;
+      // Users can mark notifications as read
+      allow update: if request.auth != null 
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'readAt']);
+      // Only server can create/delete notifications
+      allow create, delete: if false;
     }
   }
 }

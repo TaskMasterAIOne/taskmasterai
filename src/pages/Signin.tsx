@@ -157,6 +157,7 @@ export default function Signin() {
                   onChange={(e) => setEmail(e.target.value)}
                   className="input pl-10"
                   placeholder="you@example.com"
+                  autoComplete="email"
                   required
                 />
               </div>
@@ -173,6 +174,7 @@ export default function Signin() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="input pl-10 pr-10"
                   placeholder="••••••••"
+                  autoComplete="current-password"
                   required
                 />
                 <button

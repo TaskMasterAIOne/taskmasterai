@@ -1,12 +1,13 @@
 /**
  * Usage Tracking for TaskMaster AI
  * Tracks AI operations against plan limits
+ * Syncs with server for accurate billing
  */
 
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { readStoredLicense } from './license.js';
+import { readStoredLicense, incrementUsage as serverIncrementUsage } from './license.js';
 
 // Plan limits (tasks per month) - matching backend PLAN_DETAILS
 const PLAN_LIMITS = {
@@ -95,9 +96,9 @@ export function getCurrentUsage() {
 }
 
 /**
- * Increment usage counter
+ * Increment usage counter (local + server sync)
  */
-export function incrementUsage(operationType = 'aiOperations', count = 1) {
+export async function incrementUsage(operationType = 'aiOperations', count = 1) {
   const data = readUsageData();
   const monthKey = getCurrentMonthKey();
   
@@ -112,11 +113,31 @@ export function incrementUsage(operationType = 'aiOperations', count = 1) {
     };
   }
   
+  // Update local counter
   data.months[monthKey][operationType] = (data.months[monthKey][operationType] || 0) + count;
   data.months[monthKey].aiOperations = (data.months[monthKey].aiOperations || 0) + count;
   data.months[monthKey].lastUpdated = new Date().toISOString();
   
   writeUsageData(data);
+  
+  // Sync with server (non-blocking)
+  try {
+    const serverResult = await serverIncrementUsage(operationType, count);
+    if (serverResult.success && serverResult.usage) {
+      // Store server-reported usage for reference
+      data.months[monthKey].serverTasksUsed = serverResult.usage.tasksUsed;
+      data.months[monthKey].serverRemaining = serverResult.usage.remaining;
+      data.months[monthKey].isOverage = serverResult.usage.isOverage;
+      writeUsageData(data);
+      return {
+        ...data.months[monthKey],
+        serverUsage: serverResult.usage,
+      };
+    }
+  } catch (error) {
+    // Server sync failed, but local tracking succeeded
+    console.warn(`Note: Server usage sync failed (${error.message}). Local tracking continues.`);
+  }
   
   return data.months[monthKey];
 }

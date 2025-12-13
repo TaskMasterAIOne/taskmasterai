@@ -245,7 +245,7 @@ export default function Billing() {
               <div className="space-y-2">
                 <p className="text-xs text-text-muted mb-2">Run this command to activate TaskMaster AI:</p>
                 <code className="block px-3 py-2 bg-surface rounded-lg font-mono text-xs text-text-secondary border border-border">
-                  task-master activate {licenseInfo.licenseKey}
+                  taskmaster activate {licenseInfo.licenseKey}
                 </code>
               </div>
             </div>

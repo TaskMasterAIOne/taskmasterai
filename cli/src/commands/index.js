@@ -29,12 +29,26 @@ import {
   removeDependency,
   getTaskStats,
   saveAllTasks,
+  getCurrentTag,
+  getAllTags,
+  createTag,
+  deleteTagData,
+  switchTag,
+  renameTag,
+  copyTag,
+  validateDependencies,
+  fixDependencies,
+  moveTask,
+  addSingleSubtask,
+  generateTaskFiles,
 } from '../lib/tasks.js';
 import {
   generateTasksFromPRD,
   expandTask as aiExpandTask,
   analyzeComplexity,
   generateTask,
+  performResearch,
+  batchUpdateTasks,
 } from '../lib/ai.js';
 import {
   enforceUsageLimit,
@@ -42,6 +56,9 @@ import {
   getUsageSummary,
   checkUsageLimit,
 } from '../lib/usage.js';
+import {
+  readCachedConfig,
+} from '../lib/license.js';
 import Table from 'cli-table3';
 
 /**
@@ -169,7 +186,7 @@ export function registerCommands(program) {
         });
         
         // Track usage after successful operation
-        incrementUsage('tasksParsed', tasks.length);
+        await incrementUsage('tasksParsed', tasks.length);
 
         spinner.stop();
 
@@ -488,7 +505,7 @@ export function registerCommands(program) {
               prompt: options.prompt,
             });
             addSubtasks(task.id, subtasks, options.force, projectRoot);
-            incrementUsage('tasksExpanded', subtasks.length);
+            await incrementUsage('tasksExpanded', subtasks.length);
             spinner.succeed(`Task ${task.id}: Added ${subtasks.length} subtasks`);
           } catch (error) {
             spinner.fail(`Task ${task.id}: ${error.message}`);
@@ -536,7 +553,7 @@ export function registerCommands(program) {
         });
 
         addSubtasks(options.id, subtasks, options.force, projectRoot);
-        incrementUsage('tasksExpanded', subtasks.length);
+        await incrementUsage('tasksExpanded', subtasks.length);
         spinner.stop();
 
         console.log(chalk.green(`✓ Added ${subtasks.length} subtasks to task ${options.id}`));
@@ -603,7 +620,7 @@ export function registerCommands(program) {
         });
 
         const newTask = addTask(taskData, projectRoot);
-        incrementUsage('tasksAdded', 1);
+        await incrementUsage('tasksAdded', 1);
         spinner.stop();
 
         console.log(chalk.green(`✓ Created task ${newTask.id}: ${newTask.title}`));
@@ -656,7 +673,7 @@ export function registerCommands(program) {
           research: options.research,
         });
         
-        incrementUsage('complexityAnalyses', 1);
+        await incrementUsage('complexityAnalyses', 1);
         spinner.stop();
 
         console.log('');
@@ -889,7 +906,7 @@ Provide updated details that incorporate the new information.`;
             details: result.text.trim()
           }, projectRoot);
           
-          incrementUsage('tasksAdded', 1); // Count as AI operation
+          await incrementUsage('tasksAdded', 1); // Count as AI operation
 
           spinner.stop();
           console.log(chalk.green(`✓ Task ${options.id} updated`));
@@ -1041,6 +1058,33 @@ Provide updated details that incorporate the new information.`;
         }
       }
       console.log('');
+      
+      // Show synced config info
+      const cachedConfig = readCachedConfig();
+      if (cachedConfig) {
+        console.log(chalk.white.bold('Dashboard Config Sync:'));
+        const apiKeyCount = Object.keys(cachedConfig.apiKeys || {}).length;
+        const hasModels = !!cachedConfig.models;
+        const syncedAt = cachedConfig.syncedAt ? new Date(cachedConfig.syncedAt).toLocaleString() : 'Never';
+        
+        console.log(`  API Keys: ${chalk.cyan(apiKeyCount + ' provider(s)')} synced from dashboard`);
+        console.log(`  Models: ${chalk.cyan(hasModels ? 'Custom config' : 'Using defaults')}`);
+        console.log(`  Last sync: ${chalk.dim(syncedAt)}`);
+        
+        if (apiKeyCount > 0) {
+          console.log('');
+          console.log(chalk.dim('  Configured providers:'));
+          for (const provider of Object.keys(cachedConfig.apiKeys)) {
+            console.log(chalk.dim('    • ') + chalk.cyan(provider));
+          }
+        }
+        console.log('');
+        console.log(chalk.dim('  Tip: Run ') + chalk.cyan('taskmaster sync') + chalk.dim(' to refresh config from dashboard'));
+        console.log('');
+      } else {
+        console.log(chalk.dim('No dashboard config synced. Run ') + chalk.cyan('taskmaster sync') + chalk.dim(' after adding API keys in the dashboard.'));
+        console.log('');
+      }
     });
 
   // Models command
@@ -1075,9 +1119,16 @@ Provide updated details that incorporate the new information.`;
         return;
       }
 
+      // Check if models are from dashboard sync
+      const cachedConfig = readCachedConfig();
+      const hasModelSync = cachedConfig?.models;
+      
       // Display current config
       console.log('');
       console.log(chalk.cyan.bold('AI Model Configuration:'));
+      if (hasModelSync) {
+        console.log(chalk.dim('  (Synced from dashboard)'));
+      }
       console.log('');
       console.log(chalk.white.bold('Main Model:'));
       console.log(`  Provider: ${config.models.main.provider}`);
@@ -1092,14 +1143,989 @@ Provide updated details that incorporate the new information.`;
       console.log(`  Model: ${config.models.fallback.modelId}`);
       console.log('');
 
-      // Check API keys
+      // Check API keys (show source: env or dashboard)
       console.log(chalk.cyan.bold('API Key Status:'));
-      const providers = ['anthropic', 'openai', 'google', 'perplexity'];
+      const syncedApiKeys = cachedConfig?.apiKeys || {};
+      const providers = ['anthropic', 'openai', 'google', 'perplexity', 'mistral', 'xai', 'openrouter'];
       providers.forEach(provider => {
-        const hasKey = !!getApiKey(provider);
-        console.log(`  ${provider}: ${hasKey ? chalk.green('✓ Set') : chalk.red('✗ Not set')}`);
+        const envKey = process.env[`${provider.toUpperCase()}_API_KEY`];
+        const syncedKey = syncedApiKeys[provider];
+        
+        if (envKey) {
+          console.log(`  ${provider}: ${chalk.green('✓ Set')} ${chalk.dim('(from env)')}`);
+        } else if (syncedKey) {
+          console.log(`  ${provider}: ${chalk.green('✓ Set')} ${chalk.cyan('(from dashboard)')}`);
+        } else {
+          console.log(`  ${provider}: ${chalk.red('✗ Not set')}`);
+        }
       });
       console.log('');
+      console.log(chalk.dim('  Tip: Configure API keys in the dashboard at ') + chalk.cyan('https://taskmaster.one/app/api-keys'));
+      console.log('');
+    });
+
+  // ============================================
+  // TAG MANAGEMENT COMMANDS
+  // ============================================
+
+  // List tags command
+  program
+    .command('tags')
+    .description('List all tags')
+    .option('--show-metadata', 'Show detailed metadata')
+    .action(async (options) => {
+      const projectRoot = findProjectRoot();
+      if (!projectRoot) {
+        console.error(chalk.red('Error: Not in a TaskMaster project.'));
+        process.exit(1);
+      }
+
+      const tags = getAllTags(projectRoot);
+      
+      console.log('');
+      console.log(chalk.cyan.bold('Tags:'));
+      console.log('');
+
+      const table = new Table({
+        head: [
+          chalk.cyan('Name'),
+          chalk.cyan('Tasks'),
+          chalk.cyan('Done'),
+          chalk.cyan('%'),
+          chalk.cyan('Current'),
+        ],
+        colWidths: [20, 8, 8, 8, 10],
+      });
+
+      tags.forEach(tag => {
+        table.push([
+          tag.name,
+          tag.taskCount,
+          tag.completedCount,
+          `${tag.percentage}%`,
+          tag.isCurrent ? chalk.green('✓') : '',
+        ]);
+      });
+
+      console.log(table.toString());
+      console.log('');
+
+      if (options.showMetadata) {
+        console.log(chalk.cyan.bold('Metadata:'));
+        tags.forEach(tag => {
+          console.log(`  ${chalk.white.bold(tag.name)}:`);
+          if (tag.metadata.description) {
+            console.log(`    Description: ${tag.metadata.description}`);
+          }
+          if (tag.metadata.createdAt) {
+            console.log(`    Created: ${new Date(tag.metadata.createdAt).toLocaleString()}`);
+          }
+        });
+        console.log('');
+      }
+    });
+
+  // Add tag command
+  program
+    .command('add-tag')
+    .description('Create a new tag')
+    .argument('<name>', 'Tag name')
+    .option('--from-branch', 'Create tag from current git branch name')
+    .option('--copy-from-current', 'Copy tasks from current tag')
+    .option('--copy-from <tag>', 'Copy tasks from specified tag')
+    .option('-d, --description <text>', 'Tag description')
+    .action(async (name, options) => {
+      const projectRoot = findProjectRoot();
+      if (!projectRoot) {
+        console.error(chalk.red('Error: Not in a TaskMaster project.'));
+        process.exit(1);
+      }
+
+      let tagName = name;
+
+      // Handle --from-branch
+      if (options.fromBranch) {
+        try {
+          const { execSync } = await import('child_process');
+          const branch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf-8' }).trim();
+          tagName = branch.replace(/\//g, '-');
+        } catch (error) {
+          console.error(chalk.red('Error: Could not get git branch name'));
+          process.exit(1);
+        }
+      }
+
+      try {
+        createTag(tagName, {
+          copyFrom: options.copyFrom,
+          copyFromCurrent: options.copyFromCurrent,
+          description: options.description,
+        }, projectRoot);
+
+        console.log(chalk.green(`✓ Created tag '${tagName}'`));
+        
+        if (options.copyFrom || options.copyFromCurrent) {
+          console.log(chalk.dim('  Tasks copied from source tag'));
+        }
+      } catch (error) {
+        console.error(chalk.red('Error:'), error.message);
+        process.exit(1);
+      }
+    });
+
+  // Use tag command
+  program
+    .command('use-tag')
+    .description('Switch to a different tag')
+    .argument('<name>', 'Tag name')
+    .action(async (name) => {
+      const projectRoot = findProjectRoot();
+      if (!projectRoot) {
+        console.error(chalk.red('Error: Not in a TaskMaster project.'));
+        process.exit(1);
+      }
+
+      try {
+        switchTag(name, projectRoot);
+        console.log(chalk.green(`✓ Switched to tag '${name}'`));
+      } catch (error) {
+        console.error(chalk.red('Error:'), error.message);
+        process.exit(1);
+      }
+    });
+
+  // Delete tag command
+  program
+    .command('delete-tag')
+    .description('Delete a tag')
+    .argument('<name>', 'Tag name')
+    .option('-y, --yes', 'Skip confirmation')
+    .action(async (name, options) => {
+      const projectRoot = findProjectRoot();
+      if (!projectRoot) {
+        console.error(chalk.red('Error: Not in a TaskMaster project.'));
+        process.exit(1);
+      }
+
+      if (!options.yes) {
+        const inquirer = (await import('inquirer')).default;
+        const { confirm } = await inquirer.prompt([{
+          type: 'confirm',
+          name: 'confirm',
+          message: `Are you sure you want to delete tag '${name}' and all its tasks?`,
+          default: false
+        }]);
+
+        if (!confirm) {
+          console.log(chalk.yellow('Cancelled.'));
+          return;
+        }
+      }
+
+      try {
+        deleteTagData(name, projectRoot);
+        console.log(chalk.green(`✓ Deleted tag '${name}'`));
+      } catch (error) {
+        console.error(chalk.red('Error:'), error.message);
+        process.exit(1);
+      }
+    });
+
+  // Rename tag command
+  program
+    .command('rename-tag')
+    .description('Rename a tag')
+    .argument('<oldName>', 'Current tag name')
+    .argument('<newName>', 'New tag name')
+    .action(async (oldName, newName) => {
+      const projectRoot = findProjectRoot();
+      if (!projectRoot) {
+        console.error(chalk.red('Error: Not in a TaskMaster project.'));
+        process.exit(1);
+      }
+
+      try {
+        renameTag(oldName, newName, projectRoot);
+        console.log(chalk.green(`✓ Renamed tag '${oldName}' to '${newName}'`));
+      } catch (error) {
+        console.error(chalk.red('Error:'), error.message);
+        process.exit(1);
+      }
+    });
+
+  // Copy tag command
+  program
+    .command('copy-tag')
+    .description('Copy a tag with all its tasks')
+    .argument('<source>', 'Source tag name')
+    .argument('<target>', 'Target tag name')
+    .option('-d, --description <text>', 'Description for new tag')
+    .action(async (source, target, options) => {
+      const projectRoot = findProjectRoot();
+      if (!projectRoot) {
+        console.error(chalk.red('Error: Not in a TaskMaster project.'));
+        process.exit(1);
+      }
+
+      try {
+        copyTag(source, target, { description: options.description }, projectRoot);
+        console.log(chalk.green(`✓ Copied tag '${source}' to '${target}'`));
+      } catch (error) {
+        console.error(chalk.red('Error:'), error.message);
+        process.exit(1);
+      }
+    });
+
+  // ============================================
+  // DEPENDENCY MANAGEMENT COMMANDS
+  // ============================================
+
+  // Validate dependencies command
+  program
+    .command('validate-dependencies')
+    .description('Validate all task dependencies')
+    .action(async () => {
+      const projectRoot = findProjectRoot();
+      if (!projectRoot) {
+        console.error(chalk.red('Error: Not in a TaskMaster project.'));
+        process.exit(1);
+      }
+
+      const issues = validateDependencies(projectRoot);
+
+      console.log('');
+      if (issues.length === 0) {
+        console.log(chalk.green('✓ All dependencies are valid'));
+      } else {
+        console.log(chalk.red(`Found ${issues.length} dependency issue(s):`));
+        console.log('');
+        issues.forEach(issue => {
+          const icon = issue.type === 'missing' ? '❌' : '🔄';
+          console.log(`  ${icon} ${issue.message}`);
+        });
+        console.log('');
+        console.log(chalk.dim('Run ') + chalk.cyan('taskmaster fix-dependencies') + chalk.dim(' to fix these issues'));
+      }
+      console.log('');
+    });
+
+  // Fix dependencies command
+  program
+    .command('fix-dependencies')
+    .description('Automatically fix dependency issues')
+    .action(async () => {
+      const projectRoot = findProjectRoot();
+      if (!projectRoot) {
+        console.error(chalk.red('Error: Not in a TaskMaster project.'));
+        process.exit(1);
+      }
+
+      const result = fixDependencies(projectRoot);
+
+      console.log('');
+      if (result.fixedCount === 0) {
+        console.log(chalk.green('✓ No dependency issues to fix'));
+      } else {
+        console.log(chalk.green(`✓ Fixed dependencies in ${result.fixedCount} task(s)`));
+      }
+      console.log('');
+    });
+
+  // ============================================
+  // TASK ORGANIZATION COMMANDS
+  // ============================================
+
+  // Move task command
+  program
+    .command('move')
+    .description('Move a task or subtask to a new position')
+    .option('--from <id>', 'Source task/subtask ID')
+    .option('--to <id>', 'Destination task/subtask ID')
+    .action(async (options) => {
+      if (!options.from || !options.to) {
+        console.error(chalk.red('Error: Both --from and --to are required'));
+        process.exit(1);
+      }
+
+      const projectRoot = findProjectRoot();
+      if (!projectRoot) {
+        console.error(chalk.red('Error: Not in a TaskMaster project.'));
+        process.exit(1);
+      }
+
+      try {
+        moveTask(options.from, options.to, projectRoot);
+        console.log(chalk.green(`✓ Moved task ${options.from} to ${options.to}`));
+      } catch (error) {
+        console.error(chalk.red('Error:'), error.message);
+        process.exit(1);
+      }
+    });
+
+  // Add subtask command
+  program
+    .command('add-subtask')
+    .description('Add a subtask to a parent task')
+    .option('-p, --parent <id>', 'Parent task ID')
+    .option('-t, --title <text>', 'Subtask title')
+    .option('-d, --description <text>', 'Subtask description')
+    .option('--details <text>', 'Implementation details')
+    .option('--dependencies <ids>', 'Comma-separated dependency IDs')
+    .option('-s, --status <status>', 'Initial status', 'pending')
+    .action(async (options) => {
+      if (!options.parent || !options.title) {
+        console.error(chalk.red('Error: Both --parent and --title are required'));
+        process.exit(1);
+      }
+
+      const projectRoot = findProjectRoot();
+      if (!projectRoot) {
+        console.error(chalk.red('Error: Not in a TaskMaster project.'));
+        process.exit(1);
+      }
+
+      try {
+        const dependencies = options.dependencies
+          ? options.dependencies.split(',').map(id => id.trim())
+          : [];
+
+        const result = addSingleSubtask(options.parent, {
+          title: options.title,
+          description: options.description || '',
+          details: options.details || '',
+          dependencies,
+          status: options.status,
+        }, projectRoot);
+
+        console.log(chalk.green(`✓ Added subtask ${options.parent}.${result.subtask.id}: ${result.subtask.title}`));
+      } catch (error) {
+        console.error(chalk.red('Error:'), error.message);
+        process.exit(1);
+      }
+    });
+
+  // Generate task files command
+  program
+    .command('generate')
+    .description('Generate individual task markdown files')
+    .option('-o, --output <dir>', 'Output directory')
+    .action(async (options) => {
+      const projectRoot = findProjectRoot();
+      if (!projectRoot) {
+        console.error(chalk.red('Error: Not in a TaskMaster project.'));
+        process.exit(1);
+      }
+
+      try {
+        const files = generateTaskFiles(projectRoot, options.output);
+        console.log(chalk.green(`✓ Generated ${files.length} task file(s)`));
+      } catch (error) {
+        console.error(chalk.red('Error:'), error.message);
+        process.exit(1);
+      }
+    });
+
+  // ============================================
+  // ANALYSIS COMMANDS
+  // ============================================
+
+  // Complexity report command
+  program
+    .command('complexity-report')
+    .description('Display the task complexity analysis report')
+    .option('-f, --file <path>', 'Path to complexity report')
+    .action(async (options) => {
+      const projectRoot = findProjectRoot();
+      if (!projectRoot) {
+        console.error(chalk.red('Error: Not in a TaskMaster project.'));
+        process.exit(1);
+      }
+
+      const reportPath = options.file || 
+        path.join(projectRoot, '.taskmaster', 'reports', 'complexity-report.json');
+
+      if (!fs.existsSync(reportPath)) {
+        console.log(chalk.yellow('No complexity report found.'));
+        console.log(chalk.dim('Run ') + chalk.cyan('taskmaster analyze-complexity') + chalk.dim(' first'));
+        return;
+      }
+
+      try {
+        const report = JSON.parse(fs.readFileSync(reportPath, 'utf-8'));
+        const tasks = getAllTasks(projectRoot);
+
+        console.log('');
+        console.log(chalk.cyan.bold('Complexity Analysis Report'));
+        console.log(chalk.dim(`Generated: ${new Date(report.generatedAt).toLocaleString()}`));
+        console.log('');
+
+        const table = new Table({
+          head: [
+            chalk.cyan('ID'),
+            chalk.cyan('Complexity'),
+            chalk.cyan('Title'),
+            chalk.cyan('Recommended'),
+          ],
+          colWidths: [6, 12, 45, 14],
+        });
+
+        report.analysis.forEach(item => {
+          const task = tasks.find(t => t.id === item.taskId);
+          const complexityColor = item.complexity >= 7 ? chalk.red : 
+                                  item.complexity >= 4 ? chalk.yellow : chalk.green;
+          
+          table.push([
+            item.taskId,
+            complexityColor(`${item.complexity}/10`),
+            truncateText(task?.title || 'Unknown', 43),
+            `${item.recommendedSubtasks} subtasks`,
+          ]);
+        });
+
+        console.log(table.toString());
+        console.log('');
+      } catch (error) {
+        console.error(chalk.red('Error reading report:'), error.message);
+        process.exit(1);
+      }
+    });
+
+  // Research command
+  program
+    .command('research')
+    .description('Perform AI-powered research')
+    .argument('[query]', 'Research query')
+    .option('-q, --query <text>', 'Research query (alternative)')
+    .option('--save-to <id>', 'Save results to task/subtask')
+    .option('--tree', 'Include project tree in context')
+    .option('--files <paths>', 'Include specific files in context')
+    .option('--detail <level>', 'Detail level: low, medium, high', 'medium')
+    .action(async (queryArg, options) => {
+      const query = queryArg || options.query;
+      
+      if (!query) {
+        console.error(chalk.red('Error: Research query is required'));
+        process.exit(1);
+      }
+
+      const projectRoot = findProjectRoot();
+      if (!projectRoot) {
+        console.error(chalk.red('Error: Not in a TaskMaster project.'));
+        process.exit(1);
+      }
+
+      // Check usage limit
+      try {
+        enforceUsageLimit(1);
+      } catch (limitError) {
+        console.log('');
+        console.log(
+          boxen(
+            chalk.red.bold('⚠️  Usage Limit Reached') + '\n\n' +
+            chalk.white(limitError.message) + '\n\n' +
+            chalk.dim('Upgrade your plan to continue using TaskMaster AI'),
+            { padding: 1, borderColor: 'red', borderStyle: 'round' }
+          )
+        );
+        process.exit(1);
+      }
+
+      const ora = (await import('ora')).default;
+      const spinner = ora('Researching...').start();
+
+      try {
+        const result = await performResearch(query, {
+          detailLevel: options.detail,
+        });
+
+        await incrementUsage('tasksAdded', 1); // Count as AI operation
+        spinner.stop();
+
+        console.log('');
+        console.log(chalk.cyan.bold('Research Results:'));
+        console.log(chalk.dim(`Model: ${result.provider}/${result.model}`));
+        console.log('');
+        console.log(result.text);
+        console.log('');
+
+        // Save to task if specified
+        if (options.saveTo) {
+          const timestamp = new Date().toISOString();
+          const note = `\n\n--- Research [${timestamp}] ---\nQuery: ${query}\n\n${result.text}`;
+          
+          updateTask(options.saveTo, {
+            details: (findTaskById(options.saveTo, projectRoot)?.details || '') + note
+          }, projectRoot);
+          
+          console.log(chalk.green(`✓ Research saved to task ${options.saveTo}`));
+        }
+      } catch (error) {
+        spinner.stop();
+        console.error(chalk.red('Error:'), error.message);
+        process.exit(1);
+      }
+    });
+
+  // ============================================
+  // BATCH OPERATIONS
+  // ============================================
+
+  // Batch update command
+  program
+    .command('update')
+    .description('Update multiple tasks from a specific ID')
+    .option('--from <id>', 'Starting task ID (required)')
+    .option('-p, --prompt <text>', 'Update context/changes (required)')
+    .option('-r, --research', 'Use research model')
+    .action(async (options) => {
+      if (!options.from || !options.prompt) {
+        console.error(chalk.red('Error: Both --from and --prompt are required'));
+        process.exit(1);
+      }
+
+      const projectRoot = findProjectRoot();
+      if (!projectRoot) {
+        console.error(chalk.red('Error: Not in a TaskMaster project.'));
+        process.exit(1);
+      }
+
+      const tasks = getAllTasks(projectRoot);
+      const fromId = parseInt(options.from);
+      const tasksToUpdate = tasks.filter(t => t.id >= fromId && t.status !== 'done');
+
+      if (tasksToUpdate.length === 0) {
+        console.log(chalk.yellow('No tasks to update.'));
+        return;
+      }
+
+      // Check usage limit
+      try {
+        enforceUsageLimit(tasksToUpdate.length);
+      } catch (limitError) {
+        console.log('');
+        console.log(
+          boxen(
+            chalk.red.bold('⚠️  Usage Limit Reached') + '\n\n' +
+            chalk.white(limitError.message) + '\n\n' +
+            chalk.dim('Upgrade your plan to continue using TaskMaster AI'),
+            { padding: 1, borderColor: 'red', borderStyle: 'round' }
+          )
+        );
+        process.exit(1);
+      }
+
+      const ora = (await import('ora')).default;
+      const spinner = ora(`Updating ${tasksToUpdate.length} task(s)...`).start();
+
+      try {
+        const updates = await batchUpdateTasks(tasks, fromId, options.prompt, {
+          research: options.research,
+        });
+
+        // Apply updates
+        for (const update of updates) {
+          updateTask(update.id, {
+            title: update.title,
+            description: update.description,
+            details: update.details,
+            testStrategy: update.testStrategy,
+          }, projectRoot);
+        }
+
+        await incrementUsage('tasksAdded', updates.length);
+        spinner.stop();
+
+        console.log(chalk.green(`✓ Updated ${updates.length} task(s)`));
+        console.log('');
+        updates.forEach(u => {
+          console.log(chalk.gray(`  [${u.id}]`) + ' ' + u.title);
+        });
+        console.log('');
+      } catch (error) {
+        spinner.stop();
+        console.error(chalk.red('Error:'), error.message);
+        process.exit(1);
+      }
+    });
+
+  // ============================================
+  // AUTOPILOT COMMANDS
+  // ============================================
+
+  // Autopilot parent command
+  const autopilot = program
+    .command('autopilot')
+    .description('TDD workflow automation');
+
+  // Autopilot start
+  autopilot
+    .command('start')
+    .description('Start a TDD workflow for a task')
+    .argument('<taskId>', 'Task ID to work on')
+    .option('--max-attempts <number>', 'Maximum attempts per subtask', '3')
+    .option('--force', 'Force start even if workflow exists')
+    .option('--json', 'Output JSON')
+    .action(async (taskId, options) => {
+      const projectRoot = findProjectRoot();
+      if (!projectRoot) {
+        console.error(chalk.red('Error: Not in a TaskMaster project.'));
+        process.exit(1);
+      }
+
+      try {
+        const { WorkflowOrchestrator } = await import('../lib/autopilot/index.js');
+        const orchestrator = new WorkflowOrchestrator(projectRoot);
+        
+        const result = await orchestrator.start(taskId, {
+          maxAttempts: parseInt(options.maxAttempts),
+          force: options.force,
+        });
+
+        if (options.json) {
+          console.log(JSON.stringify(result, null, 2));
+        } else {
+          console.log('');
+          console.log(chalk.green(`✓ Workflow started for task ${taskId}`));
+          console.log(chalk.green(`✓ Created branch: ${result.branchName}`));
+          console.log(chalk.cyan(`✓ Current phase: ${result.tddPhase}`));
+          console.log(chalk.white(`✓ Subtask 1/${result.progress.total}: ${result.currentSubtask?.title}`));
+          console.log(chalk.dim(`→ Next action: Write a failing test`));
+          console.log('');
+        }
+      } catch (error) {
+        if (options.json) {
+          console.log(JSON.stringify({ success: false, error: error.message }));
+        } else {
+          console.error(chalk.red('Error:'), error.message);
+        }
+        process.exit(1);
+      }
+    });
+
+  // Autopilot next
+  autopilot
+    .command('next')
+    .description('Get the next action to perform')
+    .option('--json', 'Output JSON')
+    .action(async (options) => {
+      const projectRoot = findProjectRoot();
+      if (!projectRoot) {
+        console.error(chalk.red('Error: Not in a TaskMaster project.'));
+        process.exit(1);
+      }
+
+      try {
+        const { WorkflowOrchestrator } = await import('../lib/autopilot/index.js');
+        const orchestrator = new WorkflowOrchestrator(projectRoot);
+        
+        const result = orchestrator.getNextAction();
+
+        if (options.json) {
+          console.log(JSON.stringify(result, null, 2));
+        } else {
+          console.log('');
+          console.log(chalk.cyan.bold(`Phase: ${result.tddPhase}`));
+          console.log(chalk.white.bold(`Action: ${result.action}`));
+          console.log(chalk.dim(result.description));
+          console.log('');
+          if (result.currentSubtask) {
+            console.log(chalk.white(`Subtask: ${result.currentSubtask.title}`));
+          }
+          console.log('');
+        }
+      } catch (error) {
+        if (options.json) {
+          console.log(JSON.stringify({ success: false, error: error.message }));
+        } else {
+          console.error(chalk.red('Error:'), error.message);
+        }
+        process.exit(1);
+      }
+    });
+
+  // Autopilot status
+  autopilot
+    .command('status')
+    .description('Get current workflow status')
+    .option('--json', 'Output JSON')
+    .action(async (options) => {
+      const projectRoot = findProjectRoot();
+      if (!projectRoot) {
+        console.error(chalk.red('Error: Not in a TaskMaster project.'));
+        process.exit(1);
+      }
+
+      try {
+        const { WorkflowOrchestrator } = await import('../lib/autopilot/index.js');
+        const orchestrator = new WorkflowOrchestrator(projectRoot);
+        
+        const result = orchestrator.getStatus();
+
+        if (!result) {
+          if (options.json) {
+            console.log(JSON.stringify({ active: false }));
+          } else {
+            console.log(chalk.yellow('No active workflow'));
+          }
+          return;
+        }
+
+        if (options.json) {
+          console.log(JSON.stringify(result, null, 2));
+        } else {
+          console.log('');
+          console.log(chalk.cyan.bold('Workflow Status'));
+          console.log('');
+          console.log(chalk.white.bold('Task: ') + result.taskId);
+          console.log(chalk.white.bold('Branch: ') + result.branchName);
+          console.log(chalk.white.bold('Phase: ') + result.phase);
+          console.log(chalk.white.bold('TDD Phase: ') + (result.tddPhase || 'N/A'));
+          console.log('');
+          console.log(chalk.white.bold('Progress: ') + 
+            `${result.progress.completed}/${result.progress.total} (${result.progress.percentage}%)`);
+          console.log('');
+          if (result.currentSubtask) {
+            console.log(chalk.white.bold('Current Subtask: ') + result.currentSubtask.title);
+          }
+          console.log('');
+        }
+      } catch (error) {
+        if (options.json) {
+          console.log(JSON.stringify({ success: false, error: error.message }));
+        } else {
+          console.error(chalk.red('Error:'), error.message);
+        }
+        process.exit(1);
+      }
+    });
+
+  // Autopilot resume
+  autopilot
+    .command('resume')
+    .description('Resume an interrupted workflow')
+    .option('--json', 'Output JSON')
+    .action(async (options) => {
+      const projectRoot = findProjectRoot();
+      if (!projectRoot) {
+        console.error(chalk.red('Error: Not in a TaskMaster project.'));
+        process.exit(1);
+      }
+
+      try {
+        const { WorkflowOrchestrator } = await import('../lib/autopilot/index.js');
+        const orchestrator = new WorkflowOrchestrator(projectRoot);
+        
+        const result = orchestrator.resume();
+
+        if (options.json) {
+          console.log(JSON.stringify(result, null, 2));
+        } else {
+          console.log('');
+          console.log(chalk.green('✓ Workflow resumed'));
+          console.log(chalk.white(`  Task ${result.taskId} - subtask ${result.progress.completed + 1}/${result.progress.total}`));
+          console.log(chalk.cyan(`  Current phase: ${result.tddPhase}`));
+          console.log(chalk.dim('  → Continue from where you left off'));
+          console.log('');
+        }
+      } catch (error) {
+        if (options.json) {
+          console.log(JSON.stringify({ success: false, error: error.message }));
+        } else {
+          console.error(chalk.red('Error:'), error.message);
+        }
+        process.exit(1);
+      }
+    });
+
+  // Autopilot complete
+  autopilot
+    .command('complete')
+    .description('Complete the current TDD phase')
+    .option('--results <json>', 'Test results JSON')
+    .option('--json', 'Output JSON')
+    .action(async (options) => {
+      if (!options.results) {
+        console.error(chalk.red('Error: --results is required'));
+        process.exit(1);
+      }
+
+      const projectRoot = findProjectRoot();
+      if (!projectRoot) {
+        console.error(chalk.red('Error: Not in a TaskMaster project.'));
+        process.exit(1);
+      }
+
+      try {
+        const testResults = JSON.parse(options.results);
+        const { WorkflowOrchestrator } = await import('../lib/autopilot/index.js');
+        const orchestrator = new WorkflowOrchestrator(projectRoot);
+        
+        const result = orchestrator.completePhase(testResults);
+
+        if (options.json) {
+          console.log(JSON.stringify(result, null, 2));
+        } else {
+          console.log('');
+          console.log(chalk.green(`✓ Completed phase`));
+          console.log(chalk.cyan(`  Current phase: ${result.tddPhase}`));
+          console.log('');
+        }
+      } catch (error) {
+        if (options.json) {
+          console.log(JSON.stringify({ success: false, error: error.message }));
+        } else {
+          console.error(chalk.red('Error:'), error.message);
+        }
+        process.exit(1);
+      }
+    });
+
+  // Autopilot commit
+  autopilot
+    .command('commit')
+    .description('Commit changes and advance to next subtask')
+    .option('--message <text>', 'Custom commit message')
+    .option('--files <paths>', 'Specific files to stage')
+    .option('--json', 'Output JSON')
+    .action(async (options) => {
+      const projectRoot = findProjectRoot();
+      if (!projectRoot) {
+        console.error(chalk.red('Error: Not in a TaskMaster project.'));
+        process.exit(1);
+      }
+
+      try {
+        const { WorkflowOrchestrator } = await import('../lib/autopilot/index.js');
+        const orchestrator = new WorkflowOrchestrator(projectRoot);
+        
+        const files = options.files ? options.files.split(',').map(f => f.trim()) : undefined;
+        const result = await orchestrator.commit({
+          customMessage: options.message,
+          files,
+        });
+
+        if (options.json) {
+          console.log(JSON.stringify(result, null, 2));
+        } else {
+          console.log('');
+          console.log(chalk.green(`✓ Committed: ${result.commit.message}`));
+          if (result.isComplete) {
+            console.log(chalk.green.bold('🎉 Workflow complete!'));
+          } else {
+            console.log(chalk.cyan(`  Advanced to subtask ${result.progress.completed + 1}/${result.progress.total}`));
+            console.log(chalk.dim(`  → Next action: Write a failing test`));
+          }
+          console.log('');
+        }
+      } catch (error) {
+        if (options.json) {
+          console.log(JSON.stringify({ success: false, error: error.message }));
+        } else {
+          console.error(chalk.red('Error:'), error.message);
+        }
+        process.exit(1);
+      }
+    });
+
+  // Autopilot finalize
+  autopilot
+    .command('finalize')
+    .description('Finalize the workflow after all subtasks are complete')
+    .option('--json', 'Output JSON')
+    .action(async (options) => {
+      const projectRoot = findProjectRoot();
+      if (!projectRoot) {
+        console.error(chalk.red('Error: Not in a TaskMaster project.'));
+        process.exit(1);
+      }
+
+      try {
+        const { WorkflowOrchestrator } = await import('../lib/autopilot/index.js');
+        const orchestrator = new WorkflowOrchestrator(projectRoot);
+        
+        const status = orchestrator.getStatus();
+        
+        if (!status) {
+          if (options.json) {
+            console.log(JSON.stringify({ success: false, error: 'No active workflow to finalize' }));
+          } else {
+            console.error(chalk.red('Error: No active workflow to finalize'));
+          }
+          process.exit(1);
+        }
+
+        // Mark parent task as done
+        setTaskStatus(status.taskId, 'done', projectRoot);
+        
+        // Clear workflow state
+        orchestrator.abort();
+
+        if (options.json) {
+          console.log(JSON.stringify({
+            success: true,
+            taskId: status.taskId,
+            message: `Workflow finalized. Task ${status.taskId} marked as done.`
+          }, null, 2));
+        } else {
+          console.log(chalk.green(`✓ Workflow finalized. Task ${status.taskId} marked as done.`));
+        }
+      } catch (error) {
+        if (options.json) {
+          console.log(JSON.stringify({ success: false, error: error.message }));
+        } else {
+          console.error(chalk.red('Error:'), error.message);
+        }
+        process.exit(1);
+      }
+    });
+
+  // Autopilot abort
+  autopilot
+    .command('abort')
+    .description('Abort the current workflow')
+    .option('--force', 'Skip confirmation')
+    .option('--json', 'Output JSON')
+    .action(async (options) => {
+      const projectRoot = findProjectRoot();
+      if (!projectRoot) {
+        console.error(chalk.red('Error: Not in a TaskMaster project.'));
+        process.exit(1);
+      }
+
+      if (!options.force && !options.json) {
+        const inquirer = (await import('inquirer')).default;
+        const { confirm } = await inquirer.prompt([{
+          type: 'confirm',
+          name: 'confirm',
+          message: 'Are you sure you want to abort the workflow?',
+          default: false
+        }]);
+
+        if (!confirm) {
+          console.log(chalk.yellow('Cancelled.'));
+          return;
+        }
+      }
+
+      try {
+        const { WorkflowOrchestrator } = await import('../lib/autopilot/index.js');
+        const orchestrator = new WorkflowOrchestrator(projectRoot);
+        
+        const result = orchestrator.abort();
+
+        if (options.json) {
+          console.log(JSON.stringify(result, null, 2));
+        } else {
+          console.log(chalk.green('✓ Workflow aborted'));
+        }
+      } catch (error) {
+        if (options.json) {
+          console.log(JSON.stringify({ success: false, error: error.message }));
+        } else {
+          console.error(chalk.red('Error:'), error.message);
+        }
+        process.exit(1);
+      }
     });
 }
 

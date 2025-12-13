@@ -317,6 +317,123 @@ Generate a well-structured task.`;
   return result.object;
 }
 
+/**
+ * Perform AI-powered research
+ * Tries Perplexity first for web search capability, falls back to main model
+ */
+export async function performResearch(query, options = {}) {
+  const config = readProjectConfig();
+  
+  const systemPrompt = options.systemPrompt || `You are a research assistant helping with software development. 
+Provide accurate, up-to-date information with practical examples when possible.
+Focus on best practices, latest versions, and security considerations.
+Be concise but thorough in your explanations.`;
+
+  // Try research model (Perplexity) first if configured
+  if (config.models.research) {
+    try {
+      const result = await generateAIText(query, {
+        role: 'research',
+        systemPrompt,
+        ...options,
+      });
+      return {
+        ...result,
+        model: config.models.research.modelId,
+        provider: config.models.research.provider,
+      };
+    } catch (error) {
+      console.warn(`Research model failed: ${error.message}. Falling back to main model.`);
+    }
+  }
+  
+  // Fallback to main model
+  const result = await generateAIText(query, {
+    role: 'main',
+    systemPrompt,
+    ...options,
+  });
+  
+  return {
+    ...result,
+    model: config.models.main.modelId,
+    provider: config.models.main.provider,
+  };
+}
+
+/**
+ * Update multiple tasks from a starting ID with AI
+ */
+export async function batchUpdateTasks(tasks, fromId, prompt, options = {}) {
+  const systemPrompt = `You are an expert software architect. Update the given tasks based on new context or requirements.
+Preserve the task structure but update titles, descriptions, details, and test strategies as needed.
+Maintain consistency with the overall project goals.`;
+
+  const tasksToUpdate = tasks.filter(t => t.id >= fromId && t.status !== 'done');
+  
+  const updateSchema = z.object({
+    updates: z.array(z.object({
+      id: z.number().describe('Task ID'),
+      title: z.string().describe('Updated title'),
+      description: z.string().describe('Updated description'),
+      details: z.string().describe('Updated implementation details'),
+      testStrategy: z.string().describe('Updated test strategy'),
+    })).describe('Array of task updates'),
+  });
+
+  const promptText = `Update the following tasks based on this new context:
+
+Context/Changes: ${prompt}
+
+Tasks to update:
+${JSON.stringify(tasksToUpdate.map(t => ({
+  id: t.id,
+  title: t.title,
+  description: t.description,
+  details: t.details,
+  testStrategy: t.testStrategy,
+})), null, 2)}
+
+Provide updated versions of each task that incorporate the new context.`;
+
+  const result = await generateAIObject(promptText, updateSchema, {
+    systemPrompt,
+    role: options.research ? 'research' : 'main',
+  });
+
+  return result.object.updates;
+}
+
+/**
+ * Update a subtask with appended information
+ */
+export async function updateSubtaskWithAI(subtask, prompt, options = {}) {
+  const systemPrompt = `You are a software developer documenting implementation progress.
+Generate a concise update to append to the subtask details.
+Focus on what was learned, what changed, or what was implemented.`;
+
+  const updateSchema = z.object({
+    update: z.string().describe('The update text to append'),
+  });
+
+  const promptText = `Add the following information to this subtask:
+
+Subtask: ${subtask.title}
+Current details: ${subtask.details || 'None'}
+
+New information to incorporate:
+${prompt}
+
+Generate a concise update entry with timestamp context.`;
+
+  const result = await generateAIObject(promptText, updateSchema, {
+    systemPrompt,
+    role: options.research ? 'research' : 'main',
+  });
+
+  return result.object.update;
+}
+
 export default {
   generateAIText,
   generateAIObject,
@@ -324,4 +441,7 @@ export default {
   expandTask,
   analyzeComplexity,
   generateTask,
+  performResearch,
+  batchUpdateTasks,
+  updateSubtaskWithAI,
 };

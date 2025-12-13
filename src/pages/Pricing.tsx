@@ -81,7 +81,7 @@ const faqs = [
   },
   {
     q: 'What AI providers are supported?',
-    a: 'We support Anthropic (Claude), OpenAI (GPT-4), Google (Gemini), Perplexity, xAI (Grok), Mistral, and OpenRouter.',
+    a: 'We support Anthropic (Claude), OpenAI (GPT-4), Google (Gemini), Perplexity, xAI (Grok), Mistral, OpenRouter, and Ollama (local models).',
   },
   {
     q: 'Can I cancel anytime?',

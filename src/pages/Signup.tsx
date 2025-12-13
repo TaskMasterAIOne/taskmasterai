@@ -157,6 +157,7 @@ export default function Signup() {
                   onChange={(e) => setEmail(e.target.value)}
                   className="input pl-10"
                   placeholder="you@example.com"
+                  autoComplete="email"
                   required
                 />
               </div>
@@ -173,6 +174,7 @@ export default function Signup() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="input pl-10 pr-10"
                   placeholder="••••••••"
+                  autoComplete="new-password"
                   required
                 />
                 <button
@@ -212,6 +214,7 @@ export default function Signup() {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   className="input pl-10"
                   placeholder="••••••••"
+                  autoComplete="new-password"
                   required
                 />
               </div>

@@ -124,7 +124,7 @@ npm publish
 5. **User views dashboard** → Sees license key with copy button
 6. **User runs CLI command**:
 ```bash
-task-master activate tm_live_xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+taskmaster activate tm_live_xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 ```
 7. **License validated** → Stored locally in `~/.taskmaster/license.json`
 8. **User uses TaskMaster** → License checked on each command (cached for 24 hours)
@@ -198,20 +198,20 @@ stripe trigger checkout.session.completed
 # Or complete a test checkout with Stripe test mode
 
 # Activate license
-task-master activate tm_test_your-test-license-key
+taskmaster activate tm_test_your-test-license-key
 
 # Check license status
-task-master license
+taskmaster license
 
 # Deactivate
-task-master deactivate
+taskmaster deactivate
 ```
 
 ## Troubleshooting
 
 ### "License Required" Error
-- Run `task-master license` to check current status
-- Run `task-master activate <key>` with your license key
+- Run `taskmaster license` to check current status
+- Run `taskmaster activate <key>` with your license key
 - Check if your subscription is active at https://taskmaster.one/app/billing
 
 ### Webhook Not Working

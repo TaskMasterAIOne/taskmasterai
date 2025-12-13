@@ -172,12 +172,12 @@ export default function Models() {
             <span className="text-xs text-text-subtle ml-2 font-mono">terminal</span>
           </div>
           <pre className="p-4 font-mono text-sm overflow-x-auto bg-background text-text-muted">
-{`$ task-master models --setup
+{`$ taskmaster models --setup
 
 # Or set individual models:
-$ task-master models --set-main ${config.main}
-$ task-master models --set-research ${config.research}
-$ task-master models --set-fallback ${config.fallback}`}
+$ taskmaster models --set-main ${config.main}
+$ taskmaster models --set-research ${config.research}
+$ taskmaster models --set-fallback ${config.fallback}`}
           </pre>
         </div>
       </motion.div>

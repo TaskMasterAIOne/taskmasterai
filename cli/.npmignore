@@ -1,0 +1,15 @@
+# Development files
+*.test.js
+tests/
+.cursor/
+.vscode/
+
+# Git
+.git/
+.gitignore
+
+# Misc
+*.log
+*.md
+!README.md
+.DS_Store

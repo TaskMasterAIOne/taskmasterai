@@ -14,7 +14,7 @@ AI-powered task management for developers. Transform PRDs into actionable task l
 ## Installation
 
 ```bash
-npm install -g taskmaster-ai
+npm install -g @taskmasterai/cli
 ```
 
 ## Quick Start
@@ -84,6 +84,7 @@ taskmaster expand --id 1
 | `taskmaster deactivate` | Deactivate current license |
 | `taskmaster license` | Show license status |
 | `taskmaster usage` | View usage and plan limits |
+| `taskmaster sync` | Sync API keys and models from dashboard |
 
 ### Configuration
 | Command | Description |
@@ -100,9 +101,17 @@ taskmaster expand --id 1
 - `cancelled` - No longer needed
 - `deferred` - Postponed
 
-## Environment Variables
+## API Key Configuration
 
-Set API keys for AI providers:
+### Option 1: Dashboard Sync (Recommended)
+Configure your API keys in the TaskMaster dashboard and they'll automatically sync to your CLI:
+
+1. Go to [https://taskmaster.one/app/api-keys](https://taskmaster.one/app/api-keys)
+2. Add your API keys for the providers you want to use
+3. Run `taskmaster sync` to pull the keys to your CLI
+
+### Option 2: Environment Variables
+Set API keys directly in your shell (takes priority over dashboard sync):
 
 ```bash
 export ANTHROPIC_API_KEY="your-key"     # For Claude models (recommended)

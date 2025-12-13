@@ -14,16 +14,83 @@ import {
   faCreditCard,
   faCheckCircle,
   faExclamationTriangle,
-  faClock
+  faClock,
+  faPen,
+  faCamera,
+  faCircleExclamation
 } from '@fortawesome/free-solid-svg-icons'
 import { Link } from 'react-router-dom'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 
 export default function Settings() {
-  const { user, userData, licenseInfo } = useAuth()
+  const { user, userData, licenseInfo, updateUserProfile } = useAuth()
   const { mode, setMode } = useTheme()
   const [imageError, setImageError] = useState(false)
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [newDisplayName, setNewDisplayName] = useState(user?.displayName || '')
+  const [saving, setSaving] = useState(false)
+  const [success, setSuccess] = useState('')
+  const [error, setError] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handlePhotoClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setError('Please select an image file')
+      return
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image must be less than 5MB')
+      return
+    }
+
+    setSaving(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      await updateUserProfile({ photoFile: file })
+      setSuccess('Profile photo updated')
+      setImageError(false)
+    } catch (err) {
+      console.error('Error updating photo:', err)
+      setError('Failed to update profile photo')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleNameSave = async () => {
+    if (!newDisplayName.trim()) {
+      setError('Name cannot be empty')
+      return
+    }
+
+    setSaving(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      await updateUserProfile({ displayName: newDisplayName.trim() })
+      setSuccess('Name updated')
+      setIsEditingName(false)
+    } catch (err) {
+      console.error('Error updating name:', err)
+      setError('Failed to update name')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const getStatusColor = (status?: string) => {
     switch (status) {
@@ -59,29 +126,104 @@ export default function Settings() {
         <p className="text-sm text-text-muted">Manage your account and preferences</p>
       </motion.div>
 
+      {/* Status messages */}
+      {error && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 p-3 rounded-lg bg-surface-elevated border border-status-error text-status-error text-sm mb-5">
+          <FontAwesomeIcon icon={faCircleExclamation} className="w-4 h-4 flex-shrink-0" />
+          {error}
+        </motion.div>
+      )}
+
+      {success && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 p-3 rounded-lg bg-surface-elevated border border-status-success text-status-success text-sm mb-5">
+          <FontAwesomeIcon icon={faCheckCircle} className="w-4 h-4 flex-shrink-0" />
+          {success}
+        </motion.div>
+      )}
+
       {/* Profile Section */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1, duration: 0.4, ease: 'easeOut' }} className="mb-8">
         <h2 className="text-base font-semibold mb-4">Profile</h2>
         <div className="card p-5">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-full bg-surface-highlight flex items-center justify-center flex-shrink-0 overflow-hidden">
-              {user?.photoURL && !imageError ? (
-                <img 
-                  src={user.photoURL} 
-                  alt="" 
-                  className="w-12 h-12 rounded-full object-cover"
-                  onError={() => setImageError(true)}
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <FontAwesomeIcon icon={faUser} className="w-5 h-5 text-text-muted" />
-              )}
+            {/* Profile Photo */}
+            <div className="relative group">
+              <div className="w-16 h-16 rounded-full bg-surface-highlight flex items-center justify-center flex-shrink-0 overflow-hidden">
+                {user?.photoURL && !imageError ? (
+                  <img 
+                    src={user.photoURL} 
+                    alt="" 
+                    className="w-16 h-16 rounded-full object-cover"
+                    onError={() => setImageError(true)}
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <FontAwesomeIcon icon={faUser} className="w-6 h-6 text-text-muted" />
+                )}
+              </div>
+              <button
+                onClick={handlePhotoClick}
+                disabled={saving}
+                className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+              >
+                <FontAwesomeIcon icon={faCamera} className="w-5 h-5 text-white" />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handlePhotoChange}
+                className="hidden"
+              />
             </div>
+
             <div className="flex-1 space-y-3">
+              {/* Editable Name */}
               <div>
                 <p className="text-xs text-text-subtle uppercase tracking-wide mb-1">Name</p>
-                <p className="text-sm font-medium">{user?.displayName || 'Not set'}</p>
+                {isEditingName ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={newDisplayName}
+                      onChange={(e) => setNewDisplayName(e.target.value)}
+                      className="input text-sm py-1.5 flex-1"
+                      placeholder="Enter your name"
+                      autoFocus
+                    />
+                    <button
+                      onClick={handleNameSave}
+                      disabled={saving}
+                      className="btn-primary text-sm py-1.5 px-3"
+                    >
+                      {saving ? '...' : 'Save'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsEditingName(false)
+                        setNewDisplayName(user?.displayName || '')
+                      }}
+                      className="btn-ghost text-sm py-1.5 px-3"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium">{user?.displayName || 'Not set'}</p>
+                    <button
+                      onClick={() => {
+                        setNewDisplayName(user?.displayName || '')
+                        setIsEditingName(true)
+                      }}
+                      className="p-1 text-text-subtle hover:text-text transition-colors"
+                    >
+                      <FontAwesomeIcon icon={faPen} className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
               </div>
+
               <div className="flex items-center gap-2">
                 <FontAwesomeIcon icon={faEnvelope} className="w-3.5 h-3.5 text-text-subtle" />
                 <p className="text-sm text-text-muted">{user?.email}</p>

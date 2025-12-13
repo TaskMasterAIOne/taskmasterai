@@ -6,6 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { getSyncedApiKey, getSyncedModels, readCachedConfig } from './license.js';
 
 const VERSION = '1.0.0';
 
@@ -84,21 +85,75 @@ export function findProjectRoot(startDir = process.cwd()) {
 
 /**
  * Read project config
+ * Merges: 1. Default config, 2. Project config file, 3. Synced config from dashboard
  */
 export function readProjectConfig(projectRoot = process.cwd()) {
   const configPath = getConfigFilePath(projectRoot);
+  let config = getDefaultConfig();
   
-  if (!fs.existsSync(configPath)) {
-    return getDefaultConfig();
+  // Read project config file if exists
+  if (fs.existsSync(configPath)) {
+    try {
+      const data = fs.readFileSync(configPath, 'utf-8');
+      config = { ...config, ...JSON.parse(data) };
+    } catch (error) {
+      console.warn(`Warning: Could not read config: ${error.message}`);
+    }
   }
 
+  // Merge synced models from dashboard (if available)
   try {
-    const data = fs.readFileSync(configPath, 'utf-8');
-    return { ...getDefaultConfig(), ...JSON.parse(data) };
+    const syncedModels = getSyncedModels();
+    if (syncedModels) {
+      // Map dashboard model config format to CLI format
+      if (syncedModels.main) {
+        config.models.main = mapDashboardModel(syncedModels.main, config.models.main);
+      }
+      if (syncedModels.research) {
+        config.models.research = mapDashboardModel(syncedModels.research, config.models.research);
+      }
+      if (syncedModels.fallback) {
+        config.models.fallback = mapDashboardModel(syncedModels.fallback, config.models.fallback);
+      }
+    }
   } catch (error) {
-    console.warn(`Warning: Could not read config: ${error.message}`);
-    return getDefaultConfig();
+    // Ignore errors from synced config
   }
+
+  return config;
+}
+
+/**
+ * Map dashboard model ID to CLI model config
+ */
+function mapDashboardModel(dashboardModelId, existingConfig) {
+  // Model ID to provider mapping
+  const modelToProvider = {
+    // Anthropic
+    'claude-sonnet-4-20250514': 'anthropic',
+    'claude-3-5-sonnet-20241022': 'anthropic',
+    'claude-3-5-haiku-20241022': 'anthropic',
+    // OpenAI
+    'gpt-4o': 'openai',
+    'gpt-4o-mini': 'openai',
+    // Google
+    'gemini-2.0-flash': 'google',
+    'gemini-1.5-pro': 'google',
+    // Perplexity
+    'llama-3.1-sonar-large-128k-online': 'perplexity',
+    'llama-3.1-sonar-small-128k-online': 'perplexity',
+  };
+
+  const provider = modelToProvider[dashboardModelId];
+  if (!provider) {
+    return existingConfig; // Unknown model, keep existing
+  }
+
+  return {
+    ...existingConfig,
+    provider,
+    modelId: dashboardModelId,
+  };
 }
 
 /**
@@ -157,7 +212,8 @@ export function getDefaultConfig() {
 }
 
 /**
- * Get API key for a provider from environment
+ * Get API key for a provider
+ * Priority: 1. Environment variable, 2. Synced from dashboard
  */
 export function getApiKey(provider) {
   const keyMap = {
@@ -171,9 +227,23 @@ export function getApiKey(provider) {
   };
 
   const envVar = keyMap[provider.toLowerCase()];
-  if (!envVar) return null;
+  
+  // First check environment variable (takes priority)
+  if (envVar && process.env[envVar]) {
+    return process.env[envVar];
+  }
 
-  return process.env[envVar] || null;
+  // Then check synced config from dashboard
+  try {
+    const syncedKey = getSyncedApiKey(provider.toLowerCase());
+    if (syncedKey) {
+      return syncedKey;
+    }
+  } catch (error) {
+    // License module might not be loaded yet, ignore
+  }
+
+  return null;
 }
 
 /**
@@ -243,6 +313,102 @@ export function writeTasks(tasksData, projectRoot = process.cwd()) {
   }
 }
 
+// ============================================
+// STATE MANAGEMENT
+// ============================================
+
+/**
+ * Get the state file path
+ */
+export function getStateFilePath(projectRoot = process.cwd()) {
+  return path.join(getProjectConfigDir(projectRoot), 'state.json');
+}
+
+/**
+ * Read state from state.json
+ */
+export function readState(projectRoot = process.cwd()) {
+  const statePath = getStateFilePath(projectRoot);
+  
+  if (fs.existsSync(statePath)) {
+    try {
+      return JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+    } catch (error) {
+      console.warn(`Warning: Could not read state: ${error.message}`);
+    }
+  }
+  
+  return { currentTag: 'master' };
+}
+
+/**
+ * Write state to state.json
+ */
+export function writeState(state, projectRoot = process.cwd()) {
+  ensureProjectConfigDir(projectRoot);
+  const statePath = getStateFilePath(projectRoot);
+  
+  try {
+    fs.writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf-8');
+    return true;
+  } catch (error) {
+    throw new Error(`Failed to write state: ${error.message}`);
+  }
+}
+
+/**
+ * Get the workflow state file path
+ */
+export function getWorkflowStateFilePath(projectRoot = process.cwd()) {
+  return path.join(getProjectConfigDir(projectRoot), 'workflow-state.json');
+}
+
+/**
+ * Read workflow state (for autopilot)
+ */
+export function readWorkflowState(projectRoot = process.cwd()) {
+  const statePath = getWorkflowStateFilePath(projectRoot);
+  
+  if (fs.existsSync(statePath)) {
+    try {
+      return JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+    } catch (error) {
+      return null;
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Write workflow state (for autopilot)
+ */
+export function writeWorkflowState(state, projectRoot = process.cwd()) {
+  ensureProjectConfigDir(projectRoot);
+  const statePath = getWorkflowStateFilePath(projectRoot);
+  
+  try {
+    fs.writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf-8');
+    return true;
+  } catch (error) {
+    throw new Error(`Failed to write workflow state: ${error.message}`);
+  }
+}
+
+/**
+ * Delete workflow state file
+ */
+export function deleteWorkflowState(projectRoot = process.cwd()) {
+  const statePath = getWorkflowStateFilePath(projectRoot);
+  
+  if (fs.existsSync(statePath)) {
+    fs.unlinkSync(statePath);
+    return true;
+  }
+  
+  return false;
+}
+
 export default {
   getVersion,
   getGlobalConfigDir,
@@ -258,4 +424,11 @@ export default {
   isApiKeySet,
   readTasks,
   writeTasks,
+  getStateFilePath,
+  readState,
+  writeState,
+  getWorkflowStateFilePath,
+  readWorkflowState,
+  writeWorkflowState,
+  deleteWorkflowState,
 };

@@ -1,0 +1,24 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // User profile photos
+    match /users/{userId}/{allPaths=**} {
+      // Users can read their own files
+      allow read: if request.auth != null && request.auth.uid == userId;
+      
+      // Users can upload their own profile photos
+      // Validate: file must be an image, max 5MB
+      allow write: if request.auth != null 
+        && request.auth.uid == userId
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+    
+    // Public assets (logos, etc.) - read only
+    match /public/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}

@@ -2,18 +2,26 @@
  * License Manager for TaskMaster AI
  * Handles license key validation, storage, and caching
  * Connects to Firebase backend for validation
+ * Also syncs API keys and model config from dashboard
  */
 
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-// License validation endpoint - Your Firebase Functions URL
+// API endpoints - Your Firebase Functions URLs
 const LICENSE_API_URL = process.env.TASKMASTER_LICENSE_API_URL || 
   'https://validatelicense-t5fyd2wiia-uc.a.run.app';
+const CONFIG_API_URL = process.env.TASKMASTER_CONFIG_API_URL || 
+  'https://getuserconfig-t5fyd2wiia-uc.a.run.app';
+const USAGE_API_URL = process.env.TASKMASTER_USAGE_API_URL || 
+  'https://us-central1-taskmaster-ai-e2302.cloudfunctions.net/incrementUsage';
 
 // Cache duration: 24 hours (in milliseconds)
 const CACHE_DURATION_MS = 24 * 60 * 60 * 1000;
+
+// Config sync duration: 1 hour (in milliseconds)
+const CONFIG_SYNC_DURATION_MS = 60 * 60 * 1000;
 
 // Grace period after expiry: 3 days
 const GRACE_PERIOD_DAYS = 3;
@@ -25,6 +33,15 @@ const GRACE_PERIOD_DAYS = 3;
 export function getLicenseFilePath() {
   const taskmasterDir = path.join(os.homedir(), '.taskmaster-ai');
   return path.join(taskmasterDir, 'license.json');
+}
+
+/**
+ * Get the path to the cached config file (API keys + models from dashboard)
+ * @returns {string} Path to ~/.taskmaster-ai/config-cache.json
+ */
+export function getConfigCachePath() {
+  const taskmasterDir = path.join(os.homedir(), '.taskmaster-ai');
+  return path.join(taskmasterDir, 'config-cache.json');
 }
 
 /**
@@ -186,12 +203,19 @@ export async function activateLicense(licenseKey) {
 
   writeLicenseData(licenseData);
 
+  // Also sync user config (API keys + models) from dashboard
+  const configSync = await syncUserConfig(true);
+  
   return {
     success: true,
     plan: validation.plan,
     planName: validation.planName,
     tasksPerMonth: validation.tasksPerMonth,
     expiresAt: validation.expiresAt,
+    configSynced: configSync.success,
+    configMessage: configSync.success 
+      ? `API keys synced from dashboard` 
+      : `Config sync: ${configSync.error || 'No config found'}`,
   };
 }
 
@@ -301,6 +325,7 @@ export function deactivateLicense() {
   }
 
   removeLicenseData();
+  clearConfigCache(); // Also clear the synced config
 
   return {
     success: true,
@@ -353,6 +378,279 @@ export function formatLicenseStatus(status) {
   return lines.join('\n');
 }
 
+// ============================================
+// CONFIG SYNC (API Keys + Models from Dashboard)
+// ============================================
+
+/**
+ * Read the cached config from disk
+ * @returns {Object|null} Cached config or null
+ */
+export function readCachedConfig() {
+  const configPath = getConfigCachePath();
+  
+  try {
+    if (fs.existsSync(configPath)) {
+      const data = fs.readFileSync(configPath, 'utf-8');
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    console.warn(`Warning: Error reading config cache: ${error.message}`);
+  }
+  
+  return null;
+}
+
+/**
+ * Write config cache to disk
+ * @param {Object} config - Config to cache
+ */
+function writeConfigCache(config) {
+  ensureTaskmasterDir();
+  const configPath = getConfigCachePath();
+  
+  try {
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+  } catch (error) {
+    console.warn(`Warning: Error saving config cache: ${error.message}`);
+  }
+}
+
+/**
+ * Check if config cache is still valid
+ * @param {Object} cachedConfig - Cached config object
+ * @returns {boolean} True if cache is still valid
+ */
+function isConfigCacheValid(cachedConfig) {
+  if (!cachedConfig?.syncedAt) return false;
+  
+  const syncedAt = new Date(cachedConfig.syncedAt);
+  const now = new Date();
+  const elapsed = now - syncedAt;
+  
+  return elapsed < CONFIG_SYNC_DURATION_MS;
+}
+
+/**
+ * Fetch user config from server
+ * @param {string} licenseKey - License key to authenticate
+ * @returns {Promise<Object>} User config (apiKeys, models)
+ */
+async function fetchUserConfig(licenseKey) {
+  try {
+    const response = await fetch(CONFIG_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ licenseKey }),
+    });
+
+    const result = await response.json();
+    
+    if (result.success && result.config) {
+      return {
+        success: true,
+        apiKeys: result.config.apiKeys || {},
+        models: result.config.models || null,
+        syncedAt: result.config.syncedAt || new Date().toISOString(),
+      };
+    }
+    
+    return {
+      success: false,
+      error: result.error || 'Failed to fetch config',
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: 'Network error fetching config',
+    };
+  }
+}
+
+/**
+ * Sync user config from dashboard (API keys + models)
+ * Called during license validation or explicitly
+ * @param {boolean} forceRefresh - Force refresh even if cache is valid
+ * @returns {Promise<Object>} Synced config
+ */
+export async function syncUserConfig(forceRefresh = false) {
+  const stored = readStoredLicense();
+  
+  if (!stored?.licenseKey) {
+    return {
+      success: false,
+      error: 'No license key found. Activate first.',
+    };
+  }
+
+  // Check if cached config is still valid
+  const cachedConfig = readCachedConfig();
+  if (!forceRefresh && cachedConfig && isConfigCacheValid(cachedConfig)) {
+    return {
+      success: true,
+      cached: true,
+      apiKeys: cachedConfig.apiKeys || {},
+      models: cachedConfig.models || null,
+      syncedAt: cachedConfig.syncedAt,
+    };
+  }
+
+  // Fetch from server
+  const result = await fetchUserConfig(stored.licenseKey);
+  
+  if (result.success) {
+    // Save to cache
+    const configToCache = {
+      apiKeys: result.apiKeys,
+      models: result.models,
+      syncedAt: result.syncedAt,
+    };
+    writeConfigCache(configToCache);
+    
+    return {
+      success: true,
+      cached: false,
+      apiKeys: result.apiKeys,
+      models: result.models,
+      syncedAt: result.syncedAt,
+    };
+  }
+  
+  // If fetch failed but we have cached config, return it with warning
+  if (cachedConfig) {
+    return {
+      success: true,
+      cached: true,
+      offline: true,
+      apiKeys: cachedConfig.apiKeys || {},
+      models: cachedConfig.models || null,
+      syncedAt: cachedConfig.syncedAt,
+      warning: 'Using cached config (could not reach server)',
+    };
+  }
+  
+  return {
+    success: false,
+    error: result.error || 'Failed to sync config',
+  };
+}
+
+/**
+ * Get API key from synced config
+ * @param {string} provider - Provider name (anthropic, openai, etc.)
+ * @returns {string|null} API key or null
+ */
+export function getSyncedApiKey(provider) {
+  const cachedConfig = readCachedConfig();
+  if (!cachedConfig?.apiKeys) return null;
+  return cachedConfig.apiKeys[provider] || null;
+}
+
+/**
+ * Get model config from synced config
+ * @returns {Object|null} Model config or null
+ */
+export function getSyncedModels() {
+  const cachedConfig = readCachedConfig();
+  return cachedConfig?.models || null;
+}
+
+/**
+ * Clear the config cache (e.g., on deactivate)
+ */
+export function clearConfigCache() {
+  const configPath = getConfigCachePath();
+  try {
+    if (fs.existsSync(configPath)) {
+      fs.unlinkSync(configPath);
+    }
+  } catch (error) {
+    // Ignore errors
+  }
+}
+
+// ============================================
+// USAGE TRACKING
+// ============================================
+
+/**
+ * Increment usage counter after AI operation
+ * @param {string} operation - Operation type (e.g., 'parse-prd', 'expand', 'add-task')
+ * @param {number} count - Number of tasks to increment (default: 1)
+ * @returns {Promise<Object>} Usage result with remaining tasks
+ */
+export async function incrementUsage(operation, count = 1) {
+  const stored = readStoredLicense();
+  
+  if (!stored?.licenseKey) {
+    return {
+      success: false,
+      error: 'No license key found',
+    };
+  }
+
+  try {
+    const response = await fetch(USAGE_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ 
+        licenseKey: stored.licenseKey,
+        operation,
+        count
+      }),
+    });
+
+    const result = await response.json();
+    
+    if (result.success) {
+      return {
+        success: true,
+        usage: result.usage,
+      };
+    }
+    
+    return {
+      success: false,
+      error: result.error || 'Failed to track usage',
+    };
+  } catch (error) {
+    // Don't block the operation if usage tracking fails
+    console.warn(`Warning: Usage tracking failed: ${error.message}`);
+    return {
+      success: false,
+      error: 'Network error tracking usage',
+      offline: true,
+    };
+  }
+}
+
+/**
+ * Get usage summary for display
+ * @param {Object} usageResult - Result from incrementUsage
+ * @returns {string|null} Formatted usage string or null
+ */
+export function formatUsageSummary(usageResult) {
+  if (!usageResult?.success || !usageResult?.usage) return null;
+  
+  const { tasksUsed, tasksPerMonth, remaining, isOverage, overageCount, overageRate } = usageResult.usage;
+  
+  if (tasksPerMonth <= 0) {
+    return `Tasks used: ${tasksUsed}`;
+  }
+  
+  if (isOverage) {
+    const overageCost = (overageCount * overageRate).toFixed(2);
+    return `Tasks: ${tasksUsed}/${tasksPerMonth} (${overageCount} overage @ $${overageRate}/task = $${overageCost})`;
+  }
+  
+  const percentUsed = Math.round((tasksUsed / tasksPerMonth) * 100);
+  return `Tasks: ${tasksUsed}/${tasksPerMonth} (${remaining} remaining, ${percentUsed}% used)`;
+}
+
 export default {
   activateLicense,
   deactivateLicense,
@@ -360,4 +658,14 @@ export default {
   formatLicenseStatus,
   readStoredLicense,
   getLicenseFilePath,
+  // Config sync exports
+  syncUserConfig,
+  readCachedConfig,
+  getSyncedApiKey,
+  getSyncedModels,
+  clearConfigCache,
+  getConfigCachePath,
+  // Usage tracking exports
+  incrementUsage,
+  formatUsageSummary,
 };

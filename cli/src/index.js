@@ -6,7 +6,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import boxen from 'boxen';
-import { getLicenseStatus, activateLicense, deactivateLicense, formatLicenseStatus } from './lib/license.js';
+import { getLicenseStatus, activateLicense, deactivateLicense, formatLicenseStatus, syncUserConfig, readCachedConfig } from './lib/license.js';
 import { registerCommands } from './commands/index.js';
 import { getVersion } from './lib/config.js';
 
@@ -16,6 +16,7 @@ const LICENSE_EXEMPT_COMMANDS = [
   'deactivate',
   'license',
   'usage',
+  'sync',
   'help',
   '--help',
   '-h',
@@ -143,12 +144,20 @@ function createProgram() {
         spinner.stop();
 
         if (result.success) {
+          let configStatus = '';
+          if (result.configSynced) {
+            configStatus = chalk.green('✓ ') + chalk.dim(result.configMessage || 'Config synced from dashboard');
+          } else if (result.configMessage) {
+            configStatus = chalk.yellow('⚠ ') + chalk.dim(result.configMessage);
+          }
+          
           console.log(
             boxen(
               chalk.green.bold('✓ License Activated!') + '\n\n' +
               chalk.white('Plan: ') + chalk.cyan(result.planName || result.plan) + '\n' +
               chalk.white('Tasks/month: ') + chalk.cyan(result.tasksPerMonth?.toLocaleString() || 'Unlimited') + '\n' +
-              chalk.white('Expires: ') + chalk.cyan(new Date(result.expiresAt).toLocaleDateString()) + '\n\n' +
+              chalk.white('Expires: ') + chalk.cyan(new Date(result.expiresAt).toLocaleDateString()) + '\n' +
+              (configStatus ? '\n' + configStatus + '\n' : '') + '\n' +
               chalk.dim('You can now use TaskMaster AI!'),
               {
                 padding: 1,
@@ -238,6 +247,71 @@ function createProgram() {
               }
             )
           );
+        }
+      } catch (error) {
+        spinner.stop();
+        console.error(chalk.red('Error:'), error.message);
+        process.exit(1);
+      }
+    });
+
+  program
+    .command('sync')
+    .description('Sync API keys and model config from the dashboard')
+    .option('-f, --force', 'Force refresh even if cache is valid')
+    .action(async (options) => {
+      displayBanner();
+      
+      const ora = (await import('ora')).default;
+      const spinner = ora('Syncing config from dashboard...').start();
+
+      try {
+        const result = await syncUserConfig(options.force || false);
+        spinner.stop();
+
+        if (result.success) {
+          const cachedConfig = readCachedConfig();
+          const apiKeyCount = Object.keys(result.apiKeys || {}).length;
+          const hasModels = !!result.models;
+
+          console.log(
+            boxen(
+              chalk.green.bold('✓ Config Synced!') + '\n\n' +
+              chalk.white('API Keys: ') + chalk.cyan(`${apiKeyCount} provider(s) configured`) + '\n' +
+              chalk.white('Models: ') + chalk.cyan(hasModels ? 'Custom config synced' : 'Using defaults') + '\n' +
+              chalk.white('Last sync: ') + chalk.cyan(new Date(result.syncedAt).toLocaleString()) +
+              (result.cached ? chalk.dim(' (cached)') : '') +
+              (result.offline ? chalk.yellow('\n\n⚠ Offline mode - using cached config') : ''),
+              {
+                padding: 1,
+                borderColor: 'green',
+                borderStyle: 'round'
+              }
+            )
+          );
+
+          // Show which providers are configured
+          if (apiKeyCount > 0) {
+            console.log('');
+            console.log(chalk.dim('Configured providers:'));
+            for (const provider of Object.keys(result.apiKeys)) {
+              console.log(chalk.dim('  • ') + chalk.cyan(provider));
+            }
+          }
+        } else {
+          console.log(
+            boxen(
+              chalk.red.bold('✗ Sync Failed') + '\n\n' +
+              chalk.white(result.error || 'Could not sync config from dashboard') + '\n\n' +
+              chalk.dim('Make sure you have configured API keys in the dashboard.'),
+              {
+                padding: 1,
+                borderColor: 'red',
+                borderStyle: 'round'
+              }
+            )
+          );
+          process.exit(1);
         }
       } catch (error) {
         spinner.stop();
