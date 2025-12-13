@@ -38,7 +38,7 @@ const providers = [
 export default function ApiKeys() {
   const { user } = useAuth()
   const [keys, setKeys] = useState<ApiKey[]>([])
-  const [loading, setLoading] = useState(true)
+  const [, setLoading] = useState(true)
   const [addingKey, setAddingKey] = useState<string | null>(null)
   const [newKeyValue, setNewKeyValue] = useState('')
   const [showKey, setShowKey] = useState<string | null>(null)

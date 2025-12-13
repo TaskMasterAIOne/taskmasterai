@@ -39,9 +39,9 @@ const modelRoles = [
 ]
 
 export default function Models() {
-  const { user, userData } = useAuth()
+  const { user } = useAuth()
   const [config, setConfig] = useState<ModelConfig>({ main: 'claude-sonnet-4-20250514', research: 'llama-3.1-sonar-large-128k-online', fallback: 'gpt-4o-mini' })
-  const [loading, setLoading] = useState(true)
+  const [, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState('')
   const [error, setError] = useState('')

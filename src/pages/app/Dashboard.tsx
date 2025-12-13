@@ -24,7 +24,7 @@ const quickActions = [
 ]
 
 export default function Dashboard() {
-  const { user, userData } = useAuth()
+  const { user } = useAuth()
 
   return (
     <div className="p-5 lg:p-8 max-w-4xl mx-auto">
