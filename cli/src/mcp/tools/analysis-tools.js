@@ -19,7 +19,7 @@ export function registerAnalysisTools(server, options = {}) {
 
   // parse_prd - Parse PRD and generate tasks (always included)
   server.addTool({
-    name: 'parse_prd',
+    name: 'plan',
     description: 'Parse a PRD file and generate tasks',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
@@ -107,7 +107,7 @@ export function registerAnalysisTools(server, options = {}) {
 
   // expand_task - Expand task into subtasks (always included)
   server.addTool({
-    name: 'expand_task',
+    name: 'breakdown_task',
     description: 'Expand a task into subtasks using AI',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
@@ -234,8 +234,8 @@ export function registerAnalysisTools(server, options = {}) {
 
   // expand_all - Expand all pending tasks
   server.addTool({
-    name: 'expand_all',
-    description: 'Expand all pending tasks without subtasks',
+    name: 'breakdown_all',
+    description: 'Break down all pending tasks into smaller steps',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
       num: z.number().optional().describe('Number of subtasks per task'),
@@ -299,7 +299,7 @@ export function registerAnalysisTools(server, options = {}) {
 
   // analyze_project_complexity - Analyze task complexity
   server.addTool({
-    name: 'analyze_project_complexity',
+    name: 'assess_complexity',
     description: 'Analyze complexity of all tasks',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
@@ -363,7 +363,7 @@ export function registerAnalysisTools(server, options = {}) {
 
   // complexity_report - View complexity report
   server.addTool({
-    name: 'complexity_report',
+    name: 'get_report',
     description: 'View the complexity analysis report',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
@@ -449,7 +449,7 @@ export function registerAnalysisTools(server, options = {}) {
 
   // research - AI-powered research
   server.addTool({
-    name: 'research',
+    name: 'ask',
     description: 'Perform AI-powered research',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
@@ -659,7 +659,7 @@ export function registerAnalysisTools(server, options = {}) {
 
   // clear_subtasks - Clear subtasks
   server.addTool({
-    name: 'clear_subtasks',
+    name: 'clear_steps',
     description: 'Clear all subtasks from a task',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),

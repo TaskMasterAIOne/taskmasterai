@@ -15,7 +15,7 @@ const GoogleLogo = () => (
   </svg>
 )
 
-const LOGO_URL = 'https://firebasestorage.googleapis.com/v0/b/taskmaster-ai-e2302.firebasestorage.app/o/TaskMaster_AI%20Logo%20(1).png?alt=media&token=c309f276-a8a7-438f-a3a0-75576d1fa4d8'
+const LOGO_URL = 'https://firebasestorage.googleapis.com/v0/b/taskmaster-ai-e2302.firebasestorage.app/o/taskmaster_ai_new_logo-removebg.png?alt=media&token=29e7f6a0-f33d-4ec9-84bd-abf3ddbb78b8'
 
 export default function Signup() {
   const navigate = useNavigate()

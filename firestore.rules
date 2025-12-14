@@ -88,10 +88,15 @@ service cloud.firestore {
       }
       
       // ----------------------------------------
-      // Projects subcollection (if you add project management)
+      // Projects subcollection (task sync from CLI)
       // ----------------------------------------
       match /projects/{projectId} {
         allow read, write: if isOwner();
+        
+        // Tags subcollection (for tagged task lists)
+        match /tags/{tagName} {
+          allow read, write: if isOwner();
+        }
       }
       
       // ----------------------------------------
@@ -99,6 +104,37 @@ service cloud.firestore {
       // ----------------------------------------
       match /tasks/{taskId} {
         allow read, write: if isOwner();
+      }
+      
+      // ----------------------------------------
+      // License subcollection
+      // Users can read their own license info
+      // Only server (Cloud Functions) can write
+      // ----------------------------------------
+      match /license/{licenseId} {
+        allow read: if isOwner();
+        allow write: if false;
+      }
+      
+      // ----------------------------------------
+      // Usage Log subcollection
+      // Users can read their own usage history
+      // Only server (Cloud Functions) can write
+      // ----------------------------------------
+      match /usageLog/{logId} {
+        allow read: if isOwner();
+        allow write: if false;
+      }
+      
+      // ----------------------------------------
+      // Hosted Key Usage subcollection
+      // Tracks usage of hosted API keys (PRO plan)
+      // Users can read their own usage history
+      // Only server (Cloud Functions) can write
+      // ----------------------------------------
+      match /hostedKeyUsage/{usageId} {
+        allow read: if isOwner();
+        allow write: if false;
       }
     }
     
@@ -164,6 +200,24 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'readAt']);
       // Only server can create/delete notifications
       allow create, delete: if false;
+    }
+    
+    // ============================================
+    // RATE LIMITS COLLECTION
+    // For API rate limiting (hosted keys, etc.)
+    // Only server (Cloud Functions) can read/write
+    // ============================================
+    match /rateLimits/{limitId} {
+      allow read, write: if false;
+    }
+    
+    // ============================================
+    // SECURITY LOGS COLLECTION
+    // For audit trail and security events
+    // Only server (Cloud Functions) can read/write
+    // ============================================
+    match /securityLogs/{logId} {
+      allow read, write: if false;
     }
   }
 }

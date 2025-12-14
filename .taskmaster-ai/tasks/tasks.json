@@ -1,0 +1,147 @@
+{
+  "tags": {
+    "master": {
+      "tasks": [
+        {
+          "title": "Initialize project structure and define Todo data model",
+          "description": "Set up the basic project boilerplate (e.g., backend framework, configuration) and define the internal data structure for a 'Todo' item, including necessary fields for tracking status.",
+          "status": "done",
+          "priority": "high",
+          "dependencies": [],
+          "details": "Use a simple in-memory data store or SQLite for initial persistence. The data model must include: `id` (unique identifier), `title` (string), and `is_completed` (boolean, default false). Establish necessary dependencies for routing and data handling.",
+          "testStrategy": "Verify that the project initializes without errors and that the data model class/schema is defined and accessible within the backend environment.",
+          "id": 1,
+          "subtasks": [
+            {
+              "id": 1,
+              "title": "Initialize Project Boilerplate and Dependencies",
+              "description": "Create the project directory, initialize the backend framework (e.g., Flask, Express, FastAPI) structure, and install necessary dependencies for routing and configuration.",
+              "status": "done",
+              "details": "This includes setting up `package.json` or `requirements.txt` and installing the main framework library."
+            },
+            {
+              "id": 2,
+              "title": "Define Todo Data Model Structure",
+              "description": "Create the internal data structure (e.g., class, schema, or interface) for the 'Todo' item. Ensure the model includes the fields: `id` (unique identifier), `title` (string), and `is_completed` (boolean, defaulting to false).",
+              "status": "in-progress",
+              "details": "If using a typed language/framework, define types and default values explicitly."
+            },
+            {
+              "id": 3,
+              "title": "Implement In-Memory Data Store Initialization",
+              "description": "Create a dedicated module for data handling and initialize a simple in-memory data structure (e.g., a global list or dictionary) that will hold the defined Todo objects, simulating the database.",
+              "status": "pending",
+              "details": "Ensure the data store is accessible by potential future data access functions (CRUD operations placeholder)."
+            }
+          ]
+        },
+        {
+          "title": "Implement core Task Management API (Add, Complete, Delete)",
+          "description": "Develop the three required RESTful API endpoints to manage the todo list: 1) POST /tasks (Add Task), 2) PUT /tasks/{id}/complete (Toggle Completion Status), 3) DELETE /tasks/{id} (Delete Task).",
+          "status": "pending",
+          "priority": "high",
+          "dependencies": [
+            1
+          ],
+          "details": "Ensure the 'Add Task' endpoint validates the input title. The 'Complete' endpoint should update the `is_completed` field in the data store. Implement proper HTTP response codes (e.g., 201 for creation, 200/204 for updates/deletions, 404 for missing resources).",
+          "testStrategy": "Use an API client (like cURL or Postman) to successfully create a new task, retrieve its status, mark it as completed, and finally delete it, verifying correct status codes for each operation.",
+          "id": 2,
+          "subtasks": [
+            {
+              "id": 1,
+              "title": "Implement POST /tasks (Add Task) endpoint",
+              "description": "Develop the RESTful API endpoint for adding a new task, including input validation and proper data storage.",
+              "status": "pending",
+              "details": "Create the POST /tasks endpoint. It must accept a 'title' for the new task. Validate that the 'title' is not empty and is a string. Store the new task in the data store with an initial 'is_completed' status of false. Return a 201 Created response with the details of the newly created task on success, or a 400 Bad Request if validation fails."
+            },
+            {
+              "id": 2,
+              "title": "Implement PUT /tasks/{id}/complete (Toggle Completion) endpoint",
+              "description": "Develop the RESTful API endpoint to update the completion status of a specific task.",
+              "status": "pending",
+              "details": "Create the PUT /tasks/{id}/complete endpoint. It should locate the task by the provided 'id'. Toggle the 'is_completed' field for the found task in the data store. Return a 200 OK or 204 No Content response on successful update. If the task with the given 'id' is not found, return a 404 Not Found response."
+            },
+            {
+              "id": 3,
+              "title": "Implement DELETE /tasks/{id} (Delete Task) endpoint",
+              "description": "Develop the RESTful API endpoint for deleting an existing task by its ID.",
+              "status": "pending",
+              "details": "Create the DELETE /tasks/{id} endpoint. It should locate and remove the task with the specified 'id' from the data store. Return a 200 OK or 204 No Content response on successful deletion. If no task with the given 'id' is found, return a 404 Not Found response."
+            }
+          ]
+        },
+        {
+          "title": "Build Basic Frontend UI and integrate API endpoints",
+          "description": "Create a simple web interface allowing users to view, add, complete, and delete tasks. Integrate this UI with the backend API endpoints developed in the previous task.",
+          "status": "pending",
+          "priority": "medium",
+          "dependencies": [
+            2
+          ],
+          "details": "The UI should display all current tasks. Implement form submission for adding tasks, and buttons/checkboxes next to each task to handle completion and deletion. Completed tasks should be visually distinguishable (e.g., using strikethrough text).",
+          "testStrategy": "Manually test the full user workflow in a browser: 1) Add three unique tasks. 2) Mark one task as complete. 3) Delete a different task. 4) Verify the displayed list accurately reflects the current state after all actions.",
+          "id": 3
+        },
+        {
+          "id": 4,
+          "title": "Implement Frontend Login Page UI Component",
+          "description": "Develop a functional and visually appealing login page component, including input fields for username/email and password, and a submit button. This task focuses purely on the frontend structure, styling, and basic client-side validation.",
+          "status": "pending",
+          "priority": "medium",
+          "details": "1. Create a new component (e.g., LoginPage.js or LoginView.vue) within the authentication module. 2. Structure the form with two required input fields: one for user identifier (username or email) and one for password (using `type=\"password\"`). 3. Include a primary 'Login' submission button. 4. Apply responsive styling consistent with the application's design system. 5. Implement basic client-side validation to ensure both fields are non-empty before allowing submission. 6. The submit action should currently call a placeholder function that logs the input values to the console.",
+          "testStrategy": "1. Write unit tests (e.g., using Jest or Testing Library) to verify the component renders correctly and state updates upon user input. 2. Manually test the page rendering and responsiveness across common desktop and mobile breakpoints. 3. Verify that the submit button is disabled until both input fields contain data. 4. Check for proper ARIA labels and keyboard navigation (tab order).",
+          "dependencies": [],
+          "subtasks": []
+        },
+        {
+          "id": 5,
+          "title": "Implement JWT-based User Authentication System",
+          "description": "Integrate JSON Web Token (JWT) based authentication to secure API endpoints, ensuring all sensitive routes require a valid, non-expired token for access. This task covers token generation, validation, and middleware implementation.",
+          "status": "pending",
+          "priority": "high",
+          "details": "1. **Dependency Setup:** Install necessary JWT libraries (e.g., 'jsonwebtoken' for Node.js/Express, or equivalent for target framework).\n2. **Login/Registration Flow:** Modify the user login endpoint to generate a JWT upon successful credential verification. The token payload must minimally include the user ID and relevant roles.\n3. **Token Generation:** Implement a service/utility function for signing JWTs using a securely stored secret key (stored in environment variables).\n4. **Authentication Middleware:** Create a middleware function that intercepts requests to protected routes. This middleware must extract the token from the Authorization header, verify its signature and expiration, and attach the decoded user payload to the request object if valid.\n5. **Error Handling:** Implement robust error responses (401 Unauthorized) for missing, invalid, or expired tokens.\n6. **Secret Management:** Ensure the JWT secret key is loaded securely via environment variables and not hardcoded.",
+          "testStrategy": "1. **Unit Tests:** Write tests for the token generation and validation utility functions (e.g., testing token creation, expiration handling, and signature verification failures).\n2. **Integration Tests:** Test the login endpoint to ensure a valid JWT is returned on successful authentication.\n3. **API Tests:** Use tools like Postman or integrated framework tests to verify:\n    a) Accessing a protected route without a token returns 401.\n    b) Accessing a protected route with a valid token succeeds.\n    c) Accessing a protected route with a deliberately expired or tampered token returns 401.",
+          "dependencies": [],
+          "subtasks": []
+        },
+        {
+          "id": 6,
+          "title": "Implement User Profile Page with Avatar Upload",
+          "description": "Develop a user profile page that displays user information and allows users to upload and update their profile avatar. The page should be accessible to authenticated users.",
+          "status": "pending",
+          "priority": "medium",
+          "details": "Frontend: Create a new React component for the user profile page. This component should display user details (e.g., username, email) and an image upload component for the avatar. Implement client-side image validation (e.g., file type, size). Integrate with a backend API for fetching and updating user data and uploading the avatar. Display the current avatar if available. Backend: Create a new API endpoint (e.g., /api/user/profile) to fetch and update user profile data. Create another API endpoint (e.g., /api/user/avatar) for handling avatar uploads. This endpoint should validate the uploaded image, store it in a designated storage solution (e.g., AWS S3, Google Cloud Storage, or local file system), and update the user's profile record with the avatar's URL. Ensure proper authentication and authorization checks for all profile-related operations. Database: Add a new column to the 'users' table (e.g., 'avatar_url' of type VARCHAR) to store the URL of the user's profile avatar.",
+          "testStrategy": "Unit tests for frontend components (profile display, avatar upload interaction). Unit tests for backend API endpoints (user data fetch, update, avatar upload, validation). Integration tests to ensure frontend-backend communication for profile data and avatar updates. Manual testing: Verify profile page loads correctly, displays user data, allows avatar selection and upload, updates avatar display, and persists changes after refresh and re-login. Test with valid and invalid image formats/sizes. Verify security by attempting to access/modify other users' profiles.",
+          "dependencies": [],
+          "subtasks": []
+        },
+        {
+          "id": 7,
+          "title": "Implement Notification System for Task Updates",
+          "description": "Develop and integrate a notification system to inform users about significant updates to tasks they are involved with (e.g., assigned, created, commented on). The system should support in-app notifications as a primary channel.",
+          "status": "pending",
+          "priority": "medium",
+          "details": "1.  **Database Schema**: Design and implement a `notifications` table. This table should include fields such as `id`, `user_id` (recipient), `task_id`, `type` (e.g., 'task_assigned', 'status_changed', 'comment_added'), `message_template` or `message_data` (for dynamic message generation), `is_read`, `created_at`.\n2.  **Backend Logic**: Create a notification service responsible for generating and storing notifications. This service should be triggered by events related to task updates (e.g., task creation, assignment changes, status transitions, due date modifications, new comments).\n3.  **Event Triggers**: Integrate notification generation into existing task-related CRUD operations and comment services. For example, when a task's status changes, identify relevant users (assignee, reporter, followers) and create corresponding notification entries.\n4.  **API Endpoint**: Develop a REST API endpoint for fetching a user's unread and read notifications. Include pagination and filtering options.\n5.  **Frontend Integration**: Implement a UI component (e.g., a notification bell icon) that displays the count of unread notifications and, upon click, shows a list of recent notifications. Users should be able to mark notifications as read. Implement real-time updates for new notifications (e.g., using WebSockets or periodic polling).\n6.  **User Preferences (Initial Scope)**: Initially, focus on core notification types. Future iterations can include user-configurable notification preferences.",
+          "testStrategy": "1.  **Unit Tests**: Write unit tests for the notification generation service to ensure correct message formatting and recipient identification based on task events.\n2.  **Integration Tests**: Verify that task update operations (e.g., changing task status, adding comments) correctly trigger the creation of notification records in the database.\n3.  **API Tests**: Test the notification API endpoints for fetching, marking as read, and ensuring proper data retrieval and security.\n4.  **End-to-End Tests**: Simulate user actions (e.g., User A assigns a task to User B). Verify that User B receives an in-app notification. Test marking notifications as read and ensuring the unread count updates correctly.\n5.  **Edge Cases**: Test scenarios like multiple updates to the same task, notifications for users who are no longer active, and large numbers of notifications.",
+          "dependencies": [],
+          "subtasks": []
+        },
+        {
+          "id": 8,
+          "title": "Implement Dark Mode Toggle on Settings Page",
+          "description": "Add a functional dark mode toggle switch to the user settings page, allowing users to switch between light and dark themes. The selected theme preference should persist across user sessions.",
+          "status": "pending",
+          "priority": "medium",
+          "details": "1. **UI/UX Design**: Design a clear and intuitive toggle switch (e.g., a sun/moon icon switch) and integrate it seamlessly into the existing settings page layout. Consider its placement within a 'Appearance' or 'Display' section.2. **Frontend Implementation**: Utilize CSS variables for theme-specific styling to facilitate easy switching. Implement a mechanism (e.g., by adding/removing a class like 'dark-mode' to the `body` or root element) to apply the selected theme.3. **State Management**: Store the user's theme preference in `localStorage` to ensure persistence across browser sessions. Upon page load, check `localStorage` for a saved preference and apply it. If no preference is found, default to the system's preferred scheme (`prefers-color-scheme`) or a default light mode.4. **Accessibility**: Ensure sufficient contrast ratios for both light and dark themes to meet WCAG guidelines. The toggle itself should be keyboard navigable and have appropriate ARIA attributes.5. **Initial Load**: Prevent 'flash of unstyled content' (FOUC) by applying the saved theme preference as early as possible during page load, ideally before the main content renders.",
+          "testStrategy": "1. **Functional Testing**: Verify that clicking the toggle switch correctly switches the entire application's theme between light and dark modes.2. **Persistence Testing**: Confirm that the selected theme preference is saved and correctly applied when the user closes and reopens the browser or navigates to other pages within the application.3. **Default Behavior**: Test that if no preference is saved, the application defaults to the system's `prefers-color-scheme` or the designated default theme.4. **UI/UX Verification**: Visually inspect all major components and pages in both light and dark modes to ensure consistent styling, readability, and correct rendering.5. **Accessibility Testing**: Use accessibility tools (e.g., Lighthouse, browser dev tools) to check contrast ratios in both themes and verify keyboard navigation and ARIA attributes for the toggle.6. **Cross-Browser Compatibility**: Test the functionality and appearance across supported browsers (Chrome, Firefox, Safari, Edge).",
+          "dependencies": [],
+          "subtasks": []
+        }
+      ],
+      "metadata": {
+        "createdAt": "2025-12-13T16:52:27.564Z",
+        "updatedAt": "2025-12-13T21:35:05.755Z"
+      }
+    }
+  }
+}

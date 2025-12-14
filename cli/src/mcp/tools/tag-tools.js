@@ -13,7 +13,7 @@ import { handleApiResult, withToolContext } from '../utils.js';
 export function registerTagTools(server) {
   // list_tags - List all tags
   server.addTool({
-    name: 'list_tags',
+    name: 'list_contexts',
     description: 'List all available tags',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
@@ -49,7 +49,7 @@ export function registerTagTools(server) {
 
   // add_tag - Create a new tag
   server.addTool({
-    name: 'add_tag',
+    name: 'create_context',
     description: 'Create a new tag',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
@@ -98,8 +98,8 @@ export function registerTagTools(server) {
 
   // delete_tag - Delete a tag
   server.addTool({
-    name: 'delete_tag',
-    description: 'Delete a tag and all its tasks',
+    name: 'delete_context',
+    description: 'Delete a context and all its tasks',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
       name: z.string().describe('Tag name'),
@@ -138,7 +138,7 @@ export function registerTagTools(server) {
 
   // use_tag - Switch to a tag
   server.addTool({
-    name: 'use_tag',
+    name: 'switch_context',
     description: 'Switch to a different tag',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
@@ -178,7 +178,7 @@ export function registerTagTools(server) {
 
   // rename_tag - Rename a tag
   server.addTool({
-    name: 'rename_tag',
+    name: 'rename_context',
     description: 'Rename a tag',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
@@ -220,7 +220,7 @@ export function registerTagTools(server) {
 
   // copy_tag - Copy a tag
   server.addTool({
-    name: 'copy_tag',
+    name: 'clone_context',
     description: 'Copy a tag with all its tasks',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),

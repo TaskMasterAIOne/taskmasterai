@@ -6,7 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { getSyncedApiKey, getSyncedModels, readCachedConfig } from './license.js';
+import { getSyncedApiKey, getSyncedModels, readCachedConfig, getHostedApiKey, canUseHostedApiKeys } from './license.js';
 
 const VERSION = '1.0.0';
 
@@ -28,7 +28,7 @@ export function getGlobalConfigDir() {
  * Get the project config directory path
  */
 export function getProjectConfigDir(projectRoot = process.cwd()) {
-  return path.join(projectRoot, '.taskmaster');
+  return path.join(projectRoot, '.taskmaster-ai');
 }
 
 /**
@@ -67,13 +67,13 @@ export function getConfigFilePath(projectRoot = process.cwd()) {
 }
 
 /**
- * Find project root by looking for .taskmaster directory
+ * Find project root by looking for .taskmaster-ai directory
  */
 export function findProjectRoot(startDir = process.cwd()) {
   let currentDir = startDir;
 
   while (currentDir !== path.dirname(currentDir)) {
-    const configDir = path.join(currentDir, '.taskmaster');
+    const configDir = path.join(currentDir, '.taskmaster-ai');
     if (fs.existsSync(configDir)) {
       return currentDir;
     }
@@ -125,34 +125,63 @@ export function readProjectConfig(projectRoot = process.cwd()) {
 
 /**
  * Map dashboard model ID to CLI model config
+ * Uses pattern matching to support new models without hardcoding each one
  */
 function mapDashboardModel(dashboardModelId, existingConfig) {
-  // Model ID to provider mapping
-  const modelToProvider = {
-    // Anthropic
-    'claude-sonnet-4-20250514': 'anthropic',
-    'claude-3-5-sonnet-20241022': 'anthropic',
-    'claude-3-5-haiku-20241022': 'anthropic',
-    // OpenAI
-    'gpt-4o': 'openai',
-    'gpt-4o-mini': 'openai',
-    // Google
-    'gemini-2.0-flash': 'google',
-    'gemini-1.5-pro': 'google',
-    // Perplexity
-    'llama-3.1-sonar-large-128k-online': 'perplexity',
-    'llama-3.1-sonar-small-128k-online': 'perplexity',
-  };
+  if (!dashboardModelId || typeof dashboardModelId !== 'string') {
+    return existingConfig;
+  }
 
-  const provider = modelToProvider[dashboardModelId];
+  const modelId = dashboardModelId.toLowerCase();
+  let provider = null;
+
+  // Pattern-based provider detection
+  // Anthropic: claude-* models
+  if (modelId.startsWith('claude-')) {
+    provider = 'anthropic';
+  }
+  // OpenAI: gpt-*, o3-*, o4-* models
+  else if (modelId.startsWith('gpt-') || modelId.startsWith('o3-') || modelId.startsWith('o4-')) {
+    provider = 'openai';
+  }
+  // Google: gemini-* models
+  else if (modelId.startsWith('gemini-')) {
+    provider = 'google';
+  }
+  // DeepSeek: deepseek-* models
+  else if (modelId.startsWith('deepseek-')) {
+    provider = 'deepseek';
+  }
+  // xAI: grok-* models
+  else if (modelId.startsWith('grok-')) {
+    provider = 'xai';
+  }
+  // Meta: llama-* models (Meta's LLaMA API)
+  else if (modelId.startsWith('llama-')) {
+    provider = 'meta';
+  }
+  // Zhipu: glm-* models
+  else if (modelId.startsWith('glm-')) {
+    provider = 'zhipu';
+  }
+  // Moonshot: kimi-* models
+  else if (modelId.startsWith('kimi-')) {
+    provider = 'moonshot';
+  }
+  // Perplexity: sonar-* models
+  else if (modelId.includes('sonar')) {
+    provider = 'perplexity';
+  }
+
   if (!provider) {
-    return existingConfig; // Unknown model, keep existing
+    console.warn(`Unknown model provider for: ${dashboardModelId}, using existing config`);
+    return existingConfig;
   }
 
   return {
     ...existingConfig,
     provider,
-    modelId: dashboardModelId,
+    modelId: dashboardModelId, // Keep original casing
   };
 }
 
@@ -173,6 +202,7 @@ export function writeProjectConfig(config, projectRoot = process.cwd()) {
 
 /**
  * Get default configuration
+ * Uses modern, recommended models that match the Dashboard defaults
  */
 export function getDefaultConfig() {
   return {
@@ -182,19 +212,19 @@ export function getDefaultConfig() {
     models: {
       main: {
         provider: 'anthropic',
-        modelId: 'claude-sonnet-4-20250514',
+        modelId: 'claude-sonnet-4.5', // Best balance of capability and speed
         maxTokens: 8192,
         temperature: 0.7,
       },
       research: {
         provider: 'perplexity',
-        modelId: 'sonar-pro',
+        modelId: 'sonar-pro', // Advanced search with grounding for research
         maxTokens: 8192,
         temperature: 0.5,
       },
       fallback: {
-        provider: 'openai',
-        modelId: 'gpt-4o-mini',
+        provider: 'google',
+        modelId: 'gemini-2.5-flash', // Fast and capable fallback
         maxTokens: 4096,
         temperature: 0.7,
       },
@@ -213,7 +243,8 @@ export function getDefaultConfig() {
 
 /**
  * Get API key for a provider
- * Priority: 1. Environment variable, 2. Synced from dashboard
+ * Priority: 1. Environment variable, 2. Synced from dashboard, 3. Hosted keys (PRO only)
+ * Supports all major AI providers (updated late 2025)
  */
 export function getApiKey(provider) {
   const keyMap = {
@@ -224,23 +255,41 @@ export function getApiKey(provider) {
     mistral: 'MISTRAL_API_KEY',
     xai: 'XAI_API_KEY',
     openrouter: 'OPENROUTER_API_KEY',
+    deepseek: 'DEEPSEEK_API_KEY',
+    zhipu: 'ZHIPU_API_KEY',
+    moonshot: 'MOONSHOT_API_KEY',
+    meta: 'META_API_KEY',
   };
 
-  const envVar = keyMap[provider.toLowerCase()];
+  const providerLower = provider.toLowerCase();
+  const envVar = keyMap[providerLower];
   
-  // First check environment variable (takes priority)
+  // First check environment variable (takes priority - user's own key)
   if (envVar && process.env[envVar]) {
     return process.env[envVar];
   }
 
-  // Then check synced config from dashboard
+  // Then check synced config from dashboard (user's own key stored in dashboard)
   try {
-    const syncedKey = getSyncedApiKey(provider.toLowerCase());
+    const syncedKey = getSyncedApiKey(providerLower);
     if (syncedKey) {
       return syncedKey;
     }
   } catch (error) {
     // License module might not be loaded yet, ignore
+  }
+
+  // Finally, check hosted API keys (PRO plan only)
+  // This allows PRO users to use TaskMaster AI's hosted keys if they don't have their own
+  try {
+    if (canUseHostedApiKeys()) {
+      const hostedKey = getHostedApiKey(providerLower);
+      if (hostedKey) {
+        return hostedKey;
+      }
+    }
+  } catch (error) {
+    // Ignore errors from hosted keys check
   }
 
   return null;

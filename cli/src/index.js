@@ -6,9 +6,13 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import boxen from 'boxen';
-import { getLicenseStatus, activateLicense, deactivateLicense, formatLicenseStatus, syncUserConfig, readCachedConfig } from './lib/license.js';
+import terminalImage from 'terminal-image';
+import { getLicenseStatus, activateLicense, deactivateLicense, formatLicenseStatus, syncUserConfig, readCachedConfig, syncHostedApiKeys, canUseHostedApiKeys } from './lib/license.js';
 import { registerCommands } from './commands/index.js';
 import { getVersion } from './lib/config.js';
+
+// TaskMaster AI Logo URL (same as web app)
+const LOGO_URL = 'https://firebasestorage.googleapis.com/v0/b/taskmaster-ai-e2302.firebasestorage.app/o/taskmaster_ai_new_logo-removebg.png?alt=media&token=29e7f6a0-f33d-4ec9-84bd-abf3ddbb78b8';
 
 // Commands that don't require license validation
 const LICENSE_EXEMPT_COMMANDS = [
@@ -17,6 +21,7 @@ const LICENSE_EXEMPT_COMMANDS = [
   'license',
   'usage',
   'sync',
+  'sync-keys',
   'help',
   '--help',
   '-h',
@@ -25,20 +30,41 @@ const LICENSE_EXEMPT_COMMANDS = [
 ];
 
 /**
- * Display the TaskMaster AI banner
+ * Display the TaskMaster AI banner with logo
  */
-function displayBanner() {
-  console.log(
-    boxen(
-      chalk.cyan.bold('TaskMaster AI') + chalk.gray(' v' + getVersion()) + '\n' +
-      chalk.dim('AI-powered task management for developers'),
-      {
-        padding: { top: 0, bottom: 0, left: 2, right: 2 },
-        borderColor: 'cyan',
-        borderStyle: 'round'
-      }
-    )
-  );
+async function displayBanner() {
+  try {
+    // Fetch and display the logo
+    const response = await fetch(LOGO_URL);
+    const buffer = await response.arrayBuffer();
+    const logo = await terminalImage.buffer(Buffer.from(buffer), { width: 12, height: 6 });
+    
+    console.log(logo);
+    console.log(
+      boxen(
+        chalk.hex('#7C3AED').bold('TaskMaster') + chalk.white.bold(' AI') + chalk.gray('  v' + getVersion()) + '\n' +
+        chalk.dim('AI-powered task management for developers'),
+        {
+          padding: { top: 0, bottom: 0, left: 2, right: 2 },
+          borderColor: '#7C3AED',
+          borderStyle: 'round'
+        }
+      )
+    );
+  } catch {
+    // Fallback if image fails to load
+    console.log(
+      boxen(
+        chalk.hex('#7C3AED').bold('TaskMaster') + chalk.white.bold(' AI') + chalk.gray('  v' + getVersion()) + '\n' +
+        chalk.dim('AI-powered task management for developers'),
+        {
+          padding: { top: 0, bottom: 0, left: 2, right: 2 },
+          borderColor: '#7C3AED',
+          borderStyle: 'round'
+        }
+      )
+    );
+  }
   console.log('');
 }
 
@@ -134,7 +160,7 @@ function createProgram() {
     .command('activate <license-key>')
     .description('Activate TaskMaster AI with your license key')
     .action(async (licenseKey) => {
-      displayBanner();
+      await displayBanner();
       
       const ora = (await import('ora')).default;
       const spinner = ora('Validating license key...').start();
@@ -151,13 +177,22 @@ function createProgram() {
             configStatus = chalk.yellow('⚠ ') + chalk.dim(result.configMessage);
           }
           
+          // Show hosted API keys info for PRO users
+          let hostedKeysStatus = '';
+          if (result.hostedKeysAvailable && result.hostedKeysMessage) {
+            hostedKeysStatus = chalk.green('✓ ') + chalk.dim(result.hostedKeysMessage);
+          } else if (result.hostedKeysAvailable) {
+            hostedKeysStatus = chalk.green('✓ ') + chalk.dim('Hosted API keys available (no API keys needed!)');
+          }
+          
           console.log(
             boxen(
               chalk.green.bold('✓ License Activated!') + '\n\n' +
               chalk.white('Plan: ') + chalk.cyan(result.planName || result.plan) + '\n' +
               chalk.white('Tasks/month: ') + chalk.cyan(result.tasksPerMonth?.toLocaleString() || 'Unlimited') + '\n' +
               chalk.white('Expires: ') + chalk.cyan(new Date(result.expiresAt).toLocaleDateString()) + '\n' +
-              (configStatus ? '\n' + configStatus + '\n' : '') + '\n' +
+              (configStatus ? '\n' + configStatus : '') +
+              (hostedKeysStatus ? '\n' + hostedKeysStatus : '') + '\n\n' +
               chalk.dim('You can now use TaskMaster AI!'),
               {
                 padding: 1,
@@ -192,7 +227,7 @@ function createProgram() {
     .command('deactivate')
     .description('Deactivate the current license')
     .action(async () => {
-      displayBanner();
+      await displayBanner();
       
       try {
         const result = deactivateLicense();
@@ -211,7 +246,7 @@ function createProgram() {
     .command('license')
     .description('Show current license status')
     .action(async () => {
-      displayBanner();
+      await displayBanner();
       
       const ora = (await import('ora')).default;
       const spinner = ora('Checking license status...').start();
@@ -256,63 +291,71 @@ function createProgram() {
     });
 
   program
-    .command('sync')
-    .description('Sync API keys and model config from the dashboard')
-    .option('-f, --force', 'Force refresh even if cache is valid')
+    .command('sync-keys')
+    .description('Sync API keys from dashboard and hosted keys (PRO plan)')
+    .option('--force', 'Force refresh even if cache is valid')
     .action(async (options) => {
-      displayBanner();
+      await displayBanner();
       
       const ora = (await import('ora')).default;
-      const spinner = ora('Syncing config from dashboard...').start();
+      const spinner = ora('Syncing API keys...').start();
 
       try {
-        const result = await syncUserConfig(options.force || false);
+        // Sync user's own API keys from dashboard
+        const configSync = await syncUserConfig(options.force || false);
+        
+        // For PRO users, also sync hosted keys
+        let hostedKeysSync = null;
+        if (canUseHostedApiKeys()) {
+          hostedKeysSync = await syncHostedApiKeys(options.force || false);
+        }
+        
         spinner.stop();
 
-        if (result.success) {
-          const cachedConfig = readCachedConfig();
-          const apiKeyCount = Object.keys(result.apiKeys || {}).length;
-          const hasModels = !!result.models;
-
-          console.log(
-            boxen(
-              chalk.green.bold('✓ Config Synced!') + '\n\n' +
-              chalk.white('API Keys: ') + chalk.cyan(`${apiKeyCount} provider(s) configured`) + '\n' +
-              chalk.white('Models: ') + chalk.cyan(hasModels ? 'Custom config synced' : 'Using defaults') + '\n' +
-              chalk.white('Last sync: ') + chalk.cyan(new Date(result.syncedAt).toLocaleString()) +
-              (result.cached ? chalk.dim(' (cached)') : '') +
-              (result.offline ? chalk.yellow('\n\n⚠ Offline mode - using cached config') : ''),
-              {
-                padding: 1,
-                borderColor: 'green',
-                borderStyle: 'round'
-              }
-            )
-          );
-
-          // Show which providers are configured
-          if (apiKeyCount > 0) {
-            console.log('');
-            console.log(chalk.dim('Configured providers:'));
-            for (const provider of Object.keys(result.apiKeys)) {
-              console.log(chalk.dim('  • ') + chalk.cyan(provider));
-            }
+        const status = await getLicenseStatus(false);
+        
+        let output = chalk.bold('API Keys Sync Status\n\n');
+        
+        // User's own keys from dashboard
+        if (configSync.success) {
+          const userKeys = configSync.apiKeys ? Object.keys(configSync.apiKeys) : [];
+          if (userKeys.length > 0) {
+            output += chalk.green('✓ ') + chalk.white('Your API keys: ') + chalk.cyan(userKeys.join(', ')) + '\n';
+          } else {
+            output += chalk.yellow('⚠ ') + chalk.dim('No personal API keys configured in dashboard\n');
+          }
+          if (configSync.cached) {
+            output += chalk.dim('  (from cache)\n');
           }
         } else {
-          console.log(
-            boxen(
-              chalk.red.bold('✗ Sync Failed') + '\n\n' +
-              chalk.white(result.error || 'Could not sync config from dashboard') + '\n\n' +
-              chalk.dim('Make sure you have configured API keys in the dashboard.'),
-              {
-                padding: 1,
-                borderColor: 'red',
-                borderStyle: 'round'
-              }
-            )
-          );
-          process.exit(1);
+          output += chalk.red('✗ ') + chalk.white('Failed to sync dashboard config: ') + chalk.dim(configSync.error) + '\n';
         }
+        
+        // Hosted keys (PRO only)
+        if (status.plan === 'pro') {
+          if (hostedKeysSync?.success) {
+            const hostedProviders = hostedKeysSync.providers || [];
+            output += chalk.green('✓ ') + chalk.white('Hosted API keys: ') + chalk.cyan(hostedProviders.join(', ')) + '\n';
+            output += chalk.dim('  (available as fallback - no API keys needed!)\n');
+            if (hostedKeysSync.cached) {
+              output += chalk.dim('  (from cache)\n');
+            }
+          } else if (hostedKeysSync) {
+            output += chalk.yellow('⚠ ') + chalk.white('Hosted keys: ') + chalk.dim(hostedKeysSync.error) + '\n';
+          }
+        } else {
+          output += '\n' + chalk.dim('💡 Upgrade to Pro to use hosted API keys (no API keys needed!)');
+          output += '\n' + chalk.dim('   https://taskmaster.one/pricing');
+        }
+
+        console.log(
+          boxen(output, {
+            padding: 1,
+            borderColor: configSync.success ? 'green' : 'yellow',
+            borderStyle: 'round'
+          })
+        );
+        
       } catch (error) {
         spinner.stop();
         console.error(chalk.red('Error:'), error.message);
@@ -332,7 +375,7 @@ export async function runCLI() {
   // Show banner for help commands
   const args = process.argv.slice(2);
   if (args.length === 0 || args[0] === 'help' || args[0] === '--help' || args[0] === '-h') {
-    displayBanner();
+    await displayBanner();
   }
 
   try {

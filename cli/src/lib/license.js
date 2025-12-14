@@ -9,13 +9,16 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-// API endpoints - Your Firebase Functions URLs
+// API endpoints - Firebase Functions URLs
+// These should match the deployed function endpoints
+const FUNCTIONS_BASE_URL = process.env.TASKMASTER_FUNCTIONS_URL || 
+  'https://us-central1-taskmaster-ai-e2302.cloudfunctions.net';
 const LICENSE_API_URL = process.env.TASKMASTER_LICENSE_API_URL || 
-  'https://validatelicense-t5fyd2wiia-uc.a.run.app';
+  `${FUNCTIONS_BASE_URL}/validateLicense`;
 const CONFIG_API_URL = process.env.TASKMASTER_CONFIG_API_URL || 
-  'https://getuserconfig-t5fyd2wiia-uc.a.run.app';
+  `${FUNCTIONS_BASE_URL}/getUserConfig`;
 const USAGE_API_URL = process.env.TASKMASTER_USAGE_API_URL || 
-  'https://us-central1-taskmaster-ai-e2302.cloudfunctions.net/incrementUsage';
+  `${FUNCTIONS_BASE_URL}/incrementUsage`;
 
 // Cache duration: 24 hours (in milliseconds)
 const CACHE_DURATION_MS = 24 * 60 * 60 * 1000;
@@ -206,6 +209,15 @@ export async function activateLicense(licenseKey) {
   // Also sync user config (API keys + models) from dashboard
   const configSync = await syncUserConfig(true);
   
+  // For PRO users, also sync hosted API keys
+  let hostedKeysMessage = null;
+  if (validation.plan === 'pro') {
+    const hostedKeysSync = await syncHostedApiKeys(true);
+    if (hostedKeysSync.success) {
+      hostedKeysMessage = `Hosted API keys available: ${hostedKeysSync.providers?.join(', ') || 'all providers'}`;
+    }
+  }
+  
   return {
     success: true,
     plan: validation.plan,
@@ -216,6 +228,8 @@ export async function activateLicense(licenseKey) {
     configMessage: configSync.success 
       ? `API keys synced from dashboard` 
       : `Config sync: ${configSync.error || 'No config found'}`,
+    hostedKeysAvailable: validation.plan === 'pro',
+    hostedKeysMessage,
   };
 }
 
@@ -326,6 +340,7 @@ export function deactivateLicense() {
 
   removeLicenseData();
   clearConfigCache(); // Also clear the synced config
+  clearHostedKeysCache(); // Also clear hosted API keys
 
   return {
     success: true,
@@ -572,6 +587,318 @@ export function clearConfigCache() {
 }
 
 // ============================================
+// HOSTED API KEYS (PRO Plan Only)
+// Provides API keys hosted by TaskMaster AI for PRO subscribers
+// ============================================
+
+/**
+ * Get the path to the hosted keys cache file
+ * @returns {string} Path to ~/.taskmaster-ai/hosted-keys-cache.json
+ */
+export function getHostedKeysCachePath() {
+  const taskmasterDir = path.join(os.homedir(), '.taskmaster-ai');
+  return path.join(taskmasterDir, 'hosted-keys-cache.json');
+}
+
+/**
+ * Read cached hosted keys from disk
+ * @returns {Object|null} Cached hosted keys or null
+ */
+export function readCachedHostedKeys() {
+  const cachePath = getHostedKeysCachePath();
+  
+  try {
+    if (fs.existsSync(cachePath)) {
+      const data = fs.readFileSync(cachePath, 'utf-8');
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    // Ignore errors
+  }
+  
+  return null;
+}
+
+/**
+ * Write hosted keys cache to disk
+ * @param {Object} keysData - Hosted keys data to cache
+ */
+function writeHostedKeysCache(keysData) {
+  ensureTaskmasterDir();
+  const cachePath = getHostedKeysCachePath();
+  
+  try {
+    fs.writeFileSync(cachePath, JSON.stringify(keysData, null, 2), 'utf-8');
+  } catch (error) {
+    console.warn(`Warning: Error saving hosted keys cache: ${error.message}`);
+  }
+}
+
+/**
+ * Check if hosted keys cache is still valid
+ * @param {Object} cachedKeys - Cached keys object
+ * @returns {boolean} True if cache is still valid
+ */
+function isHostedKeysCacheValid(cachedKeys) {
+  if (!cachedKeys?.fetchedAt) return false;
+  
+  const fetchedAt = new Date(cachedKeys.fetchedAt);
+  const now = new Date();
+  const elapsed = now - fetchedAt;
+  
+  return elapsed < HOSTED_KEYS_CACHE_DURATION_MS;
+}
+
+/**
+ * Clear the hosted keys cache (e.g., on deactivate or plan change)
+ */
+export function clearHostedKeysCache() {
+  const cachePath = getHostedKeysCachePath();
+  try {
+    if (fs.existsSync(cachePath)) {
+      fs.unlinkSync(cachePath);
+    }
+  } catch (error) {
+    // Ignore errors
+  }
+}
+
+/**
+ * Fetch hosted API keys from server
+ * @param {string} licenseKey - License key to authenticate
+ * @returns {Promise<Object>} Hosted API keys
+ */
+async function fetchHostedApiKeys(licenseKey) {
+  try {
+    const response = await fetch(HOSTED_KEYS_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ licenseKey }),
+    });
+
+    const result = await response.json();
+    
+    if (result.success && result.hostedKeys) {
+      return {
+        success: true,
+        hostedKeys: result.hostedKeys,
+        providers: result.providers,
+        plan: result.plan,
+        fetchedAt: result.fetchedAt,
+      };
+    }
+    
+    return {
+      success: false,
+      error: result.error || 'Failed to fetch hosted keys',
+      upgrade: result.upgrade || false,
+      currentPlan: result.currentPlan,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: 'Network error fetching hosted keys',
+    };
+  }
+}
+
+/**
+ * Sync hosted API keys from server (PRO plan only)
+ * @param {boolean} forceRefresh - Force refresh even if cache is valid
+ * @returns {Promise<Object>} Hosted keys sync result
+ */
+export async function syncHostedApiKeys(forceRefresh = false) {
+  const stored = readStoredLicense();
+  
+  if (!stored?.licenseKey) {
+    return {
+      success: false,
+      error: 'No license key found. Activate first.',
+    };
+  }
+
+  // Check if user is on PRO plan
+  if (stored.plan !== 'pro') {
+    return {
+      success: false,
+      error: 'Hosted API keys are only available for Pro plan subscribers',
+      upgrade: true,
+      currentPlan: stored.plan,
+    };
+  }
+
+  // Check if cached keys are still valid
+  const cachedKeys = readCachedHostedKeys();
+  if (!forceRefresh && cachedKeys && isHostedKeysCacheValid(cachedKeys)) {
+    return {
+      success: true,
+      cached: true,
+      hostedKeys: cachedKeys.hostedKeys || {},
+      providers: cachedKeys.providers || [],
+      fetchedAt: cachedKeys.fetchedAt,
+    };
+  }
+
+  // Fetch from server
+  const result = await fetchHostedApiKeys(stored.licenseKey);
+  
+  if (result.success) {
+    // Save to cache
+    const dataToCache = {
+      hostedKeys: result.hostedKeys,
+      providers: result.providers,
+      plan: result.plan,
+      fetchedAt: result.fetchedAt,
+    };
+    writeHostedKeysCache(dataToCache);
+    
+    return {
+      success: true,
+      cached: false,
+      hostedKeys: result.hostedKeys,
+      providers: result.providers,
+      fetchedAt: result.fetchedAt,
+    };
+  }
+  
+  // If fetch failed but we have cached keys, return them with warning
+  if (cachedKeys) {
+    return {
+      success: true,
+      cached: true,
+      offline: true,
+      hostedKeys: cachedKeys.hostedKeys || {},
+      providers: cachedKeys.providers || [],
+      fetchedAt: cachedKeys.fetchedAt,
+      warning: 'Using cached hosted keys (could not reach server)',
+    };
+  }
+  
+  return {
+    success: false,
+    error: result.error || 'Failed to sync hosted keys',
+    upgrade: result.upgrade || false,
+    currentPlan: result.currentPlan,
+  };
+}
+
+/**
+ * Get hosted API key for a specific provider
+ * Only works for PRO plan users
+ * @param {string} provider - Provider name (anthropic, openai, etc.)
+ * @returns {string|null} API key or null
+ */
+export function getHostedApiKey(provider) {
+  // First check if user is on PRO plan
+  const stored = readStoredLicense();
+  if (!stored?.licenseKey || stored.plan !== 'pro') {
+    return null;
+  }
+
+  // Check cached hosted keys
+  const cachedKeys = readCachedHostedKeys();
+  if (!cachedKeys?.hostedKeys) return null;
+  
+  const providerLower = provider.toLowerCase();
+  return cachedKeys.hostedKeys[providerLower] || null;
+}
+
+/**
+ * Check if hosted API keys are available (PRO plan check)
+ * @returns {boolean} True if user is on PRO plan and can use hosted keys
+ */
+export function canUseHostedApiKeys() {
+  const stored = readStoredLicense();
+  return stored?.plan === 'pro' && stored?.status === 'active';
+}
+
+/**
+ * Track hosted key usage (for rate limiting and analytics)
+ * Called after using a hosted API key for an AI operation
+ * @param {string} provider - Provider name (anthropic, openai, etc.)
+ * @param {string} operation - Operation type (e.g., 'parse-prd', 'expand')
+ * @param {Object} usage - Token usage { inputTokens, outputTokens }
+ * @returns {Promise<Object>} Tracking result with rate limit info
+ */
+export async function trackHostedKeyUsage(provider, operation, usage = {}) {
+  const stored = readStoredLicense();
+  
+  if (!stored?.licenseKey || stored.plan !== 'pro') {
+    return { success: false, error: 'Not a PRO user' };
+  }
+
+  try {
+    const response = await fetch(TRACK_HOSTED_USAGE_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        licenseKey: stored.licenseKey,
+        provider,
+        operation,
+        inputTokens: usage.inputTokens || 0,
+        outputTokens: usage.outputTokens || 0,
+      }),
+    });
+
+    const result = await response.json();
+    
+    if (result.success) {
+      return {
+        success: true,
+        rateLimit: result.rateLimit,
+      };
+    }
+    
+    // Handle rate limit exceeded
+    if (response.status === 429) {
+      return {
+        success: false,
+        rateLimited: true,
+        error: result.error,
+        resetAt: result.resetAt,
+      };
+    }
+    
+    return {
+      success: false,
+      error: result.error || 'Failed to track usage',
+    };
+  } catch (error) {
+    // Don't block operations if tracking fails
+    console.warn(`Warning: Failed to track hosted key usage: ${error.message}`);
+    return {
+      success: false,
+      error: 'Network error tracking usage',
+      offline: true,
+    };
+  }
+}
+
+/**
+ * Check if using a hosted key (for display purposes)
+ * @param {string} provider - Provider to check
+ * @returns {boolean} True if using hosted key for this provider
+ */
+export function isUsingHostedKey(provider) {
+  if (!canUseHostedApiKeys()) return false;
+  
+  // Check if user has their own key (env or synced)
+  const envKey = process.env[`${provider.toUpperCase()}_API_KEY`];
+  if (envKey) return false;
+  
+  const syncedKey = getSyncedApiKey(provider);
+  if (syncedKey) return false;
+  
+  // Check if we have a hosted key
+  const hostedKey = getHostedApiKey(provider);
+  return !!hostedKey;
+}
+
+// ============================================
 // USAGE TRACKING
 // ============================================
 
@@ -668,4 +995,124 @@ export default {
   // Usage tracking exports
   incrementUsage,
   formatUsageSummary,
+  // Task sync exports
+  syncTasksToCloud,
+  getTasksFromCloud,
+  // Hosted API keys exports (PRO plan only)
+  syncHostedApiKeys,
+  getHostedApiKey,
+  canUseHostedApiKeys,
+  clearHostedKeysCache,
+  getHostedKeysCachePath,
+  trackHostedKeyUsage,
+  isUsingHostedKey,
 };
+
+// ============================================
+// TASK CLOUD SYNC
+// Sync tasks between CLI and web dashboard
+// ============================================
+
+const TASK_SYNC_API_URL = process.env.TASKMASTER_TASK_SYNC_URL || 
+  `${FUNCTIONS_BASE_URL}/syncTasks`;
+const GET_TASKS_API_URL = process.env.TASKMASTER_GET_TASKS_URL || 
+  `${FUNCTIONS_BASE_URL}/getTasks`;
+const HOSTED_KEYS_API_URL = process.env.TASKMASTER_HOSTED_KEYS_URL || 
+  `${FUNCTIONS_BASE_URL}/getHostedApiKeys`;
+const TRACK_HOSTED_USAGE_URL = process.env.TASKMASTER_TRACK_HOSTED_USAGE_URL || 
+  `${FUNCTIONS_BASE_URL}/trackHostedKeyUsage`;
+
+// Hosted keys cache duration: 1 hour (in milliseconds)
+const HOSTED_KEYS_CACHE_DURATION_MS = 60 * 60 * 1000;
+
+/**
+ * Sync tasks to cloud for web dashboard viewing
+ * @param {Array} tasks - Array of tasks to sync
+ * @param {Object} options - Sync options
+ * @returns {Object} Sync result
+ */
+export async function syncTasksToCloud(tasks, options = {}) {
+  try {
+    const license = readStoredLicense();
+    if (!license?.licenseKey) {
+      return { success: false, error: 'No license key found' };
+    }
+
+    const projectId = options.projectId || 'default';
+    const tag = options.tag || 'master';
+    const metadata = options.metadata || {};
+
+    const response = await fetch(TASK_SYNC_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        licenseKey: license.licenseKey,
+        projectId,
+        tag,
+        tasks,
+        metadata,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+      return { success: false, error: error.error || 'Sync failed' };
+    }
+
+    const result = await response.json();
+    return {
+      success: true,
+      stats: result.stats,
+      syncedAt: result.syncedAt,
+    };
+  } catch (error) {
+    // Silently fail - don't block CLI operations
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get tasks from cloud
+ * @param {Object} options - Get options
+ * @returns {Object} Tasks result
+ */
+export async function getTasksFromCloud(options = {}) {
+  try {
+    const license = readStoredLicense();
+    if (!license?.licenseKey) {
+      return { success: false, error: 'No license key found' };
+    }
+
+    const projectId = options.projectId || 'default';
+    const tag = options.tag || 'master';
+
+    const response = await fetch(GET_TASKS_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        licenseKey: license.licenseKey,
+        projectId,
+        tag,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+      return { success: false, error: error.error || 'Failed to get tasks' };
+    }
+
+    const result = await response.json();
+    return {
+      success: true,
+      tasks: result.tasks,
+      metadata: result.metadata,
+      syncedAt: result.syncedAt,
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}

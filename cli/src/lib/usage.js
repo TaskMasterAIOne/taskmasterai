@@ -10,10 +10,11 @@ import os from 'os';
 import { readStoredLicense, incrementUsage as serverIncrementUsage } from './license.js';
 
 // Plan limits (tasks per month) - matching backend PLAN_DETAILS
+// These should match the values in backend/functions/index.js PLAN_DETAILS
 const PLAN_LIMITS = {
-  plus: 500,
-  pro: 2000,
-  enterprise: -1, // -1 means unlimited
+  plus: 100,      // $29/month - 100 tasks included
+  pro: 1000,      // $199/month - 1000 tasks included
+  enterprise: 5000, // $599+/month - 5000+ tasks included
 };
 
 /**
@@ -97,6 +98,7 @@ export function getCurrentUsage() {
 
 /**
  * Increment usage counter (local + server sync)
+ * IMPORTANT: Server sync is required for accurate billing
  */
 export async function incrementUsage(operationType = 'aiOperations', count = 1) {
   const data = readUsageData();
@@ -110,33 +112,66 @@ export async function incrementUsage(operationType = 'aiOperations', count = 1) 
       tasksAdded: 0,
       complexityAnalyses: 0,
       lastUpdated: null,
+      failedSyncs: 0,
+      pendingSync: 0,
     };
   }
   
+  // SECURITY: Validate count is positive
+  const validatedCount = Math.max(1, Math.floor(Number(count) || 1));
+  
   // Update local counter
-  data.months[monthKey][operationType] = (data.months[monthKey][operationType] || 0) + count;
-  data.months[monthKey].aiOperations = (data.months[monthKey].aiOperations || 0) + count;
+  data.months[monthKey][operationType] = (data.months[monthKey][operationType] || 0) + validatedCount;
+  data.months[monthKey].aiOperations = (data.months[monthKey].aiOperations || 0) + validatedCount;
   data.months[monthKey].lastUpdated = new Date().toISOString();
+  
+  // Track pending sync count (for retry later)
+  data.months[monthKey].pendingSync = (data.months[monthKey].pendingSync || 0) + validatedCount;
   
   writeUsageData(data);
   
-  // Sync with server (non-blocking)
-  try {
-    const serverResult = await serverIncrementUsage(operationType, count);
-    if (serverResult.success && serverResult.usage) {
-      // Store server-reported usage for reference
-      data.months[monthKey].serverTasksUsed = serverResult.usage.tasksUsed;
-      data.months[monthKey].serverRemaining = serverResult.usage.remaining;
-      data.months[monthKey].isOverage = serverResult.usage.isOverage;
-      writeUsageData(data);
-      return {
-        ...data.months[monthKey],
-        serverUsage: serverResult.usage,
-      };
+  // Sync with server - REQUIRED for accurate billing
+  let serverSyncSuccess = false;
+  let retryCount = 0;
+  const maxRetries = 3;
+  
+  while (!serverSyncSuccess && retryCount < maxRetries) {
+    try {
+      const serverResult = await serverIncrementUsage(operationType, validatedCount);
+      if (serverResult.success && serverResult.usage) {
+        // Store server-reported usage for reference
+        data.months[monthKey].serverTasksUsed = serverResult.usage.tasksUsed;
+        data.months[monthKey].serverRemaining = serverResult.usage.remaining;
+        data.months[monthKey].isOverage = serverResult.usage.isOverage;
+        data.months[monthKey].failedSyncs = 0; // Reset failed counter on success
+        data.months[monthKey].pendingSync = Math.max(0, (data.months[monthKey].pendingSync || 0) - validatedCount);
+        data.months[monthKey].lastServerSync = new Date().toISOString();
+        serverSyncSuccess = true;
+        writeUsageData(data);
+        return {
+          ...data.months[monthKey],
+          serverUsage: serverResult.usage,
+        };
+      }
+      break; // Non-success response, don't retry
+    } catch (error) {
+      retryCount++;
+      if (retryCount < maxRetries) {
+        // Wait before retry (exponential backoff)
+        await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+      }
     }
-  } catch (error) {
-    // Server sync failed, but local tracking succeeded
-    console.warn(`Note: Server usage sync failed (${error.message}). Local tracking continues.`);
+  }
+  
+  // Server sync failed after retries
+  if (!serverSyncSuccess) {
+    data.months[monthKey].failedSyncs = (data.months[monthKey].failedSyncs || 0) + 1;
+    data.months[monthKey].lastFailedSync = new Date().toISOString();
+    writeUsageData(data);
+    
+    // IMPORTANT: Log warning about sync failure
+    console.warn(`⚠️  Usage sync failed (attempt ${retryCount}). Usage will be synced on next successful operation.`);
+    console.warn(`   Pending unsynced operations: ${data.months[monthKey].pendingSync}`);
   }
   
   return data.months[monthKey];
@@ -185,14 +220,14 @@ export function checkUsageLimit(operationCount = 1) {
   const usage = getCurrentUsage();
   const used = usage.aiOperations || 0;
   
-  // -1 means unlimited (Enterprise)
-  if (limit === -1) {
+  // No limit check for no license
+  if (limit === 0) {
     return {
-      allowed: true,
-      remaining: Infinity,
-      limit: -1,
+      allowed: false,
+      remaining: 0,
+      limit: 0,
       used,
-      plan: license.plan,
+      reason: 'No active license',
     };
   }
   
@@ -219,7 +254,87 @@ export function enforceUsageLimit(operationCount = 1) {
     throw new Error(check.reason || 'Usage limit exceeded');
   }
   
+  // SECURITY: Check for too many failed syncs (potential abuse)
+  const usage = getCurrentUsage();
+  const failedSyncs = usage.failedSyncs || 0;
+  const pendingSync = usage.pendingSync || 0;
+  
+  // If more than 10 operations haven't synced, require sync before continuing
+  if (pendingSync > 10) {
+    console.warn(`⚠️  ${pendingSync} operations pending sync. Attempting to reconcile...`);
+    // Allow operation but flag for attention
+  }
+  
+  // If more than 20 consecutive failures, block until resolved
+  if (failedSyncs > 20) {
+    throw new Error(
+      `Usage tracking offline. Please check your network connection and try again.\n` +
+      `If this persists, run: taskmaster sync --usage`
+    );
+  }
+  
   return check;
+}
+
+/**
+ * Sync any pending usage to server
+ * Call this periodically or on sync command
+ * @param {boolean} forceReconcile - If true, reconcile local vs server difference
+ */
+export async function syncPendingUsage(forceReconcile = false) {
+  const data = readUsageData();
+  const monthKey = getCurrentMonthKey();
+  const monthData = data.months[monthKey];
+  
+  if (!monthData) {
+    return { success: true, message: 'No usage data found' };
+  }
+  
+  let pendingCount = monthData.pendingSync || 0;
+  
+  // If force reconcile, calculate difference between local and server
+  if (forceReconcile) {
+    const localTotal = monthData.aiOperations || 0;
+    const serverTotal = monthData.serverTasksUsed || 0;
+    const difference = localTotal - serverTotal;
+    
+    if (difference > 0) {
+      console.log(`Reconciling: Local=${localTotal}, Server=${serverTotal}, Difference=${difference}`);
+      pendingCount = difference;
+    }
+  }
+  
+  if (pendingCount <= 0) {
+    return { success: true, message: 'No pending usage to sync' };
+  }
+  
+  try {
+    const serverResult = await serverIncrementUsage('pendingReconciliation', pendingCount);
+    
+    if (serverResult.success) {
+      data.months[monthKey].pendingSync = 0;
+      data.months[monthKey].failedSyncs = 0;
+      data.months[monthKey].lastServerSync = new Date().toISOString();
+      data.months[monthKey].serverTasksUsed = serverResult.usage?.tasksUsed;
+      writeUsageData(data);
+      
+      return {
+        success: true,
+        message: `Synced ${pendingCount} pending operations`,
+        usage: serverResult.usage
+      };
+    }
+    
+    return {
+      success: false,
+      error: serverResult.error || 'Sync failed'
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
 }
 
 /**
@@ -231,15 +346,12 @@ export function getUsageSummary() {
   const limit = getPlanLimit();
   const used = usage.aiOperations || 0;
   
-  // -1 means unlimited (Enterprise)
-  const isUnlimited = limit === -1;
-  
   return {
     plan: license?.planName || license?.plan || 'None',
     used,
-    limit: isUnlimited ? 'Unlimited' : limit,
-    remaining: isUnlimited ? 'Unlimited' : Math.max(0, limit - used),
-    percentage: isUnlimited ? 0 : (limit > 0 ? Math.round((used / limit) * 100) : 0),
+    limit: limit > 0 ? limit : 0,
+    remaining: limit > 0 ? Math.max(0, limit - used) : 0,
+    percentage: limit > 0 ? Math.round((used / limit) * 100) : 0,
     breakdown: {
       tasksParsed: usage.tasksParsed || 0,
       tasksExpanded: usage.tasksExpanded || 0,
@@ -256,4 +368,5 @@ export default {
   checkUsageLimit,
   enforceUsageLimit,
   getUsageSummary,
+  syncPendingUsage,
 };

@@ -17,7 +17,7 @@ export function registerDependencyTools(server, options = {}) {
 
   // add_dependency - Add a dependency
   server.addTool({
-    name: 'add_dependency',
+    name: 'link_task',
     description: 'Add a dependency to a task',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
@@ -67,7 +67,7 @@ export function registerDependencyTools(server, options = {}) {
 
   // remove_dependency - Remove a dependency
   server.addTool({
-    name: 'remove_dependency',
+    name: 'unlink_task',
     description: 'Remove a dependency from a task',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
@@ -120,7 +120,7 @@ export function registerDependencyTools(server, options = {}) {
 
   // validate_dependencies - Validate all dependencies
   server.addTool({
-    name: 'validate_dependencies',
+    name: 'check_links',
     description: 'Validate all task dependencies',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
@@ -162,7 +162,7 @@ export function registerDependencyTools(server, options = {}) {
 
   // fix_dependencies - Fix dependency issues
   server.addTool({
-    name: 'fix_dependencies',
+    name: 'fix_links',
     description: 'Automatically fix dependency issues',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),

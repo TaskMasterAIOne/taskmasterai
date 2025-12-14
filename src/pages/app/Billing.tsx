@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
@@ -15,9 +15,15 @@ import {
   faExclamationTriangle,
   faSpinner,
   faTerminal,
-  faExternalLink
+  faExternalLink,
+  faXmark,
+  faEnvelope,
+  faBuilding,
+  faUser,
+  faPaperPlane
 } from '@fortawesome/free-solid-svg-icons'
-import { createCheckout, openCustomerPortal, cancelSubscription, PlanType } from '../../lib/stripe'
+import { createCheckout, openCustomerPortal, PlanType } from '../../lib/stripe'
+import { sendContactEmail } from '../../lib/emailjs'
 
 const plans = [
   {
@@ -77,9 +83,13 @@ export default function Billing() {
   const [copied, setCopied] = useState(false)
   const [loadingPlan, setLoadingPlan] = useState<PlanType | null>(null)
   const [loadingPortal, setLoadingPortal] = useState(false)
-  const [loadingCancel, setLoadingCancel] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [showContactModal, setShowContactModal] = useState(false)
+  const [contactForm, setContactForm] = useState({ name: '', email: '', title: '', message: '' })
+  const [sendingEmail, setSendingEmail] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
+  const [emailError, setEmailError] = useState<string | null>(null)
 
   const success = searchParams.get('success') === 'true'
 
@@ -108,7 +118,7 @@ export default function Billing() {
     setError(null)
 
     if (planId === 'enterprise') {
-      window.location.href = 'mailto:taskmasteroneai@gmail.com?subject=Enterprise%20Plan%20Inquiry'
+      setShowContactModal(true)
       return
     }
 
@@ -133,24 +143,6 @@ export default function Billing() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to open billing portal')
       setLoadingPortal(false)
-    }
-  }
-
-  const handleCancelSubscription = async () => {
-    if (!user) return
-    if (!confirm('Are you sure you want to cancel your subscription? You will still have access until the end of your billing period.')) {
-      return
-    }
-    
-    setLoadingCancel(true)
-    try {
-      await cancelSubscription(user.uid)
-      setSuccessMessage('Subscription will be canceled at the end of your billing period.')
-      refreshLicenseInfo()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to cancel subscription')
-    } finally {
-      setLoadingCancel(false)
     }
   }
 
@@ -226,7 +218,7 @@ export default function Billing() {
                 {licenseInfo.status === 'active' ? 'Active' : 
                  licenseInfo.status === 'grace_period' ? 'Grace Period' : 'Expired'}
               </span>
-              <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-accent/10 text-accent border border-accent/30">
+              <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-accent/10 text-accent border border-accent">
                 {licenseInfo.planName} Plan
               </span>
               {licenseInfo.tasksPerMonth && (
@@ -448,8 +440,8 @@ export default function Billing() {
         </div>
       </motion.div>
 
-      {/* Enterprise / Cancel */}
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.25, duration: 0.4, ease: 'easeOut' }} className="mt-8 space-y-4">
+      {/* Enterprise */}
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.25, duration: 0.4, ease: 'easeOut' }} className="mt-8">
         <div className="card flex flex-col sm:flex-row items-center justify-between gap-4 p-5">
           <div className="flex items-center gap-3">
             <FontAwesomeIcon icon={faRocket} className="w-5 h-5 text-text-muted" />
@@ -458,32 +450,226 @@ export default function Billing() {
               <p className="text-sm text-text-muted">Contact us for custom enterprise pricing</p>
             </div>
           </div>
-          <a href="mailto:taskmasteroneai@gmail.com" className="btn-secondary">Contact Sales</a>
+          <button onClick={() => setShowContactModal(true)} className="btn-secondary">Contact Sales</button>
         </div>
-
-        {currentPlan && userData?.subscriptionStatus !== 'canceling' && (
-          <div className="text-center pt-4">
-            <button
-              onClick={handleCancelSubscription}
-              disabled={loadingCancel}
-              className="text-sm text-text-muted hover:text-red-400 transition-colors"
-            >
-              {loadingCancel ? (
-                <FontAwesomeIcon icon={faSpinner} className="w-3 h-3 animate-spin mr-2" />
-              ) : null}
-              Cancel subscription
-            </button>
-          </div>
-        )}
-
-        {userData?.subscriptionStatus === 'canceling' && (
-          <div className="text-center pt-4">
-            <p className="text-sm text-amber-400">
-              Your subscription is set to cancel at the end of the billing period.
-            </p>
-          </div>
-        )}
       </motion.div>
+
+      {/* Contact Sales Modal */}
+      <AnimatePresence>
+        {showContactModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={() => {
+              if (!sendingEmail) {
+                setShowContactModal(false)
+                setEmailSent(false)
+                setEmailError(null)
+                setContactForm({ name: '', email: '', title: '', message: '' })
+              }
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-2xl bg-surface border border-border rounded-2xl shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between p-5 border-b border-border">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+                    <FontAwesomeIcon icon={faBuilding} className="w-5 h-5 text-accent" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold">Contact Sales</h3>
+                    <p className="text-xs text-text-muted">Enterprise & custom plans</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowContactModal(false)
+                    setEmailSent(false)
+                    setEmailError(null)
+                    setContactForm({ name: '', email: '', title: '', message: '' })
+                  }}
+                  disabled={sendingEmail}
+                  className="p-2 rounded-lg hover:bg-surface-highlight transition-colors disabled:opacity-50"
+                >
+                  <FontAwesomeIcon icon={faXmark} className="w-4 h-4 text-text-muted" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="p-5 space-y-4">
+                {emailSent ? (
+                  <div className="text-center py-6">
+                    <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-4">
+                      <FontAwesomeIcon icon={faCheckCircle} className="w-8 h-8 text-green-400" />
+                    </div>
+                    <h4 className="text-lg font-semibold mb-2">Message Sent!</h4>
+                    <p className="text-sm text-text-muted">
+                      Thank you for reaching out. We'll get back to you within 24-48 hours.
+                    </p>
+                    <button
+                      onClick={() => {
+                        setShowContactModal(false)
+                        setEmailSent(false)
+                        setContactForm({ name: '', email: '', title: '', message: '' })
+                      }}
+                      className="mt-6 btn-primary"
+                    >
+                      Close
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm text-text-secondary">
+                      Looking for custom pricing, volume discounts, or team features? 
+                      Fill out the form below and we'll get back to you.
+                    </p>
+
+                    {emailError && (
+                      <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-center gap-2">
+                        <FontAwesomeIcon icon={faExclamationTriangle} className="w-4 h-4 text-red-400" />
+                        <p className="text-sm text-red-400">{emailError}</p>
+                      </div>
+                    )}
+
+                    <form
+                      onSubmit={async (e) => {
+                        e.preventDefault()
+                        setSendingEmail(true)
+                        setEmailError(null)
+                        try {
+                          await sendContactEmail(contactForm)
+                          setEmailSent(true)
+                        } catch (err) {
+                          setEmailError(err instanceof Error ? err.message : 'Failed to send message')
+                        } finally {
+                          setSendingEmail(false)
+                        }
+                      }}
+                      className="space-y-3"
+                    >
+                      {/* Name & Email - 2 columns */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm font-medium text-text-secondary mb-1">
+                            Name *
+                          </label>
+                          <div className="relative">
+                            <FontAwesomeIcon 
+                              icon={faUser} 
+                              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-subtle" 
+                            />
+                            <input
+                              type="text"
+                              value={contactForm.name}
+                              onChange={(e) => setContactForm(prev => ({ ...prev, name: e.target.value }))}
+                              placeholder="Your name"
+                              required
+                              className="input pl-10"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-text-secondary mb-1">
+                            Email *
+                          </label>
+                          <div className="relative">
+                            <FontAwesomeIcon 
+                              icon={faEnvelope} 
+                              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-subtle" 
+                            />
+                            <input
+                              type="email"
+                              value={contactForm.email}
+                              onChange={(e) => setContactForm(prev => ({ ...prev, email: e.target.value }))}
+                              placeholder="you@company.com"
+                              required
+                              className="input pl-10"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-text-secondary mb-1">
+                          Subject *
+                        </label>
+                        <input
+                          type="text"
+                          value={contactForm.title}
+                          onChange={(e) => setContactForm(prev => ({ ...prev, title: e.target.value }))}
+                          placeholder="Enterprise Plan Inquiry"
+                          required
+                          className="input"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-text-secondary mb-1">
+                          Message *
+                        </label>
+                        <textarea
+                          value={contactForm.message}
+                          onChange={(e) => setContactForm(prev => ({ ...prev, message: e.target.value }))}
+                          placeholder="Tell us about your needs (team size, estimated usage, etc.)"
+                          required
+                          rows={3}
+                          className="input resize-none"
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={sendingEmail}
+                        className="flex items-center justify-center gap-2 w-full py-2.5 bg-accent text-white rounded-xl font-medium hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {sendingEmail ? (
+                          <>
+                            <FontAwesomeIcon icon={faSpinner} className="w-4 h-4 animate-spin" />
+                            Sending...
+                          </>
+                        ) : (
+                          <>
+                            <FontAwesomeIcon icon={faPaperPlane} className="w-4 h-4" />
+                            Send Message
+                          </>
+                        )}
+                      </button>
+                    </form>
+
+                    <div className="p-4 bg-surface-highlight rounded-xl border border-border">
+                      <p className="text-xs text-text-muted mb-2">Enterprise features include:</p>
+                      <ul className="space-y-1.5">
+                        {[
+                          '5,000+ tasks/month with volume discounts',
+                          'Dedicated account manager',
+                          'Custom integrations & API access',
+                          'Team management & SSO',
+                          'Priority support with SLA'
+                        ].map((feature) => (
+                          <li key={feature} className="flex items-center gap-2 text-xs text-text-secondary">
+                            <FontAwesomeIcon icon={faCheck} className="w-3 h-3 text-accent" />
+                            {feature}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

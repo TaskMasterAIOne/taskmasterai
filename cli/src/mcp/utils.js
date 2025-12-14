@@ -31,7 +31,7 @@ export function getVersionInfo() {
  */
 export function getCurrentTag(projectRoot) {
   try {
-    const stateJsonPath = path.join(projectRoot, '.taskmaster', 'state.json');
+    const stateJsonPath = path.join(projectRoot, '.taskmaster-ai', 'state.json');
     if (fs.existsSync(stateJsonPath)) {
       const stateData = JSON.parse(fs.readFileSync(stateJsonPath, 'utf-8'));
       return stateData.currentTag || 'master';

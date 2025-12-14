@@ -5,7 +5,8 @@
 
 import fs from 'fs';
 import path from 'path';
-import { readTasks, writeTasks, findProjectRoot, readState, writeState, getProjectConfigDir } from './config.js';
+import { readTasks, writeTasks, findProjectRoot, readState, writeState, getProjectConfigDir, readProjectConfig } from './config.js';
+import { syncTasksToCloud } from './license.js';
 
 /**
  * Get the current tag from state or default to 'master'
@@ -70,6 +71,19 @@ export function saveTasksForTag(tasks, tag = 'master', projectRoot = process.cwd
   tasksData.tags[tag].metadata.updatedAt = new Date().toISOString();
   
   writeTasks(tasksData, projectRoot);
+  
+  // Sync to cloud (non-blocking, fire and forget)
+  try {
+    const config = readProjectConfig(projectRoot);
+    const projectId = config.projectName || path.basename(projectRoot);
+    syncTasksToCloud(tasks, {
+      projectId,
+      tag,
+      metadata: tasksData.tags[tag].metadata,
+    }).catch(() => {}); // Silently ignore sync errors
+  } catch (e) {
+    // Ignore sync errors - CLI should work offline
+  }
 }
 
 /**

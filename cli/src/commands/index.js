@@ -55,9 +55,15 @@ import {
   incrementUsage,
   getUsageSummary,
   checkUsageLimit,
+  syncPendingUsage,
 } from '../lib/usage.js';
 import {
   readCachedConfig,
+  syncUserConfig,
+  readStoredLicense,
+  formatUsageSummary,
+  activateLicense,
+  removeLicenseData,
 } from '../lib/license.js';
 import Table from 'cli-table3';
 
@@ -108,20 +114,20 @@ export function registerCommands(program) {
       };
       fs.writeFileSync(tasksPath, JSON.stringify(initialTasks, null, 2));
 
-      console.log(chalk.green('✓ Created .taskmaster directory'));
+      console.log(chalk.green('✓ Created .taskmaster-ai directory'));
       console.log(chalk.green('✓ Created config.json'));
       console.log(chalk.green('✓ Created tasks.json'));
       console.log('');
       console.log(chalk.dim('Next steps:'));
       console.log(chalk.dim('  1. Create a PRD file describing your project'));
-      console.log(chalk.dim('  2. Run: ') + chalk.cyan('taskmaster parse-prd <your-prd.md>'));
+      console.log(chalk.dim('  2. Run: ') + chalk.cyan('taskmaster plan <your-prd.md>'));
       console.log('');
     });
 
-  // Parse PRD command
+  // Plan command (generate tasks from PRD)
   program
-    .command('parse-prd')
-    .description('Parse a PRD file and generate tasks')
+    .command('plan')
+    .description('Generate tasks from a PRD or requirements file')
     .argument('[file]', 'Path to the PRD file')
     .option('-i, --input <file>', 'Path to the PRD file')
     .option('-n, --num-tasks <number>', 'Number of tasks to generate', '10')
@@ -450,10 +456,10 @@ export function registerCommands(program) {
       }
     });
 
-  // Expand task command
+  // Breakdown task command
   program
-    .command('expand')
-    .description('Expand a task into subtasks using AI')
+    .command('breakdown')
+    .description('Break down a task into smaller steps using AI')
     .option('-i, --id <id>', 'Task ID to expand')
     .option('-n, --num <number>', 'Number of subtasks to generate', '5')
     .option('-p, --prompt <text>', 'Additional context for expansion')
@@ -571,7 +577,7 @@ export function registerCommands(program) {
 
   // Add task command
   program
-    .command('add-task')
+    .command('new')
     .description('Add a new task')
     .option('-p, --prompt <text>', 'Task description (required)')
     .option('-d, --dependencies <ids>', 'Comma-separated dependency IDs')
@@ -633,7 +639,7 @@ export function registerCommands(program) {
 
   // Analyze complexity command
   program
-    .command('analyze-complexity')
+    .command('assess')
     .description('Analyze task complexity')
     .option('-r, --research', 'Use research model')
     .action(async (options) => {
@@ -696,7 +702,7 @@ export function registerCommands(program) {
         console.log('');
 
         // Save report
-        const reportPath = path.join(projectRoot, '.taskmaster', 'reports', 'complexity-report.json');
+        const reportPath = path.join(projectRoot, '.taskmaster-ai', 'reports', 'complexity-report.json');
         fs.writeFileSync(reportPath, JSON.stringify({
           generatedAt: new Date().toISOString(),
           analysis,
@@ -713,7 +719,7 @@ export function registerCommands(program) {
 
   // Add dependency command
   program
-    .command('add-dependency')
+    .command('link')
     .description('Add a dependency to a task')
     .option('-i, --id <id>', 'Task ID')
     .option('-d, --depends-on <id>', 'Dependency task ID')
@@ -744,7 +750,7 @@ export function registerCommands(program) {
 
   // Remove dependency command
   program
-    .command('remove-dependency')
+    .command('unlink')
     .description('Remove a dependency from a task')
     .option('-i, --id <id>', 'Task ID')
     .option('-d, --depends-on <id>', 'Dependency task ID to remove')
@@ -770,7 +776,7 @@ export function registerCommands(program) {
 
   // Update subtask command (append timestamped notes)
   program
-    .command('update-subtask')
+    .command('log')
     .description('Append timestamped notes to a subtask')
     .option('-i, --id <id>', 'Subtask ID (e.g., 1.2)')
     .option('-p, --prompt <text>', 'Notes to append')
@@ -826,7 +832,7 @@ export function registerCommands(program) {
 
   // Update task command
   program
-    .command('update-task')
+    .command('edit')
     .description('Update a task with new information')
     .option('-i, --id <id>', 'Task ID')
     .option('-p, --prompt <text>', 'Update information')
@@ -920,7 +926,7 @@ Provide updated details that incorporate the new information.`;
 
   // Clear subtasks command
   program
-    .command('clear-subtasks')
+    .command('clear-steps')
     .description('Remove all subtasks from a task')
     .option('-i, --id <id>', 'Task ID')
     .option('--all', 'Clear subtasks from all tasks')
@@ -1104,14 +1110,35 @@ Provide updated details that incorporate the new information.`;
 
       const config = readProjectConfig(projectRoot);
 
+      // Helper to detect provider from model ID
+      const getProviderFromModelId = (modelId) => {
+        const id = modelId.toLowerCase();
+        if (id.startsWith('claude-')) return 'anthropic';
+        if (id.startsWith('gpt-') || id.startsWith('o3-') || id.startsWith('o4-')) return 'openai';
+        if (id.startsWith('gemini-')) return 'google';
+        if (id.startsWith('deepseek-')) return 'deepseek';
+        if (id.startsWith('grok-')) return 'xai';
+        if (id.startsWith('llama-')) return 'meta';
+        if (id.startsWith('glm-')) return 'zhipu';
+        if (id.startsWith('kimi-')) return 'moonshot';
+        if (id.includes('sonar')) return 'perplexity';
+        return null;
+      };
+
       if (options.setMain || options.setResearch || options.setFallback) {
         if (options.setMain) {
+          const provider = getProviderFromModelId(options.setMain);
+          if (provider) config.models.main.provider = provider;
           config.models.main.modelId = options.setMain;
         }
         if (options.setResearch) {
+          const provider = getProviderFromModelId(options.setResearch);
+          if (provider) config.models.research.provider = provider;
           config.models.research.modelId = options.setResearch;
         }
         if (options.setFallback) {
+          const provider = getProviderFromModelId(options.setFallback);
+          if (provider) config.models.fallback.provider = provider;
           config.models.fallback.modelId = options.setFallback;
         }
         writeProjectConfig(config, projectRoot);
@@ -1146,7 +1173,7 @@ Provide updated details that incorporate the new information.`;
       // Check API keys (show source: env or dashboard)
       console.log(chalk.cyan.bold('API Key Status:'));
       const syncedApiKeys = cachedConfig?.apiKeys || {};
-      const providers = ['anthropic', 'openai', 'google', 'perplexity', 'mistral', 'xai', 'openrouter'];
+      const providers = ['anthropic', 'openai', 'google', 'perplexity', 'mistral', 'xai', 'openrouter', 'deepseek', 'zhipu', 'moonshot', 'meta'];
       providers.forEach(provider => {
         const envKey = process.env[`${provider.toUpperCase()}_API_KEY`];
         const syncedKey = syncedApiKeys[provider];
@@ -1156,12 +1183,117 @@ Provide updated details that incorporate the new information.`;
         } else if (syncedKey) {
           console.log(`  ${provider}: ${chalk.green('✓ Set')} ${chalk.cyan('(from dashboard)')}`);
         } else {
-          console.log(`  ${provider}: ${chalk.red('✗ Not set')}`);
+          console.log(`  ${provider}: ${chalk.dim('○ Not set')}`);
         }
       });
       console.log('');
       console.log(chalk.dim('  Tip: Configure API keys in the dashboard at ') + chalk.cyan('https://taskmaster.one/app/api-keys'));
+      console.log(chalk.dim('  Run ') + chalk.cyan('taskmaster sync') + chalk.dim(' to sync config from dashboard'));
       console.log('');
+    });
+
+  // Sync command - sync config from dashboard
+  program
+    .command('sync')
+    .description('Sync API keys and model config from the TaskMaster dashboard')
+    .option('-f, --force', 'Force sync even if cache is valid')
+    .option('-u, --usage', 'Reconcile usage tracking between local and server')
+    .action(async (options) => {
+      const license = readStoredLicense();
+      if (!license?.licenseKey) {
+        console.log('');
+        console.log(chalk.red('✗ No license activated. Run ') + chalk.cyan('taskmaster activate <license-key>') + chalk.red(' first.'));
+        console.log('');
+        process.exit(1);
+      }
+
+      console.log('');
+      console.log(chalk.cyan('Syncing configuration from dashboard...'));
+      console.log('');
+
+      const ora = (await import('ora')).default;
+      const spinner = ora('Connecting to TaskMaster servers...').start();
+
+      try {
+        const result = await syncUserConfig(options.force);
+        spinner.stop();
+
+        if (result.success) {
+          console.log(chalk.green('✓ Configuration synced successfully'));
+          console.log('');
+
+          // Show synced API keys
+          const apiKeys = result.apiKeys || {};
+          const keyCount = Object.keys(apiKeys).length;
+          if (keyCount > 0) {
+            console.log(chalk.white.bold('API Keys synced:'));
+            Object.keys(apiKeys).forEach(provider => {
+              console.log(`  ${chalk.green('✓')} ${provider}`);
+            });
+            console.log('');
+          } else {
+            console.log(chalk.dim('No API keys found. Add them at ') + chalk.cyan('https://taskmaster.one/app/api-keys'));
+            console.log('');
+          }
+
+          // Show synced models
+          if (result.models) {
+            console.log(chalk.white.bold('Model configuration synced:'));
+            if (result.models.main) {
+              console.log(`  Main: ${result.models.main}`);
+            }
+            if (result.models.research) {
+              console.log(`  Research: ${result.models.research}`);
+            }
+            if (result.models.fallback) {
+              console.log(`  Fallback: ${result.models.fallback}`);
+            }
+            console.log('');
+          }
+
+          if (result.cached) {
+            console.log(chalk.dim('(Using cached configuration)'));
+            if (result.offline) {
+              console.log(chalk.yellow('⚠️  Could not reach server, using cached data'));
+            }
+          }
+
+          console.log(chalk.dim('Last synced: ') + chalk.white(new Date(result.syncedAt).toLocaleString()));
+          console.log('');
+        } else {
+          console.log(chalk.red('✗ Sync failed: ') + result.error);
+          console.log('');
+        }
+
+        // Handle usage reconciliation
+        if (options.usage) {
+          console.log(chalk.cyan('Reconciling usage tracking...'));
+          console.log('');
+          
+          try {
+            const usageResult = await syncPendingUsage(true); // Force reconcile
+            
+            if (usageResult.success) {
+              console.log(chalk.green('✓ ') + usageResult.message);
+              if (usageResult.usage) {
+                console.log(`  Server usage: ${usageResult.usage.tasksUsed}/${usageResult.usage.tasksPerMonth}`);
+                console.log(`  Remaining: ${usageResult.usage.remaining}`);
+              }
+            } else {
+              console.log(chalk.yellow('⚠️  Usage sync failed: ') + usageResult.error);
+            }
+            console.log('');
+          } catch (usageError) {
+            console.log(chalk.yellow('⚠️  Usage sync error: ') + usageError.message);
+            console.log('');
+          }
+        }
+      } catch (error) {
+        spinner.stop();
+        console.log(chalk.red('✗ Sync failed: ') + error.message);
+        console.log('');
+        process.exit(1);
+      }
     });
 
   // ============================================
@@ -1170,7 +1302,7 @@ Provide updated details that incorporate the new information.`;
 
   // List tags command
   program
-    .command('tags')
+    .command('contexts')
     .description('List all tags')
     .option('--show-metadata', 'Show detailed metadata')
     .action(async (options) => {
@@ -1225,10 +1357,10 @@ Provide updated details that incorporate the new information.`;
       }
     });
 
-  // Add tag command
+  // Add context command
   program
-    .command('add-tag')
-    .description('Create a new tag')
+    .command('context')
+    .description('Create a new context')
     .argument('<name>', 'Tag name')
     .option('--from-branch', 'Create tag from current git branch name')
     .option('--copy-from-current', 'Copy tasks from current tag')
@@ -1275,7 +1407,7 @@ Provide updated details that incorporate the new information.`;
 
   // Use tag command
   program
-    .command('use-tag')
+    .command('switch')
     .description('Switch to a different tag')
     .argument('<name>', 'Tag name')
     .action(async (name) => {
@@ -1296,7 +1428,7 @@ Provide updated details that incorporate the new information.`;
 
   // Delete tag command
   program
-    .command('delete-tag')
+    .command('delete-context')
     .description('Delete a tag')
     .argument('<name>', 'Tag name')
     .option('-y, --yes', 'Skip confirmation')
@@ -1333,7 +1465,7 @@ Provide updated details that incorporate the new information.`;
 
   // Rename tag command
   program
-    .command('rename-tag')
+    .command('rename-context')
     .description('Rename a tag')
     .argument('<oldName>', 'Current tag name')
     .argument('<newName>', 'New tag name')
@@ -1355,7 +1487,7 @@ Provide updated details that incorporate the new information.`;
 
   // Copy tag command
   program
-    .command('copy-tag')
+    .command('clone')
     .description('Copy a tag with all its tasks')
     .argument('<source>', 'Source tag name')
     .argument('<target>', 'Target tag name')
@@ -1382,7 +1514,7 @@ Provide updated details that incorporate the new information.`;
 
   // Validate dependencies command
   program
-    .command('validate-dependencies')
+    .command('check-links')
     .description('Validate all task dependencies')
     .action(async () => {
       const projectRoot = findProjectRoot();
@@ -1411,7 +1543,7 @@ Provide updated details that incorporate the new information.`;
 
   // Fix dependencies command
   program
-    .command('fix-dependencies')
+    .command('fix-links')
     .description('Automatically fix dependency issues')
     .action(async () => {
       const projectRoot = findProjectRoot();
@@ -1464,7 +1596,7 @@ Provide updated details that incorporate the new information.`;
 
   // Add subtask command
   program
-    .command('add-subtask')
+    .command('add-step')
     .description('Add a subtask to a parent task')
     .option('-p, --parent <id>', 'Parent task ID')
     .option('-t, --title <text>', 'Subtask title')
@@ -1531,7 +1663,7 @@ Provide updated details that incorporate the new information.`;
 
   // Complexity report command
   program
-    .command('complexity-report')
+    .command('report')
     .description('Display the task complexity analysis report')
     .option('-f, --file <path>', 'Path to complexity report')
     .action(async (options) => {
@@ -1542,7 +1674,7 @@ Provide updated details that incorporate the new information.`;
       }
 
       const reportPath = options.file || 
-        path.join(projectRoot, '.taskmaster', 'reports', 'complexity-report.json');
+        path.join(projectRoot, '.taskmaster-ai', 'reports', 'complexity-report.json');
 
       if (!fs.existsSync(reportPath)) {
         console.log(chalk.yellow('No complexity report found.'));
@@ -1592,7 +1724,7 @@ Provide updated details that incorporate the new information.`;
 
   // Research command
   program
-    .command('research')
+    .command('ask')
     .description('Perform AI-powered research')
     .argument('[query]', 'Research query')
     .option('-q, --query <text>', 'Research query (alternative)')

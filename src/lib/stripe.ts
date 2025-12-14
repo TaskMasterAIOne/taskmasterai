@@ -24,6 +24,7 @@ export interface LicenseInfo {
   planPrice?: number
   tasksPerMonth?: number
   tasksUsed?: number
+  overageRate?: number
   status?: string
   expiresAt?: string
   currentPeriodEnd?: string

@@ -98,7 +98,7 @@ export function registerTaskTools(server, options = {}) {
 
   // add_task - Add a new task
   server.addTool({
-    name: 'add_task',
+    name: 'create_task',
     description: 'Add a new task using AI to structure it',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
@@ -157,7 +157,7 @@ export function registerTaskTools(server, options = {}) {
 
   // update_task - Update a task
   server.addTool({
-    name: 'update_task',
+    name: 'edit_task',
     description: 'Update a task with new information',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
@@ -258,7 +258,7 @@ export function registerTaskTools(server, options = {}) {
 
   // add_subtask - Add a subtask
   server.addTool({
-    name: 'add_subtask',
+    name: 'add_step',
     description: 'Add a subtask to a parent task',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),

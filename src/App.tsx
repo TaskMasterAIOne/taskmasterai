@@ -16,9 +16,9 @@ import Privacy from './pages/Privacy'
 
 // Protected Pages
 import Dashboard from './pages/app/Dashboard'
+import Tasks from './pages/app/Tasks'
 import ApiKeys from './pages/app/ApiKeys'
 import Models from './pages/app/Models'
-import Billing from './pages/app/Billing'
 import Settings from './pages/app/Settings'
 
 // Loading component
@@ -104,9 +104,10 @@ export default function App() {
       >
         <Route index element={<Navigate to="/app/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
+        <Route path="tasks" element={<Tasks />} />
         <Route path="api-keys" element={<ApiKeys />} />
         <Route path="models" element={<Models />} />
-        <Route path="billing" element={<Billing />} />
+        <Route path="billing" element={<Navigate to="/app/settings" replace />} />
         <Route path="settings" element={<Settings />} />
       </Route>
 

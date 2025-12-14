@@ -12,7 +12,7 @@ import {
   sendPasswordResetEmail,
   updateProfile as firebaseUpdateProfile,
 } from 'firebase/auth'
-import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore'
+import { doc, setDoc, getDoc, updateDoc, serverTimestamp, onSnapshot } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { auth, db, storage } from '../lib/firebase'
 import { getLicenseInfo, LicenseInfo } from '../lib/stripe'
@@ -83,18 +83,31 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [user?.uid, fetchLicenseInfo])
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    let unsubscribeUserDoc: (() => void) | null = null
+    let unsubscribeLicenseDoc: (() => void) | null = null
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      // Clean up previous listeners when user changes
+      if (unsubscribeUserDoc) {
+        unsubscribeUserDoc()
+        unsubscribeUserDoc = null
+      }
+      if (unsubscribeLicenseDoc) {
+        unsubscribeLicenseDoc()
+        unsubscribeLicenseDoc = null
+      }
+
       setUser(firebaseUser)
       
       if (firebaseUser) {
         // Set loading to false immediately after auth check
-        // User data will load in background
         setLoading(false)
         
-        try {
-          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid))
-          if (userDoc.exists()) {
-            const data = userDoc.data()
+        // Set up real-time listener for user document
+        const userDocRef = doc(db, 'users', firebaseUser.uid)
+        unsubscribeUserDoc = onSnapshot(userDocRef, async (snapshot) => {
+          if (snapshot.exists()) {
+            const data = snapshot.data()
             setUserData({
               uid: firebaseUser.uid,
               email: firebaseUser.email,
@@ -105,9 +118,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
               licenseKey: data.licenseKey,
               subscriptionStatus: data.subscriptionStatus,
             })
-            
-            // Fetch license info in background
-            fetchLicenseInfo(firebaseUser.uid)
           } else {
             // Set default user data immediately
             setUserData({
@@ -119,11 +129,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
               createdAt: new Date(),
             })
             
-            setLicenseInfo({ hasLicense: false })
-            
             // Create user document in background
             try {
-              await setDoc(doc(db, 'users', firebaseUser.uid), {
+              await setDoc(userDocRef, {
                 uid: firebaseUser.uid,
                 email: firebaseUser.email,
                 plan: null as UserPlan,
@@ -133,8 +141,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
               console.error('Error creating user document:', writeError)
             }
           }
-        } catch (error) {
-          console.error('Error fetching user data:', error)
+        }, (error) => {
+          console.error('Error listening to user document:', error)
           // Set default user data on error so user can still access the app
           setUserData({
             uid: firebaseUser.uid,
@@ -144,8 +152,50 @@ export function AuthProvider({ children }: AuthProviderProps) {
             photoURL: firebaseUser.photoURL,
             createdAt: new Date(),
           })
-          setLicenseInfo({ hasLicense: false })
-        }
+        })
+
+        // Set up real-time listener for license document
+        const licenseDocRef = doc(db, 'users', firebaseUser.uid, 'license', 'current')
+        unsubscribeLicenseDoc = onSnapshot(licenseDocRef, async (snapshot) => {
+          if (snapshot.exists()) {
+            const data = snapshot.data()
+            // Convert Firestore Timestamp to ISO string if it exists
+            let periodEnd: string | undefined
+            if (data.currentPeriodEnd) {
+              // Handle Firestore Timestamp, Date object, or string
+              if (data.currentPeriodEnd.toDate) {
+                periodEnd = data.currentPeriodEnd.toDate().toISOString()
+              } else if (data.currentPeriodEnd instanceof Date) {
+                periodEnd = data.currentPeriodEnd.toISOString()
+              } else if (typeof data.currentPeriodEnd === 'number') {
+                // Unix timestamp (seconds)
+                periodEnd = new Date(data.currentPeriodEnd * 1000).toISOString()
+              } else {
+                periodEnd = data.currentPeriodEnd
+              }
+            }
+            setLicenseInfo({
+              hasLicense: data.status === 'active' || data.status === 'grace_period',
+              licenseKey: data.licenseKey,
+              status: data.status,
+              plan: data.plan,
+              planName: data.planName,
+              planPrice: data.planPrice,
+              tasksPerMonth: data.tasksPerMonth,
+              tasksUsed: data.tasksUsed,
+              overageRate: data.overageRate,
+              currentPeriodEnd: periodEnd,
+              cancelAtPeriodEnd: data.cancelAtPeriodEnd,
+            })
+          } else {
+            // No license document, try fetching via API (fallback)
+            fetchLicenseInfo(firebaseUser.uid)
+          }
+        }, (error) => {
+          console.error('Error listening to license document:', error)
+          // Fallback to API fetch
+          fetchLicenseInfo(firebaseUser.uid)
+        })
       } else {
         setUserData(null)
         setLicenseInfo(null)
@@ -153,7 +203,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     })
 
-    return () => unsubscribe()
+    return () => {
+      unsubscribeAuth()
+      if (unsubscribeUserDoc) unsubscribeUserDoc()
+      if (unsubscribeLicenseDoc) unsubscribeLicenseDoc()
+    }
   }, [fetchLicenseInfo])
 
   const signIn = async (email: string, password: string) => {

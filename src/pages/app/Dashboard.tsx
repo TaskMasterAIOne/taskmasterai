@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
+import { doc, collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore'
+import { db } from '../../lib/firebase'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { 
   faKey,
@@ -15,7 +17,12 @@ import {
   faExclamationTriangle,
 } from '@fortawesome/free-solid-svg-icons'
 
-const USAGE_API_URL = 'https://us-central1-taskmaster-ai-e2302.cloudfunctions.net/getUsageStats'
+// Plan limits for fallback when license document doesn't have tasksPerMonth
+const PLAN_LIMITS: { [key: string]: { tasksPerMonth: number; overageRate: number } } = {
+  plus: { tasksPerMonth: 100, overageRate: 0.20 },
+  pro: { tasksPerMonth: 1000, overageRate: 0.15 },
+  enterprise: { tasksPerMonth: 5000, overageRate: 0.10 },
+}
 
 interface UsageStats {
   tasksUsed: number
@@ -67,40 +74,164 @@ export default function Dashboard() {
   const [usageData, setUsageData] = useState<UsageData | null>(null)
   const [loadingUsage, setLoadingUsage] = useState(false)
   const [usageError, setUsageError] = useState<string | null>(null)
+  const [hasApiKeys, setHasApiKeys] = useState(false)
+  const [hasModelsConfig, setHasModelsConfig] = useState(false)
 
   const hasLicense = licenseInfo?.hasLicense
 
-  // Fetch usage stats for paid users
+  // Real-time listener for API keys (to track setup progress)
   useEffect(() => {
-    async function fetchUsageStats() {
-      if (!user?.uid || !hasLicense) return
-
-      setLoadingUsage(true)
-      setUsageError(null)
-
-      try {
-        const response = await fetch(USAGE_API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user.uid }),
-        })
-
-        const data = await response.json()
-
-        if (data.success) {
-          setUsageData(data)
-        } else {
-          setUsageError(data.error || 'Failed to load usage stats')
-        }
-      } catch (err) {
-        setUsageError('Failed to connect to server')
-      } finally {
-        setLoadingUsage(false)
-      }
+    if (!user?.uid) {
+      setHasApiKeys(false)
+      return
     }
 
-    fetchUsageStats()
-  }, [user?.uid, hasLicense])
+    const keysRef = collection(db, 'users', user.uid, 'apiKeys')
+    const unsubscribe = onSnapshot(keysRef, (snapshot) => {
+      setHasApiKeys(!snapshot.empty)
+    })
+
+    return () => unsubscribe()
+  }, [user?.uid])
+
+  // Real-time listener for model configuration (to track setup progress)
+  useEffect(() => {
+    if (!user?.uid) {
+      setHasModelsConfig(false)
+      return
+    }
+
+    const configRef = doc(db, 'users', user.uid, 'settings', 'models')
+    const unsubscribe = onSnapshot(configRef, (snapshot) => {
+      setHasModelsConfig(snapshot.exists())
+    })
+
+    return () => unsubscribe()
+  }, [user?.uid])
+
+  // Real-time listener for usage stats
+  useEffect(() => {
+    if (!user?.uid || !hasLicense) {
+      setLoadingUsage(false)
+      return
+    }
+
+    setLoadingUsage(true)
+    setUsageError(null)
+
+    // Listen to user document for basic usage stats
+    const userDocRef = doc(db, 'users', user.uid)
+    const licenseDocRef = doc(db, 'users', user.uid, 'license', 'current')
+    const usageLogRef = collection(db, 'users', user.uid, 'usageLog')
+    const recentUsageQuery = query(usageLogRef, orderBy('timestamp', 'desc'), limit(10))
+
+    let userData: { tasksUsed?: number; lastTaskAt?: Date } = {}
+    let licenseData: { plan?: string; tasksPerMonth?: number; overageRate?: number; planName?: string } = {}
+    let usageLogData: { operation: string; count: number; timestamp: string; totalAfter: number }[] = []
+    let operationBreakdown: { [key: string]: number } = {}
+
+    const updateUsageData = () => {
+      const tasksUsed = userData.tasksUsed || 0
+      // Use plan limits as fallback if tasksPerMonth is not set in license document
+      const planKey = licenseData.plan?.toLowerCase() || licenseInfo?.plan?.toLowerCase() || ''
+      const planDefaults = PLAN_LIMITS[planKey] || { tasksPerMonth: 100, overageRate: 0.20 }
+      const tasksPerMonth = licenseData.tasksPerMonth || planDefaults.tasksPerMonth
+      const overageRate = licenseData.overageRate || planDefaults.overageRate
+      const isOverage = tasksPerMonth > 0 && tasksUsed > tasksPerMonth
+
+      setUsageData({
+        stats: {
+          tasksUsed,
+          tasksPerMonth,
+          remaining: Math.max(0, tasksPerMonth - tasksUsed),
+          percentUsed: tasksPerMonth > 0 ? Math.round((tasksUsed / tasksPerMonth) * 100) : 0,
+          isOverage,
+          overageCount: isOverage ? tasksUsed - tasksPerMonth : 0,
+          overageRate,
+          estimatedOverageCost: isOverage ? (tasksUsed - tasksPerMonth) * overageRate : 0,
+          lastTaskAt: userData.lastTaskAt?.toISOString() || null,
+          plan: licenseData.plan || licenseInfo?.plan || '',
+          planName: licenseData.planName || licenseInfo?.planName || '',
+        },
+        operationBreakdown,
+        dailyUsage: {},
+        recentActivity: usageLogData,
+      })
+      setLoadingUsage(false)
+    }
+
+    // Listen to user document
+    const unsubscribeUser = onSnapshot(userDocRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data()
+        userData = {
+          tasksUsed: data.tasksUsed || 0,
+          lastTaskAt: data.lastTaskAt?.toDate(),
+        }
+        updateUsageData()
+      }
+    }, (err) => {
+      console.error('Error listening to user document:', err)
+      setUsageError('Failed to load usage stats')
+      setLoadingUsage(false)
+    })
+
+    // Listen to license document
+    const unsubscribeLicense = onSnapshot(licenseDocRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data()
+        licenseData = {
+          plan: data.plan,
+          tasksPerMonth: data.tasksPerMonth,
+          overageRate: data.overageRate,
+          planName: data.planName,
+        }
+      } else {
+        // Fallback to licenseInfo from context if document doesn't exist
+        const planKey = licenseInfo?.plan?.toLowerCase() || ''
+        const planDefaults = PLAN_LIMITS[planKey] || { tasksPerMonth: 100, overageRate: 0.20 }
+        licenseData = {
+          plan: licenseInfo?.plan,
+          tasksPerMonth: licenseInfo?.tasksPerMonth || planDefaults.tasksPerMonth,
+          overageRate: licenseInfo?.overageRate || planDefaults.overageRate,
+          planName: licenseInfo?.planName,
+        }
+      }
+      updateUsageData()
+    }, (err) => {
+      console.error('Error listening to license document:', err)
+    })
+
+    // Listen to recent usage log
+    const unsubscribeUsageLog = onSnapshot(recentUsageQuery, (snapshot) => {
+      usageLogData = []
+      operationBreakdown = {}
+      
+      snapshot.forEach((doc) => {
+        const data = doc.data()
+        const operation = data.operation || 'unknown'
+        
+        usageLogData.push({
+          operation,
+          count: data.count || 1,
+          timestamp: data.timestamp?.toDate()?.toISOString() || '',
+          totalAfter: data.totalAfter || 0,
+        })
+        
+        operationBreakdown[operation] = (operationBreakdown[operation] || 0) + (data.count || 1)
+      })
+      
+      updateUsageData()
+    }, (err) => {
+      console.error('Error listening to usage log:', err)
+    })
+
+    return () => {
+      unsubscribeUser()
+      unsubscribeLicense()
+      unsubscribeUsageLog()
+    }
+  }, [user?.uid, hasLicense, licenseInfo?.plan, licenseInfo?.tasksPerMonth, licenseInfo?.overageRate, licenseInfo?.planName])
 
   // Format operation name for display
   const formatOperationName = (op: string) => {
@@ -362,29 +493,57 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="flex items-start gap-4">
-              <div className="w-6 h-6 rounded-full bg-surface-highlight flex items-center justify-center flex-shrink-0 mt-0.5">
-                <span className="text-xs font-semibold text-text-muted">2</span>
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                hasApiKeys ? 'bg-green-500/20' : 'bg-surface-highlight'
+              }`}>
+                {hasApiKeys ? (
+                  <FontAwesomeIcon icon={faCheckCircle} className="w-3 h-3 text-green-400" />
+                ) : (
+                  <span className="text-xs font-semibold text-text-muted">2</span>
+                )}
               </div>
               <div>
-                <p className="text-base font-medium">Add your API keys</p>
-                <p className="text-sm text-text-muted">Configure at least one AI provider</p>
+                <p className={`text-base font-medium ${hasApiKeys ? 'text-green-400' : ''}`}>
+                  Add your API keys
+                </p>
+                <p className="text-sm text-text-muted">
+                  {hasApiKeys ? 'API key configured' : 'Configure at least one AI provider'}
+                </p>
               </div>
             </div>
             <div className="flex items-start gap-4">
-              <div className="w-6 h-6 rounded-full bg-surface-highlight flex items-center justify-center flex-shrink-0 mt-0.5">
-                <span className="text-xs font-semibold text-text-subtle">3</span>
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                hasModelsConfig ? 'bg-green-500/20' : 'bg-surface-highlight'
+              }`}>
+                {hasModelsConfig ? (
+                  <FontAwesomeIcon icon={faCheckCircle} className="w-3 h-3 text-green-400" />
+                ) : (
+                  <span className="text-xs font-semibold text-text-subtle">3</span>
+                )}
               </div>
               <div>
-                <p className="text-base font-medium text-text-muted">Configure models</p>
-                <p className="text-sm text-text-muted">Select main, research, and fallback models</p>
+                <p className={`text-base font-medium ${hasModelsConfig ? 'text-green-400' : 'text-text-muted'}`}>
+                  Configure models
+                </p>
+                <p className="text-sm text-text-muted">
+                  {hasModelsConfig ? 'Models configured' : 'Select main, research, and fallback models'}
+                </p>
               </div>
             </div>
             <div className="flex items-start gap-4">
-              <div className="w-6 h-6 rounded-full bg-surface-highlight flex items-center justify-center flex-shrink-0 mt-0.5">
-                <span className="text-xs font-semibold text-text-subtle">4</span>
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                hasLicense && hasApiKeys && hasModelsConfig ? 'bg-green-500/20' : 'bg-surface-highlight'
+              }`}>
+                {hasLicense && hasApiKeys && hasModelsConfig ? (
+                  <FontAwesomeIcon icon={faCheckCircle} className="w-3 h-3 text-green-400" />
+                ) : (
+                  <span className="text-xs font-semibold text-text-subtle">4</span>
+                )}
               </div>
               <div>
-                <p className="text-base font-medium text-text-muted">Start a project</p>
+                <p className={`text-base font-medium ${hasLicense && hasApiKeys && hasModelsConfig ? 'text-green-400' : 'text-text-muted'}`}>
+                  Start a project
+                </p>
                 <p className="text-sm text-text-muted">
                   Run <code className="px-1.5 py-0.5 rounded bg-surface-highlight text-xs font-mono">taskmaster init</code>
                 </p>

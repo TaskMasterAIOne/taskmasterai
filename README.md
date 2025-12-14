@@ -2,7 +2,7 @@
 
 A modern, production-ready web application for **TaskMaster AI** - the AI-powered task management system for developers.
 
-![TaskMaster AI](https://firebasestorage.googleapis.com/v0/b/taskmaster-ai-e2302.firebasestorage.app/o/TaskMaster_AI%20Logo.png)
+![TaskMaster AI](https://firebasestorage.googleapis.com/v0/b/taskmaster-ai-e2302.firebasestorage.app/o/taskmaster_ai_new_logo-removebg.png?alt=media&token=29e7f6a0-f33d-4ec9-84bd-abf3ddbb78b8)
 
 ## Features
 

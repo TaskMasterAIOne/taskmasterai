@@ -1,6 +1,7 @@
 /**
  * AI Service for TaskMaster AI
  * Uses Vercel AI SDK for AI model interactions (same as official TaskMaster)
+ * Supports all major AI providers: Anthropic, OpenAI, Google, xAI, DeepSeek, etc.
  */
 
 import { generateText, generateObject } from 'ai';
@@ -8,13 +9,28 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { z } from 'zod';
-import { getApiKey, readProjectConfig } from './config.js';
+import { getApiKey, readProjectConfig, findProjectRoot } from './config.js';
+import { isUsingHostedKey, trackHostedKeyUsage } from './license.js';
 
 // Provider instances cache
 const providers = {};
 
+// Provider base URLs for OpenAI-compatible providers
+// Updated late 2025 - verified endpoints
+const PROVIDER_URLS = {
+  perplexity: 'https://api.perplexity.ai',           // OpenAI-compatible
+  deepseek: 'https://api.deepseek.com',              // DeepSeek official API
+  openrouter: 'https://openrouter.ai/api/v1',        // OpenAI-compatible gateway
+  xai: 'https://api.x.ai/v1',                        // Grok models (Elon Musk's xAI)
+  mistral: 'https://api.mistral.ai/v1',              // Mistral AI
+  zhipu: 'https://open.bigmodel.cn/api/paas/v4',     // GLM models (Chinese provider)
+  moonshot: 'https://api.moonshot.cn/v1',            // Kimi models
+  meta: 'https://api.meta.com/llama',                // Meta LLaMA API
+};
+
 /**
  * Get or create a provider instance
+ * Supports multiple AI providers with their respective SDKs or OpenAI-compatible endpoints
  */
 function getProvider(providerName) {
   if (providers[providerName]) {
@@ -23,10 +39,12 @@ function getProvider(providerName) {
 
   const apiKey = getApiKey(providerName);
   if (!apiKey) {
-    throw new Error(`No API key found for ${providerName}. Set ${providerName.toUpperCase()}_API_KEY environment variable.`);
+    throw new Error(`No API key found for ${providerName}. Add it in the Dashboard API Keys page or set ${providerName.toUpperCase()}_API_KEY environment variable.`);
   }
 
-  switch (providerName.toLowerCase()) {
+  const providerLower = providerName.toLowerCase();
+
+  switch (providerLower) {
     case 'anthropic':
       providers[providerName] = createAnthropic({ apiKey });
       break;
@@ -36,24 +54,47 @@ function getProvider(providerName) {
     case 'google':
       providers[providerName] = createGoogleGenerativeAI({ apiKey });
       break;
+    // OpenAI-compatible providers (use OpenAI SDK with custom baseURL)
     case 'perplexity':
+    case 'deepseek':
+    case 'openrouter':
+    case 'xai':
+    case 'mistral':
+    case 'zhipu':
+    case 'moonshot':
+    case 'meta':
+      const baseURL = PROVIDER_URLS[providerLower];
+      if (!baseURL) {
+        throw new Error(`No base URL configured for provider: ${providerName}`);
+      }
       providers[providerName] = createOpenAI({
         apiKey,
-        baseURL: 'https://api.perplexity.ai',
+        baseURL,
       });
       break;
     default:
-      throw new Error(`Unsupported provider: ${providerName}`);
+      throw new Error(`Unsupported provider: ${providerName}. Supported: anthropic, openai, google, perplexity, deepseek, openrouter, xai, mistral, zhipu, moonshot, meta`);
   }
 
   return providers[providerName];
 }
 
 /**
+ * Get the project root (cached for performance)
+ */
+let cachedProjectRoot = null;
+function getProjectRoot() {
+  if (!cachedProjectRoot) {
+    cachedProjectRoot = findProjectRoot() || process.cwd();
+  }
+  return cachedProjectRoot;
+}
+
+/**
  * Get the model instance for a role
  */
 function getModelForRole(role = 'main') {
-  const config = readProjectConfig();
+  const config = readProjectConfig(getProjectRoot());
   const modelConfig = config.models[role] || config.models.main;
   const provider = getProvider(modelConfig.provider);
   
@@ -65,11 +106,15 @@ function getModelForRole(role = 'main') {
  */
 export async function generateAIText(prompt, options = {}) {
   const role = options.role || 'main';
-  const config = readProjectConfig();
+  const config = readProjectConfig(getProjectRoot());
   const modelConfig = config.models[role] || config.models.main;
+  const provider = modelConfig.provider;
   
   const systemPrompt = options.systemPrompt || 
     'You are a helpful AI assistant specialized in software development and task management.';
+  
+  // Check if using hosted key (for tracking)
+  const usingHostedKey = isUsingHostedKey(provider);
   
   try {
     const model = getModelForRole(role);
@@ -82,12 +127,21 @@ export async function generateAIText(prompt, options = {}) {
       temperature: options.temperature ?? modelConfig.temperature ?? 0.7,
     });
 
+    const usage = {
+      inputTokens: result.usage?.promptTokens,
+      outputTokens: result.usage?.completionTokens,
+    };
+
+    // Track hosted key usage (async, don't block)
+    if (usingHostedKey) {
+      trackHostedKeyUsage(provider, options.operation || 'text-generation', usage)
+        .catch(() => {}); // Silently ignore tracking errors
+    }
+
     return {
       text: result.text,
-      usage: {
-        inputTokens: result.usage?.promptTokens,
-        outputTokens: result.usage?.completionTokens,
-      },
+      usage,
+      usingHostedKey,
     };
   } catch (error) {
     // Try fallback if main fails
@@ -104,11 +158,15 @@ export async function generateAIText(prompt, options = {}) {
  */
 export async function generateAIObject(prompt, schema, options = {}) {
   const role = options.role || 'main';
-  const config = readProjectConfig();
+  const config = readProjectConfig(getProjectRoot());
   const modelConfig = config.models[role] || config.models.main;
+  const provider = modelConfig.provider;
   
   const systemPrompt = options.systemPrompt || 
     'You are a helpful AI assistant specialized in software development and task management.';
+  
+  // Check if using hosted key (for tracking)
+  const usingHostedKey = isUsingHostedKey(provider);
   
   try {
     const model = getModelForRole(role);
@@ -122,12 +180,21 @@ export async function generateAIObject(prompt, schema, options = {}) {
       temperature: options.temperature ?? modelConfig.temperature ?? 0.7,
     });
 
+    const usage = {
+      inputTokens: result.usage?.promptTokens,
+      outputTokens: result.usage?.completionTokens,
+    };
+
+    // Track hosted key usage (async, don't block)
+    if (usingHostedKey) {
+      trackHostedKeyUsage(provider, options.operation || 'object-generation', usage)
+        .catch(() => {}); // Silently ignore tracking errors
+    }
+
     return {
       object: result.object,
-      usage: {
-        inputTokens: result.usage?.promptTokens,
-        outputTokens: result.usage?.completionTokens,
-      },
+      usage,
+      usingHostedKey,
     };
   } catch (error) {
     // Try fallback if main fails
@@ -146,6 +213,7 @@ export async function generateAIObject(prompt, schema, options = {}) {
 const taskSchema = z.object({
   title: z.string().describe('Clear, concise task title'),
   description: z.string().describe('Detailed description of what needs to be done'),
+  status: z.enum(['pending', 'in-progress', 'done', 'blocked', 'cancelled', 'deferred']).default('pending').describe('Task status'),
   priority: z.enum(['high', 'medium', 'low']).describe('Task priority level'),
   dependencies: z.array(z.number()).default([]).describe('IDs of tasks this depends on'),
   details: z.string().describe('Implementation details and technical considerations'),
@@ -159,6 +227,7 @@ const tasksResponseSchema = z.object({
 const subtaskSchema = z.object({
   title: z.string().describe('Clear, concise subtask title'),
   description: z.string().describe('What needs to be done'),
+  status: z.enum(['pending', 'in-progress', 'done', 'blocked', 'cancelled', 'deferred']).default('pending').describe('Subtask status'),
   details: z.string().optional().describe('Implementation details'),
 });
 
@@ -178,6 +247,7 @@ const complexityAnalysisSchema = z.object({
 const newTaskSchema = z.object({
   title: z.string().describe('Clear, concise task title'),
   description: z.string().describe('Detailed description'),
+  status: z.enum(['pending', 'in-progress', 'done', 'blocked', 'cancelled', 'deferred']).default('pending').describe('Task status'),
   priority: z.enum(['high', 'medium', 'low']).describe('Priority level'),
   details: z.string().describe('Implementation details'),
   testStrategy: z.string().describe('Verification approach'),
@@ -322,7 +392,7 @@ Generate a well-structured task.`;
  * Tries Perplexity first for web search capability, falls back to main model
  */
 export async function performResearch(query, options = {}) {
-  const config = readProjectConfig();
+  const config = readProjectConfig(getProjectRoot());
   
   const systemPrompt = options.systemPrompt || `You are a research assistant helping with software development. 
 Provide accurate, up-to-date information with practical examples when possible.

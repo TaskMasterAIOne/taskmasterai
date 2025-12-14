@@ -158,7 +158,7 @@ export function registerStatusTools(server, options = {}) {
 
   // update_subtask - Append notes to subtask
   server.addTool({
-    name: 'update_subtask',
+    name: 'log_progress',
     description: 'Append timestamped notes to a subtask',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
