@@ -44,30 +44,30 @@ TaskMaster AI is an AI-powered task management system designed for developers. I
 TaskMaster AI requires a paid subscription. There is NO free tier.
 
 ## Plus Plan - $29/month
-- Up to 100 tasks/month included
-- $0.20 per additional task (overage)
-- 500 AI operations per month
+- Up to 100 tasks/month
+- $0.20 per extra task
+- Use your own API keys
 - Secure API key vault
 - All AI providers supported
-- Task expansion & complexity analysis
+- Task expansion & analysis
 - Research mode
 - Email support
 
 ## Pro Plan - $199/month (Most Popular)
-- Up to 1,000 tasks/month included
-- $0.15 per additional task (overage)
-- 2,000 AI operations per month
 - Everything in Plus
+- Hosted API keys included
+- Up to 1,000 tasks/month
+- $0.15 per extra task
+- No API key management needed
 - Priority support
 - Advanced analytics
-- Model switching
 - Usage insights
 
 ## Enterprise Plan - $599+/month
-- 5,000+ tasks/month
-- Unlimited AI operations
-- Volume discounts available
 - Everything in Pro
+- Hosted API keys included
+- 5,000+ tasks/month
+- Volume discounts available
 - Dedicated support
 - Custom integrations
 - Team management

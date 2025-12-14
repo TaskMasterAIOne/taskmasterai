@@ -539,11 +539,12 @@
   }
 
   .input {
-    @apply w-full px-4 py-2.5 rounded-lg text-sm
+    @apply w-full px-4 py-2.5 rounded-lg
            transition-all duration-150 focus:outline-none focus:ring-1;
     background-color: var(--bg-primary);
     border: 1px solid var(--border-primary);
     color: var(--text-primary);
+    font-size: 16px;
   }
   
   .input::placeholder {

@@ -4011,24 +4011,57 @@ export default function Docs() {
     setIsAsking(true)
     setShowAnswerModal(true)
 
+    // Create placeholder assistant message
+    const assistantMessageId = (Date.now() + 1).toString()
+    const assistantMessage: ChatMessage = {
+      id: assistantMessageId,
+      role: 'assistant',
+      content: ''
+    }
+    setChatHistory(prev => [...prev, assistantMessage])
+
     try {
       const response = await askQuestionAPI(userMessage.content)
-      const assistantMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: response
+      
+      // Remove thinking indicator as soon as we have the response
+      setIsAsking(false)
+      
+      // Stream the response character by character
+      let currentIndex = 0
+      const streamText = () => {
+        if (currentIndex < response.length) {
+          // Add characters in chunks for smoother streaming
+          const chunkSize = Math.ceil(Math.random() * 3) + 1 // 1-4 characters at a time
+          const chunk = response.slice(currentIndex, currentIndex + chunkSize)
+          currentIndex += chunkSize
+          
+          setChatHistory(prev => 
+            prev.map(msg => 
+              msg.id === assistantMessageId 
+                ? { ...msg, content: response.slice(0, currentIndex) }
+                : msg
+            )
+          )
+          
+          // Continue streaming with slight delay
+          setTimeout(streamText, 15) // 15ms delay between chunks for smooth effect
+        }
       }
-      setChatHistory(prev => [...prev, assistantMessage])
+      
+      streamText()
     } catch (error) {
       console.error('Error asking question:', error)
-      const errorMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: '',
-        error: error instanceof Error ? error.message : 'Failed to get response'
-      }
-      setChatHistory(prev => [...prev, errorMessage])
-    } finally {
+      setChatHistory(prev => 
+        prev.map(msg => 
+          msg.id === assistantMessageId 
+            ? { 
+                ...msg, 
+                content: '',
+                error: error instanceof Error ? error.message : 'Failed to get response'
+              }
+            : msg
+        )
+      )
       setIsAsking(false)
     }
   }
@@ -4087,19 +4120,21 @@ export default function Docs() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      {/* Mobile menu button */}
-      <button 
-        onClick={() => setShowMobileMenu(!showMobileMenu)}
-        className="lg:hidden fixed top-20 left-4 z-50 p-2 bg-surface border border-border rounded-lg text-text-muted hover:text-text shadow-lg"
-      >
-        <FontAwesomeIcon icon={faBars} className="w-5 h-5" />
-      </button>
+      {/* Mobile menu button - Hidden when sidebar is open */}
+      {!showMobileMenu && (
+        <button 
+          onClick={() => setShowMobileMenu(!showMobileMenu)}
+          className="lg:hidden fixed top-20 left-4 z-50 p-2 bg-surface border border-border rounded-lg text-text-muted hover:text-text shadow-lg"
+        >
+          <FontAwesomeIcon icon={faBars} className="w-5 h-5" />
+        </button>
+      )}
 
       {/* Search Bar - Centered below navbar (opens modal on click) */}
-      <div className="fixed top-20 left-1/2 -translate-x-1/2 z-40 w-full max-w-sm px-4">
+      <div className="fixed top-20 z-40 w-full max-w-[280px] lg:max-w-sm px-4 left-1/2 -translate-x-1/2">
         <div className="relative">
-          {/* Blur backdrop */}
-          <div className="absolute -inset-2 bg-background/80 backdrop-blur-md rounded-full -z-10" />
+          {/* Blur backdrop - Hidden on mobile */}
+          <div className="absolute -inset-2 bg-background/80 rounded-full -z-10 max-lg:bg-background max-lg:backdrop-blur-none lg:backdrop-blur-md" />
           <button
             onClick={() => setShowSearchModal(true)}
             className="w-full flex items-center gap-3 pl-4 pr-4 py-2.5 bg-surface backdrop-blur-sm border border-border rounded-full text-sm text-text-subtle hover:border-accent transition-colors shadow-lg"
@@ -4122,7 +4157,7 @@ export default function Docs() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70]"
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[101]"
               onClick={() => {
                 setShowSearchModal(false)
                 setSearchQuery('')
@@ -4135,7 +4170,7 @@ export default function Docs() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -20 }}
               transition={{ duration: 0.15 }}
-              className="fixed inset-0 z-[71] flex items-start justify-center pt-[15vh] px-4"
+              className="fixed inset-0 z-[102] flex items-start justify-center pt-[15vh] px-4"
               onClick={() => {
                 setShowSearchModal(false)
                 setSearchQuery('')
@@ -4253,7 +4288,7 @@ export default function Docs() {
                       to close
                     </span>
                   </div>
-                  <span className="text-xs text-text-subtle">TaskMaster Docs</span>
+                  <span className="text-xs text-text-subtle">TaskMaster AI Docs</span>
                 </div>
               </div>
             </motion.div>
@@ -4348,7 +4383,7 @@ export default function Docs() {
 
       <div className="flex pt-6">
         {/* Left Sidebar */}
-        <aside className={`w-64 border-r border-border bg-background fixed top-16 bottom-0 overflow-y-auto overscroll-contain z-30 transition-transform lg:translate-x-0 left-0 lg:left-[max(0px,calc((100vw-1024px)/2))] ${showMobileMenu ? 'translate-x-0' : '-translate-x-full'}`}>
+        <aside className={`w-64 border-r border-border bg-background fixed top-0 lg:top-16 bottom-0 overflow-y-auto overscroll-contain z-[110] lg:z-30 transition-transform lg:translate-x-0 left-0 lg:left-[max(0px,calc((100vw-1024px)/2))] ${showMobileMenu ? 'translate-x-0' : '-translate-x-full'}`}>
           <div className="p-4">
             {/* Tab for Documentation */}
             <div className="border-b border-border mb-4 -mx-4 px-4 pb-3">
@@ -4399,14 +4434,14 @@ export default function Docs() {
         {/* Mobile overlay */}
         {showMobileMenu && (
           <div 
-            className="fixed inset-0 bg-black/50 z-20 lg:hidden"
+            className="fixed inset-0 bg-black/50 z-[105] lg:hidden"
             onClick={() => setShowMobileMenu(false)}
           />
         )}
 
         {/* Main Content */}
         <main className="flex-1 lg:ml-[calc(max(0px,(100vw-1024px)/2)+256px)] lg:mr-[max(0px,calc((100vw-1024px)/2))] overflow-x-hidden">
-          <div className="px-4 md:px-8 pt-4 lg:pt-20 pb-32 lg:pb-24 max-w-full overflow-x-hidden">
+          <div className="px-4 md:px-8 pt-12 lg:pt-20 pb-32 lg:pb-24 max-w-full overflow-x-hidden">
             <motion.div
               key={activeSection}
               initial={{ opacity: 0, y: 10 }}
@@ -4513,14 +4548,14 @@ export default function Docs() {
 
         {/* Floating Ask a Question Bar - Hidden when sidebar is open */}
         {!showAnswerModal && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4">
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 w-full max-w-[280px] lg:max-w-none lg:w-auto">
             <motion.form 
               onSubmit={handleAskQuestion}
               initial={false}
               animate={{ 
-                width: isInputFocused ? 400 : 300
+                width: window.innerWidth >= 1024 ? (isInputFocused ? 400 : 300) : '100%'
               }}
-              whileHover={{ scale: 1.03 }}
+              whileHover={{ scale: window.innerWidth >= 1024 ? 1.03 : 1 }}
               whileTap={{ scale: 0.98 }}
               transition={{ duration: 0.2, ease: 'easeOut' }}
               className={`flex items-center gap-2 px-4 py-2.5 bg-surface border rounded-full text-sm shadow-xl backdrop-blur-sm transition-colors ${isInputFocused ? 'border-accent' : 'border-border'}`}
@@ -4571,14 +4606,16 @@ export default function Docs() {
                 onClick={() => setShowAnswerModal(false)}
               />
               
-              {/* Sidebar */}
+              {/* Sidebar - Desktop: slides from right, Mobile: slides from bottom */}
               <motion.div
-                initial={{ x: '100%' }}
-                animate={{ x: 0 }}
-                exit={{ x: '100%' }}
+                initial={window.innerWidth >= 1024 ? { x: '100%' } : { y: '100%' }}
+                animate={window.innerWidth >= 1024 ? { x: 0 } : { y: 0 }}
+                exit={window.innerWidth >= 1024 ? { x: '100%' } : { y: '100%' }}
                 transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                className="fixed top-[72px] right-0 bottom-0 z-[61] bg-background/95 backdrop-blur-xl border-l border-t border-border rounded-tl-2xl shadow-[0_0_40px_rgba(0,0,0,0.15)] flex flex-col"
-                style={{ width: sidebarWidth }}
+                className="fixed z-[61] bg-background border-border shadow-[0_0_40px_rgba(0,0,0,0.15)] flex flex-col
+                           lg:top-[72px] lg:right-0 lg:bottom-0 lg:border-l lg:border-t lg:rounded-tl-2xl lg:bg-background/95 lg:backdrop-blur-xl 
+                           max-lg:bottom-0 max-lg:left-0 max-lg:right-0 max-lg:top-auto max-lg:rounded-t-2xl max-lg:border-t max-lg:h-[75vh] max-lg:w-full max-lg:pb-safe"
+                style={{ width: window.innerWidth >= 1024 ? sidebarWidth : '100%' }}
               >
                 {/* Resize Handle */}
                 <div
@@ -4666,7 +4703,7 @@ export default function Docs() {
                 </div>
 
                 {/* Input Area - Same style as floating */}
-                <div className="p-3 ">
+                <div className="p-3 pb-safe">
                   <form onSubmit={handleAskQuestion} className="flex items-center gap-2 px-4 py-2.5 bg-surface border border-border rounded-full">
                     <input
                       ref={sidebarInputRef}

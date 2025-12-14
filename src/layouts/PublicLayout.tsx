@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../contexts/ThemeContext'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faBars, faXmark, faSun, faMoon, faDesktop } from '@fortawesome/free-solid-svg-icons'
-import { faDiscord, faXTwitter } from '@fortawesome/free-brands-svg-icons'
+import { faNpm } from '@fortawesome/free-brands-svg-icons'
 
 const LOGO_URL = 'https://firebasestorage.googleapis.com/v0/b/taskmaster-ai-e2302.firebasestorage.app/o/taskmaster_ai_new_logo-removebg.png?alt=media&token=29e7f6a0-f33d-4ec9-84bd-abf3ddbb78b8'
 
@@ -24,7 +24,7 @@ export default function PublicLayout() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-sm pt-4">
+      <header className="fixed top-0 left-0 right-0 z-[100] bg-background/90 backdrop-blur-sm pt-4">
         <nav className="max-w-5xl mx-auto px-4">
           <div className="relative flex items-center justify-between h-14">
             {/* Logo */}
@@ -101,7 +101,7 @@ export default function PublicLayout() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="md:hidden bg-surface relative z-50"
+            className="md:hidden bg-surface relative z-[100]"
           >
             <div className="px-4 py-4 space-y-2">
               {navLinks.map((link) => (
@@ -200,7 +200,7 @@ export default function PublicLayout() {
                 <ul className="space-y-2">
                   <li><Link to="/pricing" className="text-sm text-text-muted hover:text-text">Pricing</Link></li>
                   <li><Link to="/docs" className="text-sm text-text-muted hover:text-text">Documentation</Link></li>
-                  <li><a href="https://discord.gg/taskmaster" target="_blank" rel="noopener noreferrer" className="text-sm text-text-muted hover:text-text">Community</a></li>
+                  <li><a href="https://www.npmjs.com/package/@taskmasterai/cli" target="_blank" rel="noopener noreferrer" className="text-sm text-text-muted hover:text-text">NPM Package</a></li>
                 </ul>
               </div>
               
@@ -218,11 +218,8 @@ export default function PublicLayout() {
                 © 2025 TaskMaster AI LLC. All rights reserved.
               </p>
               <div className="flex items-center gap-4">
-                <a href="https://discord.gg/taskmaster" target="_blank" rel="noopener noreferrer" className="text-text-muted hover:text-text transition-colors">
-                  <FontAwesomeIcon icon={faDiscord} className="w-5 h-5" />
-                </a>
-                <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" className="text-text-muted hover:text-text transition-colors">
-                  <FontAwesomeIcon icon={faXTwitter} className="w-5 h-5" />
+                <a href="https://www.npmjs.com/package/@taskmasterai/cli" target="_blank" rel="noopener noreferrer" className="text-text-muted hover:text-text transition-colors" title="View on NPM">
+                  <FontAwesomeIcon icon={faNpm} className="w-8 h-8" />
                 </a>
               </div>
             </div>

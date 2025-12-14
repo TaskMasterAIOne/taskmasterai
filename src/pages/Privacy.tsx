@@ -10,7 +10,7 @@ export default function Privacy() {
           transition={{ duration: 0.5, ease: 'easeOut' }}
         >
           <h1 className="text-3xl md:text-4xl font-bold mb-4">Privacy Policy</h1>
-          <p className="text-text-muted mb-8">Last updated: December 12, 2024</p>
+          <p className="text-text-muted mb-8">Last updated: December 12, 2025</p>
 
           <div className="space-y-8 text-text-muted">
             <section>
