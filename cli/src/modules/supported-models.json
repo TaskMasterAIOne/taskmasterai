@@ -1,0 +1,88 @@
+{
+  "anthropic": [
+    { "id": "claude-opus-4.5", "name": "Claude Opus 4.5", "description": "Most powerful", "allowed_roles": ["main", "fallback"], "max_tokens": 32000, "supported": true },
+    { "id": "claude-4.1-opus", "name": "Claude 4.1 Opus", "description": "Advanced reasoning", "allowed_roles": ["main", "fallback"], "max_tokens": 32000, "supported": true },
+    { "id": "claude-sonnet-4.5", "name": "Claude Sonnet 4.5", "description": "Best balance", "allowed_roles": ["main", "fallback"], "max_tokens": 64000, "supported": true },
+    { "id": "claude-sonnet-4.5-reasoning", "name": "Claude Sonnet 4.5 (Reasoning)", "description": "Enhanced reasoning", "allowed_roles": ["main", "fallback"], "max_tokens": 64000, "supported": true },
+    { "id": "claude-4-sonnet", "name": "Claude 4 Sonnet", "description": "High capability", "allowed_roles": ["main", "fallback"], "max_tokens": 64000, "supported": true },
+    { "id": "claude-4-sonnet-reasoning", "name": "Claude 4 Sonnet (Reasoning)", "description": "With reasoning", "allowed_roles": ["main", "fallback"], "max_tokens": 64000, "supported": true },
+    { "id": "claude-3.7-sonnet", "name": "Claude 3.7 Sonnet", "description": "Previous gen", "allowed_roles": ["main", "fallback"], "max_tokens": 120000, "supported": true },
+    { "id": "claude-3.7-sonnet-reasoning", "name": "Claude 3.7 Sonnet (Reasoning)", "description": "With reasoning", "allowed_roles": ["main", "fallback"], "max_tokens": 120000, "supported": true },
+    { "id": "claude-haiku-4.5", "name": "Claude Haiku 4.5", "description": "Fast & efficient", "allowed_roles": ["main", "fallback"], "max_tokens": 200000, "supported": true },
+    { "id": "claude-haiku-4.5-reasoning", "name": "Claude Haiku 4.5 (Reasoning)", "description": "Fast with reasoning", "allowed_roles": ["main", "fallback"], "max_tokens": 200000, "supported": true }
+  ],
+  "openai": [
+    { "id": "gpt-5", "name": "GPT 5", "description": "Most capable", "allowed_roles": ["main", "fallback"], "max_tokens": 100000, "supported": true },
+    { "id": "gpt-5-reasoning", "name": "GPT 5 (Reasoning)", "description": "With reasoning", "allowed_roles": ["main", "fallback"], "max_tokens": 100000, "supported": true },
+    { "id": "gpt-5.2-instant", "name": "GPT 5.2 (Instant)", "description": "Fast responses", "allowed_roles": ["main", "fallback"], "max_tokens": 100000, "supported": true },
+    { "id": "gpt-5.2-reasoning", "name": "GPT 5.2 (Reasoning)", "description": "Enhanced reasoning", "allowed_roles": ["main", "fallback"], "max_tokens": 100000, "supported": true },
+    { "id": "gpt-5.1-instant", "name": "GPT 5.1 (Instant)", "description": "Quick tasks", "allowed_roles": ["main", "fallback"], "max_tokens": 100000, "supported": true },
+    { "id": "gpt-5.1-reasoning", "name": "GPT 5.1 (Reasoning)", "description": "Reasoning mode", "allowed_roles": ["main", "fallback"], "max_tokens": 100000, "supported": true },
+    { "id": "gpt-5-mini", "name": "GPT 5 Mini", "description": "Compact & fast", "allowed_roles": ["main", "fallback"], "max_tokens": 100000, "supported": true },
+    { "id": "gpt-5-nano", "name": "GPT 5 Nano", "description": "Ultra light", "allowed_roles": ["main", "fallback"], "max_tokens": 100000, "supported": true },
+    { "id": "gpt-4.1", "name": "GPT 4.1", "description": "Stable release", "allowed_roles": ["main", "fallback"], "max_tokens": 100000, "supported": true },
+    { "id": "gpt-4.1-mini", "name": "GPT 4.1 Mini", "description": "Cost-effective", "allowed_roles": ["main", "fallback"], "max_tokens": 100000, "supported": true },
+    { "id": "gpt-4.1-nano", "name": "GPT 4.1 Nano", "description": "Lightweight", "allowed_roles": ["main", "fallback"], "max_tokens": 100000, "supported": true },
+    { "id": "gpt-4o", "name": "GPT 4o", "description": "Multimodal", "allowed_roles": ["main", "fallback"], "max_tokens": 16384, "supported": true },
+    { "id": "gpt-4o-mini", "name": "GPT 4o Mini", "description": "Fast multimodal", "allowed_roles": ["main", "fallback"], "max_tokens": 16384, "supported": true },
+    { "id": "o3-mini", "name": "O3 Mini", "description": "Reasoning model", "allowed_roles": ["main", "fallback"], "max_tokens": 100000, "supported": true },
+    { "id": "o3-pro", "name": "O3 Pro", "description": "Advanced reasoning", "allowed_roles": ["main", "fallback"], "max_tokens": 100000, "supported": true },
+    { "id": "o4-mini", "name": "O4 Mini", "description": "Latest reasoning", "allowed_roles": ["main", "fallback"], "max_tokens": 100000, "supported": true },
+    { "id": "gpt-oss-20b", "name": "GPT OSS 20B", "description": "Open source", "allowed_roles": ["main", "fallback"], "max_tokens": 128000, "supported": true },
+    { "id": "gpt-oss-120b", "name": "GPT OSS 120B", "description": "Large open source", "allowed_roles": ["main", "fallback"], "max_tokens": 128000, "supported": true }
+  ],
+  "google": [
+    { "id": "gemini-3-pro", "name": "Gemini 3 Pro", "description": "Most powerful", "allowed_roles": ["main", "fallback", "research"], "max_tokens": 1000000, "supported": true },
+    { "id": "gemini-2.5-pro", "name": "Gemini 2.5 Pro", "description": "Advanced tasks", "allowed_roles": ["main", "fallback"], "max_tokens": 1048000, "supported": true },
+    { "id": "gemini-2.5-flash", "name": "Gemini 2.5 Flash", "description": "Fast & capable", "allowed_roles": ["main", "fallback"], "max_tokens": 1048000, "supported": true },
+    { "id": "gemini-2.5-flash-thinking", "name": "Gemini 2.5 Flash (Thinking)", "description": "With reasoning", "allowed_roles": ["main", "fallback"], "max_tokens": 1048000, "supported": true },
+    { "id": "gemini-2.5-flash-lite-thinking", "name": "Gemini 2.5 Flash Lite (Thinking)", "description": "Light reasoning", "allowed_roles": ["main", "fallback"], "max_tokens": 1048000, "supported": true },
+    { "id": "gemini-2.0-flash", "name": "Gemini 2.0 Flash", "description": "Previous gen", "allowed_roles": ["main", "fallback"], "max_tokens": 1048000, "supported": true },
+    { "id": "gemini-2.0-flash-lite", "name": "Gemini 2.0 Flash Lite", "description": "Lightweight", "allowed_roles": ["main", "fallback"], "max_tokens": 1048000, "supported": true }
+  ],
+  "deepseek": [
+    { "id": "deepseek-v3", "name": "DeepSeek V3", "description": "Latest version", "allowed_roles": ["main", "fallback"], "max_tokens": 64000, "supported": true },
+    { "id": "deepseek-v3.2-exp", "name": "DeepSeek V3.2 Exp", "description": "Experimental", "allowed_roles": ["main", "fallback"], "max_tokens": 64000, "supported": true },
+    { "id": "deepseek-v3.2-exp-thinking", "name": "DeepSeek V3.2 Exp (Thinking)", "description": "With reasoning", "allowed_roles": ["main", "fallback"], "max_tokens": 64000, "supported": true },
+    { "id": "deepseek-v3.1", "name": "DeepSeek V3.1", "description": "Stable release", "allowed_roles": ["main", "fallback"], "max_tokens": 64000, "supported": true },
+    { "id": "deepseek-v3.1-thinking", "name": "DeepSeek V3.1 (Thinking)", "description": "With reasoning", "allowed_roles": ["main", "fallback"], "max_tokens": 64000, "supported": true },
+    { "id": "deepseek-v3.1-terminus", "name": "DeepSeek V3.1 Terminus", "description": "Terminal mode", "allowed_roles": ["main", "fallback"], "max_tokens": 64000, "supported": true },
+    { "id": "deepseek-v3.1-terminus-thinking", "name": "DeepSeek V3.1 Terminus (Thinking)", "description": "Terminal reasoning", "allowed_roles": ["main", "fallback"], "max_tokens": 64000, "supported": true },
+    { "id": "deepseek-r1", "name": "DeepSeek R1", "description": "Reasoning focused", "allowed_roles": ["main", "research"], "max_tokens": 64000, "supported": true }
+  ],
+  "xai": [
+    { "id": "grok-4", "name": "Grok 4", "description": "Latest Grok", "allowed_roles": ["main", "fallback", "research"], "max_tokens": 131072, "supported": true },
+    { "id": "grok-4-fast", "name": "Grok 4 Fast", "description": "Quick responses", "allowed_roles": ["main", "fallback", "research"], "max_tokens": 131072, "supported": true },
+    { "id": "grok-4-fast-reasoning", "name": "Grok 4 Fast (Reasoning)", "description": "Fast reasoning", "allowed_roles": ["main", "fallback", "research"], "max_tokens": 131072, "supported": true },
+    { "id": "grok-4.1-fast", "name": "Grok 4.1 Fast", "description": "Updated fast", "allowed_roles": ["main", "fallback", "research"], "max_tokens": 131072, "supported": true },
+    { "id": "grok-4.1-fast-reasoning", "name": "Grok 4.1 Fast (Reasoning)", "description": "Updated reasoning", "allowed_roles": ["main", "fallback", "research"], "max_tokens": 131072, "supported": true },
+    { "id": "grok-3", "name": "Grok 3", "description": "Previous gen", "allowed_roles": ["main", "fallback", "research"], "max_tokens": 131072, "supported": true },
+    { "id": "grok-3-mini", "name": "Grok 3 Mini", "description": "Compact", "allowed_roles": ["main", "fallback"], "max_tokens": 32768, "supported": true }
+  ],
+  "meta": [
+    { "id": "llama-4-maverick", "name": "Llama 4 Maverick", "description": "Most capable", "allowed_roles": ["main", "fallback", "research"], "max_tokens": 1000000, "supported": true },
+    { "id": "llama-4-scout", "name": "Llama 4 Scout", "description": "Efficient", "allowed_roles": ["main", "fallback", "research"], "max_tokens": 1000000, "supported": true },
+    { "id": "llama-3.3-70b", "name": "Llama 3.3 70B", "description": "Large model", "allowed_roles": ["main", "fallback", "research"], "max_tokens": 32768, "supported": true }
+  ],
+  "zhipu": [
+    { "id": "glm-4.6", "name": "GLM 4.6", "description": "Latest GLM", "allowed_roles": ["main", "fallback", "research"], "max_tokens": 204800, "supported": true },
+    { "id": "glm-4.6-thinking", "name": "GLM 4.6 (Thinking)", "description": "With reasoning", "allowed_roles": ["main", "fallback", "research"], "max_tokens": 204800, "supported": true },
+    { "id": "glm-4.5", "name": "GLM 4.5", "description": "Standard", "allowed_roles": ["main", "fallback", "research"], "max_tokens": 131072, "supported": true },
+    { "id": "glm-4.5-thinking", "name": "GLM 4.5 (Thinking)", "description": "With reasoning", "allowed_roles": ["main", "fallback", "research"], "max_tokens": 131072, "supported": true },
+    { "id": "glm-4.5-air", "name": "GLM 4.5 Air", "description": "Lightweight", "allowed_roles": ["main", "fallback", "research"], "max_tokens": 131072, "supported": true },
+    { "id": "glm-4.5-air-thinking", "name": "GLM 4.5 Air (Thinking)", "description": "Light reasoning", "allowed_roles": ["main", "fallback", "research"], "max_tokens": 131072, "supported": true },
+    { "id": "glm-4.5v", "name": "GLM 4.5V", "description": "Vision model", "allowed_roles": ["main", "fallback"], "max_tokens": 131072, "supported": true },
+    { "id": "glm-4.5v-thinking", "name": "GLM 4.5V (Thinking)", "description": "Vision reasoning", "allowed_roles": ["main", "fallback"], "max_tokens": 131072, "supported": true }
+  ],
+  "moonshot": [
+    { "id": "kimi-k2", "name": "Kimi K2", "description": "Latest Kimi", "allowed_roles": ["main", "fallback"], "max_tokens": 16384, "supported": true },
+    { "id": "kimi-k2-thinking", "name": "Kimi K2 (Thinking)", "description": "With reasoning", "allowed_roles": ["main", "fallback"], "max_tokens": 16384, "supported": true }
+  ],
+  "perplexity": [
+    { "id": "sonar", "name": "Sonar", "description": "Lightweight search with grounding", "allowed_roles": ["research"], "max_tokens": 8700, "supported": true },
+    { "id": "sonar-pro", "name": "Sonar Pro", "description": "Advanced search, complex queries", "allowed_roles": ["main", "research"], "max_tokens": 8700, "supported": true },
+    { "id": "sonar-reasoning", "name": "Sonar Reasoning", "description": "Real-time reasoning with search", "allowed_roles": ["main", "research", "fallback"], "max_tokens": 8700, "supported": true },
+    { "id": "sonar-reasoning-pro", "name": "Sonar Reasoning Pro", "description": "DeepSeek-R1 powered CoT", "allowed_roles": ["main", "research", "fallback"], "max_tokens": 8700, "supported": true },
+    { "id": "sonar-deep-research", "name": "Sonar Deep Research", "description": "Expert-level comprehensive research", "allowed_roles": ["research"], "max_tokens": 8700, "supported": true }
+  ]
+}

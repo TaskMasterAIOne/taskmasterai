@@ -6,13 +6,9 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import boxen from 'boxen';
-import terminalImage from 'terminal-image';
-import { getLicenseStatus, activateLicense, deactivateLicense, formatLicenseStatus, syncUserConfig, readCachedConfig, syncHostedApiKeys, canUseHostedApiKeys } from './lib/license.js';
+import { getLicenseStatus, syncUserConfig, syncHostedApiKeys, canUseHostedApiKeys } from './lib/license.js';
 import { registerCommands } from './commands/index.js';
-import { getVersion } from './lib/config.js';
-
-// TaskMaster AI Logo URL (same as web app)
-const LOGO_URL = 'https://firebasestorage.googleapis.com/v0/b/taskmaster-ai-e2302.firebasestorage.app/o/taskmaster_ai_new_logo-removebg.png?alt=media&token=29e7f6a0-f33d-4ec9-84bd-abf3ddbb78b8';
+import { getVersion, readProjectConfig, findProjectRoot } from './lib/config.js';
 
 // Commands that don't require license validation
 const LICENSE_EXEMPT_COMMANDS = [
@@ -26,46 +22,64 @@ const LICENSE_EXEMPT_COMMANDS = [
   '--help',
   '-h',
   '--version',
-  '-V'
+  '-V',
+  'init',
+  // Auth commands - user needs to login before having a license
+  'login',
+  'logout',
+  'whoami'
 ];
 
 /**
  * Display the TaskMaster AI banner with logo
  */
-async function displayBanner() {
-  try {
-    // Fetch and display the logo
-    const response = await fetch(LOGO_URL);
-    const buffer = await response.arrayBuffer();
-    const logo = await terminalImage.buffer(Buffer.from(buffer), { width: 12, height: 6 });
-    
-    console.log(logo);
-    console.log(
-      boxen(
-        chalk.hex('#7C3AED').bold('TaskMaster') + chalk.white.bold(' AI') + chalk.gray('  v' + getVersion()) + '\n' +
-        chalk.dim('AI-powered task management for developers'),
-        {
-          padding: { top: 0, bottom: 0, left: 2, right: 2 },
-          borderColor: '#7C3AED',
-          borderStyle: 'round'
-        }
-      )
-    );
-  } catch {
-    // Fallback if image fails to load
-    console.log(
-      boxen(
-        chalk.hex('#7C3AED').bold('TaskMaster') + chalk.white.bold(' AI') + chalk.gray('  v' + getVersion()) + '\n' +
-        chalk.dim('AI-powered task management for developers'),
-        {
-          padding: { top: 0, bottom: 0, left: 2, right: 2 },
-          borderColor: '#7C3AED',
-          borderStyle: 'round'
-        }
-      )
-    );
-  }
+export async function displayBanner(options = {}) {
+  const { showVersion = true } = options;
+  
+  const version = getVersion();
+  const projectRoot = findProjectRoot();
+  const projectName = projectRoot ? (readProjectConfig(projectRoot)?.projectName || 'TaskMaster AI') : 'TaskMaster AI';
+  
+  // ASCII art logo representation  
+  const logo = `
+  ${chalk.hex('#7C3AED')('╔════════════════════════════════════════════════════════════════════════════╗')}
+  ${chalk.hex('#7C3AED')('║')}                                                                            ${chalk.hex('#7C3AED')('║')}
+  ${chalk.hex('#7C3AED')('║')}  ${chalk.hex('#7C3AED').bold('████████╗ █████╗ ███████╗██╗  ██╗███╗   ███╗ █████╗ ███████╗████████╗███████╗██████╗')}  ${chalk.hex('#7C3AED')('║')}
+  ${chalk.hex('#7C3AED')('║')}  ${chalk.hex('#7C3AED').bold('╚══██╔══╝██╔══██╗██╔════╝██║ ██╔╝████╗ ████║██╔══██╗██╔════╝╚══██╔══╝██╔════╝██╔══██╗')} ${chalk.hex('#7C3AED')('║')}
+  ${chalk.hex('#7C3AED')('║')}  ${chalk.hex('#7C3AED').bold('   ██║   ███████║███████╗█████╔╝ ██╔████╔██║███████║███████╗   ██║   █████╗  ██████╔╝')} ${chalk.hex('#7C3AED')('║')}
+  ${chalk.hex('#7C3AED')('║')}  ${chalk.hex('#7C3AED').bold('   ██║   ██╔══██║╚════██║██╔═██╗ ██║╚██╔╝██║██╔══██║╚════██║   ██║   ██╔══╝  ██╔══██╗')} ${chalk.hex('#7C3AED')('║')}
+  ${chalk.hex('#7C3AED')('║')}  ${chalk.hex('#7C3AED').bold('   ██║   ██║  ██║███████║██║  ██╗██║ ╚═╝ ██║██║  ██║███████║   ██║   ███████╗██║  ██║')} ${chalk.hex('#7C3AED')('║')}
+  ${chalk.hex('#7C3AED')('║')}  ${chalk.hex('#7C3AED').bold('   ╚═╝   ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝')} ${chalk.hex('#7C3AED')('║')}
+  ${chalk.hex('#7C3AED')('║')}                                                                            ${chalk.hex('#7C3AED')('║')}
+  ${chalk.hex('#7C3AED')('║')}                    ${chalk.white.bold('TaskMaster')} ${chalk.hex('#7C3AED').bold('AI')} ${chalk.dim('— AI-Powered Task Management')}                    ${chalk.hex('#7C3AED')('║')}
+  ${chalk.hex('#7C3AED')('║')}                                                                            ${chalk.hex('#7C3AED')('║')}
+  ${chalk.hex('#7C3AED')('╚════════════════════════════════════════════════════════════════════════════╝')}`;
+
+  console.log(logo);
   console.log('');
+  console.log(chalk.dim('     ') + chalk.cyan.underline('https://taskmaster.one'));
+  console.log('');
+  
+  if (showVersion) {
+    console.log(
+      boxen(
+        chalk.hex('#7C3AED').bold('v' + version) + chalk.dim('  │  ') + chalk.white('Project: ') + chalk.cyan(projectName),
+        {
+          padding: { top: 0, bottom: 0, left: 2, right: 2 },
+          borderColor: '#7C3AED',
+          borderStyle: 'round'
+        }
+      )
+    );
+    console.log('');
+  }
+}
+
+/**
+ * Display current tag context
+ */
+export function displayTagContext(tagName) {
+  console.log(chalk.yellow('🏷 tag: ') + chalk.white.bold(tagName));
 }
 
 /**
@@ -152,144 +166,10 @@ function createProgram() {
     }
   });
 
-  // Register all commands
+  // Register all commands (includes activate, deactivate, license, etc.)
   registerCommands(program);
 
-  // License management commands (exempt from license check)
-  program
-    .command('activate <license-key>')
-    .description('Activate TaskMaster AI with your license key')
-    .action(async (licenseKey) => {
-      await displayBanner();
-      
-      const ora = (await import('ora')).default;
-      const spinner = ora('Validating license key...').start();
-
-      try {
-        const result = await activateLicense(licenseKey);
-        spinner.stop();
-
-        if (result.success) {
-          let configStatus = '';
-          if (result.configSynced) {
-            configStatus = chalk.green('✓ ') + chalk.dim(result.configMessage || 'Config synced from dashboard');
-          } else if (result.configMessage) {
-            configStatus = chalk.yellow('⚠ ') + chalk.dim(result.configMessage);
-          }
-          
-          // Show hosted API keys info for PRO users
-          let hostedKeysStatus = '';
-          if (result.hostedKeysAvailable && result.hostedKeysMessage) {
-            hostedKeysStatus = chalk.green('✓ ') + chalk.dim(result.hostedKeysMessage);
-          } else if (result.hostedKeysAvailable) {
-            hostedKeysStatus = chalk.green('✓ ') + chalk.dim('Hosted API keys available (no API keys needed!)');
-          }
-          
-          console.log(
-            boxen(
-              chalk.green.bold('✓ License Activated!') + '\n\n' +
-              chalk.white('Plan: ') + chalk.cyan(result.planName || result.plan) + '\n' +
-              chalk.white('Tasks/month: ') + chalk.cyan(result.tasksPerMonth?.toLocaleString() || 'Unlimited') + '\n' +
-              chalk.white('Expires: ') + chalk.cyan(new Date(result.expiresAt).toLocaleDateString()) + '\n' +
-              (configStatus ? '\n' + configStatus : '') +
-              (hostedKeysStatus ? '\n' + hostedKeysStatus : '') + '\n\n' +
-              chalk.dim('You can now use TaskMaster AI!'),
-              {
-                padding: 1,
-                borderColor: 'green',
-                borderStyle: 'round'
-              }
-            )
-          );
-        } else {
-          console.log(
-            boxen(
-              chalk.red.bold('✗ Activation Failed') + '\n\n' +
-              chalk.white(result.error || 'Invalid license key') + '\n\n' +
-              chalk.dim('Get a valid license at: ') + chalk.cyan.underline('https://taskmaster.one/pricing'),
-              {
-                padding: 1,
-                borderColor: 'red',
-                borderStyle: 'round'
-              }
-            )
-          );
-          process.exit(1);
-        }
-      } catch (error) {
-        spinner.stop();
-        console.error(chalk.red('Error:'), error.message);
-        process.exit(1);
-      }
-    });
-
-  program
-    .command('deactivate')
-    .description('Deactivate the current license')
-    .action(async () => {
-      await displayBanner();
-      
-      try {
-        const result = deactivateLicense();
-        if (result.success) {
-          console.log(chalk.green('✓ License deactivated successfully.'));
-        } else {
-          console.log(chalk.yellow(result.error || 'No license to deactivate.'));
-        }
-      } catch (error) {
-        console.error(chalk.red('Error:'), error.message);
-        process.exit(1);
-      }
-    });
-
-  program
-    .command('license')
-    .description('Show current license status')
-    .action(async () => {
-      await displayBanner();
-      
-      const ora = (await import('ora')).default;
-      const spinner = ora('Checking license status...').start();
-
-      try {
-        const status = await getLicenseStatus(true); // Force refresh
-        spinner.stop();
-
-        const formatted = formatLicenseStatus(status);
-        
-        if (status.valid) {
-          console.log(
-            boxen(
-              chalk.green.bold('✓ License Active') + '\n\n' +
-              formatted,
-              {
-                padding: 1,
-                borderColor: 'green',
-                borderStyle: 'round'
-              }
-            )
-          );
-        } else {
-          console.log(
-            boxen(
-              chalk.red.bold('✗ No Valid License') + '\n\n' +
-              formatted + '\n\n' +
-              chalk.dim('Get your license at: ') + chalk.cyan.underline('https://taskmaster.one/pricing'),
-              {
-                padding: 1,
-                borderColor: 'red',
-                borderStyle: 'round'
-              }
-            )
-          );
-        }
-      } catch (error) {
-        spinner.stop();
-        console.error(chalk.red('Error:'), error.message);
-        process.exit(1);
-      }
-    });
-
+  // Additional license management commands not in commands/index.js
   program
     .command('sync-keys')
     .description('Sync API keys from dashboard and hosted keys (PRO plan)')

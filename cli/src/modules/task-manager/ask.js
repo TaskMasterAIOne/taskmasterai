@@ -1,0 +1,386 @@
+/**
+ * Ask (Research) Module
+ * AI-powered research with project context
+ * Copyright (c) 2025 TaskMaster AI LLC
+ * 
+ * TaskMaster AI Terminology:
+ * - "ask" instead of "research"
+ */
+
+import fs from 'fs';
+import path from 'path';
+import boxen from 'boxen';
+import chalk from 'chalk';
+
+import {
+  log,
+  readJSON,
+  isSilentMode,
+  truncate,
+  getConfigDir
+} from '../utils.js';
+import {
+  startLoadingIndicator,
+  stopLoadingIndicator
+} from '../ui.js';
+
+/**
+ * Perform AI-powered research query
+ * @param {string} query - Research query/prompt
+ * @param {Object} options - Research options
+ * @param {Array<string>} [options.taskIds] - Task IDs for context
+ * @param {Array<string>} [options.filePaths] - File paths for context
+ * @param {string} [options.customContext] - Additional context
+ * @param {boolean} [options.includeProjectTree] - Include project tree
+ * @param {string} [options.detailLevel] - Detail level (low/medium/high)
+ * @param {string} [options.saveToId] - Save results to task ID
+ * @param {boolean} [options.saveToFile] - Save results to file
+ * @param {string} [options.projectRoot] - Project root path
+ * @param {string} [options.context] - Context name
+ * @param {string} [options.outputFormat] - Output format
+ * @returns {Promise<Object>} Research results
+ */
+async function ask(query, options = {}) {
+  const {
+    taskIds = [],
+    filePaths = [],
+    customContext = '',
+    includeProjectTree = false,
+    detailLevel = 'medium',
+    saveToId,
+    saveToFile = false,
+    projectRoot,
+    context,
+    outputFormat = 'text'
+  } = options;
+  
+  let loadingIndicator = null;
+  
+  try {
+    if (!query || typeof query !== 'string' || query.trim() === '') {
+      throw new Error('Research query is required');
+    }
+    
+    log('info', `Research query: "${truncate(query, 50)}..."`);
+    
+    // Show loading
+    if (outputFormat === 'text' && !isSilentMode()) {
+      loadingIndicator = startLoadingIndicator('Researching...');
+    }
+    
+    // Gather context
+    let contextText = '';
+    
+    // Add task context if specified
+    if (taskIds.length > 0) {
+      const tasksPath = path.join(getConfigDir(projectRoot), 'tasks', 'tasks.json');
+      if (fs.existsSync(tasksPath)) {
+        const data = readJSON(tasksPath, projectRoot, context);
+        if (data?.tasks) {
+          for (const taskId of taskIds) {
+            const idStr = String(taskId);
+            let task = null;
+            
+            if (idStr.includes('.')) {
+              const [parentId, stepId] = idStr.split('.').map(Number);
+              const parent = data.tasks.find(t => t.id === parentId);
+              if (parent) {
+                const steps = parent.steps || parent.subtasks || [];
+                task = steps.find(s => s.id === stepId);
+              }
+            } else {
+              task = data.tasks.find(t => t.id === parseInt(idStr, 10));
+            }
+            
+            if (task) {
+              contextText += `\n--- Task ${taskId}: ${task.title} ---\n`;
+              contextText += `Description: ${task.description || 'N/A'}\n`;
+              if (task.details) contextText += `Details: ${task.details}\n`;
+            }
+          }
+        }
+      }
+    }
+    
+    // Add file context if specified
+    for (const filePath of filePaths) {
+      try {
+        const fullPath = path.isAbsolute(filePath) 
+          ? filePath 
+          : path.join(projectRoot || process.cwd(), filePath);
+        
+        if (fs.existsSync(fullPath)) {
+          const content = fs.readFileSync(fullPath, 'utf-8');
+          contextText += `\n--- File: ${filePath} ---\n`;
+          contextText += truncate(content, 2000) + '\n';
+        }
+      } catch (err) {
+        log('warn', `Could not read file ${filePath}: ${err.message}`);
+      }
+    }
+    
+    // Add custom context
+    if (customContext) {
+      contextText += `\n--- Additional Context ---\n${customContext}\n`;
+    }
+    
+    // Add project tree if requested
+    if (includeProjectTree) {
+      const root = projectRoot || process.cwd();
+      contextText += `\n--- Project Structure ---\n`;
+      contextText += getProjectTree(root) + '\n';
+    }
+    
+    // Build research prompt
+    let fullPrompt = query;
+    if (contextText) {
+      fullPrompt = `Context:\n${contextText}\n\nQuery: ${query}`;
+    }
+    
+    // In production, this would call the AI service
+    // For now, generate a placeholder response
+    const response = generatePlaceholderResponse(query, detailLevel);
+    
+    // Stop loading
+    if (loadingIndicator) {
+      stopLoadingIndicator(loadingIndicator, 'Research complete');
+    }
+    
+    // Save to file if requested
+    let savedPath = null;
+    if (saveToFile) {
+      savedPath = await saveResearchToFile(query, response, projectRoot);
+    }
+    
+    // Save to task if requested
+    if (saveToId) {
+      await saveResearchToTask(saveToId, query, response, projectRoot, context);
+    }
+    
+    log('success', 'Research complete');
+    
+    // JSON output
+    if (outputFormat === 'json') {
+      return {
+        success: true,
+        query,
+        response,
+        savedPath,
+        savedToTask: saveToId || null
+      };
+    }
+    
+    // Text output
+    if (!isSilentMode()) {
+      console.log(
+        boxen(
+          chalk.cyan.bold('🔍 Research Results') +
+            `\n\n${chalk.white(response)}`,
+          {
+            padding: 1,
+            borderColor: 'cyan',
+            borderStyle: 'round'
+          }
+        )
+      );
+      
+      if (savedPath) {
+        console.log(chalk.gray(`Saved to: ${savedPath}`));
+      }
+      
+      if (saveToId) {
+        console.log(chalk.gray(`Saved to task: ${saveToId}`));
+      }
+    }
+    
+    return {
+      success: true,
+      query,
+      response
+    };
+    
+  } catch (error) {
+    if (loadingIndicator) {
+      stopLoadingIndicator(loadingIndicator, `Error: ${error.message}`, 'error');
+    }
+    
+    log('error', `Research error: ${error.message}`);
+    
+    if (!isSilentMode() && outputFormat === 'text') {
+      console.error(chalk.red(`Error: ${error.message}`));
+    }
+    
+    throw error;
+  }
+}
+
+/**
+ * Generate a placeholder response
+ * @param {string} query - Query text
+ * @param {string} detailLevel - Detail level
+ * @returns {string} Response text
+ */
+function generatePlaceholderResponse(query, detailLevel) {
+  const lines = [
+    `**Research Query:** ${query}`,
+    '',
+    '> Note: This is a placeholder response. In production, this would be generated by the AI service.',
+    '',
+    '**Key Points:**',
+    '- Point 1: [AI would provide relevant information here]',
+    '- Point 2: [Based on the query and context provided]',
+    '- Point 3: [With detail level: ' + detailLevel + ']',
+    '',
+    '**Recommendations:**',
+    '1. [AI-generated recommendation]',
+    '2. [Based on best practices]',
+    '',
+    '**Next Steps:**',
+    '- Review the gathered information',
+    '- Apply insights to your tasks'
+  ];
+  
+  if (detailLevel === 'high') {
+    lines.push(
+      '',
+      '**Additional Details:**',
+      '[Extended analysis would appear here for high detail level]'
+    );
+  }
+  
+  return lines.join('\n');
+}
+
+/**
+ * Save research results to a file
+ * @param {string} query - Query text
+ * @param {string} response - Response text
+ * @param {string} projectRoot - Project root
+ * @returns {string} Saved file path
+ */
+async function saveResearchToFile(query, response, projectRoot) {
+  const docsDir = path.join(getConfigDir(projectRoot), 'docs', 'research');
+  
+  // Ensure directory exists
+  if (!fs.existsSync(docsDir)) {
+    fs.mkdirSync(docsDir, { recursive: true });
+  }
+  
+  // Generate filename
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const slug = query.slice(0, 30).replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+  const filename = `${timestamp}_${slug}.md`;
+  const filePath = path.join(docsDir, filename);
+  
+  // Build content
+  const content = [
+    `# Research: ${query}`,
+    '',
+    `**Date:** ${new Date().toLocaleString()}`,
+    '',
+    '---',
+    '',
+    response
+  ].join('\n');
+  
+  fs.writeFileSync(filePath, content);
+  
+  return filePath;
+}
+
+/**
+ * Save research results to a task
+ * @param {string} taskId - Task ID
+ * @param {string} query - Query text
+ * @param {string} response - Response text
+ * @param {string} projectRoot - Project root
+ * @param {string} context - Context name
+ */
+async function saveResearchToTask(taskId, query, response, projectRoot, context) {
+  const tasksPath = path.join(getConfigDir(projectRoot), 'tasks', 'tasks.json');
+  
+  if (!fs.existsSync(tasksPath)) {
+    log('warn', 'Tasks file not found, cannot save research');
+    return;
+  }
+  
+  const data = readJSON(tasksPath, projectRoot, context);
+  if (!data?.tasks) return;
+  
+  const idStr = String(taskId);
+  let task = null;
+  
+  if (idStr.includes('.')) {
+    const [parentId, stepId] = idStr.split('.').map(Number);
+    const parent = data.tasks.find(t => t.id === parentId);
+    if (parent) {
+      const stepsField = parent.steps ? 'steps' : 'subtasks';
+      task = (parent[stepsField] || []).find(s => s.id === stepId);
+    }
+  } else {
+    task = data.tasks.find(t => t.id === parseInt(idStr, 10));
+  }
+  
+  if (task) {
+    const entry = `\n\n---\n**[Research - ${new Date().toLocaleString()}]**\nQuery: ${query}\n\n${response}`;
+    
+    if (task.details) {
+      task.details += entry;
+    } else {
+      task.details = `**Research Notes:**${entry}`;
+    }
+    
+    // Write back - need to import writeJSON
+    const { writeJSON: writeJSONFn } = await import('../utils.js');
+    writeJSONFn(tasksPath, data, projectRoot, context);
+    
+    log('info', `Research saved to task ${taskId}`);
+  }
+}
+
+/**
+ * Get a simple project tree
+ * @param {string} rootDir - Root directory
+ * @returns {string} Tree representation
+ */
+function getProjectTree(rootDir, depth = 0, maxDepth = 3) {
+  if (depth >= maxDepth) return '';
+  
+  const lines = [];
+  const indent = '  '.repeat(depth);
+  
+  try {
+    const items = fs.readdirSync(rootDir);
+    
+    // Filter and sort
+    const filtered = items.filter(item => {
+      // Skip hidden and common ignore patterns
+      if (item.startsWith('.')) return false;
+      if (['node_modules', 'dist', 'build', 'coverage', '__pycache__'].includes(item)) return false;
+      return true;
+    }).sort();
+    
+    for (const item of filtered.slice(0, 20)) { // Limit items
+      const fullPath = path.join(rootDir, item);
+      const stat = fs.statSync(fullPath);
+      
+      if (stat.isDirectory()) {
+        lines.push(`${indent}📁 ${item}/`);
+        const subtree = getProjectTree(fullPath, depth + 1, maxDepth);
+        if (subtree) lines.push(subtree);
+      } else {
+        lines.push(`${indent}📄 ${item}`);
+      }
+    }
+    
+    if (filtered.length > 20) {
+      lines.push(`${indent}... and ${filtered.length - 20} more`);
+    }
+  } catch (error) {
+    lines.push(`${indent}[Error reading directory]`);
+  }
+  
+  return lines.join('\n');
+}
+
+export default ask;

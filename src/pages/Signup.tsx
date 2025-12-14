@@ -98,13 +98,13 @@ export default function Signup() {
         className="w-full max-w-sm"
       >
         {/* Logo */}
-        <Link to="/" className="flex items-center justify-center gap-1 mb-8">
+        <Link to="/" className="flex items-center justify-center gap-1.5 mb-8">
           <img 
             src={LOGO_URL} 
             alt="TaskMaster AI" 
-            className="w-12 h-12 rounded-xl object-contain invert dark:invert-0"
+            className="w-7 h-7 rounded-lg object-contain invert dark:invert-0"
           />
-          <span className="pixel-text text-xs">TASKMASTER AI</span>
+          <span className="pixel-text text-[10px]">TASKMASTER AI</span>
         </Link>
 
         {/* Card */}

@@ -276,9 +276,9 @@ export default function Landing() {
               </div>
               {/* Terminal content */}
               <div className="p-5 font-mono text-sm space-y-2 bg-background">
-                <div className="text-text-subtle">$ taskmaster parse-prd ./docs/prd.md</div>
-                <div className="text-status-success">✓ Parsed PRD successfully</div>
-                <div className="text-text-muted">  Generated 12 tasks with dependencies</div>
+                <div className="text-text-subtle">$ taskmaster plan ./docs/prd.md</div>
+                <div className="text-status-success">✓ Generated 12 tasks</div>
+                <div className="text-text-muted">  Tasks parsed with dependencies</div>
                 <div className="mt-4 text-text-subtle">$ taskmaster next</div>
                 <div className="text-text">
                   <span className="text-text-muted">Task 1.1:</span> Set up project structure

@@ -207,7 +207,7 @@ export default function PublicLayout() {
             
             <div className="mt-10 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
               <p className="text-sm text-text-subtle">
-                © {new Date().getFullYear()} TaskMaster AI. All rights reserved.
+                © 2025 TaskMaster AI LLC. All rights reserved.
               </p>
               <div className="flex items-center gap-4">
                 <a href="https://discord.gg/taskmaster" target="_blank" rel="noopener noreferrer" className="text-text-muted hover:text-text transition-colors">

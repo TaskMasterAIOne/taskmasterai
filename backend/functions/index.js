@@ -2587,3 +2587,236 @@ export const getHostedKeyStats = onRequest(
     }
   }
 );
+
+// Setup PRO License (for testing purposes)
+export const setupProLicense = onRequest(
+  { 
+    cors: true,
+    maxInstances: 10,
+  },
+  async (req, res) => {
+    try {
+      const { email, userId, setPassword } = req.body;
+
+      if (!email && !userId) {
+        return res.status(400).json({ 
+          error: 'Email or userId required',
+          message: 'Provide either email or userId in request body'
+        });
+      }
+
+      let targetUserId = userId;
+      let targetEmail = email;
+
+      // If email provided, find user
+      if (email && !userId) {
+        const usersSnapshot = await db.collection('users')
+          .where('email', '==', email)
+          .limit(1)
+          .get();
+
+        if (usersSnapshot.empty) {
+          return res.status(404).json({ 
+            error: 'User not found',
+            message: `No user found with email: ${email}`
+          });
+        }
+
+        targetUserId = usersSnapshot.docs[0].id;
+        targetEmail = email;
+      } else if (userId) {
+        // Get email from user document
+        const userDoc = await db.collection('users').doc(userId).get();
+        if (userDoc.exists()) {
+          targetEmail = userDoc.data().email;
+        }
+      }
+
+      // Set password if requested (for testing)
+      if (setPassword) {
+        try {
+          await admin.auth().updateUser(targetUserId, {
+            password: setPassword
+          });
+          console.log(`✅ Password updated for user: ${targetUserId}`);
+        } catch (error) {
+          console.log(`⚠️ Could not update password: ${error.message}`);
+          // Continue anyway - license setup is more important
+        }
+      }
+
+      // Update user document to PRO
+      await db.collection('users').doc(targetUserId).update({
+        plan: 'pro',
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // Create license document
+      const now = new Date();
+      const monthFromNow = new Date(now);
+      monthFromNow.setMonth(monthFromNow.getMonth() + 1);
+
+      const licenseKey = `tm_live_${uuidv4().replace(/-/g, '')}`;
+
+      // License data for user subcollection (used by web app)
+      const userLicenseData = {
+        hasLicense: true,
+        plan: 'pro',
+        planName: 'Pro',
+        planPrice: 199,
+        status: 'active',
+        tasksPerMonth: 1000,
+        tasksUsed: 0,
+        overageRate: 0.15,
+        licenseKey: licenseKey,
+        currentPeriodStart: admin.firestore.Timestamp.fromDate(now),
+        currentPeriodEnd: admin.firestore.Timestamp.fromDate(monthFromNow),
+        cancelAtPeriodEnd: false,
+        createdAt: admin.firestore.Timestamp.fromDate(now),
+        updatedAt: admin.firestore.Timestamp.fromDate(now),
+      };
+
+      // License data for global licenses collection (used by CLI)
+      const globalLicenseData = {
+        userId: targetUserId,
+        email: email || null,
+        plan: 'pro',
+        status: 'active',
+        expiresAt: admin.firestore.Timestamp.fromDate(monthFromNow),
+        gracePeriodEnd: null,
+        createdAt: admin.firestore.Timestamp.fromDate(now),
+        updatedAt: admin.firestore.Timestamp.fromDate(now),
+        lastValidated: admin.firestore.Timestamp.fromDate(now),
+      };
+
+      // Create both license documents:
+      // 1. User subcollection (for web app)
+      await db.collection('users')
+        .doc(targetUserId)
+        .collection('license')
+        .doc('current')
+        .set(userLicenseData, { merge: true });
+
+      // 2. Global licenses collection (for CLI validation)
+      await db.collection('licenses')
+        .doc(licenseKey)
+        .set(globalLicenseData, { merge: true });
+
+      console.log(`✅ PRO license set up for user: ${targetUserId}`);
+      console.log(`   Web app license: /users/${targetUserId}/license/current`);
+      console.log(`   CLI license: /licenses/${licenseKey}`);
+
+      res.status(200).json({
+        success: true,
+        message: 'PRO license setup complete',
+        userId: targetUserId,
+        email: targetEmail || 'N/A',
+        passwordUpdated: !!setPassword,
+        license: {
+          plan: 'Pro',
+          status: 'active',
+          tasksPerMonth: 1000,
+          licenseKey: licenseKey,
+          currentPeriodEnd: monthFromNow.toISOString()
+        },
+        cliLogin: setPassword ? {
+          message: 'You can now login with:',
+          command: `taskmaster login --email ${targetEmail} --password ${setPassword}`
+        } : null
+      });
+
+    } catch (error) {
+      console.error('Error setting up PRO license:', error);
+      res.status(500).json({ 
+        error: 'Failed to setup license',
+        details: error.message 
+      });
+    }
+  }
+);
+
+// Get User License (for CLI login flow)
+export const getUserLicense = onRequest(
+  { 
+    cors: true,
+    maxInstances: 10,
+  },
+  async (req, res) => {
+    try {
+      // Verify authentication
+      const authHeader = req.headers.authorization;
+      if (!authHeader?.startsWith('Bearer ')) {
+        return res.status(401).json({ 
+          success: false,
+          error: 'Authentication required' 
+        });
+      }
+
+      const idToken = authHeader.split('Bearer ')[1];
+      
+      // Verify the token
+      let decodedToken;
+      try {
+        decodedToken = await admin.auth().verifyIdToken(idToken);
+      } catch (error) {
+        return res.status(401).json({ 
+          success: false,
+          error: 'Invalid authentication token' 
+        });
+      }
+
+      const userId = req.body.userId || decodedToken.uid;
+
+      // Verify the user is requesting their own license
+      if (userId !== decodedToken.uid) {
+        return res.status(403).json({ 
+          success: false,
+          error: 'Cannot access another user\'s license' 
+        });
+      }
+
+      // Get license from user's subcollection
+      const licenseDoc = await db.collection('users')
+        .doc(userId)
+        .collection('license')
+        .doc('current')
+        .get();
+
+      if (!licenseDoc.exists) {
+        return res.status(404).json({ 
+          success: false,
+          error: 'No license found. Please subscribe to a plan.' 
+        });
+      }
+
+      const license = licenseDoc.data();
+
+      // Check if license is active
+      if (license.status !== 'active') {
+        return res.status(403).json({ 
+          success: false,
+          error: `License is ${license.status}. Please check your subscription.` 
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        licenseKey: license.licenseKey,
+        plan: license.plan,
+        planName: license.planName || 'Pro',
+        tasksPerMonth: license.tasksPerMonth || 1000,
+        status: license.status,
+        expiresAt: license.currentPeriodEnd?.toDate()?.toISOString(),
+        userId: userId
+      });
+
+    } catch (error) {
+      console.error('Error getting user license:', error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Failed to get license',
+        details: error.message 
+      });
+    }
+  }
+);

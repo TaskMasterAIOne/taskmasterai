@@ -30,7 +30,8 @@ import {
   faExternalLink,
   faXmark,
   faBuilding,
-  faPaperPlane
+  faPaperPlane,
+  faRightFromBracket
 } from '@fortawesome/free-solid-svg-icons'
 import { createCheckout, openCustomerPortal, PlanType } from '../../lib/stripe'
 import { sendContactEmail } from '../../lib/emailjs'
@@ -47,6 +48,7 @@ const plans = [
     features: [
       'Up to 100 tasks/month',
       '$0.20 per extra task',
+      'Use your own API keys',
       'Secure API key vault',
       'All AI providers supported',
       'Task expansion & analysis',
@@ -61,12 +63,13 @@ const plans = [
     priceSuffix: '/mo',
     description: 'For professional developers and power users with higher volume needs.',
     features: [
+      '🔥 Hosted API keys included',
       'Up to 1,000 tasks/month',
       '$0.15 per extra task',
+      'No API key management needed',
       'Everything in Plus',
       'Priority support',
       'Advanced analytics',
-      'Model switching',
       'Usage insights',
     ],
     popular: true,
@@ -78,6 +81,7 @@ const plans = [
     priceSuffix: '+',
     description: 'For teams and organizations with high-volume requirements.',
     features: [
+      '🔥 Hosted API keys included',
       '5,000+ tasks/month',
       'Volume discounts available',
       'Everything in Pro',
@@ -693,6 +697,30 @@ export default function Settings() {
       {/* Account Section */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.25, duration: 0.4, ease: 'easeOut' }}>
         <h2 className="text-base font-semibold mb-4">Account</h2>
+        
+        {/* Sign Out */}
+        <div className="card p-5 mb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <FontAwesomeIcon icon={faRightFromBracket} className="w-5 h-5 text-text-muted" />
+              <div>
+                <p className="text-base font-medium">Sign Out</p>
+                <p className="text-sm text-text-muted">Sign out of your account on this device</p>
+              </div>
+            </div>
+            <button 
+              onClick={async () => {
+                await logout()
+                navigate('/')
+              }}
+              className="btn-secondary text-sm"
+            >
+              Sign Out
+            </button>
+          </div>
+        </div>
+
+        {/* Delete Account */}
         <div className="card p-5">
           <div className="flex items-center justify-between">
             <div>

@@ -13,6 +13,7 @@ import Signin from './pages/Signin'
 import Signup from './pages/Signup'
 import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
+import CliLogin from './pages/CliLogin'
 
 // Protected Pages
 import Dashboard from './pages/app/Dashboard'
@@ -92,6 +93,9 @@ export default function App() {
           </AuthRoute>
         }
       />
+
+      {/* CLI Login - special route for CLI OAuth flow */}
+      <Route path="/cli-login" element={<CliLogin />} />
 
       {/* Protected app routes */}
       <Route

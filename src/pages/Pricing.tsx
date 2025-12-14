@@ -17,6 +17,7 @@ const tiers = [
     features: [
       'Up to 100 tasks/month',
       '$0.20 per extra task',
+      'Use your own API keys',
       'Secure API key vault',
       'All AI providers supported',
       'Task expansion & analysis',
@@ -34,12 +35,13 @@ const tiers = [
     priceSuffix: '/mo',
     description: 'For professional developers and power users with higher volume needs.',
     features: [
+      'Everything in Plus',
+      'Hosted API keys included',
       'Up to 1,000 tasks/month',
       '$0.15 per extra task',
-      'Everything in Plus',
+      'No API key management needed',
       'Priority support',
       'Advanced analytics',
-      'Model switching',
       'Usage insights',
     ],
     cta: 'Get Started',
@@ -53,9 +55,10 @@ const tiers = [
     priceSuffix: '+',
     description: 'For teams and organizations with high-volume requirements.',
     features: [
+      'Everything in Pro',
+      'Hosted API keys included',
       '5,000+ tasks/month',
       'Volume discounts available',
-      'Everything in Pro',
       'Dedicated support',
       'Custom integrations',
       'Team management',
@@ -76,8 +79,8 @@ const faqs = [
     a: 'You can continue using TaskMaster AI at the per-task overage rate for your plan ($0.20/task for Plus, $0.15/task for Pro). Enterprise plans have volume discounts.',
   },
   {
-    q: 'Can I use my own API keys?',
-    a: 'Yes! All plans support using your own API keys. Our secure API key vault makes it easy to manage keys for multiple providers.',
+    q: 'Do I need my own API keys?',
+    a: 'Not with Pro or Enterprise! These plans include hosted API keys so you can start immediately. Plus plan users can bring their own keys and use our secure API key vault.',
   },
   {
     q: 'What AI providers are supported?',

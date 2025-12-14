@@ -173,7 +173,7 @@ export default function Privacy() {
               </p>
               <ul className="list-none space-y-1">
                 <li><strong>Email:</strong> taskmasteroneai@gmail.com</li>
-                <li><strong>Address:</strong> TaskMaster AI Inc.</li>
+                <li><strong>Address:</strong> TaskMaster AI LLC</li>
               </ul>
             </section>
           </div>

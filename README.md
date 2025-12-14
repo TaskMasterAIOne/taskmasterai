@@ -44,41 +44,99 @@ npm install -g @taskmasterai/cli
 
 ## 🚀 Quick Start
 
-### 1. Activate your license
+### 1. Login to TaskMaster AI
 
 ```bash
-taskmaster activate tm_live_your_license_key
+# Interactive login with email & password
+taskmaster login
+
+# Or login with Google (opens browser)
+taskmaster login --google
+
+# Or provide credentials directly
+taskmaster login --email your@email.com
 ```
 
-> Get your license at [taskmaster.one/pricing](https://taskmaster.one/pricing)
+> Don't have an account? Sign up at [taskmaster.one/signup](https://taskmaster.one/signup)
+
+**What happens on login:**
+- ✅ Your identity is verified
+- ✅ Your license is automatically activated
+- ✅ API keys are synced from dashboard
+- ✅ Hosted keys configured (Pro/Enterprise)
 
 ### 2. Initialize a project
 
 ```bash
-taskmaster init --name "My Project"
+taskmaster init
 ```
 
-### 3. Sync your API keys from the dashboard
+The init command will:
+- ✓ Verify your authentication & license
+- ✓ Set up project structure
+- ✓ Configure AI models
+- ✓ Sync API keys from dashboard
 
-```bash
-taskmaster sync
-```
-
-> Configure your API keys at [taskmaster.one/app/api-keys](https://taskmaster.one/app/api-keys)
-
-### 4. Generate tasks from your PRD
+### 3. Generate tasks from your PRD
 
 ```bash
 taskmaster plan my-project-prd.md
 ```
 
-### 5. View and work on tasks
+### 4. Start working
 
 ```bash
-taskmaster list
 taskmaster next
 taskmaster breakdown --id 1
+taskmaster set-status --id 1 --status in-progress
 ```
+
+## 🔐 Authentication & Security
+
+TaskMaster AI uses secure Firebase authentication to protect your data and ensure only you can access your license.
+
+### Login Methods
+
+**Email & Password:**
+```bash
+# Interactive login
+taskmaster login
+
+# Direct login
+taskmaster login --email your@email.com --password yourpassword
+```
+
+**Google Account:**
+```bash
+# Opens browser for OAuth
+taskmaster login --google
+```
+
+### Session Management
+
+```bash
+# Check who's logged in
+taskmaster whoami
+
+# Logout
+taskmaster logout
+```
+
+**Your session:**
+- ✅ Stored securely in `~/.taskmaster-ai/auth.json`
+- ✅ Tokens auto-refresh before expiring
+- ✅ License automatically activated on login
+- ✅ API keys synced from dashboard
+
+### Security Features
+
+| Feature | Description |
+|---------|-------------|
+| **Token Auto-Refresh** | Tokens refresh automatically before expiring |
+| **Secure Storage** | Auth data encrypted in your home directory |
+| **License Verification** | Only license owner can activate |
+| **API Key Sync** | Dashboard keys synced securely |
+| **Hosted Keys** | Pro/Enterprise get hosted keys automatically |
 
 ## 📚 Command Reference
 
@@ -142,12 +200,20 @@ taskmaster breakdown --id 1
 | `taskmaster delete-context <name>` | Delete a context |
 | `taskmaster rename-context <old> <new>` | Rename a context |
 
+### Authentication
+
+| Command | Description |
+|---------|-------------|
+| `taskmaster login` | Login with email/password or Google |
+| `taskmaster login --email <email>` | Login with email (will prompt for password) |
+| `taskmaster login --google` | Login with Google (opens browser) |
+| `taskmaster whoami` | Show current user and license status |
+| `taskmaster logout` | Logout and clear session |
+
 ### License & Usage
 
 | Command | Description |
 |---------|-------------|
-| `taskmaster activate <license-key>` | Activate your license |
-| `taskmaster deactivate` | Deactivate current license |
 | `taskmaster license` | Show license status |
 | `taskmaster usage` | View usage and plan limits |
 | `taskmaster sync` | Sync API keys and models from dashboard |

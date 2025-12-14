@@ -83,83 +83,116 @@ const priorityConfig: { [key: string]: { color: string; label: string } } = {
   'low': { color: 'text-status-success', label: '▼' },
 }
 
-function TaskRow({ task, expanded, onToggle }: { task: Task; expanded: boolean; onToggle: () => void }) {
+function TaskRow({ task, allTasks, expanded, onToggle }: { task: Task; allTasks: Task[]; expanded: boolean; onToggle: () => void }) {
   const status = statusConfig[task.status] || statusConfig['pending']
   const priority = priorityConfig[task.priority] || priorityConfig['medium']
   const hasSubtasks = task.subtasks && task.subtasks.length > 0
 
+  // Check if a dependency is complete
+  const isDependencyDone = (depId: number) => {
+    const depTask = allTasks.find(t => t.id === depId)
+    return depTask?.status === 'done'
+  }
+
+  // Check if all dependencies are satisfied (task is ready to start)
+  const allDepsSatisfied = !task.dependencies || task.dependencies.length === 0 || 
+    task.dependencies.every(d => isDependencyDone(d))
+
+  // Show "Ready" badge for pending tasks that can be started
+  const isReady = task.status === 'pending' && allDepsSatisfied
+
   return (
     <>
-      <tr
-        className="border-b border-theme-primary hover:bg-surface-highlight/50 transition-colors cursor-pointer"
+      <div
+        className={`grid grid-cols-[60px_140px_50px_1fr_100px] gap-2 py-3 px-4 border-b border-theme-primary hover:bg-surface-highlight/50 transition-colors cursor-pointer ${isReady ? 'bg-accent/5' : ''}`}
         onClick={onToggle}
       >
-        <td className="py-3 px-4">
-          <div className="flex items-center gap-2">
-            {hasSubtasks && (
-              <FontAwesomeIcon 
-                icon={expanded ? faChevronDown : faChevronRight} 
-                className="text-text-muted text-xs w-3"
-              />
-            )}
-            {!hasSubtasks && <span className="w-3" />}
-            <span className="text-text-muted font-mono text-sm">{task.id}</span>
-          </div>
-        </td>
-        <td className="py-3 px-4">
+        {/* ID */}
+        <div className="flex items-center gap-2">
+          {hasSubtasks && (
+            <FontAwesomeIcon 
+              icon={expanded ? faChevronDown : faChevronRight} 
+              className="text-text-muted text-xs w-3"
+            />
+          )}
+          {!hasSubtasks && <span className="w-3" />}
+          <span className="text-text-muted font-mono text-sm">{task.id}</span>
+        </div>
+        
+        {/* Status */}
+        <div className="flex items-center gap-1.5">
           <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs ${status.bg} ${status.color}`}>
             <FontAwesomeIcon icon={status.icon} className={`w-3 h-3 ${task.status === 'in-progress' ? 'animate-spin' : ''}`} />
             {status.label}
           </span>
-        </td>
-        <td className="py-3 px-4">
+          {isReady && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-accent/20 text-accent font-medium">
+              Ready
+            </span>
+          )}
+        </div>
+        
+        {/* Priority */}
+        <div className="flex items-center">
           <span className={`${priority.color} text-sm`} title={task.priority}>
             {priority.label}
           </span>
-        </td>
-        <td className="py-3 px-4">
-          <div className="max-w-md">
-            <p className="font-medium text-sm truncate">{task.title}</p>
-          </div>
-        </td>
-        <td className="py-3 px-4 text-text-muted text-sm">
+        </div>
+        
+        {/* Title */}
+        <div className="flex items-center min-w-0">
+          <p className="font-medium text-sm truncate">{task.title}</p>
+        </div>
+        
+        {/* Dependencies */}
+        <div className="flex items-center flex-wrap gap-1 text-text-muted text-sm">
           {task.dependencies && task.dependencies.length > 0 
-            ? task.dependencies.map(d => (
-                <span key={d} className="inline-block bg-surface-highlight px-1.5 py-0.5 rounded text-xs mr-1 font-mono">
-                  {d}
-                </span>
-              ))
+            ? task.dependencies.map(d => {
+                const done = isDependencyDone(d)
+                return (
+                  <span 
+                    key={d} 
+                    className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-mono ${
+                      done ? 'bg-status-success/20 text-status-success' : 'bg-surface-highlight text-text-muted'
+                    }`}
+                    title={done ? `Task ${d} is complete` : `Waiting for task ${d}`}
+                  >
+                    {done && <span className="text-[10px]">✓</span>}
+                    {d}
+                  </span>
+                )
+              })
             : <span className="text-text-muted/50">—</span>
           }
-        </td>
-      </tr>
+        </div>
+      </div>
       
       {/* Subtasks */}
       <AnimatePresence>
         {expanded && hasSubtasks && task.subtasks!.map((subtask) => {
           const subStatus = statusConfig[subtask.status] || statusConfig['pending']
           return (
-            <motion.tr
+            <motion.div
               key={`${task.id}.${subtask.id}`}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="border-b border-theme-primary bg-surface/50"
+              className="grid grid-cols-[60px_140px_50px_1fr_100px] gap-2 py-2.5 px-4 pl-8 border-b border-theme-primary bg-surface/50"
             >
-              <td className="py-2.5 px-4 pl-12">
+              <div className="flex items-center">
                 <span className="text-text-muted font-mono text-xs">{task.id}.{subtask.id}</span>
-              </td>
-              <td className="py-2.5 px-4">
+              </div>
+              <div className="flex items-center">
                 <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs ${subStatus.bg} ${subStatus.color}`}>
                   <FontAwesomeIcon icon={subStatus.icon} className={`w-2.5 h-2.5 ${subtask.status === 'in-progress' ? 'animate-spin' : ''}`} />
                   {subStatus.label}
                 </span>
-              </td>
-              <td className="py-2.5 px-4"></td>
-              <td className="py-2.5 px-4" colSpan={2}>
+              </div>
+              <div></div>
+              <div className="flex items-center col-span-2 min-w-0">
                 <p className="text-sm text-text-muted truncate">{subtask.title}</p>
-              </td>
-            </motion.tr>
+              </div>
+            </motion.div>
           )
         })}
       </AnimatePresence>
@@ -244,9 +277,20 @@ export default function Tasks() {
     })
   }
 
+  // Check if all dependencies are satisfied
+  const isTaskReady = (task: Task) => {
+    if (task.status !== 'pending') return false
+    if (!task.dependencies || task.dependencies.length === 0) return true
+    return task.dependencies.every(depId => {
+      const depTask = tasks.find(t => t.id === depId)
+      return depTask?.status === 'done'
+    })
+  }
+
   const stats = {
     total: tasks.length,
     pending: tasks.filter(t => t.status === 'pending').length,
+    ready: tasks.filter(t => isTaskReady(t)).length,
     inProgress: tasks.filter(t => t.status === 'in-progress').length,
     done: tasks.filter(t => t.status === 'done').length,
   }
@@ -318,7 +362,7 @@ export default function Tasks() {
 
             <p className="text-xs text-text-subtle mt-6">
               Your license key can be found in your{' '}
-              <a href="/app/billing" className="text-accent hover:underline">Billing settings</a>
+              <a href="/app/settings" className="text-accent hover:underline">Settings</a> page
             </p>
           </div>
         </motion.div>
@@ -411,9 +455,13 @@ export default function Tasks() {
               </div>
               <div className="h-8 w-px bg-border" />
               <div className="flex gap-4">
-                <div className="text-center">
-                  <p className="text-lg font-semibold text-text-muted">{stats.pending}</p>
-                  <p className="text-xs text-text-muted">Pending</p>
+                <div className="text-center" title="Tasks waiting for dependencies">
+                  <p className="text-lg font-semibold text-text-muted">{stats.pending - stats.ready}</p>
+                  <p className="text-xs text-text-muted">Waiting</p>
+                </div>
+                <div className="text-center" title="Tasks ready to start (all deps done)">
+                  <p className="text-lg font-semibold text-status-warning">{stats.ready}</p>
+                  <p className="text-xs text-text-muted">Ready</p>
                 </div>
                 <div className="text-center">
                   <p className="text-lg font-semibold text-accent">{stats.inProgress}</p>
@@ -467,28 +515,27 @@ export default function Tasks() {
           </div>
         ) : (
           <div className="card overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-surface-highlight/50">
-                  <tr className="border-b border-theme-primary">
-                    <th className="text-left py-3 px-4 text-xs font-medium text-text-muted uppercase tracking-wider w-20">ID</th>
-                    <th className="text-left py-3 px-4 text-xs font-medium text-text-muted uppercase tracking-wider w-28">Status</th>
-                    <th className="text-left py-3 px-4 text-xs font-medium text-text-muted uppercase tracking-wider w-12">Pri</th>
-                    <th className="text-left py-3 px-4 text-xs font-medium text-text-muted uppercase tracking-wider">Title</th>
-                    <th className="text-left py-3 px-4 text-xs font-medium text-text-muted uppercase tracking-wider w-24">Deps</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tasks.map((task) => (
-                    <TaskRow
-                      key={task.id}
-                      task={task}
-                      expanded={expandedTasks.has(task.id)}
-                      onToggle={() => toggleTask(task.id)}
-                    />
-                  ))}
-                </tbody>
-              </table>
+            {/* Fixed header */}
+            <div className="bg-surface-highlight/50 border-b border-theme-primary">
+              <div className="grid grid-cols-[60px_140px_50px_1fr_100px] gap-2 py-3 px-4">
+                <span className="text-xs font-medium text-text-muted uppercase tracking-wider">ID</span>
+                <span className="text-xs font-medium text-text-muted uppercase tracking-wider">Status</span>
+                <span className="text-xs font-medium text-text-muted uppercase tracking-wider">Pri</span>
+                <span className="text-xs font-medium text-text-muted uppercase tracking-wider">Title</span>
+                <span className="text-xs font-medium text-text-muted uppercase tracking-wider">Deps</span>
+              </div>
+            </div>
+            {/* Scrollable body */}
+            <div className="max-h-[400px] overflow-y-auto">
+              {tasks.map((task) => (
+                <TaskRow
+                  key={task.id}
+                  task={task}
+                  allTasks={tasks}
+                  expanded={expandedTasks.has(task.id)}
+                  onToggle={() => toggleTask(task.id)}
+                />
+              ))}
             </div>
           </div>
         )}

@@ -6,15 +6,20 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { fileURLToPath } from 'url';
 import { getSyncedApiKey, getSyncedModels, readCachedConfig, getHostedApiKey, canUseHostedApiKeys } from './license.js';
 
-const VERSION = '1.0.0';
+// Get version from package.json to keep it in sync
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const packageJsonPath = path.resolve(__dirname, '../../package.json');
+const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
 
 /**
  * Get the CLI version
  */
 export function getVersion() {
-  return VERSION;
+  return packageJson.version;
 }
 
 /**

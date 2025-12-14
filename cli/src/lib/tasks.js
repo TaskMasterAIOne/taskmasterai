@@ -72,17 +72,39 @@ export function saveTasksForTag(tasks, tag = 'master', projectRoot = process.cwd
   
   writeTasks(tasksData, projectRoot);
   
-  // Sync to cloud (non-blocking, fire and forget)
+  // Sync to cloud (non-blocking, but log errors in verbose mode)
   try {
     const config = readProjectConfig(projectRoot);
     const projectId = config.projectName || path.basename(projectRoot);
+    const verbose = process.env.TASKMASTER_VERBOSE === 'true';
+    
+    if (verbose) {
+      console.log(`[SYNC] Syncing ${tasks.length} tasks to cloud...`);
+      console.log(`[SYNC] Project: ${projectId}, Tag: ${tag}`);
+    }
+    
     syncTasksToCloud(tasks, {
       projectId,
       tag,
       metadata: tasksData.tags[tag].metadata,
-    }).catch(() => {}); // Silently ignore sync errors
+    }).then((result) => {
+      if (verbose) {
+        if (result.success) {
+          console.log(`[SYNC] ✓ Successfully synced ${tasks.length} tasks`);
+        } else {
+          console.log(`[SYNC] ✗ Sync failed: ${result.error}`);
+        }
+      }
+    }).catch((err) => {
+      if (verbose) {
+        console.log(`[SYNC] ✗ Sync error: ${err.message}`);
+      }
+    });
   } catch (e) {
     // Ignore sync errors - CLI should work offline
+    if (process.env.TASKMASTER_VERBOSE === 'true') {
+      console.log(`[SYNC] ✗ Setup error: ${e.message}`);
+    }
   }
 }
 
@@ -287,37 +309,117 @@ export function clearSubtasks(taskId, projectRoot = process.cwd()) {
 
 /**
  * Get the next task to work on
+ * 
+ * Priority order:
+ * 1. First look for eligible subtasks of in-progress parent tasks
+ * 2. Then fall back to top-level tasks (pending or in-progress with all deps satisfied)
+ * 
+ * This matches the official claude-task-master behavior
  */
 export function getNextTask(projectRoot = process.cwd()) {
   const tasks = getAllTasks(projectRoot);
   
-  // Get pending tasks with all dependencies completed
-  const pendingTasks = tasks.filter(task => {
-    if (task.status !== 'pending') return false;
-    
-    // Check if all dependencies are done
-    if (task.dependencies && task.dependencies.length > 0) {
-      const allDepsDone = task.dependencies.every(depId => {
-        const depTask = tasks.find(t => t.id === depId);
-        return depTask && depTask.status === 'done';
-      });
-      return allDepsDone;
+  const priorityValues = { high: 3, medium: 2, low: 1 };
+  
+  // Helper to convert subtask dependency to full dotted form
+  const toFullSubId = (parentId, maybeDotId) => {
+    if (typeof maybeDotId === 'string' && maybeDotId.includes('.')) {
+      return maybeDotId;
     }
-    
-    return true;
+    return `${parentId}.${maybeDotId}`;
+  };
+  
+  // Build set of completed IDs (both tasks and subtasks)
+  const completedIds = new Set();
+  tasks.forEach(t => {
+    if (t.status === 'done' || t.status === 'completed') {
+      completedIds.add(String(t.id));
+    }
+    if (Array.isArray(t.subtasks)) {
+      t.subtasks.forEach(st => {
+        if (st.status === 'done' || st.status === 'completed') {
+          completedIds.add(`${t.id}.${st.id}`);
+        }
+      });
+    }
   });
   
-  if (pendingTasks.length === 0) return null;
+  // 1) Look for eligible subtasks of in-progress parent tasks
+  const candidateSubtasks = [];
   
-  // Sort by priority and ID
-  const priorityOrder = { high: 1, medium: 2, low: 3 };
-  pendingTasks.sort((a, b) => {
-    const priorityDiff = (priorityOrder[a.priority] || 2) - (priorityOrder[b.priority] || 2);
-    if (priorityDiff !== 0) return priorityDiff;
+  tasks
+    .filter(t => t.status === 'in-progress' && Array.isArray(t.subtasks))
+    .forEach(parent => {
+      parent.subtasks.forEach(st => {
+        const stStatus = (st.status || 'pending').toLowerCase();
+        if (stStatus !== 'pending' && stStatus !== 'in-progress') return;
+        
+        const fullDeps = st.dependencies?.map(d => toFullSubId(parent.id, d)) ?? [];
+        const depsSatisfied = fullDeps.length === 0 || 
+          fullDeps.every(depId => completedIds.has(String(depId)));
+        
+        if (depsSatisfied) {
+          candidateSubtasks.push({
+            id: `${parent.id}.${st.id}`,
+            title: st.title || `Subtask ${st.id}`,
+            description: st.description || '',
+            status: st.status || 'pending',
+            priority: st.priority || parent.priority || 'medium',
+            dependencies: fullDeps,
+            parentId: parent.id,
+            details: st.details || '',
+            isSubtask: true,
+          });
+        }
+      });
+    });
+  
+  if (candidateSubtasks.length > 0) {
+    // Sort by priority (high first) → dep-count → parent-id → sub-id
+    candidateSubtasks.sort((a, b) => {
+      const pa = priorityValues[a.priority] ?? 2;
+      const pb = priorityValues[b.priority] ?? 2;
+      if (pb !== pa) return pb - pa;
+      
+      if (a.dependencies.length !== b.dependencies.length) {
+        return a.dependencies.length - b.dependencies.length;
+      }
+      
+      // Compare parent then sub-id numerically
+      const [aPar, aSub] = a.id.split('.').map(Number);
+      const [bPar, bSub] = b.id.split('.').map(Number);
+      if (aPar !== bPar) return aPar - bPar;
+      return aSub - bSub;
+    });
+    
+    return candidateSubtasks[0];
+  }
+  
+  // 2) Fall back to top-level tasks (pending or in-progress with deps satisfied)
+  const eligibleTasks = tasks.filter(task => {
+    const status = (task.status || 'pending').toLowerCase();
+    if (status !== 'pending' && status !== 'in-progress') return false;
+    
+    const deps = task.dependencies ?? [];
+    return deps.every(depId => completedIds.has(String(depId)));
+  });
+  
+  if (eligibleTasks.length === 0) return null;
+  
+  // Sort by priority (high first) → dep-count → ID
+  eligibleTasks.sort((a, b) => {
+    const pa = priorityValues[a.priority || 'medium'] ?? 2;
+    const pb = priorityValues[b.priority || 'medium'] ?? 2;
+    if (pb !== pa) return pb - pa;
+    
+    const da = (a.dependencies ?? []).length;
+    const db = (b.dependencies ?? []).length;
+    if (da !== db) return da - db;
+    
     return a.id - b.id;
   });
   
-  return pendingTasks[0];
+  return eligibleTasks[0];
 }
 
 /**
