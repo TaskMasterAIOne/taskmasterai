@@ -192,17 +192,18 @@ function CodeBlock({ code, filename, language = 'bash' }: { code: string; filena
 }
 
 // Tip/Info Box Component
-function TipBox({ children, type = 'tip' }: { children: React.ReactNode; type?: 'tip' | 'info' | 'warning' }) {
+function TipBox({ children, type = 'tip' }: { children: React.ReactNode; type?: 'tip' | 'info' | 'warning' | 'success' }) {
   const styles = {
     tip: 'bg-accent/10 border-accent text-accent',
     info: 'bg-status-info/10 border-status-info text-status-info',
-    warning: 'bg-status-warning/10 border-status-warning text-status-warning'
+    warning: 'bg-status-warning/10 border-status-warning text-status-warning',
+    success: 'bg-green-500/10 border-green-500 text-green-400'
   }
   
   return (
     <div className={`border rounded-lg p-4 mb-6 ${styles[type]}`}>
       <div className="flex items-start gap-3">
-        <FontAwesomeIcon icon={type === 'info' ? faInfoCircle : faLightbulb} className="w-4 h-4 mt-0.5 flex-shrink-0" />
+        <FontAwesomeIcon icon={type === 'info' ? faInfoCircle : type === 'success' ? faCheck : faLightbulb} className="w-4 h-4 mt-0.5 flex-shrink-0" />
         <div className="text-sm">{children}</div>
       </div>
     </div>
