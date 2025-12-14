@@ -236,7 +236,7 @@ export async function loginWithGoogle() {
     
     // Open browser to web app login with CLI callback
     // Use TASKMASTER_WEB_URL for local development, defaults to production
-    const webBaseUrl = process.env.TASKMASTER_WEB_URL || 'https://taskmaster.one';
+    const webBaseUrl = process.env.TASKMASTER_WEB_URL || 'https://www.taskmaster.one';
     const loginUrl = `${webBaseUrl}/cli-login?callback=${encodeURIComponent(callbackUrl)}`;
     
     console.log('\n🌐 Opening browser for Google login...\n');

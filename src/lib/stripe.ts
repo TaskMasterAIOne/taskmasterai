@@ -49,7 +49,7 @@ export async function createCheckout(params: CheckoutParams): Promise<void> {
         plan,
         userId,
         email,
-        successUrl: successUrl || `${window.location.origin}/app/billing?success=true`,
+        successUrl: successUrl || `${window.location.origin}/app/settings?success=true`,
         cancelUrl: cancelUrl || `${window.location.origin}/pricing?canceled=true`,
       }),
     })
@@ -133,7 +133,7 @@ export async function openCustomerPortal(userId: string, returnUrl?: string): Pr
       },
       body: JSON.stringify({
         userId,
-        returnUrl: returnUrl || `${window.location.origin}/app/billing`,
+        returnUrl: returnUrl || `${window.location.origin}/app/settings`,
       }),
     })
 

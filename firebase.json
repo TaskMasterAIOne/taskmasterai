@@ -6,6 +6,159 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "cleanUrls": true,
+    "trailingSlash": false,
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          },
+          {
+            "key": "X-Frame-Options",
+            "value": "DENY"
+          },
+          {
+            "key": "Referrer-Policy",
+            "value": "strict-origin-when-cross-origin"
+          }
+        ]
+      },
+      {
+        "source": "/app/**",
+        "headers": [
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow"
+          },
+          {
+            "key": "Cache-Control",
+            "value": "private, no-cache, no-store, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/signin",
+        "headers": [
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow"
+          }
+        ]
+      },
+      {
+        "source": "/signup",
+        "headers": [
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow"
+          }
+        ]
+      },
+      {
+        "source": "/cli-login",
+        "headers": [
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow"
+          }
+        ]
+      },
+      {
+        "source": "**/*.@(jpg|jpeg|gif|png|svg|webp|ico)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      },
+      {
+        "source": "**/*.@(js|css)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      },
+      {
+        "source": "/robots.txt",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=86400"
+          }
+        ]
+      },
+      {
+        "source": "/sitemap.xml",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=86400"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/xml"
+          }
+        ]
+      }
+    ],
+    "redirects": [
+      {
+        "source": "/index.html",
+        "destination": "/",
+        "type": 301
+      },
+      {
+        "source": "/login",
+        "destination": "/signin",
+        "type": 301
+      },
+      {
+        "source": "/dashboard",
+        "destination": "/app/dashboard",
+        "type": 301
+      },
+      {
+        "source": "/leaderboard",
+        "destination": "/",
+        "type": 301
+      },
+      {
+        "source": "/notes",
+        "destination": "/",
+        "type": 301
+      },
+      {
+        "source": "/folders",
+        "destination": "/",
+        "type": 301
+      },
+      {
+        "source": "/friends",
+        "destination": "/",
+        "type": 301
+      },
+      {
+        "source": "/community",
+        "destination": "/",
+        "type": 301
+      },
+      {
+        "source": "/calendar",
+        "destination": "/",
+        "type": 301
+      },
+      {
+        "source": "/ai",
+        "destination": "/",
+        "type": 301
+      }
+    ],
     "rewrites": [
       {
         "source": "**",

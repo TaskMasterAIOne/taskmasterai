@@ -44,7 +44,7 @@ async function startServer() {
     
     if (!licenseValid) {
       console.error('⚠️  LICENSE REQUIRED: TaskMaster AI requires a valid license.');
-      console.error('   Get your license at: https://taskmaster.one/pricing');
+      console.error('   Get your license at: https://www.taskmaster.one/pricing');
       console.error('   Activate with: taskmaster activate <license-key>');
       console.error('');
       console.error('   MCP server starting in limited mode...');

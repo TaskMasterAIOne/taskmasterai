@@ -11,7 +11,7 @@
  */
 
 import { z } from 'zod';
-import { handleApiResult, withToolContext } from '../utils.js';
+import { handleApiResult, withToolContext, withAIToolContext } from '../utils.js';
 
 /**
  * Register task-related tools with the MCP server
@@ -98,7 +98,7 @@ export function registerTaskTools(server, options = {}) {
 
   // add_task - Add a new task
   server.addTool({
-    name: 'create_task',
+    name: 'add_task',
     description: 'Add a new task using AI to structure it',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
@@ -107,7 +107,7 @@ export function registerTaskTools(server, options = {}) {
       dependencies: z.string().optional().describe('Comma-separated dependency IDs'),
       research: z.boolean().optional().describe('Use research model'),
     }),
-    execute: withToolContext('add-task', async (args, context) => {
+    execute: withAIToolContext('add-task', 'tasksAdded', async (args, context) => {
       const { addTask, getCurrentTag } = await import('../../lib/tasks.js');
       const { generateTask } = await import('../../lib/ai.js');
       const { projectRoot, log } = context;
@@ -157,7 +157,7 @@ export function registerTaskTools(server, options = {}) {
 
   // update_task - Update a task
   server.addTool({
-    name: 'edit_task',
+    name: 'update_task',
     description: 'Update a task with new information',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
@@ -258,7 +258,7 @@ export function registerTaskTools(server, options = {}) {
 
   // add_subtask - Add a subtask
   server.addTool({
-    name: 'add_step',
+    name: 'add_subtask',
     description: 'Add a subtask to a parent task',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
@@ -356,7 +356,8 @@ export function registerTaskTools(server, options = {}) {
       prompt: z.string().describe('Update context/changes'),
       research: z.boolean().optional().describe('Use research model'),
     }),
-    execute: withToolContext('update', async (args, context) => {
+    // Count function for batch updates - counts tasks that will be updated
+    execute: withAIToolContext('update', 'aiOperations', async (args, context) => {
       const { getAllTasks, updateTask, getCurrentTag } = await import('../../lib/tasks.js');
       const { batchUpdateTasks } = await import('../../lib/ai.js');
       const { projectRoot, log } = context;

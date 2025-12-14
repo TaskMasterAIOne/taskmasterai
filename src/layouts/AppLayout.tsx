@@ -62,13 +62,13 @@ export default function AppLayout() {
       <aside className="hidden lg:flex lg:flex-col lg:w-60 lg:fixed lg:inset-y-0 bg-surface">
         {/* Logo */}
         <div className="pt-6 pb-3 px-4">
-          <Link to="/" className="flex items-center gap-2">
+          <Link to="/" className="inline-flex items-center gap-2">
             <img 
               src={LOGO_URL} 
               alt="TaskMaster AI" 
-              className="w-6 h-6 rounded-md object-contain invert dark:invert-0"
+              className="w-6 h-6 rounded-md object-contain invert dark:invert-0 flex-shrink-0"
             />
-            <span className="pixel-text text-[11px]">TASKMASTER AI</span>
+            <span className="pixel-text text-[11px] leading-none mt-0.5">TASKMASTER AI</span>
           </Link>
         </div>
 
@@ -146,23 +146,25 @@ export default function AppLayout() {
         </div>
       </aside>
 
-      {/* Mobile header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-surface z-50 flex items-center justify-between px-4">
-        <Link to="/" className="flex items-center gap-2">
-          <img 
-            src={LOGO_URL} 
-            alt="TaskMaster AI" 
-            className="w-6 h-6 rounded-md object-contain invert dark:invert-0 mt-0.5"
-          />
-          <span className="pixel-text text-[11px]">TASKMASTER AI</span>
-        </Link>
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="p-2 text-text-muted hover:text-text"
-        >
-          <FontAwesomeIcon icon={sidebarOpen ? faXmark : faBars} className="w-5 h-5" />
-        </button>
-      </div>
+      {/* Mobile header - hidden when sidebar is open */}
+      {!sidebarOpen && (
+        <div className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-surface z-50 flex items-center justify-between px-4">
+          <Link to="/" className="inline-flex items-center gap-2">
+            <img 
+              src={LOGO_URL} 
+              alt="TaskMaster AI" 
+              className="w-6 h-6 rounded-md object-contain invert dark:invert-0 flex-shrink-0"
+            />
+            <span className="pixel-text text-[11px] leading-none mt-0.5">TASKMASTER AI</span>
+          </Link>
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="w-6 h-6 flex items-center justify-center text-text-muted hover:text-text"
+          >
+            <FontAwesomeIcon icon={faBars} className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
@@ -181,9 +183,27 @@ export default function AppLayout() {
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.25, ease: 'easeOut' }}
-          className="lg:hidden fixed inset-y-0 left-0 w-60 bg-surface z-50 flex flex-col pt-14"
+          className="lg:hidden fixed top-0 bottom-0 left-0 w-60 bg-surface z-50 flex flex-col max-h-screen"
         >
-          <nav className="flex-1 px-3 py-5 space-y-1">
+          {/* Sidebar header with logo and close button */}
+          <div className="h-14 flex items-center justify-between px-4 flex-shrink-0">
+            <Link to="/" className="inline-flex items-center gap-2" onClick={() => setSidebarOpen(false)}>
+              <img 
+                src={LOGO_URL} 
+                alt="TaskMaster AI" 
+                className="w-6 h-6 rounded-md object-contain invert dark:invert-0 flex-shrink-0"
+              />
+              <span className="pixel-text text-[11px] leading-none mt-0.5">TASKMASTER AI</span>
+            </Link>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="w-6 h-6 flex items-center justify-center text-text-muted hover:text-text"
+            >
+              <FontAwesomeIcon icon={faXmark} className="w-4 h-4" />
+            </button>
+          </div>
+
+          <nav className="flex-1 px-3 py-3 space-y-1 overflow-y-auto">
             {sidebarLinks.map((link) => {
               const isActive = location.pathname === link.path
               return (
@@ -204,7 +224,7 @@ export default function AppLayout() {
             })}
           </nav>
 
-          <div className="p-3">
+          <div className="p-3 pb-6 flex-shrink-0 border-t border-border">
             <div className="flex items-center gap-3 p-2.5">
               <div className="w-8 h-8 rounded-full bg-surface-highlight flex items-center justify-center overflow-hidden">
                 {user?.photoURL && !imageError ? (
@@ -242,8 +262,8 @@ export default function AppLayout() {
       )}
 
       {/* Main content */}
-      <main className="flex-1 lg:pl-60 pt-14 lg:pt-0">
-        <div className="min-h-screen">
+      <main className="flex-1 lg:pl-60 pt-14 lg:pt-0 overflow-x-hidden">
+        <div className="min-h-screen w-full max-w-full">
           <Outlet />
         </div>
       </main>

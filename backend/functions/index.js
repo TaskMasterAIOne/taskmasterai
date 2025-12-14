@@ -13,19 +13,6 @@ const db = admin.firestore();
 const stripeSecretKey = defineSecret('STRIPE_SECRET_KEY');
 const stripeWebhookSecret = defineSecret('STRIPE_WEBHOOK_SECRET');
 
-// Hosted API Keys (for PRO plan users) - stored as Firebase secrets
-const hostedAnthropicKey = defineSecret('HOSTED_ANTHROPIC_API_KEY');
-const hostedOpenaiKey = defineSecret('HOSTED_OPENAI_API_KEY');
-const hostedGoogleKey = defineSecret('HOSTED_GOOGLE_API_KEY');
-const hostedPerplexityKey = defineSecret('HOSTED_PERPLEXITY_API_KEY');
-const hostedDeepseekKey = defineSecret('HOSTED_DEEPSEEK_API_KEY');
-const hostedXaiKey = defineSecret('HOSTED_XAI_API_KEY');
-const hostedOpenrouterKey = defineSecret('HOSTED_OPENROUTER_API_KEY');
-const hostedMistralKey = defineSecret('HOSTED_MISTRAL_API_KEY');
-const hostedMoonshotKey = defineSecret('HOSTED_MOONSHOT_API_KEY');
-const hostedZhipuKey = defineSecret('HOSTED_ZHIPU_API_KEY');
-const hostedOllamaKey = defineSecret('HOSTED_OLLAMA_API_KEY');
-
 // Stripe price IDs
 // Products: Plus (prod_TavHzv0QcBs8E5), Pro (prod_TavI05fFQmSCHF)
 // Enterprise is custom pricing - handled via contact sales
@@ -39,13 +26,11 @@ const STRIPE_PRICES = {
 const PLAN_DETAILS = {
   plus: { name: 'Plus', price: 29, tasksPerMonth: 100, overageRate: 0.20 },
   pro: { name: 'Pro', price: 199, tasksPerMonth: 1000, overageRate: 0.15 },
-  enterprise: { name: 'Enterprise', price: 599, tasksPerMonth: 5000, overageRate: 0.10 }
+  enterprise: { name: 'Enterprise', price: null, tasksPerMonth: 5000, overageRate: 0.10 } // 5000+ - contact sales for custom
 };
 
 // Initialize Gemini AI for docs assistant
-// API key should be set via Firebase Functions config: firebase functions:config:set google.api_key="YOUR_KEY"
-const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || functions.config().google?.api_key || '';
-const genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
+const genAI = new GoogleGenerativeAI('AIzaSyCHz2AI4sM4VOixQ56Ia0c6AquNPA2frjo');
 
 // System prompt for the docs assistant
 const SYSTEM_PROMPT = `You are the official AI assistant for TaskMaster AI documentation. You have complete knowledge of TaskMaster AI and can help users with any questions about the product.
@@ -213,10 +198,7 @@ TaskMaster AI supports multiple AI providers. You can use your own API keys:
 - Anthropic (Claude) - claude-3-5-sonnet, claude-3-opus, etc.
 - OpenAI (GPT) - gpt-4o, gpt-4o-mini, etc.
 - Google (Gemini) - gemini-2.0-flash, gemini-1.5-pro, etc.
-- Perplexity - Search, Reasoning, and Research models:
-  - Search: sonar (lightweight), sonar-pro (advanced queries)
-  - Reasoning: sonar-reasoning (problem-solving), sonar-reasoning-pro (DeepSeek-R1 powered)
-  - Research: sonar-deep-research (expert-level comprehensive research)
+- Perplexity - For research features
 - Mistral - mistral-large, etc.
 - xAI (Grok) - grok-beta, etc.
 - OpenRouter - Access to multiple models
@@ -252,7 +234,7 @@ Set tier via TASK_MASTER_TOOLS env var.
 
 # CONFIGURATION
 
-## .taskmaster-ai/config.json
+## .taskmaster/config.json
 Main configuration file. Managed via \`taskmaster models\` command.
 
 ## API Keys
@@ -271,7 +253,7 @@ Set in .env file (CLI) or mcp.json env section (MCP):
 
 \`\`\`
 project/
-├── .taskmaster-ai/
+├── .taskmaster/
 │   ├── tasks/
 │   │   └── tasks.json      # Main task database
 │   ├── docs/               # PRDs and documentation
@@ -308,9 +290,9 @@ Tags allow separate task contexts for different features/branches:
 
 # SUPPORT
 
-- Website: https://taskmaster.one
-- Documentation: https://taskmaster.one/docs
-- Documentation: https://taskmaster.one/docs
+- Website: https://www.taskmaster.one
+- Documentation: https://www.taskmaster.one/docs
+- Documentation: https://www.taskmaster.one/docs
 - Enterprise inquiries: taskmasteroneai@gmail.com
 
 Answer questions helpfully and concisely. For questions about pricing or billing, always mention the exact prices. For CLI commands, provide the exact syntax. If you're unsure about something specific, say so.`;
@@ -442,8 +424,8 @@ export const createCheckoutSession = onRequest(
           }
         ],
         mode: 'subscription',
-        success_url: successUrl || 'https://taskmaster.one/app/billing?success=true',
-        cancel_url: cancelUrl || 'https://taskmaster.one/pricing?canceled=true',
+        success_url: successUrl || 'https://www.taskmaster.one/app/settings?success=true',
+        cancel_url: cancelUrl || 'https://www.taskmaster.one/pricing?canceled=true',
         metadata: {
           userId: userId,
           plan: plan
@@ -558,13 +540,13 @@ async function handleCheckoutComplete(session) {
   const licenseKey = `tm_live_${uuidv4()}`;
   const now = admin.firestore.Timestamp.now();
   
-  // Get plan details
-  const planDetails = PLAN_DETAILS[plan] || {};
-  
   // Calculate expiry (1 month from now)
   const expiresAt = admin.firestore.Timestamp.fromDate(
     new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
   );
+
+  // Get plan details for the license document
+  const planDetails = PLAN_DETAILS[plan] || {};
 
   // Create license document in licenses collection
   await db.collection('licenses').doc(licenseKey).set({
@@ -585,23 +567,26 @@ async function handleCheckoutComplete(session) {
     stripeCustomerId: customerId,
     stripeSubscriptionId: subscriptionId,
     subscriptionStatus: 'active',
-    tasksUsed: 0,
     updatedAt: now
   }, { merge: true });
 
-  // Create/update user's license subcollection for real-time frontend listening
+  // Also write to users/{userId}/license/current for real-time frontend updates
+  // This allows the frontend to listen to this path for instant subscription updates
   await db.collection('users').doc(userId).collection('license').doc('current').set({
     licenseKey: licenseKey,
     plan: plan,
     planName: planDetails.name || plan,
-    planPrice: planDetails.price || 0,
-    tasksPerMonth: planDetails.tasksPerMonth || 0,
-    overageRate: planDetails.overageRate || 0,
+    planPrice: planDetails.price,
+    tasksPerMonth: planDetails.tasksPerMonth,
+    tasksUsed: 0,
+    overageRate: planDetails.overageRate,
     status: 'active',
     createdAt: now,
     expiresAt: expiresAt,
     currentPeriodEnd: expiresAt,
     cancelAtPeriodEnd: false,
+    stripeSubscriptionId: subscriptionId,
+    stripeCustomerId: customerId,
     updatedAt: now
   });
 
@@ -619,14 +604,15 @@ async function handleSubscriptionUpdate(subscription) {
     return;
   }
 
-  // Get plan details
-  const planDetails = PLAN_DETAILS[plan] || {};
-  const now = admin.firestore.Timestamp.now();
-
   // Map Stripe status to our status
   let subscriptionStatus = 'active';
   if (status === 'past_due') subscriptionStatus = 'past_due';
   if (status === 'canceled' || status === 'unpaid') subscriptionStatus = 'canceled';
+
+  const now = admin.firestore.Timestamp.now();
+  const planDetails = PLAN_DETAILS[plan] || {};
+  const licenseStatus = subscriptionStatus === 'active' ? 'active' : 
+                        subscriptionStatus === 'past_due' ? 'grace_period' : 'expired';
 
   await db.collection('users').doc(userId).update({
     plan: plan,
@@ -639,25 +625,29 @@ async function handleSubscriptionUpdate(subscription) {
   const licenseKey = userDoc.data()?.licenseKey;
   
   if (licenseKey) {
-    const licenseStatus = subscriptionStatus === 'active' ? 'active' : 'expired';
-    
     await db.collection('licenses').doc(licenseKey).update({
       plan: plan,
       status: licenseStatus,
       updatedAt: now
     });
-
-    // Update user's license subcollection
-    await db.collection('users').doc(userId).collection('license').doc('current').update({
-      plan: plan,
-      planName: planDetails.name || plan,
-      planPrice: planDetails.price || 0,
-      tasksPerMonth: planDetails.tasksPerMonth || 0,
-      overageRate: planDetails.overageRate || 0,
-      status: licenseStatus,
-      updatedAt: now
-    });
   }
+
+  // Update real-time license document for frontend
+  const currentPeriodEnd = subscription.current_period_end 
+    ? admin.firestore.Timestamp.fromDate(new Date(subscription.current_period_end * 1000))
+    : null;
+
+  await db.collection('users').doc(userId).collection('license').doc('current').set({
+    plan: plan,
+    planName: planDetails.name || plan,
+    planPrice: planDetails.price,
+    tasksPerMonth: planDetails.tasksPerMonth,
+    overageRate: planDetails.overageRate,
+    status: licenseStatus,
+    currentPeriodEnd: currentPeriodEnd,
+    cancelAtPeriodEnd: subscription.cancel_at_period_end || false,
+    updatedAt: now
+  }, { merge: true });
 }
 
 // Helper: Handle subscription canceled
@@ -680,20 +670,19 @@ async function handleSubscriptionCanceled(subscription) {
       status: 'expired',
       updatedAt: now
     });
-
-    // Update user's license subcollection
-    await db.collection('users').doc(userId).collection('license').doc('current').update({
-      status: 'expired',
-      cancelAtPeriodEnd: true,
-      updatedAt: now
-    });
   }
+
+  // Update real-time license document for frontend
+  await db.collection('users').doc(userId).collection('license').doc('current').set({
+    status: 'expired',
+    cancelAtPeriodEnd: false,
+    updatedAt: now
+  }, { merge: true });
 }
 
 // Helper: Handle payment failed
 async function handlePaymentFailed(invoice) {
   const customerId = invoice.customer;
-  const now = admin.firestore.Timestamp.now();
   
   // Find user by customer ID
   const usersSnapshot = await db.collection('users')
@@ -706,6 +695,7 @@ async function handlePaymentFailed(invoice) {
   const userDoc = usersSnapshot.docs[0];
   const userId = userDoc.id;
   const licenseKey = userDoc.data().licenseKey;
+  const now = admin.firestore.Timestamp.now();
 
   // Set grace period (3 days)
   const gracePeriodEnd = admin.firestore.Timestamp.fromDate(
@@ -724,20 +714,19 @@ async function handlePaymentFailed(invoice) {
       gracePeriodEnd: gracePeriodEnd,
       updatedAt: now
     });
-
-    // Update user's license subcollection
-    await db.collection('users').doc(userId).collection('license').doc('current').update({
-      status: 'grace_period',
-      gracePeriodEnd: gracePeriodEnd,
-      updatedAt: now
-    });
   }
+
+  // Update real-time license document for frontend
+  await db.collection('users').doc(userId).collection('license').doc('current').set({
+    status: 'grace_period',
+    gracePeriodEnd: gracePeriodEnd,
+    updatedAt: now
+  }, { merge: true });
 }
 
 // Helper: Handle payment succeeded
 async function handlePaymentSucceeded(invoice) {
   const customerId = invoice.customer;
-  const now = admin.firestore.Timestamp.now();
   
   const usersSnapshot = await db.collection('users')
     .where('stripeCustomerId', '==', customerId)
@@ -751,6 +740,7 @@ async function handlePaymentSucceeded(invoice) {
   const userData = userDoc.data();
   const licenseKey = userData.licenseKey;
   const plan = userData.plan;
+  const now = admin.firestore.Timestamp.now();
   const planDetails = PLAN_DETAILS[plan] || {};
 
   // Extend license by 1 month
@@ -758,11 +748,9 @@ async function handlePaymentSucceeded(invoice) {
     new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
   );
 
-  // Reset tasks used on successful payment (new billing period)
   await db.collection('users').doc(userId).update({
     subscriptionStatus: 'active',
-    tasksUsed: 0,
-    usageResetDate: now,
+    tasksUsed: 0, // Reset usage on new billing period
     gracePeriodEnd: admin.firestore.FieldValue.delete(),
     updatedAt: now
   });
@@ -774,18 +762,16 @@ async function handlePaymentSucceeded(invoice) {
       gracePeriodEnd: admin.firestore.FieldValue.delete(),
       updatedAt: now
     });
-
-    // Update user's license subcollection
-    await db.collection('users').doc(userId).collection('license').doc('current').update({
-      status: 'active',
-      expiresAt: expiresAt,
-      currentPeriodEnd: expiresAt,
-      tasksUsed: 0,
-      cancelAtPeriodEnd: false,
-      gracePeriodEnd: admin.firestore.FieldValue.delete(),
-      updatedAt: now
-    });
   }
+
+  // Update real-time license document for frontend
+  await db.collection('users').doc(userId).collection('license').doc('current').set({
+    status: 'active',
+    tasksUsed: 0, // Reset usage on new billing period
+    currentPeriodEnd: expiresAt,
+    expiresAt: expiresAt,
+    updatedAt: now
+  }, { merge: true });
 }
 
 // ============================================
@@ -1192,16 +1178,6 @@ export const incrementUsage = onRequest(
         return;
       }
 
-      // SECURITY: Validate count is a positive integer
-      const validatedCount = Math.max(1, Math.floor(Number(count) || 1));
-      if (validatedCount > 1000) {
-        res.status(400).json({
-          success: false,
-          error: 'Count cannot exceed 1000 per request'
-        });
-        return;
-      }
-
       // Validate license
       const licenseDoc = await db.collection('licenses').doc(licenseKey).get();
 
@@ -1235,71 +1211,40 @@ export const incrementUsage = onRequest(
       let currentTasksUsed = userData.tasksUsed || 0;
       const lastResetDate = userData.usageResetDate?.toDate();
       const currentPeriodEnd = userData.currentPeriodEnd?.toDate();
-      let needsPeriodUpdate = false;
       
-      // SECURITY FIX: Only reset if past period end AND we haven't already reset for this period
+      // Reset if we're past the current period end
       if (currentPeriodEnd && new Date() > currentPeriodEnd) {
-        // Check if we already reset for this expired period
-        const lastResetTime = lastResetDate?.getTime() || 0;
-        const periodEndTime = currentPeriodEnd.getTime();
-        
-        // Only reset if we haven't reset since the period ended
-        if (lastResetTime < periodEndTime) {
-          currentTasksUsed = 0;
-          needsPeriodUpdate = true;
-          console.log(`Usage reset for user ${userId}: period ended ${currentPeriodEnd.toISOString()}`);
-        }
+        currentTasksUsed = 0;
       }
 
-      // Increment usage with VALIDATED count
-      const newTasksUsed = currentTasksUsed + validatedCount;
+      // Increment usage
+      const newTasksUsed = currentTasksUsed + count;
       const planDetails = PLAN_DETAILS[license.plan] || {};
       const tasksPerMonth = planDetails.tasksPerMonth || 0;
       const isOverage = tasksPerMonth > 0 && newTasksUsed > tasksPerMonth;
       const overageCount = isOverage ? newTasksUsed - tasksPerMonth : 0;
 
-      // Update user document - include period reset tracking if needed
-      const userUpdate = {
+      // Update user document
+      await userRef.set({
         tasksUsed: newTasksUsed,
         lastTaskAt: now,
         updatedAt: now
-      };
-      
-      // If we reset the period, update the reset date
-      if (needsPeriodUpdate) {
-        userUpdate.usageResetDate = now;
-        // Extend current period by 30 days from now
-        userUpdate.currentPeriodEnd = admin.firestore.Timestamp.fromDate(
-          new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-        );
-      }
-      
-      await userRef.set(userUpdate, { merge: true });
+      }, { merge: true });
 
-      // Update user's license subcollection for real-time Dashboard updates
-      // Using set with merge to handle cases where document might not exist
-      const licenseUpdate = {
-        tasksUsed: newTasksUsed,
-        lastTaskAt: now,
-        updatedAt: now
-      };
-      
-      if (needsPeriodUpdate) {
-        licenseUpdate.usageResetDate = now;
-        licenseUpdate.currentPeriodEnd = userUpdate.currentPeriodEnd;
-      }
-      
-      await db.collection('users').doc(userId).collection('license').doc('current').set(licenseUpdate, { merge: true });
-
-      // Log usage event for analytics with validated count
+      // Log usage event for analytics
       await db.collection('users').doc(userId).collection('usageLog').add({
         operation: operation || 'unknown',
-        count: validatedCount,
+        count: count,
         timestamp: now,
         licenseKey: licenseKey,
-        totalAfter: newTasksUsed,
-        wasReset: needsPeriodUpdate
+        totalAfter: newTasksUsed
       });
+
+      // Update real-time license document with usage for frontend
+      await db.collection('users').doc(userId).collection('license').doc('current').set({
+        tasksUsed: newTasksUsed,
+        updatedAt: now
+      }, { merge: true });
 
       res.status(200).json({
         success: true,
@@ -1498,7 +1443,7 @@ export const createPortalSession = onRequest(
 
       const session = await stripe.billingPortal.sessions.create({
         customer: customerId,
-        return_url: returnUrl || 'https://taskmaster.one/app/billing'
+        return_url: returnUrl || 'https://www.taskmaster.one/app/settings'
       });
 
       res.status(200).json({ url: session.url });
@@ -1629,6 +1574,8 @@ export const fixMissingLicenses = onRequest(
             new Date(subscription.current_period_end * 1000)
           );
 
+          const planDetails = PLAN_DETAILS[plan] || {};
+
           // Create license document
           await db.collection('licenses').doc(licenseKey).set({
             userId: userId,
@@ -1649,6 +1596,26 @@ export const fixMissingLicenses = onRequest(
             licenseKey: licenseKey,
             stripeSubscriptionId: subscription.id,
             subscriptionStatus: 'active',
+            updatedAt: now
+          });
+
+          // Also write to users/{userId}/license/current for real-time frontend updates
+          await db.collection('users').doc(userId).collection('license').doc('current').set({
+            licenseKey: licenseKey,
+            plan: plan,
+            planName: planDetails.name || plan,
+            planPrice: planDetails.price,
+            tasksPerMonth: planDetails.tasksPerMonth,
+            tasksUsed: 0,
+            overageRate: planDetails.overageRate,
+            status: 'active',
+            createdAt: now,
+            expiresAt: expiresAt,
+            currentPeriodEnd: expiresAt,
+            cancelAtPeriodEnd: false,
+            stripeSubscriptionId: subscription.id,
+            stripeCustomerId: userData.stripeCustomerId,
+            fixedByAdmin: true,
             updatedAt: now
           });
 
@@ -1683,1140 +1650,6 @@ export const fixMissingLicenses = onRequest(
       console.error('Error fixing licenses:', error);
       res.status(500).json({ 
         error: 'Failed to fix licenses',
-        details: error.message 
-      });
-    }
-  }
-);
-
-// ============================================================================
-// DELETE ACCOUNT ENDPOINT
-// ============================================================================
-
-export const deleteAccount = onRequest(
-  { 
-    cors: true,
-    secrets: [stripeSecretKey]
-  },
-  async (req, res) => {
-    if (req.method !== 'POST') {
-      return res.status(405).json({ error: 'Method not allowed' });
-    }
-
-    const { userId } = req.body;
-
-    if (!userId) {
-      return res.status(400).json({ error: 'User ID is required' });
-    }
-
-    try {
-      const stripe = new Stripe(stripeSecretKey.value(), { apiVersion: '2024-04-10' });
-      
-      console.log(`Starting account deletion for user: ${userId}`);
-
-      // 1. Get user data to find Stripe customer ID
-      const userDoc = await db.collection('users').doc(userId).get();
-      const userData = userDoc.exists ? userDoc.data() : null;
-
-      // 2. Cancel Stripe subscription if exists
-      if (userData?.stripeSubscriptionId) {
-        try {
-          const subscription = await stripe.subscriptions.retrieve(userData.stripeSubscriptionId);
-          if (subscription && subscription.status !== 'canceled') {
-            await stripe.subscriptions.cancel(userData.stripeSubscriptionId);
-            console.log(`Canceled Stripe subscription: ${userData.stripeSubscriptionId}`);
-          }
-        } catch (stripeError) {
-          // Subscription might already be canceled or not exist
-          console.log(`Stripe subscription cancellation note: ${stripeError.message}`);
-        }
-      }
-
-      // 3. Delete license document from licenses collection
-      if (userData?.licenseKey) {
-        try {
-          await db.collection('licenses').doc(userData.licenseKey).delete();
-          console.log(`Deleted license document: ${userData.licenseKey}`);
-        } catch (licenseError) {
-          console.log(`License deletion note: ${licenseError.message}`);
-        }
-      }
-
-      // 4. Delete user's license subcollection
-      try {
-        const licenseSubcollection = await db.collection('users').doc(userId).collection('license').get();
-        const batch = db.batch();
-        licenseSubcollection.docs.forEach(doc => {
-          batch.delete(doc.ref);
-        });
-        await batch.commit();
-        console.log(`Deleted user license subcollection`);
-      } catch (subError) {
-        console.log(`License subcollection deletion note: ${subError.message}`);
-      }
-
-      // 5. Delete user's API keys subcollection
-      try {
-        const apiKeysSubcollection = await db.collection('users').doc(userId).collection('apiKeys').get();
-        const batch = db.batch();
-        apiKeysSubcollection.docs.forEach(doc => {
-          batch.delete(doc.ref);
-        });
-        await batch.commit();
-        console.log(`Deleted user API keys subcollection`);
-      } catch (subError) {
-        console.log(`API keys subcollection deletion note: ${subError.message}`);
-      }
-
-      // 6. Delete user's usage logs subcollection
-      try {
-        const usageLogsSubcollection = await db.collection('users').doc(userId).collection('usageLogs').get();
-        const batch = db.batch();
-        usageLogsSubcollection.docs.forEach(doc => {
-          batch.delete(doc.ref);
-        });
-        await batch.commit();
-        console.log(`Deleted user usage logs subcollection`);
-      } catch (subError) {
-        console.log(`Usage logs subcollection deletion note: ${subError.message}`);
-      }
-
-      // 7. Delete user document from Firestore
-      await db.collection('users').doc(userId).delete();
-      console.log(`Deleted user document: ${userId}`);
-
-      // 8. Delete Firebase Auth user
-      try {
-        await admin.auth().deleteUser(userId);
-        console.log(`Deleted Firebase Auth user: ${userId}`);
-      } catch (authError) {
-        console.error(`Error deleting Firebase Auth user: ${authError.message}`);
-        // Continue anyway - Firestore data is already deleted
-      }
-
-      console.log(`Account deletion completed for user: ${userId}`);
-
-      res.status(200).json({
-        success: true,
-        message: 'Account deleted successfully'
-      });
-
-    } catch (error) {
-      console.error('Error deleting account:', error);
-      res.status(500).json({ 
-        error: 'Failed to delete account',
-        details: error.message 
-      });
-    }
-  }
-);
-
-// ============================================
-// TASK SYNC ENDPOINTS
-// Sync tasks between CLI and web dashboard
-// ============================================
-
-/**
- * Sync tasks from CLI to Firestore
- * Called by CLI after any task changes
- */
-export const syncTasks = onRequest(
-  { cors: true },
-  async (req, res) => {
-    if (req.method !== 'POST') {
-      return res.status(405).json({ error: 'Method not allowed' });
-    }
-
-    try {
-      const { licenseKey, projectId, tasks, tag, metadata } = req.body;
-
-      if (!licenseKey) {
-        return res.status(400).json({ error: 'License key is required' });
-      }
-
-      if (!tasks) {
-        return res.status(400).json({ error: 'Tasks data is required' });
-      }
-
-      // Validate license and get user
-      const licenseDoc = await db.collection('licenses').doc(licenseKey).get();
-      if (!licenseDoc.exists) {
-        return res.status(401).json({ error: 'Invalid license key' });
-      }
-
-      const licenseData = licenseDoc.data();
-      if (licenseData.status !== 'active' && licenseData.status !== 'grace_period') {
-        return res.status(401).json({ error: 'License is not active' });
-      }
-
-      const userId = licenseData.userId;
-      const projectName = projectId || 'default';
-      const tagName = tag || 'master';
-
-      // Store tasks in Firestore under user's projects subcollection
-      const projectRef = db.collection('users').doc(userId)
-        .collection('projects').doc(projectName);
-
-      await projectRef.set({
-        name: projectName,
-        lastSynced: new Date().toISOString(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      }, { merge: true });
-
-      // Store tasks for this tag
-      await projectRef.collection('tags').doc(tagName).set({
-        tasks: tasks,
-        metadata: metadata || {},
-        syncedAt: new Date().toISOString(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-
-      // Calculate stats
-      const taskStats = {
-        total: tasks.length,
-        pending: tasks.filter(t => t.status === 'pending').length,
-        inProgress: tasks.filter(t => t.status === 'in-progress').length,
-        done: tasks.filter(t => t.status === 'done').length,
-        blocked: tasks.filter(t => t.status === 'blocked').length,
-      };
-
-      // Update project stats
-      await projectRef.update({
-        [`stats.${tagName}`]: taskStats,
-      });
-
-      console.log(`Synced ${tasks.length} tasks for user ${userId}, project ${projectName}, tag ${tagName}`);
-
-      res.status(200).json({
-        success: true,
-        message: 'Tasks synced successfully',
-        stats: taskStats,
-        syncedAt: new Date().toISOString(),
-      });
-
-    } catch (error) {
-      console.error('Error syncing tasks:', error);
-      res.status(500).json({ 
-        error: 'Failed to sync tasks',
-        details: error.message 
-      });
-    }
-  }
-);
-
-/**
- * Get tasks from Firestore
- * Called by web dashboard to display tasks
- */
-export const getTasks = onRequest(
-  { cors: true },
-  async (req, res) => {
-    if (req.method !== 'GET' && req.method !== 'POST') {
-      return res.status(405).json({ error: 'Method not allowed' });
-    }
-
-    try {
-      // Support both query params (GET) and body (POST)
-      const licenseKey = req.query.licenseKey || req.body?.licenseKey;
-      const projectId = req.query.projectId || req.body?.projectId || 'default';
-      const tag = req.query.tag || req.body?.tag || 'master';
-
-      if (!licenseKey) {
-        return res.status(400).json({ error: 'License key is required' });
-      }
-
-      // Validate license and get user
-      const licenseDoc = await db.collection('licenses').doc(licenseKey).get();
-      if (!licenseDoc.exists) {
-        return res.status(401).json({ error: 'Invalid license key' });
-      }
-
-      const licenseData = licenseDoc.data();
-      const userId = licenseData.userId;
-
-      // Get tasks from Firestore
-      const tagDoc = await db.collection('users').doc(userId)
-        .collection('projects').doc(projectId)
-        .collection('tags').doc(tag).get();
-
-      if (!tagDoc.exists) {
-        return res.status(200).json({
-          success: true,
-          tasks: [],
-          metadata: {},
-          syncedAt: null,
-        });
-      }
-
-      const tagData = tagDoc.data();
-
-      res.status(200).json({
-        success: true,
-        tasks: tagData.tasks || [],
-        metadata: tagData.metadata || {},
-        syncedAt: tagData.syncedAt,
-      });
-
-    } catch (error) {
-      console.error('Error getting tasks:', error);
-      res.status(500).json({ 
-        error: 'Failed to get tasks',
-        details: error.message 
-      });
-    }
-  }
-);
-
-/**
- * Get all projects for a user
- */
-export const getProjects = onRequest(
-  { cors: true },
-  async (req, res) => {
-    if (req.method !== 'GET' && req.method !== 'POST') {
-      return res.status(405).json({ error: 'Method not allowed' });
-    }
-
-    try {
-      const licenseKey = req.query.licenseKey || req.body?.licenseKey;
-
-      if (!licenseKey) {
-        return res.status(400).json({ error: 'License key is required' });
-      }
-
-      // Validate license and get user
-      const licenseDoc = await db.collection('licenses').doc(licenseKey).get();
-      if (!licenseDoc.exists) {
-        return res.status(401).json({ error: 'Invalid license key' });
-      }
-
-      const licenseData = licenseDoc.data();
-      const userId = licenseData.userId;
-
-      // Get all projects
-      const projectsSnapshot = await db.collection('users').doc(userId)
-        .collection('projects').get();
-
-      const projects = [];
-      for (const doc of projectsSnapshot.docs) {
-        const projectData = doc.data();
-        
-        // Get tags for this project
-        const tagsSnapshot = await doc.ref.collection('tags').get();
-        const tags = tagsSnapshot.docs.map(tagDoc => ({
-          name: tagDoc.id,
-          taskCount: tagDoc.data().tasks?.length || 0,
-          syncedAt: tagDoc.data().syncedAt,
-        }));
-
-        projects.push({
-          id: doc.id,
-          name: projectData.name || doc.id,
-          lastSynced: projectData.lastSynced,
-          stats: projectData.stats || {},
-          tags,
-        });
-      }
-
-      res.status(200).json({
-        success: true,
-        projects,
-      });
-
-    } catch (error) {
-      console.error('Error getting projects:', error);
-      res.status(500).json({ 
-        error: 'Failed to get projects',
-        details: error.message 
-      });
-    }
-  }
-);
-
-// ============================================
-// RATE LIMITING & SECURITY HELPERS
-// ============================================
-
-// Rate limit configuration
-const RATE_LIMITS = {
-  hostedKeysAccess: {
-    maxRequests: 10,      // Max key fetches per window
-    windowMs: 60 * 1000,  // 1 minute window
-  },
-  hostedKeyUsage: {
-    maxRequests: 100,     // Max AI operations per hour using hosted keys
-    windowMs: 60 * 60 * 1000,  // 1 hour window
-  },
-  dailyHostedUsage: {
-    maxRequests: 500,     // Max AI operations per day using hosted keys
-    windowMs: 24 * 60 * 60 * 1000,  // 24 hour window
-  }
-};
-
-/**
- * Check and update rate limit for a user
- * @param {string} userId - User ID
- * @param {string} limitType - Type of rate limit to check
- * @returns {Object} { allowed: boolean, remaining: number, resetAt: Date }
- */
-async function checkRateLimit(userId, limitType) {
-  const config = RATE_LIMITS[limitType];
-  if (!config) {
-    return { allowed: true, remaining: 999, resetAt: null };
-  }
-
-  const now = Date.now();
-  const windowStart = now - config.windowMs;
-  
-  const rateLimitRef = db.collection('rateLimits').doc(`${userId}_${limitType}`);
-  
-  try {
-    const doc = await rateLimitRef.get();
-    const data = doc.exists ? doc.data() : null;
-    
-    // If no data or window expired, reset
-    if (!data || data.windowStart < windowStart) {
-      await rateLimitRef.set({
-        userId,
-        limitType,
-        count: 1,
-        windowStart: now,
-        updatedAt: admin.firestore.Timestamp.now()
-      });
-      return { 
-        allowed: true, 
-        remaining: config.maxRequests - 1, 
-        resetAt: new Date(now + config.windowMs) 
-      };
-    }
-    
-    // Check if limit exceeded
-    if (data.count >= config.maxRequests) {
-      const resetAt = new Date(data.windowStart + config.windowMs);
-      return { 
-        allowed: false, 
-        remaining: 0, 
-        resetAt,
-        retryAfterMs: resetAt.getTime() - now
-      };
-    }
-    
-    // Increment count
-    await rateLimitRef.update({
-      count: admin.firestore.FieldValue.increment(1),
-      updatedAt: admin.firestore.Timestamp.now()
-    });
-    
-    return { 
-      allowed: true, 
-      remaining: config.maxRequests - data.count - 1, 
-      resetAt: new Date(data.windowStart + config.windowMs) 
-    };
-    
-  } catch (error) {
-    console.error('Rate limit check error:', error);
-    // On error, allow but log
-    return { allowed: true, remaining: 999, resetAt: null, error: true };
-  }
-}
-
-/**
- * Log security event for audit trail
- */
-async function logSecurityEvent(userId, eventType, details) {
-  try {
-    await db.collection('securityLogs').add({
-      userId,
-      eventType,
-      details,
-      timestamp: admin.firestore.Timestamp.now(),
-      ip: details.ip || 'unknown'
-    });
-  } catch (error) {
-    console.error('Failed to log security event:', error);
-  }
-}
-
-// ============================================
-// GET HOSTED API KEYS (PRO Plan Only)
-// Returns hosted API keys for PRO plan subscribers
-// WITH RATE LIMITING & SECURITY
-// ============================================
-
-export const getHostedApiKeys = onRequest(
-  {
-    cors: true,
-    secrets: [
-      hostedAnthropicKey,
-      hostedOpenaiKey,
-      hostedGoogleKey,
-      hostedPerplexityKey,
-      hostedDeepseekKey,
-      hostedXaiKey,
-      hostedOpenrouterKey,
-      hostedMistralKey,
-      hostedMoonshotKey,
-      hostedZhipuKey,
-      hostedOllamaKey
-    ],
-    maxInstances: 50
-  },
-  async (req, res) => {
-    if (req.method === 'OPTIONS') {
-      res.status(204).send('');
-      return;
-    }
-
-    if (req.method !== 'POST') {
-      res.status(405).json({ error: 'Method not allowed' });
-      return;
-    }
-
-    // Get client IP for logging
-    const clientIp = req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
-
-    try {
-      const { licenseKey } = req.body;
-
-      if (!licenseKey) {
-        res.status(400).json({ 
-          success: false, 
-          error: 'License key is required' 
-        });
-        return;
-      }
-
-      // Validate the license
-      const licenseDoc = await db.collection('licenses').doc(licenseKey).get();
-
-      if (!licenseDoc.exists) {
-        // Log suspicious activity - invalid license attempts
-        await logSecurityEvent('unknown', 'invalid_license_attempt', {
-          licenseKey: licenseKey.substring(0, 10) + '...',
-          ip: clientIp
-        });
-        res.status(404).json({ 
-          success: false, 
-          error: 'License key not found' 
-        });
-        return;
-      }
-
-      const license = licenseDoc.data();
-      const userId = license.userId;
-      
-      // Check if license is active
-      if (license.status !== 'active' && license.status !== 'grace_period') {
-        res.status(403).json({ 
-          success: false, 
-          error: 'License is not active' 
-        });
-        return;
-      }
-
-      // CRITICAL: Only PRO plan users get hosted API keys
-      if (license.plan !== 'pro') {
-        res.status(403).json({ 
-          success: false, 
-          error: 'Hosted API keys are only available for Pro plan subscribers',
-          upgrade: true,
-          currentPlan: license.plan
-        });
-        return;
-      }
-
-      // ===== RATE LIMITING =====
-      const rateCheck = await checkRateLimit(userId, 'hostedKeysAccess');
-      
-      if (!rateCheck.allowed) {
-        // Log rate limit hit
-        await logSecurityEvent(userId, 'rate_limit_exceeded', {
-          limitType: 'hostedKeysAccess',
-          ip: clientIp
-        });
-        
-        res.status(429).json({
-          success: false,
-          error: 'Rate limit exceeded. Too many requests.',
-          retryAfterMs: rateCheck.retryAfterMs,
-          resetAt: rateCheck.resetAt?.toISOString()
-        });
-        return;
-      }
-
-      // ===== CHECK FOR ABUSE PATTERNS =====
-      // Check if user has exceeded daily usage limits
-      const dailyCheck = await checkRateLimit(userId, 'dailyHostedUsage');
-      if (!dailyCheck.allowed) {
-        await logSecurityEvent(userId, 'daily_limit_exceeded', {
-          ip: clientIp
-        });
-        res.status(429).json({
-          success: false,
-          error: 'Daily hosted API usage limit exceeded. Resets at midnight UTC.',
-          resetAt: dailyCheck.resetAt?.toISOString()
-        });
-        return;
-      }
-
-      // Build the hosted API keys object
-      const hostedKeys = {};
-
-      try {
-        const anthropicValue = hostedAnthropicKey.value();
-        if (anthropicValue) hostedKeys.anthropic = anthropicValue;
-      } catch (e) { /* Key not configured */ }
-
-      try {
-        const openaiValue = hostedOpenaiKey.value();
-        if (openaiValue) hostedKeys.openai = openaiValue;
-      } catch (e) { /* Key not configured */ }
-
-      try {
-        const googleValue = hostedGoogleKey.value();
-        if (googleValue) hostedKeys.google = googleValue;
-      } catch (e) { /* Key not configured */ }
-
-      try {
-        const perplexityValue = hostedPerplexityKey.value();
-        if (perplexityValue) hostedKeys.perplexity = perplexityValue;
-      } catch (e) { /* Key not configured */ }
-
-      try {
-        const deepseekValue = hostedDeepseekKey.value();
-        if (deepseekValue) hostedKeys.deepseek = deepseekValue;
-      } catch (e) { /* Key not configured */ }
-
-      try {
-        const xaiValue = hostedXaiKey.value();
-        if (xaiValue) hostedKeys.xai = xaiValue;
-      } catch (e) { /* Key not configured */ }
-
-      try {
-        const openrouterValue = hostedOpenrouterKey.value();
-        if (openrouterValue) hostedKeys.openrouter = openrouterValue;
-      } catch (e) { /* Key not configured */ }
-
-      try {
-        const mistralValue = hostedMistralKey.value();
-        if (mistralValue) hostedKeys.mistral = mistralValue;
-      } catch (e) { /* Key not configured */ }
-
-      try {
-        const moonshotValue = hostedMoonshotKey.value();
-        if (moonshotValue) hostedKeys.moonshot = moonshotValue;
-      } catch (e) { /* Key not configured */ }
-
-      try {
-        const zhipuValue = hostedZhipuKey.value();
-        if (zhipuValue) hostedKeys.zhipu = zhipuValue;
-      } catch (e) { /* Key not configured */ }
-
-      try {
-        const ollamaValue = hostedOllamaKey.value();
-        if (ollamaValue) hostedKeys.ollama = ollamaValue;
-      } catch (e) { /* Key not configured */ }
-
-      // Log access for audit
-      console.log(`Hosted API keys accessed by user ${userId}, plan: ${license.plan}, providers: ${Object.keys(hostedKeys).join(', ')}`);
-
-      // Update license with access info
-      await db.collection('licenses').doc(licenseKey).update({
-        lastHostedKeysAccess: admin.firestore.Timestamp.now(),
-        hostedKeysAccessCount: admin.firestore.FieldValue.increment(1)
-      });
-
-      res.status(200).json({
-        success: true,
-        hostedKeys,
-        providers: Object.keys(hostedKeys),
-        plan: license.plan,
-        fetchedAt: new Date().toISOString(),
-        rateLimit: {
-          remaining: rateCheck.remaining,
-          resetAt: rateCheck.resetAt?.toISOString()
-        }
-      });
-
-    } catch (error) {
-      console.error('Error getting hosted API keys:', error);
-      res.status(500).json({ 
-        success: false,
-        error: 'Failed to get hosted API keys',
-        details: error.message 
-      });
-    }
-  }
-);
-
-// ============================================
-// TRACK HOSTED KEY USAGE
-// Called by CLI when using hosted keys for AI operations
-// ============================================
-
-export const trackHostedKeyUsage = onRequest(
-  {
-    cors: true,
-    maxInstances: 100
-  },
-  async (req, res) => {
-    if (req.method === 'OPTIONS') {
-      res.status(204).send('');
-      return;
-    }
-
-    if (req.method !== 'POST') {
-      res.status(405).json({ error: 'Method not allowed' });
-      return;
-    }
-
-    const clientIp = req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
-
-    try {
-      const { licenseKey, provider, operation, inputTokens, outputTokens } = req.body;
-
-      if (!licenseKey || !provider) {
-        res.status(400).json({ 
-          success: false, 
-          error: 'License key and provider are required' 
-        });
-        return;
-      }
-
-      // Validate license
-      const licenseDoc = await db.collection('licenses').doc(licenseKey).get();
-      if (!licenseDoc.exists) {
-        res.status(404).json({ success: false, error: 'Invalid license' });
-        return;
-      }
-
-      const license = licenseDoc.data();
-      const userId = license.userId;
-
-      // Verify PRO plan
-      if (license.plan !== 'pro') {
-        res.status(403).json({ 
-          success: false, 
-          error: 'Hosted keys require Pro plan' 
-        });
-        return;
-      }
-
-      // Check hourly rate limit
-      const hourlyCheck = await checkRateLimit(userId, 'hostedKeyUsage');
-      if (!hourlyCheck.allowed) {
-        await logSecurityEvent(userId, 'hourly_usage_limit', {
-          provider,
-          ip: clientIp
-        });
-        res.status(429).json({
-          success: false,
-          error: 'Hourly hosted API usage limit exceeded',
-          resetAt: hourlyCheck.resetAt?.toISOString()
-        });
-        return;
-      }
-
-      // Check daily rate limit
-      const dailyCheck = await checkRateLimit(userId, 'dailyHostedUsage');
-      if (!dailyCheck.allowed) {
-        res.status(429).json({
-          success: false,
-          error: 'Daily hosted API usage limit exceeded',
-          resetAt: dailyCheck.resetAt?.toISOString()
-        });
-        return;
-      }
-
-      const now = admin.firestore.Timestamp.now();
-
-      // Log the usage
-      await db.collection('users').doc(userId).collection('hostedKeyUsage').add({
-        provider,
-        operation: operation || 'unknown',
-        inputTokens: inputTokens || 0,
-        outputTokens: outputTokens || 0,
-        totalTokens: (inputTokens || 0) + (outputTokens || 0),
-        timestamp: now,
-        ip: clientIp
-      });
-
-      // Update user's hosted usage stats
-      await db.collection('users').doc(userId).set({
-        hostedKeyStats: {
-          totalOperations: admin.firestore.FieldValue.increment(1),
-          totalTokens: admin.firestore.FieldValue.increment((inputTokens || 0) + (outputTokens || 0)),
-          lastUsed: now,
-          [`providers.${provider}`]: admin.firestore.FieldValue.increment(1)
-        }
-      }, { merge: true });
-
-      // Update license subcollection for dashboard display
-      await db.collection('users').doc(userId).collection('license').doc('current').set({
-        hostedKeyStats: {
-          totalOperations: admin.firestore.FieldValue.increment(1),
-          lastUsed: now
-        }
-      }, { merge: true });
-
-      res.status(200).json({
-        success: true,
-        rateLimit: {
-          hourly: {
-            remaining: hourlyCheck.remaining,
-            resetAt: hourlyCheck.resetAt?.toISOString()
-          },
-          daily: {
-            remaining: dailyCheck.remaining,
-            resetAt: dailyCheck.resetAt?.toISOString()
-          }
-        }
-      });
-
-    } catch (error) {
-      console.error('Error tracking hosted key usage:', error);
-      res.status(500).json({ 
-        success: false,
-        error: 'Failed to track usage'
-      });
-    }
-  }
-);
-
-// ============================================
-// GET HOSTED KEY USAGE STATS
-// For dashboard display
-// ============================================
-
-export const getHostedKeyStats = onRequest(
-  {
-    cors: true,
-    maxInstances: 20
-  },
-  async (req, res) => {
-    if (req.method === 'OPTIONS') {
-      res.status(204).send('');
-      return;
-    }
-
-    if (req.method !== 'POST') {
-      res.status(405).json({ error: 'Method not allowed' });
-      return;
-    }
-
-    try {
-      const { userId } = req.body;
-
-      if (!userId) {
-        res.status(400).json({ error: 'userId is required' });
-        return;
-      }
-
-      // Get user data
-      const userDoc = await db.collection('users').doc(userId).get();
-      if (!userDoc.exists) {
-        res.status(404).json({ error: 'User not found' });
-        return;
-      }
-
-      const userData = userDoc.data();
-      
-      // Check if user is on PRO plan
-      if (userData.plan !== 'pro') {
-        res.status(200).json({
-          success: true,
-          available: false,
-          message: 'Hosted API keys are available on Pro plan'
-        });
-        return;
-      }
-
-      // Get recent usage (last 50 entries)
-      const usageSnapshot = await db.collection('users').doc(userId)
-        .collection('hostedKeyUsage')
-        .orderBy('timestamp', 'desc')
-        .limit(50)
-        .get();
-
-      const recentUsage = [];
-      usageSnapshot.forEach(doc => {
-        const data = doc.data();
-        recentUsage.push({
-          provider: data.provider,
-          operation: data.operation,
-          tokens: data.totalTokens,
-          timestamp: data.timestamp?.toDate()?.toISOString()
-        });
-      });
-
-      // Get current rate limits
-      const hourlyLimit = await checkRateLimit(userId, 'hostedKeyUsage');
-      const dailyLimit = await checkRateLimit(userId, 'dailyHostedUsage');
-
-      // Calculate provider breakdown
-      const providerBreakdown = {};
-      recentUsage.forEach(usage => {
-        providerBreakdown[usage.provider] = (providerBreakdown[usage.provider] || 0) + 1;
-      });
-
-      res.status(200).json({
-        success: true,
-        available: true,
-        stats: userData.hostedKeyStats || {},
-        recentUsage: recentUsage.slice(0, 10),
-        providerBreakdown,
-        rateLimits: {
-          hourly: {
-            limit: RATE_LIMITS.hostedKeyUsage.maxRequests,
-            remaining: hourlyLimit.remaining,
-            resetAt: hourlyLimit.resetAt?.toISOString()
-          },
-          daily: {
-            limit: RATE_LIMITS.dailyHostedUsage.maxRequests,
-            remaining: dailyLimit.remaining,
-            resetAt: dailyLimit.resetAt?.toISOString()
-          }
-        },
-        providers: ['anthropic', 'openai', 'google', 'perplexity', 'deepseek', 'xai', 'openrouter', 'mistral', 'moonshot', 'zhipu']
-      });
-
-    } catch (error) {
-      console.error('Error getting hosted key stats:', error);
-      res.status(500).json({ 
-        error: 'Failed to get stats',
-        details: error.message 
-      });
-    }
-  }
-);
-
-// Setup PRO License (for testing purposes)
-export const setupProLicense = onRequest(
-  { 
-    cors: true,
-    maxInstances: 10,
-  },
-  async (req, res) => {
-    try {
-      const { email, userId, setPassword } = req.body;
-
-      if (!email && !userId) {
-        return res.status(400).json({ 
-          error: 'Email or userId required',
-          message: 'Provide either email or userId in request body'
-        });
-      }
-
-      let targetUserId = userId;
-      let targetEmail = email;
-
-      // If email provided, find user
-      if (email && !userId) {
-        const usersSnapshot = await db.collection('users')
-          .where('email', '==', email)
-          .limit(1)
-          .get();
-
-        if (usersSnapshot.empty) {
-          return res.status(404).json({ 
-            error: 'User not found',
-            message: `No user found with email: ${email}`
-          });
-        }
-
-        targetUserId = usersSnapshot.docs[0].id;
-        targetEmail = email;
-      } else if (userId) {
-        // Get email from user document
-        const userDoc = await db.collection('users').doc(userId).get();
-        if (userDoc.exists()) {
-          targetEmail = userDoc.data().email;
-        }
-      }
-
-      // Set password if requested (for testing)
-      if (setPassword) {
-        try {
-          await admin.auth().updateUser(targetUserId, {
-            password: setPassword
-          });
-          console.log(`✅ Password updated for user: ${targetUserId}`);
-        } catch (error) {
-          console.log(`⚠️ Could not update password: ${error.message}`);
-          // Continue anyway - license setup is more important
-        }
-      }
-
-      // Update user document to PRO
-      await db.collection('users').doc(targetUserId).update({
-        plan: 'pro',
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-
-      // Create license document
-      const now = new Date();
-      const monthFromNow = new Date(now);
-      monthFromNow.setMonth(monthFromNow.getMonth() + 1);
-
-      const licenseKey = `tm_live_${uuidv4().replace(/-/g, '')}`;
-
-      // License data for user subcollection (used by web app)
-      const userLicenseData = {
-        hasLicense: true,
-        plan: 'pro',
-        planName: 'Pro',
-        planPrice: 199,
-        status: 'active',
-        tasksPerMonth: 1000,
-        tasksUsed: 0,
-        overageRate: 0.15,
-        licenseKey: licenseKey,
-        currentPeriodStart: admin.firestore.Timestamp.fromDate(now),
-        currentPeriodEnd: admin.firestore.Timestamp.fromDate(monthFromNow),
-        cancelAtPeriodEnd: false,
-        createdAt: admin.firestore.Timestamp.fromDate(now),
-        updatedAt: admin.firestore.Timestamp.fromDate(now),
-      };
-
-      // License data for global licenses collection (used by CLI)
-      const globalLicenseData = {
-        userId: targetUserId,
-        email: email || null,
-        plan: 'pro',
-        status: 'active',
-        expiresAt: admin.firestore.Timestamp.fromDate(monthFromNow),
-        gracePeriodEnd: null,
-        createdAt: admin.firestore.Timestamp.fromDate(now),
-        updatedAt: admin.firestore.Timestamp.fromDate(now),
-        lastValidated: admin.firestore.Timestamp.fromDate(now),
-      };
-
-      // Create both license documents:
-      // 1. User subcollection (for web app)
-      await db.collection('users')
-        .doc(targetUserId)
-        .collection('license')
-        .doc('current')
-        .set(userLicenseData, { merge: true });
-
-      // 2. Global licenses collection (for CLI validation)
-      await db.collection('licenses')
-        .doc(licenseKey)
-        .set(globalLicenseData, { merge: true });
-
-      console.log(`✅ PRO license set up for user: ${targetUserId}`);
-      console.log(`   Web app license: /users/${targetUserId}/license/current`);
-      console.log(`   CLI license: /licenses/${licenseKey}`);
-
-      res.status(200).json({
-        success: true,
-        message: 'PRO license setup complete',
-        userId: targetUserId,
-        email: targetEmail || 'N/A',
-        passwordUpdated: !!setPassword,
-        license: {
-          plan: 'Pro',
-          status: 'active',
-          tasksPerMonth: 1000,
-          licenseKey: licenseKey,
-          currentPeriodEnd: monthFromNow.toISOString()
-        },
-        cliLogin: setPassword ? {
-          message: 'You can now login with:',
-          command: `taskmaster login --email ${targetEmail} --password ${setPassword}`
-        } : null
-      });
-
-    } catch (error) {
-      console.error('Error setting up PRO license:', error);
-      res.status(500).json({ 
-        error: 'Failed to setup license',
-        details: error.message 
-      });
-    }
-  }
-);
-
-// Get User License (for CLI login flow)
-export const getUserLicense = onRequest(
-  { 
-    cors: true,
-    maxInstances: 10,
-  },
-  async (req, res) => {
-    try {
-      // Verify authentication
-      const authHeader = req.headers.authorization;
-      if (!authHeader?.startsWith('Bearer ')) {
-        return res.status(401).json({ 
-          success: false,
-          error: 'Authentication required' 
-        });
-      }
-
-      const idToken = authHeader.split('Bearer ')[1];
-      
-      // Verify the token
-      let decodedToken;
-      try {
-        decodedToken = await admin.auth().verifyIdToken(idToken);
-      } catch (error) {
-        return res.status(401).json({ 
-          success: false,
-          error: 'Invalid authentication token' 
-        });
-      }
-
-      const userId = req.body.userId || decodedToken.uid;
-
-      // Verify the user is requesting their own license
-      if (userId !== decodedToken.uid) {
-        return res.status(403).json({ 
-          success: false,
-          error: 'Cannot access another user\'s license' 
-        });
-      }
-
-      // Get license from user's subcollection
-      const licenseDoc = await db.collection('users')
-        .doc(userId)
-        .collection('license')
-        .doc('current')
-        .get();
-
-      if (!licenseDoc.exists) {
-        return res.status(404).json({ 
-          success: false,
-          error: 'No license found. Please subscribe to a plan.' 
-        });
-      }
-
-      const license = licenseDoc.data();
-
-      // Check if license is active
-      if (license.status !== 'active') {
-        return res.status(403).json({ 
-          success: false,
-          error: `License is ${license.status}. Please check your subscription.` 
-        });
-      }
-
-      res.status(200).json({
-        success: true,
-        licenseKey: license.licenseKey,
-        plan: license.plan,
-        planName: license.planName || 'Pro',
-        tasksPerMonth: license.tasksPerMonth || 1000,
-        status: license.status,
-        expiresAt: license.currentPeriodEnd?.toDate()?.toISOString(),
-        userId: userId
-      });
-
-    } catch (error) {
-      console.error('Error getting user license:', error);
-      res.status(500).json({ 
-        success: false,
-        error: 'Failed to get license',
         details: error.message 
       });
     }

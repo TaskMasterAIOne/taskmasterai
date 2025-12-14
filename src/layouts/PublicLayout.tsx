@@ -28,13 +28,13 @@ export default function PublicLayout() {
         <nav className="max-w-5xl mx-auto px-4">
           <div className="relative flex items-center justify-between h-14">
             {/* Logo */}
-            <Link to="/" className="flex items-center gap-2 group">
+            <Link to="/" className="inline-flex items-center gap-2 group">
               <img 
                 src={LOGO_URL} 
                 alt="TaskMaster AI" 
-                className="w-7 h-7 rounded-lg object-contain invert dark:invert-0"
+                className="w-7 h-7 rounded-lg object-contain invert dark:invert-0 flex-shrink-0"
               />
-              <span className="pixel-text text-sm mt-0.5">TASKMASTER AI</span>
+              <span className="pixel-text text-sm leading-none mt-0.5">TASKMASTER AI</span>
             </Link>
 
             {/* Desktop Navigation - Centered */}
@@ -86,7 +86,7 @@ export default function PublicLayout() {
 
             {/* Mobile menu button */}
             <button
-              className="md:hidden p-2 text-text-muted hover:text-text"
+              className="md:hidden w-8 h-8 flex items-center justify-center text-text-muted hover:text-text"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             >
               <FontAwesomeIcon icon={mobileMenuOpen ? faXmark : faBars} className="w-5 h-5" />
@@ -101,7 +101,7 @@ export default function PublicLayout() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="md:hidden bg-surface"
+            className="md:hidden bg-surface relative z-50"
           >
             <div className="px-4 py-4 space-y-2">
               {navLinks.map((link) => (
@@ -163,6 +163,14 @@ export default function PublicLayout() {
         )}
       </header>
 
+      {/* Mobile menu overlay - click outside to close */}
+      {mobileMenuOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-40"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Main content */}
       <main className="relative pt-20">
         <Outlet />
@@ -174,13 +182,13 @@ export default function PublicLayout() {
           <div className="max-w-5xl mx-auto px-4 py-12">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
               <div className="md:col-span-2">
-                <Link to="/" className="flex items-center gap-2 mb-4">
+                <Link to="/" className="inline-flex items-center gap-2 mb-4">
                   <img 
                     src={LOGO_URL} 
                     alt="TaskMaster AI" 
-                    className="w-7 h-7 rounded-lg object-contain invert dark:invert-0"
+                    className="w-7 h-7 rounded-lg object-contain invert dark:invert-0 flex-shrink-0"
                   />
-                  <span className="pixel-text text-sm mt-0.5">TASKMASTER AI</span>
+                  <span className="pixel-text text-sm leading-none">TASKMASTER AI</span>
                 </Link>
                 <p className="text-text-muted text-sm max-w-sm">
                   AI-powered task management for developers. Transform PRDs into executable tasks with intelligent breakdown and multi-model support.

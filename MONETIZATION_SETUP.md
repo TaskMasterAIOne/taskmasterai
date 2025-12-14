@@ -212,7 +212,7 @@ taskmaster deactivate
 ### "License Required" Error
 - Run `taskmaster license` to check current status
 - Run `taskmaster activate <key>` with your license key
-- Check if your subscription is active at https://taskmaster.one/app/billing
+- Check if your subscription is active at https://www.taskmaster.one/app/billing
 
 ### Webhook Not Working
 - Verify webhook URL is correct in Stripe Dashboard

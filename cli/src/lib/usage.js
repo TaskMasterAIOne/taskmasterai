@@ -240,7 +240,7 @@ export function checkUsageLimit(operationCount = 1) {
     limit,
     used,
     plan: license.plan,
-    reason: allowed ? null : `Monthly limit of ${limit} AI operations reached. Upgrade your plan at https://taskmaster.one/pricing`,
+    reason: allowed ? null : `Monthly limit of ${limit} AI operations reached. Upgrade your plan at https://www.taskmaster.one/pricing`,
   };
 }
 

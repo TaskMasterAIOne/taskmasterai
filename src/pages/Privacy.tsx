@@ -2,7 +2,7 @@ import { motion } from 'framer-motion'
 
 export default function Privacy() {
   return (
-    <div className="relative py-20 px-4">
+    <div className="relative py-12 sm:py-20 px-4">
       <div className="max-w-3xl mx-auto">
         <motion.div
           initial={{ opacity: 0 }}

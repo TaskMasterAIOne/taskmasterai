@@ -281,10 +281,10 @@ export default function Settings() {
   ] as const
 
   return (
-    <div className="p-5 lg:p-8 max-w-3xl mx-auto">
+    <div className="p-4 sm:p-5 lg:p-8 max-w-3xl mx-auto overflow-x-hidden">
       {/* Header */}
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, ease: 'easeOut' }} className="mb-8">
-        <h1 className="text-2xl font-bold mb-1">Settings</h1>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, ease: 'easeOut' }} className="mb-6 sm:mb-8">
+        <h1 className="text-xl sm:text-2xl font-bold mb-1">Settings</h1>
         <p className="text-sm text-text-muted">Manage your account and preferences</p>
       </motion.div>
 
@@ -304,10 +304,10 @@ export default function Settings() {
       )}
 
       {/* Profile Section */}
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1, duration: 0.4, ease: 'easeOut' }} className="mb-8">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1, duration: 0.4, ease: 'easeOut' }} className="mb-6 sm:mb-8">
         <h2 className="text-base font-semibold mb-4">Profile</h2>
-        <div className="card p-5">
-          <div className="flex items-start gap-4">
+        <div className="card p-4 sm:p-5">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
             {/* Profile Photo */}
             <div className="relative group">
               <div className="w-16 h-16 rounded-full bg-surface-highlight flex items-center justify-center flex-shrink-0 overflow-hidden">
@@ -339,12 +339,12 @@ export default function Settings() {
               />
             </div>
 
-            <div className="flex-1 space-y-3">
+            <div className="flex-1 space-y-3 w-full sm:w-auto text-center sm:text-left">
               {/* Editable Name */}
               <div>
                 <p className="text-xs text-text-subtle uppercase tracking-wide mb-1">Name</p>
                 {isEditingName ? (
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                     <input
                       type="text"
                       value={newDisplayName}
@@ -353,10 +353,11 @@ export default function Settings() {
                       placeholder="Enter your name"
                       autoFocus
                     />
+                    <div className="flex items-center gap-2">
                     <button
                       onClick={handleNameSave}
                       disabled={saving}
-                      className="btn-primary text-sm py-1.5 px-3"
+                        className="btn-primary text-sm py-1.5 px-3 flex-1 sm:flex-none"
                     >
                       {saving ? '...' : 'Save'}
                     </button>
@@ -365,13 +366,14 @@ export default function Settings() {
                         setIsEditingName(false)
                         setNewDisplayName(user?.displayName || '')
                       }}
-                      className="btn-ghost text-sm py-1.5 px-3"
+                        className="btn-ghost text-sm py-1.5 px-3 flex-1 sm:flex-none"
                     >
                       Cancel
                     </button>
+                    </div>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center sm:justify-start gap-2">
                     <p className="text-sm font-medium">{user?.displayName || 'Not set'}</p>
                     <button
                       onClick={() => {
@@ -386,12 +388,12 @@ export default function Settings() {
                 )}
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center justify-center sm:justify-start gap-2">
                 <FontAwesomeIcon icon={faEnvelope} className="w-3.5 h-3.5 text-text-subtle" />
-                <p className="text-sm text-text-muted">{user?.email}</p>
+                <p className="text-sm text-text-muted truncate">{user?.email}</p>
               </div>
               {userData?.createdAt && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center sm:justify-start gap-2">
                   <FontAwesomeIcon icon={faCalendar} className="w-3.5 h-3.5 text-text-subtle" />
                   <p className="text-sm text-text-muted">
                     Joined {new Date(userData.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
@@ -404,22 +406,22 @@ export default function Settings() {
       </motion.div>
 
       {/* Appearance Section */}
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15, duration: 0.4, ease: 'easeOut' }} className="mb-8">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15, duration: 0.4, ease: 'easeOut' }} className="mb-6 sm:mb-8">
         <h2 className="text-base font-semibold mb-4">Appearance</h2>
-        <div className="card p-5">
-          <div className="flex items-start gap-4 mb-4">
-            <FontAwesomeIcon icon={faPalette} className="w-5 h-5 text-text-muted mt-0.5" />
+        <div className="card p-4 sm:p-5">
+          <div className="flex items-start gap-3 sm:gap-4 mb-4">
+            <FontAwesomeIcon icon={faPalette} className="w-5 h-5 text-text-muted mt-0.5 flex-shrink-0" />
             <div>
               <p className="text-base font-medium">Theme</p>
-              <p className="text-sm text-text-muted">Choose how TaskMaster AI looks to you</p>
+              <p className="text-xs sm:text-sm text-text-muted">Choose how TaskMaster AI looks to you</p>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
             {themeOptions.map((option) => (
               <button
                 key={option.id}
                 onClick={() => setMode(option.id)}
-                className={`flex flex-col items-center gap-2 p-4 rounded-lg border transition-all ${
+                className={`flex flex-col items-center gap-1.5 sm:gap-2 p-3 sm:p-4 rounded-lg border transition-all ${
                   mode === option.id
                     ? 'border-accent bg-accent/10'
                     : 'border-border bg-surface hover:border-border-light'
@@ -427,9 +429,9 @@ export default function Settings() {
               >
                 <FontAwesomeIcon 
                   icon={option.icon} 
-                  className={`w-5 h-5 ${mode === option.id ? 'text-accent' : 'text-text-muted'}`} 
+                  className={`w-4 sm:w-5 h-4 sm:h-5 ${mode === option.id ? 'text-accent' : 'text-text-muted'}`} 
                 />
-                <span className={`text-sm font-medium ${mode === option.id ? 'text-accent' : 'text-text-muted'}`}>
+                <span className={`text-xs sm:text-sm font-medium ${mode === option.id ? 'text-accent' : 'text-text-muted'}`}>
                   {option.label}
                 </span>
               </button>
@@ -439,25 +441,25 @@ export default function Settings() {
       </motion.div>
 
       {/* Billing & Subscription Section */}
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2, duration: 0.4, ease: 'easeOut' }} className="mb-8">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2, duration: 0.4, ease: 'easeOut' }} className="mb-6 sm:mb-8">
         <h2 className="text-base font-semibold mb-4">Billing & Subscription</h2>
         
         {/* License Key - Only show if user has a license */}
         {hasLicense && licenseInfo?.licenseKey && (
-          <div className="card p-5 mb-4">
+          <div className="card p-4 sm:p-5 mb-4">
             <div className="flex items-center gap-2 mb-4">
               <FontAwesomeIcon icon={faKey} className="w-4 h-4 text-accent" />
               <span className="text-sm font-medium">Your License Key</span>
             </div>
             
             {/* License key display */}
-            <div className="flex items-center gap-3 mb-4">
-              <code className="flex-1 px-4 py-3 bg-background rounded-lg font-mono text-sm text-accent border border-theme-primary overflow-x-auto">
+            <div className="flex items-center gap-2 sm:gap-3 mb-4">
+              <code className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-background rounded-lg font-mono text-xs sm:text-sm text-accent border border-theme-primary overflow-x-auto min-w-0">
                 {licenseInfo.licenseKey}
               </code>
               <button
                 onClick={handleCopyLicense}
-                className="p-3 bg-surface-highlight rounded-lg border border-theme-primary hover:border-accent transition-colors"
+                className="p-2.5 sm:p-3 bg-surface-highlight rounded-lg border border-theme-primary hover:border-accent transition-colors flex-shrink-0"
                 title="Copy to clipboard"
               >
                 <FontAwesomeIcon 
@@ -490,13 +492,13 @@ export default function Settings() {
             </div>
 
             {/* CLI Instructions */}
-            <div className="p-4 bg-background rounded-lg border border-theme-primary">
+            <div className="p-3 sm:p-4 bg-background rounded-lg border border-theme-primary">
               <div className="flex items-center gap-2 mb-2">
                 <FontAwesomeIcon icon={faTerminal} className="w-4 h-4 text-text-muted" />
-                <span className="text-sm font-medium">Activate in CLI</span>
+                <span className="text-sm font-medium">Login via CLI</span>
               </div>
-              <code className="block px-3 py-2 bg-surface rounded-lg font-mono text-xs text-text-secondary border border-theme-primary">
-                taskmaster activate {licenseInfo.licenseKey}
+              <code className="block px-3 py-2 bg-surface rounded-lg font-mono text-xs text-text-secondary border border-theme-primary overflow-x-auto">
+                taskmaster login
               </code>
             </div>
 
@@ -524,15 +526,15 @@ export default function Settings() {
 
         {/* Usage Stats */}
         {hasLicense && licenseInfo?.tasksPerMonth && licenseInfo.tasksPerMonth > 0 && (
-          <div className="card p-5 mb-4">
+          <div className="card p-4 sm:p-5 mb-4">
             <p className="text-sm font-medium mb-3">Usage This Month</p>
             <div className="flex items-center justify-between mb-3">
               <div>
-                <p className="text-2xl font-bold">{licenseInfo.tasksUsed || 0}</p>
+                <p className="text-xl sm:text-2xl font-bold">{licenseInfo.tasksUsed || 0}</p>
                 <p className="text-xs text-text-muted">tasks used</p>
               </div>
               <div className="text-right">
-                <p className="text-2xl font-bold">{licenseInfo.tasksPerMonth.toLocaleString()}</p>
+                <p className="text-xl sm:text-2xl font-bold">{licenseInfo.tasksPerMonth.toLocaleString()}</p>
                 <p className="text-xs text-text-muted">included</p>
               </div>
             </div>
@@ -560,10 +562,10 @@ export default function Settings() {
         )}
 
         {/* Current Plan & Manage */}
-        <div className="card p-5 mb-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <FontAwesomeIcon icon={faCreditCard} className="w-5 h-5 text-text-muted" />
+        <div className="card p-4 sm:p-5 mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <FontAwesomeIcon icon={faCreditCard} className="w-5 h-5 text-text-muted flex-shrink-0" />
               {currentPlan || licenseInfo?.hasLicense ? (
                 <div>
                   <p className="text-base font-medium">{licenseInfo?.planName || currentPlan?.name} Plan</p>
@@ -602,7 +604,7 @@ export default function Settings() {
 
         {/* Plans Grid - Show if no current plan */}
         {!licenseInfo?.hasLicense && !currentPlan && (
-          <div className="grid md:grid-cols-3 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             {plans.map((plan) => {
               const isLoading = loadingPlan === plan.id
               return (
@@ -659,13 +661,13 @@ export default function Settings() {
         )}
 
         {/* Invoices */}
-        <div className="card p-5 mb-4">
-          <div className="flex items-center justify-between">
+        <div className="card p-4 sm:p-5 mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
             <div className="flex items-center gap-3">
-              <FontAwesomeIcon icon={faReceipt} className="w-5 h-5 text-text-muted" />
+              <FontAwesomeIcon icon={faReceipt} className="w-5 h-5 text-text-muted flex-shrink-0" />
               <div>
                 <p className="text-base font-medium">Invoices</p>
-                <p className="text-sm text-text-muted">
+                <p className="text-xs sm:text-sm text-text-muted">
                   {currentPlan || hasLicense ? 'View and download invoices' : 'No invoices yet'}
                 </p>
               </div>
@@ -673,7 +675,7 @@ export default function Settings() {
             {(currentPlan || hasLicense) && (
               <button
                 onClick={handleManageSubscription}
-                className="text-sm text-accent hover:text-accent-hover transition-colors"
+                className="text-sm text-accent hover:text-accent-hover transition-colors self-end sm:self-auto"
               >
                 View →
               </button>
@@ -682,15 +684,15 @@ export default function Settings() {
         </div>
 
         {/* Enterprise Contact */}
-        <div className="card flex flex-col sm:flex-row items-center justify-between gap-4 p-5">
+        <div className="card flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 sm:p-5">
           <div className="flex items-center gap-3">
-            <FontAwesomeIcon icon={faRocket} className="w-5 h-5 text-text-muted" />
+            <FontAwesomeIcon icon={faRocket} className="w-5 h-5 text-text-muted flex-shrink-0" />
             <div>
               <p className="text-base font-medium">Need more?</p>
-              <p className="text-sm text-text-muted">Contact us for custom enterprise pricing</p>
+              <p className="text-xs sm:text-sm text-text-muted">Contact us for custom enterprise pricing</p>
             </div>
           </div>
-          <button onClick={() => setShowContactModal(true)} className="btn-secondary">Contact Sales</button>
+          <button onClick={() => setShowContactModal(true)} className="btn-secondary w-full sm:w-auto">Contact Sales</button>
         </div>
       </motion.div>
 
@@ -699,13 +701,13 @@ export default function Settings() {
         <h2 className="text-base font-semibold mb-4">Account</h2>
         
         {/* Sign Out */}
-        <div className="card p-5 mb-4">
-          <div className="flex items-center justify-between">
+        <div className="card p-4 sm:p-5 mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <FontAwesomeIcon icon={faRightFromBracket} className="w-5 h-5 text-text-muted" />
+              <FontAwesomeIcon icon={faRightFromBracket} className="w-5 h-5 text-text-muted flex-shrink-0" />
               <div>
                 <p className="text-base font-medium">Sign Out</p>
-                <p className="text-sm text-text-muted">Sign out of your account on this device</p>
+                <p className="text-xs sm:text-sm text-text-muted">Sign out of your account on this device</p>
               </div>
             </div>
             <button 
@@ -713,7 +715,7 @@ export default function Settings() {
                 await logout()
                 navigate('/')
               }}
-              className="btn-secondary text-sm"
+              className="btn-secondary text-sm w-full sm:w-auto"
             >
               Sign Out
             </button>
@@ -721,15 +723,15 @@ export default function Settings() {
         </div>
 
         {/* Delete Account */}
-        <div className="card p-5">
-          <div className="flex items-center justify-between">
+        <div className="card p-4 sm:p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <p className="text-base font-medium text-status-error">Delete Account</p>
-              <p className="text-sm text-text-muted">Permanently delete your account and data</p>
+              <p className="text-xs sm:text-sm text-text-muted">Permanently delete your account and data</p>
             </div>
             <button 
               onClick={() => setShowDeleteModal(true)}
-              className="text-sm px-3 py-1.5 rounded-lg border border-status-error text-status-error hover:bg-status-error/10 transition-colors"
+              className="text-sm px-3 py-1.5 rounded-lg border border-status-error text-status-error hover:bg-status-error/10 transition-colors w-full sm:w-auto"
             >
               Delete
             </button>
@@ -933,8 +935,8 @@ export default function Settings() {
                       }}
                       className="space-y-3"
                     >
-                      {/* Name & Email - 2 columns */}
-                      <div className="grid grid-cols-2 gap-3">
+                      {/* Name & Email - Stacked on mobile, 2 columns on sm+ */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                           <label className="block text-sm font-medium text-text-secondary mb-1">
                             Name *

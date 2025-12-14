@@ -14,6 +14,7 @@ import Signup from './pages/Signup'
 import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
 import CliLogin from './pages/CliLogin'
+import NotFound from './pages/NotFound'
 
 // Protected Pages
 import Dashboard from './pages/app/Dashboard'
@@ -115,8 +116,8 @@ export default function App() {
         <Route path="settings" element={<Settings />} />
       </Route>
 
-      {/* Catch all */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      {/* 404 Not Found */}
+      <Route path="*" element={<NotFound />} />
     </Routes>
   )
 }

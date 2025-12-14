@@ -1,0 +1,28 @@
+# TaskMaster AI - robots.txt
+# https://www.taskmaster.one
+
+User-agent: *
+Allow: /
+
+# Block app/dashboard pages (require authentication)
+Disallow: /app/
+Disallow: /app
+
+# Block authentication pages
+Disallow: /signin
+Disallow: /signup
+Disallow: /cli-login
+
+# Legacy routes (no longer exist) - blocked for safety
+Disallow: /login
+Disallow: /dashboard
+Disallow: /leaderboard
+Disallow: /notes
+Disallow: /folders
+Disallow: /friends
+Disallow: /community
+Disallow: /calendar
+Disallow: /ai
+
+# Sitemap location
+Sitemap: https://www.taskmaster.one/sitemap.xml

@@ -131,9 +131,9 @@ export default function Pricing() {
   }
 
   return (
-    <div className="relative py-20 px-4">
+    <div className="relative py-12 sm:py-20 px-4">
       {/* Header */}
-      <div className="max-w-5xl mx-auto text-center mb-14">
+      <div className="max-w-5xl mx-auto text-center mb-10 sm:mb-14">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -172,7 +172,7 @@ export default function Pricing() {
 
       {/* Pricing cards */}
       <div className="max-w-5xl mx-auto">
-        <div className="grid md:grid-cols-3 gap-5 max-w-4xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-4xl mx-auto">
           {tiers.map((tier, index) => {
             const isCurrentPlan = userData?.plan === tier.id
             const isLoading = loadingPlan === tier.id
@@ -244,8 +244,8 @@ export default function Pricing() {
       </div>
 
       {/* FAQs */}
-      <div className="max-w-2xl mx-auto mt-20">
-        <h2 className="text-2xl font-bold text-center mb-10 shimmer-heading">
+      <div className="max-w-2xl mx-auto mt-12 sm:mt-20">
+        <h2 className="text-xl sm:text-2xl font-bold text-center mb-8 sm:mb-10 shimmer-heading">
           Frequently Asked Questions
         </h2>
         <div className="space-y-4">

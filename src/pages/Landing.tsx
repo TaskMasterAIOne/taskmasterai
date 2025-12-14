@@ -291,7 +291,7 @@ export default function Landing() {
       </section>
 
       {/* Providers Section - Infinite Carousel */}
-      <section className="py-12 bg-surface/30">
+      <section className="py-8 sm:py-12 bg-surface/30 overflow-hidden">
         <div className="max-w-2xl mx-auto px-4">
           <p className="text-center text-text-subtle text-sm mb-8">
             Works with your favorite AI providers
@@ -337,7 +337,7 @@ export default function Landing() {
       </section>
 
       {/* Features Grid */}
-      <section className="py-20 px-4">
+      <section className="py-12 sm:py-20 px-4">
         <div className="max-w-5xl mx-auto">
           <motion.div
             initial={{ opacity: 0 }}
@@ -377,7 +377,7 @@ export default function Landing() {
       </section>
 
       {/* How It Works */}
-      <section className="py-20 px-4 bg-surface/30">
+      <section className="py-12 sm:py-20 px-4 bg-surface/30">
         <div className="max-w-5xl mx-auto">
           <motion.div
             initial={{ opacity: 0 }}
@@ -397,7 +397,7 @@ export default function Landing() {
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true }}
-            className="grid md:grid-cols-2 lg:grid-cols-4 gap-8"
+            className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-8"
           >
             {steps.map((step) => (
               <motion.div
@@ -405,7 +405,7 @@ export default function Landing() {
                 variants={itemVariants}
                 className="relative"
               >
-                <div className="text-5xl font-bold text-border mb-4">{step.step}</div>
+                <div className="text-4xl sm:text-5xl font-bold text-border mb-3 sm:mb-4">{step.step}</div>
                 <h3 className="text-base font-semibold mb-2">{step.title}</h3>
                 <p className="text-sm text-text-muted">{step.description}</p>
               </motion.div>
@@ -415,7 +415,7 @@ export default function Landing() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 px-4">
+      <section className="py-12 sm:py-20 px-4">
         <div className="max-w-2xl mx-auto">
           <motion.div
             initial={{ opacity: 0 }}
@@ -430,10 +430,10 @@ export default function Landing() {
                 alt="TaskMaster AI" 
                 className="w-16 h-16 rounded-xl object-contain mx-auto mb-5 invert dark:invert-0"
               />
-              <h2 className="text-2xl md:text-3xl font-bold mb-4 shimmer-heading">
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-bold mb-4 shimmer-heading">
                 Ready to supercharge your development?
               </h2>
-              <p className="text-text-muted text-base mb-8 max-w-md mx-auto text-center">
+              <p className="text-text-muted text-sm sm:text-base mb-6 sm:mb-8 max-w-md mx-auto text-center">
                 Join developers using TaskMaster AI to break down complex projects and ship faster.
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">

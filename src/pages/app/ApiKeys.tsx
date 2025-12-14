@@ -373,9 +373,9 @@ export default function ApiKeys() {
                 </p>
 
                 {/* Available Providers */}
-                <div className="mb-4">
+                <div className="mb-4 overflow-x-auto">
                   <p className="text-xs font-medium text-text-subtle uppercase tracking-wide mb-2">Available Providers</p>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 min-w-0">
                     {HOSTED_PROVIDERS.map((provider) => (
                       <span key={provider} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface text-sm">
                         <span className="w-4 h-4 flex items-center justify-center">
@@ -394,7 +394,7 @@ export default function ApiKeys() {
                     Loading usage stats...
                   </div>
                 ) : hostedStats?.stats ? (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 gap-3">
                     <div className="p-3 rounded-lg bg-surface">
                       <div className="flex items-center gap-1.5 text-xs text-text-muted mb-1">
                         <FontAwesomeIcon icon={faChartLine} className="w-3 h-3" />
@@ -495,16 +495,16 @@ export default function ApiKeys() {
           const isAdding = addingKey === provider.id
 
           return (
-            <div key={provider.id} className="card p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-4 flex-1 min-w-0">
+            <div key={provider.id} className="card p-4 sm:p-5">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
                   {/* Provider Logo */}
                   <div className="w-10 h-10 rounded-lg bg-surface-highlight flex items-center justify-center flex-shrink-0 text-text-secondary">
                     {ProviderLogos[provider.id]}
                   </div>
                   
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center flex-wrap gap-2 mb-1">
                       <h3 className="text-base font-medium">{provider.name}</h3>
                       {existingKey && (
                         <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-status-success/10 text-status-success text-xs font-medium">
@@ -516,10 +516,10 @@ export default function ApiKeys() {
                     <p className="text-sm text-text-muted">{provider.description}</p>
 
                   {existingKey && !isAdding && (
-                    <div className="flex items-center gap-2 mt-3">
-                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface font-mono text-sm">
-                        <FontAwesomeIcon icon={faKey} className="w-3.5 h-3.5 text-text-subtle" />
-                        {showKey === provider.id ? existingKey.maskedKey : '••••••••••••'}
+                    <div className="flex items-center gap-2 mt-3 flex-wrap">
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface font-mono text-sm overflow-hidden">
+                        <FontAwesomeIcon icon={faKey} className="w-3.5 h-3.5 text-text-subtle flex-shrink-0" />
+                        <span className="truncate">{showKey === provider.id ? existingKey.maskedKey : '••••••••••••'}</span>
                       </div>
                       <button onClick={() => setShowKey(showKey === provider.id ? null : provider.id)} className="p-1.5 text-text-subtle hover:text-text">
                         <FontAwesomeIcon icon={showKey === provider.id ? faEyeSlash : faEye} className="w-4 h-4" />
@@ -530,7 +530,7 @@ export default function ApiKeys() {
                   {isAdding && (
                     <form 
                       onSubmit={(e) => { e.preventDefault(); handleAddKey(provider.id) }}
-                      className="flex items-center gap-2 mt-3"
+                      className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mt-3"
                     >
                       <input
                         type="password"
@@ -541,18 +541,20 @@ export default function ApiKeys() {
                         autoComplete="off"
                         autoFocus
                       />
-                      <button type="submit" disabled={!newKeyValue.trim()} className="btn-primary py-2 px-3">
+                      <div className="flex items-center gap-2">
+                        <button type="submit" disabled={!newKeyValue.trim()} className="btn-primary py-2 px-3 flex-1 sm:flex-none">
                         <FontAwesomeIcon icon={faCheck} className="w-4 h-4" />
                       </button>
-                      <button type="button" onClick={() => { setAddingKey(null); setNewKeyValue('') }} className="btn-ghost py-2 px-3">
+                        <button type="button" onClick={() => { setAddingKey(null); setNewKeyValue('') }} className="btn-ghost py-2 px-3 flex-1 sm:flex-none">
                         <FontAwesomeIcon icon={faXmark} className="w-4 h-4" />
                       </button>
+                      </div>
                     </form>
                   )}
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-start">
                   <a href={provider.docsUrl} target="_blank" rel="noopener noreferrer" className="p-2 text-text-subtle hover:text-text" title="Get API key">
                     <FontAwesomeIcon icon={faArrowUpRightFromSquare} className="w-4 h-4" />
                   </a>

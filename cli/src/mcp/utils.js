@@ -6,6 +6,8 @@
 import fs from 'fs';
 import path from 'path';
 import { findProjectRoot } from '../lib/config.js';
+import { getLicenseStatus } from '../lib/license.js';
+import { enforceUsageLimit, incrementUsage } from '../lib/usage.js';
 
 /**
  * Get version information from package.json
@@ -228,6 +230,79 @@ export function withToolContext(commandName, executeFn) {
     };
     
     return executeFn(args, enhancedContext);
+  });
+}
+
+/**
+ * Higher-order function for AI-powered tool execution with license and usage validation
+ * Use this for tools that make AI calls
+ * @param {string} commandName - Command name for logging
+ * @param {string} operationType - Operation type for usage tracking (e.g., 'tasksParsed', 'tasksExpanded')
+ * @param {Function} executeFn - Function to execute
+ * @param {Object} options - Options
+ * @param {Function} options.countFn - Function to determine operation count (receives args, defaults to 1)
+ */
+export function withAIToolContext(commandName, operationType, executeFn, options = {}) {
+  const { countFn = () => 1 } = options;
+  
+  return withNormalizedProjectRoot(async (args, context) => {
+    const { log } = context;
+    
+    // Check license status
+    try {
+      const licenseStatus = await getLicenseStatus();
+      if (!licenseStatus.valid) {
+        log?.error?.(`License validation failed: ${licenseStatus.error}`);
+        return handleApiResult({
+          result: {
+            success: false,
+            error: {
+              message: licenseStatus.error || 'Invalid or expired license. Please activate a valid license key.',
+              code: 'LICENSE_INVALID',
+            },
+          },
+          log,
+        });
+      }
+    } catch (licenseError) {
+      log?.warn?.(`License check warning: ${licenseError.message}`);
+      // Continue - license check is best-effort for offline mode
+    }
+    
+    // Check usage limits
+    const operationCount = countFn(args);
+    try {
+      enforceUsageLimit(operationCount);
+    } catch (usageError) {
+      log?.error?.(`Usage limit error: ${usageError.message}`);
+      return handleApiResult({
+        result: {
+          success: false,
+          error: {
+            message: usageError.message,
+            code: 'USAGE_LIMIT_EXCEEDED',
+          },
+        },
+        log,
+      });
+    }
+    
+    const enhancedContext = {
+      log: context.log,
+      session: context.session,
+      projectRoot: args.projectRoot,
+    };
+    
+    // Execute the actual tool
+    const result = await executeFn(args, enhancedContext);
+    
+    // Track usage after successful operation (async, don't block)
+    if (!result.isError) {
+      incrementUsage(operationType, operationCount)
+        .catch(err => log?.warn?.(`Usage tracking failed: ${err.message}`));
+    }
+    
+    return result;
   });
 }
 

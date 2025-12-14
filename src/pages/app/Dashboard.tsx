@@ -289,14 +289,14 @@ export default function Dashboard() {
           ) : usageData?.stats ? (
             <div className="space-y-4">
               {/* Main usage card */}
-              <div className="card p-5">
-                <div className="flex items-center justify-between mb-4">
+              <div className="card p-4 sm:p-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
                   <div>
-                    <p className="text-3xl font-bold">{usageData.stats.tasksUsed}</p>
+                    <p className="text-2xl sm:text-3xl font-bold">{usageData.stats.tasksUsed}</p>
                     <p className="text-sm text-text-muted">tasks used this month</p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-xl font-semibold text-text-secondary">
+                  <div className="text-left sm:text-right">
+                    <p className="text-lg sm:text-xl font-semibold text-text-secondary">
                       {usageData.stats.tasksPerMonth > 0 
                         ? usageData.stats.tasksPerMonth.toLocaleString() 
                         : 'Unlimited'}
@@ -346,9 +346,9 @@ export default function Dashboard() {
 
               {/* Operation breakdown */}
               {usageData.operationBreakdown && Object.keys(usageData.operationBreakdown).length > 0 && (
-                <div className="card p-5">
+                <div className="card p-4 sm:p-5">
                   <h3 className="text-sm font-medium mb-3">Usage by Operation</h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
                     {Object.entries(usageData.operationBreakdown)
                       .filter(([op]) => op !== 'unknown')
                       .sort(([, a], [, b]) => b - a)
@@ -366,16 +366,16 @@ export default function Dashboard() {
 
               {/* Recent activity */}
               {usageData.recentActivity && usageData.recentActivity.length > 0 && (
-                <div className="card p-5">
+                <div className="card p-4 sm:p-5">
                   <h3 className="text-sm font-medium mb-3">Recent Activity</h3>
                   <div className="space-y-2">
                     {usageData.recentActivity.slice(0, 5).map((activity, index) => (
-                      <div key={index} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+                      <div key={index} className="flex flex-col sm:flex-row sm:items-center justify-between py-2 border-b border-border last:border-0 gap-1 sm:gap-3">
                         <div className="flex items-center gap-3">
-                          <FontAwesomeIcon icon={faTerminal} className="w-3 h-3 text-text-subtle" />
+                          <FontAwesomeIcon icon={faTerminal} className="w-3 h-3 text-text-subtle flex-shrink-0" />
                           <span className="text-sm">{formatOperationName(activity.operation)}</span>
                         </div>
-                        <div className="text-right">
+                        <div className="text-left sm:text-right ml-6 sm:ml-0">
                           <span className="text-xs text-text-muted">
                             {activity.timestamp 
                               ? new Date(activity.timestamp).toLocaleDateString('en-US', { 
@@ -422,7 +422,7 @@ export default function Dashboard() {
                   Subscribe to a plan to start using AI-powered task management
                 </p>
                 <Link 
-                  to="/app/billing" 
+                  to="/app/settings" 
                   className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent-hover transition-colors"
                 >
                   View Plans

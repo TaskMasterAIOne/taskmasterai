@@ -103,8 +103,61 @@ function TaskRow({ task, allTasks, expanded, onToggle }: { task: Task; allTasks:
 
   return (
     <>
+      {/* Mobile view */}
       <div
-        className={`grid grid-cols-[60px_140px_50px_1fr_100px] gap-2 py-3 px-4 border-b border-theme-primary hover:bg-surface-highlight/50 transition-colors cursor-pointer ${isReady ? 'bg-accent/5' : ''}`}
+        className={`md:hidden p-4 border-b border-theme-primary hover:bg-surface-highlight/50 transition-colors cursor-pointer ${isReady ? 'bg-accent/5' : ''}`}
+        onClick={onToggle}
+      >
+        <div className="flex items-start justify-between gap-3 mb-2">
+          <div className="flex items-center gap-2 min-w-0">
+            {hasSubtasks && (
+              <FontAwesomeIcon 
+                icon={expanded ? faChevronDown : faChevronRight} 
+                className="text-text-muted text-xs w-3 flex-shrink-0"
+              />
+            )}
+            <span className="text-text-muted font-mono text-sm flex-shrink-0">#{task.id}</span>
+            <span className={`${priority.color} text-sm flex-shrink-0`} title={task.priority}>
+              {priority.label}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${status.bg} ${status.color}`}>
+              <FontAwesomeIcon icon={status.icon} className={`w-2.5 h-2.5 ${task.status === 'in-progress' ? 'animate-spin' : ''}`} />
+              {status.label}
+            </span>
+            {isReady && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-accent/20 text-accent font-medium">
+                Ready
+              </span>
+            )}
+          </div>
+        </div>
+        <p className="font-medium text-sm mb-2">{task.title}</p>
+        {task.dependencies && task.dependencies.length > 0 && (
+          <div className="flex items-center flex-wrap gap-1 text-text-muted text-xs">
+            <span className="text-text-subtle">Deps:</span>
+            {task.dependencies.map(d => {
+              const done = isDependencyDone(d)
+              return (
+                <span 
+                  key={d} 
+                  className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded font-mono ${
+                    done ? 'bg-status-success/20 text-status-success' : 'bg-surface-highlight text-text-muted'
+                  }`}
+                >
+                  {done && <span className="text-[10px]">✓</span>}
+                  {d}
+                </span>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Desktop view */}
+      <div
+        className={`hidden md:grid grid-cols-[60px_140px_50px_1fr_100px] gap-2 py-3 px-4 border-b border-theme-primary hover:bg-surface-highlight/50 transition-colors cursor-pointer ${isReady ? 'bg-accent/5' : ''}`}
         onClick={onToggle}
       >
         {/* ID */}
@@ -167,7 +220,7 @@ function TaskRow({ task, allTasks, expanded, onToggle }: { task: Task; allTasks:
         </div>
       </div>
       
-      {/* Subtasks */}
+      {/* Subtasks - Mobile */}
       <AnimatePresence>
         {expanded && hasSubtasks && task.subtasks!.map((subtask) => {
           const subStatus = statusConfig[subtask.status] || statusConfig['pending']
@@ -177,7 +230,32 @@ function TaskRow({ task, allTasks, expanded, onToggle }: { task: Task; allTasks:
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="grid grid-cols-[60px_140px_50px_1fr_100px] gap-2 py-2.5 px-4 pl-8 border-b border-theme-primary bg-surface/50"
+              className="md:hidden pl-8 pr-4 py-3 border-b border-theme-primary bg-surface/50"
+            >
+              <div className="flex items-start justify-between gap-2 mb-1">
+                <span className="text-text-muted font-mono text-xs">{task.id}.{subtask.id}</span>
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${subStatus.bg} ${subStatus.color}`}>
+                  <FontAwesomeIcon icon={subStatus.icon} className={`w-2.5 h-2.5 ${subtask.status === 'in-progress' ? 'animate-spin' : ''}`} />
+                  {subStatus.label}
+                </span>
+              </div>
+              <p className="text-sm text-text-muted">{subtask.title}</p>
+            </motion.div>
+          )
+        })}
+      </AnimatePresence>
+
+      {/* Subtasks - Desktop */}
+      <AnimatePresence>
+        {expanded && hasSubtasks && task.subtasks!.map((subtask) => {
+          const subStatus = statusConfig[subtask.status] || statusConfig['pending']
+          return (
+            <motion.div
+              key={`desktop-${task.id}.${subtask.id}`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="hidden md:grid grid-cols-[60px_140px_50px_1fr_100px] gap-2 py-2.5 px-4 pl-8 border-b border-theme-primary bg-surface/50"
             >
               <div className="flex items-center">
                 <span className="text-text-muted font-mono text-xs">{task.id}.{subtask.id}</span>
@@ -334,14 +412,14 @@ export default function Tasks() {
                 <span className="flex-shrink-0 w-6 h-6 bg-accent text-white rounded-full flex items-center justify-center text-sm font-medium">1</span>
                 <div>
                   <p className="font-medium">Install the CLI</p>
-                  <code className="text-sm text-text-muted block mt-1">npm install -g taskmaster-ai-cli</code>
+                  <code className="text-sm text-text-muted block mt-1">npm install -g @taskmasterai/cli</code>
                 </div>
               </div>
               <div className="flex gap-3">
                 <span className="flex-shrink-0 w-6 h-6 bg-accent text-white rounded-full flex items-center justify-center text-sm font-medium">2</span>
                 <div>
-                  <p className="font-medium">Activate your license</p>
-                  <code className="text-sm text-text-muted block mt-1">taskmaster activate &lt;your-license-key&gt;</code>
+                  <p className="font-medium">Login to TaskMaster AI</p>
+                  <code className="text-sm text-text-muted block mt-1">taskmaster login</code>
                 </div>
               </div>
               <div className="flex gap-3">
@@ -354,8 +432,8 @@ export default function Tasks() {
               <div className="flex gap-3">
                 <span className="flex-shrink-0 w-6 h-6 bg-accent text-white rounded-full flex items-center justify-center text-sm font-medium">4</span>
                 <div>
-                  <p className="font-medium">Parse your PRD to create tasks</p>
-                  <code className="text-sm text-text-muted block mt-1">taskmaster parse-prd your-prd.md</code>
+                  <p className="font-medium">Generate tasks from your PRD</p>
+                  <code className="text-sm text-text-muted block mt-1">taskmaster plan your-prd.md</code>
                 </div>
               </div>
             </div>
@@ -447,14 +525,14 @@ export default function Tasks() {
         className="mb-6"
       >
         <div className="card p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+            <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
               <div>
                 <p className="text-2xl font-bold">{stats.total}</p>
                 <p className="text-xs text-text-muted">Total</p>
               </div>
-              <div className="h-8 w-px bg-border" />
-              <div className="flex gap-4">
+              <div className="hidden sm:block h-8 w-px bg-border" />
+              <div className="flex gap-3 sm:gap-4 flex-wrap">
                 <div className="text-center" title="Tasks waiting for dependencies">
                   <p className="text-lg font-semibold text-text-muted">{stats.pending - stats.ready}</p>
                   <p className="text-xs text-text-muted">Waiting</p>
@@ -473,7 +551,7 @@ export default function Tasks() {
                 </div>
               </div>
             </div>
-            <div className="text-right">
+            <div className="text-left sm:text-right">
               <p className="text-2xl font-bold">{progress}%</p>
               <p className="text-xs text-text-muted">Complete</p>
             </div>
@@ -515,8 +593,8 @@ export default function Tasks() {
           </div>
         ) : (
           <div className="card overflow-hidden">
-            {/* Fixed header */}
-            <div className="bg-surface-highlight/50 border-b border-theme-primary">
+            {/* Fixed header - Desktop only */}
+            <div className="hidden md:block bg-surface-highlight/50 border-b border-theme-primary">
               <div className="grid grid-cols-[60px_140px_50px_1fr_100px] gap-2 py-3 px-4">
                 <span className="text-xs font-medium text-text-muted uppercase tracking-wider">ID</span>
                 <span className="text-xs font-medium text-text-muted uppercase tracking-wider">Status</span>
@@ -526,7 +604,7 @@ export default function Tasks() {
               </div>
             </div>
             {/* Scrollable body */}
-            <div className="max-h-[400px] overflow-y-auto">
+            <div className="max-h-[500px] md:max-h-[400px] overflow-y-auto">
               {tasks.map((task) => (
                 <TaskRow
                   key={task.id}

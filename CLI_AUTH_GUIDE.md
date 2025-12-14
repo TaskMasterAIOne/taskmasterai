@@ -81,7 +81,7 @@ tm plan prd.txt
 ### API Key Management
 
 **Plus Plan Users:**
-- Configure API keys in dashboard at https://taskmaster.one/app/api-keys
+- Configure API keys in dashboard at https://www.taskmaster.one/app/api-keys
 - Keys are synced to CLI on login
 - Secure vault encryption
 
@@ -149,14 +149,14 @@ taskmaster login
 ### "No license found" Error
 
 This means you don't have an active subscription:
-1. Go to https://taskmaster.one/pricing
+1. Go to https://www.taskmaster.one/pricing
 2. Subscribe to a plan
 3. Login again with `taskmaster login`
 
 ### Forgot Password
 
 Use the web app to reset:
-1. Go to https://taskmaster.one/signin
+1. Go to https://www.taskmaster.one/signin
 2. Click "Forgot Password"
 3. Follow reset instructions
 
@@ -177,7 +177,7 @@ The new system is more secure and convenient - no manual license key copying!
 ## 📞 Support
 
 Need help?
-- **Documentation**: https://taskmaster.one/docs
+- **Documentation**: https://www.taskmaster.one/docs
 - **Email**: taskmasteroneai@gmail.com
 - **Issues**: Report on GitHub
 

@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://taskmaster.one"><img src="https://firebasestorage.googleapis.com/v0/b/taskmaster-ai-e2302.firebasestorage.app/o/Screenshot%202025-12-13%20at%203.19.00%E2%80%AFPM.png?alt=media&token=ae78a619-1943-45a1-aa2b-1be8dc35dc7a" alt="TaskMaster AI" height="60"></a>
+  <a href="https://www.taskmaster.one"><img src="https://firebasestorage.googleapis.com/v0/b/taskmaster-ai-e2302.firebasestorage.app/o/Screenshot%202025-12-13%20at%203.19.00%E2%80%AFPM.png?alt=media&token=ae78a619-1943-45a1-aa2b-1be8dc35dc7a" alt="TaskMaster AI" height="60"></a>
 </p>
 
 <p align="center">
@@ -11,15 +11,15 @@ TaskMaster AI intelligently breaks down your product requirements into structure
 </p>
 
 <p align="center">
-  <a href="https://taskmaster.one" target="_blank">Website</a> |
-  <a href="https://taskmaster.one/docs" target="_blank">Docs</a> |
-  <a href="https://taskmaster.one/pricing" target="_blank">Pricing</a>
+  <a href="https://www.taskmaster.one" target="_blank">Website</a> |
+  <a href="https://www.taskmaster.one/docs" target="_blank">Docs</a> |
+  <a href="https://www.taskmaster.one/pricing" target="_blank">Pricing</a>
 </p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@taskmasterai/cli"><img src="https://img.shields.io/npm/v/@taskmasterai/cli?color=blue&label=npm" alt="npm version"></a>
   <a href="https://www.npmjs.com/package/@taskmasterai/cli"><img src="https://img.shields.io/npm/dt/@taskmasterai/cli?color=green" alt="NPM Downloads"></a>
-  <a href="https://taskmaster.one"><img src="https://img.shields.io/badge/license-Proprietary-blue.svg" alt="License"></a>
+  <a href="https://www.taskmaster.one"><img src="https://img.shields.io/badge/license-Proprietary-blue.svg" alt="License"></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%3E%3D18-brightgreen" alt="Node.js"></a>
 </p>
 
@@ -57,7 +57,7 @@ taskmaster login --google
 taskmaster login --email your@email.com
 ```
 
-> Don't have an account? Sign up at [taskmaster.one/signup](https://taskmaster.one/signup)
+> Don't have an account? Sign up at [taskmaster.one/signup](https://www.taskmaster.one/signup)
 
 **What happens on login:**
 - ✅ Your identity is verified
@@ -284,7 +284,7 @@ Add to your `.vscode/mcp.json`:
 
 Configure your API keys in the TaskMaster dashboard and they'll automatically sync:
 
-1. Go to [taskmaster.one/app/api-keys](https://taskmaster.one/app/api-keys)
+1. Go to [taskmaster.one/app/api-keys](https://www.taskmaster.one/app/api-keys)
 2. Add your API keys for the providers you want to use
 3. Run `taskmaster sync` to pull the keys to your CLI
 
@@ -339,7 +339,7 @@ export OLLAMA_BASE_URL="http://localhost:11434/api"
 | **Pro** | $199/month | 1,000 |
 | **Enterprise** | $599/month | 5,000 |
 
-Get your license at: [taskmaster.one/pricing](https://taskmaster.one/pricing)
+Get your license at: [taskmaster.one/pricing](https://www.taskmaster.one/pricing)
 
 ## 📁 Project Structure
 
@@ -436,15 +436,15 @@ Configure models via the dashboard or `taskmaster models` command.
 
 ## 📞 Support
 
-- **Documentation**: [taskmaster.one/docs](https://taskmaster.one/docs)
-- **Dashboard**: [taskmaster.one/app](https://taskmaster.one/app)
+- **Documentation**: [taskmaster.one/docs](https://www.taskmaster.one/docs)
+- **Dashboard**: [taskmaster.one/app](https://www.taskmaster.one/app)
 - **Email**: [taskmasteroneai@gmail.com](mailto:taskmasteroneai@gmail.com)
 
 ## 📄 License
 
 Proprietary software. Requires valid license.
 
-Get your license at: [taskmaster.one/pricing](https://taskmaster.one/pricing)
+Get your license at: [taskmaster.one/pricing](https://www.taskmaster.one/pricing)
 
 ---
 

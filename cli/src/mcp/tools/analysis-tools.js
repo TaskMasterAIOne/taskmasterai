@@ -6,7 +6,7 @@
 import { z } from 'zod';
 import fs from 'fs';
 import path from 'path';
-import { handleApiResult, withToolContext } from '../utils.js';
+import { handleApiResult, withToolContext, withAIToolContext } from '../utils.js';
 
 /**
  * Register analysis-related tools with the MCP server
@@ -19,7 +19,7 @@ export function registerAnalysisTools(server, options = {}) {
 
   // parse_prd - Parse PRD and generate tasks (always included)
   server.addTool({
-    name: 'plan',
+    name: 'parse_prd',
     description: 'Parse a PRD file and generate tasks',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
@@ -29,7 +29,7 @@ export function registerAnalysisTools(server, options = {}) {
       append: z.boolean().optional().describe('Append to existing tasks'),
       research: z.boolean().optional().describe('Use research model'),
     }),
-    execute: withToolContext('parse-prd', async (args, context) => {
+    execute: withAIToolContext('parse-prd', 'tasksParsed', async (args, context) => {
       const { getAllTasks, saveAllTasks, getCurrentTag } = await import('../../lib/tasks.js');
       const { generateTasksFromPRD } = await import('../../lib/ai.js');
       const { projectRoot, log } = context;
@@ -107,7 +107,7 @@ export function registerAnalysisTools(server, options = {}) {
 
   // expand_task - Expand task into subtasks (always included)
   server.addTool({
-    name: 'breakdown_task',
+    name: 'expand_task',
     description: 'Expand a task into subtasks using AI',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
@@ -117,7 +117,7 @@ export function registerAnalysisTools(server, options = {}) {
       force: z.boolean().optional().describe('Replace existing subtasks'),
       research: z.boolean().optional().describe('Use research model'),
     }),
-    execute: withToolContext('expand-task', async (args, context) => {
+    execute: withAIToolContext('expand-task', 'tasksExpanded', async (args, context) => {
       const { findTaskById, addSubtasks, getCurrentTag } = await import('../../lib/tasks.js');
       const { expandTask: aiExpandTask } = await import('../../lib/ai.js');
       const { projectRoot, log } = context;
@@ -234,15 +234,15 @@ export function registerAnalysisTools(server, options = {}) {
 
   // expand_all - Expand all pending tasks
   server.addTool({
-    name: 'breakdown_all',
-    description: 'Break down all pending tasks into smaller steps',
+    name: 'expand_all',
+    description: 'Expand all pending tasks without subtasks',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
       num: z.number().optional().describe('Number of subtasks per task'),
       force: z.boolean().optional().describe('Replace existing subtasks'),
       research: z.boolean().optional().describe('Use research model'),
     }),
-    execute: withToolContext('expand-all', async (args, context) => {
+    execute: withAIToolContext('expand-all', 'tasksExpanded', async (args, context) => {
       const { getAllTasks, addSubtasks, getCurrentTag } = await import('../../lib/tasks.js');
       const { expandTask: aiExpandTask } = await import('../../lib/ai.js');
       const { projectRoot, log } = context;
@@ -299,13 +299,13 @@ export function registerAnalysisTools(server, options = {}) {
 
   // analyze_project_complexity - Analyze task complexity
   server.addTool({
-    name: 'assess_complexity',
+    name: 'analyze_project_complexity',
     description: 'Analyze complexity of all tasks',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
       research: z.boolean().optional().describe('Use research model'),
     }),
-    execute: withToolContext('analyze-complexity', async (args, context) => {
+    execute: withAIToolContext('analyze-complexity', 'complexityAnalyses', async (args, context) => {
       const { getAllTasks, getCurrentTag } = await import('../../lib/tasks.js');
       const { analyzeComplexity } = await import('../../lib/ai.js');
       const { getProjectConfigDir } = await import('../../lib/config.js');
@@ -363,7 +363,7 @@ export function registerAnalysisTools(server, options = {}) {
 
   // complexity_report - View complexity report
   server.addTool({
-    name: 'get_report',
+    name: 'complexity_report',
     description: 'View the complexity analysis report',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
@@ -449,14 +449,14 @@ export function registerAnalysisTools(server, options = {}) {
 
   // research - AI-powered research
   server.addTool({
-    name: 'ask',
+    name: 'research',
     description: 'Perform AI-powered research',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
       query: z.string().describe('Research query'),
       saveTo: z.string().optional().describe('Task ID to save results to'),
     }),
-    execute: withToolContext('research', async (args, context) => {
+    execute: withAIToolContext('research', 'aiOperations', async (args, context) => {
       const { findTaskById, updateTask, getCurrentTag } = await import('../../lib/tasks.js');
       const { performResearch } = await import('../../lib/ai.js');
       const { projectRoot, log } = context;
@@ -502,48 +502,57 @@ export function registerAnalysisTools(server, options = {}) {
     }),
   });
 
-  // scope_up_task - Increase task scope/complexity with full AI regeneration
+  // scope_up_task - Increase task scope/complexity (matching official claude-task-master)
   server.addTool({
     name: 'scope_up_task',
-    description: 'Increase task complexity using AI. Regenerates task content and steps based on scope direction and strength.',
+    description: 'Increase the scope or complexity of a task by adding more subtasks or detail',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
       id: z.string().describe('Task ID to scope up'),
-      strength: z.enum(['light', 'regular', 'heavy']).optional().describe('Strength of scope adjustment (default: regular)'),
-      prompt: z.string().optional().describe('Custom prompt for specific scoping adjustments'),
-      research: z.boolean().optional().describe('Use research model for better results'),
+      additionalSubtasks: z.number().optional().describe('Number of additional subtasks to add'),
+      prompt: z.string().optional().describe('Additional context for scoping'),
+      research: z.boolean().optional().describe('Use research model'),
     }),
-    execute: withToolContext('scope-up-task', async (args, context) => {
-      const { getCurrentTag } = await import('../../lib/tasks.js');
-      const { getTasksFilePath } = await import('../../modules/utils.js');
-      const { scopeUp } = await import('../../modules/task-manager/scope.js');
+    execute: withAIToolContext('scope-up-task', 'tasksExpanded', async (args, context) => {
+      const { findTaskById, addSubtasks, getCurrentTag } = await import('../../lib/tasks.js');
+      const { expandTask: aiExpandTask } = await import('../../lib/ai.js');
       const { projectRoot, log } = context;
-      const { id, strength = 'regular', prompt, research } = args;
+      const { id, additionalSubtasks = 3, prompt, research } = args;
       
       try {
-        log.info(`Scoping up task ${id} with strength: ${strength}${research ? ' (using research)' : ''}`);
+        const task = findTaskById(id, projectRoot);
+        if (!task) {
+          return handleApiResult({
+            result: { success: false, error: { message: `Task ${id} not found` } },
+            log,
+            projectRoot,
+          });
+        }
         
-        const tasksPath = getTasksFilePath(projectRoot);
+        log.info(`Scoping up task ${id} with ${additionalSubtasks} additional subtasks`);
         
-        // Call the full AI-powered scope up function
-        const result = await scopeUp(tasksPath, id, {
-          strength,
-          prompt,
-          useResearch: research,
-          projectRoot,
-          outputFormat: 'json'
+        // Generate additional subtasks
+        const scopePrompt = prompt 
+          ? `Increase scope: ${prompt}`
+          : 'Add more detailed subtasks to increase the scope and complexity of this task';
+        
+        const newSubtasks = await aiExpandTask(task, {
+          numSubtasks: additionalSubtasks,
+          research,
+          prompt: scopePrompt,
         });
+        
+        // Append to existing subtasks
+        addSubtasks(id, newSubtasks, false, projectRoot);
         
         return handleApiResult({
           result: {
             success: true,
             data: {
-              taskId: result.taskId || id,
-              strength,
-              stepsAdded: result.stepsAdded || 0,
-              totalSteps: result.totalSteps || 0,
-              message: `Scoped up task ${id} with AI-powered regeneration (${strength} strength)`,
-              task: result.task,
+              taskId: id,
+              addedSubtasks: newSubtasks.length,
+              totalSubtasks: (task.subtasks?.length || 0) + newSubtasks.length,
+              message: `Scoped up task ${id} with ${newSubtasks.length} additional subtasks`,
             },
           },
           log,
@@ -561,48 +570,76 @@ export function registerAnalysisTools(server, options = {}) {
     }),
   });
 
-  // scope_down_task - Decrease task scope/complexity with full AI regeneration
+  // scope_down_task - Decrease task scope/complexity (matching official claude-task-master)
   server.addTool({
     name: 'scope_down_task',
-    description: 'Decrease task complexity using AI. Simplifies task content and reduces steps based on scope direction and strength.',
+    description: 'Decrease the scope or complexity of a task by removing or consolidating subtasks',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
       id: z.string().describe('Task ID to scope down'),
-      strength: z.enum(['light', 'regular', 'heavy']).optional().describe('Strength of scope adjustment (default: regular)'),
-      prompt: z.string().optional().describe('Custom prompt for specific scoping adjustments'),
-      research: z.boolean().optional().describe('Use research model for better results'),
+      targetSubtasks: z.number().optional().describe('Target number of subtasks'),
+      removePending: z.boolean().optional().describe('Only remove pending subtasks'),
     }),
     execute: withToolContext('scope-down-task', async (args, context) => {
-      const { getCurrentTag } = await import('../../lib/tasks.js');
-      const { getTasksFilePath } = await import('../../modules/utils.js');
-      const { scopeDown } = await import('../../modules/task-manager/scope.js');
+      const { findTaskById, getAllTasks, saveAllTasks, getCurrentTag } = await import('../../lib/tasks.js');
       const { projectRoot, log } = context;
-      const { id, strength = 'regular', prompt, research } = args;
+      const { id, targetSubtasks = 3, removePending = true } = args;
       
       try {
-        log.info(`Scoping down task ${id} with strength: ${strength}${research ? ' (using research)' : ''}`);
+        const tasks = getAllTasks(projectRoot);
+        const taskIndex = tasks.findIndex(t => String(t.id) === String(id));
         
-        const tasksPath = getTasksFilePath(projectRoot);
+        if (taskIndex === -1) {
+          return handleApiResult({
+            result: { success: false, error: { message: `Task ${id} not found` } },
+            log,
+            projectRoot,
+          });
+        }
         
-        // Call the full AI-powered scope down function
-        const result = await scopeDown(tasksPath, id, {
-          strength,
-          prompt,
-          useResearch: research,
-          projectRoot,
-          outputFormat: 'json'
-        });
+        const task = tasks[taskIndex];
+        if (!task.subtasks || task.subtasks.length === 0) {
+          return handleApiResult({
+            result: { success: false, error: { message: `Task ${id} has no subtasks to scope down` } },
+            log,
+            projectRoot,
+          });
+        }
+        
+        const originalCount = task.subtasks.length;
+        
+        log.info(`Scoping down task ${id} from ${originalCount} to ${targetSubtasks} subtasks`);
+        
+        if (removePending) {
+          // Keep done/in-progress subtasks, remove pending ones
+          const keepSubtasks = task.subtasks.filter(s => 
+            s.status === 'done' || s.status === 'in-progress'
+          );
+          const pendingSubtasks = task.subtasks.filter(s => s.status === 'pending');
+          
+          // Keep up to targetSubtasks pending ones
+          const pendingToKeep = pendingSubtasks.slice(0, Math.max(0, targetSubtasks - keepSubtasks.length));
+          
+          task.subtasks = [...keepSubtasks, ...pendingToKeep];
+        } else {
+          // Simple truncation to target
+          task.subtasks = task.subtasks.slice(0, targetSubtasks);
+        }
+        
+        // Re-number subtasks
+        task.subtasks = task.subtasks.map((s, i) => ({ ...s, id: i + 1 }));
+        
+        saveAllTasks(tasks, projectRoot);
         
         return handleApiResult({
           result: {
             success: true,
             data: {
-              taskId: result.taskId || id,
-              strength,
-              stepsRemoved: result.stepsRemoved || 0,
-              totalSteps: result.totalSteps || 0,
-              message: `Scoped down task ${id} with AI-powered regeneration (${strength} strength)`,
-              task: result.task,
+              taskId: id,
+              originalSubtasks: originalCount,
+              remainingSubtasks: task.subtasks.length,
+              removed: originalCount - task.subtasks.length,
+              message: `Scoped down task ${id} from ${originalCount} to ${task.subtasks.length} subtasks`,
             },
           },
           log,
@@ -622,7 +659,7 @@ export function registerAnalysisTools(server, options = {}) {
 
   // clear_subtasks - Clear subtasks
   server.addTool({
-    name: 'clear_steps',
+    name: 'clear_subtasks',
     description: 'Clear all subtasks from a task',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),

@@ -6,7 +6,7 @@
  * All rights reserved.
  * 
  * This software is proprietary and requires a valid license to use.
- * Get your license at: https://taskmaster.one/pricing
+ * Get your license at: https://www.taskmaster.one/pricing
  */
 
 // Force chalk to use colors

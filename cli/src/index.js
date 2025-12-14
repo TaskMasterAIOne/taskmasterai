@@ -57,7 +57,7 @@ export async function displayBanner(options = {}) {
 
   console.log(logo);
   console.log('');
-  console.log(chalk.dim('     ') + chalk.cyan.underline('https://taskmaster.one'));
+  console.log(chalk.dim('     ') + chalk.cyan.underline('https://www.taskmaster.one'));
   console.log('');
   
   if (showVersion) {
@@ -99,7 +99,7 @@ async function checkLicense(commandName) {
         boxen(
           chalk.red.bold('⚠️  License Required') + '\n\n' +
           chalk.white(status.error || 'A valid license is required to use TaskMaster AI.') + '\n\n' +
-          chalk.dim('Get your license at: ') + chalk.cyan.underline('https://taskmaster.one/pricing') + '\n' +
+          chalk.dim('Get your license at: ') + chalk.cyan.underline('https://www.taskmaster.one/pricing') + '\n' +
           chalk.dim('Activate with: ') + chalk.cyan('taskmaster activate <license-key>'),
           {
             padding: 1,
@@ -115,7 +115,7 @@ async function checkLicense(commandName) {
     // Show warning for grace period
     if (status.status === 'grace_period') {
       console.log(
-        chalk.yellow('⚠️  Your subscription payment is past due. Update your payment at https://taskmaster.one/billing')
+        chalk.yellow('⚠️  Your subscription payment is past due. Update your payment at https://www.taskmaster.one/billing')
       );
     }
 
@@ -133,7 +133,7 @@ async function checkLicense(commandName) {
       boxen(
         chalk.red.bold('License Validation Failed') + '\n\n' +
         chalk.white(error.message) + '\n\n' +
-        chalk.dim('Get your license at: ') + chalk.cyan.underline('https://taskmaster.one/pricing'),
+        chalk.dim('Get your license at: ') + chalk.cyan.underline('https://www.taskmaster.one/pricing'),
         {
           padding: 1,
           borderColor: 'red',
@@ -225,7 +225,7 @@ function createProgram() {
           }
         } else {
           output += '\n' + chalk.dim('💡 Upgrade to Pro to use hosted API keys (no API keys needed!)');
-          output += '\n' + chalk.dim('   https://taskmaster.one/pricing');
+          output += '\n' + chalk.dim('   https://www.taskmaster.one/pricing');
         }
 
         console.log(

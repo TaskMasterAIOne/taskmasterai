@@ -115,7 +115,7 @@ export function registerAuthCommands(program) {
             console.log(chalk.green('\n✓ License activated automatically!'));
           } else {
           console.log(chalk.yellow('\n⚠ No active license found'));
-          console.log(chalk.dim('  Subscribe at: ') + chalk.cyan('https://taskmaster.one/pricing'));
+          console.log(chalk.dim('  Subscribe at: ') + chalk.cyan('https://www.taskmaster.one/pricing'));
           }
 
           console.log(chalk.dim('\nYou\'re all set! Start using TaskMaster AI.\n'));
@@ -208,7 +208,7 @@ export function registerAuthCommands(program) {
         } else {
           console.log();
           console.log(chalk.yellow('⚠ No active license'));
-          console.log(chalk.dim('  Subscribe at: ') + chalk.cyan('https://taskmaster.one/pricing'));
+          console.log(chalk.dim('  Subscribe at: ') + chalk.cyan('https://www.taskmaster.one/pricing'));
         }
 
         console.log();

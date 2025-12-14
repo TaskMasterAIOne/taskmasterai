@@ -550,8 +550,8 @@ A: Yes! Configure different models for main, research, and fallback roles.
 **Q: What happens when I exceed my monthly limit?**
 A: You'll be charged the overage rate for your plan. You can also upgrade your plan.
 
-**Q: How do I transfer my license to another machine?**
-A: Run \`taskmaster deactivate\` on the old machine, then \`taskmaster activate\` on the new one.
+**Q: How do I use TaskMaster AI on another machine?**
+A: Run \`taskmaster logout\` on the old machine, then \`taskmaster login\` on the new one.
 
 **Q: Can I use TaskMaster AI offline?**
 A: No, AI operations require an internet connection. Non-AI commands work offline.

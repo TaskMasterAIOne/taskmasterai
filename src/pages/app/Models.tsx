@@ -165,10 +165,10 @@ export default function Models() {
   }
 
   return (
-    <div className="p-5 lg:p-8 max-w-3xl mx-auto">
+    <div className="p-4 sm:p-5 lg:p-8 max-w-3xl mx-auto overflow-x-hidden">
       {/* Header */}
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, ease: 'easeOut' }} className="mb-8">
-        <h1 className="text-2xl font-bold mb-1">Model Configuration</h1>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, ease: 'easeOut' }} className="mb-6 sm:mb-8">
+        <h1 className="text-xl sm:text-2xl font-bold mb-1">Model Configuration</h1>
         <p className="text-sm text-text-muted">Configure AI models for different operations</p>
       </motion.div>
 
@@ -188,14 +188,14 @@ export default function Models() {
       )}
 
       {/* Model roles */}
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1, duration: 0.4, ease: 'easeOut' }} className="space-y-5">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1, duration: 0.4, ease: 'easeOut' }} className="space-y-4 sm:space-y-5">
         {modelRoles.map((role) => (
-          <div key={role.id} className="card p-5">
-            <div className="flex items-start gap-4 mb-4">
-              <FontAwesomeIcon icon={role.icon} className="w-5 h-5 text-text-muted mt-0.5" />
-              <div className="flex-1">
+          <div key={role.id} className="card p-4 sm:p-5">
+            <div className="flex items-start gap-3 sm:gap-4 mb-4">
+              <FontAwesomeIcon icon={role.icon} className="w-5 h-5 text-text-muted mt-0.5 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
                 <h3 className="text-base font-medium">{role.label}</h3>
-                <p className="text-sm text-text-muted">{role.description}</p>
+                <p className="text-xs sm:text-sm text-text-muted">{role.description}</p>
               </div>
             </div>
 
@@ -203,7 +203,7 @@ export default function Models() {
               <select
                 value={config[role.id as keyof ModelConfig]}
                 onChange={(e) => setConfig((prev) => ({ ...prev, [role.id]: e.target.value }))}
-                className="input appearance-none cursor-pointer pr-10 text-sm"
+                className="input appearance-none cursor-pointer pr-10 text-xs sm:text-sm w-full"
               >
                 {Object.entries(modelOptions).map(([provider, models]) => (
                   <optgroup key={provider} label={provider.charAt(0).toUpperCase() + provider.slice(1)}>
@@ -235,16 +235,16 @@ export default function Models() {
       </motion.div>
 
       {/* CLI equivalent */}
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2, duration: 0.4, ease: 'easeOut' }} className="mt-10">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2, duration: 0.4, ease: 'easeOut' }} className="mt-8 sm:mt-10">
         <h2 className="text-base font-semibold mb-4">CLI Equivalent</h2>
         <div className="card-elevated overflow-hidden">
-          <div className="flex items-center gap-2 px-4 py-3 bg-surface">
+          <div className="flex items-center gap-2 px-3 sm:px-4 py-3 bg-surface">
             <div className="w-3 h-3 rounded-full bg-[#FF5F57]" />
             <div className="w-3 h-3 rounded-full bg-[#FEBC2E]" />
             <div className="w-3 h-3 rounded-full bg-[#28C840]" />
             <span className="text-xs text-text-subtle ml-2 font-mono">terminal</span>
           </div>
-          <pre className="p-4 font-mono text-sm overflow-x-auto bg-background text-text-muted">
+          <pre className="p-3 sm:p-4 font-mono text-xs sm:text-sm overflow-x-auto bg-background text-text-muted">
 {`$ taskmaster models --setup
 
 # Or set individual models:

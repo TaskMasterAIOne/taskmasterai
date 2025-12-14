@@ -168,101 +168,71 @@ export function registerConfigTools(server) {
     }),
   });
 
-  // rules - Manage rule profiles (full profile management, matching official claude-task-master)
+  // rules - Manage cursor/IDE rules (matching official claude-task-master)
   server.addTool({
     name: 'rules',
-    description: 'Add or remove rule profiles from the project. Supports Cursor, Windsurf, Roo, Cline, Claude, Codex, Trae, VSCode, Amp, Gemini, Kilo, Kiro, OpenCode, and Zed profiles.',
+    description: 'Get or generate cursor/IDE rules for the project',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
-      action: z.enum(['add', 'remove']).describe('Whether to add or remove rule profiles'),
-      profiles: z.array(z.string()).min(1).describe('List of rule profiles to add or remove (e.g., ["cursor", "roo"])'),
-      force: z.boolean().optional().describe('Force removal even if it would leave no profiles'),
+      generate: z.boolean().optional().describe('Generate rules from current project state'),
+      format: z.enum(['cursor', 'vscode', 'windsurf', 'all']).optional().describe('Output format'),
     }),
     execute: withToolContext('rules', async (args, context) => {
-      const { getCurrentTag } = await import('../../lib/tasks.js');
+      const { readProjectConfig, getProjectConfigDir } = await import('../../lib/config.js');
+      const { getCurrentTag, getAllTasks } = await import('../../lib/tasks.js');
       const { projectRoot, log } = context;
-      const { action, profiles, force } = args;
+      const { generate, format = 'cursor' } = args;
       
       try {
-        // Dynamically import rule-transformer to avoid circular dependencies
-        const {
-          isValidProfile,
-          getRulesProfile,
-          convertAllRulesToProfileRules,
-          removeProfileRules,
-          getInstalledProfiles,
-          wouldRemovalLeaveNoProfiles,
-          generateProfileSummary,
-          generateProfileRemovalSummary,
-        } = await import('../../utils/rule-transformer.js');
-        
-        const { RULE_PROFILES } = await import('../../constants/profiles.js');
-        
-        // Validate profiles
-        const invalidProfiles = profiles.filter(p => !isValidProfile(p));
-        if (invalidProfiles.length > 0) {
-          return handleApiResult({
-            result: {
-              success: false,
-              error: {
-                message: `Invalid profiles: ${invalidProfiles.join(', ')}. Valid profiles: ${RULE_PROFILES.join(', ')}`,
-              },
-            },
-            log,
-            projectRoot,
-          });
-        }
-        
-        const results = [];
-        
-        if (action === 'add') {
-          for (const profile of profiles) {
-            const profileConfig = getRulesProfile(profile);
-            const addResult = convertAllRulesToProfileRules(projectRoot, profileConfig);
-            results.push({
-              profile,
-              success: true,
-              ...addResult,
-              summary: generateProfileSummary(profile, addResult),
-            });
-          }
-        } else if (action === 'remove') {
-          // Check if removal would leave no profiles
-          if (!force && wouldRemovalLeaveNoProfiles(projectRoot, profiles)) {
-            return handleApiResult({
-              result: {
-                success: false,
-                error: {
-                  message: 'This would remove ALL rule profiles. Use force=true if you are certain.',
-                },
-              },
-              log,
-              projectRoot,
-            });
-          }
-          
-          for (const profile of profiles) {
-            const profileConfig = getRulesProfile(profile);
-            const removeResult = removeProfileRules(projectRoot, profileConfig);
-            results.push({
-              profile,
-              ...removeResult,
-              summary: generateProfileRemovalSummary(profile, removeResult),
-            });
-          }
-        }
-        
+        const config = readProjectConfig(projectRoot);
+        const tasks = getAllTasks(projectRoot);
         const currentTag = getCurrentTag(projectRoot);
+        
+        // Get current task status for rules
+        const stats = {
+          total: tasks.length,
+          pending: tasks.filter(t => t.status === 'pending').length,
+          inProgress: tasks.filter(t => t.status === 'in-progress').length,
+          done: tasks.filter(t => t.status === 'done').length,
+        };
+        
+        // Generate basic rules content
+        const rules = {
+          projectName: config.projectName,
+          currentTag,
+          stats,
+          models: {
+            main: config.models.main.modelId,
+            research: config.models.research.modelId,
+          },
+          format,
+        };
+        
+        if (generate) {
+          // Generate rules file content
+          const rulesContent = `# ${config.projectName} - TaskMaster AI Rules
+
+## Project Status
+- Current Tag: ${currentTag}
+- Tasks: ${stats.total} total (${stats.done} done, ${stats.inProgress} in progress, ${stats.pending} pending)
+
+## AI Models
+- Main: ${config.models.main.provider}/${config.models.main.modelId}
+- Research: ${config.models.research.provider}/${config.models.research.modelId}
+
+## Commands
+- List tasks: \`taskmaster list\`
+- Next task: \`taskmaster next\`
+- Set status: \`taskmaster set-status --id <id> --status <status>\`
+- Expand task: \`taskmaster expand --id <id>\`
+`;
+          rules.content = rulesContent;
+        }
         
         return handleApiResult({
           result: {
             success: true,
-            data: {
-              action,
-              profiles,
-              results,
-              installedProfiles: getInstalledProfiles(projectRoot),
-            },
+            data: rules,
           },
           log,
           projectRoot,
