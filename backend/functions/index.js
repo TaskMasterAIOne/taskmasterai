@@ -43,7 +43,9 @@ const PLAN_DETAILS = {
 };
 
 // Initialize Gemini AI for docs assistant
-const genAI = new GoogleGenerativeAI('AIzaSyCHz2AI4sM4VOixQ56Ia0c6AquNPA2frjo');
+// API key should be set via Firebase Functions config: firebase functions:config:set google.api_key="YOUR_KEY"
+const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || functions.config().google?.api_key || '';
+const genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
 
 // System prompt for the docs assistant
 const SYSTEM_PROMPT = `You are the official AI assistant for TaskMaster AI documentation. You have complete knowledge of TaskMaster AI and can help users with any questions about the product.

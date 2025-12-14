@@ -57,19 +57,19 @@ Each command will prompt you to enter the secret value.
 
 Based on your configuration, here are the secrets you need to set:
 
-| Provider | Environment Variable | Your Key (first 20 chars) |
+| Provider | Environment Variable | Example Format |
 |----------|---------------------|---------------------------|
-| Anthropic | HOSTED_ANTHROPIC_API_KEY | sk-ant-api03-Xi_hG... |
-| OpenAI | HOSTED_OPENAI_API_KEY | sk-proj-2ft0uWwzR... |
-| Google | HOSTED_GOOGLE_API_KEY | AIzaSyCHz2AI4sM4V... |
-| Perplexity | HOSTED_PERPLEXITY_API_KEY | pplx-txZAKF4OkeW... |
-| DeepSeek | HOSTED_DEEPSEEK_API_KEY | sk-60b797cd0564... |
-| xAI | HOSTED_XAI_API_KEY | xai-CiHTkSM89XN7... |
-| OpenRouter | HOSTED_OPENROUTER_API_KEY | sk-or-v1-5b2da7f... |
-| Mistral | HOSTED_MISTRAL_API_KEY | hwtQqDFA5axnHjS... |
-| Moonshot | HOSTED_MOONSHOT_API_KEY | sk-cYb6reUcNEdv... |
-| Zhipu | HOSTED_ZHIPU_API_KEY | cd884bad2d40427... |
-| Ollama | HOSTED_OLLAMA_API_KEY | affb8c1c99824c8... |
+| Anthropic | HOSTED_ANTHROPIC_API_KEY | sk-ant-api03-... |
+| OpenAI | HOSTED_OPENAI_API_KEY | sk-proj-... |
+| Google | HOSTED_GOOGLE_API_KEY | AIzaSy... |
+| Perplexity | HOSTED_PERPLEXITY_API_KEY | pplx-... |
+| DeepSeek | HOSTED_DEEPSEEK_API_KEY | sk-... |
+| xAI | HOSTED_XAI_API_KEY | xai-... |
+| OpenRouter | HOSTED_OPENROUTER_API_KEY | sk-or-v1-... |
+| Mistral | HOSTED_MISTRAL_API_KEY | (your key) |
+| Moonshot | HOSTED_MOONSHOT_API_KEY | sk-... |
+| Zhipu | HOSTED_ZHIPU_API_KEY | (your key) |
+| Ollama | HOSTED_OLLAMA_API_KEY | (your key) |
 
 ## Quick Setup Script
 

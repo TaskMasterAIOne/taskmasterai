@@ -11,7 +11,9 @@ import http from 'http';
 import { spawn } from 'child_process';
 
 // Firebase Auth REST API endpoints
-const FIREBASE_API_KEY = process.env.TASKMASTER_FIREBASE_API_KEY || 'AIzaSyCHz2AI4sM4VOixQ56Ia0c6AquNPA2frjo';
+// Note: Firebase web API keys are designed to be public and protected by security rules
+// However, we use environment variable for flexibility
+const FIREBASE_API_KEY = process.env.TASKMASTER_FIREBASE_API_KEY || 'AIzaSyDNWlikkR9ji9lstwOYlBoCDR2PiT2fb3Y';
 const FIREBASE_PROJECT_ID = 'taskmaster-ai-e2302';
 const AUTH_BASE_URL = `https://identitytoolkit.googleapis.com/v1/accounts`;
 const TOKEN_REFRESH_URL = `https://securetoken.googleapis.com/v1/token`;
