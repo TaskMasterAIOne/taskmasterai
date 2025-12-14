@@ -4032,7 +4032,6 @@ export default function Docs() {
         if (currentIndex < response.length) {
           // Add characters in chunks for smoother streaming
           const chunkSize = Math.ceil(Math.random() * 3) + 1 // 1-4 characters at a time
-          const chunk = response.slice(currentIndex, currentIndex + chunkSize)
           currentIndex += chunkSize
           
           setChatHistory(prev => 
