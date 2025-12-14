@@ -4567,7 +4567,7 @@ export default function Docs() {
                 onFocus={() => setIsInputFocused(true)}
                 onBlur={() => setIsInputFocused(false)}
                 placeholder="Ask a question..."
-                className="flex-1 bg-transparent text-text placeholder:text-text-muted outline-none min-w-0"
+                className="flex-1 bg-transparent text-text text-base placeholder:text-text-muted outline-none min-w-0"
                 disabled={isAsking}
                 data-gramm="true"
                 data-gramm_editor="true"
@@ -4710,7 +4710,7 @@ export default function Docs() {
                       value={question}
                       onChange={(e) => setQuestion(e.target.value)}
                       placeholder="Ask a question..."
-                      className="flex-1 bg-transparent text-text text-sm placeholder:text-text-muted outline-none min-w-0"
+                      className="flex-1 bg-transparent text-text text-base placeholder:text-text-muted outline-none min-w-0"
                       disabled={isAsking}
                       data-gramm="true"
                       data-gramm_editor="true"

@@ -349,7 +349,7 @@ export default function Settings() {
                       type="text"
                       value={newDisplayName}
                       onChange={(e) => setNewDisplayName(e.target.value)}
-                      className="input text-sm py-1.5 flex-1"
+                      className="input py-1.5 flex-1"
                       placeholder="Enter your name"
                       autoFocus
                     />

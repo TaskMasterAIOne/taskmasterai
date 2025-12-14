@@ -537,7 +537,7 @@ export default function ApiKeys() {
                         value={newKeyValue}
                         onChange={(e) => setNewKeyValue(e.target.value)}
                         placeholder={`Enter ${provider.name} API key`}
-                        className="input flex-1 text-sm"
+                        className="input flex-1"
                         autoComplete="off"
                         autoFocus
                       />
