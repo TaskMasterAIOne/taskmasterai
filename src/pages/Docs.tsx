@@ -1560,7 +1560,7 @@ taskmaster sync
           </div>
           <div className="card p-4">
             <code className="text-sm text-accent font-mono">taskmaster models</code>
-            <p className="text-sm text-text-muted mt-1">Display current AI model configuration (main, research, fallback) and API key status.</p>
+            <p className="text-sm text-text-muted mt-1">Display current AI model configuration (main, ask, fallback) and API key status.</p>
           </div>
           <div className="card p-4">
             <code className="text-sm text-accent font-mono">taskmaster models --set-main &lt;model&gt;</code>
@@ -3525,8 +3525,8 @@ const docKeywords: Record<string, string[]> = {
   'faq': ['troubleshoot', 'error', 'help', 'support', 'common', 'questions', 'problem', 'fix'],
   'contribute': ['feedback', 'support', 'contact', 'email', 'bug', 'feature request', 'community'],
   'advanced-usage': ['rules', 'context', 'mdc', 'cursor rules', 'prompts', 'workflow', 'best practices'],
-  'advanced-configuration': ['models', 'config', 'main model', 'research model', 'fallback', 'temperature', 'parameters'],
-  'advanced-tasks': ['dependencies', 'priority', 'subtasks', 'update', 'batch', 'move', 'organization'],
+  'advanced-configuration': ['models', 'config', 'main model', 'ask model', 'fallback', 'temperature', 'parameters'],
+  'advanced-tasks': ['dependencies', 'priority', 'steps', 'subtasks', 'update', 'batch', 'move', 'organization'],
   'mcp-tools': ['mcp', 'tools', 'core', 'standard', 'all', 'list', 'next', 'breakdown', 'plan', 'set_status', 'autopilot'],
   'cli-commands': ['taskmaster', 'init', 'plan', 'list', 'show', 'next', 'set-status', 'breakdown', 'new', 'edit', 'log', 'update', 'assess', 'report', 'link', 'unlink', 'contexts', 'context', 'switch', 'clone', 'ask', 'usage', 'models', 'sync', 'autopilot', 'move', 'add-step', 'generate', 'check-links', 'fix-links', 'remove-task', 'clear-steps', 'delete-context', 'rename-context'],
   'task-structure': ['id', 'title', 'description', 'status', 'dependencies', 'priority', 'details', 'steps', 'testStrategy', 'tasks.json'],
