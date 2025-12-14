@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, createContext, useContext } from 'react'
+import { useState, useRef, useEffect, createContext, useContext, useCallback } from 'react'
+import { ALL_DOCS_TEXT } from '../lib/docsText'
 import { motion, AnimatePresence } from 'framer-motion'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { 
@@ -13,7 +14,6 @@ import {
   faCubes,
   faKey,
   faQuestionCircle,
-  faHandshake,
   faBolt,
   faListCheck,
   faComments,
@@ -26,7 +26,10 @@ import {
   faTimes,
   faSpinner,
   faTrash,
-  faGripLinesVertical
+  faGripLinesVertical,
+  faRobot,
+  faEnvelope,
+  faClipboard
 } from '@fortawesome/free-solid-svg-icons'
 import { faDiscord } from '@fortawesome/free-brands-svg-icons'
 // Function to call the ask question endpoint
@@ -77,7 +80,7 @@ const navigation = [
       { id: 'api-keys', label: 'API Keys', icon: faKey },
       { id: 'license-usage', label: 'License & Usage', icon: faKey },
       { id: 'faq', label: 'FAQ', icon: faQuestionCircle },
-      { id: 'contribute', label: 'Contribute', icon: faHandshake },
+      { id: 'contribute', label: 'Feedback & Support', icon: faComments },
     ]
   },
   {
@@ -94,6 +97,13 @@ const navigation = [
       { id: 'mcp-tools', label: 'MCP Tools', icon: faCubes },
       { id: 'cli-commands', label: 'CLI Commands', icon: faTerminal },
       { id: 'task-structure', label: 'Task Structure', icon: faFileLines },
+    ]
+  },
+  {
+    title: 'TDD Workflow (Autopilot)',
+    items: [
+      { id: 'tdd-quick-start', label: 'Quick Start', icon: faRobot },
+      { id: 'agent-integration', label: 'AI Agent Integration', icon: faCubes },
     ]
   },
 ]
@@ -183,17 +193,18 @@ function CodeBlock({ code, filename, language = 'bash' }: { code: string; filena
 }
 
 // Tip/Info Box Component
-function TipBox({ children, type = 'tip' }: { children: React.ReactNode; type?: 'tip' | 'info' | 'warning' }) {
+function TipBox({ children, type = 'tip' }: { children: React.ReactNode; type?: 'tip' | 'info' | 'warning' | 'success' }) {
   const styles = {
     tip: 'bg-accent/10 border-accent text-accent',
     info: 'bg-status-info/10 border-status-info text-status-info',
-    warning: 'bg-status-warning/10 border-status-warning text-status-warning'
+    warning: 'bg-status-warning/10 border-status-warning text-status-warning',
+    success: 'bg-green-500/10 border-green-500 text-green-400'
   }
   
   return (
     <div className={`border rounded-lg p-4 mb-6 ${styles[type]}`}>
       <div className="flex items-start gap-3">
-        <FontAwesomeIcon icon={type === 'info' ? faInfoCircle : faLightbulb} className="w-4 h-4 mt-0.5 flex-shrink-0" />
+        <FontAwesomeIcon icon={type === 'info' ? faInfoCircle : type === 'success' ? faCheck : faLightbulb} className="w-4 h-4 mt-0.5 flex-shrink-0" />
         <div className="text-sm">{children}</div>
       </div>
     </div>
@@ -274,11 +285,11 @@ const docContent: Record<string, { title: string; breadcrumb?: string; content: 
         </p>
 
         <p className="text-text-muted">
-          Need support? Join our{' '}
-          <a href="https://discord.gg/taskmaster" target="_blank" rel="noopener noreferrer" className="text-text hover:text-accent underline">
-            Discord community
+          Need support? Contact us at{' '}
+          <a href="mailto:taskmasteroneai@gmail.com" className="text-text hover:text-accent underline">
+            taskmasteroneai@gmail.com
           </a>{' '}
-          to connect with other users and get help from the team.
+          and we'll get back to you as soon as possible.
         </p>
       </>
     )
@@ -301,7 +312,7 @@ const docContent: Record<string, { title: string; breadcrumb?: string; content: 
           </li>
           <li className="flex items-start gap-2 text-text-muted">
             <span>•</span>
-            <span><SectionLink sectionId="installation">Installation</SectionLink>: How to install and activate TaskMaster AI.</span>
+            <span><SectionLink sectionId="installation">Installation</SectionLink>: How to install and login to TaskMaster AI.</span>
           </li>
           <li className="flex items-start gap-2 text-text-muted">
             <span>•</span>
@@ -375,7 +386,7 @@ winget install OpenJS.NodeJS.LTS"
 
         <h3 className="text-xl font-semibold mb-4 mt-8">2. Model API Key</h3>
         <p className="text-text-muted mb-4">
-          TaskMaster AI utilizes AI across several commands, and those require a separate API key. For the purpose of a Quick Start we recommend setting up an API Key with Anthropic for your main model and Perplexity for your research model (optional but recommended).
+          TaskMaster AI utilizes AI across several commands, and those require a separate API key. For the purpose of a Quick Start we recommend setting up an API Key with Anthropic for your main model and Perplexity for your ask model (optional but recommended).
         </p>
 
         <TipBox>
@@ -388,9 +399,9 @@ winget install OpenJS.NodeJS.LTS"
           <li>Anthropic API key (Claude API) - <span className="text-text font-medium">recommended for Quick Start</span></li>
           <li>OpenAI API key</li>
           <li>Google Gemini API key</li>
-          <li>Perplexity API key (for research model)</li>
-          <li>xAI API Key (for research or main model)</li>
-          <li>OpenRouter API Key (for research or main model)</li>
+          <li>Perplexity API key (for ask model)</li>
+          <li>xAI API Key (for ask or main model)</li>
+          <li>OpenRouter API Key (for ask or main model)</li>
           <li>Claude Code (no API key required - requires Claude Code CLI)</li>
         </ol>
       </>
@@ -541,34 +552,43 @@ npm install @taskmasterai/cli`}
 
           <h4 className="text-lg font-semibold mt-6 mb-4">Step 2: Login to TaskMaster AI</h4>
           <p className="text-text-muted mb-4">
-            Before you can use TaskMaster AI, you need to login. Use the same email and password from your dashboard account.
+            Before you can use TaskMaster AI, you need to login with your account credentials. This will automatically verify your license and sync your settings.
           </p>
           
           <CodeBlock 
-            code={`# Login with email & password
+            code={`# Interactive login
 taskmaster login
 
 # Or login with Google
 taskmaster login --google
 
-# Check login status
-taskmaster whoami`}
+# Or provide credentials directly
+taskmaster login --email your@email.com --password yourpassword`}
             filename="Terminal"
           />
 
           <TipBox type="info">
-            When you login, your license is automatically activated and API keys are synced from your dashboard.
+            Use the same email and password you used to sign up on the website. Your license is automatically verified during login.
           </TipBox>
 
-          <h4 className="text-lg font-semibold mt-6 mb-4">Step 3: Sync API Keys (Optional)</h4>
+          <h4 className="text-lg font-semibold mt-6 mb-4">Step 3: Verify Login</h4>
           <p className="text-text-muted mb-4">
-            If you've configured API keys in your <a href="/app/api-keys" className="text-accent underline">Dashboard</a>, you can sync them to your CLI:
+            After logging in, verify your authentication and license status:
           </p>
           
           <CodeBlock 
-            code="taskmaster sync"
+            code="taskmaster whoami"
             filename="Terminal"
           />
+
+          <p className="text-text-muted text-sm mt-4">
+            This will show your email, user ID, login method, plan details, and license status.
+          </p>
+
+          <TipBox type="success">
+            <strong>Pro/Enterprise Users:</strong> Hosted API keys are automatically configured - no additional setup needed!<br/>
+            <strong>Plus Users:</strong> Configure your API keys in the <a href="/app/api-keys" className="text-accent underline">Dashboard</a> and they'll sync automatically on login.
+          </TipBox>
 
           <h4 className="text-lg font-semibold mt-6 mb-4">Step 4: Initialize a New Project</h4>
           
@@ -589,9 +609,9 @@ taskmaster init --rules cursor,windsurf,vscode`}
           </p>
         </Accordion>
 
-        <h3 className="text-xl font-semibold mb-4 mt-8">License Management</h3>
+        <h3 className="text-xl font-semibold mb-4 mt-8">Authentication & License Management</h3>
         <p className="text-text-muted mb-4">
-          TaskMaster AI requires a valid license to use AI features. Here are the license management commands:
+          TaskMaster AI uses secure authentication to verify your identity and automatically manage your license. Here are the authentication commands:
         </p>
 
         <div className="overflow-x-auto mb-6">
@@ -605,15 +625,19 @@ taskmaster init --rules cursor,windsurf,vscode`}
             <tbody className="text-text-muted">
               <tr className="border-b border-border">
                 <td className="py-2 pr-4 font-mono text-xs">taskmaster login</td>
-                <td className="py-2">Login to your account (automatically activates license)</td>
+                <td className="py-2">Login with email/password (interactive)</td>
               </tr>
               <tr className="border-b border-border">
-                <td className="py-2 pr-4 font-mono text-xs">taskmaster logout</td>
-                <td className="py-2">Logout and clear your session</td>
+                <td className="py-2 pr-4 font-mono text-xs">taskmaster login --google</td>
+                <td className="py-2">Login with Google (opens browser)</td>
               </tr>
               <tr className="border-b border-border">
                 <td className="py-2 pr-4 font-mono text-xs">taskmaster whoami</td>
                 <td className="py-2">Show current user and license status</td>
+              </tr>
+              <tr className="border-b border-border">
+                <td className="py-2 pr-4 font-mono text-xs">taskmaster logout</td>
+                <td className="py-2">Logout and clear session</td>
               </tr>
               <tr className="border-b border-border">
                 <td className="py-2 pr-4 font-mono text-xs">taskmaster usage</td>
@@ -628,7 +652,7 @@ taskmaster init --rules cursor,windsurf,vscode`}
         </div>
 
         <TipBox>
-          Your license key is tied to your subscription plan. Upgrade your plan at any time from your <a href="/app/settings" className="text-accent underline">Dashboard → Settings</a> page.
+          Your license is automatically verified during login. Auth tokens are stored securely and auto-refresh before expiring. Upgrade your plan at any time from your <a href="/app/billing" className="text-accent underline">Dashboard → Billing</a> page.
         </TipBox>
       </>
     )
@@ -670,8 +694,8 @@ OPENAI_API_KEY=your_openai_key_here`}
           code={`# Set main model
 taskmaster models --set-main claude-sonnet-4-20250514
 
-# Set research model
-taskmaster models --set-research sonar-pro
+# Set ask model
+taskmaster models --set-ask sonar-pro
 
 # Set fallback model
 taskmaster models --set-fallback gpt-4o-mini`}
@@ -691,7 +715,7 @@ taskmaster models --set-fallback gpt-4o-mini`}
 
         <h3 className="text-xl font-semibold mb-4">1. Write a PRD</h3>
         <p className="text-text-muted mb-4">
-          TaskMaster provides two templates in <code className="text-text bg-surface-highlight px-2 py-1 rounded">.taskmaster/templates/</code>:
+          TaskMaster provides two templates in <code className="text-text bg-surface-highlight px-2 py-1 rounded">.taskmaster-ai/templates/</code>:
         </p>
         <ul className="list-disc list-inside text-text-muted space-y-1 mb-6">
           <li><code className="bg-surface-highlight px-1.5 py-0.5 rounded">example_prd.txt</code> - Suitable for straightforward projects</li>
@@ -731,7 +755,7 @@ Brief description of your project and its goals.
 
         <h3 className="text-xl font-semibold mb-4 mt-8">2. Save the PRD</h3>
         <p className="text-text-muted mb-4">
-          Place your PRD file in the <code className="text-text bg-surface-highlight px-2 py-1 rounded">.taskmaster/docs</code> folder. You can have multiple PRDs per project; ensure each is clearly named.
+          Place your PRD file in the <code className="text-text bg-surface-highlight px-2 py-1 rounded">.taskmaster-ai/docs</code> folder. You can have multiple PRDs per project; ensure each is clearly named.
         </p>
 
         <h3 className="text-xl font-semibold mb-4 mt-8">3. Parse the PRD into Tasks</h3>
@@ -739,13 +763,13 @@ Brief description of your project and its goals.
 
         <CodeBlock 
           code={`# Parse PRD and generate tasks
-taskmaster parse-prd .taskmaster/docs/prd.md
+taskmaster plan .taskmaster-ai/docs/prd.md
 
 # Limit number of generated tasks
-taskmaster parse-prd .taskmaster/docs/prd.md --num-tasks=10
+taskmaster plan .taskmaster-ai/docs/prd.md --num-tasks=10
 
 # Append to existing tasks (for additional PRDs)
-taskmaster parse-prd .taskmaster/docs/new-feature.md --append`}
+taskmaster plan .taskmaster-ai/docs/new-feature.md --append`}
           filename="Terminal"
         />
 
@@ -771,20 +795,20 @@ taskmaster parse-prd .taskmaster/docs/new-feature.md --append`}
     content: (
       <>
         <p className="text-text-muted mb-6">
-          After parsing your PRD, you'll want to analyze and expand your tasks before executing them. This involves two key steps: analyzing task complexity and expanding tasks into subtasks.
+          After parsing your PRD, you'll want to analyze and break down your tasks before executing them. This involves two key steps: analyzing task complexity and breaking tasks down into steps.
         </p>
 
         <h3 className="text-xl font-semibold mb-4">1. Analyze Task Complexity</h3>
         <p className="text-text-muted mb-4">
-          Understanding the complexity of each task helps determine which tasks need further breakdown. Task Master uses AI to assess complexity on a scale of 1-10 and recommends the optimal number of subtasks.
+          Understanding the complexity of each task helps determine which tasks need further breakdown. TaskMaster AI uses AI to assess complexity on a scale of 1-10 and recommends the optimal number of steps.
         </p>
 
         <CodeBlock 
           code={`# Basic complexity analysis
-taskmaster analyze-complexity
+taskmaster assess
 
-# With research model for more informed analysis
-taskmaster analyze-complexity --research`}
+# With ask model for more informed analysis
+taskmaster assess --ask`}
           filename="Terminal"
         />
 
@@ -793,7 +817,7 @@ taskmaster analyze-complexity --research`}
         </p>
         <ul className="list-disc list-inside text-text-muted space-y-1 mb-6">
           <li>Complexity analysis for each task (1-10 scale)</li>
-          <li>Recommended number of subtasks</li>
+          <li>Recommended number of steps</li>
           <li>AI-generated expansion prompts</li>
           <li>Ready-to-run expansion commands</li>
         </ul>
@@ -804,42 +828,42 @@ taskmaster analyze-complexity --research`}
         </p>
 
         <CodeBlock 
-          code="taskmaster complexity-report"
+          code="taskmaster report"
           filename="Terminal"
         />
 
         <p className="text-text-muted my-4">
-          This shows tasks organized by complexity score, distribution statistics, and ready-to-use expansion commands for each complex task.
+          This shows tasks organized by complexity score, distribution statistics, and ready-to-use breakdown commands for each complex task.
         </p>
 
-        <h3 className="text-xl font-semibold mb-4">3. Expand Tasks into Subtasks</h3>
+        <h3 className="text-xl font-semibold mb-4">3. Break Down Tasks into Steps</h3>
         <p className="text-text-muted mb-4">
-          Break down complex tasks into manageable subtasks. It's recommended to expand all tasks at once:
+          Break down complex tasks into manageable steps. It's recommended to break down all tasks at once:
         </p>
 
         <CodeBlock 
-          code={`# Expand all pending tasks (recommended)
-taskmaster expand --all
+          code={`# Break down all pending tasks (recommended)
+taskmaster breakdown --all
 
-# Expand a specific task
-taskmaster expand --id=5
+# Break down a specific task
+taskmaster breakdown --id=5
 
-# Expand with specific number of subtasks
-taskmaster expand --id=5 --num=3
+# Break down with specific number of steps
+taskmaster breakdown --id=5 --num=3
 
-# Expand with additional context
-taskmaster expand --id=5 --prompt="Focus on performance optimization"
+# Break down with additional context
+taskmaster breakdown --id=5 --prompt="Focus on performance optimization"
 
-# Force regenerate existing subtasks
-taskmaster expand --id=5 --force
+# Force regenerate existing steps
+taskmaster breakdown --id=5 --force
 
-# Use research model for better subtasks
-taskmaster expand --id=5 --research`}
+# Use ask model for better steps
+taskmaster breakdown --id=5 --ask`}
           filename="Terminal"
         />
 
         <TipBox>
-          When a complexity report exists, the <code className="bg-surface-highlight px-1.5 py-0.5 rounded">expand --all</code> command automatically uses the recommended subtask count and processes tasks in order of complexity (highest first).
+          When a complexity report exists, the <code className="bg-surface-highlight px-1.5 py-0.5 rounded">breakdown --all</code> command automatically uses the recommended step count and processes tasks in order of complexity (highest first).
         </TipBox>
       </>
     )
@@ -866,8 +890,8 @@ taskmaster list
 # Filter by status
 taskmaster list --status=pending
 
-# Include subtasks
-taskmaster list --with-subtasks`}
+# Include steps
+taskmaster list --with-steps`}
           filename="Terminal" 
         />
 
@@ -889,10 +913,10 @@ taskmaster list --with-subtasks`}
         </p>
         <CodeBlock 
           code={`# Add implementation notes
-taskmaster update-subtask --id=1.1 --prompt="Implemented the database schema with the following tables..."
+taskmaster log --id=1.1 --prompt="Implemented the database schema with the following tables..."
 
-# Use research for AI-powered insights
-taskmaster update-subtask --id=1.1 --prompt="Need to optimize query performance" --research`}
+# Use ask for AI-powered insights
+taskmaster log --id=1.1 --prompt="Need to optimize query performance" --ask`}
           filename="Terminal"
         />
 
@@ -919,7 +943,7 @@ taskmaster update --from=5 --prompt="We switched from MongoDB to PostgreSQL"`}
         />
 
         <TipBox>
-          Repeat this cycle: <code className="bg-surface-highlight px-1.5 py-0.5 rounded">next</code> → <code className="bg-surface-highlight px-1.5 py-0.5 rounded">show</code> → implement → <code className="bg-surface-highlight px-1.5 py-0.5 rounded">update-subtask</code> → <code className="bg-surface-highlight px-1.5 py-0.5 rounded">set-status</code>
+          Repeat this cycle: <code className="bg-surface-highlight px-1.5 py-0.5 rounded">next</code> → <code className="bg-surface-highlight px-1.5 py-0.5 rounded">show</code> → implement → <code className="bg-surface-highlight px-1.5 py-0.5 rounded">log</code> → <code className="bg-surface-highlight px-1.5 py-0.5 rounded">set-status</code>
         </TipBox>
       </>
     )
@@ -955,7 +979,7 @@ taskmaster update --from=5 --prompt="We switched from MongoDB to PostgreSQL"`}
             <li>• <strong>Provider:</strong> Perplexity AI (Research features)</li>
             <li>• <strong>Format:</strong> <code className="bg-surface-highlight px-1 rounded">pplx-...</code></li>
             <li>• <strong>Required:</strong> ✅ Yes</li>
-            <li>• <strong>Purpose:</strong> Enables research-backed task expansions and updates</li>
+            <li>• <strong>Purpose:</strong> Enables ask-backed task expansions and updates</li>
             <li>• <strong>Models:</strong> Perplexity Sonar models</li>
             <li>• <strong>Get Key:</strong> <a href="https://www.perplexity.ai/" target="_blank" rel="noopener noreferrer" className="text-accent underline">Perplexity API</a></li>
           </ul>
@@ -980,6 +1004,25 @@ taskmaster update --from=5 --prompt="We switched from MongoDB to PostgreSQL"`}
             <li>• <strong>Get Key:</strong> <a href="https://ai.google.dev/" target="_blank" rel="noopener noreferrer" className="text-accent underline">Google AI Studio</a></li>
           </ul>
           <CodeBlock code="GOOGLE_API_KEY=your-key-here" filename=".env" />
+        </Accordion>
+
+        <Accordion title="DEEPSEEK_API_KEY">
+          <ul className="text-text-muted space-y-1 mb-4">
+            <li className="flex items-center gap-2">
+              <span>•</span>
+              <strong>Provider:</strong>
+              <span className="inline-flex items-center gap-1.5">
+                <svg className="w-4 h-4" viewBox="0 0 57.86 43.38" xmlns="http://www.w3.org/2000/svg">
+                  <path fill="#4d6bfe" d="M57.26,3.65c-.61-.31-.88.27-1.24.57-.12.09-.22.22-.33.33-.89.98-1.94,1.62-3.31,1.54-1.99-.11-3.7.53-5.21,2.08-.32-1.92-1.39-3.06-3.01-3.8-.85-.38-1.7-.76-2.3-1.59-.41-.6-.53-1.26-.73-1.91-.14-.39-.27-.79-.71-.86-.48-.07-.67.34-.86.68-.75,1.41-1.05,2.96-1.02,4.52.07,3.53,1.53,6.34,4.43,8.34.33.22.42.45.31.79-.19.69-.43,1.35-.64,2.04-.13.44-.33.54-.79.35-1.59-.68-2.97-1.68-4.19-2.9-2.06-2.03-3.93-4.28-6.26-6.04-.54-.41-1.09-.79-1.66-1.15-2.37-2.35.32-4.28.94-4.51.65-.24.22-1.06-1.88-1.06-2.1.01-4.02.73-6.48,1.69-.35.14-.73.25-1.12.33-2.22-.43-4.53-.52-6.95-.25-4.54.52-8.17,2.71-10.84,6.44C.2,13.77-.55,18.88.37,24.2c.97,5.61,3.78,10.25,8.1,13.88,4.48,3.77,9.64,5.61,15.52,5.26,3.58-.21,7.56-.7,12.04-4.57,1.14.57,2.32.8,4.29.98,1.52.14,2.98-.08,4.12-.32,1.77-.38,1.65-2.05,1-2.36-5.19-2.46-4.05-1.46-5.09-2.27,2.64-3.19,6.62-6.49,8.18-17.2.12-.85.02-1.39,0-2.08-.01-.42.08-.58.55-.63,1.31-.15,2.57-.51,3.73-1.16,3.36-1.88,4.72-4.95,5.04-8.64.05-.57,0-1.15-.59-1.44ZM27.92,36.84c-5.03-4.03-7.47-5.36-8.48-5.3-.94.06-.78,1.15-.57,1.87.22.71.5,1.2.9,1.82.27.41.46,1.02-.28,1.48-1.62,1.02-4.44-.35-4.57-.41-3.28-1.97-6.02-4.57-7.96-8.13-1.86-3.42-2.95-7.09-3.13-11-.04-.95.23-1.28,1.15-1.46,1.22-.22,2.47-.27,3.69-.09,5.14.76,9.51,3.1,13.18,6.81,2.1,2.11,3.68,4.64,5.31,7.1,1.74,2.62,3.6,5.11,5.98,7.16.84.72,1.51,1.26,2.15,1.66-1.93.22-5.16.27-7.37-1.51ZM30.34,21.03c0-.42.33-.76.74-.76.1,0,.18.02.26.05.1.04.2.1.27.18.13.14.21.33.21.53,0,.42-.33.75-.75.75s-.73-.33-.73-.75ZM37.83,24.94c-.48.21-.96.38-1.42.4-.72.03-1.5-.26-1.92-.62-.66-.57-1.13-.88-1.33-1.87-.09-.42-.04-1.07.04-1.44.17-.8-.02-1.32-.58-1.79-.45-.38-1.03-.49-1.66-.49-.23,0-.45-.1-.61-.19-.27-.13-.48-.46-.28-.88.07-.13.39-.45.47-.51.85-.5,1.84-.34,2.76.04.85.35,1.49,1,2.41,1.92.95,1.11,1.12,1.41,1.65,2.24.43.65.81,1.32,1.08,2.09.16.47-.05.87-.61,1.1Z"/>
+                </svg>
+                DeepSeek models
+              </span>
+            </li>
+            <li>• <strong>Format:</strong> <code className="bg-surface-highlight px-1 rounded">sk-...</code></li>
+            <li>• <strong>Models:</strong> DeepSeek-V3, DeepSeek-R1, DeepSeek Coder</li>
+            <li>• <strong>Get Key:</strong> <a href="https://platform.deepseek.com/" target="_blank" rel="noopener noreferrer" className="text-accent underline">DeepSeek Platform</a></li>
+          </ul>
+          <CodeBlock code="DEEPSEEK_API_KEY=sk-your-key-here" filename=".env" />
         </Accordion>
 
         <Accordion title="Other Providers (GROQ, OpenRouter, xAI, Azure, Ollama)">
@@ -1075,28 +1118,25 @@ export PERPLEXITY_API_KEY="pplx-your-key-here"`}
           TaskMaster AI requires a valid license to use AI-powered features. Your license determines your monthly AI operation limits.
         </p>
 
-        <h3 className="text-xl font-semibold mb-4">Authentication</h3>
+        <h3 className="text-xl font-semibold mb-4">License Activation</h3>
         <p className="text-text-muted mb-4">
-          After purchasing a subscription, login to your account from the CLI. Your license will be automatically activated.
+          After purchasing a subscription, login to your TaskMaster AI account to activate your license:
         </p>
 
         <CodeBlock 
-          code={`# Login to your account
+          code={`# Login to TaskMaster AI
 taskmaster login
 
-# Or login with Google
-taskmaster login --google
-
-# Check your login status
+# Verify login and license status
 taskmaster whoami`}
           filename="Terminal"
         />
 
         <TipBox type="info">
-          When you login, TaskMaster AI automatically syncs your license and API keys from your <a href="/app/settings" className="text-accent underline">Dashboard</a>.
+          Your license is automatically fetched and activated when you login. Use the same email and password you used to sign up on the website.
         </TipBox>
 
-        <h3 className="text-xl font-semibold mb-4 mt-8">Authentication Commands</h3>
+        <h3 className="text-xl font-semibold mb-4 mt-8">Authentication & License Commands</h3>
         
         <div className="overflow-x-auto mb-6">
           <table className="w-full text-sm">
@@ -1109,15 +1149,19 @@ taskmaster whoami`}
             <tbody className="text-text-muted">
               <tr className="border-b border-border">
                 <td className="py-2 pr-4 font-mono text-xs">taskmaster login</td>
-                <td className="py-2">Login to your account (automatically activates your license)</td>
+                <td className="py-2">Login with email/password (interactive)</td>
               </tr>
               <tr className="border-b border-border">
-                <td className="py-2 pr-4 font-mono text-xs">taskmaster logout</td>
-                <td className="py-2">Logout and clear your session</td>
+                <td className="py-2 pr-4 font-mono text-xs">taskmaster login --google</td>
+                <td className="py-2">Login with Google (opens browser)</td>
               </tr>
               <tr className="border-b border-border">
                 <td className="py-2 pr-4 font-mono text-xs">taskmaster whoami</td>
-                <td className="py-2">Show current user, license status, and plan details</td>
+                <td className="py-2">Show current user and license status</td>
+              </tr>
+              <tr className="border-b border-border">
+                <td className="py-2 pr-4 font-mono text-xs">taskmaster logout</td>
+                <td className="py-2">Logout and clear session</td>
               </tr>
               <tr className="border-b border-border">
                 <td className="py-2 pr-4 font-mono text-xs">taskmaster usage</td>
@@ -1146,12 +1190,12 @@ taskmaster whoami`}
         </p>
 
         <ul className="list-disc list-inside space-y-2 text-text-muted mb-6">
-          <li><code className="bg-surface-highlight px-1 rounded">parse-prd</code> - Parsing a PRD to generate tasks</li>
-          <li><code className="bg-surface-highlight px-1 rounded">expand</code> - Expanding tasks into subtasks</li>
-          <li><code className="bg-surface-highlight px-1 rounded">add-task</code> - Adding a task with AI-generated content</li>
-          <li><code className="bg-surface-highlight px-1 rounded">update-task</code> - Updating a task with AI assistance</li>
-          <li><code className="bg-surface-highlight px-1 rounded">update-subtask</code> - Updating a subtask with AI assistance</li>
-          <li><code className="bg-surface-highlight px-1 rounded">analyze-complexity</code> - Analyzing task complexity</li>
+          <li><code className="bg-surface-highlight px-1 rounded">plan</code> - Parsing a PRD to generate tasks</li>
+          <li><code className="bg-surface-highlight px-1 rounded">breakdown</code> - Breaking down tasks into steps</li>
+          <li><code className="bg-surface-highlight px-1 rounded">new</code> - Adding a task with AI-generated content</li>
+          <li><code className="bg-surface-highlight px-1 rounded">edit</code> - Updating a task with AI assistance</li>
+          <li><code className="bg-surface-highlight px-1 rounded">log</code> - Updating a step with AI assistance</li>
+          <li><code className="bg-surface-highlight px-1 rounded">assess</code> - Analyzing task complexity</li>
         </ul>
 
         <h3 className="text-xl font-semibold mb-4 mt-8">Dashboard Sync</h3>
@@ -1165,7 +1209,7 @@ taskmaster sync
 
 # This syncs:
 # - API keys from your dashboard
-# - Model configuration (main, research, fallback)
+# - Model configuration (main, ask, fallback)
 # - Any updated settings`}
           filename="Terminal"
         />
@@ -1206,7 +1250,7 @@ taskmaster sync
         </div>
 
         <p className="text-text-muted">
-          Upgrade your plan anytime from your <a href="/app/settings" className="text-accent underline">Dashboard → Settings</a> page. Usage resets at the start of each billing cycle.
+          Upgrade your plan anytime from your <a href="/app/billing" className="text-accent underline">Dashboard → Billing</a> page. Usage resets at the start of each billing cycle.
         </p>
       </>
     )
@@ -1243,7 +1287,7 @@ taskmaster sync
 
           <Accordion title="Do I need multiple API keys?">
             <p className="text-text-muted">
-              No, you only need one API key to get started. However, we recommend using Anthropic for the main model and Perplexity for research operations for the best experience.
+              No, you only need one API key to get started. However, we recommend using Anthropic for the main model and Perplexity for ask operations for the best experience.
             </p>
           </Accordion>
           </div>
@@ -1251,309 +1295,96 @@ taskmaster sync
     )
   },
   'contribute': {
-    title: 'Contribute',
+    title: 'Feedback & Support',
     breadcrumb: 'Getting Started',
     content: (
       <>
         <p className="text-text-muted mb-6">
-          Thank you for your interest in contributing to TaskMaster AI! We're excited to work with you and appreciate your help in making this project better. 🚀
+          We're committed to making TaskMaster AI the best AI-powered development tool. Your feedback helps us improve the product for everyone.
         </p>
 
-        <h3 className="text-xl font-semibold mb-4">🤝 Our Collaborative Approach</h3>
-        <p className="text-text-muted mb-4">We're a <strong>PR-friendly team</strong> that values collaboration:</p>
-        <ul className="text-text-muted space-y-2 mb-6">
-          <li>✅ <strong>We review PRs quickly</strong> - Usually within hours, not days</li>
-          <li>✅ <strong>We're super reactive</strong> - Expect fast feedback and engagement</li>
-          <li>✅ <strong>We sometimes take over PRs</strong> - If your contribution is valuable but needs cleanup, we might jump in to help finish it</li>
-          <li>✅ <strong>We're open to all contributions</strong> - From bug fixes to major features</li>
-        </ul>
+        <h3 className="text-xl font-semibold mb-4">💬 Get in Touch</h3>
+        <p className="text-text-muted mb-6">
+          Have questions, feedback, or need help? We'd love to hear from you.
+        </p>
 
-        <p className="text-text-muted mb-4"><strong>We don't mind AI-generated code</strong>, but we do expect you to:</p>
-        <ul className="text-text-muted space-y-1 mb-6">
-          <li>✅ <strong>Review and understand</strong> what the AI generated</li>
-          <li>✅ <strong>Test the code thoroughly</strong> before submitting</li>
-          <li>✅ <strong>Ensure it's well-written</strong> and follows our patterns</li>
-          <li>❌ <strong>Don't submit "AI slop"</strong> - untested, unreviewed AI output</li>
-        </ul>
-
-        <TipBox>
-          <strong>Why this matters:</strong> We spend significant time reviewing PRs. Help us help you by submitting quality contributions that save everyone time!
-        </TipBox>
-
-        <div className="grid md:grid-cols-2 gap-4 mb-8 mt-8">
-          <a
-            href="mailto:taskmasteroneai@gmail.com"
-            className="card hover:border-border-light p-5 group"
-          >
-            <div className="flex items-center gap-3 mb-2">
-              <FontAwesomeIcon icon={faComments} className="w-5 h-5" />
-              <span className="font-medium">Contact Support</span>
-            </div>
-            <p className="text-sm text-text-muted">Report issues, suggest features, or get help</p>
-          </a>
-          
+        <div className="card hover:border-border-light p-6 mb-8">
+          <div className="flex items-center gap-3 mb-3">
+            <FontAwesomeIcon icon={faComments} className="w-6 h-6 text-accent" />
+            <span className="font-semibold text-lg">Contact Support</span>
+          </div>
+          <p className="text-text-muted mb-4">
+            Reach out to our team for any questions, bug reports, or feature requests.
+          </p>
           <a 
-            href="https://discord.gg/taskmaster" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="card hover:border-border-light p-5 group"
+            href="mailto:taskmasteroneai@gmail.com"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-white font-medium rounded-lg hover:bg-accent/90 transition-colors"
           >
-            <div className="flex items-center gap-3 mb-2">
-              <FontAwesomeIcon icon={faDiscord} className="w-5 h-5" />
-              <span className="font-medium">Discord Community</span>
-            </div>
-            <p className="text-sm text-text-muted">Join discussions and get help from the community</p>
+            <FontAwesomeIcon icon={faEnvelope} className="w-4 h-4" />
+            <span>taskmasteroneai@gmail.com</span>
           </a>
         </div>
 
-        <h3 className="text-xl font-semibold mb-4">🚀 Getting Help</h3>
+        <h3 className="text-xl font-semibold mb-4 mt-10">🐛 Report an Issue</h3>
         
-        <Accordion title="Report an Issue" defaultOpen>
+        <Accordion title="Bug Reports" defaultOpen>
           <p className="text-text-muted mb-3">
-            If you encounter a bug or have a feature request, please reach out to us:
+            When reporting a bug, please include the following information to help us resolve it quickly:
           </p>
           <ul className="text-text-muted space-y-2">
-            <li>📧 Email: <a href="mailto:taskmasteroneai@gmail.com" className="text-accent hover:underline">taskmasteroneai@gmail.com</a></li>
-            <li>💬 Discord: <a href="https://discord.gg/taskmaster" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">Join our community</a></li>
+            <li>• <strong>TaskMaster version:</strong> Run <code className="bg-surface-highlight px-1 rounded">taskmaster --version</code></li>
+            <li>• <strong>Node.js version:</strong> Run <code className="bg-surface-highlight px-1 rounded">node --version</code></li>
+            <li>• <strong>Operating System:</strong> macOS, Windows, or Linux</li>
+            <li>• <strong>Steps to reproduce:</strong> What you did before the error occurred</li>
+            <li>• <strong>Expected behavior:</strong> What you expected to happen</li>
+            <li>• <strong>Actual behavior:</strong> What actually happened</li>
+            <li>• <strong>Error messages:</strong> Any error logs or screenshots</li>
           </ul>
         </Accordion>
 
-        <Accordion title="2. Create a Feature Branch">
-          <p className="text-text-muted mb-3"><strong>Important:</strong> Always target the <code className="bg-surface-highlight px-1 rounded">next</code> branch, not <code className="bg-surface-highlight px-1 rounded">main</code>:</p>
-          <CodeBlock 
-            code={`git checkout next
-git pull origin next
-git checkout -b feature/your-feature-name`}
-            filename="Terminal"
-          />
-        </Accordion>
-
-        <Accordion title="3. Make Your Changes">
-          <p className="text-text-muted">Follow the development guidelines below.</p>
-        </Accordion>
-
-        <Accordion title="4. Test Everything Yourself">
-          <p className="text-text-muted mb-3"><strong>Before submitting your PR</strong>, ensure:</p>
-          <CodeBlock 
-            code={`# Run all tests
-npm test
-
-# Check formatting
-npm run format-check
-
-# Fix formatting if needed
-npm run format`}
-            filename="Terminal"
-          />
-        </Accordion>
-
-        <Accordion title="5. Create a Changeset">
-          <p className="text-text-muted mb-3"><strong>Required for most changes:</strong></p>
-          <CodeBlock code="npm run changeset" filename="Terminal" />
-          <p className="text-text-muted mt-3">See Changeset Guidelines below for details.</p>
-        </Accordion>
-
-        <Accordion title="6. Submit Your PR">
-          <ul className="text-text-muted space-y-1">
-            <li>• Target the <code className="bg-surface-highlight px-1 rounded">next</code> branch</li>
-            <li>• Write a clear description</li>
-            <li>• Reference any related issues</li>
-          </ul>
-        </Accordion>
-
-        <h3 className="text-xl font-semibold mb-4 mt-8">📋 Development Guidelines</h3>
-
-        <Accordion title="Branch Strategy">
+        <Accordion title="Feature Requests">
+          <p className="text-text-muted mb-3">
+            We love hearing ideas for new features! When suggesting a feature, please include:
+          </p>
           <ul className="text-text-muted space-y-2">
-            <li>• <code className="bg-surface-highlight px-1 rounded">main</code>: Production-ready code</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">next</code>: Development branch - <strong>target this for PRs</strong></li>
-            <li>• <strong>Feature branches:</strong> <code className="bg-surface-highlight px-1 rounded">feature/description</code> or <code className="bg-surface-highlight px-1 rounded">fix/description</code></li>
+            <li>• <strong>Clear description:</strong> What the feature should do</li>
+            <li>• <strong>Use case:</strong> Why you need this feature</li>
+            <li>• <strong>Expected workflow:</strong> How you envision using it</li>
+            <li>• <strong>Priority:</strong> How important this is to your workflow</li>
           </ul>
         </Accordion>
 
-        <Accordion title="Code Quality Standards">
-          <ol className="list-decimal list-inside text-text-muted space-y-2">
-            <li><strong>Write tests</strong> for new functionality</li>
-            <li><strong>Follow existing patterns</strong> in the codebase</li>
-            <li><strong>Add JSDoc comments</strong> for functions</li>
-            <li><strong>Keep functions focused</strong> and single-purpose</li>
-          </ol>
+        <h3 className="text-xl font-semibold mb-4 mt-10">📋 Frequently Asked Questions</h3>
+
+        <Accordion title="How do I upgrade my plan?">
+          <p className="text-text-muted">
+            Visit the <strong>Billing</strong> section in your dashboard to view and upgrade your subscription plan. You can upgrade at any time and the change takes effect immediately.
+          </p>
         </Accordion>
 
-        <Accordion title="Testing Requirements">
-          <p className="text-text-muted mb-3">Your PR <strong>must pass all CI checks</strong>:</p>
-          <ul className="text-text-muted space-y-1">
-            <li>✅ <strong>Unit tests:</strong> <code className="bg-surface-highlight px-1 rounded">npm test</code></li>
-            <li>✅ <strong>Format check:</strong> <code className="bg-surface-highlight px-1 rounded">npm run format-check</code></li>
-          </ul>
-          <p className="text-text-muted mt-3"><strong>Test your changes locally first</strong> - this saves review time and shows you care about quality.</p>
+        <Accordion title="How do I get my API key?">
+          <p className="text-text-muted">
+            After signing up, go to the <strong>API Keys</strong> section in your dashboard. You can generate a new API key there. Keep your API key secure and don't share it publicly.
+          </p>
         </Accordion>
 
-        <h3 className="text-xl font-semibold mb-4 mt-8">📦 Changeset Guidelines</h3>
-        <p className="text-text-muted mb-4">We use Changesets to manage versioning and generate changelogs.</p>
-
-        <Accordion title="When to Create a Changeset">
-          <p className="text-text-muted mb-3"><strong>Always create a changeset for:</strong></p>
-          <ul className="text-text-muted space-y-1 mb-4">
-            <li>✅ New features</li>
-            <li>✅ Bug fixes</li>
-            <li>✅ Breaking changes</li>
-            <li>✅ Performance improvements</li>
-            <li>✅ User-facing documentation updates</li>
-            <li>✅ Dependency updates that affect functionality</li>
-          </ul>
-          <p className="text-text-muted mb-3"><strong>Skip changesets for:</strong></p>
-          <ul className="text-text-muted space-y-1">
-            <li>❌ Internal documentation only</li>
-            <li>❌ Test-only changes</li>
-            <li>❌ Code formatting/linting</li>
-            <li>❌ Development tooling that doesn't affect users</li>
-          </ul>
+        <Accordion title="Can I request a custom enterprise plan?">
+          <p className="text-text-muted">
+            Yes! For custom enterprise solutions, volume licensing, or special requirements, please contact our sales team at <a href="mailto:taskmasteroneai@gmail.com" className="text-accent hover:underline">taskmasteroneai@gmail.com</a>.
+          </p>
         </Accordion>
 
-        <Accordion title="How to Create a Changeset">
-          <ol className="list-decimal list-inside text-text-muted space-y-3">
-            <li><strong>After making your changes:</strong>
-              <CodeBlock code="npm run changeset" filename="Terminal" />
-            </li>
-            <li><strong>Choose the bump type:</strong>
-              <ul className="ml-6 mt-2 space-y-1">
-                <li>• <strong>Major:</strong> Breaking changes</li>
-                <li>• <strong>Minor:</strong> New features</li>
-                <li>• <strong>Patch:</strong> Bug fixes, docs, performance improvements</li>
-              </ul>
-            </li>
-            <li><strong>Write a clear summary</strong></li>
-            <li><strong>Commit the changeset file</strong> with your changes</li>
-          </ol>
+        <Accordion title="What AI providers are supported?">
+          <p className="text-text-muted">
+            TaskMaster AI supports multiple AI providers including Anthropic (Claude), OpenAI, Google (Gemini), Mistral, OpenRouter, xAI, and local Ollama models. You can configure your preferred models in the settings.
+          </p>
         </Accordion>
 
-        <h3 className="text-xl font-semibold mb-4 mt-8">🔧 Development Setup</h3>
-
-        <Accordion title="Prerequisites">
-          <ul className="text-text-muted space-y-1">
-            <li>• Node.js 20+</li>
-            <li>• npm or yarn</li>
-          </ul>
-        </Accordion>
-
-        <Accordion title="Environment Setup">
-          <CodeBlock 
-            code={`# Copy environment template
-cp .env.example .env
-
-# Add your API keys (for testing AI features)
-ANTHROPIC_API_KEY=your_key_here
-OPENAI_API_KEY=your_key_here`}
-            filename="Terminal"
-          />
-        </Accordion>
-
-        <Accordion title="Running Tests">
-          <CodeBlock 
-            code={`# Run all tests
-npm test
-
-# Run tests in watch mode
-npm run test:watch
-
-# Run with coverage
-npm run test:coverage
-
-# Run E2E tests
-npm run test:e2e`}
-            filename="Terminal"
-          />
-        </Accordion>
-
-        <Accordion title="Code Formatting">
-          <p className="text-text-muted mb-3">We use Prettier for consistent formatting:</p>
-          <CodeBlock 
-            code={`# Check formatting
-npm run format-check
-
-# Fix formatting
-npm run format`}
-            filename="Terminal"
-          />
-        </Accordion>
-
-        <h3 className="text-xl font-semibold mb-4 mt-8">📝 PR Guidelines</h3>
-
-        <Accordion title="Before Submitting">
-          <ul className="text-text-muted space-y-1">
-            <li>• <strong>Target the <code className="bg-surface-highlight px-1 rounded">next</code> branch</strong></li>
-            <li>• <strong>Test everything locally</strong></li>
-            <li>• <strong>Run the full test suite</strong></li>
-            <li>• <strong>Check code formatting</strong></li>
-            <li>• <strong>Create a changeset</strong> (if needed)</li>
-            <li>• <strong>Re-read your changes</strong> - ensure they're clean and well-thought-out</li>
-          </ul>
-        </Accordion>
-
-        <Accordion title="What We Look For">
-          <p className="text-text-muted mb-3">✅ <strong>Good PRs:</strong></p>
-          <ul className="text-text-muted space-y-1 mb-4">
-            <li>• Clear, focused changes</li>
-            <li>• Comprehensive testing</li>
-            <li>• Good commit messages</li>
-            <li>• Proper changeset (when needed)</li>
-            <li>• Self-reviewed code</li>
-          </ul>
-          <p className="text-text-muted mb-3">❌ <strong>Avoid:</strong></p>
-          <ul className="text-text-muted space-y-1">
-            <li>• Massive PRs that change everything</li>
-            <li>• Untested code</li>
-            <li>• Formatting issues</li>
-            <li>• Missing changesets for user-facing changes</li>
-            <li>• AI-generated code that wasn't reviewed</li>
-          </ul>
-        </Accordion>
-
-        <h3 className="text-xl font-semibold mb-4 mt-8">🏗️ TaskMaster Project Structure</h3>
-        <CodeBlock 
-          code={`your-project/
-├── .taskmaster/
-│   ├── tasks/
-│   │   └── tasks.json     # Main task database
-│   ├── docs/              # PRDs and documentation
-│   ├── reports/           # Complexity reports
-│   ├── templates/         # PRD templates
-│   └── config.json        # Configuration
-└── .env                   # API keys`}
-          filename="Project Structure"
-        />
-
-        <p className="text-text-muted mt-4 mb-2"><strong>Key Areas for Contribution:</strong></p>
-        <ul className="text-text-muted space-y-1">
-          <li>• <strong>CLI Commands:</strong> <code className="bg-surface-highlight px-1 rounded">scripts/modules/commands.js</code></li>
-          <li>• <strong>MCP Tools:</strong> <code className="bg-surface-highlight px-1 rounded">mcp-server/src/tools/</code></li>
-          <li>• <strong>Core Logic:</strong> <code className="bg-surface-highlight px-1 rounded">scripts/modules/task-manager/</code></li>
-          <li>• <strong>AI Providers:</strong> <code className="bg-surface-highlight px-1 rounded">src/ai-providers/</code></li>
-          <li>• <strong>Tests:</strong> <code className="bg-surface-highlight px-1 rounded">tests/</code></li>
-        </ul>
-
-        <h3 className="text-xl font-semibold mb-4 mt-8">🐛 Reporting Issues</h3>
-        
-        <div className="grid md:grid-cols-2 gap-4 mb-6">
-          <div className="card p-4">
-            <h4 className="font-medium text-accent mb-2">Bug Reports</h4>
-            <p className="text-sm text-text-muted">Include: TaskMaster version, Node.js version, OS, steps to reproduce, expected vs actual behavior, error messages/logs</p>
-          </div>
-          <div className="card p-4">
-            <h4 className="font-medium text-accent mb-2">Feature Requests</h4>
-            <p className="text-sm text-text-muted">Include: Clear description, use case/motivation, proposed implementation (if you have ideas), willingness to contribute</p>
-          </div>
+        <div className="mt-10">
+          <TipBox type="info">
+            <strong>We typically respond within 24-48 hours.</strong> For urgent issues affecting your production workflow, please mark your email as urgent.
+          </TipBox>
         </div>
-
-        <h3 className="text-xl font-semibold mb-4 mt-8">📄 License</h3>
-        <p className="text-text-muted">
-          By contributing, you agree that your contributions will be licensed under the same license as the project (MIT with Commons Clause).
-        </p>
-
-        <TipBox type="info">
-          <strong>Thank you for contributing to TaskMaster AI!</strong> 🎉 Your contributions help make AI-driven development more accessible and efficient for everyone.
-        </TipBox>
       </>
     )
   },
@@ -1569,136 +1400,216 @@ npm run format`}
         <h3 className="text-xl font-semibold mb-4">Project Setup</h3>
         <div className="space-y-3 mb-8">
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">taskmaster init</code>
-            <p className="text-sm text-text-muted mt-1">Initialize a new TaskMaster project with necessary directories and configuration files.</p>
+            <code className="text-sm text-accent font-mono">taskmaster init [-n, --name] [-d, --description] [-y, --yes]</code>
+            <p className="text-sm text-text-muted mt-1">Initialize TaskMaster AI in the current project. Creates .taskmaster-ai directory with config and tasks files.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">taskmaster parse-prd &lt;file&gt; [--num-tasks=N]</code>
-            <p className="text-sm text-text-muted mt-1">Parse a PRD file to generate tasks. Use --num-tasks to limit the number of tasks generated.</p>
+            <code className="text-sm text-accent font-mono">taskmaster plan &lt;file&gt; [-n, --num-tasks] [-f, --force] [--append] [--ask]</code>
+            <p className="text-sm text-text-muted mt-1">Parse a PRD file to generate tasks. Use --append to add to existing tasks, --force to overwrite.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">taskmaster models --setup</code>
-            <p className="text-sm text-text-muted mt-1">Interactive setup for configuring AI models (main, research, fallback).</p>
+            <code className="text-sm text-accent font-mono">taskmaster sync [-f, --force]</code>
+            <p className="text-sm text-text-muted mt-1">Sync API keys and model configuration from your TaskMaster dashboard.</p>
           </div>
         </div>
 
         <h3 className="text-xl font-semibold mb-4">Task Viewing</h3>
         <div className="space-y-3 mb-8">
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">taskmaster list [--status=STATUS] [--with-subtasks]</code>
-            <p className="text-sm text-text-muted mt-1">Display all tasks. Filter by status or include subtasks in the listing.</p>
+            <code className="text-sm text-accent font-mono">taskmaster list [-s, --status] [--with-steps]</code>
+            <p className="text-sm text-text-muted mt-1">Display all tasks in a table format. Filter by status (comma-separated) or include steps.</p>
           </div>
           <div className="card p-4">
             <code className="text-sm text-accent font-mono">taskmaster next</code>
             <p className="text-sm text-text-muted mt-1">Show the next task to work on based on dependencies and priorities.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">taskmaster show --id=&lt;id&gt;</code>
-            <p className="text-sm text-text-muted mt-1">Display comprehensive details about a specific task including implementation notes.</p>
+            <code className="text-sm text-accent font-mono">taskmaster show &lt;id&gt;</code>
+            <p className="text-sm text-text-muted mt-1">Display detailed information for a task or step (e.g., 1 or 1.2 for step).</p>
           </div>
         </div>
 
         <h3 className="text-xl font-semibold mb-4">Task Management</h3>
         <div className="space-y-3 mb-8">
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">taskmaster add-task --prompt="&lt;description&gt;" [--research]</code>
-            <p className="text-sm text-text-muted mt-1">Create a new task using AI. Use --research for more informed task creation.</p>
+            <code className="text-sm text-accent font-mono">taskmaster new -p, --prompt &lt;text&gt; [-d, --dependencies] [--priority] [--ask]</code>
+            <p className="text-sm text-text-muted mt-1">Create a new task using AI. Specify dependencies and priority level.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">taskmaster set-status --id=&lt;id&gt; --status=&lt;status&gt;</code>
-            <p className="text-sm text-text-muted mt-1">Update task status (pending, in-progress, done, blocked, deferred).</p>
+            <code className="text-sm text-accent font-mono">taskmaster set-status -i, --id &lt;id&gt; -s, --status &lt;status&gt;</code>
+            <p className="text-sm text-text-muted mt-1">Update task status (pending, in-progress, done, blocked, cancelled, deferred). Supports comma-separated IDs.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">taskmaster update-subtask --id=&lt;id&gt; --prompt="&lt;notes&gt;"</code>
-            <p className="text-sm text-text-muted mt-1">Add implementation notes or progress updates to a subtask.</p>
+            <code className="text-sm text-accent font-mono">taskmaster log -i, --id &lt;id&gt; -p, --prompt &lt;notes&gt; [--ask]</code>
+            <p className="text-sm text-text-muted mt-1">Append timestamped notes to a step (e.g., 1.2). Useful for tracking implementation progress.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">taskmaster update --from=&lt;id&gt; --prompt="&lt;changes&gt;"</code>
-            <p className="text-sm text-text-muted mt-1">Update multiple tasks from a specific ID onwards with new context.</p>
+            <code className="text-sm text-accent font-mono">taskmaster edit -i, --id &lt;id&gt; -p, --prompt &lt;text&gt; [--append] [--ask]</code>
+            <p className="text-sm text-text-muted mt-1">Update a task with new information. Use --append to add notes instead of regenerating.</p>
+          </div>
+          <div className="card p-4">
+            <code className="text-sm text-accent font-mono">taskmaster update --from &lt;id&gt; -p, --prompt &lt;changes&gt; [--ask]</code>
+            <p className="text-sm text-text-muted mt-1">Batch update multiple tasks from a specific ID onwards with new context.</p>
+          </div>
+          <div className="card p-4">
+            <code className="text-sm text-accent font-mono">taskmaster remove-task -i, --id &lt;id&gt; [-y, --yes]</code>
+            <p className="text-sm text-text-muted mt-1">Remove a task or step permanently. Use -y to skip confirmation.</p>
           </div>
         </div>
 
         <h3 className="text-xl font-semibold mb-4">Task Expansion</h3>
         <div className="space-y-3 mb-8">
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">taskmaster expand --id=&lt;id&gt; [--num=N] [--force] [--research]</code>
-            <p className="text-sm text-text-muted mt-1">Break down a task into subtasks. Use --force to regenerate existing subtasks.</p>
+            <code className="text-sm text-accent font-mono">taskmaster breakdown -i, --id &lt;id&gt; [-n, --num] [-p, --prompt] [--force] [--ask]</code>
+            <p className="text-sm text-text-muted mt-1">Break down a task into steps using AI. Use --force to replace existing steps.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">taskmaster expand --all [--research]</code>
-            <p className="text-sm text-text-muted mt-1">Expand all pending tasks at once, processing by complexity order.</p>
+            <code className="text-sm text-accent font-mono">taskmaster breakdown --all [-n, --num] [-p, --prompt] [--force] [--ask]</code>
+            <p className="text-sm text-text-muted mt-1">Break down all pending tasks at once that don't have steps.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">taskmaster analyze-complexity [--research]</code>
-            <p className="text-sm text-text-muted mt-1">Analyze task complexity and generate recommendations for subtask counts.</p>
+            <code className="text-sm text-accent font-mono">taskmaster assess [--ask]</code>
+            <p className="text-sm text-text-muted mt-1">Analyze task complexity and generate recommendations for step counts. Saves report to .taskmaster-ai/reports/.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">taskmaster clear-subtasks --id=&lt;id&gt; | --all</code>
-            <p className="text-sm text-text-muted mt-1">Clear subtasks from a specific task or all tasks.</p>
+            <code className="text-sm text-accent font-mono">taskmaster report [-f, --file]</code>
+            <p className="text-sm text-text-muted mt-1">Display the task complexity analysis report in a readable table format.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">taskmaster remove-task --id=&lt;id&gt; [-y]</code>
-            <p className="text-sm text-text-muted mt-1">Remove a task or subtask. Use -y to skip confirmation.</p>
+            <code className="text-sm text-accent font-mono">taskmaster clear-steps -i, --id &lt;id&gt; | --all</code>
+            <p className="text-sm text-text-muted mt-1">Remove all steps from a specific task or all tasks.</p>
+          </div>
+        </div>
+
+        <h3 className="text-xl font-semibold mb-4">Task Organization</h3>
+        <div className="space-y-3 mb-8">
+          <div className="card p-4">
+            <code className="text-sm text-accent font-mono">taskmaster move --from &lt;id&gt; --to &lt;id&gt;</code>
+            <p className="text-sm text-text-muted mt-1">Move a task or step to a new position. Supports comma-separated IDs for batch moves.</p>
+          </div>
+          <div className="card p-4">
+            <code className="text-sm text-accent font-mono">taskmaster add-step -p, --parent &lt;id&gt; -t, --title &lt;text&gt; [-d, --description] [--details] [--dependencies] [-s, --status]</code>
+            <p className="text-sm text-text-muted mt-1">Add a step to a parent task manually without AI.</p>
+          </div>
+          <div className="card p-4">
+            <code className="text-sm text-accent font-mono">taskmaster generate [-o, --output]</code>
+            <p className="text-sm text-text-muted mt-1">Generate individual markdown files for each task.</p>
           </div>
         </div>
 
         <h3 className="text-xl font-semibold mb-4">Dependencies</h3>
         <div className="space-y-3 mb-8">
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">taskmaster add-dependency --id=&lt;id&gt; --depends-on=&lt;id&gt;</code>
+            <code className="text-sm text-accent font-mono">taskmaster link -i, --id &lt;id&gt; -d, --depends-on &lt;id&gt;</code>
             <p className="text-sm text-text-muted mt-1">Add a dependency between tasks.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">taskmaster remove-dependency --id=&lt;id&gt; --depends-on=&lt;id&gt;</code>
+            <code className="text-sm text-accent font-mono">taskmaster unlink -i, --id &lt;id&gt; -d, --depends-on &lt;id&gt;</code>
             <p className="text-sm text-text-muted mt-1">Remove a dependency between tasks.</p>
           </div>
+          <div className="card p-4">
+            <code className="text-sm text-accent font-mono">taskmaster check-links</code>
+            <p className="text-sm text-text-muted mt-1">Validate all task dependencies for issues like circular references or missing tasks.</p>
+          </div>
+          <div className="card p-4">
+            <code className="text-sm text-accent font-mono">taskmaster fix-links</code>
+            <p className="text-sm text-text-muted mt-1">Automatically fix dependency issues in your tasks.</p>
+          </div>
         </div>
 
-        <h3 className="text-xl font-semibold mb-4">Authentication & Usage</h3>
+        <h3 className="text-xl font-semibold mb-4">Contexts (Tags)</h3>
         <div className="space-y-3 mb-8">
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">taskmaster login</code>
-            <p className="text-sm text-text-muted mt-1">Login to your TaskMaster AI account (automatically activates your license).</p>
+            <code className="text-sm text-accent font-mono">taskmaster contexts [--show-metadata]</code>
+            <p className="text-sm text-text-muted mt-1">List all contexts with task counts and completion status.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">taskmaster logout</code>
-            <p className="text-sm text-text-muted mt-1">Logout from your account and clear your session.</p>
+            <code className="text-sm text-accent font-mono">taskmaster context-add &lt;name&gt; [--from-branch] [--copy-from-current] [--copy-from &lt;context&gt;] [-d, --description]</code>
+            <p className="text-sm text-text-muted mt-1">Create a new context. Use --from-branch to derive name from current git branch.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">taskmaster whoami</code>
-            <p className="text-sm text-text-muted mt-1">Display current user, license status, and plan details.</p>
+            <code className="text-sm text-accent font-mono">taskmaster context &lt;name&gt;</code>
+            <p className="text-sm text-text-muted mt-1">Switch to a different context.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">taskmaster usage</code>
-            <p className="text-sm text-text-muted mt-1">View AI operations usage count and remaining limit for current billing period.</p>
+            <code className="text-sm text-accent font-mono">taskmaster delete-context &lt;name&gt; [-y, --yes]</code>
+            <p className="text-sm text-text-muted mt-1">Delete a context and all its tasks. Use -y to skip confirmation.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">taskmaster sync</code>
-            <p className="text-sm text-text-muted mt-1">Sync API keys and model configuration from your TaskMaster dashboard.</p>
+            <code className="text-sm text-accent font-mono">taskmaster rename-context &lt;oldName&gt; &lt;newName&gt;</code>
+            <p className="text-sm text-text-muted mt-1">Rename an existing context.</p>
+          </div>
+          <div className="card p-4">
+            <code className="text-sm text-accent font-mono">taskmaster clone &lt;source&gt; &lt;target&gt; [-d, --description]</code>
+            <p className="text-sm text-text-muted mt-1">Copy a context with all its tasks to a new context.</p>
           </div>
         </div>
 
-        <h3 className="text-xl font-semibold mb-4">Configuration</h3>
-        <div className="space-y-3">
+        <h3 className="text-xl font-semibold mb-4">AI Research</h3>
+        <div className="space-y-3 mb-8">
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">taskmaster models</code>
-            <p className="text-sm text-text-muted mt-1">Display current AI model configuration (main, research, fallback).</p>
+            <code className="text-sm text-accent font-mono">taskmaster ask &lt;query&gt; [--save-to &lt;id&gt;] [--tree] [--files &lt;paths&gt;] [--detail &lt;level&gt;]</code>
+            <p className="text-sm text-text-muted mt-1">Perform AI-powered research. Save results to a task or include project context.</p>
+          </div>
+        </div>
+
+        <h3 className="text-xl font-semibold mb-4">Usage & Configuration</h3>
+        <div className="space-y-3 mb-8">
+          <div className="card p-4">
+            <code className="text-sm text-accent font-mono">taskmaster usage</code>
+            <p className="text-sm text-text-muted mt-1">View AI operations usage count, plan limits, and dashboard sync status.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">taskmaster models --setup</code>
-            <p className="text-sm text-text-muted mt-1">Interactive setup for configuring AI models.</p>
+            <code className="text-sm text-accent font-mono">taskmaster models</code>
+            <p className="text-sm text-text-muted mt-1">Display current AI model configuration (main, research, fallback) and API key status.</p>
           </div>
           <div className="card p-4">
             <code className="text-sm text-accent font-mono">taskmaster models --set-main &lt;model&gt;</code>
             <p className="text-sm text-text-muted mt-1">Set the main AI model for task generation.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">taskmaster models --set-research &lt;model&gt;</code>
-            <p className="text-sm text-text-muted mt-1">Set the research model for research-backed operations.</p>
+            <code className="text-sm text-accent font-mono">taskmaster models --set-ask &lt;model&gt;</code>
+            <p className="text-sm text-text-muted mt-1">Set the ask model for research-backed operations.</p>
           </div>
           <div className="card p-4">
             <code className="text-sm text-accent font-mono">taskmaster models --set-fallback &lt;model&gt;</code>
             <p className="text-sm text-text-muted mt-1">Set the fallback model if primary fails.</p>
+          </div>
+        </div>
+
+        <h3 className="text-xl font-semibold mb-4">Autopilot (TDD Workflow)</h3>
+        <div className="space-y-3">
+          <div className="card p-4">
+            <code className="text-sm text-accent font-mono">taskmaster autopilot start &lt;taskId&gt; [--max-attempts] [--force] [--json]</code>
+            <p className="text-sm text-text-muted mt-1">Start a TDD workflow for a task. Creates a git branch and begins the red-green-refactor cycle.</p>
+          </div>
+          <div className="card p-4">
+            <code className="text-sm text-accent font-mono">taskmaster autopilot next [--json]</code>
+            <p className="text-sm text-text-muted mt-1">Get the next action to perform in the current TDD phase.</p>
+          </div>
+          <div className="card p-4">
+            <code className="text-sm text-accent font-mono">taskmaster autopilot status [--json]</code>
+            <p className="text-sm text-text-muted mt-1">Get current workflow status including phase, progress, and current step.</p>
+          </div>
+          <div className="card p-4">
+            <code className="text-sm text-accent font-mono">taskmaster autopilot resume [--json]</code>
+            <p className="text-sm text-text-muted mt-1">Resume an interrupted workflow from where you left off.</p>
+          </div>
+          <div className="card p-4">
+            <code className="text-sm text-accent font-mono">taskmaster autopilot complete --results &lt;json&gt; [--json]</code>
+            <p className="text-sm text-text-muted mt-1">Complete the current TDD phase with test results.</p>
+          </div>
+          <div className="card p-4">
+            <code className="text-sm text-accent font-mono">taskmaster autopilot commit [--message] [--files] [--json]</code>
+            <p className="text-sm text-text-muted mt-1">Commit changes and advance to the next step.</p>
+          </div>
+          <div className="card p-4">
+            <code className="text-sm text-accent font-mono">taskmaster autopilot finalize [--json]</code>
+            <p className="text-sm text-text-muted mt-1">Finalize the workflow after all steps are complete.</p>
+          </div>
+          <div className="card p-4">
+            <code className="text-sm text-accent font-mono">taskmaster autopilot abort [--force] [--json]</code>
+            <p className="text-sm text-text-muted mt-1">Abort the current workflow. Use --force to skip confirmation.</p>
           </div>
         </div>
       </>
@@ -1710,12 +1621,12 @@ npm run format`}
     content: (
       <>
         <p className="text-text-muted mb-6">
-          This document provides an overview of the MCP (Machine-to-Machine Communication Protocol) interface for TaskMaster AI. The MCP interface exposes the application's core functionalities as a set of tools that can be called remotely.
+          This document provides an overview of the MCP (Model Context Protocol) interface for TaskMaster AI. The MCP interface exposes the application's core functionalities as a set of tools that can be called by AI editors like Cursor, Windsurf, and Claude Code.
         </p>
 
         <h3 className="text-xl font-semibold mb-4">Core Concepts</h3>
         <p className="text-text-muted mb-4">
-          The MCP interface is built on top of the <code className="bg-surface-highlight px-1.5 py-0.5 rounded">fastmcp</code> library and registers a set of tools that correspond to the core functionalities of TaskMaster. These tools are defined in the <code className="bg-surface-highlight px-1.5 py-0.5 rounded">mcp-server/src/tools/</code> directory.
+          The MCP interface is built on top of the <code className="bg-surface-highlight px-1.5 py-0.5 rounded">fastmcp</code> library and registers a set of tools that correspond to the core functionalities of TaskMaster AI.
         </p>
         <p className="text-text-muted mb-6">
           Each tool is defined with a name, description, and parameters validated using the <code className="bg-surface-highlight px-1.5 py-0.5 rounded">zod</code> library. The <code className="bg-surface-highlight px-1.5 py-0.5 rounded">execute</code> function of each tool calls the corresponding core logic function.
@@ -1736,75 +1647,119 @@ npm run format`}
             </div>
             <p className="text-sm text-text-muted mb-2">Essential tools for daily development. Ideal for minimal context usage.</p>
             <ul className="text-sm text-text-muted space-y-1">
-              <li>• <code className="bg-surface-highlight px-1 rounded">get_tasks</code> - List all tasks</li>
-              <li>• <code className="bg-surface-highlight px-1 rounded">next_task</code> - Find the next task to work on</li>
-              <li>• <code className="bg-surface-highlight px-1 rounded">get_task</code> - Get detailed task information</li>
-              <li>• <code className="bg-surface-highlight px-1 rounded">set_task_status</code> - Update task status</li>
-              <li>• <code className="bg-surface-highlight px-1 rounded">update_subtask</code> - Add implementation notes</li>
-              <li>• <code className="bg-surface-highlight px-1 rounded">parse_prd</code> - Generate tasks from PRD</li>
-              <li>• <code className="bg-surface-highlight px-1 rounded">expand_task</code> - Break down tasks into subtasks</li>
+              <li>• <code className="bg-surface-highlight px-1 rounded">list</code> - List all tasks</li>
+              <li>• <code className="bg-surface-highlight px-1 rounded">next</code> - Find the next task to work on</li>
+              <li>• <code className="bg-surface-highlight px-1 rounded">show</code> - Get detailed task information</li>
+              <li>• <code className="bg-surface-highlight px-1 rounded">set_status</code> - Update task status</li>
+              <li>• <code className="bg-surface-highlight px-1 rounded">log</code> - Add implementation notes</li>
+              <li>• <code className="bg-surface-highlight px-1 rounded">plan</code> - Generate tasks from PRD</li>
+              <li>• <code className="bg-surface-highlight px-1 rounded">breakdown</code> - Break down tasks into steps</li>
             </ul>
             <p className="text-xs text-text-subtle mt-3">You can also use "lean" as an alias for "core". If TASK_MASTER_TOOLS is not set, core tools are loaded by default.</p>
+          </div>
+
+          <div className="card p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="font-medium">standard</span>
+              <span className="text-xs bg-surface-highlight text-text-muted px-2 py-0.5 rounded">15 tools</span>
+            </div>
+            <p className="text-sm text-text-muted mb-2">Core tools plus frequently used operations.</p>
+            <p className="text-sm text-text-muted">All core tools plus: <code className="bg-surface-highlight px-1 rounded">init</code>, <code className="bg-surface-highlight px-1 rounded">assess</code>, <code className="bg-surface-highlight px-1 rounded">breakdown_all</code>, <code className="bg-surface-highlight px-1 rounded">add_step</code>, <code className="bg-surface-highlight px-1 rounded">remove_task</code>, <code className="bg-surface-highlight px-1 rounded">new</code>, <code className="bg-surface-highlight px-1 rounded">report</code>, <code className="bg-surface-highlight px-1 rounded">link</code></p>
           </div>
           
           <div className="card p-4">
             <div className="flex items-center gap-2 mb-2">
               <span className="font-medium">all</span>
-              <span className="text-xs bg-surface-highlight text-text-muted px-2 py-0.5 rounded">Full Mode</span>
+              <span className="text-xs bg-surface-highlight text-text-muted px-2 py-0.5 rounded">45 tools - Full Mode</span>
             </div>
-            <p className="text-sm text-text-muted mb-2">Full functionality including all task management and analysis tools.</p>
-            <p className="text-sm text-text-muted">All core tools plus: <code className="bg-surface-highlight px-1 rounded">init</code>, <code className="bg-surface-highlight px-1 rounded">analyze_complexity</code>, <code className="bg-surface-highlight px-1 rounded">expand_all</code>, <code className="bg-surface-highlight px-1 rounded">remove_task</code>, <code className="bg-surface-highlight px-1 rounded">add_task</code>, <code className="bg-surface-highlight px-1 rounded">add_dependency</code>, <code className="bg-surface-highlight px-1 rounded">remove_dependency</code></p>
+            <p className="text-sm text-text-muted mb-2">Full functionality including all task management, analysis, contexts, and autopilot tools.</p>
+            <p className="text-sm text-text-muted">Includes all standard tools plus: context/tag management, dependency validation, research, autopilot (TDD workflow), and configuration tools.</p>
           </div>
         </div>
 
         <h3 className="text-xl font-semibold mb-4">Choosing the Right Configuration</h3>
         <ul className="space-y-2 text-text-muted mb-6">
           <li>• Use <code className="bg-surface-highlight px-1.5 py-0.5 rounded">core</code>: Default setting, ideal for basic task management or when context limits are strict</li>
-          <li>• Use <code className="bg-surface-highlight px-1.5 py-0.5 rounded">all</code>: When you need full functionality including task creation, analysis, and dependencies</li>
+          <li>• Use <code className="bg-surface-highlight px-1.5 py-0.5 rounded">standard</code>: When you need full functionality including task creation and analysis</li>
+          <li>• Use <code className="bg-surface-highlight px-1.5 py-0.5 rounded">all</code>: When you need full functionality including contexts, autopilot, and advanced features</li>
         </ul>
 
         <h3 className="text-xl font-semibold mb-4 mt-8">Tool Categories</h3>
         <p className="text-text-muted mb-4">The MCP tools are organized into the following categories:</p>
 
-        <Accordion title="1. Task Management" defaultOpen>
+        <Accordion title="1. Task Information and Status" defaultOpen>
           <ul className="text-text-muted space-y-2">
-            <li>• <code className="bg-surface-highlight px-1 rounded">add_task</code> - Creates a new task with AI assistance</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">remove_task</code> - Removes a task or subtask</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">update_task</code> - Updates a task with new information</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">update_subtask</code> - Appends timestamped notes to a subtask</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">clear_subtasks</code> - Clears all subtasks from a task</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">list</code> - Lists all tasks with optional status filter</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">show</code> - Shows the details of a specific task or step</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">next</code> - Shows the next task to work on based on dependencies</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">set_status</code> - Sets the status of a task or step</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">log</code> - Appends timestamped notes to a step</li>
           </ul>
         </Accordion>
 
-        <Accordion title="2. Task Information and Status">
+        <Accordion title="2. Task Management">
           <ul className="text-text-muted space-y-2">
-            <li>• <code className="bg-surface-highlight px-1 rounded">get_tasks</code> - Lists all tasks</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">get_task</code> - Shows the details of a specific task</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">next_task</code> - Shows the next task to work on</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">set_task_status</code> - Sets the status of a task or subtask</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">new</code> - Creates a new task with AI assistance</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">edit</code> - Updates a task with new information</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">update</code> - Batch updates multiple tasks from a specific ID</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">remove_task</code> - Removes a task or step</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">add_step</code> - Adds a step to a parent task</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">remove_step</code> - Removes a step from a task</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">clear_steps</code> - Clears all steps from a task</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">move</code> - Moves a task to a new position in the hierarchy</li>
           </ul>
         </Accordion>
 
-        <Accordion title="3. Task Analysis and Expansion">
+        <Accordion title="3. Task Analysis and Breakdown">
           <ul className="text-text-muted space-y-2">
-            <li>• <code className="bg-surface-highlight px-1 rounded">parse_prd</code> - Parses a PRD to generate tasks</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">expand_task</code> - Expands a task into subtasks</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">expand_all</code> - Expands all pending tasks</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">analyze_complexity</code> - Analyzes task complexity</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">plan</code> - Parses a PRD to generate tasks</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">breakdown</code> - Breaks down a task into steps using AI</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">breakdown --all</code> - Breaks down all pending tasks at once</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">assess</code> - Analyzes task complexity</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">report</code> - Displays the complexity analysis report</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">ask</code> - Performs AI-powered research with project context</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">generate</code> - Generates individual task markdown files</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">init</code> - Initializes a new TaskMaster AI project</li>
           </ul>
         </Accordion>
 
-        <Accordion title="4. Dependencies">
+        <Accordion title="4. Links (Dependencies)">
           <ul className="text-text-muted space-y-2">
-            <li>• <code className="bg-surface-highlight px-1 rounded">add_dependency</code> - Adds a dependency to a task</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">remove_dependency</code> - Removes a dependency from a task</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">link</code> - Adds a dependency link to a task</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">unlink</code> - Removes a dependency link from a task</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">check_links</code> - Validates all task dependencies for issues</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">fix_links</code> - Automatically fixes dependency issues</li>
           </ul>
         </Accordion>
 
-        <Accordion title="5. Project and Configuration">
+        <Accordion title="5. Contexts">
           <ul className="text-text-muted space-y-2">
-            <li>• <code className="bg-surface-highlight px-1 rounded">init</code> - Initializes a new project</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">models</code> - Manages AI model configurations</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">contexts</code> - Lists all available contexts</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">context-add</code> - Creates a new context</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">delete-context</code> - Deletes a context and all its tasks</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">context</code> - Switches to a different context</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">rename-context</code> - Renames an existing context</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">clone</code> - Copies a context with all its tasks</li>
+          </ul>
+        </Accordion>
+
+        <Accordion title="6. Autopilot (TDD Workflow)">
+          <ul className="text-text-muted space-y-2">
+            <li>• <code className="bg-surface-highlight px-1 rounded">autopilot_start</code> - Starts a TDD workflow for a task</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">autopilot_resume</code> - Resumes an interrupted workflow</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">autopilot_next</code> - Gets the next action to perform</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">autopilot_status</code> - Gets current workflow status</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">autopilot_complete</code> - Completes the current TDD phase</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">autopilot_commit</code> - Commits changes and advances to next step</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">autopilot_finalize</code> - Finalizes the workflow</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">autopilot_abort</code> - Aborts the current workflow</li>
+          </ul>
+        </Accordion>
+
+        <Accordion title="7. Configuration">
+          <ul className="text-text-muted space-y-2">
+            <li>• <code className="bg-surface-highlight px-1 rounded">models</code> - Views or configures AI model settings</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">get_config</code> - Retrieves current project configuration</li>
           </ul>
         </Accordion>
       </>
@@ -1863,8 +1818,8 @@ npm run format`}
                 <td className="py-2">How to verify successful completion of the task</td>
               </tr>
               <tr className="border-b border-border">
-                <td className="py-2 pr-4 font-mono text-accent">subtasks</td>
-                <td className="py-2">Array of nested subtasks related to the main task</td>
+                <td className="py-2 pr-4 font-mono text-accent">steps</td>
+                <td className="py-2">Array of nested steps related to the main task</td>
               </tr>
             </tbody>
           </table>
@@ -1882,7 +1837,7 @@ npm run format`}
   "priority": "high",
   "details": "Use GitHub client ID/secret, handle callback...",
   "testStrategy": "Deploy and confirm 'Hello World' response.",
-  "subtasks": [
+  "steps": [
     {
       "id": 1,
       "title": "Configure OAuth",
@@ -1901,8 +1856,8 @@ npm run format`}
         <h3 className="text-xl font-semibold mb-4 mt-8">Task ID Format</h3>
         <ul className="space-y-2 text-text-muted mb-6">
           <li>• <strong>Main tasks:</strong> <code className="bg-surface-highlight px-1.5 py-0.5 rounded">1</code>, <code className="bg-surface-highlight px-1.5 py-0.5 rounded">2</code>, <code className="bg-surface-highlight px-1.5 py-0.5 rounded">3</code></li>
-          <li>• <strong>Subtasks:</strong> <code className="bg-surface-highlight px-1.5 py-0.5 rounded">1.1</code>, <code className="bg-surface-highlight px-1.5 py-0.5 rounded">1.2</code>, <code className="bg-surface-highlight px-1.5 py-0.5 rounded">2.1</code></li>
-          <li>• <strong>Nested subtasks:</strong> <code className="bg-surface-highlight px-1.5 py-0.5 rounded">1.1.1</code>, <code className="bg-surface-highlight px-1.5 py-0.5 rounded">1.1.2</code></li>
+          <li>• <strong>Steps:</strong> <code className="bg-surface-highlight px-1.5 py-0.5 rounded">1.1</code>, <code className="bg-surface-highlight px-1.5 py-0.5 rounded">1.2</code>, <code className="bg-surface-highlight px-1.5 py-0.5 rounded">2.1</code></li>
+          <li>• <strong>Nested steps:</strong> <code className="bg-surface-highlight px-1.5 py-0.5 rounded">1.1.1</code>, <code className="bg-surface-highlight px-1.5 py-0.5 rounded">1.1.2</code></li>
         </ul>
 
         <h3 className="text-xl font-semibold mb-4">Status Values</h3>
@@ -1945,25 +1900,25 @@ Deploy and confirm 'Hello World' response.`}
         <h3 className="text-xl font-semibold mb-4 mt-8">Features in Detail</h3>
 
         <Accordion title="Analyzing Task Complexity">
-          <p className="text-text-muted mb-3">The <code className="bg-surface-highlight px-1 rounded">analyze-complexity</code> command:</p>
+          <p className="text-text-muted mb-3">The <code className="bg-surface-highlight px-1 rounded">assess</code> command:</p>
           <ul className="text-text-muted space-y-1 mb-4">
             <li>• Analyzes each task using AI to assess complexity on a scale of 1-10</li>
-            <li>• Recommends optimal number of subtasks based on configured DEFAULT_SUBTASKS</li>
-            <li>• Generates tailored prompts for expanding each task</li>
+            <li>• Recommends optimal number of steps based on configured DEFAULT_STEPS</li>
+            <li>• Generates tailored prompts for breaking down each task</li>
             <li>• Creates a comprehensive JSON report with ready-to-use commands</li>
-            <li>• Saves the report to <code className="bg-surface-highlight px-1 rounded">scripts/task-complexity-report.json</code> by default</li>
+            <li>• Saves the report to <code className="bg-surface-highlight px-1 rounded">scripts/task-report.json</code> by default</li>
           </ul>
           <p className="text-text-muted mb-2">The generated report contains:</p>
           <ul className="text-text-muted space-y-1">
             <li>• Complexity analysis for each task (scored 1-10)</li>
-            <li>• Recommended number of subtasks based on complexity</li>
+            <li>• Recommended number of steps based on complexity</li>
             <li>• AI-generated expansion prompts customized for each task</li>
             <li>• Ready-to-run expansion commands</li>
           </ul>
         </Accordion>
 
         <Accordion title="Viewing Complexity Report">
-          <p className="text-text-muted mb-3">The <code className="bg-surface-highlight px-1 rounded">complexity-report</code> command:</p>
+          <p className="text-text-muted mb-3">The <code className="bg-surface-highlight px-1 rounded">report</code> command:</p>
           <ul className="text-text-muted space-y-1">
             <li>• Displays a formatted, easy-to-read version of the complexity analysis report</li>
             <li>• Shows tasks organized by complexity score (highest to lowest)</li>
@@ -1975,26 +1930,26 @@ Deploy and confirm 'Hello World' response.`}
         </Accordion>
 
         <Accordion title="Smart Task Expansion">
-          <p className="text-text-muted mb-3">The <code className="bg-surface-highlight px-1 rounded">expand</code> command automatically checks for and uses the complexity report:</p>
+          <p className="text-text-muted mb-3">The <code className="bg-surface-highlight px-1 rounded">breakdown</code> command automatically checks for and uses the complexity report:</p>
           <p className="text-text-muted mb-3"><strong>When a complexity report exists:</strong></p>
           <ul className="text-text-muted space-y-1 mb-4">
-            <li>• Tasks are automatically expanded using the recommended subtask count and prompts</li>
-            <li>• When expanding all tasks, they're processed in order of complexity (highest first)</li>
+            <li>• Tasks are automatically broken down using the recommended step count and prompts</li>
+            <li>• When breaking down all tasks, they're processed in order of complexity (highest first)</li>
             <li>• Research-backed generation is preserved from the complexity analysis</li>
             <li>• You can still override recommendations with explicit command-line options</li>
           </ul>
           <p className="text-text-muted mb-2"><strong>Example workflow:</strong></p>
           <CodeBlock 
-            code={`# Generate the complexity analysis report with research
-taskmaster analyze-complexity --research
+            code={`# Generate the complexity analysis report with ask
+taskmaster assess --ask
 
 # Review the report in a readable format
-taskmaster complexity-report
+taskmaster report
 
-# Expand tasks using the optimized recommendations
-taskmaster expand --id=8
-# or expand all tasks
-taskmaster expand --all`}
+# Break down tasks using the optimized recommendations
+taskmaster breakdown --id=8
+# or break down all tasks
+taskmaster breakdown --all`}
             filename="Terminal"
           />
         </Accordion>
@@ -2010,7 +1965,7 @@ taskmaster expand --all`}
           <ul className="text-text-muted space-y-1">
             <li>• Basic task details (ID, title, priority, dependencies)</li>
             <li>• Implementation details</li>
-            <li>• Subtasks (if they exist)</li>
+            <li>• Steps (if they exist)</li>
             <li>• Contextual suggested actions</li>
           </ul>
         </Accordion>
@@ -2018,12 +1973,12 @@ taskmaster expand --all`}
         <Accordion title="Viewing Specific Task Details">
           <p className="text-text-muted mb-3">The <code className="bg-surface-highlight px-1 rounded">show</code> command:</p>
           <ul className="text-text-muted space-y-1">
-            <li>• Displays comprehensive details about a specific task or subtask</li>
+            <li>• Displays comprehensive details about a specific task or step</li>
             <li>• Shows task status, priority, dependencies, and detailed implementation notes</li>
-            <li>• For parent tasks, displays all subtasks and their status</li>
-            <li>• For subtasks, shows parent task relationship</li>
+            <li>• For parent tasks, displays all steps and their status</li>
+            <li>• For steps, shows parent task relationship</li>
             <li>• Provides contextual action suggestions based on the task's state</li>
-            <li>• Works with both regular tasks and subtasks (using the format <code className="bg-surface-highlight px-1 rounded">taskId.subtaskId</code>)</li>
+            <li>• Works with both regular tasks and steps (using the format <code className="bg-surface-highlight px-1 rounded">taskId.stepId</code>)</li>
           </ul>
         </Accordion>
 
@@ -2052,7 +2007,7 @@ taskmaster expand --all`}
           </div>
           <div className="card p-4">
             <p className="font-medium text-accent mb-2">📦 Break Down Tasks</p>
-            <p className="text-sm text-text-muted">Use expand command to break down complex tasks into manageable subtasks.</p>
+            <p className="text-sm text-text-muted">Use breakdown command to break down complex tasks into manageable steps.</p>
           </div>
           <div className="card p-4">
             <p className="font-medium text-accent mb-2">🔄 Regenerate Files</p>
@@ -2064,7 +2019,7 @@ taskmaster expand --all`}
           </div>
           <div className="card p-4">
             <p className="font-medium text-accent mb-2">✅ Validate Dependencies</p>
-            <p className="text-sm text-text-muted">Periodically run validate-dependencies to check for invalid or circular dependencies.</p>
+            <p className="text-sm text-text-muted">Periodically run check-links to check for invalid or circular dependencies.</p>
           </div>
         </div>
       </>
@@ -2085,12 +2040,12 @@ taskmaster expand --all`}
         </p>
         
         <CodeBlock 
-          code={`# After configuring keys in https://www.taskmaster.one/app/api-keys
+          code={`# After configuring keys in https://taskmaster.one/app/api-keys
 taskmaster sync
 
 # This syncs:
 # - All your API keys (Anthropic, OpenAI, Google, etc.)
-# - Model configuration (main, research, fallback)
+# - Model configuration (main, ask, fallback)
 # - Any other dashboard settings`}
           filename="Terminal"
         />
@@ -2110,7 +2065,7 @@ taskmaster usage
 
 # View breakdown of operations:
 # - Tasks from PRD
-# - Tasks expanded  
+# - Tasks broken down  
 # - Tasks added
 # - Complexity analyses`}
           filename="Terminal"
@@ -2166,7 +2121,7 @@ taskmaster next`}
         
         <h3 className="text-xl font-semibold mb-4">Configuration File</h3>
         <p className="text-text-muted mb-4">
-          TaskMaster stores configuration in <code className="bg-surface-highlight px-1.5 py-0.5 rounded">.taskmaster/config.json</code>. Use the models command to modify it:
+          TaskMaster stores configuration in <code className="bg-surface-highlight px-1.5 py-0.5 rounded">.taskmaster-ai-ai/config.json</code>. Use the models command to modify it:
         </p>
         
         <CodeBlock 
@@ -2178,7 +2133,7 @@ taskmaster next`}
       "maxTokens": 8000,
       "temperature": 0.7
     },
-    "research": {
+    "ask": {
       "provider": "perplexity",
       "modelId": "sonar-pro"
     },
@@ -2189,12 +2144,12 @@ taskmaster next`}
   },
   "global": {
     "logLevel": "info",
-    "defaultSubtasks": 5,
+    "defaultSteps": 5,
     "defaultPriority": "medium",
-    "defaultTag": "master"
+    "defaultContext": "main"
   }
 }`}
-          filename=".taskmaster/config.json"
+          filename=".taskmaster-ai-ai/config.json"
           language="json"
         />
 
@@ -2212,7 +2167,7 @@ taskmaster models
 
 # Set specific models
 taskmaster models --set-main claude-sonnet-4-20250514
-taskmaster models --set-research sonar-pro
+taskmaster models --set-ask sonar-pro
 taskmaster models --set-fallback gpt-4o-mini
 
 # Use custom Ollama model
@@ -2223,13 +2178,13 @@ taskmaster models --set-main gpt-4-turbo --openrouter`}
           filename="Terminal"
         />
 
-        <h3 className="text-xl font-semibold mb-4 mt-8">Tagged System Configuration</h3>
+        <h3 className="text-xl font-semibold mb-4 mt-8">Context System Configuration</h3>
         <p className="text-text-muted mb-4">
-          Configure the default tag and behavior in the global settings:
+          Configure the default context and behavior in the global settings:
         </p>
         <CodeBlock 
           code={`"global": {
-  "defaultTag": "master"
+  "defaultContext": "main"
 }`}
           filename="config.json snippet"
           language="json"
@@ -2237,17 +2192,17 @@ taskmaster models --set-main gpt-4-turbo --openrouter`}
 
         <h3 className="text-xl font-semibold mb-4 mt-8">Project Structure</h3>
         <p className="text-text-muted mb-4">
-          TaskMaster stores all data in the <code className="bg-surface-highlight px-1.5 py-0.5 rounded">.taskmaster</code> directory:
+          TaskMaster stores all data in the <code className="bg-surface-highlight px-1.5 py-0.5 rounded">.taskmaster-ai</code> directory:
         </p>
         <CodeBlock 
           code={`{
-  ".taskmaster/": {
+  ".taskmaster-ai/": {
     "config.json": "Project configuration",
     "tasks/tasks.json": "All tasks data",
     "reports/": "Complexity reports"
   }
 }`}
-          filename=".taskmaster/"
+          filename=".taskmaster-ai/"
           language="json"
         />
 
@@ -2285,52 +2240,52 @@ OPENAI_API_KEY=sk-...
         </p>
         <CodeBlock 
           code={`# Update a task with new information
-taskmaster update-task --id=5 --prompt="We're now using PostgreSQL instead of MongoDB"
+taskmaster edit --id=5 --prompt="We're now using PostgreSQL instead of MongoDB"
 
-# Append notes without replacing (like update-subtask)
-taskmaster update-task --id=5 --prompt="Added migration scripts" --append
+# Append notes without replacing (like log)
+taskmaster edit --id=5 --prompt="Added migration scripts" --append
 
-# Update with research for more informed changes
-taskmaster update-task --id=5 --prompt="Switching to TypeScript" --research`}
+# Update with ask for more informed changes
+taskmaster edit --id=5 --prompt="Switching to TypeScript" --ask`}
           filename="Terminal"
         />
 
         <h3 className="text-xl font-semibold mb-4 mt-8">Breaking Down Complex Tasks</h3>
         <p className="text-text-muted mb-4">
-          For complex tasks, generate subtasks with specific counts or context:
+          For complex tasks, generate steps with specific counts or context:
         </p>
         <CodeBlock 
-          code={`# Expand with specific number of subtasks
-taskmaster expand --id=7 --num=5
+          code={`# Break down with specific number of steps
+taskmaster breakdown --id=7 --num=5
 
 # Expand with additional context
-taskmaster expand --id=7 --prompt="Focus on error handling and edge cases"
+taskmaster breakdown --id=7 --prompt="Focus on error handling and edge cases"
 
-# Force regenerate existing subtasks
-taskmaster expand --id=7 --force --research`}
+# Force regenerate existing steps
+taskmaster breakdown --id=7 --force --ask`}
           filename="Terminal"
         />
 
         <h3 className="text-xl font-semibold mb-4 mt-8">Dependency Management</h3>
         <CodeBlock 
           code={`# Add a dependency
-taskmaster add-dependency --id=5 --depends-on=3
+taskmaster link --id=5 --depends-on=3
 
 # Remove a dependency
-taskmaster remove-dependency --id=5 --depends-on=3`}
+taskmaster unlink --id=5 --depends-on=3`}
           filename="Terminal"
         />
 
         <h3 className="text-xl font-semibold mb-4 mt-8">Manual Task Creation</h3>
         <CodeBlock 
           code={`# Add a new task with AI structuring
-taskmaster add-task --prompt="Implement user authentication with JWT"
+taskmaster new --prompt="Implement user authentication with JWT"
 
 # Add with dependencies and priority
-taskmaster add-task --prompt="Add rate limiting" --dependencies=3,4 --priority=high
+taskmaster new --prompt="Add rate limiting" --dependencies=3,4 --priority=high
 
-# Use research model for more informed task creation
-taskmaster add-task --prompt="Implement caching layer" --research`}
+# Use ask model for more informed task creation
+taskmaster new --prompt="Implement caching layer" --ask`}
           filename="Terminal"
         />
       </>
@@ -2345,67 +2300,77 @@ taskmaster add-task --prompt="Implement caching layer" --research`}
           TaskMaster AI's Autopilot is an autonomous Test-Driven Development (TDD) workflow system that helps AI agents implement features following strict TDD practices.
         </p>
         
-        <TipBox>
-          Autopilot manages workflow state, Git operations, test validation, and progress tracking automatically.
-        </TipBox>
+        <div className="mb-8">
+          <TipBox>
+            Autopilot manages workflow state, Git operations, test validation, and progress tracking automatically.
+          </TipBox>
+        </div>
 
-        <h3 className="text-xl font-semibold mb-4">Key Features</h3>
+        <h3 className="text-xl font-semibold mb-4 mt-8">Key Features</h3>
         <ul className="space-y-2 text-text-muted mb-8">
           <li>• <strong>TDD State Machine:</strong> Enforces the RED → GREEN → COMMIT cycle</li>
           <li>• <strong>Git Integration:</strong> Automates branch creation and commits with metadata</li>
           <li>• <strong>Test Validation:</strong> Ensures RED phase has failures and GREEN phase passes</li>
-          <li>• <strong>Progress Tracking:</strong> Monitors subtask completion and attempt counts</li>
+          <li>• <strong>Progress Tracking:</strong> Monitors step completion and attempt counts</li>
           <li>• <strong>State Persistence:</strong> Automatically manages workflow state for resumability</li>
         </ul>
 
-        <h3 className="text-xl font-semibold mb-4">Prerequisites</h3>
-        <ul className="list-disc list-inside text-text-muted space-y-1 mb-8">
-          <li>An initialized TaskMaster project with defined subtasks</li>
+        <h3 className="text-xl font-semibold mb-4 mt-10">Prerequisites</h3>
+        <ul className="list-disc list-inside text-text-muted space-y-2 mb-8">
+          <li>An initialized TaskMaster project with defined steps</li>
           <li>A clean Git repository</li>
           <li>A configured test framework (e.g., Vitest, Jest)</li>
         </ul>
 
-        <h3 className="text-xl font-semibold mb-4">Quick Start</h3>
+        <h3 className="text-xl font-semibold mb-4 mt-10">Quick Start</h3>
 
         <h4 className="text-lg font-medium mb-3">1. Initialize Workflow</h4>
+        <p className="text-text-muted mb-3">Start the TDD workflow for a task with defined steps:</p>
         <CodeBlock 
-          code="tm autopilot start 7"
+          code="taskmaster autopilot start 7"
           filename="Terminal"
         />
 
         <h4 className="text-lg font-medium mb-3 mt-6">2. Check Next Action</h4>
+        <p className="text-text-muted mb-3">Get instructions for what to do next:</p>
         <CodeBlock 
-          code="tm autopilot next"
+          code="taskmaster autopilot next"
           filename="Terminal"
         />
 
         <h4 className="text-lg font-medium mb-3 mt-6">3. Write Failing Test (RED Phase)</h4>
-        <p className="text-text-muted mb-3">Create a test file that initially fails, then run tests and complete the phase:</p>
+        <p className="text-text-muted mb-3">Create a test file that initially fails. Run your tests and report the results:</p>
         <CodeBlock 
-          code={`tm autopilot complete --results '{"total":1,"passed":0,"failed":1,"skipped":0}'`}
+          code={`# Run your tests (e.g., npm test, vitest, jest)
+# Then report results:
+taskmaster autopilot complete --results '{"total":1,"passed":0,"failed":1,"skipped":0}'`}
           filename="Terminal"
         />
 
         <h4 className="text-lg font-medium mb-3 mt-6">4. Implement Code (GREEN Phase)</h4>
-        <p className="text-text-muted mb-3">Write implementation code to pass the tests:</p>
+        <p className="text-text-muted mb-3">Write the minimum implementation to pass the tests, then report results:</p>
         <CodeBlock 
-          code={`tm autopilot complete --results '{"total":1,"passed":1,"failed":0,"skipped":0}'`}
+          code={`# Implement your code
+# Run tests again, then report:
+taskmaster autopilot complete --results '{"total":1,"passed":1,"failed":0,"skipped":0}'`}
           filename="Terminal"
         />
 
         <h4 className="text-lg font-medium mb-3 mt-6">5. Commit Changes</h4>
+        <p className="text-text-muted mb-3">Commit your work and advance to the next step:</p>
         <CodeBlock 
-          code="tm autopilot commit"
+          code="taskmaster autopilot commit"
           filename="Terminal"
         />
 
-        <h4 className="text-lg font-medium mb-3 mt-6">6. Repeat for Next Subtask</h4>
+        <h4 className="text-lg font-medium mb-3 mt-6">6. Repeat for Next Step</h4>
+        <p className="text-text-muted mb-3">The workflow automatically advances to the next step. Repeat the cycle:</p>
         <CodeBlock 
-          code="tm autopilot next"
+          code="taskmaster autopilot next"
           filename="Terminal"
         />
 
-        <h3 className="text-xl font-semibold mb-4 mt-8">Workflow Phases</h3>
+        <h3 className="text-xl font-semibold mb-6 mt-10">Workflow Phases</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8">
           {[
             { phase: 'PREFLIGHT', desc: 'Validates prerequisites' },
@@ -2465,22 +2430,22 @@ it('should initialize workflow', async () => {
         <Accordion title="Resume Interrupted Work">
           <CodeBlock 
             code={`# If you interrupted the workflow
-tm autopilot resume
+taskmaster autopilot resume
 
 ✓ Workflow resumed
-✓ Task 7 - subtask 3/5
+✓ Task 7 - step 3/5
 ✓ Current phase: GREEN
 → Continue from where you left off`}
             filename="Terminal"
           />
         </Accordion>
 
-        <h3 className="text-xl font-semibold mb-4 mt-8">JSON Output Mode</h3>
+        <h3 className="text-xl font-semibold mb-6 mt-10">JSON Output Mode</h3>
         <p className="text-text-muted mb-4">
           All commands support <code className="bg-surface-highlight px-1.5 py-0.5 rounded">--json</code> flag for programmatic use:
         </p>
         <CodeBlock 
-          code={`$ tm autopilot start 7 --json | jq .
+          code={`$ taskmaster autopilot start 7 --json | jq .
 {
   "success": true,
   "taskId": "7",
@@ -2495,7 +2460,7 @@ tm autopilot resume
         />
         <p className="text-text-muted mt-4">Perfect for: CI/CD integration, custom tooling, automated workflows, progress monitoring.</p>
 
-        <h3 className="text-xl font-semibold mb-4 mt-8">MCP Integration</h3>
+        <h3 className="text-xl font-semibold mb-6 mt-10">MCP Integration</h3>
         <p className="text-text-muted mb-4">
           For AI agents (Claude Code, etc.), use MCP tools:
         </p>
@@ -2525,33 +2490,40 @@ await mcp.call('autopilot_commit', {
           language="javascript"
         />
 
-        <h3 className="text-xl font-semibold mb-4 mt-8">Cheat Sheet</h3>
+        <TipBox>
+          <strong>Note:</strong> <code className="bg-surface-highlight px-1 rounded">tm</code> is an alias for <code className="bg-surface-highlight px-1 rounded">taskmaster</code>. Both commands work identically.
+        </TipBox>
+
+        <h3 className="text-xl font-semibold mb-6 mt-10">Cheat Sheet</h3>
         <CodeBlock 
           code={`# Start
-tm autopilot start <taskId>         # Initialize workflow
+taskmaster autopilot start <taskId>    # Initialize workflow
 
 # Workflow Control
-tm autopilot next                    # What's next?
-tm autopilot status                  # Current state
-tm autopilot resume                  # Continue interrupted work
-tm autopilot abort                   # Cancel and cleanup
+taskmaster autopilot next              # What's next?
+taskmaster autopilot status            # Current state
+taskmaster autopilot resume            # Continue interrupted work
+taskmaster autopilot abort             # Cancel and cleanup
 
 # TDD Cycle
-tm autopilot complete --results '{...}'   # Advance phase
-tm autopilot commit                       # Save progress
+taskmaster autopilot complete --results '{...}'   # Advance phase
+taskmaster autopilot commit                       # Save progress
+
+# Finalization
+taskmaster autopilot finalize          # Complete workflow, mark task done
 
 # Options
 --json                              # Machine-readable output
---project-root <path>               # Specify project location
+--max-attempts <n>                  # Max retries per step (default: 3)
 --force                             # Override safety checks`}
           filename="Cheat Sheet"
         />
 
-        <h3 className="text-xl font-semibold mb-4 mt-8">Tips</h3>
+        <h3 className="text-xl font-semibold mb-6 mt-10">Tips</h3>
         <ol className="list-decimal list-inside text-text-muted space-y-2">
           <li><strong>Always let tests fail first</strong> - That's the RED phase</li>
           <li><strong>Write minimal code</strong> - Just enough to pass</li>
-          <li><strong>Commit frequently</strong> - After each subtask</li>
+          <li><strong>Commit frequently</strong> - After each step</li>
           <li><strong>Use --json</strong> - Better for programmatic use</li>
           <li><strong>Check status often</strong> - Know where you are</li>
           <li><strong>Trust the workflow</strong> - It enforces TDD rules</li>
@@ -2582,7 +2554,7 @@ tm autopilot commit                       # Save progress
           <li>• <strong>TDD State Machine:</strong> Enforces RED → GREEN → COMMIT cycle</li>
           <li>• <strong>Git Integration:</strong> Automated branch creation, commits with metadata</li>
           <li>• <strong>Test Validation:</strong> Ensures RED phase has failures, GREEN phase passes</li>
-          <li>• <strong>Progress Tracking:</strong> Subtask completion, attempt counting, error logging</li>
+          <li>• <strong>Progress Tracking:</strong> Step completion, attempt counting, error logging</li>
           <li>• <strong>State Persistence:</strong> Automatic workflow state management</li>
           <li>• <strong>Dual Interface:</strong> CLI commands and MCP tools for flexibility</li>
         </ul>
@@ -2610,17 +2582,84 @@ tm autopilot commit                       # Save progress
 │  │GitAdapter│  │TestResult│  │CommitMessage │    │
 │  │          │  │Validator │  │Generator     │    │
 │  └──────────┘  └──────────┘  └──────────────┘    │
+└────────────────────────────────────────────────────┘
+          │
+          │ Persists to
+          ▼
+┌────────────────────────────────────────────────────┐
+│  .taskmaster-ai-ai/workflow-state.json                    │
 └────────────────────────────────────────────────────┘`}
           filename="Architecture"
         />
 
-        <h3 className="text-xl font-semibold mb-4 mt-8">Responsibility Matrix</h3>
+        <h4 className="text-lg font-medium mb-3 mt-6">Component Responsibilities</h4>
+        <div className="grid md:grid-cols-2 gap-3 mb-6">
+          <div className="bg-surface border border-border rounded-lg p-3">
+            <code className="text-sm text-accent font-semibold">WorkflowOrchestrator</code>
+            <p className="text-xs text-text-muted mt-1">Manages TDD state machine transitions, tracks progress, enforces workflow rules, emits events</p>
+          </div>
+          <div className="bg-surface border border-border rounded-lg p-3">
+            <code className="text-sm text-accent font-semibold">GitAdapter</code>
+            <p className="text-xs text-text-muted mt-1">Creates/manages workflow branches, stages files, creates commits, validates repository state</p>
+          </div>
+          <div className="bg-surface border border-border rounded-lg p-3">
+            <code className="text-sm text-accent font-semibold">TestResultValidator</code>
+            <p className="text-xs text-text-muted mt-1">Validates RED phase has failures, GREEN phase passes, parses test results</p>
+          </div>
+          <div className="bg-surface border border-border rounded-lg p-3">
+            <code className="text-sm text-accent font-semibold">CommitMessageGenerator</code>
+            <p className="text-xs text-text-muted mt-1">Generates conventional commit messages with workflow metadata</p>
+          </div>
+        </div>
+
+        <h3 className="text-xl font-semibold mb-4 mt-12">Workflow Phases</h3>
+        <CodeBlock 
+          code={`PREFLIGHT → BRANCH_SETUP → SUBTASK_LOOP → FINALIZE → COMPLETE
+                                   ↓
+                          RED → GREEN → COMMIT
+                           ↑              ↓
+                           └──────────────┘
+                             (Next Step)`}
+          filename="Phase Flow"
+        />
+
+        <h4 className="text-lg font-medium mb-3 mt-6">Phase Descriptions</h4>
+        <div className="space-y-3 mb-8">
+          <div className="bg-surface border border-border rounded-lg p-3">
+            <code className="text-sm text-accent font-semibold">PREFLIGHT</code>
+            <p className="text-sm text-text-muted mt-1">Validates task has steps, checks git repository state, verifies preconditions</p>
+          </div>
+          <div className="bg-surface border border-border rounded-lg p-3">
+            <code className="text-sm text-accent font-semibold">BRANCH_SETUP</code>
+            <p className="text-sm text-text-muted mt-1">Creates workflow branch (task-{'{taskId}'}), checks out new branch, initializes workflow context</p>
+          </div>
+          <div className="bg-surface border border-border rounded-lg p-3">
+            <code className="text-sm text-accent font-semibold">SUBTASK_LOOP</code>
+            <p className="text-sm text-text-muted mt-1">Main development cycle containing RED → GREEN → COMMIT phases for each step</p>
+            <div className="mt-2 ml-4 space-y-1">
+              <p className="text-xs text-text-muted"><strong>RED:</strong> Write failing tests. Action: generate_test. Validation: At least one test must fail.</p>
+              <p className="text-xs text-text-muted"><strong>GREEN:</strong> Implement code. Action: implement_code. Validation: All tests must pass.</p>
+              <p className="text-xs text-text-muted"><strong>COMMIT:</strong> Create commit. Action: commit_changes. Auto-generates message, advances to next step.</p>
+            </div>
+          </div>
+          <div className="bg-surface border border-border rounded-lg p-3">
+            <code className="text-sm text-accent font-semibold">FINALIZE</code>
+            <p className="text-sm text-text-muted mt-1">All steps complete, workflow ready for review/merge</p>
+          </div>
+          <div className="bg-surface border border-border rounded-lg p-3">
+            <code className="text-sm text-accent font-semibold">COMPLETE</code>
+            <p className="text-sm text-text-muted mt-1">Workflow finished, state can be cleaned up</p>
+          </div>
+        </div>
+
+        <h3 className="text-xl font-semibold mb-4 mt-12">Responsibility Matrix</h3>
+        <p className="text-text-muted mb-6">Clear division of responsibilities between AI Agent and TaskMaster.</p>
         
         <div className="grid md:grid-cols-2 gap-4 mb-8">
           <div className="card p-4">
             <h4 className="font-medium text-accent mb-3">AI Agent Responsibilities</h4>
             <ul className="text-sm text-text-muted space-y-1">
-              <li>• Read and understand subtask requirements</li>
+              <li>• Read and understand step requirements</li>
               <li>• Write test code that validates requirements</li>
               <li>• Run test suite using project's test command</li>
               <li>• Parse test output into JSON format</li>
@@ -2645,37 +2684,283 @@ tm autopilot commit                       # Save progress
           </div>
         </div>
 
-        <h3 className="text-xl font-semibold mb-4">CLI Commands</h3>
-        <p className="text-text-muted mb-4">All commands support <code className="bg-surface-highlight px-1.5 py-0.5 rounded">--json</code> flag for machine-readable output.</p>
+        <h3 className="text-xl font-semibold mb-4 mt-12">Complete TDD Cycle Example</h3>
+        <p className="text-text-muted mb-6">A complete walkthrough of implementing a feature using the TDD workflow:</p>
+
+        <Accordion title="1. Start Workflow" defaultOpen>
+          <CodeBlock 
+            code={`$ taskmaster autopilot start 7 --json
+{
+  "success": true,
+  "taskId": "7",
+  "branchName": "task-7",
+  "tddPhase": "RED",
+  "currentSubtask": {
+    "id": "1",
+    "title": "Implement start command",
+    "status": "in-progress"
+  },
+  "nextAction": "generate_test"
+}`}
+            filename="Terminal"
+          />
+        </Accordion>
+
+        <Accordion title="2. Get Next Action">
+          <CodeBlock 
+            code={`$ taskmaster autopilot next --json
+{
+  "action": "generate_test",
+  "actionDescription": "Write a failing test for the current step",
+  "tddPhase": "RED",
+  "currentSubtask": {
+    "id": "1",
+    "title": "Implement start command"
+  }
+}`}
+            filename="Terminal"
+          />
+        </Accordion>
+
+        <Accordion title="3. Write Failing Test (AI Agent)">
+          <p className="text-text-muted mb-3">AI Agent creates the test file:</p>
+          <CodeBlock 
+            code={`import { describe, it, expect } from 'vitest';
+import { StartCommand } from '../src/commands/start.js';
+
+describe('StartCommand', () => {
+  it('should initialize workflow and create branch', async () => {
+    const command = new StartCommand();
+    const result = await command.execute({ taskId: '7' });
+    expect(result.success).toBe(true);
+    expect(result.branchName).toBe('task-7');
+  });
+});`}
+            filename="tests/start.test.ts"
+            language="typescript"
+          />
+        </Accordion>
+
+        <Accordion title="4. Run Tests & Complete RED Phase">
+          <p className="text-text-muted mb-3">Run tests (should fail), then report results:</p>
+          <CodeBlock 
+            code={`# Run tests
+$ npm test
+# Output: 1 test failed (expected)
+
+# Report results to TaskMaster
+$ taskmaster autopilot complete --results '{"total":1,"passed":0,"failed":1,"skipped":0}' --json
+{
+  "success": true,
+  "message": "Completed RED phase",
+  "previousPhase": "RED",
+  "currentPhase": "GREEN",
+  "nextAction": "implement_code"
+}`}
+            filename="Terminal"
+          />
+        </Accordion>
+
+        <Accordion title="5. Implement Code (AI Agent)">
+          <p className="text-text-muted mb-3">AI Agent creates implementation:</p>
+          <CodeBlock 
+            code={`export class StartCommand {
+  async execute(options: { taskId: string }) {
+    // Implementation that makes test pass
+    return {
+      success: true,
+      branchName: \`task-\${options.taskId}\`
+    };
+  }
+}`}
+            filename="src/commands/start.ts"
+            language="typescript"
+          />
+        </Accordion>
+
+        <Accordion title="6. Run Tests & Complete GREEN Phase">
+          <p className="text-text-muted mb-3">Run tests (should pass), then report results:</p>
+          <CodeBlock 
+            code={`# Run tests
+$ npm test
+# Output: 1 test passed
+
+# Report results to TaskMaster
+$ taskmaster autopilot complete --results '{"total":1,"passed":1,"failed":0,"skipped":0}' --json
+{
+  "success": true,
+  "previousPhase": "GREEN",
+  "currentPhase": "COMMIT",
+  "nextAction": "commit_changes"
+}`}
+            filename="Terminal"
+          />
+        </Accordion>
+
+        <Accordion title="7. Commit Changes">
+          <CodeBlock 
+            code={`$ taskmaster autopilot commit --json
+{
+  "success": true,
+  "commit": {
+    "hash": "abc123",
+    "message": "feat(autopilot): implement start command (Task 7.1)\\n\\n..."
+  },
+  "subtaskCompleted": "1",
+  "currentSubtask": {
+    "id": "2",
+    "title": "Implement resume command"
+  },
+  "nextAction": "generate_test"
+}`}
+            filename="Terminal"
+          />
+          <p className="text-text-muted mt-3">Workflow automatically advances to next step. Repeat the cycle!</p>
+        </Accordion>
+
+        <h3 className="text-xl font-semibold mb-4 mt-12">CLI Commands</h3>
+        <p className="text-text-muted mb-6">
+          All commands support <code className="bg-surface-highlight px-1.5 py-0.5 rounded">--json</code> flag for machine-readable output. 
+          Use <code className="bg-surface-highlight px-1.5 py-0.5 rounded">taskmaster</code> or the shorter alias <code className="bg-surface-highlight px-1.5 py-0.5 rounded">tm</code>.
+        </p>
         
-        <Accordion title="tm autopilot start <taskId>" defaultOpen>
+        <Accordion title="taskmaster autopilot start <taskId>">
           <p className="text-text-muted mb-3">Initialize a new TDD workflow for a task.</p>
           <p className="text-sm text-text-muted mb-2"><strong>Options:</strong></p>
           <ul className="text-sm text-text-muted space-y-1 mb-3">
-            <li>• <code className="bg-surface-highlight px-1 rounded">--max-attempts {"<number>"}</code>: Maximum attempts per subtask (default: 3)</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">--max-attempts {"<number>"}</code>: Maximum attempts per step (default: 3)</li>
             <li>• <code className="bg-surface-highlight px-1 rounded">--force</code>: Force start even if workflow exists</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">--project-root {"<path>"}</code>: Project root directory</li>
             <li>• <code className="bg-surface-highlight px-1 rounded">--json</code>: Output JSON</li>
           </ul>
-          <CodeBlock code="tm autopilot start 7 --max-attempts 5 --json" filename="Example" />
-        </Accordion>
-
-        <Accordion title="tm autopilot next">
-          <p className="text-text-muted mb-3">Get the next action to perform with detailed context.</p>
-          <p className="text-sm text-text-muted mb-2">Returns information about:</p>
-          <ul className="text-sm text-text-muted space-y-1">
-            <li>• Current action to perform (generate_test, implement_code, commit_changes)</li>
-            <li>• Current phase and TDD phase</li>
-            <li>• Progress information</li>
-            <li>• Current subtask details</li>
-            <li>• Expected files</li>
-          </ul>
-        </Accordion>
-
-        <Accordion title="tm autopilot complete">
-          <p className="text-text-muted mb-3">Complete the current TDD phase with test result validation.</p>
           <CodeBlock 
-            code={`tm autopilot complete --results '{"total":10,"passed":9,"failed":1,"skipped":0}' --json`}
+            code={`$ taskmaster autopilot start 7 --max-attempts 5 --json
+{
+  "success": true,
+  "message": "Workflow started for task 7",
+  "taskId": "7",
+  "branchName": "task-7",
+  "phase": "SUBTASK_LOOP",
+  "tddPhase": "RED",
+  "progress": {
+    "completed": 0,
+    "total": 5,
+    "percentage": 0
+  },
+  "currentSubtask": {
+    "id": "1",
+    "title": "Implement start command",
+    "status": "in-progress",
+    "attempts": 0
+  },
+  "nextAction": "generate_test"
+}`}
+            filename="Example with JSON Output"
+          />
+        </Accordion>
+
+        <Accordion title="taskmaster autopilot resume">
+          <p className="text-text-muted mb-3">Resume a previously started workflow from saved state.</p>
+          <CodeBlock 
+            code={`$ taskmaster autopilot resume --json
+{
+  "success": true,
+  "message": "Workflow resumed",
+  "taskId": "7",
+  "branchName": "task-7",
+  "tddPhase": "GREEN",
+  "progress": {
+    "completed": 2,
+    "total": 5,
+    "percentage": 40
+  }
+}`}
+            filename="Example"
+          />
+        </Accordion>
+
+        <Accordion title="taskmaster autopilot next">
+          <p className="text-text-muted mb-3">Get the next action to perform with detailed context.</p>
+          <CodeBlock 
+            code={`$ taskmaster autopilot next --json
+{
+  "action": "generate_test",
+  "actionDescription": "Write a failing test for the current step",
+  "phase": "SUBTASK_LOOP",
+  "tddPhase": "RED",
+  "taskId": "7",
+  "branchName": "task-7",
+  "progress": {
+    "completed": 0,
+    "total": 5,
+    "current": 1,
+    "percentage": 0
+  },
+  "currentSubtask": {
+    "id": "1",
+    "title": "Implement start command",
+    "status": "in-progress",
+    "attempts": 0,
+    "maxAttempts": 3
+  },
+  "expectedFiles": ["test file"],
+  "context": {
+    "canProceed": false,
+    "errors": []
+  }
+}`}
+            filename="Example with JSON Output"
+          />
+        </Accordion>
+
+        <Accordion title="taskmaster autopilot status">
+          <p className="text-text-muted mb-3">Get comprehensive workflow progress and state information.</p>
+          <CodeBlock 
+            code={`$ taskmaster autopilot status --json
+{
+  "taskId": "7",
+  "branchName": "task-7",
+  "phase": "SUBTASK_LOOP",
+  "tddPhase": "GREEN",
+  "progress": {
+    "completed": 2,
+    "total": 5,
+    "percentage": 40
+  },
+  "currentSubtask": {
+    "id": "3",
+    "title": "Add validation",
+    "status": "in-progress"
+  },
+  "subtasks": [
+    { "id": "1", "title": "Implement start command", "status": "done" },
+    { "id": "2", "title": "Implement resume command", "status": "done" },
+    { "id": "3", "title": "Add validation", "status": "in-progress" },
+    { "id": "4", "title": "Error handling", "status": "pending" },
+    { "id": "5", "title": "Tests", "status": "pending" }
+  ],
+  "errors": [],
+  "canProceed": true
+}`}
+            filename="Example with JSON Output"
+          />
+        </Accordion>
+
+        <Accordion title="taskmaster autopilot complete">
+          <p className="text-text-muted mb-3">Complete the current TDD phase with test result validation.</p>
+          <p className="text-sm text-text-muted mb-2"><strong>Options:</strong></p>
+          <ul className="text-sm text-text-muted space-y-1 mb-3">
+            <li>• <code className="bg-surface-highlight px-1 rounded">--results {"<json>"}</code>: Test results JSON string (required)</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">--json</code>: Output JSON</li>
+          </ul>
+          <CodeBlock 
+            code={`$ taskmaster autopilot complete --results '{"total":10,"passed":9,"failed":1,"skipped":0}' --json
+{
+  "success": true,
+  "message": "Completed RED phase",
+  "previousPhase": "RED",
+  "currentPhase": "GREEN",
+  "nextAction": "implement_code"
+}`}
             filename="Example"
           />
           <p className="text-sm text-text-muted mt-3"><strong>Validation Rules:</strong></p>
@@ -2685,117 +2970,456 @@ tm autopilot commit                       # Save progress
           </ul>
         </Accordion>
 
-        <Accordion title="tm autopilot commit">
+        <Accordion title="taskmaster autopilot commit">
           <p className="text-text-muted mb-3">Create a git commit with enhanced message generation.</p>
           <p className="text-sm text-text-muted mb-2"><strong>Options:</strong></p>
-          <ul className="text-sm text-text-muted space-y-1">
+          <ul className="text-sm text-text-muted space-y-1 mb-3">
             <li>• <code className="bg-surface-highlight px-1 rounded">--message {"<text>"}</code>: Custom commit message (optional)</li>
             <li>• <code className="bg-surface-highlight px-1 rounded">--files {"<paths...>"}</code>: Specific files to stage (optional)</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">--json</code>: Output JSON</li>
           </ul>
+          <CodeBlock 
+            code={`$ taskmaster autopilot commit --json
+{
+  "success": true,
+  "commit": {
+    "hash": "a1b2c3d",
+    "message": "feat(autopilot): implement start command (Task 7.1)"
+  },
+  "subtaskCompleted": "1",
+  "isComplete": false,
+  "currentSubtask": {
+    "id": "2",
+    "title": "Implement resume command"
+  },
+  "nextAction": "generate_test"
+}`}
+            filename="Example"
+          />
         </Accordion>
 
-        <Accordion title="Other Commands">
+        <Accordion title="taskmaster autopilot finalize">
+          <p className="text-text-muted mb-3">Finalize the workflow after all steps are complete.</p>
+          <CodeBlock 
+            code={`$ taskmaster autopilot finalize --json
+{
+  "success": true,
+  "taskId": "7",
+  "message": "Workflow finalized. Task 7 marked as done."
+}`}
+            filename="Example"
+          />
+        </Accordion>
+
+        <Accordion title="taskmaster autopilot abort">
+          <p className="text-text-muted mb-3">Abort the workflow and clean up state (preserves git branch and code).</p>
+          <p className="text-sm text-text-muted mb-2"><strong>Options:</strong></p>
+          <ul className="text-sm text-text-muted space-y-1 mb-3">
+            <li>• <code className="bg-surface-highlight px-1 rounded">--force</code>: Skip confirmation prompt</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">--json</code>: Output JSON</li>
+          </ul>
+          <CodeBlock 
+            code={`$ taskmaster autopilot abort --force --json
+{
+  "success": true,
+  "message": "Workflow aborted. Branch and code preserved.",
+  "taskId": "7",
+  "branchName": "task-7"
+}`}
+            filename="Example"
+          />
+        </Accordion>
+
+        <h3 className="text-xl font-semibold mb-4 mt-12">MCP Tools</h3>
+        <p className="text-text-muted mb-6">MCP tools provide the same functionality as CLI commands for programmatic integration.</p>
+
+        <Accordion title="autopilot_start">
+          <p className="text-text-muted mb-3">Initialize a new TDD workflow for a task.</p>
+          <p className="text-sm text-text-muted mb-2"><strong>Parameters:</strong></p>
+          <CodeBlock 
+            code={`{
+  taskId: string;          // Required: Task ID (e.g., "7", "2.3")
+  projectRoot: string;     // Required: Absolute path to project
+  tag?: string;            // Optional: Tag context
+  maxAttempts?: number;    // Optional: Default 3
+  force?: boolean;         // Optional: Default false
+}`}
+            filename="Parameters"
+            language="typescript"
+          />
+          <p className="text-sm text-text-muted mt-3 mb-2"><strong>Returns:</strong></p>
+          <CodeBlock 
+            code={`{
+  success: boolean;
+  message: string;
+  taskId: string;
+  branchName: string;
+  phase: WorkflowPhase;
+  tddPhase: TDDPhase;
+  progress: {
+    completed: number;
+    total: number;
+    percentage: number;
+  };
+  currentSubtask: SubtaskInfo | null;
+  nextAction: string;
+}`}
+            filename="Response"
+            language="typescript"
+          />
+        </Accordion>
+
+        <Accordion title="autopilot_next">
+          <p className="text-text-muted mb-3">Get the next action to perform with detailed context.</p>
+          <p className="text-sm text-text-muted mb-2"><strong>Parameters:</strong></p>
+          <CodeBlock 
+            code={`{
+  projectRoot: string;  // Required: Absolute path to project
+}`}
+            filename="Parameters"
+            language="typescript"
+          />
+          <p className="text-sm text-text-muted mt-3 mb-2"><strong>Returns:</strong></p>
+          <CodeBlock 
+            code={`{
+  action: string;              // 'generate_test' | 'implement_code' | 'commit_changes'
+  actionDescription: string;
+  phase: WorkflowPhase;
+  tddPhase: TDDPhase;
+  taskId: string;
+  branchName: string;
+  progress: ProgressInfo;
+  currentSubtask: SubtaskInfo | null;
+  expectedFiles: string[];
+  context: {
+    canProceed: boolean;
+    errors: string[];
+  };
+}`}
+            filename="Response"
+            language="typescript"
+          />
+        </Accordion>
+
+        <Accordion title="autopilot_complete_phase">
+          <p className="text-text-muted mb-3">Complete the current TDD phase with test result validation.</p>
+          <p className="text-sm text-text-muted mb-2"><strong>Parameters:</strong></p>
+          <CodeBlock 
+            code={`{
+  projectRoot: string;  // Required: Absolute path to project
+  testResults: {
+    total: number;      // Required: Total tests
+    passed: number;     // Required: Passing tests
+    failed: number;     // Required: Failing tests
+    skipped?: number;   // Optional: Skipped tests
+  };
+}`}
+            filename="Parameters"
+            language="typescript"
+          />
+        </Accordion>
+
+        <Accordion title="autopilot_commit">
+          <p className="text-text-muted mb-3">Create a git commit with enhanced message generation.</p>
+          <p className="text-sm text-text-muted mb-2"><strong>Parameters:</strong></p>
+          <CodeBlock 
+            code={`{
+  projectRoot: string;     // Required: Absolute path to project
+  files?: string[];        // Optional: Files to stage
+  customMessage?: string;  // Optional: Custom commit message
+}`}
+            filename="Parameters"
+            language="typescript"
+          />
+        </Accordion>
+
+        <Accordion title="Other MCP Tools">
           <ul className="text-text-muted space-y-2">
-            <li>• <code className="bg-surface-highlight px-1 rounded">tm autopilot resume</code> - Resume a previously started workflow</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">tm autopilot status</code> - Get comprehensive workflow progress</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">tm autopilot abort</code> - Abort workflow and clean up state (preserves git branch and code)</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">autopilot_resume</code> - Resume previously started workflow (params: projectRoot)</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">autopilot_status</code> - Get workflow status (params: projectRoot)</li>
+            <li>• <code className="bg-surface-highlight px-1 rounded">autopilot_abort</code> - Abort workflow (params: projectRoot)</li>
           </ul>
         </Accordion>
 
-        <h3 className="text-xl font-semibold mb-4 mt-8">MCP Tools</h3>
-        <p className="text-text-muted mb-4">MCP tools provide the same functionality as CLI commands for programmatic integration.</p>
+        <h3 className="text-xl font-semibold mb-6 mt-12">MCP Integration Example</h3>
+        <CodeBlock 
+          code={`// AI Agent using MCP tools
+async function implementTask(taskId: string) {
+  // Start workflow
+  const start = await mcp.call('autopilot_start', {
+    taskId,
+    projectRoot: '/path/to/project'
+  });
+  console.log(\`Started task \${start.taskId} on branch \${start.branchName}\`);
 
-        <Accordion title="Available MCP Tools">
-          <ul className="text-text-muted space-y-2">
-            <li>• <code className="bg-surface-highlight px-1 rounded">autopilot_start</code> - Initialize workflow for a task</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">autopilot_resume</code> - Resume previously started workflow</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">autopilot_next</code> - Get next action with context</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">autopilot_status</code> - Get workflow status</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">autopilot_complete_phase</code> - Complete current phase</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">autopilot_commit</code> - Create commit</li>
-            <li>• <code className="bg-surface-highlight px-1 rounded">autopilot_abort</code> - Abort workflow</li>
-          </ul>
-        </Accordion>
+  while (true) {
+    // Get next action
+    const next = await mcp.call('autopilot_next', {
+      projectRoot: '/path/to/project'
+    });
+    console.log(\`Next action: \${next.action}\`);
 
-        <h3 className="text-xl font-semibold mb-4 mt-8">Error Handling</h3>
+    if (next.action === 'generate_test') {
+      // AI generates test
+      const testCode = await generateTest(next.currentSubtask);
+      await writeFile(testCode);
 
-        <Accordion title="Common Errors and Solutions">
+      // Run tests
+      const results = await runTests();
+
+      // Complete RED phase
+      await mcp.call('autopilot_complete_phase', {
+        projectRoot: '/path/to/project',
+        testResults: results
+      });
+
+    } else if (next.action === 'implement_code') {
+      // AI generates implementation
+      const implCode = await generateImplementation(next.currentSubtask);
+      await writeFile(implCode);
+
+      // Run tests
+      const results = await runTests();
+
+      // Complete GREEN phase
+      await mcp.call('autopilot_complete_phase', {
+        projectRoot: '/path/to/project',
+        testResults: results
+      });
+
+    } else if (next.action === 'commit_changes') {
+      // Commit
+      const commit = await mcp.call('autopilot_commit', {
+        projectRoot: '/path/to/project'
+      });
+      console.log(\`Committed: \${commit.commit.hash}\`);
+
+      if (commit.isComplete) {
+        console.log('Task complete!');
+        break;
+      }
+    }
+  }
+}`}
+          filename="MCP Integration Example"
+          language="javascript"
+        />
+
+        <h3 className="text-xl font-semibold mb-6 mt-12">Error Handling</h3>
+
+        <Accordion title="Common Errors and Solutions" defaultOpen>
           <div className="space-y-4">
-            <div>
+            <div className="bg-surface border border-border rounded-lg p-3">
               <p className="font-medium text-accent mb-1">Workflow Already Exists</p>
-              <p className="text-sm text-text-muted mb-2">Use <code className="bg-surface-highlight px-1 rounded">autopilot_resume</code> to continue the existing workflow, or <code className="bg-surface-highlight px-1 rounded">--force</code> to start new.</p>
+              <CodeBlock 
+                code={`{
+  "error": "Workflow already in progress",
+  "suggestion": "Use autopilot_resume to continue the existing workflow"
+}`}
+                filename="Error"
+                language="json"
+              />
+              <p className="text-sm text-text-muted mt-2"><strong>Solution:</strong> Use <code className="bg-surface-highlight px-1 rounded">taskmaster autopilot resume</code> or <code className="bg-surface-highlight px-1 rounded">--force</code> flag.</p>
             </div>
-            <div>
+            <div className="bg-surface border border-border rounded-lg p-3">
               <p className="font-medium text-accent mb-1">RED Phase Validation Failed</p>
-              <p className="text-sm text-text-muted mb-2">"At least one test must be failing" - Ensure your test validates new behavior that doesn't exist yet.</p>
+              <CodeBlock 
+                code={`{
+  "error": "RED phase validation failed",
+  "reason": "At least one test must be failing in RED phase",
+  "actual": { "passed": 10, "failed": 0 },
+  "suggestion": "Ensure you have written a failing test before proceeding"
+}`}
+                filename="Error"
+                language="json"
+              />
+              <p className="text-sm text-text-muted mt-2"><strong>Solution:</strong> The test isn't actually testing the new feature. Write a test that fails until the feature is implemented.</p>
             </div>
-            <div>
+            <div className="bg-surface border border-border rounded-lg p-3">
               <p className="font-medium text-accent mb-1">GREEN Phase Validation Failed</p>
-              <p className="text-sm text-text-muted mb-2">"All tests must pass" - Debug failing test and fix implementation.</p>
+              <CodeBlock 
+                code={`{
+  "error": "GREEN phase validation failed",
+  "reason": "All tests must pass in GREEN phase",
+  "actual": { "passed": 9, "failed": 1 },
+  "suggestion": "Fix the implementation to make all tests pass"
+}`}
+                filename="Error"
+                language="json"
+              />
+              <p className="text-sm text-text-muted mt-2"><strong>Solution:</strong> Debug failing test and fix implementation.</p>
             </div>
-            <div>
+            <div className="bg-surface border border-border rounded-lg p-3">
               <p className="font-medium text-accent mb-1">No Staged Changes</p>
-              <p className="text-sm text-text-muted mb-2">Ensure you've created/modified files before committing.</p>
+              <p className="text-sm text-text-muted"><strong>Solution:</strong> Ensure you've created/modified files before committing.</p>
             </div>
-            <div>
+            <div className="bg-surface border border-border rounded-lg p-3">
               <p className="font-medium text-accent mb-1">Git Working Tree Not Clean</p>
-              <p className="text-sm text-text-muted mb-2">Commit or stash changes before starting workflow.</p>
+              <p className="text-sm text-text-muted"><strong>Solution:</strong> Commit or stash changes before starting workflow: <code className="bg-surface-highlight px-1 rounded">git status && git add . && git commit -m "chore: save work"</code></p>
             </div>
           </div>
         </Accordion>
 
-        <h3 className="text-xl font-semibold mb-4 mt-8">Troubleshooting</h3>
+        <Accordion title="Error Recovery Patterns">
+          <p className="text-text-muted mb-3"><strong>Retry Pattern:</strong></p>
+          <CodeBlock 
+            code={`async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxAttempts: number = 3
+): Promise<T> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (attempt === maxAttempts) throw error;
+      console.log(\`Attempt \${attempt} failed, retrying...\`);
+      await sleep(1000 * attempt); // Exponential backoff
+    }
+  }
+  throw new Error('Should not reach here');
+}
 
-        <Accordion title="Common Issues">
-          <div className="space-y-4">
-            <div>
-              <p className="font-medium mb-2">Workflow State Issues</p>
-              <p className="text-sm text-text-muted">If state file is corrupted, run <code className="bg-surface-highlight px-1 rounded">tm autopilot abort --force</code> then restart.</p>
-            </div>
-            <div>
-              <p className="font-medium mb-2">Test Results Parsing</p>
-              <p className="text-sm text-text-muted">Ensure results JSON has required fields: <code className="bg-surface-highlight px-1 rounded">total</code>, <code className="bg-surface-highlight px-1 rounded">passed</code>, <code className="bg-surface-highlight px-1 rounded">failed</code> (skipped is optional).</p>
-            </div>
-            <div>
-              <p className="font-medium mb-2">Branch Conflicts</p>
-              <p className="text-sm text-text-muted">Delete old workflow branch with <code className="bg-surface-highlight px-1 rounded">git branch -D task-N</code> then restart.</p>
-            </div>
-          </div>
+// Usage
+const results = await withRetry(async () => {
+  const output = await runTests();
+  return parseTestResults(output);
+});`}
+            filename="Retry Pattern"
+            language="typescript"
+          />
+          <p className="text-text-muted mt-4 mb-3"><strong>Graceful Degradation:</strong></p>
+          <CodeBlock 
+            code={`async function completePhase(projectRoot: string, results: TestResults) {
+  try {
+    return await mcp.call('autopilot_complete_phase', {
+      projectRoot,
+      testResults: results
+    });
+  } catch (error) {
+    console.error('Phase completion failed:', error);
+
+    // Log error for debugging
+    await logError(error);
+
+    // Attempt manual recovery
+    console.log('Attempting manual state recovery...');
+    const status = await mcp.call('autopilot_status', { projectRoot });
+    console.log('Current state:', status);
+
+    // Provide user guidance
+    console.log('Manual intervention required:');
+    console.log('1. Check test results are correct');
+    console.log('2. Verify current phase allows transition');
+    console.log('3. Run: taskmaster autopilot status');
+
+    throw error;
+  }
+}`}
+            filename="Graceful Degradation"
+            language="typescript"
+          />
         </Accordion>
 
-        <h3 className="text-xl font-semibold mb-4 mt-8">Working with AI Agents</h3>
-        <p className="text-text-muted mb-4">Example prompts for AI agents (Claude Code, Cursor, etc.):</p>
+        <h3 className="text-xl font-semibold mb-6 mt-12">Troubleshooting</h3>
+
+        <Accordion title="Workflow State Issues">
+          <p className="text-text-muted mb-2"><strong>Problem:</strong> State file corrupted or inconsistent</p>
+          <CodeBlock 
+            code={`# Check state file
+cat .taskmaster-ai-ai/workflow-state.json
+
+# If corrupted, abort and restart
+taskmaster autopilot abort --force
+taskmaster autopilot start 7`}
+            filename="Solution"
+          />
+        </Accordion>
+
+        <Accordion title="Test Results Parsing">
+          <p className="text-text-muted mb-2"><strong>Problem:</strong> Test output format not recognized</p>
+          <p className="text-sm text-text-muted mb-2"><strong>Solution:</strong> Ensure test results JSON has required fields:</p>
+          <CodeBlock 
+            code={`{
+  "total": 10,    // Required
+  "passed": 8,    // Required
+  "failed": 2,    // Required
+  "skipped": 0    // Optional
+}`}
+            filename="Required Format"
+            language="json"
+          />
+        </Accordion>
+
+        <Accordion title="Branch Conflicts">
+          <p className="text-text-muted mb-2"><strong>Problem:</strong> Workflow branch already exists</p>
+          <CodeBlock 
+            code={`# Check branches
+git branch
+
+# Delete old workflow branch if safe
+git branch -D task-7
+
+# Start workflow again
+taskmaster autopilot start 7`}
+            filename="Solution"
+          />
+        </Accordion>
+
+        <Accordion title="Permission Issues">
+          <p className="text-text-muted mb-2"><strong>Problem:</strong> Cannot write to .taskmaster-ai directory</p>
+          <CodeBlock 
+            code={`# Check directory permissions
+ls -la .taskmaster-ai/
+
+# Fix permissions
+chmod -R u+w .taskmaster-ai/`}
+            filename="Solution"
+          />
+        </Accordion>
+
+        <h3 className="text-xl font-semibold mb-4 mt-12">Working with AI Agents</h3>
+        <p className="text-text-muted mb-6">Example prompts for AI agents (Claude Code, Cursor, etc.):</p>
         
         <div className="space-y-4">
           <div className="card p-4">
             <p className="text-sm font-medium text-accent mb-2">Starting a Task</p>
-            <p className="text-sm text-text-muted italic">"I want to implement Task 7 using TDD workflow. Please start the autopilot workflow, show me the first subtask, and begin the RED-GREEN-COMMIT cycle."</p>
+            <p className="text-sm text-text-muted italic">"I want to implement Task 7 using TDD workflow. Please: 1) Start the autopilot workflow, 2) Show me the first step to implement, 3) Begin the RED-GREEN-COMMIT cycle"</p>
           </div>
           <div className="card p-4">
             <p className="text-sm font-medium text-accent mb-2">RED Phase - Writing Failing Tests</p>
-            <p className="text-sm text-text-muted italic">"We're in RED phase. Please read the subtask requirements, write a test that validates the behavior, and the test MUST fail because the feature doesn't exist yet."</p>
+            <p className="text-sm text-text-muted italic">"We're in RED phase for step [STEP_TITLE]. Please: 1) Read the step requirements, 2) Write a test that validates the behavior, 3) The test MUST fail because the feature doesn't exist yet, 4) Run the tests and report results to complete the RED phase"</p>
           </div>
           <div className="card p-4">
             <p className="text-sm font-medium text-accent mb-2">GREEN Phase - Implementing</p>
-            <p className="text-sm text-text-muted italic">"We're in GREEN phase. Please implement the minimal code to make this test pass. Don't over-engineer or add untested features."</p>
+            <p className="text-sm text-text-muted italic">"We're in GREEN phase. The test is failing with: [ERROR_MESSAGE]. Please: 1) Implement the minimal code to make this test pass, 2) Don't over-engineer or add untested features, 3) Run tests and report results to complete the GREEN phase"</p>
           </div>
           <div className="card p-4">
             <p className="text-sm font-medium text-accent mb-2">Handling Errors</p>
-            <p className="text-sm text-text-muted italic">"The RED phase validation failed - no test failures detected. Please review the test, identify why it's not actually testing new behavior, and rewrite it."</p>
+            <p className="text-sm text-text-muted italic">"The RED phase validation failed - no test failures detected. Please: 1) Review the test I just wrote, 2) Identify why it's not actually testing new behavior, 3) Rewrite the test to properly fail until the feature is implemented"</p>
           </div>
           <div className="card p-4">
             <p className="text-sm font-medium text-accent mb-2">Checking Progress</p>
-            <p className="text-sm text-text-muted italic">"What's the current state of the workflow? Show which subtask we're on, current TDD phase, progress percentage, and next action required."</p>
+            <p className="text-sm text-text-muted italic">"What's the current state of the workflow? Please show: - Which subtask we're on, - Current TDD phase (RED/GREEN/COMMIT), - Progress percentage, - Next action required"</p>
           </div>
           <div className="card p-4">
             <p className="text-sm font-medium text-accent mb-2">Resuming Work</p>
-            <p className="text-sm text-text-muted italic">"I have an in-progress workflow. Please resume the autopilot workflow, show current status, and continue from where we left off."</p>
+            <p className="text-sm text-text-muted italic">"I have an in-progress workflow. Please: 1) Resume the autopilot workflow, 2) Show current status, 3) Continue from where we left off"</p>
           </div>
         </div>
 
-        <TipBox type="info">
-          The autopilot system automatically handles Git branch creation, state persistence, and workflow transitions. Your AI agent just needs to focus on writing tests and implementation code.
-        </TipBox>
+        <div className="mt-8">
+          <TipBox type="info">
+            The autopilot system automatically handles Git branch creation, state persistence, and workflow transitions. Your AI agent just needs to focus on writing tests and implementation code.
+          </TipBox>
+        </div>
+
+        <h3 className="text-xl font-semibold mb-4 mt-12">Additional Resources</h3>
+        <ul className="text-text-muted space-y-2">
+          <li>• <SectionLink sectionId="tdd-quick-start">TDD Quick Start</SectionLink> - Get started in 5 minutes</li>
+          <li>• <SectionLink sectionId="cli-commands">CLI Command Reference</SectionLink> - Complete CLI documentation</li>
+          <li>• <SectionLink sectionId="mcp-tools">MCP Tools</SectionLink> - MCP integration details</li>
+          <li>• <SectionLink sectionId="task-structure">Task Structure</SectionLink> - Understanding TaskMaster's task system</li>
+        </ul>
       </>
     )
   },
@@ -2884,6 +3508,31 @@ interface SearchResult {
   description?: string
   breadcrumb: string[]
   icon?: typeof faBook
+  keywords: string[]
+}
+
+// Keywords for each doc section to enable comprehensive searching
+const docKeywords: Record<string, string[]> = {
+  'introduction': ['welcome', 'getting started', 'overview', 'pricing', 'plans', 'plus', 'pro', 'enterprise', 'support', 'email'],
+  'quick-start': ['setup', 'install', 'configuration', 'prd', 'requirements', 'node.js', 'npm', 'api key'],
+  'requirements': ['node.js', 'npm', 'api key', 'anthropic', 'openai', 'google', 'gemini', 'perplexity', 'xai', 'openrouter', 'claude code'],
+  'installation': ['npm install', 'mcp', 'cursor', 'windsurf', 'vscode', 'claude code', 'global', 'project', 'npx', 'taskmasterai', 'one-click'],
+  'configuration': ['mcp.json', 'api key', 'environment', 'config', 'anthropic_api_key', 'openai_api_key', 'perplexity_api_key'],
+  'prd-creation': ['product requirements', 'prd', 'template', 'scope', 'constraints', 'user stories', 'plan', 'parse'],
+  'tasks-setup': ['breakdown', 'steps', 'complexity', 'analyze', 'assess'],
+  'executing-tasks': ['next', 'show', 'set-status', 'done', 'in-progress', 'pending', 'log', 'workflow'],
+  'api-keys': ['api key', 'dashboard', 'anthropic', 'openai', 'google', 'perplexity', 'sync', 'security', 'provider'],
+  'license-usage': ['license', 'activation', 'activate', 'deactivate', 'usage', 'limits', 'billing', 'subscription'],
+  'faq': ['troubleshoot', 'error', 'help', 'support', 'common', 'questions', 'problem', 'fix'],
+  'contribute': ['feedback', 'support', 'contact', 'email', 'bug', 'feature request', 'community'],
+  'advanced-usage': ['rules', 'context', 'mdc', 'cursor rules', 'prompts', 'workflow', 'best practices'],
+  'advanced-configuration': ['models', 'config', 'main model', 'research model', 'fallback', 'temperature', 'parameters'],
+  'advanced-tasks': ['dependencies', 'priority', 'subtasks', 'update', 'batch', 'move', 'organization'],
+  'mcp-tools': ['mcp', 'tools', 'core', 'standard', 'all', 'list', 'next', 'breakdown', 'plan', 'set_status', 'autopilot'],
+  'cli-commands': ['taskmaster', 'init', 'plan', 'list', 'show', 'next', 'set-status', 'breakdown', 'new', 'edit', 'log', 'update', 'assess', 'report', 'link', 'unlink', 'contexts', 'context', 'switch', 'clone', 'ask', 'usage', 'models', 'sync', 'autopilot', 'move', 'add-step', 'generate', 'check-links', 'fix-links', 'remove-task', 'clear-steps', 'delete-context', 'rename-context'],
+  'task-structure': ['id', 'title', 'description', 'status', 'dependencies', 'priority', 'details', 'steps', 'testStrategy', 'tasks.json'],
+  'tdd-quick-start': ['tdd', 'test driven', 'autopilot', 'red green refactor', 'testing', 'workflow', 'git branch'],
+  'agent-integration': ['ai agent', 'cursor', 'automation', 'mcp tools', 'autopilot_start', 'autopilot_next', 'autopilot_status', 'autopilot_commit'],
 }
 
 // Build searchable index from navigation and docContent
@@ -2898,7 +3547,8 @@ const buildSearchIndex = (): SearchResult[] => {
         label: item.label,
         description: doc?.title || item.label,
         breadcrumb: ['Documentation', section.title, item.label],
-        icon: item.icon
+        icon: item.icon,
+        keywords: docKeywords[item.id] || []
       })
       
       if (item.children) {
@@ -2909,7 +3559,8 @@ const buildSearchIndex = (): SearchResult[] => {
             label: child.label,
             description: childDoc?.title || child.label,
             breadcrumb: ['Documentation', section.title, item.label, child.label],
-            icon: item.icon
+            icon: item.icon,
+            keywords: docKeywords[child.id] || []
           })
         })
       }
@@ -2938,12 +3589,19 @@ export default function Docs() {
   const [isAsking, setIsAsking] = useState(false)
   const [showAnswerModal, setShowAnswerModal] = useState(false)
   const [isInputFocused, setIsInputFocused] = useState(false)
+  const [showContactModal, setShowContactModal] = useState(false)
+  const [feedbackGiven, setFeedbackGiven] = useState<string | null>(null)
   const [sidebarWidth, setSidebarWidth] = useState(420)
   const [isResizing, setIsResizing] = useState(false)
   const questionInputRef = useRef<HTMLInputElement>(null)
   const sidebarInputRef = useRef<HTMLInputElement>(null)
   const chatContainerRef = useRef<HTMLDivElement>(null)
   const searchModalInputRef = useRef<HTMLInputElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+  
+  // Copy section/all docs state
+  const [copiedSection, setCopiedSection] = useState(false)
+  const [copiedAllDocs, setCopiedAllDocs] = useState(false)
   
   // Detect if user is on Mac
   const [isMac, setIsMac] = useState(true)
@@ -2951,13 +3609,28 @@ export default function Docs() {
     setIsMac(navigator.platform.toUpperCase().indexOf('MAC') >= 0)
   }, [])
 
-  // Search results based on query
+  // Search results based on query - searches label, description, breadcrumb, and keywords
   const searchResults = searchQuery.trim() 
-    ? searchIndex.filter(item => 
-        item.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.breadcrumb.some(b => b.toLowerCase().includes(searchQuery.toLowerCase()))
-      )
+    ? searchIndex.filter(item => {
+        const query = searchQuery.toLowerCase()
+        const queryWords = query.split(/\s+/).filter(w => w.length > 0)
+        
+        // Check if any query word matches
+        return queryWords.some(word => 
+          item.label.toLowerCase().includes(word) ||
+          item.description?.toLowerCase().includes(word) ||
+          item.breadcrumb.some(b => b.toLowerCase().includes(word)) ||
+          item.keywords.some(k => k.toLowerCase().includes(word))
+        )
+      }).sort((a, b) => {
+        // Prioritize exact label matches
+        const query = searchQuery.toLowerCase()
+        const aLabelMatch = a.label.toLowerCase().includes(query)
+        const bLabelMatch = b.label.toLowerCase().includes(query)
+        if (aLabelMatch && !bLabelMatch) return -1
+        if (!aLabelMatch && bLabelMatch) return 1
+        return 0
+      })
     : []
 
   // Handle selecting a search result
@@ -2998,16 +3671,107 @@ export default function Docs() {
         setShowSearchModal(false)
         setSearchQuery('')
       }
+      if (e.key === 'Escape' && showContactModal) {
+        setShowContactModal(false)
+      }
     }
     window.addEventListener('keydown', handleEscape)
     return () => window.removeEventListener('keydown', handleEscape)
-  }, [showSearchModal])
+  }, [showSearchModal, showContactModal])
+
+  // Reset feedback and copy state when navigating to a different page
+  useEffect(() => {
+    setFeedbackGiven(null)
+    setCopiedSection(false)
+  }, [activeSection])
 
   // Reset chat function
   const resetChat = () => {
     setQuestion('')
     setChatHistory([])
   }
+
+  // Helper function to extract text from a DOM element
+  const extractTextFromElement = useCallback((element: HTMLElement): string => {
+    let text = ''
+    
+    const walker = document.createTreeWalker(
+      element,
+      NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+      null
+    )
+    
+    let node: Node | null = walker.currentNode
+    while (node) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const content = node.textContent?.trim()
+        if (content) {
+          text += content + ' '
+        }
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as HTMLElement
+        const tagName = el.tagName.toLowerCase()
+        
+        // Add line breaks for block elements
+        if (['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'br'].includes(tagName)) {
+          text = text.trimEnd() + '\n'
+        }
+        
+        // Add extra line break after headers
+        if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tagName)) {
+          text = text.trimEnd() + '\n'
+        }
+        
+        // Handle code blocks specially
+        if (tagName === 'pre' || tagName === 'code') {
+          const codeContent = el.textContent?.trim()
+          if (codeContent && tagName === 'pre') {
+            text += '\n```\n' + codeContent + '\n```\n'
+            // Skip children since we've handled the content
+            node = walker.nextSibling() || walker.parentNode()
+            while (node && !walker.nextNode()) {
+              node = walker.parentNode()
+            }
+            node = walker.currentNode
+            continue
+          }
+        }
+      }
+      node = walker.nextNode()
+    }
+    
+    // Clean up multiple newlines
+    return text.replace(/\n{3,}/g, '\n\n').trim()
+  }, [])
+
+  // Copy current section content
+  const handleCopySection = useCallback(async () => {
+    if (contentRef.current) {
+      const text = extractTextFromElement(contentRef.current)
+      const currentDoc = docContent[activeSection] || docContent['introduction']
+      const sectionTitle = currentDoc?.title || 'Documentation'
+      const formattedText = `# ${sectionTitle}\n\n${text}`
+      
+      try {
+        await navigator.clipboard.writeText(formattedText)
+        setCopiedSection(true)
+        setTimeout(() => setCopiedSection(false), 2000)
+      } catch (err) {
+        console.error('Failed to copy:', err)
+      }
+    }
+  }, [activeSection, extractTextFromElement])
+
+  // Copy all documentation - uses static text file (no rendering needed)
+  const handleCopyAllDocs = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(ALL_DOCS_TEXT)
+      setCopiedAllDocs(true)
+      setTimeout(() => setCopiedAllDocs(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy all docs:', err)
+    }
+  }, [])
 
   // Scroll to bottom when new messages are added
   useEffect(() => {
@@ -3333,24 +4097,22 @@ export default function Docs() {
       </button>
 
       {/* Search Bar - Centered below navbar (opens modal on click) */}
-      {!showMobileMenu && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-40 w-full max-w-sm pl-16 pr-4 lg:px-4" style={{ position: 'fixed' }}>
-          <div className="relative">
-            {/* Blur backdrop */}
-            <div className="absolute -inset-2 bg-background/80 backdrop-blur-md rounded-full -z-10" />
-            <button
-              onClick={() => setShowSearchModal(true)}
-              className="w-full flex items-center gap-3 pl-4 pr-4 py-2.5 bg-surface backdrop-blur-sm border border-border rounded-full text-sm text-text-subtle hover:border-accent transition-colors shadow-lg"
-            >
-              <FontAwesomeIcon icon={faSearch} className="w-3.5 h-3.5" />
-              <span className="flex-1 text-left">Search docs...</span>
-              <span className="text-xs bg-surface-highlight px-1.5 py-0.5 rounded">
-                {isMac ? '⌘K' : 'Ctrl+K'}
-              </span>
-            </button>
-          </div>
+      <div className="fixed top-20 left-1/2 -translate-x-1/2 z-40 w-full max-w-sm px-4">
+        <div className="relative">
+          {/* Blur backdrop */}
+          <div className="absolute -inset-2 bg-background/80 backdrop-blur-md rounded-full -z-10" />
+          <button
+            onClick={() => setShowSearchModal(true)}
+            className="w-full flex items-center gap-3 pl-4 pr-4 py-2.5 bg-surface backdrop-blur-sm border border-border rounded-full text-sm text-text-subtle hover:border-accent transition-colors shadow-lg"
+          >
+            <FontAwesomeIcon icon={faSearch} className="w-3.5 h-3.5" />
+            <span className="flex-1 text-left">Search docs...</span>
+            <span className="text-xs bg-surface-highlight px-1.5 py-0.5 rounded">
+              {isMac ? '⌘K' : 'Ctrl+K'}
+            </span>
+          </button>
         </div>
-      )}
+      </div>
 
       {/* Search Modal */}
       <AnimatePresence>
@@ -3407,7 +4169,7 @@ export default function Docs() {
                 </div>
 
                 {/* Results Area */}
-                <div className="max-h-[60vh] overflow-y-auto">
+                <div className="max-h-[60vh] overflow-y-auto overscroll-contain">
                   {/* Recent Searches - shown when no query */}
                   {!searchQuery.trim() && recentSearches.length > 0 && (
                     <div className="p-2">
@@ -3500,10 +4262,95 @@ export default function Docs() {
         )}
       </AnimatePresence>
 
+      {/* Contact Modal */}
+      <AnimatePresence>
+        {showContactModal && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70]"
+              onClick={() => setShowContactModal(false)}
+            />
+            
+            {/* Modal */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: -20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -20 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-[71] flex items-center justify-center px-4"
+              onClick={() => setShowContactModal(false)}
+            >
+              <div 
+                className="w-full max-w-md bg-surface border border-border rounded-xl shadow-2xl overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                  <h2 className="text-lg font-semibold text-text">Contact Support</h2>
+                  <button
+                    onClick={() => setShowContactModal(false)}
+                    className="text-text-subtle hover:text-text transition-colors"
+                  >
+                    <FontAwesomeIcon icon={faTimes} className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Content */}
+                <div className="p-6">
+                  <p className="text-text-muted mb-6">
+                    Have questions, found a bug, or want to request a feature? We'd love to hear from you!
+                  </p>
+
+                  <div className="space-y-4">
+                    <a 
+                      href="mailto:taskmasteroneai@gmail.com"
+                      className="flex items-center gap-4 p-4 bg-surface-highlight rounded-lg hover:bg-surface-highlight/80 transition-colors group"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center">
+                        <FontAwesomeIcon icon={faEnvelope} className="w-5 h-5 text-accent" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-text group-hover:text-accent transition-colors">Email Us</p>
+                        <p className="text-sm text-text-muted">taskmasteroneai@gmail.com</p>
+                      </div>
+                    </a>
+
+                    <button 
+                      onClick={() => {
+                        setShowContactModal(false)
+                        setActiveSection('contribute')
+                        scrollToTop()
+                      }}
+                      className="flex items-center gap-4 p-4 bg-surface-highlight rounded-lg hover:bg-surface-highlight/80 transition-colors group w-full text-left"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center">
+                        <FontAwesomeIcon icon={faQuestionCircle} className="w-5 h-5 text-accent" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-text group-hover:text-accent transition-colors">View FAQ & Support</p>
+                        <p className="text-sm text-text-muted">Common questions and how to report issues</p>
+                      </div>
+                    </button>
+                  </div>
+
+                  <p className="text-xs text-text-subtle mt-6 text-center">
+                    We typically respond within 24-48 hours.
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       <div className="flex pt-6">
         {/* Left Sidebar */}
-        <aside className={`w-64 border-r border-border bg-background fixed top-0 lg:top-16 bottom-0 overflow-y-auto z-50 transition-transform lg:translate-x-0 left-0 lg:left-[max(0px,calc((100vw-1024px)/2))] ${showMobileMenu ? 'translate-x-0' : '-translate-x-full'}`}>
-          <div className="p-4 pb-24 lg:pb-4">
+        <aside className={`w-64 border-r border-border bg-background fixed top-16 bottom-0 overflow-y-auto overscroll-contain z-30 transition-transform lg:translate-x-0 left-0 lg:left-[max(0px,calc((100vw-1024px)/2))] ${showMobileMenu ? 'translate-x-0' : '-translate-x-full'}`}>
+          <div className="p-4">
             {/* Tab for Documentation */}
             <div className="border-b border-border mb-4 -mx-4 px-4 pb-3">
               <span className="text-sm font-medium text-text border-b-2 border-accent pb-3">
@@ -3513,22 +4360,13 @@ export default function Docs() {
             
             {/* External Links */}
             <div className="flex gap-4 mb-6 px-1">
-              <a 
-                href="https://discord.gg/taskmaster" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 text-text-muted hover:text-text transition-colors text-sm"
-              >
-                <FontAwesomeIcon icon={faDiscord} className="w-4 h-4" />
-                <span>Discord</span>
-              </a>
-              <a 
-                href="mailto:taskmasteroneai@gmail.com"
+              <button 
+                onClick={() => setShowContactModal(true)}
                 className="flex items-center gap-2 text-text-muted hover:text-text transition-colors text-sm"
               >
                 <FontAwesomeIcon icon={faComments} className="w-4 h-4" />
                 <span>Support</span>
-              </a>
+              </button>
             </div>
 
             {/* Navigation */}
@@ -3561,15 +4399,15 @@ export default function Docs() {
 
         {/* Mobile overlay */}
         {showMobileMenu && (
-          <div
-            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          <div 
+            className="fixed inset-0 bg-black/50 z-20 lg:hidden"
             onClick={() => setShowMobileMenu(false)}
           />
         )}
 
         {/* Main Content */}
         <main className="flex-1 lg:ml-[calc(max(0px,(100vw-1024px)/2)+256px)] lg:mr-[max(0px,calc((100vw-1024px)/2))] overflow-x-hidden">
-          <div className="px-8 pt-20 pb-24 max-w-full overflow-x-hidden">
+          <div className="px-4 md:px-8 pt-4 lg:pt-20 pb-32 lg:pb-24 max-w-full overflow-x-hidden">
             <motion.div
               key={activeSection}
               initial={{ opacity: 0, y: 10 }}
@@ -3580,23 +4418,65 @@ export default function Docs() {
               {/* Breadcrumb */}
               <p className="text-sm text-accent mb-2">{currentContent.breadcrumb || 'Documentation'}</p>
               
-              <h1 className="text-3xl font-bold mb-8">{currentContent.title}</h1>
+              {/* Title with Copy Buttons */}
+              <div className="flex items-start justify-between gap-4 mb-8">
+                <h1 className="text-3xl font-bold">{currentContent.title}</h1>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {/* Copy Section Button */}
+                  <button
+                    onClick={handleCopySection}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm border border-border rounded-lg text-text-muted hover:text-text hover:border-accent transition-colors"
+                    title="Copy this section"
+                  >
+                    <FontAwesomeIcon icon={copiedSection ? faCheck : faCopy} className={`w-3.5 h-3.5 ${copiedSection ? 'text-accent' : ''}`} />
+                    <span className="hidden sm:inline">{copiedSection ? 'Copied!' : 'Copy Section'}</span>
+                  </button>
+                  {/* Copy All Docs Button */}
+                  <button
+                    onClick={handleCopyAllDocs}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm border border-border rounded-lg text-text-muted hover:text-text hover:border-accent transition-colors"
+                    title="Copy all documentation"
+                  >
+                    <FontAwesomeIcon 
+                      icon={copiedAllDocs ? faCheck : faClipboard} 
+                      className={`w-3.5 h-3.5 ${copiedAllDocs ? 'text-accent' : ''}`} 
+                    />
+                    <span className="hidden sm:inline">
+                      {copiedAllDocs ? 'Copied!' : 'Copy All Docs'}
+                    </span>
+                  </button>
+                </div>
+              </div>
               
               <NavigationContext.Provider value={{ navigateToSection }}>
-                <div className="prose prose-invert max-w-full overflow-x-hidden [&_pre]:overflow-x-auto [&_pre]:max-w-full [&_table]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_code]:break-words [&_.card]:overflow-hidden [&_.card]:max-w-full [&_img]:max-w-full [&>*]:max-w-full">
+                <div ref={contentRef} data-section-id={activeSection} className="prose prose-invert max-w-full overflow-x-hidden [&_pre]:overflow-x-auto [&_pre]:max-w-full [&_table]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_code]:break-words [&_.card]:overflow-hidden [&_.card]:max-w-full [&_img]:max-w-full [&>*]:max-w-full">
                   {currentContent.content}
                 </div>
               </NavigationContext.Provider>
 
               {/* Feedback */}
               <div className="flex items-center gap-4 mt-10 pt-6 border-t border-border">
-                <span className="text-text-muted text-sm">Was this page helpful?</span>
-                <button className="flex items-center gap-2 px-3 py-1.5 border border-border rounded-lg text-sm text-text-muted hover:border-border-light hover:text-text transition-colors">
-                  👍 Yes
-                </button>
-                <button className="flex items-center gap-2 px-3 py-1.5 border border-border rounded-lg text-sm text-text-muted hover:border-border-light hover:text-text transition-colors">
-                  👎 No
-                </button>
+                {feedbackGiven ? (
+                  <span className="text-text-muted text-sm flex items-center gap-2">
+                    <span className="text-accent">✓</span> Thanks for your feedback!
+                  </span>
+                ) : (
+                  <>
+                    <span className="text-text-muted text-sm">Was this page helpful?</span>
+                    <button 
+                      onClick={() => setFeedbackGiven('yes')}
+                      className="flex items-center gap-2 px-3 py-1.5 border border-border rounded-lg text-sm text-text-muted hover:border-accent hover:text-accent transition-colors"
+                    >
+                      👍 Yes
+                    </button>
+                    <button 
+                      onClick={() => setFeedbackGiven('no')}
+                      className="flex items-center gap-2 px-3 py-1.5 border border-border rounded-lg text-sm text-text-muted hover:border-accent hover:text-accent transition-colors"
+                    >
+                      👎 No
+                    </button>
+                  </>
+                )}
               </div>
 
               {/* Prev/Next Navigation */}
@@ -3633,11 +4513,18 @@ export default function Docs() {
         </main>
 
         {/* Floating Ask a Question Bar - Hidden when sidebar is open */}
-        {!showAnswerModal && !showMobileMenu && (
-          <div className="fixed left-4 right-4 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-[55]" style={{ position: 'fixed', bottom: 'max(2rem, env(safe-area-inset-bottom, 2rem))' }}>
-            <form 
+        {!showAnswerModal && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4">
+            <motion.form 
               onSubmit={handleAskQuestion}
-              className={`flex items-center gap-2 px-4 py-2.5 bg-surface border rounded-full text-sm shadow-xl backdrop-blur-sm transition-all duration-200 w-full sm:w-[300px] ${isInputFocused ? 'border-accent sm:w-[400px]' : 'border-border'}`}
+              initial={false}
+              animate={{ 
+                width: isInputFocused ? 400 : 300
+              }}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.98 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              className={`flex items-center gap-2 px-4 py-2.5 bg-surface border rounded-full text-sm shadow-xl backdrop-blur-sm transition-colors ${isInputFocused ? 'border-accent' : 'border-border'}`}
             >
               <input
                 ref={questionInputRef}
@@ -3668,7 +4555,7 @@ export default function Docs() {
                   <FontAwesomeIcon icon={faArrowUp} className="w-3.5 h-3.5" />
                 )}
               </button>
-            </form>
+            </motion.form>
           </div>
         )}
 
@@ -3681,28 +4568,23 @@ export default function Docs() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 bg-black/50 sm:bg-transparent sm:top-[72px] z-[60]"
+                className="fixed top-[72px] left-0 right-0 bottom-0 z-[60]"
                 onClick={() => setShowAnswerModal(false)}
               />
               
-              {/* Sidebar - Bottom sheet on mobile, right sidebar on desktop */}
+              {/* Sidebar */}
               <motion.div
-                initial={{ y: '100%', x: 0 }}
-                animate={{ y: 0, x: 0 }}
-                exit={{ y: '100%', x: 0 }}
+                initial={{ x: '100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '100%' }}
                 transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                className="fixed left-0 right-0 bottom-0 sm:left-auto sm:right-0 sm:top-[72px] z-[61] bg-background sm:bg-background/95 sm:backdrop-blur-xl border-t sm:border-t-0 sm:border-l border-border shadow-[0_-8px_30px_rgba(0,0,0,0.3)] sm:shadow-[-8px_0_30px_rgba(0,0,0,0.3)] flex flex-col max-h-[85vh] sm:max-h-none rounded-t-2xl sm:rounded-none"
-                style={{ width: typeof window !== 'undefined' && window.innerWidth >= 640 ? sidebarWidth : '100%', maxWidth: '100vw' }}
+                className="fixed top-[72px] right-0 bottom-0 z-[61] bg-background/95 backdrop-blur-xl border-l border-t border-border rounded-tl-2xl shadow-[0_0_40px_rgba(0,0,0,0.15)] flex flex-col"
+                style={{ width: sidebarWidth }}
               >
-                {/* Drag Handle - Mobile only */}
-                <div className="sm:hidden flex justify-center pt-2 pb-1">
-                  <div className="w-10 h-1 bg-border rounded-full" />
-                </div>
-
-                {/* Resize Handle - Desktop only */}
+                {/* Resize Handle */}
                 <div
                   onMouseDown={startResizing}
-                  className="hidden sm:flex absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-accent/50 transition-colors group items-center justify-center"
+                  className="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-accent/50 transition-colors group flex items-center justify-center"
                 >
                   <div className="absolute left-0 w-4 h-full" />
                   <FontAwesomeIcon 
@@ -3712,7 +4594,7 @@ export default function Docs() {
                 </div>
 
                 {/* Header */}
-                <div className="flex items-center justify-between px-4 py-3">
+                <div className="flex items-center justify-between px-4 py-3 ">
                   <div className="flex items-center gap-2">
                     <div className="w-7 h-7 rounded-lg bg-accent/10 flex items-center justify-center">
                       <FontAwesomeIcon icon={faComments} className="text-accent w-3.5 h-3.5" />
@@ -3737,7 +4619,7 @@ export default function Docs() {
                 </div>
 
                 {/* Chat Messages */}
-                <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+                <div ref={chatContainerRef} className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-4">
                   {/* Welcome message when no conversation */}
                   {chatHistory.length === 0 && !isAsking && (
                     <div className="text-sm text-text-muted">
@@ -3820,7 +4702,17 @@ export default function Docs() {
           )}
         </AnimatePresence>
 
+
       </div>
     </div>
   )
 }
+
+
+
+
+
+
+
+
+
