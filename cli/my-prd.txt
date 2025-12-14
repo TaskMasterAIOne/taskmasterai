@@ -1,0 +1,15 @@
+# My Project PRD
+
+## Overview
+Build a simple todo app with authentication
+
+## Features
+- User registration and login
+- Create, read, update, delete todos
+- Mark todos as complete
+- Filter todos by status
+
+## Tech Stack
+- React for frontend
+- Node.js/Express for backend
+- MongoDB for database

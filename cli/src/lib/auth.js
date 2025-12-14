@@ -250,6 +250,7 @@ export async function loginWithGoogle() {
 
     // Wait for callback from web app
     return new Promise((resolve) => {
+      let timeoutId;
       const server = http.createServer(async (req, res) => {
         if (req.url.startsWith('/callback')) {
           const url = new URL(req.url, `http://localhost:${localPort}`);
@@ -373,6 +374,7 @@ export async function loginWithGoogle() {
               </html>
             `);
 
+            clearTimeout(timeoutId);
             server.close();
             
             resolve({
@@ -384,6 +386,7 @@ export async function loginWithGoogle() {
           } else {
             res.writeHead(400, { 'Content-Type': 'text/plain' });
             res.end('Invalid callback parameters');
+            clearTimeout(timeoutId);
             server.close();
             resolve({ success: false, error: 'Invalid callback' });
           }
@@ -395,7 +398,7 @@ export async function loginWithGoogle() {
       });
 
       // Timeout after 2 minutes
-      setTimeout(() => {
+      timeoutId = setTimeout(() => {
         server.close();
         resolve({ success: false, error: 'Login timeout - please try again' });
       }, 120000);
