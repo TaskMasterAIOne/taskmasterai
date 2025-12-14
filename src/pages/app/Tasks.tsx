@@ -17,7 +17,6 @@ import {
   faTag,
   faTerminal,
   faListCheck,
-  faCircle,
 } from '@fortawesome/free-solid-svg-icons'
 
 interface Subtask {
