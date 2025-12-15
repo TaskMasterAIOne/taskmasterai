@@ -497,7 +497,7 @@ export async function verifyLicenseOwnership(licenseKey) {
   }
 
   try {
-    const response = await fetch(`${FUNCTIONS_BASE_URL}/verifyLicenseOwnership`, {
+    const response = await fetch(`${FUNCTIONS_BASE_URL}/activateLicense`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -511,15 +511,32 @@ export async function verifyLicenseOwnership(licenseKey) {
 
     const result = await response.json();
 
+    if (result.success) {
+      // Update stored license info
+      const { writeLicenseData } = await import('./license.js');
+      writeLicenseData({
+        licenseKey: licenseKey,
+        plan: result.plan,
+        planName: result.planName,
+        tasksPerMonth: result.tasksPerMonth,
+        status: result.status,
+        lastValidated: new Date().toISOString(),
+        userId: authData.userId
+      });
+    }
+
     return {
-      valid: result.valid === true,
-      error: result.error
+      valid: result.success === true,
+      error: result.error,
+      plan: result.plan,
+      planName: result.planName,
+      tasksPerMonth: result.tasksPerMonth
     };
 
   } catch (error) {
     return {
       valid: false,
-      error: `Verification failed: ${error.message}`
+      error: `Activation failed: ${error.message}`
     };
   }
 }

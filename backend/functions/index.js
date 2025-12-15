@@ -2875,6 +2875,123 @@ export const getTasks = onRequest(
 );
 
 // ============================================
+// ACTIVATE LICENSE (Associate license with logged-in user)
+// ============================================
+
+export const activateLicense = onRequest(
+  {
+    cors: true,
+    maxInstances: 50
+  },
+  async (req, res) => {
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Method not allowed' });
+      return;
+    }
+
+    try {
+      const { licenseKey, userId } = req.body;
+
+      if (!licenseKey || !userId) {
+        res.status(400).json({ 
+          success: false, 
+          error: 'License key and userId are required' 
+        });
+        return;
+      }
+
+      // Look up license
+      const licenseDoc = await db.collection('licenses').doc(licenseKey).get();
+
+      if (!licenseDoc.exists) {
+        res.status(404).json({ 
+          success: false, 
+          error: 'License key not found or invalid' 
+        });
+        return;
+      }
+
+      const license = licenseDoc.data();
+
+      // Check if license is already associated with a different user
+      if (license.userId && license.userId !== userId) {
+        res.status(403).json({ 
+          success: false, 
+          error: 'This license is already activated on another account' 
+        });
+        return;
+      }
+
+      // Check if license is valid
+      if (license.status === 'revoked' || license.status === 'expired') {
+        res.status(403).json({ 
+          success: false, 
+          error: `License is ${license.status}. Please contact support.` 
+        });
+        return;
+      }
+
+      const now = admin.firestore.Timestamp.now();
+      const planDetails = PLAN_DETAILS[license.plan] || {};
+
+      // Associate license with user if not already associated
+      if (!license.userId) {
+        await db.collection('licenses').doc(licenseKey).update({
+          userId: userId,
+          activatedAt: now,
+          lastValidated: now
+        });
+      }
+
+      // Update user document
+      await db.collection('users').doc(userId).set({
+        plan: license.plan,
+        licenseKey: licenseKey,
+        subscriptionStatus: license.status,
+        updatedAt: now
+      }, { merge: true });
+
+      // Update real-time license document for frontend
+      await db.collection('users').doc(userId).collection('license').doc('current').set({
+        licenseKey: licenseKey,
+        plan: license.plan,
+        planName: planDetails.name || license.plan,
+        planPrice: planDetails.price,
+        tasksPerMonth: planDetails.tasksPerMonth,
+        tasksUsed: 0,
+        overageRate: planDetails.overageRate,
+        status: license.status || 'active',
+        expiresAt: license.expiresAt,
+        currentPeriodEnd: license.expiresAt,
+        updatedAt: now
+      }, { merge: true });
+
+      res.status(200).json({
+        success: true,
+        message: 'License activated successfully',
+        plan: license.plan,
+        planName: planDetails.name,
+        tasksPerMonth: planDetails.tasksPerMonth,
+        status: license.status
+      });
+
+    } catch (error) {
+      console.error('Error activating license:', error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Failed to activate license',
+        details: error.message 
+      });
+    }
+  }
+);
+
+// ============================================
 // GET USER LICENSE (For CLI auth flow)
 // ============================================
 

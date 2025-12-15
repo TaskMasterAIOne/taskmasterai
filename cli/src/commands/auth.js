@@ -160,6 +160,65 @@ export function registerAuthCommands(program) {
       }
     });
 
+  // Activate license command
+  program
+    .command('activate')
+    .description('Activate a license key for your account')
+    .argument('<license-key>', 'License key to activate')
+    .action(async (licenseKey) => {
+      try {
+        const currentUser = await getCurrentUser();
+
+        if (!currentUser) {
+          console.log(chalk.yellow('\n⚠ Not logged in'));
+          console.log(chalk.dim('  Run ') + chalk.cyan('taskmaster login') + chalk.dim(' first\n'));
+          return;
+        }
+
+        console.log(chalk.bold('\n🔑 Activating License\n'));
+        console.log(chalk.dim('User:         ') + chalk.cyan(currentUser.email));
+        console.log(chalk.dim('License Key:  ') + chalk.dim(licenseKey.substring(0, 15) + '...'));
+        console.log('');
+
+        // Verify ownership with backend
+        const { verifyLicenseOwnership } = await import('../lib/auth.js');
+        const verification = await verifyLicenseOwnership(licenseKey);
+
+        if (!verification.valid) {
+          console.log(chalk.red('✗ License activation failed'));
+          console.log(chalk.dim('  ' + (verification.error || 'License key is invalid or already in use')));
+          console.log('');
+          return;
+        }
+
+        // License verified and associated with account
+        console.log(chalk.green('✓ License activated successfully!\n'));
+        
+        // Fetch license details to display
+        const token = await import('../lib/auth.js').then(m => m.getValidAuthToken());
+        if (token) {
+          try {
+            const { getLicenseStatus } = await import('../lib/license.js');
+            const status = await getLicenseStatus(true); // Force refresh
+            
+            if (status.valid) {
+              console.log(chalk.dim('Plan:         ') + chalk.bold(status.planName));
+              console.log(chalk.dim('Tasks/month:  ') + chalk.white(status.tasksPerMonth));
+              console.log('');
+            }
+          } catch (err) {
+            // Silently fail - license is activated, just couldn't fetch details
+          }
+        }
+
+        console.log(chalk.dim('You\'re all set! Start using TaskMaster AI.\n'));
+
+      } catch (error) {
+        console.error(chalk.red('\n✗ Error during activation:'), error.message);
+        console.log();
+      }
+    });
+
   // Status command (who am I?)
   program
     .command('whoami')
