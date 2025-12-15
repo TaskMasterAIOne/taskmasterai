@@ -5,24 +5,9 @@ import admin from 'firebase-admin';
 import Stripe from 'stripe';
 import { v4 as uuidv4 } from 'uuid';
 
-import fs from 'fs'
-import path from 'path'
-import { fileURLToPath } from 'url'
-
-// ESM-safe __dirname equivalent
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-
-// Resolve CLI package.json (located at /cli/package.json)
-const packageJsonPath = path.resolve(
-  __dirname,
-  '../../cli/package.json'
-)
-
-const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'))
-
-const PACKAGE_NAME = packageJson.name
-const PACKAGE_VERSION = packageJson.version
+// Package info (hardcoded to avoid dependency on CLI directory in deployed environment)
+const PACKAGE_NAME = '@taskmasterai/cli'
+const PACKAGE_VERSION = '1.0.38'
 
 // Initialize Firebase Admin
 admin.initializeApp();
