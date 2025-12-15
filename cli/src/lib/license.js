@@ -209,9 +209,9 @@ export async function activateLicense(licenseKey) {
   // Also sync user config (API keys + models) from dashboard
   const configSync = await syncUserConfig(true);
   
-  // For PRO users, also sync hosted API keys
+  // For PRO/Enterprise users, also sync hosted API keys
   let hostedKeysMessage = null;
-  if (validation.plan === 'pro') {
+  if (validation.plan === 'pro' || validation.plan === 'enterprise') {
     const hostedKeysSync = await syncHostedApiKeys(true);
     if (hostedKeysSync.success) {
       hostedKeysMessage = `Hosted API keys available: ${hostedKeysSync.providers?.join(', ') || 'all providers'}`;
@@ -228,7 +228,7 @@ export async function activateLicense(licenseKey) {
     configMessage: configSync.success 
       ? `API keys synced from dashboard` 
       : `Config sync: ${configSync.error || 'No config found'}`,
-    hostedKeysAvailable: validation.plan === 'pro',
+    hostedKeysAvailable: validation.plan === 'pro' || validation.plan === 'enterprise',
     hostedKeysMessage,
   };
 }
@@ -705,7 +705,7 @@ async function fetchHostedApiKeys(licenseKey) {
 }
 
 /**
- * Sync hosted API keys from server (PRO plan only)
+ * Sync hosted API keys from server (PRO/Enterprise plan only)
  * @param {boolean} forceRefresh - Force refresh even if cache is valid
  * @returns {Promise<Object>} Hosted keys sync result
  */
@@ -719,11 +719,11 @@ export async function syncHostedApiKeys(forceRefresh = false) {
     };
   }
 
-  // Check if user is on PRO plan
-  if (stored.plan !== 'pro') {
+  // Check if user is on PRO or Enterprise plan
+  if (stored.plan !== 'pro' && stored.plan !== 'enterprise') {
     return {
       success: false,
-      error: 'Hosted API keys are only available for Pro plan subscribers',
+      error: 'Hosted API keys are only available for Pro and Enterprise plan subscribers',
       upgrade: true,
       currentPlan: stored.plan,
     };
@@ -806,12 +806,12 @@ export function getHostedApiKey(provider) {
 }
 
 /**
- * Check if hosted API keys are available (PRO plan check)
- * @returns {boolean} True if user is on PRO plan and can use hosted keys
+ * Check if hosted API keys are available (PRO/Enterprise plan check)
+ * @returns {boolean} True if user is on PRO or Enterprise plan and can use hosted keys
  */
 export function canUseHostedApiKeys() {
   const stored = readStoredLicense();
-  return stored?.plan === 'pro' && stored?.status === 'active';
+  return (stored?.plan === 'pro' || stored?.plan === 'enterprise') && stored?.status === 'active';
 }
 
 /**
@@ -825,8 +825,8 @@ export function canUseHostedApiKeys() {
 export async function trackHostedKeyUsage(provider, operation, usage = {}) {
   const stored = readStoredLicense();
   
-  if (!stored?.licenseKey || stored.plan !== 'pro') {
-    return { success: false, error: 'Not a PRO user' };
+  if (!stored?.licenseKey || (stored.plan !== 'pro' && stored.plan !== 'enterprise')) {
+    return { success: false, error: 'Not a PRO or Enterprise user' };
   }
 
   try {
@@ -998,7 +998,7 @@ export default {
   // Task sync exports
   syncTasksToCloud,
   getTasksFromCloud,
-  // Hosted API keys exports (PRO plan only)
+  // Hosted API keys exports (PRO/Enterprise plan only)
   syncHostedApiKeys,
   getHostedApiKey,
   canUseHostedApiKeys,

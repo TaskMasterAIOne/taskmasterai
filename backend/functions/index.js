@@ -2165,7 +2165,7 @@ export const trackHostedKeyUsage = onRequest(
     }
 
     try {
-      const { licenseKey, provider, operation, usage } = req.body;
+      const { licenseKey, provider, operation, inputTokens, outputTokens } = req.body;
 
       if (!licenseKey || !provider) {
         res.status(400).json({ 
@@ -2193,7 +2193,8 @@ export const trackHostedKeyUsage = onRequest(
         licenseKey,
         provider,
         operation: operation || 'unknown',
-        usage: usage || {},
+        inputTokens: inputTokens || 0,
+        outputTokens: outputTokens || 0,
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
         plan: license.plan
       };

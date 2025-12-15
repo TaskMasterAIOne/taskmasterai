@@ -284,8 +284,8 @@ export function getApiKey(provider) {
     // License module might not be loaded yet, ignore
   }
 
-  // Finally, check hosted API keys (PRO plan only)
-  // This allows PRO users to use TaskMaster AI's hosted keys if they don't have their own
+  // Finally, check hosted API keys (PRO/Enterprise plan only)
+  // This allows PRO/Enterprise users to use TaskMaster AI's hosted keys if they don't have their own
   try {
     if (canUseHostedApiKeys()) {
       const hostedKey = getHostedApiKey(providerLower);

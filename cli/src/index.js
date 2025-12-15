@@ -224,7 +224,7 @@ function createProgram() {
             output += chalk.yellow('⚠ ') + chalk.white('Hosted keys: ') + chalk.dim(hostedKeysSync.error) + '\n';
           }
         } else {
-          output += '\n' + chalk.dim('💡 Upgrade to Pro to use hosted API keys (no API keys needed!)');
+          output += '\n' + chalk.dim('💡 Upgrade to Pro or Enterprise to use hosted API keys (no API keys needed!)');
           output += '\n' + chalk.dim('   https://www.taskmaster.one/pricing');
         }
 
