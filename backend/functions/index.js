@@ -676,16 +676,16 @@ Gemini 2.5 Pro
 Gemini 3 Pro
 
 Anthropic (Claude)
-Claude 3.7 Sonnet
-Claude 3.7 Sonnet (Reasoning)
-Claude 4 Sonnet
-Claude 4 Sonnet (Reasoning)
+Claude Sonnet 3.7 
+Claude Sonnet 3.7 (Reasoning)
+Claude Sonnet 4
+Claude Sonnet 4 (Reasoning)
 Claude Sonnet 4.5
 Claude Sonnet 4.5 (Reasoning)
 Claude Haiku 4.5
 Claude Haiku 4.5 (Reasoning)
-Claude 4.1 Opus
-Claude 4 Opus 4.5
+Claude Opus 4.1
+Claude Opus 4.5
 
 OpenAI
 GPT 4.1
@@ -704,10 +704,10 @@ GPT 5.2 (Reasoning)
 GPT 5.2 Pro
 GPT OSS 20B
 GPT OSS 120B
-O3
-O3 Mini
-O3 Pro
-O4 Mini
+o3
+o3 Mini
+o3 Pro
+o4 Mini
 
 DeepSeek
 DeepSeek v3 (0324)
