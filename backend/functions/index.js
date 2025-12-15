@@ -14,6 +14,18 @@ const stripeSecretKey = defineSecret('STRIPE_SECRET_KEY');
 const stripeWebhookSecret = defineSecret('STRIPE_WEBHOOK_SECRET');
 const googleApiKey = defineSecret('GOOGLE_API_KEY');
 
+// Hosted API Keys for Pro/Enterprise users
+const hostedAnthropicKey = defineSecret('HOSTED_ANTHROPIC_API_KEY');
+const hostedOpenAIKey = defineSecret('HOSTED_OPENAI_API_KEY');
+const hostedGoogleKey = defineSecret('HOSTED_GOOGLE_API_KEY');
+const hostedPerplexityKey = defineSecret('HOSTED_PERPLEXITY_API_KEY');
+const hostedDeepSeekKey = defineSecret('HOSTED_DEEPSEEK_API_KEY');
+const hostedXAIKey = defineSecret('HOSTED_XAI_API_KEY');
+const hostedOpenRouterKey = defineSecret('HOSTED_OPENROUTER_API_KEY');
+const hostedMistralKey = defineSecret('HOSTED_MISTRAL_API_KEY');
+const hostedMoonshotKey = defineSecret('HOSTED_MOONSHOT_API_KEY');
+const hostedZhipuKey = defineSecret('HOSTED_ZHIPU_API_KEY');
+
 // Stripe price IDs
 // Products: Plus (prod_TavHzv0QcBs8E5), Pro (prod_TavI05fFQmSCHF)
 // Enterprise is custom pricing - handled via contact sales
@@ -2018,7 +2030,19 @@ export const fixMissingLicenses = onRequest(
 export const getHostedApiKeys = onRequest(
   {
     cors: true,
-    maxInstances: 50
+    maxInstances: 50,
+    secrets: [
+      hostedAnthropicKey,
+      hostedOpenAIKey,
+      hostedGoogleKey,
+      hostedPerplexityKey,
+      hostedDeepSeekKey,
+      hostedXAIKey,
+      hostedOpenRouterKey,
+      hostedMistralKey,
+      hostedMoonshotKey,
+      hostedZhipuKey
+    ]
   },
   async (req, res) => {
     if (req.method === 'OPTIONS') {
@@ -2073,23 +2097,33 @@ export const getHostedApiKeys = onRequest(
         return;
       }
 
-      const userId = license.userId;
-
-      // Get user's hosted API keys from their apiKeys collection
-      const apiKeysRef = db.collection('users').doc(userId).collection('apiKeys');
-      const apiKeysSnapshot = await apiKeysRef.get();
-      
+      // Build hosted keys object from Firebase secrets
       const hostedKeys = {};
       const providers = [];
-      
-      apiKeysSnapshot.forEach((doc) => {
-        const data = doc.data();
-        if (data.fullKey) {
-          const provider = data.provider.toLowerCase();
-          hostedKeys[provider] = data.fullKey;
+
+      // Add keys from secrets (only if they exist/are set)
+      const keyMapping = {
+        anthropic: hostedAnthropicKey.value(),
+        openai: hostedOpenAIKey.value(),
+        google: hostedGoogleKey.value(),
+        perplexity: hostedPerplexityKey.value(),
+        deepseek: hostedDeepSeekKey.value(),
+        xai: hostedXAIKey.value(),
+        openrouter: hostedOpenRouterKey.value(),
+        mistral: hostedMistralKey.value(),
+        moonshot: hostedMoonshotKey.value(),
+        zhipu: hostedZhipuKey.value()
+      };
+
+      // Only include keys that are actually set
+      for (const [provider, key] of Object.entries(keyMapping)) {
+        if (key && key.trim() !== '') {
+          hostedKeys[provider] = key;
           providers.push(provider);
         }
-      });
+      }
+
+      console.log(`[getHostedApiKeys] User ${license.userId} (${license.plan}) fetched ${providers.length} hosted keys: ${providers.join(', ')}`);
 
       res.status(200).json({
         success: true,
