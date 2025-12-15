@@ -7,8 +7,13 @@ import { v4 as uuidv4 } from 'uuid';
 
 import fs from 'fs'
 import path from 'path'
+import { fileURLToPath } from 'url'
 
-// Resolve path to CLI package.json
+// ESM-safe __dirname equivalent
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+// Resolve CLI package.json (located at /cli/package.json)
 const packageJsonPath = path.resolve(
   __dirname,
   '../../cli/package.json'
