@@ -29,15 +29,14 @@ const hostedZhipuKey = defineSecret('HOSTED_ZHIPU_API_KEY');
 // Stripe price IDs
 // Products: Plus (prod_TavHzv0QcBs8E5), Pro (prod_TavI05fFQmSCHF)
 // Enterprise is custom pricing - handled via contact sales
+// Stripe price IDs (hardcoded — no env vars)
 const STRIPE_PRICES = {
-  plus: process.env.STRIPE_PRICE_PLUS,
-  pro: process.env.STRIPE_PRICE_PRO,
+  plus: 'price_1SdjQjIIz7GWDlyPZuQ8ziah',
+  pro: 'price_1SdjSAIIz7GWDlyPaAloV0jj',
   // Enterprise: Custom pricing, not a fixed Stripe product
 };
 
-if (!STRIPE_PRICES.plus || !STRIPE_PRICES.pro) {
-  console.error('ERROR: STRIPE_PRICE_PLUS and STRIPE_PRICE_PRO environment variables must be set');
-}
+
 
 // Plan details (matching pricing page)
 const PLAN_DETAILS = {
