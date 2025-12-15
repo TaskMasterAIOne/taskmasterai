@@ -19,7 +19,7 @@ const modelOptions = {
     { id: 'claude-sonnet-4.5', name: 'Claude Sonnet 4.5', description: 'Best balance' },
     { id: 'claude-sonnet-4.5-reasoning', name: 'Claude Sonnet 4.5 (Reasoning)', description: 'Enhanced reasoning' },
     { id: 'claude-4-sonnet', name: 'Claude Sonnet 4', description: 'High capability' },
-    { id: 'claude-4-sonnet-reasoning', name: 'Claude Sonnet 4(Reasoning)', description: 'With reasoning' },
+    { id: 'claude-4-sonnet-reasoning', name: 'Claude Sonnet 4 (Reasoning)', description: 'With reasoning' },
     { id: 'claude-3.7-sonnet', name: 'Claude Sonnet 3.7', description: 'Previous gen' },
     { id: 'claude-3.7-sonnet-reasoning', name: 'Claude Sonnet 3.7 (Reasoning)', description: 'With reasoning' },
     { id: 'claude-haiku-4.5', name: 'Claude Haiku 4.5', description: 'Fast & efficient' },
