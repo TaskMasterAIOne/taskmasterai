@@ -173,7 +173,7 @@ export function getDefaultConfig() {
     models: {
       main: {
         provider: 'anthropic',
-        modelId: 'claude-sonnet-4.5', // Best balance of capability and speed
+        modelId: 'claude-sonnet-4-5-20250929', // Best balance of capability and speed
         maxTokens: 8192,
         temperature: 0.7,
       },
