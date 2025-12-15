@@ -1,6 +1,6 @@
 {
   "name": "@taskmasterai/cli",
-  "version": "1.0.35",
+  "version": "1.0.36",
   "description": "AI-powered task management CLI for developers. Transform PRDs into actionable task lists.",
   "main": "src/index.js",
   "type": "module",
@@ -55,6 +55,7 @@
     "commander": "^12.1.0",
     "dotenv": "^16.4.5",
     "fastmcp": "^3.23.0",
+    "firebase-functions": "^7.0.1",
     "inquirer": "^12.5.0",
     "ora": "^8.0.1",
     "uuid": "^11.1.0",
