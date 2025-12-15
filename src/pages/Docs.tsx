@@ -1232,17 +1232,17 @@ taskmaster sync
               <tr className="border-b border-border">
                 <td className="py-2 pr-4 font-medium">Plus</td>
                 <td className="py-2 pr-4">$29/month</td>
-                <td className="py-2">500</td>
+                <td className="py-2">100</td>
               </tr>
               <tr className="border-b border-border">
                 <td className="py-2 pr-4 font-medium">Pro</td>
                 <td className="py-2 pr-4">$199/month</td>
-                <td className="py-2">2,000</td>
+                <td className="py-2">1,000</td>
               </tr>
               <tr className="border-b border-border">
                 <td className="py-2 pr-4 font-medium">Enterprise</td>
                 <td className="py-2 pr-4">Custom</td>
-                <td className="py-2">Unlimited</td>
+                <td className="py-2">5,000</td>
               </tr>
             </tbody>
           </table>
