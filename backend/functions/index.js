@@ -2145,6 +2145,83 @@ export const getHostedApiKeys = onRequest(
 );
 
 // ============================================
+// TRACK HOSTED KEY USAGE (Analytics)
+// ============================================
+
+export const trackHostedKeyUsage = onRequest(
+  {
+    cors: true,
+    maxInstances: 100
+  },
+  async (req, res) => {
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Method not allowed' });
+      return;
+    }
+
+    try {
+      const { licenseKey, provider, operation, usage } = req.body;
+
+      if (!licenseKey || !provider) {
+        res.status(400).json({ 
+          success: false, 
+          error: 'License key and provider are required' 
+        });
+        return;
+      }
+
+      // Validate license (lightweight check)
+      const licenseDoc = await db.collection('licenses').doc(licenseKey).get();
+      if (!licenseDoc.exists) {
+        res.status(404).json({ 
+          success: false, 
+          error: 'License not found' 
+        });
+        return;
+      }
+
+      const license = licenseDoc.data();
+      
+      // Log usage for analytics (async, don't block response)
+      const usageRecord = {
+        userId: license.userId,
+        licenseKey,
+        provider,
+        operation: operation || 'unknown',
+        usage: usage || {},
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        plan: license.plan
+      };
+
+      // Store in a separate collection for analytics
+      db.collection('hostedKeyUsage').add(usageRecord).catch(err => {
+        console.error('Error logging hosted key usage:', err);
+      });
+
+      // Return success immediately (don't wait for write)
+      res.status(200).json({
+        success: true,
+        tracked: true
+      });
+
+    } catch (error) {
+      console.error('Error tracking hosted key usage:', error);
+      // Don't fail the request even if tracking fails
+      res.status(200).json({ 
+        success: true,
+        tracked: false,
+        note: 'Usage tracking failed but operation succeeded'
+      });
+    }
+  }
+);
+
+// ============================================
 // SYNC TASKS TO CLOUD
 // ============================================
 
