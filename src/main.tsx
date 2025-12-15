@@ -4,7 +4,11 @@ import { BrowserRouter, useLocation } from 'react-router-dom'
 import App from './App'
 import { AuthProvider } from './contexts/AuthContext'
 import { ThemeProvider } from './contexts/ThemeContext'
+import { initAnalytics } from './lib/firebase'
 import './index.css'
+
+// Initialize analytics
+initAnalytics()
 
 // Scroll to top on route change
 function ScrollToTop() {
