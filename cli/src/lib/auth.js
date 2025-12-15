@@ -4,18 +4,45 @@ import os from 'os';
 import http from 'http';
 import { spawn } from 'child_process';
 
-const FIREBASE_API_KEY = process.env.TASKMASTER_FIREBASE_API_KEY;
-if (!FIREBASE_API_KEY) {
-  console.error('ERROR: TASKMASTER_FIREBASE_API_KEY environment variable is not set.');
-  console.error('Please contact TaskMaster AI support for configuration assistance.');
-}
-
 const FIREBASE_PROJECT_ID = 'taskmaster-ai-e2302';
 const AUTH_BASE_URL = `https://identitytoolkit.googleapis.com/v1/accounts`;
 const TOKEN_REFRESH_URL = `https://securetoken.googleapis.com/v1/token`;
 
 const FUNCTIONS_BASE_URL = process.env.TASKMASTER_FUNCTIONS_URL || 
   'https://us-central1-taskmaster-ai-e2302.cloudfunctions.net';
+
+// Cache for Firebase API key
+let FIREBASE_API_KEY_CACHE = null;
+
+/**
+ * Get Firebase API key - fetches from backend if not in env
+ */
+async function getFirebaseApiKey() {
+  // First check env var
+  if (process.env.TASKMASTER_FIREBASE_API_KEY) {
+    return process.env.TASKMASTER_FIREBASE_API_KEY;
+  }
+
+  // Check cache
+  if (FIREBASE_API_KEY_CACHE) {
+    return FIREBASE_API_KEY_CACHE;
+  }
+
+  // Fetch from backend
+  try {
+    const response = await fetch(`${FUNCTIONS_BASE_URL}/getFirebaseConfig`);
+    const data = await response.json();
+    
+    if (data.success && data.config?.apiKey) {
+      FIREBASE_API_KEY_CACHE = data.config.apiKey;
+      return FIREBASE_API_KEY_CACHE;
+    }
+  } catch (error) {
+    console.error('Failed to fetch Firebase config from backend:', error.message);
+  }
+
+  throw new Error('Firebase API key not available. Please contact support.');
+}
 
 export function getAuthFilePath() {
   const taskmasterDir = path.join(os.homedir(), '.taskmaster-ai');
@@ -62,7 +89,8 @@ function isTokenExpired(authData) {
 
 async function refreshAuthToken(refreshToken) {
   try {
-    const response = await fetch(`${TOKEN_REFRESH_URL}?key=${FIREBASE_API_KEY}`, {
+    const apiKey = await getFirebaseApiKey();
+    const response = await fetch(`${TOKEN_REFRESH_URL}?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -119,7 +147,8 @@ export async function getValidAuthToken() {
 
 export async function loginWithEmail(email, password) {
   try {
-    const response = await fetch(`${AUTH_BASE_URL}:signInWithPassword?key=${FIREBASE_API_KEY}`, {
+    const apiKey = await getFirebaseApiKey();
+    const response = await fetch(`${AUTH_BASE_URL}:signInWithPassword?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
