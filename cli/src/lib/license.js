@@ -183,6 +183,18 @@ export async function activateLicense(licenseKey) {
 }
 
 export async function getLicenseStatus(forceRefresh = false) {
+  // CRITICAL: Check if user is logged in first
+  const { isLoggedIn } = await import('./auth.js');
+  const loggedIn = await isLoggedIn();
+  
+  if (!loggedIn) {
+    return {
+      valid: false,
+      activated: false,
+      error: 'Not logged in. Run "taskmaster login" to authenticate.',
+    };
+  }
+
   const stored = readStoredLicense();
 
   if (!stored || !stored.licenseKey) {

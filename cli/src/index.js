@@ -79,12 +79,19 @@ async function checkLicense(commandName) {
 
     if (!status.valid) {
       console.log('');
+      
+      // Check if the error is specifically about not being logged in
+      const isLoginError = status.error && status.error.includes('Not logged in');
+      
       console.log(
         boxen(
-          chalk.red.bold('⚠️  License Required') + '\n\n' +
+          chalk.red.bold(isLoginError ? '⚠️  Authentication Required' : '⚠️  License Required') + '\n\n' +
           chalk.white(status.error || 'A valid license is required to use TaskMaster AI.') + '\n\n' +
-          chalk.dim('Get your license at: ') + chalk.cyan.underline('https://www.taskmaster.one/pricing') + '\n' +
-          chalk.dim('Activate with: ') + chalk.cyan('taskmaster activate <license-key>'),
+          (isLoginError 
+            ? chalk.dim('Login with: ') + chalk.cyan('taskmaster login')
+            : chalk.dim('Get your license at: ') + chalk.cyan.underline('https://www.taskmaster.one/pricing') + '\n' +
+              chalk.dim('Activate with: ') + chalk.cyan('taskmaster activate <license-key>')
+          ),
           {
             padding: 1,
             borderColor: 'red',
