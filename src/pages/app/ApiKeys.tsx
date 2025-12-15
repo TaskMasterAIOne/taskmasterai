@@ -181,7 +181,7 @@ const providers = [
   { id: 'google', name: 'Google (Gemini)', description: 'Gemini 3 Pro, 2.5 Pro/Flash', docsUrl: 'https://aistudio.google.com/app/apikey' },
   { id: 'perplexity', name: 'Perplexity', description: 'Research and web search', docsUrl: 'https://www.perplexity.ai/settings/api' },
   { id: 'deepseek', name: 'DeepSeek', description: 'DeepSeek V3, V3.1, R1', docsUrl: 'https://platform.deepseek.com/' },
-  { id: 'xai', name: 'xAI (Grok)', description: 'Grok 4, Grok 3', docsUrl: 'https://console.x.ai/' },
+  { id: 'xai', name: 'xAI (Grok)', description: 'Grok 4.1, Grok 4, Grok 3', docsUrl: 'https://console.x.ai/' },
   { id: 'openrouter', name: 'OpenRouter', description: 'Multiple models', docsUrl: 'https://openrouter.ai/keys' },
   { id: 'mistral', name: 'Mistral', description: 'Mistral AI models', docsUrl: 'https://console.mistral.ai/api-keys/' },
   { id: 'moonshot', name: 'Moonshot', description: 'Kimi K2', docsUrl: 'https://platform.moonshot.cn/' },
