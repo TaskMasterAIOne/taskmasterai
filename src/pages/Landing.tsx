@@ -29,7 +29,7 @@ const features = [
   {
     icon: faMicrochip,
     title: 'Multi-Model Support',
-    description: 'Use Claude, GPT-4, Gemini, Perplexity, Ollama, and more. Switch models as needed.',
+    description: 'Use Claude, GPT, Gemini, Perplexity, Ollama, and more. Switch models as needed.',
   },
   {
     icon: faDiagramProject,
