@@ -1,7 +1,3 @@
-/**
- * Claude Code Profile
- * Copyright (c) 2025 TaskMaster AI LLC
- */
 
 import fs from 'fs';
 import path from 'path';

@@ -1,7 +1,3 @@
-/**
- * Workflow Orchestrator
- * Manages the TDD workflow state machine
- */
 
 import fs from 'fs';
 import path from 'path';
@@ -23,11 +19,7 @@ export class WorkflowOrchestrator {
     this.commitGen = new CommitMessageGenerator();
   }
 
-  /**
-   * Read workflow state from file
-   * @returns {object|null}
-   */
-  readState() {
+    readState() {
     if (!fs.existsSync(this.statePath)) {
       return null;
     }
@@ -38,11 +30,7 @@ export class WorkflowOrchestrator {
     }
   }
 
-  /**
-   * Write workflow state to file
-   * @param {object} state
-   */
-  writeState(state) {
+    writeState(state) {
     const dir = path.dirname(this.statePath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
@@ -50,13 +38,7 @@ export class WorkflowOrchestrator {
     fs.writeFileSync(this.statePath, JSON.stringify(state, null, 2));
   }
 
-  /**
-   * Start a new TDD workflow
-   * @param {string} taskId - Task ID to work on
-   * @param {object} options - Start options
-   * @returns {object} - Workflow status
-   */
-  async start(taskId, options = {}) {
+    async start(taskId, options = {}) {
     // PREFLIGHT: Validate task and git state
     const task = findTaskById(taskId, this.projectRoot);
     if (!task) {
@@ -72,8 +54,6 @@ export class WorkflowOrchestrator {
         'Workflow already in progress. Use --force to override, or run "taskmaster autopilot resume".'
       );
     }
-
-    // Check git state
     if (!this.git.isGitRepo()) {
       throw new Error('Not a git repository. Initialize git first.');
     }
@@ -111,11 +91,7 @@ export class WorkflowOrchestrator {
     return this.getStatus();
   }
 
-  /**
-   * Get current workflow status
-   * @returns {object|null}
-   */
-  getStatus() {
+    getStatus() {
     const state = this.readState();
     if (!state) {
       return null;
@@ -156,11 +132,7 @@ export class WorkflowOrchestrator {
     };
   }
 
-  /**
-   * Get the next action to perform
-   * @returns {object}
-   */
-  getNextAction() {
+    getNextAction() {
     const status = this.getStatus();
     if (!status) {
       throw new Error('No active workflow. Run "taskmaster autopilot start <taskId>" first.');
@@ -213,12 +185,7 @@ export class WorkflowOrchestrator {
     };
   }
 
-  /**
-   * Complete the current TDD phase
-   * @param {object} testResults - Test results { total, passed, failed, skipped }
-   * @returns {object} - Updated status
-   */
-  completePhase(testResults) {
+    completePhase(testResults) {
     const state = this.readState();
     if (!state) {
       throw new Error('No active workflow');
@@ -252,12 +219,7 @@ export class WorkflowOrchestrator {
     return this.getStatus();
   }
 
-  /**
-   * Commit changes and advance to next subtask
-   * @param {object} options - Commit options
-   * @returns {object} - Updated status with commit info
-   */
-  async commit(options = {}) {
+    async commit(options = {}) {
     const state = this.readState();
     if (!state) {
       throw new Error('No active workflow');
@@ -272,8 +234,6 @@ export class WorkflowOrchestrator {
 
     // Generate commit message
     const message = options.customMessage || this.commitGen.generate(subtask, state.taskId);
-
-    // Create commit
     try {
       await this.git.commit(message, options.files);
     } catch (error) {
@@ -296,7 +256,6 @@ export class WorkflowOrchestrator {
       state.completedAt = new Date().toISOString();
       setTaskStatus(state.taskId, 'done', this.projectRoot);
     } else {
-      // Start next subtask
       state.tddPhase = 'RED';
       const nextSubtask = task.subtasks[state.currentSubtaskIndex];
       setTaskStatus(`${state.taskId}.${nextSubtask.id}`, 'in-progress', this.projectRoot);
@@ -314,11 +273,7 @@ export class WorkflowOrchestrator {
     };
   }
 
-  /**
-   * Abort the current workflow
-   * @returns {object}
-   */
-  abort() {
+    abort() {
     const state = this.readState();
     if (!state) {
       throw new Error('No active workflow');
@@ -335,11 +290,7 @@ export class WorkflowOrchestrator {
     };
   }
 
-  /**
-   * Resume an interrupted workflow
-   * @returns {object}
-   */
-  resume() {
+    resume() {
     const state = this.readState();
     if (!state) {
       throw new Error('No workflow to resume. Run "taskmaster autopilot start <taskId>" first.');

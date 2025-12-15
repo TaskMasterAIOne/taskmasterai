@@ -1,12 +1,3 @@
-/**
- * Generate Module
- * Generate individual markdown files for tasks
- * Copyright (c) 2025 TaskMaster AI LLC
- * 
- * TaskMaster AI Terminology:
- * - "steps" instead of "subtasks"
- * - "links" instead of "dependencies"
- */
 
 import fs from 'fs';
 import path from 'path';
@@ -25,12 +16,6 @@ import {
   getStatusWithColor
 } from '../ui.js';
 
-/**
- * Generate markdown files for all tasks
- * @param {string} tasksPath - Path to tasks.json
- * @param {Object} options - Options
- * @returns {Promise<Object>} Result
- */
 async function generateTaskFiles(tasksPath, options = {}) {
   const {
     output,
@@ -43,13 +28,9 @@ async function generateTaskFiles(tasksPath, options = {}) {
   
   try {
     log('info', 'Generating task files...');
-    
-    // Show loading
     if (outputFormat === 'text' && !isSilentMode()) {
       loadingIndicator = startLoadingIndicator('Generating task files...');
     }
-    
-    // Read tasks
     const data = readJSON(tasksPath, projectRoot, context);
     if (!data?.tasks || data.tasks.length === 0) {
       if (loadingIndicator) {
@@ -126,11 +107,6 @@ async function generateTaskFiles(tasksPath, options = {}) {
   }
 }
 
-/**
- * Generate markdown content for a task
- * @param {Object} task - Task object
- * @returns {string} Markdown content
- */
 function generateTaskMarkdown(task) {
   const lines = [];
   
@@ -208,12 +184,6 @@ function generateTaskMarkdown(task) {
   return lines.join('\n');
 }
 
-/**
- * Generate a single task file
- * @param {Object} task - Task to generate
- * @param {string} outputDir - Output directory
- * @returns {string} Path to generated file
- */
 function generateSingleTaskFile(task, outputDir) {
   const markdown = generateTaskMarkdown(task);
   const filename = `task_${String(task.id).padStart(3, '0')}.md`;

@@ -1,7 +1,3 @@
-/**
- * Command Registration for TaskMaster AI CLI
- */
-
 import chalk from 'chalk';
 import boxen from 'boxen';
 import fs from 'fs';
@@ -61,9 +57,6 @@ import {
 } from '../lib/license.js';
 import Table from 'cli-table3';
 
-/**
- * Register all CLI commands
- */
 export function registerCommands(program) {
   // Init command
   program
@@ -78,23 +71,15 @@ export function registerCommands(program) {
       console.log('');
 
       const projectRoot = process.cwd();
-      
-      // Check if already initialized
       if (findProjectRoot(projectRoot)) {
         console.log(chalk.yellow('⚠️  TaskMaster AI is already initialized in this project.'));
         return;
       }
-
-      // Create project structure
       ensureProjectConfigDir(projectRoot);
-
-      // Create config
       const config = getDefaultConfig();
       config.projectName = options.name || path.basename(projectRoot);
       config.projectDescription = options.description || '';
       writeProjectConfig(config, projectRoot);
-
-      // Create initial empty tasks
       const tasksPath = getTasksFilePath(projectRoot);
       const initialTasks = {
         tags: {
@@ -143,8 +128,6 @@ export function registerCommands(program) {
 
       const projectRoot = findProjectRoot() || process.cwd();
       ensureProjectConfigDir(projectRoot);
-
-      // Check for existing tasks
       const existingTasks = getAllTasks(projectRoot);
       if (existingTasks.length > 0 && !options.force && !options.append) {
         console.log(chalk.yellow('⚠️  Tasks already exist. Use --force to overwrite or --append to add.'));
@@ -159,7 +142,6 @@ export function registerCommands(program) {
       const spinner = ora('Reading PRD file...').start();
 
       try {
-        // Check usage limit before AI operation
         const numTasks = parseInt(options.numTasks) || 10;
         try {
           enforceUsageLimit(numTasks);
@@ -184,13 +166,9 @@ export function registerCommands(program) {
           numTasks,
           research: options.research,
         });
-        
-        // Track usage after successful operation
         await incrementUsage('tasksParsed', tasks.length);
 
         spinner.stop();
-
-        // Merge or replace tasks
         let finalTasks;
         if (options.append) {
           const maxId = existingTasks.length > 0 
@@ -217,7 +195,7 @@ export function registerCommands(program) {
       }
     });
 
-  // List tasks command (with table format like official)
+  // List tasks command (with table format )
   program
     .command('list')
     .description('List all tasks')
@@ -244,8 +222,6 @@ export function registerCommands(program) {
       }
 
       console.log('');
-      
-      // Create table (like official version)
       const table = new Table({
         head: [
           chalk.cyan('ID'),
@@ -292,8 +268,6 @@ export function registerCommands(program) {
 
       console.log(table.toString());
       console.log('');
-
-      // Show stats
       const stats = getTaskStats(projectRoot);
       const progress = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
       
@@ -310,8 +284,6 @@ export function registerCommands(program) {
       );
       console.log('');
     });
-
-  // Show task command
   program
     .command('show')
     .description('Show detailed information for a task')
@@ -412,8 +384,6 @@ export function registerCommands(program) {
       console.log(chalk.dim('Start with: ') + chalk.cyan(`taskmaster set-status --id ${task.id} --status in-progress`));
       console.log('');
     });
-
-  // Set status command
   program
     .command('set-status')
     .description('Update task status')
@@ -475,8 +445,6 @@ export function registerCommands(program) {
         const toExpand = tasks.filter(t => 
           t.status === 'pending' && (!t.subtasks || t.subtasks.length === 0 || options.force)
         );
-
-        // Check usage limit for all tasks
         const totalSubtasks = toExpand.length * (parseInt(options.num) || 5);
         try {
           enforceUsageLimit(totalSubtasks);
@@ -525,8 +493,6 @@ export function registerCommands(program) {
         console.error(chalk.red(`Task ${options.id} not found.`));
         process.exit(1);
       }
-
-      // Check usage limit
       const numSubtasks = parseInt(options.num) || 5;
       try {
         enforceUsageLimit(numSubtasks);
@@ -568,8 +534,6 @@ export function registerCommands(program) {
         process.exit(1);
       }
     });
-
-  // Add task command
   program
     .command('add-task')
     .description('Add a new task')
@@ -588,8 +552,6 @@ export function registerCommands(program) {
         console.error(chalk.red('Error: Not in a TaskMaster project. Run "taskmaster init" first.'));
         process.exit(1);
       }
-
-      // Check usage limit
       try {
         enforceUsageLimit(1);
       } catch (limitError) {
@@ -648,8 +610,6 @@ export function registerCommands(program) {
         console.log(chalk.yellow('No tasks to analyze.'));
         return;
       }
-
-      // Check usage limit (1 operation for complexity analysis)
       try {
         enforceUsageLimit(1);
       } catch (limitError) {
@@ -710,8 +670,6 @@ export function registerCommands(program) {
         process.exit(1);
       }
     });
-
-  // Add dependency command
   program
     .command('add-dependency')
     .description('Add a dependency to a task')
@@ -767,8 +725,6 @@ export function registerCommands(program) {
         console.error(chalk.red('Task not found.'));
       }
     });
-
-  // Update subtask command (append timestamped notes)
   program
     .command('update-subtask')
     .description('Append timestamped notes to a subtask')
@@ -812,7 +768,7 @@ export function registerCommands(program) {
         process.exit(1);
       }
 
-      // Append timestamped note (like official version)
+      // Append timestamped note ( version)
       const timestamp = new Date().toISOString();
       const newNote = `\n\n--- Update [${timestamp}] ---\n${options.prompt}`;
       
@@ -823,8 +779,6 @@ export function registerCommands(program) {
       console.log(chalk.green(`✓ Appended note to subtask ${options.id}`));
       console.log(chalk.dim(`  Timestamp: ${timestamp}`));
     });
-
-  // Update task command
   program
     .command('update-task')
     .description('Update a task with new information')
@@ -864,7 +818,6 @@ export function registerCommands(program) {
         }
       } else {
         // Full update mode - would use AI to regenerate
-        // Check usage limit
         try {
           enforceUsageLimit(1);
         } catch (limitError) {
@@ -1058,8 +1011,6 @@ Provide updated details that incorporate the new information.`;
         }
       }
       console.log('');
-      
-      // Show synced config info
       const cachedConfig = readCachedConfig();
       if (cachedConfig) {
         console.log(chalk.white.bold('Dashboard Config Sync:'));
@@ -1118,12 +1069,8 @@ Provide updated details that incorporate the new information.`;
         console.log(chalk.green('✓ Model configuration updated'));
         return;
       }
-
-      // Check if models are from dashboard sync
       const cachedConfig = readCachedConfig();
       const hasModelSync = cachedConfig?.models;
-      
-      // Display current config
       console.log('');
       console.log(chalk.cyan.bold('AI Model Configuration:'));
       if (hasModelSync) {
@@ -1142,8 +1089,6 @@ Provide updated details that incorporate the new information.`;
       console.log(`  Provider: ${config.models.fallback.provider}`);
       console.log(`  Model: ${config.models.fallback.modelId}`);
       console.log('');
-
-      // Check API keys (show source: env or dashboard)
       console.log(chalk.cyan.bold('API Key Status:'));
       const syncedApiKeys = cachedConfig?.apiKeys || {};
       const providers = ['anthropic', 'openai', 'google', 'perplexity', 'mistral', 'xai', 'openrouter'];
@@ -1165,8 +1110,7 @@ Provide updated details that incorporate the new information.`;
     });
 
   // ============================================
-  // TAG MANAGEMENT COMMANDS
-  // ============================================
+    // ============================================
 
   // List tags command
   program
@@ -1224,8 +1168,6 @@ Provide updated details that incorporate the new information.`;
         console.log('');
       }
     });
-
-  // Add tag command
   program
     .command('add-tag')
     .description('Create a new tag')
@@ -1272,8 +1214,6 @@ Provide updated details that incorporate the new information.`;
         process.exit(1);
       }
     });
-
-  // Use tag command
   program
     .command('use-tag')
     .description('Switch to a different tag')
@@ -1377,8 +1317,7 @@ Provide updated details that incorporate the new information.`;
     });
 
   // ============================================
-  // DEPENDENCY MANAGEMENT COMMANDS
-  // ============================================
+    // ============================================
 
   // Validate dependencies command
   program
@@ -1432,8 +1371,7 @@ Provide updated details that incorporate the new information.`;
     });
 
   // ============================================
-  // TASK ORGANIZATION COMMANDS
-  // ============================================
+    // ============================================
 
   // Move task command
   program
@@ -1461,8 +1399,6 @@ Provide updated details that incorporate the new information.`;
         process.exit(1);
       }
     });
-
-  // Add subtask command
   program
     .command('add-subtask')
     .description('Add a subtask to a parent task')
@@ -1526,8 +1462,7 @@ Provide updated details that incorporate the new information.`;
     });
 
   // ============================================
-  // ANALYSIS COMMANDS
-  // ============================================
+    // ============================================
 
   // Complexity report command
   program
@@ -1613,8 +1548,6 @@ Provide updated details that incorporate the new information.`;
         console.error(chalk.red('Error: Not in a TaskMaster project.'));
         process.exit(1);
       }
-
-      // Check usage limit
       try {
         enforceUsageLimit(1);
       } catch (limitError) {
@@ -1647,8 +1580,6 @@ Provide updated details that incorporate the new information.`;
         console.log('');
         console.log(result.text);
         console.log('');
-
-        // Save to task if specified
         if (options.saveTo) {
           const timestamp = new Date().toISOString();
           const note = `\n\n--- Research [${timestamp}] ---\nQuery: ${query}\n\n${result.text}`;
@@ -1667,8 +1598,7 @@ Provide updated details that incorporate the new information.`;
     });
 
   // ============================================
-  // BATCH OPERATIONS
-  // ============================================
+    // ============================================
 
   // Batch update command
   program
@@ -1697,8 +1627,6 @@ Provide updated details that incorporate the new information.`;
         console.log(chalk.yellow('No tasks to update.'));
         return;
       }
-
-      // Check usage limit
       try {
         enforceUsageLimit(tasksToUpdate.length);
       } catch (limitError) {
@@ -1749,8 +1677,7 @@ Provide updated details that incorporate the new information.`;
     });
 
   // ============================================
-  // AUTOPILOT COMMANDS
-  // ============================================
+    // ============================================
 
   // Autopilot parent command
   const autopilot = program
@@ -2129,18 +2056,12 @@ Provide updated details that incorporate the new information.`;
     });
 }
 
-/**
- * Truncate text to a maximum length
- */
 function truncateText(text, maxLength) {
   if (!text) return '';
   if (text.length <= maxLength) return text;
   return text.substring(0, maxLength - 3) + '...';
 }
 
-/**
- * Get color function for status
- */
 function getStatusColor(status) {
   switch (status) {
     case 'done':
@@ -2160,9 +2081,6 @@ function getStatusColor(status) {
   }
 }
 
-/**
- * Get status display with color and symbol (like official)
- */
 function getStatusDisplay(status) {
   switch (status) {
     case 'done':
@@ -2182,9 +2100,6 @@ function getStatusDisplay(status) {
   }
 }
 
-/**
- * Get priority badge
- */
 function getPriorityBadge(priority) {
   switch (priority) {
     case 'high':

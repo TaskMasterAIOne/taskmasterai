@@ -1,7 +1,3 @@
-/**
- * Profile Exports
- * Copyright (c) 2025 TaskMaster AI LLC
- */
 
 export { ampProfile } from './amp.js';
 export { claudeProfile } from './claude.js';

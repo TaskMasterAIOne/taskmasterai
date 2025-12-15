@@ -1,7 +1,3 @@
-/**
- * Cursor Profile
- * Copyright (c) 2025 TaskMaster AI LLC
- */
 
 import fs from 'fs';
 import path from 'path';
@@ -62,8 +58,6 @@ function removeDirectoryRecursive(dirPath) {
   }
   return true;
 }
-
-// Resolve the Cursor profile directory
 function resolveCursorProfileDir(baseDir) {
   const base = path.basename(baseDir);
   if (base === 'rules' && path.basename(path.dirname(baseDir)) === '.cursor') {
@@ -105,8 +99,6 @@ function onRemoveRulesProfile(targetDir) {
   const commandsDir = path.join(profileDir, 'commands');
   removeDirectoryRecursive(commandsDir);
 }
-
-// Create and export cursor profile using the base factory
 export const cursorProfile = createProfile({
   name: 'cursor',
   displayName: 'Cursor',

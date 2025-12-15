@@ -1,20 +1,3 @@
-/**
- * Task Manager Module Hub
- * Exports all task management functions
- * Copyright (c) 2025 TaskMaster AI LLC
- * 
- * TaskMaster AI uses distinct terminology:
- * - "steps" instead of "subtasks"
- * - "links" instead of "dependencies"
- * - "assessment" instead of "complexity"
- * - "contexts" instead of "tags"
- * - "breakdown" instead of "expand"
- * - "log" instead of "update-subtask"
- * - "new" instead of "add-task"
- * - "edit" instead of "update-task"
- * - "ask" instead of "research"
- * - "plan" instead of "parse-prd"
- */
 
 // Core task operations
 import findNextTask from './find-next-task.js';
@@ -50,8 +33,6 @@ import { scopeUp, scopeDown, validateStrength, VALID_STRENGTHS } from './scope.j
 // Initialization & generation
 import initProject, { isProjectInitialized } from './init.js';
 import generateTaskFiles, { generateTaskMarkdown, generateSingleTaskFile } from './generate.js';
-
-// Sync README
 import syncReadme, { generateTaskListMarkdown, generateProgressStats } from './sync-readme.js';
 
 // Response language (i18n)
@@ -128,8 +109,6 @@ export {
   generateTaskFiles,
   generateTaskMarkdown,
   generateSingleTaskFile,
-  
-  // Sync README
   syncReadme,
   generateTaskListMarkdown,
   generateProgressStats,
@@ -208,8 +187,6 @@ export default {
   initProject,
   isProjectInitialized,
   generateTaskFiles,
-  
-  // Sync README
   syncReadme,
   
   // Response Language (i18n)

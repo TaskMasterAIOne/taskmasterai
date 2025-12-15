@@ -1,15 +1,7 @@
-/**
- * Tag Management Tools
- * MCP tools for managing task tags/contexts
- */
 
 import { z } from 'zod';
 import { handleApiResult, withToolContext } from '../utils.js';
 
-/**
- * Register tag-related tools with the MCP server
- * @param {import('fastmcp').FastMCP} server - FastMCP server instance
- */
 export function registerTagTools(server) {
   // list_tags - List all tags
   server.addTool({

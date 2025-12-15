@@ -1,8 +1,3 @@
-/**
- * Move Task Module
- * Moves tasks or steps within the hierarchy
- * Copyright (c) 2025 TaskMaster AI LLC
- */
 
 import boxen from 'boxen';
 import chalk from 'chalk';
@@ -14,24 +9,11 @@ import {
   isSilentMode
 } from '../utils.js';
 
-/**
- * Move a task or step to a new position
- * @param {string} tasksPath - Path to the tasks.json file
- * @param {string} fromId - Source ID (e.g., "5" or "5.2")
- * @param {string} toId - Target ID (e.g., "7" or "7.3")
- * @param {Object} options - Options
- * @param {string} [options.projectRoot] - Project root path
- * @param {string} [options.context] - Context name
- * @param {string} [options.outputFormat] - Output format
- * @returns {Promise<Object>} Result
- */
 async function moveTask(tasksPath, fromId, toId, options = {}) {
   const { projectRoot, context, outputFormat = 'text' } = options;
   
   try {
     log('info', `Moving ${fromId} to ${toId}...`);
-    
-    // Read tasks
     const data = readJSON(tasksPath, projectRoot, context);
     if (!data || !data.tasks) {
       throw new Error('No valid tasks found');
@@ -123,18 +105,9 @@ async function moveTask(tasksPath, fromId, toId, options = {}) {
   }
 }
 
-/**
- * Move a single task or step
- * @param {Object} data - Tasks data
- * @param {string} from - Source ID
- * @param {string} to - Target ID
- * @returns {Object} Move result
- */
 function moveSingle(data, from, to) {
   const fromIsStep = String(from).includes('.');
   const toIsStep = String(to).includes('.');
-  
-  // Get source item
   let sourceItem = null;
   let sourceParent = null;
   let sourceStepsField = null;
@@ -168,8 +141,6 @@ function moveSingle(data, from, to) {
     
     sourceItem = { ...data.tasks[sourceIndex] };
   }
-  
-  // Remove from source
   if (fromIsStep) {
     sourceParent[sourceStepsField].splice(sourceIndex, 1);
     if (sourceStepsField === 'steps') {
@@ -180,13 +151,9 @@ function moveSingle(data, from, to) {
   } else {
     data.tasks.splice(sourceIndex, 1);
   }
-  
-  // Add to target
   if (toIsStep) {
     const [parentId, stepId] = String(to).split('.').map(Number);
     let targetParent = data.tasks.find(t => t.id === parentId);
-    
-    // Create parent if doesn't exist
     if (!targetParent) {
       const maxId = Math.max(...data.tasks.map(t => t.id), 0);
       targetParent = {
@@ -207,8 +174,6 @@ function moveSingle(data, from, to) {
     if (!targetParent[targetStepsField]) {
       targetParent[targetStepsField] = [];
     }
-    
-    // Add as step
     const newStep = {
       id: stepId,
       title: sourceItem.title,
@@ -220,8 +185,6 @@ function moveSingle(data, from, to) {
     };
     
     targetParent[targetStepsField].push(newStep);
-    
-    // Sync fields
     if (targetStepsField === 'steps') {
       targetParent.subtasks = targetParent.steps;
     } else {
@@ -230,8 +193,6 @@ function moveSingle(data, from, to) {
     
   } else {
     const targetId = parseInt(to, 10);
-    
-    // Check if target ID exists
     const existing = data.tasks.find(t => t.id === targetId);
     if (existing && existing.title && !existing.title.includes('[Placeholder')) {
       throw new Error(`Target task #${targetId} already exists. Cannot overwrite.`);
@@ -242,8 +203,6 @@ function moveSingle(data, from, to) {
     if (existingIndex !== -1) {
       data.tasks.splice(existingIndex, 1);
     }
-    
-    // Add task with new ID
     const newTask = {
       ...sourceItem,
       id: targetId

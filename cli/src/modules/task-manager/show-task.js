@@ -1,13 +1,3 @@
-/**
- * Show Task Module
- * Displays detailed task information
- * Copyright (c) 2025 TaskMaster AI LLC
- * 
- * TaskMaster AI Terminology:
- * - "steps" instead of "subtasks"
- * - "links" instead of "dependencies"
- * - "assessment" instead of "complexity"
- */
 
 import boxen from 'boxen';
 import chalk from 'chalk';
@@ -27,30 +17,16 @@ import {
   formatDependenciesWithStatus
 } from '../ui.js';
 
-/**
- * Show detailed information for a task or step
- * @param {string} tasksPath - Path to the tasks.json file
- * @param {string} taskIdInput - Task ID(s) to show (comma-separated)
- * @param {Object} options - Additional options
- * @param {string} [options.projectRoot] - Project root path
- * @param {string} [options.context] - Context name
- * @param {string} [options.outputFormat] - Output format (text or json)
- * @returns {Object} Task data
- */
 async function showTask(tasksPath, taskIdInput, options = {}) {
   const { projectRoot, context, outputFormat = 'text' } = options;
   
   try {
     log('info', `Reading tasks from ${tasksPath}...`);
-    
-    // Read tasks data
     const data = readJSON(tasksPath, projectRoot, context);
     
     if (!data || !data.tasks) {
       throw new Error(`No valid tasks found in ${tasksPath}`);
     }
-    
-    // Read assessment report if available
     const assessmentReport = readAssessmentReport(null, projectRoot);
     
     // Handle multiple task IDs
@@ -99,23 +75,13 @@ async function showTask(tasksPath, taskIdInput, options = {}) {
   }
 }
 
-/**
- * Display detailed task information
- * @param {Object} task - Task object to display
- * @param {Array} allTasks - All tasks for link resolution
- * @param {Object} assessmentReport - Assessment report for scoring
- */
 function displayTaskDetails(task, allTasks, assessmentReport) {
   const isStep = task.isStep || String(task.id).includes('.');
   const itemType = isStep ? 'Step' : 'Task';
-  
-  // Get links (dependencies)
   const links = task.dependencies || task.links || [];
   const linksDisplay = links.length > 0
     ? formatDependenciesWithStatus(links, allTasks, true)
     : chalk.gray('None');
-  
-  // Get steps if this is a parent task
   const steps = task.steps || task.subtasks || [];
   
   // Build content
@@ -160,8 +126,6 @@ function displayTaskDetails(task, allTasks, assessmentReport) {
       content += `  ${chalk.cyan(`${task.id}.${step.id}`)} [${stepStatus}] ${step.title}\n`;
     });
   }
-  
-  // Display in a box
   console.log(
     boxen(content, {
       padding: 1,
@@ -202,11 +166,6 @@ function displayTaskDetails(task, allTasks, assessmentReport) {
   }
 }
 
-/**
- * Get priority color function
- * @param {string} priority - Priority level
- * @returns {Function} Chalk color function
- */
 function getPriorityColor(priority) {
   const colors = {
     high: chalk.red.bold,

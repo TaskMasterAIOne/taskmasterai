@@ -1,8 +1,3 @@
-/**
- * Remove Task Module
- * Removes a task or step from the task list
- * Copyright (c) 2025 TaskMaster AI LLC
- */
 
 import boxen from 'boxen';
 import chalk from 'chalk';
@@ -14,24 +9,11 @@ import {
   isSilentMode
 } from '../utils.js';
 
-/**
- * Remove a task or step
- * @param {string} tasksPath - Path to the tasks.json file
- * @param {string} taskId - Task or step ID to remove
- * @param {Object} options - Options
- * @param {boolean} [options.force] - Skip confirmation
- * @param {string} [options.projectRoot] - Project root path
- * @param {string} [options.context] - Context name
- * @param {string} [options.outputFormat] - Output format
- * @returns {Promise<Object>} Result
- */
 async function removeTask(tasksPath, taskId, options = {}) {
   const { force = false, projectRoot, context, outputFormat = 'text' } = options;
   
   try {
     log('info', `Removing task/step ${taskId}...`);
-    
-    // Read tasks
     const data = readJSON(tasksPath, projectRoot, context);
     if (!data || !data.tasks) {
       throw new Error('No valid tasks found');
@@ -66,8 +48,6 @@ async function removeTask(tasksPath, taskId, options = {}) {
       
       removed = steps[stepIndex];
       steps.splice(stepIndex, 1);
-      
-      // Sync field names
       if (stepsField === 'steps') {
         parentTask.subtasks = parentTask.steps;
       } else {
@@ -87,7 +67,6 @@ async function removeTask(tasksPath, taskId, options = {}) {
       
       // Clean up references from other tasks
       data.tasks.forEach(task => {
-        // Remove from links/dependencies
         if (task.dependencies) {
           task.dependencies = task.dependencies.filter(d => d !== taskIdNum);
         }
@@ -95,8 +74,6 @@ async function removeTask(tasksPath, taskId, options = {}) {
           task.links = task.links.filter(l => l !== taskIdNum);
         }
       });
-      
-      // Remove the task
       data.tasks.splice(taskIndex, 1);
     }
     

@@ -1,31 +1,22 @@
-/**
- * Authentication Manager for TaskMaster AI CLI
- * Handles Firebase authentication (Email/Password and Google)
- * Stores auth tokens and manages session
- */
-
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import http from 'http';
 import { spawn } from 'child_process';
 
-// Firebase Auth REST API endpoints
-// Note: Firebase web API keys are designed to be public and protected by security rules
-// However, we use environment variable for flexibility
-const FIREBASE_API_KEY = process.env.TASKMASTER_FIREBASE_API_KEY || 'AIzaSyDNWlikkR9ji9lstwOYlBoCDR2PiT2fb3Y';
+const FIREBASE_API_KEY = process.env.TASKMASTER_FIREBASE_API_KEY;
+if (!FIREBASE_API_KEY) {
+  console.error('ERROR: TASKMASTER_FIREBASE_API_KEY environment variable is not set.');
+  console.error('Please contact TaskMaster AI support for configuration assistance.');
+}
+
 const FIREBASE_PROJECT_ID = 'taskmaster-ai-e2302';
 const AUTH_BASE_URL = `https://identitytoolkit.googleapis.com/v1/accounts`;
 const TOKEN_REFRESH_URL = `https://securetoken.googleapis.com/v1/token`;
 
-// Functions URL for license fetching
 const FUNCTIONS_BASE_URL = process.env.TASKMASTER_FUNCTIONS_URL || 
   'https://us-central1-taskmaster-ai-e2302.cloudfunctions.net';
 
-/**
- * Get the path to the auth token file
- * @returns {string} Path to ~/.taskmaster-ai/auth.json
- */
 export function getAuthFilePath() {
   const taskmasterDir = path.join(os.homedir(), '.taskmaster-ai');
   if (!fs.existsSync(taskmasterDir)) {
@@ -34,10 +25,6 @@ export function getAuthFilePath() {
   return path.join(taskmasterDir, 'auth.json');
 }
 
-/**
- * Read stored auth data
- * @returns {Object|null} Auth data or null if not found
- */
 export function readStoredAuth() {
   const authPath = getAuthFilePath();
   
@@ -54,18 +41,11 @@ export function readStoredAuth() {
   }
 }
 
-/**
- * Write auth data to file
- * @param {Object} authData - Auth data to store
- */
 export function writeAuthData(authData) {
   const authPath = getAuthFilePath();
   fs.writeFileSync(authPath, JSON.stringify(authData, null, 2), 'utf-8');
 }
 
-/**
- * Clear stored auth data
- */
 export function clearAuthData() {
   const authPath = getAuthFilePath();
   if (fs.existsSync(authPath)) {
@@ -73,24 +53,13 @@ export function clearAuthData() {
   }
 }
 
-/**
- * Check if auth token is expired
- * @param {Object} authData - Stored auth data
- * @returns {boolean} True if token is expired
- */
 function isTokenExpired(authData) {
   if (!authData?.expiresAt) return true;
   const expiresAt = new Date(authData.expiresAt);
   const now = new Date();
-  // Add 5 minute buffer
   return now >= new Date(expiresAt.getTime() - 5 * 60 * 1000);
 }
 
-/**
- * Refresh the auth token
- * @param {string} refreshToken - Firebase refresh token
- * @returns {Promise<Object>} New auth data
- */
 async function refreshAuthToken(refreshToken) {
   try {
     const response = await fetch(`${TOKEN_REFRESH_URL}?key=${FIREBASE_API_KEY}`, {
@@ -120,10 +89,6 @@ async function refreshAuthToken(refreshToken) {
   }
 }
 
-/**
- * Get valid auth token (refreshes if needed)
- * @returns {Promise<string|null>} Valid ID token or null
- */
 export async function getValidAuthToken() {
   const authData = readStoredAuth();
 
@@ -131,12 +96,10 @@ export async function getValidAuthToken() {
     return null;
   }
 
-  // If token is expired, refresh it
   if (isTokenExpired(authData)) {
     try {
       const newAuth = await refreshAuthToken(authData.refreshToken);
       
-      // Update stored auth
       const updatedAuth = {
         ...authData,
         ...newAuth,
@@ -154,15 +117,8 @@ export async function getValidAuthToken() {
   return authData.idToken;
 }
 
-/**
- * Login with email and password
- * @param {string} email - User email
- * @param {string} password - User password
- * @returns {Promise<Object>} Login result
- */
 export async function loginWithEmail(email, password) {
   try {
-    // Sign in with Firebase
     const response = await fetch(`${AUTH_BASE_URL}:signInWithPassword?key=${FIREBASE_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -185,10 +141,8 @@ export async function loginWithEmail(email, password) {
       };
     }
 
-    // Calculate expiration
     const expiresAt = new Date(Date.now() + parseInt(data.expiresIn) * 1000);
 
-    // Store auth data
     const authData = {
       idToken: data.idToken,
       refreshToken: data.refreshToken,
@@ -201,7 +155,6 @@ export async function loginWithEmail(email, password) {
 
     writeAuthData(authData);
 
-    // Fetch and activate license
     const licenseResult = await fetchAndActivateLicense(data.idToken, data.localId);
 
     return {
@@ -219,36 +172,22 @@ export async function loginWithEmail(email, password) {
   }
 }
 
-/**
- * Login with Google (opens browser for OAuth)
- * @returns {Promise<Object>} Login result
- */
 export async function loginWithGoogle() {
   try {
-    // For CLI, we'll use a custom OAuth flow
-    // 1. Open browser to web app login page with callback
-    // 2. User logs in with Google on web
-    // 3. Web app sends token back to CLI via localhost server
-    
-    // Start local server to receive token
     const localPort = 8788;
     const callbackUrl = `http://localhost:${localPort}/callback`;
     
-    // Open browser to web app login with CLI callback
-    // Use TASKMASTER_WEB_URL for local development, defaults to production
     const webBaseUrl = process.env.TASKMASTER_WEB_URL || 'https://www.taskmaster.one';
     const loginUrl = `${webBaseUrl}/cli-login?callback=${encodeURIComponent(callbackUrl)}`;
     
     console.log('\n🌐 Opening browser for Google login...\n');
     
-    // Open browser based on platform
     const platform = process.platform;
     const openCommand = platform === 'darwin' ? 'open' : 
                        platform === 'win32' ? 'start' : 'xdg-open';
     
     spawn(openCommand, [loginUrl], { detached: true, stdio: 'ignore' }).unref();
 
-    // Wait for callback from web app
     return new Promise((resolve) => {
       let timeoutId;
       const server = http.createServer(async (req, res) => {
@@ -259,8 +198,7 @@ export async function loginWithGoogle() {
           const email = url.searchParams.get('email');
 
           if (token && userId) {
-            // Store auth data
-            const expiresAt = new Date(Date.now() + 3600 * 1000); // 1 hour
+            const expiresAt = new Date(Date.now() + 3600 * 1000);
             
             const authData = {
               idToken: token,
@@ -274,10 +212,8 @@ export async function loginWithGoogle() {
 
             writeAuthData(authData);
 
-            // Fetch and activate license
             const licenseResult = await fetchAndActivateLicense(token, userId);
 
-            // Send success response to browser
             res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
             res.end(`
               <!DOCTYPE html>
@@ -397,7 +333,6 @@ export async function loginWithGoogle() {
         console.log(`Waiting for login... (Timeout in 2 minutes)\n`);
       });
 
-      // Timeout after 2 minutes
       timeoutId = setTimeout(() => {
         server.close();
         resolve({ success: false, error: 'Login timeout - please try again' });
@@ -412,12 +347,6 @@ export async function loginWithGoogle() {
   }
 }
 
-/**
- * Fetch user's license and activate it
- * @param {string} idToken - Firebase ID token
- * @param {string} userId - User ID
- * @returns {Promise<Object>} License info
- */
 async function fetchAndActivateLicense(idToken, userId) {
   try {
     const response = await fetch(`${FUNCTIONS_BASE_URL}/getUserLicense`, {
@@ -438,7 +367,6 @@ async function fetchAndActivateLicense(idToken, userId) {
       };
     }
 
-    // Store license data locally (like the old activate command did)
     const { getLicenseFilePath } = await import('./license.js');
     const licenseFilePath = getLicenseFilePath();
     
@@ -451,7 +379,7 @@ async function fetchAndActivateLicense(idToken, userId) {
       expiresAt: result.expiresAt,
       activatedAt: new Date().toISOString(),
       lastValidated: new Date().toISOString(),
-      userId: userId, // Track which user owns this license
+      userId: userId,
     };
 
     fs.writeFileSync(licenseFilePath, JSON.stringify(licenseData, null, 2), 'utf-8');
@@ -472,10 +400,6 @@ async function fetchAndActivateLicense(idToken, userId) {
   }
 }
 
-/**
- * Get current logged in user
- * @returns {Promise<Object|null>} User data or null
- */
 export async function getCurrentUser() {
   const authData = readStoredAuth();
 
@@ -483,7 +407,6 @@ export async function getCurrentUser() {
     return null;
   }
 
-  // Get valid token (refreshes if needed)
   const token = await getValidAuthToken();
 
   if (!token) {
@@ -498,15 +421,10 @@ export async function getCurrentUser() {
   };
 }
 
-/**
- * Logout - clear auth and license data
- * @returns {Promise<Object>} Logout result
- */
 export async function logout() {
   try {
     clearAuthData();
     
-    // Also clear license data
     const { getLicenseFilePath } = await import('./license.js');
     const licenseFilePath = getLicenseFilePath();
     if (fs.existsSync(licenseFilePath)) {
@@ -525,20 +443,11 @@ export async function logout() {
   }
 }
 
-/**
- * Check if user is logged in
- * @returns {Promise<boolean>} True if logged in
- */
 export async function isLoggedIn() {
   const token = await getValidAuthToken();
   return !!token;
 }
 
-/**
- * Verify user owns a specific license
- * @param {string} licenseKey - License key to verify
- * @returns {Promise<Object>} Verification result
- */
 export async function verifyLicenseOwnership(licenseKey) {
   const authData = readStoredAuth();
   

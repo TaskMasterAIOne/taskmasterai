@@ -1,8 +1,3 @@
-/**
- * Context Gatherer Utility
- * Gathers context from tasks, files, and project structure
- * Copyright (c) 2025 TaskMaster AI LLC
- */
 
 import fs from 'fs';
 import path from 'path';
@@ -15,9 +10,6 @@ import {
   findProjectRoot
 } from '../utils.js';
 
-/**
- * Context Gatherer class for collecting project context
- */
 class ContextGatherer {
   constructor(projectRoot = null, context = null) {
     this.projectRoot = projectRoot || findProjectRoot() || process.cwd();
@@ -25,17 +17,7 @@ class ContextGatherer {
     this.configDir = getConfigDir(this.projectRoot);
   }
   
-  /**
-   * Gather context from various sources
-   * @param {Object} options - Gathering options
-   * @param {Array<string>} [options.tasks] - Task IDs to include
-   * @param {Array<string>} [options.files] - File paths to include
-   * @param {boolean} [options.includeTree] - Include project tree
-   * @param {string} [options.format] - Output format (text/research)
-   * @param {number} [options.maxLength] - Max context length
-   * @returns {Object} Gathered context
-   */
-  async gather(options = {}) {
+    async gather(options = {}) {
     const {
       tasks = [],
       files = [],
@@ -78,8 +60,6 @@ class ContextGatherer {
         });
       }
     }
-    
-    // Format output
     let context = '';
     
     if (format === 'research') {
@@ -87,8 +67,6 @@ class ContextGatherer {
     } else {
       context = sections.map(s => s.content).join('\n\n');
     }
-    
-    // Truncate if needed
     if (context.length > maxLength) {
       context = truncate(context, maxLength);
     }
@@ -100,12 +78,7 @@ class ContextGatherer {
     };
   }
   
-  /**
-   * Gather context from tasks
-   * @param {Array<string>} taskIds - Task IDs
-   * @returns {string} Task context
-   */
-  async gatherTaskContext(taskIds) {
+    async gatherTaskContext(taskIds) {
     const tasksPath = path.join(this.configDir, 'tasks', 'tasks.json');
     
     if (!fs.existsSync(tasksPath)) {
@@ -147,13 +120,7 @@ class ContextGatherer {
     return lines.join('\n');
   }
   
-  /**
-   * Find a task by ID (supports step IDs)
-   * @param {Array} tasks - Tasks array
-   * @param {string} taskId - Task ID
-   * @returns {Object|null} Found task
-   */
-  findTask(tasks, taskId) {
+    findTask(tasks, taskId) {
     const idStr = String(taskId);
     
     if (idStr.includes('.')) {
@@ -169,12 +136,7 @@ class ContextGatherer {
     return tasks.find(t => t.id === parseInt(idStr, 10));
   }
   
-  /**
-   * Gather context from files
-   * @param {Array<string>} filePaths - File paths
-   * @returns {string} File context
-   */
-  async gatherFileContext(filePaths) {
+    async gatherFileContext(filePaths) {
     const lines = ['## File Context\n'];
     
     for (const filePath of filePaths) {
@@ -208,11 +170,7 @@ class ContextGatherer {
     return lines.join('\n');
   }
   
-  /**
-   * Gather project tree context
-   * @returns {string} Tree context
-   */
-  gatherTreeContext() {
+    gatherTreeContext() {
     const lines = ['## Project Structure\n'];
     lines.push('```');
     lines.push(this.buildTree(this.projectRoot));
@@ -220,13 +178,7 @@ class ContextGatherer {
     return lines.join('\n');
   }
   
-  /**
-   * Build a directory tree
-   * @param {string} dir - Directory path
-   * @param {number} depth - Current depth
-   * @returns {string} Tree representation
-   */
-  buildTree(dir, depth = 0, maxDepth = 3) {
+    buildTree(dir, depth = 0, maxDepth = 3) {
     if (depth >= maxDepth) return '';
     
     const lines = [];
@@ -273,12 +225,7 @@ class ContextGatherer {
     return lines.join('\n');
   }
   
-  /**
-   * Format context for research queries
-   * @param {Array} sections - Context sections
-   * @returns {string} Formatted context
-   */
-  formatForResearch(sections) {
+    formatForResearch(sections) {
     const lines = ['# Project Context for Research\n'];
     
     for (const section of sections) {

@@ -1,11 +1,3 @@
-/**
- * Clear Steps Module
- * Remove all steps from specified tasks
- * Copyright (c) 2025 TaskMaster AI LLC
- * 
- * TaskMaster AI Terminology:
- * - "steps" instead of "subtasks"
- */
 
 import boxen from 'boxen';
 import chalk from 'chalk';
@@ -22,16 +14,6 @@ import {
 } from '../utils.js';
 import { getCurrentContext } from '../context-manager.js';
 
-/**
- * Clear steps from specified tasks
- * @param {string} tasksPath - Path to the tasks.json file
- * @param {string} taskIds - Task IDs to clear steps from (comma-separated)
- * @param {Object} options - Options object
- * @param {string} [options.projectRoot] - Project root path
- * @param {string} [options.context] - Context name
- * @param {string} [options.outputFormat] - Output format (text or json)
- * @returns {Object} Result object
- */
 function clearSteps(tasksPath, taskIds, options = {}) {
   const { projectRoot, context, outputFormat = 'text' } = options;
   const root = projectRoot || findProjectRoot() || process.cwd();
@@ -64,8 +46,6 @@ function clearSteps(tasksPath, taskIds, options = {}) {
   const taskIdArray = taskIds.split(',').map((id) => id.trim());
   let clearedCount = 0;
   const results = [];
-
-  // Create a summary table for the cleared steps
   const summaryTable = new Table({
     head: [
       chalk.cyan.bold('Task ID'),
@@ -90,8 +70,6 @@ function clearSteps(tasksPath, taskIds, options = {}) {
       results.push({ taskId: id, success: false, error: 'Not found' });
       return;
     }
-
-    // Check for steps (support both "steps" and legacy "subtasks")
     const steps = task.steps || task.subtasks || [];
     if (steps.length === 0) {
       log('info', `Task ${id} has no steps to clear`);
@@ -106,7 +84,6 @@ function clearSteps(tasksPath, taskIds, options = {}) {
 
     const stepCount = steps.length;
     task.steps = [];
-    // Also clear legacy subtasks field if present
     if (task.subtasks) {
       task.subtasks = undefined;
     }
@@ -133,8 +110,6 @@ function clearSteps(tasksPath, taskIds, options = {}) {
         context: currentContext
       };
     }
-
-    // Show summary table
     if (!isSilentMode()) {
       console.log(
         boxen(chalk.white.bold('Step Clearing Summary:'), {
@@ -202,12 +177,6 @@ function clearSteps(tasksPath, taskIds, options = {}) {
   return { success: true, clearedCount, results };
 }
 
-/**
- * Clear all steps from all tasks
- * @param {string} tasksPath - Path to the tasks.json file
- * @param {Object} options - Options object
- * @returns {Object} Result object
- */
 function clearAllSteps(tasksPath, options = {}) {
   const { projectRoot, context, outputFormat = 'text' } = options;
   const root = projectRoot || findProjectRoot() || process.cwd();
@@ -217,8 +186,6 @@ function clearAllSteps(tasksPath, options = {}) {
   if (!data || !data.tasks) {
     throw new Error('No valid tasks found.');
   }
-
-  // Get all task IDs that have steps
   const taskIdsWithSteps = data.tasks
     .filter(t => (t.steps && t.steps.length > 0) || (t.subtasks && t.subtasks.length > 0))
     .map(t => t.id.toString());

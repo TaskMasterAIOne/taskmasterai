@@ -1,8 +1,3 @@
-/**
- * Migrate Module
- * Project migration utilities for upgrading TaskMaster AI structure
- * Copyright (c) 2025 TaskMaster AI LLC
- */
 
 import fs from 'fs';
 import path from 'path';
@@ -19,15 +14,8 @@ import {
 const LEGACY_CONFIG_DIR = '.taskmaster';
 const CONFIG_DIR = '.taskmaster-ai';
 
-/**
- * Analyze what needs to be migrated
- * @param {string} projectRoot - Project root directory
- * @returns {Array<Object>} Migration plan items
- */
 function analyzeMigrationNeeds(projectRoot) {
   const migrationPlan = [];
-
-  // Check for legacy .taskmaster directory
   const legacyDir = path.join(projectRoot, LEGACY_CONFIG_DIR);
   const newDir = path.join(projectRoot, CONFIG_DIR);
 
@@ -40,8 +28,6 @@ function analyzeMigrationNeeds(projectRoot) {
       action: 'rename'
     });
   }
-
-  // Check for legacy files in root
   const legacyFiles = [
     { from: 'tasks.json', to: path.join(CONFIG_DIR, 'tasks', 'tasks.json') },
     { from: '.taskmasterrc', to: path.join(CONFIG_DIR, 'config.json') }
@@ -58,8 +44,6 @@ function analyzeMigrationNeeds(projectRoot) {
       });
     }
   });
-
-  // Check for terminology updates needed in tasks.json
   const tasksPath = path.join(projectRoot, CONFIG_DIR, 'tasks', 'tasks.json');
   const legacyTasksPath = path.join(projectRoot, LEGACY_CONFIG_DIR, 'tasks', 'tasks.json');
   const rootTasksPath = path.join(projectRoot, 'tasks.json');
@@ -88,13 +72,6 @@ function analyzeMigrationNeeds(projectRoot) {
   return migrationPlan;
 }
 
-/**
- * Execute migration plan
- * @param {string} projectRoot - Project root directory
- * @param {Array<Object>} plan - Migration plan
- * @param {Object} options - Options
- * @returns {Object} Migration result
- */
 function executeMigration(projectRoot, plan, options = {}) {
   const { dryRun = false } = options;
   const results = [];
@@ -160,11 +137,6 @@ function executeMigration(projectRoot, plan, options = {}) {
   };
 }
 
-/**
- * Main migration function
- * @param {Object} options - Migration options
- * @returns {Object} Migration result
- */
 async function migrateProject(options = {}) {
   const { 
     dryRun = false, 
@@ -176,8 +148,6 @@ async function migrateProject(options = {}) {
   const projectRoot = findProjectRoot() || process.cwd();
 
   log('info', `Starting migration analysis in: ${projectRoot}`);
-
-  // Check if already migrated
   const newConfigDir = path.join(projectRoot, CONFIG_DIR);
   if (fs.existsSync(newConfigDir) && !force) {
     const message = `.taskmaster-ai directory already exists. Use --force to re-run migration.`;
@@ -203,8 +173,6 @@ async function migrateProject(options = {}) {
     log('info', message);
     return { success: true, nothingToMigrate: true };
   }
-
-  // Show migration plan
   if (outputFormat === 'text' && !isSilentMode()) {
     console.log(
       boxen(
@@ -259,8 +227,6 @@ async function migrateProject(options = {}) {
 
   // Execute migration
   const result = executeMigration(projectRoot, migrationPlan, { dryRun });
-
-  // Show results
   if (outputFormat === 'text' && !isSilentMode()) {
     if (result.success) {
       console.log(
@@ -292,11 +258,6 @@ async function migrateProject(options = {}) {
   return result;
 }
 
-/**
- * Check if migration is needed
- * @param {string} projectRoot - Project root directory
- * @returns {boolean} True if migration is needed
- */
 function isMigrationNeeded(projectRoot) {
   const root = projectRoot || findProjectRoot() || process.cwd();
   const plan = analyzeMigrationNeeds(root);

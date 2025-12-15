@@ -1,8 +1,3 @@
-/**
- * Response Language Module
- * Handle i18n response language configuration
- * Copyright (c) 2025 TaskMaster AI LLC
- */
 
 import boxen from 'boxen';
 import chalk from 'chalk';
@@ -19,15 +14,6 @@ import {
   setConfigValue
 } from '../config-manager.js';
 
-/**
- * Set the response language for AI outputs
- * @param {string} lang - Language code or name (e.g., 'en', 'es', 'Japanese')
- * @param {Object} options - Options object
- * @param {Object} [options.mcpLog] - MCP logger object
- * @param {string} [options.projectRoot] - Project root path
- * @param {string} [options.outputFormat] - Output format (text or json)
- * @returns {Object} Result object
- */
 function setResponseLanguage(lang, options = {}) {
   const { mcpLog, projectRoot: providedRoot, outputFormat = 'text' } = options;
 
@@ -40,8 +26,6 @@ function setResponseLanguage(lang, options = {}) {
   };
 
   const projectRoot = providedRoot || findProjectRoot() || process.cwd();
-
-  // Check if config exists
   const config = loadConfig(projectRoot);
   if (!config) {
     return {
@@ -65,7 +49,6 @@ function setResponseLanguage(lang, options = {}) {
   }
 
   try {
-    // Set the response language in config
     setConfigValue('global.responseLanguage', lang.trim(), projectRoot);
     
     const successMessage = `Response language set to "${lang}"`;
@@ -118,12 +101,6 @@ function setResponseLanguage(lang, options = {}) {
   }
 }
 
-/**
- * Get the current response language
- * @param {Object} options - Options object
- * @param {string} [options.projectRoot] - Project root path
- * @returns {string|null} Current response language or null
- */
 function getResponseLanguage(options = {}) {
   const { projectRoot: providedRoot } = options;
   const projectRoot = providedRoot || findProjectRoot() || process.cwd();
@@ -135,10 +112,6 @@ function getResponseLanguage(options = {}) {
   }
 }
 
-/**
- * List supported languages (common examples)
- * @returns {string[]} Array of common language options
- */
 function getSupportedLanguages() {
   return [
     'English',

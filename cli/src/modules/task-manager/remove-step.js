@@ -1,11 +1,3 @@
-/**
- * Remove Step Module
- * Remove a step from its parent task
- * Copyright (c) 2025 TaskMaster AI LLC
- * 
- * TaskMaster AI Terminology:
- * - "steps" instead of "subtasks"
- */
 
 import boxen from 'boxen';
 import chalk from 'chalk';
@@ -20,17 +12,6 @@ import {
 } from '../utils.js';
 import { getCurrentContext } from '../context-manager.js';
 
-/**
- * Remove a step from its parent task
- * @param {string} tasksPath - Path to the tasks.json file
- * @param {string} stepId - ID of the step to remove in format "parentId.stepId"
- * @param {Object} options - Options object
- * @param {boolean} [options.convertToTask=false] - Convert step to standalone task
- * @param {string} [options.projectRoot] - Project root path
- * @param {string} [options.context] - Context name
- * @param {string} [options.outputFormat] - Output format (text or json)
- * @returns {Object|null} The removed step (as task if converted), otherwise result object
- */
 async function removeStep(tasksPath, stepId, options = {}) {
   const { 
     convertToTask = false, 
@@ -44,14 +25,10 @@ async function removeStep(tasksPath, stepId, options = {}) {
   
   try {
     log('info', `Removing step ${stepId}...`);
-
-    // Read the existing tasks with proper context
     const data = readJSON(tasksPath, root, currentContext);
     if (!data || !data.tasks) {
       throw new Error(`Invalid or missing tasks file at ${tasksPath}`);
     }
-
-    // Parse the step ID (format: "parentId.stepId")
     if (!stepId.includes('.')) {
       throw new Error(
         `Invalid step ID format: ${stepId}. Expected format: "parentId.stepId"`
@@ -61,14 +38,10 @@ async function removeStep(tasksPath, stepId, options = {}) {
     const [parentIdStr, stepIdStr] = stepId.split('.');
     const parentId = parseInt(parentIdStr, 10);
     const stepIdNum = parseInt(stepIdStr, 10);
-
-    // Find the parent task
     const parentTask = data.tasks.find((t) => t.id === parentId);
     if (!parentTask) {
       throw new Error(`Parent task with ID ${parentId} not found`);
     }
-
-    // Check if parent has steps (support both "steps" and legacy "subtasks")
     const steps = parentTask.steps || parentTask.subtasks || [];
     if (steps.length === 0) {
       throw new Error(`Parent task ${parentId} has no steps`);
@@ -79,14 +52,8 @@ async function removeStep(tasksPath, stepId, options = {}) {
     if (stepIndex === -1) {
       throw new Error(`Step ${stepId} not found`);
     }
-
-    // Get a copy of the step before removing it
     const removedStep = { ...steps[stepIndex] };
-
-    // Remove the step from the parent
     steps.splice(stepIndex, 1);
-    
-    // Update the parent task
     if (parentTask.steps) {
       parentTask.steps = steps.length > 0 ? steps : undefined;
     }
@@ -103,8 +70,6 @@ async function removeStep(tasksPath, stepId, options = {}) {
       // Find the highest task ID to determine the next ID
       const highestId = Math.max(...data.tasks.map((t) => t.id));
       const newTaskId = highestId + 1;
-
-      // Create the new task from the step
       convertedTask = {
         id: newTaskId,
         title: removedStep.title,
@@ -114,21 +79,15 @@ async function removeStep(tasksPath, stepId, options = {}) {
         dependencies: removedStep.dependencies || [],
         priority: parentTask.priority || 'medium' // Inherit priority from parent
       };
-
-      // Add the parent task as a dependency if not already present
       if (!convertedTask.dependencies.includes(parentId)) {
         convertedTask.dependencies.push(parentId);
       }
-
-      // Add the converted task to the tasks array
       data.tasks.push(convertedTask);
 
       log('info', `Created new task ${newTaskId} from step ${stepId}`);
     } else {
       log('info', `Step ${stepId} deleted`);
     }
-
-    // Write the updated tasks back to the file with proper context
     writeJSON(tasksPath, data, root, currentContext);
 
     // JSON output
@@ -189,13 +148,6 @@ async function removeStep(tasksPath, stepId, options = {}) {
   }
 }
 
-/**
- * Remove multiple steps at once
- * @param {string} tasksPath - Path to the tasks.json file
- * @param {string} stepIds - Comma-separated step IDs
- * @param {Object} options - Options object
- * @returns {Object} Result with removed steps
- */
 async function removeMultipleSteps(tasksPath, stepIds, options = {}) {
   const ids = stepIds.split(',').map(id => id.trim());
   const results = [];

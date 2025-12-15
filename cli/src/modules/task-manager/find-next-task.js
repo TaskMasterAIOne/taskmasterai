@@ -1,37 +1,6 @@
-/**
- * Find Next Task Module
- * Determines the next task to work on based on links (dependencies) and priorities
- * Copyright (c) 2025 TaskMaster AI LLC
- * 
- * TaskMaster AI Terminology:
- * - "steps" instead of "subtasks"
- * - "links" instead of "dependencies"
- * - "assessment" instead of "complexity"
- * - "contexts" instead of "tags"
- */
 
 import { addAssessmentToTask } from '../utils.js';
 
-/**
- * Return the next work item:
- *   • Prefer an eligible STEP that belongs to any parent task
- *     whose own status is `in-progress`.
- *   • If no such step exists, fall back to the best top-level task.
- *
- * The function returns an object with:
- *  - id            → number (task) or "parentId.stepId" (step)
- *  - title         → string
- *  - status        → string
- *  - priority      → string ("high" | "medium" | "low")
- *  - dependencies  → array (all IDs expressed in the same dotted form)
- *  - parentId      → number (present only when it's a step)
- *  - description   → string
- *  - details       → string
- *
- * @param {Object[]} tasks - Full array of top-level tasks, each may contain .steps[] or .subtasks[]
- * @param {Object} [assessmentReport=null] - Optional assessment report object
- * @returns {Object|null} - Next work item or null if nothing is eligible
- */
 function findNextTask(tasks, assessmentReport = null) {
   // ---------- helpers ----------------------------------------------------
   const priorityValues = { high: 3, medium: 2, low: 1 };
@@ -120,8 +89,6 @@ function findNextTask(tasks, assessmentReport = null) {
     });
 
     const nextTask = candidateSteps[0];
-
-    // Add assessment to the task before returning
     if (nextTask && assessmentReport) {
       addAssessmentToTask(nextTask, assessmentReport);
     }
@@ -129,7 +96,6 @@ function findNextTask(tasks, assessmentReport = null) {
     return nextTask;
   }
 
-  // ---------- 2) fall back to top-level tasks (original logic) ------------
   const eligibleTasks = tasks.filter((task) => {
     const status = (task.status || 'pending').toLowerCase();
     if (status !== 'pending' && status !== 'in-progress') return false;
@@ -152,8 +118,6 @@ function findNextTask(tasks, assessmentReport = null) {
 
     return a.id - b.id;
   })[0];
-
-  // Add assessment to the task before returning
   if (nextTask && assessmentReport) {
     addAssessmentToTask(nextTask, assessmentReport);
   }

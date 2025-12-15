@@ -1,24 +1,7 @@
-/**
- * Task CRUD Tools
- * MCP tools for task management operations
- * 
- * Core tools:
- * - add_task: Add a new task
- * - add_subtask: Add a subtask
- * 
- * Extended tools:
- * - get_tasks, update_task, remove_task, remove_subtask, move_task, update
- */
 
 import { z } from 'zod';
 import { handleApiResult, withToolContext, withAIToolContext } from '../utils.js';
 
-/**
- * Register task-related tools with the MCP server
- * @param {import('fastmcp').FastMCP} server - FastMCP server instance
- * @param {Object} options - Registration options
- * @param {boolean} options.coreOnly - Only register core tools
- */
 export function registerTaskTools(server, options = {}) {
   const { coreOnly = false } = options;
   // get_tasks - List all tasks
@@ -59,8 +42,6 @@ export function registerTaskTools(server, options = {}) {
             })),
           } : {}),
         }));
-        
-        // Calculate stats
         const total = tasks.length;
         const done = tasks.filter(t => t.status === 'done').length;
         const pending = tasks.filter(t => t.status === 'pending').length;

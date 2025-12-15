@@ -1,14 +1,3 @@
-/**
- * List Tasks Module
- * Displays tasks with dashboard, progress bars, and statistics
- * Copyright (c) 2025 TaskMaster AI LLC
- * 
- * TaskMaster AI Terminology:
- * - "steps" instead of "subtasks"
- * - "links" instead of "dependencies"
- * - "assessment" instead of "complexity"
- * - "contexts" instead of "tags"
- */
 
 import boxen from 'boxen';
 import chalk from 'chalk';
@@ -29,18 +18,6 @@ import {
   getStatusWithColor
 } from '../ui.js';
 
-/**
- * List all tasks with dashboard display
- * @param {string} tasksPath - Path to the tasks.json file
- * @param {string} statusFilter - Filter by status (single or comma-separated)
- * @param {string} reportPath - Path to the assessment report
- * @param {boolean} withSteps - Whether to show steps (subtasks)
- * @param {string} outputFormat - Output format (text or json)
- * @param {Object} context - Context object
- * @param {string} context.projectRoot - Project root path
- * @param {string} context.context - Context name (like "main")
- * @returns {Object} - Task list result for json format
- */
 async function listTasks(
   tasksPath,
   statusFilter,
@@ -52,14 +29,11 @@ async function listTasks(
   const { projectRoot, context: contextName } = context;
   
   try {
-    // Load tasks
     const data = readJSON(tasksPath, projectRoot, contextName);
     
     if (!data || !data.tasks) {
       throw new Error(`No valid tasks found in ${tasksPath}`);
     }
-
-    // Add assessment scores to tasks if report exists
     const assessmentReport = readAssessmentReport(reportPath);
     if (assessmentReport) {
       data.tasks.forEach((task) => addAssessmentToTask(task, assessmentReport));
@@ -79,8 +53,6 @@ async function listTasks(
     } else {
       filteredTasks = data.tasks;
     }
-
-    // Calculate task statistics
     const totalTasks = data.tasks.length;
     const completedTasks = data.tasks.filter(
       (task) => task.status === 'done' || task.status === 'completed'
@@ -177,8 +149,6 @@ async function listTasks(
 
     // Find next task
     const nextItem = findNextTask(data.tasks, assessmentReport);
-
-    // For JSON output
     if (outputFormat === 'json') {
       const tasksWithoutDetails = filteredTasks.map((task) => {
         const { details, ...taskRest } = task;
@@ -188,7 +158,7 @@ async function listTasks(
             const { details: stepDetails, ...stepRest } = step;
             return stepRest;
           });
-          delete taskRest.subtasks; // Use consistent naming
+          delete taskRest.subtasks;
         }
         return taskRest;
       });
@@ -237,16 +207,10 @@ async function listTasks(
       deferred: totalSteps > 0 ? (deferredSteps / totalSteps) * 100 : 0,
       cancelled: totalSteps > 0 ? (cancelledSteps / totalSteps) * 100 : 0
     };
-
-    // Create progress bars
     const taskProgressBar = createProgressBar(completionPercentage, 30, taskStatusBreakdown);
     const stepProgressBar = createProgressBar(stepCompletionPercentage, 30, stepStatusBreakdown);
-
-    // Get terminal width
     let terminalWidth = process.stdout.columns || 80;
     terminalWidth = Math.max(terminalWidth, 80);
-
-    // Create dashboard content
     const projectDashboardContent =
       chalk.white.bold('Project Dashboard') +
       '\n' +
@@ -275,8 +239,6 @@ async function listTasks(
       `ID: ${chalk.cyan(nextItem ? nextItem.id : 'N/A')} - ${nextItem ? chalk.white.bold(truncate(nextItem.title, 40)) : chalk.yellow('No task available')}\n` +
       `Priority: ${nextItem ? chalk.white(nextItem.priority || 'medium') : ''}  Links: ${nextItem ? formatDependenciesWithStatus(nextItem.dependencies, data.tasks, true) : ''}\n` +
       `Assessment: ${nextItem && nextItem.assessmentScore ? getAssessmentWithColor(nextItem.assessmentScore) : chalk.gray('N/A')}`;
-
-    // Display dashboard boxes
     const minWidth = 50;
     if (terminalWidth >= minWidth * 2 + 4) {
       const halfWidth = Math.floor(terminalWidth / 2) - 4;
@@ -324,8 +286,6 @@ async function listTasks(
       );
       return;
     }
-
-    // Create task table
     const availableWidth = terminalWidth - 10;
     const idWidth = withSteps ? Math.floor(availableWidth * 0.08) : Math.floor(availableWidth * 0.06);
     const statusWidth = Math.floor(availableWidth * 0.14);
@@ -366,8 +326,6 @@ async function listTasks(
         linkText,
         task.assessmentScore ? getAssessmentWithColor(task.assessmentScore) : chalk.gray('N/A')
       ]);
-
-      // Add steps if requested
       const steps = task.steps || task.subtasks || [];
       if (withSteps && steps.length > 0) {
         steps.forEach((step) => {

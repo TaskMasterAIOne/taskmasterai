@@ -5,13 +5,13 @@ import { getStorage, connectStorageEmulator } from 'firebase/storage'
 import { getAnalytics, isSupported } from 'firebase/analytics'
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDNWlikkR9ji9lstwOYlBoCDR2PiT2fb3Y",
-  authDomain: "taskmaster-ai-e2302.firebaseapp.com",
-  projectId: "taskmaster-ai-e2302",
-  storageBucket: "taskmaster-ai-e2302.firebasestorage.app",
-  messagingSenderId: "795400978174",
-  appId: "1:795400978174:web:27ed00f5ecd8920e042faf",
-  measurementId: "G-G6193BH8YH"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 }
 
 export const app = initializeApp(firebaseConfig)

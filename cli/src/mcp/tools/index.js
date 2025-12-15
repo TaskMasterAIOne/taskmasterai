@@ -1,17 +1,3 @@
-/**
- * MCP Tool Registry
- * Exports tool registration functions organized by category
- * 
- * Follows the official claude-task-master tool-registry.js patterns
- * 
- * Tool Tiers (via TASK_MASTER_TOOLS environment variable):
- * - core/lean: Essential tools for daily development (7 tools)
- * - standard: Core + frequently used operations (15 tools)
- * - all: Full feature set including autopilot and tags (45 tools)
- * - Custom: Comma-separated list of tool names
- */
-
-// Import tool registrations
 import { registerTaskTools } from './task-tools.js';
 import { registerStatusTools } from './status-tools.js';
 import { registerAnalysisTools } from './analysis-tools.js';
@@ -20,30 +6,21 @@ import { registerTagTools } from './tag-tools.js';
 import { registerAutopilotTools } from './autopilot-tools.js';
 import { registerConfigTools } from './config-tools.js';
 
-/**
- * Tool tier definitions
- * Maps tier names to their included tool groups
- */
 export const TOOL_TIERS = {
   // Core: Essential task management for daily development (7 tools)
-  // Based on official claude-task-master coreTools
+  // Based on  coreTools
   core: ['status-core', 'analysis-core'],
   
   // Standard: Core + expanded operations (15 tools)
-  // Based on official claude-task-master standardTools
+  // Based on  standardTools
   standard: ['status', 'analysis', 'task-core', 'dependency-core'],
   
   // All: Full feature set (45 tools)
   all: ['status', 'analysis', 'task', 'dependency', 'tag', 'autopilot', 'config'],
   
-  // Lean alias for core (as per official spec)
   lean: ['status-core', 'analysis-core'],
 };
 
-/**
- * Core tools: The 7 essential tools for daily development
- * Based on official claude-task-master coreTools definition
- */
 export const CORE_TOOLS = [
   'get_tasks',
   'next_task',
@@ -54,10 +31,6 @@ export const CORE_TOOLS = [
   'expand_task',
 ];
 
-/**
- * Standard tools: The 15 most commonly used tools
- * Based on official claude-task-master standardTools definition
- */
 export const STANDARD_TOOLS = [
   ...CORE_TOOLS,
   'initialize_project',
@@ -70,9 +43,6 @@ export const STANDARD_TOOLS = [
   'add_dependency',
 ];
 
-/**
- * All tools: Complete list of available tools (45 total)
- */
 export const ALL_TOOLS = [
   // Status tools
   'get_tasks', 'get_task', 'next_task', 'set_task_status', 'update_subtask',
@@ -89,17 +59,10 @@ export const ALL_TOOLS = [
   // Autopilot tools
   'autopilot_start', 'autopilot_resume', 'autopilot_next', 'autopilot_status',
   'autopilot_complete', 'autopilot_commit', 'autopilot_finalize', 'autopilot_abort',
-  // Config tools
   'models', 'get_config',
-  // Additional tools (matching official registry)
   'rules', 'response_language', 'scope_up_task', 'scope_down_task',
 ];
 
-/**
- * Helper function to safely read and normalize the TASK_MASTER_TOOLS environment variable
- * Based on official claude-task-master getToolsConfiguration()
- * @returns {string} The tools configuration string, defaults to 'core'
- */
 export function getToolsConfiguration() {
   const rawValue = process.env.TASK_MASTER_TOOLS;
 
@@ -110,14 +73,6 @@ export function getToolsConfiguration() {
   return rawValue.trim();
 }
 
-/**
- * Register all tools for a specific tier
- * Based on official claude-task-master registerTaskMasterTools()
- * 
- * @param {import('fastmcp').FastMCP} server - FastMCP server instance
- * @param {string} toolMode - Tool tier name (core, standard, all) or comma-separated list
- * @returns {Object} Object containing registeredCount and failedTools
- */
 export function registerToolsForTier(server, toolMode = 'core') {
   const registeredTools = [];
   const failedTools = [];
@@ -141,7 +96,6 @@ export function registerToolsForTier(server, toolMode = 'core') {
         break;
       default:
         // Handle comma-separated custom list - register all and let specific tools be filtered
-        // For now, treat unknown modes as 'all'
         if (normalizedMode.includes(',')) {
           tierGroups = TOOL_TIERS.all;
         } else {
@@ -224,9 +178,6 @@ export function registerToolsForTier(server, toolMode = 'core') {
   }
 }
 
-/**
- * Get tool count for a tier
- */
 export function getToolCountForTier(tier) {
   const counts = {
     core: 7,
@@ -237,9 +188,6 @@ export function getToolCountForTier(tier) {
   return counts[tier] || counts.core;
 }
 
-/**
- * Get available tools for a tier
- */
 export function getAvailableTools(tier = 'all') {
   switch (tier.toLowerCase()) {
     case 'core':
@@ -253,16 +201,10 @@ export function getAvailableTools(tier = 'all') {
   }
 }
 
-/**
- * Check if a tool is valid
- */
 export function isValidTool(toolName) {
   return ALL_TOOLS.includes(toolName);
 }
 
-/**
- * Get tool registration function by name (for custom tool lists)
- */
 export function getToolRegistration(toolName) {
   // Tool name to group mapping
   const toolGroups = {

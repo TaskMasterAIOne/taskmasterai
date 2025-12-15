@@ -1,44 +1,26 @@
-/**
- * Configuration Manager for TaskMaster AI
- * Handles project and global configuration
- */
 
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url';
 import { getSyncedApiKey, getSyncedModels, readCachedConfig, getHostedApiKey, canUseHostedApiKeys } from './license.js';
-
-// Get version from package.json to keep it in sync
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const packageJsonPath = path.resolve(__dirname, '../../package.json');
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
 
-/**
- * Get the CLI version
- */
 export function getVersion() {
   return packageJson.version;
 }
 
-/**
- * Get the global config directory path
- */
 export function getGlobalConfigDir() {
   return path.join(os.homedir(), '.taskmaster-ai');
 }
 
-/**
- * Get the project config directory path
- */
 export function getProjectConfigDir(projectRoot = process.cwd()) {
   return path.join(projectRoot, '.taskmaster-ai');
 }
 
-/**
- * Ensure project config directory exists
- */
 export function ensureProjectConfigDir(projectRoot = process.cwd()) {
   const configDir = getProjectConfigDir(projectRoot);
   const dirs = [
@@ -57,23 +39,14 @@ export function ensureProjectConfigDir(projectRoot = process.cwd()) {
   return configDir;
 }
 
-/**
- * Get the tasks file path
- */
 export function getTasksFilePath(projectRoot = process.cwd()) {
   return path.join(getProjectConfigDir(projectRoot), 'tasks', 'tasks.json');
 }
 
-/**
- * Get the config file path
- */
 export function getConfigFilePath(projectRoot = process.cwd()) {
   return path.join(getProjectConfigDir(projectRoot), 'config.json');
 }
 
-/**
- * Find project root by looking for .taskmaster-ai directory
- */
 export function findProjectRoot(startDir = process.cwd()) {
   let currentDir = startDir;
 
@@ -88,15 +61,9 @@ export function findProjectRoot(startDir = process.cwd()) {
   return null;
 }
 
-/**
- * Read project config
- * Merges: 1. Default config, 2. Project config file, 3. Synced config from dashboard
- */
 export function readProjectConfig(projectRoot = process.cwd()) {
   const configPath = getConfigFilePath(projectRoot);
   let config = getDefaultConfig();
-  
-  // Read project config file if exists
   if (fs.existsSync(configPath)) {
     try {
       const data = fs.readFileSync(configPath, 'utf-8');
@@ -128,10 +95,6 @@ export function readProjectConfig(projectRoot = process.cwd()) {
   return config;
 }
 
-/**
- * Map dashboard model ID to CLI model config
- * Uses pattern matching to support new models without hardcoding each one
- */
 function mapDashboardModel(dashboardModelId, existingConfig) {
   if (!dashboardModelId || typeof dashboardModelId !== 'string') {
     return existingConfig;
@@ -186,13 +149,10 @@ function mapDashboardModel(dashboardModelId, existingConfig) {
   return {
     ...existingConfig,
     provider,
-    modelId: dashboardModelId, // Keep original casing
+    modelId: dashboardModelId,
   };
 }
 
-/**
- * Write project config
- */
 export function writeProjectConfig(config, projectRoot = process.cwd()) {
   ensureProjectConfigDir(projectRoot);
   const configPath = getConfigFilePath(projectRoot);
@@ -205,10 +165,6 @@ export function writeProjectConfig(config, projectRoot = process.cwd()) {
   }
 }
 
-/**
- * Get default configuration
- * Uses modern, recommended models that match the Dashboard defaults
- */
 export function getDefaultConfig() {
   return {
     projectName: 'My Project',
@@ -246,11 +202,6 @@ export function getDefaultConfig() {
   };
 }
 
-/**
- * Get API key for a provider
- * Priority: 1. Environment variable, 2. Synced from dashboard, 3. Hosted keys (PRO only)
- * Supports all major AI providers (updated late 2025)
- */
 export function getApiKey(provider) {
   const keyMap = {
     anthropic: 'ANTHROPIC_API_KEY',
@@ -300,16 +251,10 @@ export function getApiKey(provider) {
   return null;
 }
 
-/**
- * Check if an API key is set for a provider
- */
 export function isApiKeySet(provider) {
   return !!getApiKey(provider);
 }
 
-/**
- * Read tasks from the tasks file
- */
 export function readTasks(projectRoot = process.cwd()) {
   const tasksPath = getTasksFilePath(projectRoot);
   
@@ -352,9 +297,6 @@ export function readTasks(projectRoot = process.cwd()) {
   }
 }
 
-/**
- * Write tasks to the tasks file
- */
 export function writeTasks(tasksData, projectRoot = process.cwd()) {
   ensureProjectConfigDir(projectRoot);
   const tasksPath = getTasksFilePath(projectRoot);
@@ -368,19 +310,12 @@ export function writeTasks(tasksData, projectRoot = process.cwd()) {
 }
 
 // ============================================
-// STATE MANAGEMENT
 // ============================================
 
-/**
- * Get the state file path
- */
 export function getStateFilePath(projectRoot = process.cwd()) {
   return path.join(getProjectConfigDir(projectRoot), 'state.json');
 }
 
-/**
- * Read state from state.json
- */
 export function readState(projectRoot = process.cwd()) {
   const statePath = getStateFilePath(projectRoot);
   
@@ -395,9 +330,6 @@ export function readState(projectRoot = process.cwd()) {
   return { currentTag: 'master' };
 }
 
-/**
- * Write state to state.json
- */
 export function writeState(state, projectRoot = process.cwd()) {
   ensureProjectConfigDir(projectRoot);
   const statePath = getStateFilePath(projectRoot);
@@ -410,16 +342,10 @@ export function writeState(state, projectRoot = process.cwd()) {
   }
 }
 
-/**
- * Get the workflow state file path
- */
 export function getWorkflowStateFilePath(projectRoot = process.cwd()) {
   return path.join(getProjectConfigDir(projectRoot), 'workflow-state.json');
 }
 
-/**
- * Read workflow state (for autopilot)
- */
 export function readWorkflowState(projectRoot = process.cwd()) {
   const statePath = getWorkflowStateFilePath(projectRoot);
   
@@ -434,9 +360,6 @@ export function readWorkflowState(projectRoot = process.cwd()) {
   return null;
 }
 
-/**
- * Write workflow state (for autopilot)
- */
 export function writeWorkflowState(state, projectRoot = process.cwd()) {
   ensureProjectConfigDir(projectRoot);
   const statePath = getWorkflowStateFilePath(projectRoot);
@@ -449,9 +372,6 @@ export function writeWorkflowState(state, projectRoot = process.cwd()) {
   }
 }
 
-/**
- * Delete workflow state file
- */
 export function deleteWorkflowState(projectRoot = process.cwd()) {
   const statePath = getWorkflowStateFilePath(projectRoot);
   

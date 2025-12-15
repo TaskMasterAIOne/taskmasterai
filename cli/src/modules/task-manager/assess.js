@@ -1,13 +1,3 @@
-/**
- * Assess Task Complexity Module
- * Analyzes task complexity and generates breakdown recommendations
- * Copyright (c) 2025 TaskMaster AI LLC
- * 
- * TaskMaster AI Terminology:
- * - "assess" instead of "analyze-complexity"
- * - "assessment" instead of "complexity"
- * - "steps" instead of "subtasks"
- */
 
 import fs from 'fs';
 import path from 'path';
@@ -30,20 +20,6 @@ import {
   stopLoadingIndicator
 } from '../ui.js';
 
-/**
- * Analyze task complexity and generate breakdown recommendations
- * @param {Object} options - Assessment options
- * @param {string} options.file - Path to tasks file
- * @param {string} [options.output] - Path to save assessment report
- * @param {number} [options.threshold] - Complexity threshold for recommendations
- * @param {boolean} [options.research] - Use research AI for better analysis
- * @param {string} [options.projectRoot] - Project root path
- * @param {string} [options.context] - Context name
- * @param {string} [options.id] - Specific task IDs to analyze (comma-separated)
- * @param {number} [options.from] - Starting task ID range
- * @param {number} [options.to] - Ending task ID range
- * @returns {Promise<Object>} Assessment results
- */
 async function assessComplexity(options) {
   const {
     file: tasksPath,
@@ -62,13 +38,9 @@ async function assessComplexity(options) {
   
   try {
     log('info', 'Starting task complexity assessment...');
-    
-    // Show loading indicator
     if (outputFormat === 'text' && !isSilentMode()) {
       loadingIndicator = startLoadingIndicator('Analyzing task complexity...');
     }
-    
-    // Read tasks
     const data = readJSON(tasksPath, projectRoot, context);
     if (!data || !data.tasks || data.tasks.length === 0) {
       throw new Error('No tasks found in tasks file');
@@ -124,8 +96,6 @@ async function assessComplexity(options) {
     const taskAnalysis = tasksToAnalyze.map(task => {
       const steps = task.steps || task.subtasks || [];
       const links = task.dependencies || task.links || [];
-      
-      // Calculate complexity score based on various factors
       let score = 3; // Base score
       
       // Factor 1: Description length
@@ -172,8 +142,6 @@ async function assessComplexity(options) {
     
     // Sort by score (highest first)
     taskAnalysis.sort((a, b) => b.assessmentScore - a.assessmentScore);
-    
-    // Calculate summary
     const summary = {
       total: taskAnalysis.length,
       highComplexity: taskAnalysis.filter(t => t.assessmentScore >= 7).length,
@@ -255,8 +223,6 @@ async function assessComplexity(options) {
           ],
           colWidths: [6, 35, 10, 10, 15]
         });
-        
-        // Show top 15 tasks
         const displayTasks = taskAnalysis.slice(0, 15);
         displayTasks.forEach(t => {
           const action = t.shouldBreakdown 
@@ -321,12 +287,6 @@ async function assessComplexity(options) {
   }
 }
 
-/**
- * Generate reasoning for complexity score
- * @param {Object} task - Task object
- * @param {number} score - Complexity score
- * @returns {string} Reasoning text
- */
 function generateReasoning(task, score) {
   const reasons = [];
   
@@ -356,12 +316,6 @@ function generateReasoning(task, score) {
   return reasons.length > 0 ? reasons.join('. ') : 'Standard complexity level.';
 }
 
-/**
- * Generate breakdown prompt for a task
- * @param {Object} task - Task object
- * @param {number} score - Complexity score
- * @returns {string} Breakdown prompt
- */
 function generateBreakdownPrompt(task, score) {
   if (score < 4) {
     return 'Task is straightforward and may not need extensive breakdown.';
@@ -380,11 +334,6 @@ function generateBreakdownPrompt(task, score) {
   return prompt;
 }
 
-/**
- * Display the assessment report
- * @param {Object} options - Display options
- * @returns {Object} Report data
- */
 async function showAssessmentReport(options = {}) {
   const { projectRoot, context, outputFormat = 'text' } = options;
   
@@ -406,8 +355,6 @@ async function showAssessmentReport(options = {}) {
     if (outputFormat === 'json') {
       return { success: true, report };
     }
-    
-    // Display formatted report
     console.log(
       boxen(
         chalk.white.bold('📊 Assessment Report') +

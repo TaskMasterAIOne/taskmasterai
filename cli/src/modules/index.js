@@ -1,19 +1,3 @@
-/**
- * TaskMaster AI Modules Hub
- * Central export point for all CLI modules
- * Copyright (c) 2025 TaskMaster AI LLC
- * 
- * TERMINOLOGY GUIDE:
- * - "steps" instead of "subtasks"
- * - "links" instead of "dependencies"
- * - "assessment" instead of "complexity"
- * - "contexts" instead of "tags"
- * - "breakdown" instead of "expand"
- * - "plan" instead of "parse-prd"
- * - "edit" instead of "update-task"
- * - "ask" instead of "research"
- * - "scope-up/scope-down" for complexity adjustment
- */
 
 // Core utilities
 export * from './utils.js';
@@ -74,8 +58,6 @@ export {
   generateTaskFiles,
   generateTaskMarkdown,
   generateSingleTaskFile,
-  
-  // Sync README
   syncReadme,
   generateTaskListMarkdown,
   generateProgressStats,
@@ -158,8 +140,6 @@ export {
   ALL_PROVIDERS,
   MODEL_MAP
 } from './config-manager.js';
-
-// Import for default export
 import * as utils from './utils.js';
 import * as ui from './ui.js';
 import taskManager from './task-manager/index.js';

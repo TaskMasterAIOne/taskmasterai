@@ -1,9 +1,3 @@
-/**
- * License Manager for TaskMaster AI
- * Handles license key validation, storage, and caching
- * Connects to Firebase backend for validation
- * Also syncs API keys and model config from dashboard
- */
 
 import fs from 'fs';
 import path from 'path';
@@ -29,27 +23,16 @@ const CONFIG_SYNC_DURATION_MS = 60 * 60 * 1000;
 // Grace period after expiry: 3 days
 const GRACE_PERIOD_DAYS = 3;
 
-/**
- * Get the path to the global license file
- * @returns {string} Path to ~/.taskmaster-ai/license.json
- */
 export function getLicenseFilePath() {
   const taskmasterDir = path.join(os.homedir(), '.taskmaster-ai');
   return path.join(taskmasterDir, 'license.json');
 }
 
-/**
- * Get the path to the cached config file (API keys + models from dashboard)
- * @returns {string} Path to ~/.taskmaster-ai/config-cache.json
- */
 export function getConfigCachePath() {
   const taskmasterDir = path.join(os.homedir(), '.taskmaster-ai');
   return path.join(taskmasterDir, 'config-cache.json');
 }
 
-/**
- * Ensure the ~/.taskmaster-ai directory exists
- */
 function ensureTaskmasterDir() {
   const taskmasterDir = path.join(os.homedir(), '.taskmaster-ai');
   if (!fs.existsSync(taskmasterDir)) {
@@ -57,10 +40,6 @@ function ensureTaskmasterDir() {
   }
 }
 
-/**
- * Read the stored license data
- * @returns {Object|null} License data or null if not found
- */
 export function readStoredLicense() {
   const licensePath = getLicenseFilePath();
   
@@ -76,10 +55,6 @@ export function readStoredLicense() {
   return null;
 }
 
-/**
- * Write license data to storage
- * @param {Object} licenseData - License data to store
- */
 export function writeLicenseData(licenseData) {
   ensureTaskmasterDir();
   const licensePath = getLicenseFilePath();
@@ -91,10 +66,6 @@ export function writeLicenseData(licenseData) {
   }
 }
 
-/**
- * Remove the stored license (deactivate)
- * @returns {boolean} True if successfully removed
- */
 export function removeLicenseData() {
   const licensePath = getLicenseFilePath();
   
@@ -109,11 +80,6 @@ export function removeLicenseData() {
   }
 }
 
-/**
- * Check if cached validation is still valid
- * @param {Object} licenseData - Stored license data
- * @returns {boolean} True if cache is still valid
- */
 function isCacheValid(licenseData) {
   if (!licenseData?.lastValidated) return false;
   
@@ -124,11 +90,6 @@ function isCacheValid(licenseData) {
   return elapsed < CACHE_DURATION_MS;
 }
 
-/**
- * Validate license key against the server
- * @param {string} licenseKey - License key to validate
- * @returns {Promise<Object>} Validation result
- */
 async function validateLicenseWithServer(licenseKey) {
   try {
     const response = await fetch(LICENSE_API_URL, {
@@ -152,7 +113,6 @@ async function validateLicenseWithServer(licenseKey) {
       error: result.error,
     };
   } catch (error) {
-    // If network error, allow offline grace period
     return {
       valid: false,
       offline: true,
@@ -161,11 +121,6 @@ async function validateLicenseWithServer(licenseKey) {
   }
 }
 
-/**
- * Activate a license key
- * @param {string} licenseKey - License key to activate
- * @returns {Promise<Object>} Activation result
- */
 export async function activateLicense(licenseKey) {
   if (!licenseKey || typeof licenseKey !== 'string') {
     return {
@@ -191,8 +146,6 @@ export async function activateLicense(licenseKey) {
       error: validation.error || 'License key is not valid',
     };
   }
-
-  // Store the license
   const licenseData = {
     licenseKey,
     plan: validation.plan,
@@ -205,11 +158,7 @@ export async function activateLicense(licenseKey) {
   };
 
   writeLicenseData(licenseData);
-
-  // Also sync user config (API keys + models) from dashboard
   const configSync = await syncUserConfig(true);
-  
-  // For PRO/Enterprise users, also sync hosted API keys
   let hostedKeysMessage = null;
   if (validation.plan === 'pro' || validation.plan === 'enterprise') {
     const hostedKeysSync = await syncHostedApiKeys(true);
@@ -233,11 +182,6 @@ export async function activateLicense(licenseKey) {
   };
 }
 
-/**
- * Get current license status
- * @param {boolean} forceRefresh - Force server validation even if cache is valid
- * @returns {Promise<Object>} License status
- */
 export async function getLicenseStatus(forceRefresh = false) {
   const stored = readStoredLicense();
 
@@ -248,8 +192,6 @@ export async function getLicenseStatus(forceRefresh = false) {
       error: 'No license key found. Run "taskmaster activate <license-key>" to activate.',
     };
   }
-
-  // Check if cached validation is still valid
   if (!forceRefresh && isCacheValid(stored) && stored.status === 'active') {
     return {
       valid: true,
@@ -288,8 +230,6 @@ export async function getLicenseStatus(forceRefresh = false) {
       };
     }
   }
-
-  // Update stored data with validation result
   if (validation.valid) {
     stored.status = validation.status;
     stored.plan = validation.plan;
@@ -324,10 +264,6 @@ export async function getLicenseStatus(forceRefresh = false) {
   };
 }
 
-/**
- * Deactivate the current license
- * @returns {Object} Deactivation result
- */
 export function deactivateLicense() {
   const stored = readStoredLicense();
 
@@ -339,8 +275,8 @@ export function deactivateLicense() {
   }
 
   removeLicenseData();
-  clearConfigCache(); // Also clear the synced config
-  clearHostedKeysCache(); // Also clear hosted API keys
+  clearConfigCache();
+  clearHostedKeysCache();
 
   return {
     success: true,
@@ -348,11 +284,6 @@ export function deactivateLicense() {
   };
 }
 
-/**
- * Format license status for display
- * @param {Object} status - License status object
- * @returns {string} Formatted status string
- */
 export function formatLicenseStatus(status) {
   if (!status.activated) {
     return 'No license activated';
@@ -397,10 +328,6 @@ export function formatLicenseStatus(status) {
 // CONFIG SYNC (API Keys + Models from Dashboard)
 // ============================================
 
-/**
- * Read the cached config from disk
- * @returns {Object|null} Cached config or null
- */
 export function readCachedConfig() {
   const configPath = getConfigCachePath();
   
@@ -416,10 +343,6 @@ export function readCachedConfig() {
   return null;
 }
 
-/**
- * Write config cache to disk
- * @param {Object} config - Config to cache
- */
 function writeConfigCache(config) {
   ensureTaskmasterDir();
   const configPath = getConfigCachePath();
@@ -431,11 +354,6 @@ function writeConfigCache(config) {
   }
 }
 
-/**
- * Check if config cache is still valid
- * @param {Object} cachedConfig - Cached config object
- * @returns {boolean} True if cache is still valid
- */
 function isConfigCacheValid(cachedConfig) {
   if (!cachedConfig?.syncedAt) return false;
   
@@ -446,11 +364,6 @@ function isConfigCacheValid(cachedConfig) {
   return elapsed < CONFIG_SYNC_DURATION_MS;
 }
 
-/**
- * Fetch user config from server
- * @param {string} licenseKey - License key to authenticate
- * @returns {Promise<Object>} User config (apiKeys, models)
- */
 async function fetchUserConfig(licenseKey) {
   try {
     const response = await fetch(CONFIG_API_URL, {
@@ -484,12 +397,6 @@ async function fetchUserConfig(licenseKey) {
   }
 }
 
-/**
- * Sync user config from dashboard (API keys + models)
- * Called during license validation or explicitly
- * @param {boolean} forceRefresh - Force refresh even if cache is valid
- * @returns {Promise<Object>} Synced config
- */
 export async function syncUserConfig(forceRefresh = false) {
   const stored = readStoredLicense();
   
@@ -499,8 +406,6 @@ export async function syncUserConfig(forceRefresh = false) {
       error: 'No license key found. Activate first.',
     };
   }
-
-  // Check if cached config is still valid
   const cachedConfig = readCachedConfig();
   if (!forceRefresh && cachedConfig && isConfigCacheValid(cachedConfig)) {
     return {
@@ -511,8 +416,6 @@ export async function syncUserConfig(forceRefresh = false) {
       syncedAt: cachedConfig.syncedAt,
     };
   }
-
-  // Fetch from server
   const result = await fetchUserConfig(stored.licenseKey);
   
   if (result.success) {
@@ -532,8 +435,6 @@ export async function syncUserConfig(forceRefresh = false) {
       syncedAt: result.syncedAt,
     };
   }
-  
-  // If fetch failed but we have cached config, return it with warning
   if (cachedConfig) {
     return {
       success: true,
@@ -552,29 +453,17 @@ export async function syncUserConfig(forceRefresh = false) {
   };
 }
 
-/**
- * Get API key from synced config
- * @param {string} provider - Provider name (anthropic, openai, etc.)
- * @returns {string|null} API key or null
- */
 export function getSyncedApiKey(provider) {
   const cachedConfig = readCachedConfig();
   if (!cachedConfig?.apiKeys) return null;
   return cachedConfig.apiKeys[provider] || null;
 }
 
-/**
- * Get model config from synced config
- * @returns {Object|null} Model config or null
- */
 export function getSyncedModels() {
   const cachedConfig = readCachedConfig();
   return cachedConfig?.models || null;
 }
 
-/**
- * Clear the config cache (e.g., on deactivate)
- */
 export function clearConfigCache() {
   const configPath = getConfigCachePath();
   try {
@@ -591,19 +480,11 @@ export function clearConfigCache() {
 // Provides API keys hosted by TaskMaster AI for PRO subscribers
 // ============================================
 
-/**
- * Get the path to the hosted keys cache file
- * @returns {string} Path to ~/.taskmaster-ai/hosted-keys-cache.json
- */
 export function getHostedKeysCachePath() {
   const taskmasterDir = path.join(os.homedir(), '.taskmaster-ai');
   return path.join(taskmasterDir, 'hosted-keys-cache.json');
 }
 
-/**
- * Read cached hosted keys from disk
- * @returns {Object|null} Cached hosted keys or null
- */
 export function readCachedHostedKeys() {
   const cachePath = getHostedKeysCachePath();
   
@@ -619,10 +500,6 @@ export function readCachedHostedKeys() {
   return null;
 }
 
-/**
- * Write hosted keys cache to disk
- * @param {Object} keysData - Hosted keys data to cache
- */
 function writeHostedKeysCache(keysData) {
   ensureTaskmasterDir();
   const cachePath = getHostedKeysCachePath();
@@ -634,11 +511,6 @@ function writeHostedKeysCache(keysData) {
   }
 }
 
-/**
- * Check if hosted keys cache is still valid
- * @param {Object} cachedKeys - Cached keys object
- * @returns {boolean} True if cache is still valid
- */
 function isHostedKeysCacheValid(cachedKeys) {
   if (!cachedKeys?.fetchedAt) return false;
   
@@ -649,9 +521,6 @@ function isHostedKeysCacheValid(cachedKeys) {
   return elapsed < HOSTED_KEYS_CACHE_DURATION_MS;
 }
 
-/**
- * Clear the hosted keys cache (e.g., on deactivate or plan change)
- */
 export function clearHostedKeysCache() {
   const cachePath = getHostedKeysCachePath();
   try {
@@ -663,11 +532,6 @@ export function clearHostedKeysCache() {
   }
 }
 
-/**
- * Fetch hosted API keys from server
- * @param {string} licenseKey - License key to authenticate
- * @returns {Promise<Object>} Hosted API keys
- */
 async function fetchHostedApiKeys(licenseKey) {
   try {
     const response = await fetch(HOSTED_KEYS_API_URL, {
@@ -704,11 +568,6 @@ async function fetchHostedApiKeys(licenseKey) {
   }
 }
 
-/**
- * Sync hosted API keys from server (PRO/Enterprise plan only)
- * @param {boolean} forceRefresh - Force refresh even if cache is valid
- * @returns {Promise<Object>} Hosted keys sync result
- */
 export async function syncHostedApiKeys(forceRefresh = false) {
   const stored = readStoredLicense();
   
@@ -718,8 +577,6 @@ export async function syncHostedApiKeys(forceRefresh = false) {
       error: 'No license key found. Activate first.',
     };
   }
-
-  // Check if user is on PRO or Enterprise plan
   if (stored.plan !== 'pro' && stored.plan !== 'enterprise') {
     return {
       success: false,
@@ -728,8 +585,6 @@ export async function syncHostedApiKeys(forceRefresh = false) {
       currentPlan: stored.plan,
     };
   }
-
-  // Check if cached keys are still valid
   const cachedKeys = readCachedHostedKeys();
   if (!forceRefresh && cachedKeys && isHostedKeysCacheValid(cachedKeys)) {
     return {
@@ -740,8 +595,6 @@ export async function syncHostedApiKeys(forceRefresh = false) {
       fetchedAt: cachedKeys.fetchedAt,
     };
   }
-
-  // Fetch from server
   const result = await fetchHostedApiKeys(stored.licenseKey);
   
   if (result.success) {
@@ -762,8 +615,6 @@ export async function syncHostedApiKeys(forceRefresh = false) {
       fetchedAt: result.fetchedAt,
     };
   }
-  
-  // If fetch failed but we have cached keys, return them with warning
   if (cachedKeys) {
     return {
       success: true,
@@ -784,20 +635,12 @@ export async function syncHostedApiKeys(forceRefresh = false) {
   };
 }
 
-/**
- * Get hosted API key for a specific provider
- * Only works for PRO plan users
- * @param {string} provider - Provider name (anthropic, openai, etc.)
- * @returns {string|null} API key or null
- */
 export function getHostedApiKey(provider) {
   // First check if user is on PRO plan
   const stored = readStoredLicense();
   if (!stored?.licenseKey || stored.plan !== 'pro') {
     return null;
   }
-
-  // Check cached hosted keys
   const cachedKeys = readCachedHostedKeys();
   if (!cachedKeys?.hostedKeys) return null;
   
@@ -805,23 +648,11 @@ export function getHostedApiKey(provider) {
   return cachedKeys.hostedKeys[providerLower] || null;
 }
 
-/**
- * Check if hosted API keys are available (PRO/Enterprise plan check)
- * @returns {boolean} True if user is on PRO or Enterprise plan and can use hosted keys
- */
 export function canUseHostedApiKeys() {
   const stored = readStoredLicense();
   return (stored?.plan === 'pro' || stored?.plan === 'enterprise') && stored?.status === 'active';
 }
 
-/**
- * Track hosted key usage (for rate limiting and analytics)
- * Called after using a hosted API key for an AI operation
- * @param {string} provider - Provider name (anthropic, openai, etc.)
- * @param {string} operation - Operation type (e.g., 'parse-prd', 'expand')
- * @param {Object} usage - Token usage { inputTokens, outputTokens }
- * @returns {Promise<Object>} Tracking result with rate limit info
- */
 export async function trackHostedKeyUsage(provider, operation, usage = {}) {
   const stored = readStoredLicense();
   
@@ -878,36 +709,20 @@ export async function trackHostedKeyUsage(provider, operation, usage = {}) {
   }
 }
 
-/**
- * Check if using a hosted key (for display purposes)
- * @param {string} provider - Provider to check
- * @returns {boolean} True if using hosted key for this provider
- */
 export function isUsingHostedKey(provider) {
   if (!canUseHostedApiKeys()) return false;
-  
-  // Check if user has their own key (env or synced)
   const envKey = process.env[`${provider.toUpperCase()}_API_KEY`];
   if (envKey) return false;
   
   const syncedKey = getSyncedApiKey(provider);
   if (syncedKey) return false;
-  
-  // Check if we have a hosted key
   const hostedKey = getHostedApiKey(provider);
   return !!hostedKey;
 }
 
 // ============================================
-// USAGE TRACKING
 // ============================================
 
-/**
- * Increment usage counter after AI operation
- * @param {string} operation - Operation type (e.g., 'parse-prd', 'expand', 'add-task')
- * @param {number} count - Number of tasks to increment (default: 1)
- * @returns {Promise<Object>} Usage result with remaining tasks
- */
 export async function incrementUsage(operation, count = 1) {
   const stored = readStoredLicense();
   
@@ -955,11 +770,6 @@ export async function incrementUsage(operation, count = 1) {
   }
 }
 
-/**
- * Get usage summary for display
- * @param {Object} usageResult - Result from incrementUsage
- * @returns {string|null} Formatted usage string or null
- */
 export function formatUsageSummary(usageResult) {
   if (!usageResult?.success || !usageResult?.usage) return null;
   
@@ -1009,8 +819,6 @@ export default {
 };
 
 // ============================================
-// TASK CLOUD SYNC
-// Sync tasks between CLI and web dashboard
 // ============================================
 
 const TASK_SYNC_API_URL = process.env.TASKMASTER_TASK_SYNC_URL || 
@@ -1025,12 +833,6 @@ const TRACK_HOSTED_USAGE_URL = process.env.TASKMASTER_TRACK_HOSTED_USAGE_URL ||
 // Hosted keys cache duration: 1 hour (in milliseconds)
 const HOSTED_KEYS_CACHE_DURATION_MS = 60 * 60 * 1000;
 
-/**
- * Sync tasks to cloud for web dashboard viewing
- * @param {Array} tasks - Array of tasks to sync
- * @param {Object} options - Sync options
- * @returns {Object} Sync result
- */
 export async function syncTasksToCloud(tasks, options = {}) {
   try {
     const license = readStoredLicense();
@@ -1073,11 +875,6 @@ export async function syncTasksToCloud(tasks, options = {}) {
   }
 }
 
-/**
- * Get tasks from cloud
- * @param {Object} options - Get options
- * @returns {Object} Tasks result
- */
 export async function getTasksFromCloud(options = {}) {
   try {
     const license = readStoredLicense();

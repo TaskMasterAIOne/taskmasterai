@@ -1,28 +1,11 @@
-/**
- * Fuzzy Task Search Utility
- * Provides fuzzy search capabilities for tasks
- * Copyright (c) 2025 TaskMaster AI LLC
- */
 
-/**
- * Fuzzy Task Search class
- */
 class FuzzyTaskSearch {
   constructor(tasks = [], commandContext = '') {
     this.tasks = tasks;
     this.commandContext = commandContext;
   }
   
-  /**
-   * Find relevant tasks based on a search query
-   * @param {string} query - Search query
-   * @param {Object} options - Search options
-   * @param {number} [options.maxResults] - Maximum results to return
-   * @param {boolean} [options.includeSelf] - Include the querying task
-   * @param {number} [options.threshold] - Match threshold (0-1)
-   * @returns {Array} Matching tasks with scores
-   */
-  findRelevantTasks(query, options = {}) {
+    findRelevantTasks(query, options = {}) {
     const {
       maxResults = 5,
       includeSelf = false,
@@ -54,13 +37,7 @@ class FuzzyTaskSearch {
       .slice(0, maxResults);
   }
   
-  /**
-   * Calculate match score for a task
-   * @param {Object} task - Task object
-   * @param {Array<string>} queryWords - Query words
-   * @returns {number} Score (0-1)
-   */
-  calculateScore(task, queryWords) {
+    calculateScore(task, queryWords) {
     const taskText = [
       task.title || '',
       task.description || '',
@@ -100,12 +77,7 @@ class FuzzyTaskSearch {
     return Math.min(1, totalMatches / queryWords.length);
   }
   
-  /**
-   * Tokenize text into words
-   * @param {string} text - Text to tokenize
-   * @returns {Array<string>} Words
-   */
-  tokenize(text) {
+    tokenize(text) {
     if (!text) return [];
     
     return text
@@ -115,13 +87,7 @@ class FuzzyTaskSearch {
       .filter(word => word.length > 2);
   }
   
-  /**
-   * Calculate similarity between two strings
-   * @param {string} s1 - First string
-   * @param {string} s2 - Second string
-   * @returns {number} Similarity (0-1)
-   */
-  similarity(s1, s2) {
+    similarity(s1, s2) {
     if (s1 === s2) return 1;
     if (!s1 || !s2) return 0;
     
@@ -134,13 +100,7 @@ class FuzzyTaskSearch {
     return (longer.length - distance) / longer.length;
   }
   
-  /**
-   * Calculate Levenshtein distance between two strings
-   * @param {string} s1 - First string
-   * @param {string} s2 - Second string
-   * @returns {number} Distance
-   */
-  levenshteinDistance(s1, s2) {
+    levenshteinDistance(s1, s2) {
     const costs = [];
     
     for (let i = 0; i <= s1.length; i++) {
@@ -165,21 +125,11 @@ class FuzzyTaskSearch {
     return costs[s2.length];
   }
   
-  /**
-   * Get task IDs from search results
-   * @param {Array} results - Search results
-   * @returns {Array<string>} Task IDs
-   */
-  getTaskIds(results) {
+    getTaskIds(results) {
     return results.map(r => String(r.id));
   }
   
-  /**
-   * Search by task ID pattern
-   * @param {string} pattern - ID pattern (e.g., "1*", "1.2")
-   * @returns {Array} Matching tasks
-   */
-  searchByIdPattern(pattern) {
+    searchByIdPattern(pattern) {
     const results = [];
     
     for (const task of this.tasks) {

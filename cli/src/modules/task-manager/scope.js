@@ -1,11 +1,3 @@
-/**
- * Scope Adjustment Module
- * Dynamic task complexity adjustment (scope-up and scope-down) with full AI support
- * Copyright (c) 2025 TaskMaster AI LLC
- * 
- * TaskMaster AI Terminology:
- * - "steps" instead of "subtasks"
- */
 
 import boxen from 'boxen';
 import chalk from 'chalk';
@@ -23,40 +15,18 @@ import {
   startLoadingIndicator,
   stopLoadingIndicator
 } from '../ui.js';
-
-// Import AI services
 import { generateAIObject } from '../../lib/ai.js';
 
-/**
- * Valid strength levels for scope adjustments
- */
 const VALID_STRENGTHS = ['light', 'regular', 'heavy'];
 
-/**
- * Statuses that should be preserved during step regeneration
- */
 const PRESERVE_STATUSES = ['done', 'in-progress', 'review', 'cancelled', 'deferred', 'blocked'];
 
-/**
- * Statuses that can be regenerated
- */
 const REGENERATE_STATUSES = ['pending'];
 
-/**
- * Validate strength parameter
- * @param {string} strength - Strength level to validate
- * @returns {boolean} True if valid
- */
 function validateStrength(strength) {
   return VALID_STRENGTHS.includes(strength);
 }
 
-/**
- * Get current assessment score for a task from the assessment report
- * @param {number} taskId - Task ID to look up
- * @param {Object} context - Context containing projectRoot
- * @returns {number|null} Current assessment score or null if not found
- */
 function getCurrentAssessmentScore(taskId, context) {
   const { projectRoot } = context;
 
@@ -77,14 +47,6 @@ function getCurrentAssessmentScore(taskId, context) {
   }
 }
 
-/**
- * Generates AI prompt for scope adjustment
- * @param {Object} task - The task to adjust
- * @param {string} direction - 'up' or 'down'
- * @param {string} strength - 'light', 'regular', or 'heavy'
- * @param {string} customPrompt - Optional custom instructions
- * @returns {string} The generated prompt
- */
 function generateScopePrompt(task, direction, strength, customPrompt) {
   const isUp = direction === 'up';
   const strengthDescriptions = {
@@ -137,15 +99,6 @@ Ensure the JSON is valid and properly formatted.`;
   return basePrompt;
 }
 
-/**
- * Adjusts task complexity using AI
- * @param {Object} task - The task to adjust
- * @param {string} direction - 'up' or 'down'
- * @param {string} strength - 'light', 'regular', or 'heavy'
- * @param {string} customPrompt - Optional custom instructions
- * @param {Object} context - Context object with projectRoot, etc.
- * @returns {Promise<Object>} Updated task data
- */
 async function adjustTaskComplexity(task, direction, strength, customPrompt, context) {
   const systemPrompt = 'You are an expert software project manager who helps adjust task complexity while maintaining clarity and actionability.';
 
@@ -183,20 +136,8 @@ async function adjustTaskComplexity(task, direction, strength, customPrompt, con
   };
 }
 
-/**
- * Regenerates steps for a task based on new complexity while preserving completed work
- * @param {Object} task - The updated task object
- * @param {string} tasksPath - Path to tasks.json
- * @param {Object} context - Context containing projectRoot, etc.
- * @param {string} direction - Direction of scope change (up/down)
- * @param {string} strength - Strength level ('light', 'regular', 'heavy')
- * @param {number|null} originalAssessment - Original assessment score
- * @returns {Promise<Object>} Object with updated task and regeneration info
- */
 async function regenerateStepsForComplexity(task, tasksPath, context, direction, strength = 'regular', originalAssessment = null) {
   const stepsField = task.steps ? 'steps' : (task.subtasks ? 'subtasks' : 'steps');
-  
-  // Check if task has steps
   if (!task[stepsField] || !Array.isArray(task[stepsField]) || task[stepsField].length === 0) {
     return {
       updatedTask: task,
@@ -213,8 +154,6 @@ async function regenerateStepsForComplexity(task, tasksPath, context, direction,
   const pendingSteps = task[stepsField].filter(step =>
     REGENERATE_STATUSES.includes(step.status) || !step.status
   );
-
-  // If no pending steps, nothing to regenerate
   if (pendingSteps.length === 0) {
     return {
       updatedTask: task,
@@ -223,13 +162,10 @@ async function regenerateStepsForComplexity(task, tasksPath, context, direction,
       generated: 0
     };
   }
-
-  // Calculate appropriate number of total steps based on direction, complexity, strength
   let targetStepCount;
   const preservedCount = preservedSteps.length;
   const currentPendingCount = pendingSteps.length;
 
-  // Use original assessment to inform decisions (if available)
   const assessmentFactor = originalAssessment
     ? Math.max(0.5, originalAssessment / 10)
     : 1.0;
@@ -357,7 +293,7 @@ Ensure the JSON is valid and properly formatted.`;
       ...step,
       status: step.status || 'pending',
       testStrategy: step.testStrategy || '',
-      links: step.dependencies || [] // Use "links" terminology
+      links: step.dependencies || []
     }));
 
     // Ensure new steps have unique sequential IDs after the preserved ones
@@ -390,8 +326,6 @@ Ensure the JSON is valid and properly formatted.`;
           return remappedSiblingId ? `${task.id}.${remappedSiblingId}` : dep;
         })
       }));
-
-    // Update task with preserved steps + newly generated ones
     task[stepsField] = [...preservedSteps, ...normalizedGeneratedSteps];
     task.steps = task[stepsField]; // Ensure "steps" is used
     if (task.subtasks) delete task.subtasks; // Clean up old field
@@ -415,14 +349,6 @@ Ensure the JSON is valid and properly formatted.`;
   }
 }
 
-/**
- * Scope up a task - increase complexity/granularity
- * Uses AI to regenerate task content and steps
- * @param {string} tasksPath - Path to tasks.json
- * @param {string|number} taskId - Task ID to scope up
- * @param {Object} options - Options
- * @returns {Promise<Object>} Result
- */
 async function scopeUp(tasksPath, taskId, options = {}) {
   const {
     strength = 'regular',
@@ -442,13 +368,9 @@ async function scopeUp(tasksPath, taskId, options = {}) {
     }
     
     log('info', `Scoping up task ${taskId} with strength: ${strength}`);
-    
-    // Show loading
     if (outputFormat === 'text' && !isSilentMode()) {
       loadingIndicator = startLoadingIndicator(`Scoping up task ${taskId}...`);
     }
-    
-    // Read tasks
     const data = readJSON(tasksPath, projectRoot, context);
     if (!data?.tasks) {
       throw new Error('No valid tasks found');
@@ -461,8 +383,6 @@ async function scopeUp(tasksPath, taskId, options = {}) {
     if (!task) {
       throw new Error(`Task #${taskId} not found`);
     }
-    
-    // Get original assessment score (if available)
     const originalAssessment = getCurrentAssessmentScore(taskIdNum, { projectRoot });
     if (originalAssessment && outputFormat === 'text') {
       log('info', `Original assessment: ${originalAssessment}/10`);
@@ -491,8 +411,6 @@ async function scopeUp(tasksPath, taskId, options = {}) {
     if (outputFormat === 'text' && stepResult.regenerated) {
       log('info', `Regenerated ${stepResult.generated} pending steps (preserved ${stepResult.preserved} completed)`);
     }
-    
-    // Update task in data
     const taskIndex = data.tasks.findIndex(t => t.id === taskIdNum);
     if (taskIndex !== -1) {
       data.tasks[taskIndex] = stepResult.updatedTask;
@@ -555,14 +473,6 @@ async function scopeUp(tasksPath, taskId, options = {}) {
   }
 }
 
-/**
- * Scope down a task - decrease complexity/granularity
- * Uses AI to simplify task content and reduce steps
- * @param {string} tasksPath - Path to tasks.json
- * @param {string|number} taskId - Task ID to scope down
- * @param {Object} options - Options
- * @returns {Promise<Object>} Result
- */
 async function scopeDown(tasksPath, taskId, options = {}) {
   const {
     strength = 'regular',
@@ -582,13 +492,9 @@ async function scopeDown(tasksPath, taskId, options = {}) {
     }
     
     log('info', `Scoping down task ${taskId} with strength: ${strength}`);
-    
-    // Show loading
     if (outputFormat === 'text' && !isSilentMode()) {
       loadingIndicator = startLoadingIndicator(`Scoping down task ${taskId}...`);
     }
-    
-    // Read tasks
     const data = readJSON(tasksPath, projectRoot, context);
     if (!data?.tasks) {
       throw new Error('No valid tasks found');
@@ -601,8 +507,6 @@ async function scopeDown(tasksPath, taskId, options = {}) {
     if (!task) {
       throw new Error(`Task #${taskId} not found`);
     }
-    
-    // Get original assessment score (if available)
     const originalAssessment = getCurrentAssessmentScore(taskIdNum, { projectRoot });
     if (originalAssessment && outputFormat === 'text') {
       log('info', `Original assessment: ${originalAssessment}/10`);
@@ -631,8 +535,6 @@ async function scopeDown(tasksPath, taskId, options = {}) {
     if (outputFormat === 'text' && stepResult.regenerated) {
       log('info', `Regenerated ${stepResult.generated} pending steps (preserved ${stepResult.preserved} completed)`);
     }
-    
-    // Update task in data
     const taskIndex = data.tasks.findIndex(t => t.id === taskIdNum);
     if (taskIndex !== -1) {
       data.tasks[taskIndex] = stepResult.updatedTask;

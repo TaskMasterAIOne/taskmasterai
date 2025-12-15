@@ -1,8 +1,3 @@
-/**
- * User Interface functions for TaskMaster AI CLI
- * Copyright (c) 2025 TaskMaster AI LLC
- * Provides rich terminal UI with colors, progress bars, and formatted output
- */
 
 import boxen from 'boxen';
 import chalk from 'chalk';
@@ -21,11 +16,6 @@ export const TASK_STATUS_OPTIONS = [
   'review',
 ];
 
-/**
- * Start a loading indicator with an animated spinner
- * @param {string} message - Message to display next to the spinner
- * @returns {Object} Spinner object
- */
 export function startLoadingIndicator(message) {
   if (isSilentMode()) return null;
 
@@ -37,21 +27,12 @@ export function startLoadingIndicator(message) {
   return spinner;
 }
 
-/**
- * Stop a loading indicator
- * @param {Object} spinner - Spinner object to stop
- */
 export function stopLoadingIndicator(spinner) {
   if (spinner && typeof spinner.stop === 'function') {
     spinner.stop();
   }
 }
 
-/**
- * Complete a loading indicator with success
- * @param {Object} spinner - Spinner object to complete
- * @param {string} message - Optional success message
- */
 export function succeedLoadingIndicator(spinner, message = null) {
   if (spinner && typeof spinner.succeed === 'function') {
     if (message) {
@@ -62,11 +43,6 @@ export function succeedLoadingIndicator(spinner, message = null) {
   }
 }
 
-/**
- * Complete a loading indicator with failure
- * @param {Object} spinner - Spinner object to fail
- * @param {string} message - Optional failure message
- */
 export function failLoadingIndicator(spinner, message = null) {
   if (spinner && typeof spinner.fail === 'function') {
     if (message) {
@@ -77,13 +53,6 @@ export function failLoadingIndicator(spinner, message = null) {
   }
 }
 
-/**
- * Create a colored progress bar
- * @param {number} percent - The completion percentage
- * @param {number} length - The total length of the progress bar in characters
- * @param {Object} statusBreakdown - Optional breakdown of non-complete statuses
- * @returns {string} The formatted progress bar
- */
 export function createProgressBar(percent, length = 30, statusBreakdown = null) {
   // Adjust the percent to treat deferred and cancelled as complete
   const effectivePercent = statusBreakdown
@@ -94,17 +63,11 @@ export function createProgressBar(percent, length = 30, statusBreakdown = null) 
           (statusBreakdown.cancelled || 0)
       )
     : percent;
-
-  // Calculate how many characters to fill for "true completion"
   const trueCompletedFilled = Math.round((percent * length) / 100);
-
-  // Calculate how many characters to fill for "effective completion"
   const effectiveCompletedFilled = Math.round((effectivePercent * length) / 100);
 
   // The "deferred/cancelled" section
   const deferredCancelledFilled = effectiveCompletedFilled - trueCompletedFilled;
-
-  // Set the empty section
   const empty = length - effectiveCompletedFilled;
 
   // Determine color based on percentage
@@ -120,12 +83,8 @@ export function createProgressBar(percent, length = 30, statusBreakdown = null) 
   } else {
     completedColor = chalk.hex('#006400'); // Dark green
   }
-
-  // Create colored sections
   const completedSection = completedColor('█'.repeat(trueCompletedFilled));
   const deferredCancelledSection = chalk.gray('█'.repeat(deferredCancelledFilled));
-
-  // Create remaining section
   let remainingSection = '';
 
   if (statusBreakdown && empty > 0) {
@@ -170,12 +129,6 @@ export function createProgressBar(percent, length = 30, statusBreakdown = null) 
   return `${completedSection}${deferredCancelledSection}${remainingSection} ${percentTextColor(`${effectivePercent.toFixed(0)}%`)}`;
 }
 
-/**
- * Get a colored status string based on the status value
- * @param {string} status - Task status
- * @param {boolean} forTable - Whether for table display
- * @returns {string} Colored status string
- */
 export function getStatusWithColor(status, forTable = false) {
   if (!status) {
     return chalk.gray('? unknown');
@@ -205,11 +158,6 @@ export function getStatusWithColor(status, forTable = false) {
   return config.color(`${config.icon} ${status}`);
 }
 
-/**
- * Get colored assessment score (TaskMaster AI uses "assessment" not "complexity")
- * @param {number} score - Assessment score (1-10)
- * @returns {string} Colored assessment score
- */
 export function getAssessmentWithColor(score) {
   if (score <= 3) return chalk.green(`● ${score}`);
   if (score <= 6) return chalk.yellow(`● ${score}`);
@@ -219,13 +167,6 @@ export function getAssessmentWithColor(score) {
 // Alias for backward compatibility
 export const getComplexityWithColor = getAssessmentWithColor;
 
-/**
- * Format dependencies list with status indicators
- * @param {Array} dependencies - Array of dependency IDs
- * @param {Array} allTasks - Array of all tasks
- * @param {boolean} forConsole - Whether for console display
- * @returns {string} Formatted dependencies string
- */
 export function formatDependenciesWithStatus(dependencies, allTasks, forConsole = false) {
   if (!dependencies || !Array.isArray(dependencies) || dependencies.length === 0) {
     return forConsole ? chalk.gray('None') : 'None';
@@ -233,8 +174,6 @@ export function formatDependenciesWithStatus(dependencies, allTasks, forConsole 
 
   const formattedDeps = dependencies.map((depId) => {
     const depIdStr = depId.toString();
-
-    // Check if it's a step ID (TaskMaster AI uses "steps" instead of "subtasks")
     if (depIdStr.includes('.')) {
       const [parentId, stepId] = depIdStr.split('.').map((id) => parseInt(id, 10));
       const parentTask = allTasks.find((t) => t.id === parentId);
@@ -294,10 +233,6 @@ export function formatDependenciesWithStatus(dependencies, allTasks, forConsole 
   return formattedDeps.join(', ');
 }
 
-/**
- * Display the ASCII art banner for the CLI
- * @param {object} options - Display options
- */
 export function displayAsciiBanner(options = {}) {
   if (isSilentMode()) return;
 
@@ -326,11 +261,6 @@ export function displayAsciiBanner(options = {}) {
   console.log('');
 }
 
-/**
- * Display the current tag indicator
- * @param {string} tag - The tag name
- * @param {object} options - Display options
- */
 export function displayCurrentTagIndicator(tag, options = {}) {
   if (isSilentMode()) return;
 
@@ -345,9 +275,6 @@ export function displayCurrentTagIndicator(tag, options = {}) {
   console.log(displayText);
 }
 
-/**
- * Display a help guide
- */
 export function displayHelp() {
   console.log(
     boxen(chalk.white.bold('TaskMaster AI CLI'), {
@@ -358,7 +285,6 @@ export function displayHelp() {
     })
   );
 
-  // TaskMaster AI uses distinct command names from the original
   const categories = [
     {
       title: 'Project Setup',
@@ -434,11 +360,6 @@ export function displayHelp() {
   }
 }
 
-/**
- * Display a boxed message
- * @param {string} content - Message content
- * @param {object} options - Boxen options
- */
 export function displayBox(content, options = {}) {
   if (isSilentMode()) return;
 
@@ -451,37 +372,21 @@ export function displayBox(content, options = {}) {
   console.log(boxen(content, { ...defaultOptions, ...options }));
 }
 
-/**
- * Display a success message
- * @param {string} message - Success message
- */
 export function displaySuccess(message) {
   if (isSilentMode()) return;
   console.log(chalk.green(`✓ ${message}`));
 }
 
-/**
- * Display an error message
- * @param {string} message - Error message
- */
 export function displayError(message) {
   if (isSilentMode()) return;
   console.log(chalk.red(`✗ ${message}`));
 }
 
-/**
- * Display a warning message
- * @param {string} message - Warning message
- */
 export function displayWarning(message) {
   if (isSilentMode()) return;
   console.log(chalk.yellow(`⚠ ${message}`));
 }
 
-/**
- * Display an info message
- * @param {string} message - Info message
- */
 export function displayInfo(message) {
   if (isSilentMode()) return;
   console.log(chalk.blue(`ℹ ${message}`));

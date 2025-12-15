@@ -1,8 +1,3 @@
-/**
- * Rule Transformer Module
- * Handles conversion of Cursor rules to profile rules
- * Copyright (c) 2025 TaskMaster AI LLC
- */
 
 import fs from 'fs';
 import path from 'path';
@@ -11,9 +6,6 @@ import { removeTaskMasterMCPConfiguration, setupMCPConfiguration } from './creat
 import { RULE_PROFILES } from '../constants/profiles.js';
 import * as profilesModule from '../profiles/index.js';
 
-/**
- * Log utility
- */
 function log(level, message) {
   const prefix = {
     info: '\x1b[36mℹ\x1b[0m',
@@ -27,20 +19,10 @@ function log(level, message) {
   }
 }
 
-/**
- * Check if a profile is valid
- * @param {string} profile - Profile name
- * @returns {boolean}
- */
 export function isValidProfile(profile) {
   return RULE_PROFILES.includes(profile);
 }
 
-/**
- * Get rule profile by name
- * @param {string} name - Profile name
- * @returns {Object|null} Profile object or null if not found
- */
 export function getRulesProfile(name) {
   if (!isValidProfile(name)) {
     return null;
@@ -58,9 +40,6 @@ export function getRulesProfile(name) {
   return profile;
 }
 
-/**
- * Replace basic Cursor terms with profile equivalents
- */
 function replaceBasicTerms(content, conversionConfig) {
   let result = content;
 
@@ -79,9 +58,6 @@ function replaceBasicTerms(content, conversionConfig) {
   return result;
 }
 
-/**
- * Replace Cursor tool references with profile tool equivalents
- */
 function replaceToolReferences(content, conversionConfig) {
   let result = content;
 
@@ -106,9 +82,6 @@ function replaceToolReferences(content, conversionConfig) {
   return result;
 }
 
-/**
- * Update documentation URLs to point to profile documentation
- */
 function updateDocReferences(content, conversionConfig) {
   let result = content;
 
@@ -123,21 +96,11 @@ function updateDocReferences(content, conversionConfig) {
   return result;
 }
 
-/**
- * Update file references in markdown links
- */
 function updateFileReferences(content, conversionConfig) {
   const { pathPattern, replacement } = conversionConfig.fileReferences;
   return content.replace(pathPattern, replacement);
 }
 
-/**
- * Transform rule content to profile-specific rules
- * @param {string} content - The content to transform
- * @param {Object} conversionConfig - The conversion configuration
- * @param {Object} globalReplacements - Global text replacements
- * @returns {string} - The transformed content
- */
 function transformRuleContent(content, conversionConfig, globalReplacements) {
   let result = content;
 
@@ -157,13 +120,6 @@ function transformRuleContent(content, conversionConfig, globalReplacements) {
   return result;
 }
 
-/**
- * Convert a Cursor rule file to a profile-specific rule file
- * @param {string} sourcePath - Path to the source .mdc file
- * @param {string} targetPath - Path to the target file
- * @param {Object} profile - The profile configuration
- * @returns {boolean} - Success status
- */
 export function convertRuleToProfileRule(sourcePath, targetPath, profile) {
   const { conversionConfig, globalReplacements } = profile;
   try {
@@ -187,9 +143,6 @@ export function convertRuleToProfileRule(sourcePath, targetPath, profile) {
   }
 }
 
-/**
- * Convert all Cursor rules to profile rules for a specific profile
- */
 export function convertAllRulesToProfileRules(projectRoot, profile) {
   const targetDir = path.join(projectRoot, profile.rulesDir);
 
@@ -277,12 +230,6 @@ export function convertAllRulesToProfileRules(projectRoot, profile) {
   return { success: Math.max(success, 1), failed };
 }
 
-/**
- * Remove only TaskMaster specific files from a profile
- * @param {string} projectRoot - Target project directory
- * @param {Object} profile - Profile configuration
- * @returns {Object} Result object
- */
 export function removeProfileRules(projectRoot, profile) {
   const targetDir = path.join(projectRoot, profile.rulesDir);
   const profileDir = path.join(projectRoot, profile.profileDir);
@@ -377,8 +324,6 @@ export function removeProfileRules(projectRoot, profile) {
             }
           }
         }
-
-        // Check for other (non-TaskMaster) files
         const remainingFiles = allFilePaths.filter(
           (file) => !taskMasterFiles.includes(file)
         );
@@ -447,11 +392,6 @@ export function removeProfileRules(projectRoot, profile) {
   return result;
 }
 
-/**
- * Get installed profiles in a project
- * @param {string} projectRoot - Project root directory
- * @returns {string[]} Array of installed profile names
- */
 export function getInstalledProfiles(projectRoot) {
   const installed = [];
   
@@ -472,34 +412,16 @@ export function getInstalledProfiles(projectRoot) {
   return installed;
 }
 
-/**
- * Check if removing profiles would leave no profiles
- * @param {string} projectRoot - Project root
- * @param {string[]} profilesToRemove - Profiles to remove
- * @returns {boolean}
- */
 export function wouldRemovalLeaveNoProfiles(projectRoot, profilesToRemove) {
   const installed = getInstalledProfiles(projectRoot);
   const remaining = installed.filter(p => !profilesToRemove.includes(p));
   return remaining.length === 0;
 }
 
-/**
- * Generate profile summary for add operation
- * @param {string} profileName - Profile name
- * @param {Object} result - Add result
- * @returns {string}
- */
 export function generateProfileSummary(profileName, result) {
   return `Added ${profileName} rules: ${result.success} files processed, ${result.failed} failed`;
 }
 
-/**
- * Generate profile summary for remove operation
- * @param {string} profileName - Profile name
- * @param {Object} result - Remove result
- * @returns {string}
- */
 export function generateProfileRemovalSummary(profileName, result) {
   if (result.skipped) {
     return `Skipped ${profileName} (not installed)`;
@@ -510,11 +432,6 @@ export function generateProfileRemovalSummary(profileName, result) {
   return `Removed ${profileName} rules: ${result.filesRemoved.length} files removed`;
 }
 
-/**
- * Categorize profile results for summary
- * @param {Object[]} results - Array of add results
- * @returns {Object}
- */
 export function categorizeProfileResults(results) {
   const allSuccessfulProfiles = results
     .filter(r => r.success > 0 || r.failed === 0)
@@ -525,11 +442,6 @@ export function categorizeProfileResults(results) {
   return { allSuccessfulProfiles, totalSuccess, totalFailed };
 }
 
-/**
- * Categorize removal results for summary
- * @param {Object[]} results - Array of removal results
- * @returns {Object}
- */
 export function categorizeRemovalResults(results) {
   const successfulRemovals = results
     .filter(r => r.success && !r.skipped)

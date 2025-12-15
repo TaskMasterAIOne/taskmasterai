@@ -1,7 +1,3 @@
-/**
- * Shared utilities for MCP tools
- * Aligned with @tm/mcp patterns
- */
 
 import fs from 'fs';
 import path from 'path';
@@ -9,9 +5,6 @@ import { findProjectRoot } from '../lib/config.js';
 import { getLicenseStatus } from '../lib/license.js';
 import { enforceUsageLimit, incrementUsage } from '../lib/usage.js';
 
-/**
- * Get version information from package.json
- */
 export function getVersionInfo() {
   try {
     const pkgPath = path.join(process.cwd(), 'package.json');
@@ -28,9 +21,6 @@ export function getVersionInfo() {
   return { version: '1.0.0', name: 'taskmaster-ai' };
 }
 
-/**
- * Get current tag from state.json
- */
 export function getCurrentTag(projectRoot) {
   try {
     const stateJsonPath = path.join(projectRoot, '.taskmaster-ai', 'state.json');
@@ -44,9 +34,6 @@ export function getCurrentTag(projectRoot) {
   }
 }
 
-/**
- * Normalize project root path (handles URI encoding, file:// protocol)
- */
 export function normalizeProjectRoot(rawPath) {
   if (!rawPath) return process.cwd();
 
@@ -57,7 +44,6 @@ export function normalizeProjectRoot(rawPath) {
     try {
       pathString = decodeURIComponent(pathString);
     } catch {
-      // If decoding fails, use as-is
     }
 
     // Strip file:// prefix
@@ -81,10 +67,6 @@ export function normalizeProjectRoot(rawPath) {
   }
 }
 
-/**
- * Get project root with fallback resolution
- * Priority: args.projectRoot > env > session > cwd
- */
 export function getProjectRoot(argsProjectRoot, session = null) {
   // 1. Check env variable
   if (process.env.TASK_MASTER_PROJECT_ROOT) {
@@ -110,10 +92,6 @@ export function getProjectRoot(argsProjectRoot, session = null) {
   return process.cwd();
 }
 
-/**
- * Creates a content response for MCP tools
- * FastMCP requires text type, so we format objects as JSON strings
- */
 export function createContentResponse(content) {
   return {
     content: [
@@ -127,9 +105,6 @@ export function createContentResponse(content) {
   };
 }
 
-/**
- * Handle API result with standardized error handling and response formatting
- */
 export function handleApiResult(options) {
   const {
     result,
@@ -182,9 +157,6 @@ export function handleApiResult(options) {
   };
 }
 
-/**
- * Higher-order function that wraps MCP tool execution with normalized project root
- */
 export function withNormalizedProjectRoot(fn) {
   return async (args, context) => {
     const { log, session } = context;
@@ -218,9 +190,6 @@ export function withNormalizedProjectRoot(fn) {
   };
 }
 
-/**
- * Higher-order function for tool execution with context
- */
 export function withToolContext(commandName, executeFn) {
   return withNormalizedProjectRoot(async (args, context) => {
     const enhancedContext = {
@@ -233,22 +202,11 @@ export function withToolContext(commandName, executeFn) {
   });
 }
 
-/**
- * Higher-order function for AI-powered tool execution with license and usage validation
- * Use this for tools that make AI calls
- * @param {string} commandName - Command name for logging
- * @param {string} operationType - Operation type for usage tracking (e.g., 'tasksParsed', 'tasksExpanded')
- * @param {Function} executeFn - Function to execute
- * @param {Object} options - Options
- * @param {Function} options.countFn - Function to determine operation count (receives args, defaults to 1)
- */
 export function withAIToolContext(commandName, operationType, executeFn, options = {}) {
   const { countFn = () => 1 } = options;
   
   return withNormalizedProjectRoot(async (args, context) => {
     const { log } = context;
-    
-    // Check license status
     try {
       const licenseStatus = await getLicenseStatus();
       if (!licenseStatus.valid) {
@@ -268,8 +226,6 @@ export function withAIToolContext(commandName, operationType, executeFn, options
       log?.warn?.(`License check warning: ${licenseError.message}`);
       // Continue - license check is best-effort for offline mode
     }
-    
-    // Check usage limits
     const operationCount = countFn(args);
     try {
       enforceUsageLimit(operationCount);
@@ -292,11 +248,7 @@ export function withAIToolContext(commandName, operationType, executeFn, options
       session: context.session,
       projectRoot: args.projectRoot,
     };
-    
-    // Execute the actual tool
     const result = await executeFn(args, enhancedContext);
-    
-    // Track usage after successful operation (async, don't block)
     if (!result.isError) {
       incrementUsage(operationType, operationCount)
         .catch(err => log?.warn?.(`Usage tracking failed: ${err.message}`));

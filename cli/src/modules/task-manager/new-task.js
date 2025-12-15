@@ -1,13 +1,3 @@
-/**
- * New Task Module
- * Adds a new task using AI or manual input
- * Copyright (c) 2025 TaskMaster AI LLC
- * 
- * TaskMaster AI Terminology:
- * - "new" instead of "add-task"
- * - "steps" instead of "subtasks"
- * - "links" instead of "dependencies"
- */
 
 import fs from 'fs';
 import boxen from 'boxen';
@@ -30,21 +20,6 @@ import {
 const TASK_PRIORITY_OPTIONS = ['high', 'medium', 'low'];
 const DEFAULT_PRIORITY = 'medium';
 
-/**
- * Add a new task
- * @param {string} tasksPath - Path to the tasks.json file
- * @param {Object} options - Task options
- * @param {string} options.prompt - Description of the task (for AI structuring)
- * @param {string} [options.title] - Direct title (skip AI)
- * @param {string} [options.description] - Direct description
- * @param {Array|string} [options.links] - Task dependencies
- * @param {string} [options.priority] - Task priority (high/medium/low)
- * @param {boolean} [options.useResearch] - Use research AI
- * @param {string} [options.projectRoot] - Project root path
- * @param {string} [options.context] - Context name
- * @param {string} [options.outputFormat] - Output format (text or json)
- * @returns {Promise<Object>} Created task data
- */
 async function newTask(tasksPath, options = {}) {
   const {
     prompt,
@@ -84,13 +59,9 @@ async function newTask(tasksPath, options = {}) {
     }
     
     log('info', `Creating new task${useResearch ? ' with research' : ''}...`);
-    
-    // Show loading indicator
     if (outputFormat === 'text' && !isSilentMode()) {
       loadingIndicator = startLoadingIndicator('Creating task...');
     }
-    
-    // Read current tasks
     const data = readJSON(tasksPath, projectRoot, context);
     if (!data) {
       throw new Error('Could not read tasks file');
@@ -131,8 +102,6 @@ async function newTask(tasksPath, options = {}) {
         log('warn', `Linked task ${linkId} not found - will be created as dependency anyway`);
       }
     }
-    
-    // Add task
     data.tasks.push(newTaskData);
     
     // Stop loading
@@ -214,11 +183,6 @@ async function newTask(tasksPath, options = {}) {
   }
 }
 
-/**
- * Extract a title from a prompt
- * @param {string} prompt - Full prompt text
- * @returns {string} Extracted title
- */
 function extractTitle(prompt) {
   if (!prompt) return 'New Task';
   
@@ -232,11 +196,6 @@ function extractTitle(prompt) {
   return firstSentence.substring(0, 57) + '...';
 }
 
-/**
- * Get priority color function
- * @param {string} priority - Priority level
- * @returns {Function} Chalk color function
- */
 function getPriorityColor(priority) {
   const colors = {
     high: chalk.red.bold,

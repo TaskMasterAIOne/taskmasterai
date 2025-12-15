@@ -1,24 +1,14 @@
-/**
- * Task Manager for TaskMaster AI
- * Handles task CRUD operations and state management
- */
 
 import fs from 'fs';
 import path from 'path';
 import { readTasks, writeTasks, findProjectRoot, readState, writeState, getProjectConfigDir, readProjectConfig } from './config.js';
 import { syncTasksToCloud } from './license.js';
 
-/**
- * Get the current tag from state or default to 'master'
- */
 export function getCurrentTag(projectRoot = process.cwd()) {
   const state = readState(projectRoot);
   return state.currentTag || 'master';
 }
 
-/**
- * Set the current tag in state
- */
 export function setCurrentTag(tag, projectRoot = process.cwd()) {
   const state = readState(projectRoot);
   state.currentTag = tag;
@@ -27,9 +17,6 @@ export function setCurrentTag(tag, projectRoot = process.cwd()) {
   return tag;
 }
 
-/**
- * Get tasks for a specific tag
- */
 export function getTasksForTag(tag = 'master', projectRoot = process.cwd()) {
   const tasksData = readTasks(projectRoot);
   
@@ -40,17 +27,11 @@ export function getTasksForTag(tag = 'master', projectRoot = process.cwd()) {
   return tasksData.tags[tag].tasks || [];
 }
 
-/**
- * Get all tasks
- */
 export function getAllTasks(projectRoot = process.cwd()) {
   const tag = getCurrentTag(projectRoot);
   return getTasksForTag(tag, projectRoot);
 }
 
-/**
- * Save tasks for a specific tag
- */
 export function saveTasksForTag(tasks, tag = 'master', projectRoot = process.cwd()) {
   const tasksData = readTasks(projectRoot);
   
@@ -71,8 +52,6 @@ export function saveTasksForTag(tasks, tag = 'master', projectRoot = process.cwd
   tasksData.tags[tag].metadata.updatedAt = new Date().toISOString();
   
   writeTasks(tasksData, projectRoot);
-  
-  // Sync to cloud (non-blocking, but log errors in verbose mode)
   try {
     const config = readProjectConfig(projectRoot);
     const projectId = config.projectName || path.basename(projectRoot);
@@ -108,22 +87,14 @@ export function saveTasksForTag(tasks, tag = 'master', projectRoot = process.cwd
   }
 }
 
-/**
- * Save all tasks (to current tag)
- */
 export function saveAllTasks(tasks, projectRoot = process.cwd()) {
   const tag = getCurrentTag(projectRoot);
   saveTasksForTag(tasks, tag, projectRoot);
 }
 
-/**
- * Find a task by ID
- */
 export function findTaskById(taskId, projectRoot = process.cwd()) {
   const tasks = getAllTasks(projectRoot);
   const idStr = String(taskId);
-  
-  // Check if it's a subtask ID (e.g., "1.2")
   if (idStr.includes('.')) {
     const [parentId, subtaskId] = idStr.split('.').map(Number);
     const parentTask = tasks.find(t => t.id === parentId);
@@ -141,9 +112,6 @@ export function findTaskById(taskId, projectRoot = process.cwd()) {
   return tasks.find(t => t.id === Number(taskId)) || null;
 }
 
-/**
- * Get the next available task ID
- */
 export function getNextTaskId(projectRoot = process.cwd()) {
   const tasks = getAllTasks(projectRoot);
   if (tasks.length === 0) return 1;
@@ -152,9 +120,6 @@ export function getNextTaskId(projectRoot = process.cwd()) {
   return maxId + 1;
 }
 
-/**
- * Add a new task
- */
 export function addTask(task, projectRoot = process.cwd()) {
   const tasks = getAllTasks(projectRoot);
   const newId = getNextTaskId(projectRoot);
@@ -174,14 +139,9 @@ export function addTask(task, projectRoot = process.cwd()) {
   return newTask;
 }
 
-/**
- * Update a task
- */
 export function updateTask(taskId, updates, projectRoot = process.cwd()) {
   const tasks = getAllTasks(projectRoot);
   const idStr = String(taskId);
-  
-  // Check if it's a subtask
   if (idStr.includes('.')) {
     const [parentId, subtaskId] = idStr.split('.').map(Number);
     const parentTask = tasks.find(t => t.id === parentId);
@@ -213,14 +173,9 @@ export function updateTask(taskId, updates, projectRoot = process.cwd()) {
   return tasks[taskIndex];
 }
 
-/**
- * Delete a task
- */
 export function deleteTask(taskId, projectRoot = process.cwd()) {
   const tasks = getAllTasks(projectRoot);
   const idStr = String(taskId);
-  
-  // Check if it's a subtask
   if (idStr.includes('.')) {
     const [parentId, subtaskId] = idStr.split('.').map(Number);
     const parentTask = tasks.find(t => t.id === parentId);
@@ -253,16 +208,10 @@ export function deleteTask(taskId, projectRoot = process.cwd()) {
   return true;
 }
 
-/**
- * Set task status
- */
 export function setTaskStatus(taskId, status, projectRoot = process.cwd()) {
   return updateTask(taskId, { status }, projectRoot);
 }
 
-/**
- * Add subtasks to a task
- */
 export function addSubtasks(taskId, subtasks, replace = false, projectRoot = process.cwd()) {
   const tasks = getAllTasks(projectRoot);
   const task = tasks.find(t => t.id === Number(taskId));
@@ -293,9 +242,6 @@ export function addSubtasks(taskId, subtasks, replace = false, projectRoot = pro
   return task;
 }
 
-/**
- * Clear subtasks from a task
- */
 export function clearSubtasks(taskId, projectRoot = process.cwd()) {
   const tasks = getAllTasks(projectRoot);
   const task = tasks.find(t => t.id === Number(taskId));
@@ -307,15 +253,6 @@ export function clearSubtasks(taskId, projectRoot = process.cwd()) {
   return task;
 }
 
-/**
- * Get the next task to work on
- * 
- * Priority order:
- * 1. First look for eligible subtasks of in-progress parent tasks
- * 2. Then fall back to top-level tasks (pending or in-progress with all deps satisfied)
- * 
- * This matches the official claude-task-master behavior
- */
 export function getNextTask(projectRoot = process.cwd()) {
   const tasks = getAllTasks(projectRoot);
   
@@ -422,17 +359,12 @@ export function getNextTask(projectRoot = process.cwd()) {
   return eligibleTasks[0];
 }
 
-/**
- * Add a dependency to a task
- */
 export function addDependency(taskId, dependsOnId, projectRoot = process.cwd()) {
   const tasks = getAllTasks(projectRoot);
   const task = tasks.find(t => t.id === Number(taskId));
   const depTask = tasks.find(t => t.id === Number(dependsOnId));
   
   if (!task || !depTask) return null;
-  
-  // Check for circular dependency
   if (wouldCreateCircularDependency(taskId, dependsOnId, tasks)) {
     throw new Error('This would create a circular dependency');
   }
@@ -449,9 +381,6 @@ export function addDependency(taskId, dependsOnId, projectRoot = process.cwd()) 
   return task;
 }
 
-/**
- * Remove a dependency from a task
- */
 export function removeDependency(taskId, dependsOnId, projectRoot = process.cwd()) {
   const tasks = getAllTasks(projectRoot);
   const task = tasks.find(t => t.id === Number(taskId));
@@ -464,9 +393,6 @@ export function removeDependency(taskId, dependsOnId, projectRoot = process.cwd(
   return task;
 }
 
-/**
- * Check if adding a dependency would create a circular reference
- */
 function wouldCreateCircularDependency(taskId, dependsOnId, tasks) {
   const visited = new Set();
   const stack = [Number(dependsOnId)];
@@ -490,9 +416,6 @@ function wouldCreateCircularDependency(taskId, dependsOnId, tasks) {
   return false;
 }
 
-/**
- * Get task statistics
- */
 export function getTaskStats(projectRoot = process.cwd()) {
   const tasks = getAllTasks(projectRoot);
   
@@ -532,12 +455,8 @@ export function getTaskStats(projectRoot = process.cwd()) {
 }
 
 // ============================================
-// TAG MANAGEMENT
 // ============================================
 
-/**
- * Get all tags with metadata
- */
 export function getAllTags(projectRoot = process.cwd()) {
   const tasksData = readTasks(projectRoot);
   const currentTag = getCurrentTag(projectRoot);
@@ -561,17 +480,12 @@ export function getAllTags(projectRoot = process.cwd()) {
   });
 }
 
-/**
- * Create a new tag
- */
 export function createTag(name, options = {}, projectRoot = process.cwd()) {
   const tasksData = readTasks(projectRoot);
   
   if (!tasksData.tags) {
     tasksData.tags = {};
   }
-  
-  // Check if tag already exists
   if (tasksData.tags[name]) {
     throw new Error(`Tag '${name}' already exists`);
   }
@@ -610,9 +524,6 @@ export function createTag(name, options = {}, projectRoot = process.cwd()) {
   return tasksData.tags[name];
 }
 
-/**
- * Delete a tag
- */
 export function deleteTagData(name, projectRoot = process.cwd()) {
   if (name === 'master') {
     throw new Error("Cannot delete the 'master' tag");
@@ -623,8 +534,6 @@ export function deleteTagData(name, projectRoot = process.cwd()) {
   if (!tasksData.tags || !tasksData.tags[name]) {
     throw new Error(`Tag '${name}' not found`);
   }
-  
-  // If deleting current tag, switch to master
   const currentTag = getCurrentTag(projectRoot);
   if (currentTag === name) {
     setCurrentTag('master', projectRoot);
@@ -636,9 +545,6 @@ export function deleteTagData(name, projectRoot = process.cwd()) {
   return true;
 }
 
-/**
- * Switch to a different tag
- */
 export function switchTag(name, projectRoot = process.cwd()) {
   const tasksData = readTasks(projectRoot);
   
@@ -650,9 +556,6 @@ export function switchTag(name, projectRoot = process.cwd()) {
   return name;
 }
 
-/**
- * Rename a tag
- */
 export function renameTag(oldName, newName, projectRoot = process.cwd()) {
   if (oldName === 'master') {
     throw new Error("Cannot rename the 'master' tag");
@@ -677,8 +580,6 @@ export function renameTag(oldName, newName, projectRoot = process.cwd()) {
   tasksData.tags[newName] = tasksData.tags[oldName];
   tasksData.tags[newName].metadata.renamedAt = new Date().toISOString();
   delete tasksData.tags[oldName];
-  
-  // Update current tag if it was renamed
   const currentTag = getCurrentTag(projectRoot);
   if (currentTag === oldName) {
     setCurrentTag(newName, projectRoot);
@@ -688,9 +589,6 @@ export function renameTag(oldName, newName, projectRoot = process.cwd()) {
   return newName;
 }
 
-/**
- * Copy a tag
- */
 export function copyTag(sourceName, targetName, options = {}, projectRoot = process.cwd()) {
   const tasksData = readTasks(projectRoot);
   
@@ -721,12 +619,8 @@ export function copyTag(sourceName, targetName, options = {}, projectRoot = proc
 }
 
 // ============================================
-// DEPENDENCY VALIDATION
 // ============================================
 
-/**
- * Validate all dependencies
- */
 export function validateDependencies(projectRoot = process.cwd()) {
   const tasks = getAllTasks(projectRoot);
   const issues = [];
@@ -736,7 +630,6 @@ export function validateDependencies(projectRoot = process.cwd()) {
     if (!task.dependencies) continue;
     
     for (const depId of task.dependencies) {
-      // Check if dependency exists
       if (!taskIds.has(depId)) {
         issues.push({
           type: 'missing',
@@ -745,8 +638,6 @@ export function validateDependencies(projectRoot = process.cwd()) {
           message: `Task ${task.id} depends on non-existent task ${depId}`,
         });
       }
-      
-      // Check for circular dependency
       if (wouldCreateCircularDep(task.id, depId, tasks)) {
         issues.push({
           type: 'circular',
@@ -761,9 +652,6 @@ export function validateDependencies(projectRoot = process.cwd()) {
   return issues;
 }
 
-/**
- * Helper to check circular dependencies
- */
 function wouldCreateCircularDep(taskId, depId, tasks) {
   const visited = new Set();
   const stack = [depId];
@@ -787,9 +675,6 @@ function wouldCreateCircularDep(taskId, depId, tasks) {
   return false;
 }
 
-/**
- * Fix dependency issues
- */
 export function fixDependencies(projectRoot = process.cwd()) {
   const tasks = getAllTasks(projectRoot);
   const taskIds = new Set(tasks.map(t => t.id));
@@ -821,12 +706,8 @@ export function fixDependencies(projectRoot = process.cwd()) {
 }
 
 // ============================================
-// TASK ORGANIZATION
 // ============================================
 
-/**
- * Move a task or subtask to a new position
- */
 export function moveTask(fromId, toId, projectRoot = process.cwd()) {
   const tasks = getAllTasks(projectRoot);
   const fromStr = String(fromId);
@@ -854,7 +735,6 @@ export function moveTask(fromId, toId, projectRoot = process.cwd()) {
   // Find insertion point or create placeholder
   let toIndex = tasks.findIndex(t => t.id === Number(toStr));
   if (toIndex === -1) {
-    // Insert at position based on ID
     task.id = Number(toStr);
     tasks.push(task);
     tasks.sort((a, b) => a.id - b.id);
@@ -862,17 +742,12 @@ export function moveTask(fromId, toId, projectRoot = process.cwd()) {
     task.id = Number(toStr);
     tasks.splice(toIndex, 0, task);
   }
-  
-  // Update dependency references
   updateDependencyReferences(tasks, Number(fromStr), Number(toStr));
   
   saveAllTasks(tasks, projectRoot);
   return task;
 }
 
-/**
- * Move a subtask
- */
 function moveSubtask(fromStr, toStr, tasks, projectRoot) {
   const [fromParentId, fromSubtaskId] = fromStr.split('.').map(Number);
   const fromParent = tasks.find(t => t.id === fromParentId);
@@ -889,7 +764,6 @@ function moveSubtask(fromStr, toStr, tasks, projectRoot) {
   const subtask = fromParent.subtasks.splice(subtaskIndex, 1)[0];
   
   if (toStr.includes('.')) {
-    // Move to another subtask position
     const [toParentId, toSubtaskId] = toStr.split('.').map(Number);
     const toParent = tasks.find(t => t.id === toParentId);
     
@@ -925,9 +799,6 @@ function moveSubtask(fromStr, toStr, tasks, projectRoot) {
   return subtask;
 }
 
-/**
- * Move a task to become a subtask
- */
 function moveTaskToSubtask(fromStr, toStr, tasks, projectRoot) {
   const [toParentId, toSubtaskId] = toStr.split('.').map(Number);
   const taskIndex = tasks.findIndex(t => t.id === Number(fromStr));
@@ -957,17 +828,12 @@ function moveTaskToSubtask(fromStr, toStr, tasks, projectRoot) {
   
   toParent.subtasks.push(subtask);
   toParent.subtasks.sort((a, b) => a.id - b.id);
-  
-  // Update dependencies
   updateDependencyReferences(tasks, Number(fromStr), null);
   
   saveAllTasks(tasks, projectRoot);
   return subtask;
 }
 
-/**
- * Update dependency references when a task is moved
- */
 function updateDependencyReferences(tasks, oldId, newId) {
   for (const task of tasks) {
     if (!task.dependencies) continue;
@@ -976,15 +842,11 @@ function updateDependencyReferences(tasks, oldId, newId) {
       // Remove references to deleted task
       task.dependencies = task.dependencies.filter(d => d !== oldId);
     } else {
-      // Update references
       task.dependencies = task.dependencies.map(d => d === oldId ? newId : d);
     }
   }
 }
 
-/**
- * Add a single subtask manually
- */
 export function addSingleSubtask(parentId, subtaskData, projectRoot = process.cwd()) {
   const tasks = getAllTasks(projectRoot);
   const parent = tasks.find(t => t.id === Number(parentId));
@@ -996,8 +858,6 @@ export function addSingleSubtask(parentId, subtaskData, projectRoot = process.cw
   if (!parent.subtasks) {
     parent.subtasks = [];
   }
-  
-  // Get next subtask ID
   const nextId = parent.subtasks.length > 0 
     ? Math.max(...parent.subtasks.map(s => s.id)) + 1 
     : 1;
@@ -1018,12 +878,8 @@ export function addSingleSubtask(parentId, subtaskData, projectRoot = process.cw
 }
 
 // ============================================
-// FILE GENERATION
 // ============================================
 
-/**
- * Generate individual task markdown files
- */
 export function generateTaskFiles(projectRoot = process.cwd(), outputDir = null) {
   const tasks = getAllTasks(projectRoot);
   const tasksDir = outputDir || path.join(getProjectConfigDir(projectRoot), 'tasks');
@@ -1047,9 +903,6 @@ export function generateTaskFiles(projectRoot = process.cwd(), outputDir = null)
   return generatedFiles;
 }
 
-/**
- * Format a task as markdown
- */
 function formatTaskAsMarkdown(task) {
   let content = `# Task ID: ${task.id}
 # Title: ${task.title}

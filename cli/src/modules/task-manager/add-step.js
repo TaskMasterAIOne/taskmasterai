@@ -1,12 +1,3 @@
-/**
- * Add Step Module
- * Adds a new step to a task or converts a task to a step
- * Copyright (c) 2025 TaskMaster AI LLC
- * 
- * TaskMaster AI Terminology:
- * - "add-step" instead of "add-subtask"
- * - "steps" instead of "subtasks"
- */
 
 import fs from 'fs';
 import boxen from 'boxen';
@@ -23,22 +14,6 @@ import {
   getStatusWithColor
 } from '../ui.js';
 
-/**
- * Add a new step to a parent task
- * @param {string} tasksPath - Path to the tasks.json file
- * @param {number|string} parentId - ID of the parent task
- * @param {Object} options - Step options
- * @param {string} [options.title] - Step title (required unless converting)
- * @param {string} [options.description] - Step description
- * @param {string} [options.details] - Implementation details
- * @param {Array|string} [options.links] - Step dependencies
- * @param {string} [options.status] - Initial status (default: pending)
- * @param {number|string} [options.convertTaskId] - Convert existing task to step
- * @param {string} [options.projectRoot] - Project root path
- * @param {string} [options.context] - Context name
- * @param {string} [options.outputFormat] - Output format (text or json)
- * @returns {Promise<Object>} Created step data
- */
 async function addStep(tasksPath, parentId, options = {}) {
   const {
     title,
@@ -64,8 +39,6 @@ async function addStep(tasksPath, parentId, options = {}) {
     }
     
     log('info', `Adding step to task #${parentIdNum}...`);
-    
-    // Read tasks
     const data = readJSON(tasksPath, projectRoot, context);
     if (!data || !data.tasks) {
       throw new Error('No valid tasks found in tasks file');
@@ -81,7 +54,6 @@ async function addStep(tasksPath, parentId, options = {}) {
     const stepsField = parentTask.steps ? 'steps' : 'subtasks';
     if (!parentTask[stepsField]) {
       parentTask[stepsField] = [];
-      // Also set the alternate field for backward compatibility
       if (stepsField === 'steps') {
         parentTask.subtasks = parentTask.steps;
       } else {
@@ -111,8 +83,6 @@ async function addStep(tasksPath, parentId, options = {}) {
       const maxStepId = parentTask[stepsField].length > 0
         ? Math.max(...parentTask[stepsField].map(s => s.id))
         : 0;
-      
-      // Create step from task
       newStep = {
         id: maxStepId + 1,
         title: taskToConvert.title,
@@ -122,15 +92,12 @@ async function addStep(tasksPath, parentId, options = {}) {
         links: taskToConvert.dependencies || taskToConvert.links || [],
         dependencies: taskToConvert.dependencies || taskToConvert.links || []
       };
-      
-      // Remove the converted task
       data.tasks.splice(taskIndex, 1);
       convertedFrom = taskIdNum;
       
       log('info', `Converted task #${taskIdNum} to step ${parentIdNum}.${newStep.id}`);
       
     } else {
-      // Create new step
       const maxStepId = parentTask[stepsField].length > 0
         ? Math.max(...parentTask[stepsField].map(s => s.id))
         : 0;
@@ -153,11 +120,7 @@ async function addStep(tasksPath, parentId, options = {}) {
         dependencies: stepLinks // Backward compatibility
       };
     }
-    
-    // Add step to parent
     parentTask[stepsField].push(newStep);
-    
-    // Sync both field names
     if (stepsField === 'steps') {
       parentTask.subtasks = parentTask.steps;
     } else {
@@ -241,16 +204,6 @@ async function addStep(tasksPath, parentId, options = {}) {
   }
 }
 
-/**
- * Remove a step from a task
- * @param {string} tasksPath - Path to the tasks.json file
- * @param {string} stepId - Step ID in format "parentId.stepId"
- * @param {Object} options - Options
- * @param {boolean} [options.convert] - Convert to standalone task
- * @param {string} [options.projectRoot] - Project root path
- * @param {string} [options.context] - Context name
- * @returns {Promise<Object>} Result
- */
 async function removeStep(tasksPath, stepId, options = {}) {
   const { convert = false, projectRoot, context, outputFormat = 'text' } = options;
   
@@ -264,8 +217,6 @@ async function removeStep(tasksPath, stepId, options = {}) {
     const stepIdNum = parseInt(stepIdStr, 10);
     
     log('info', `Removing step ${stepId}${convert ? ' (converting to task)' : ''}...`);
-    
-    // Read tasks
     const data = readJSON(tasksPath, projectRoot, context);
     if (!data || !data.tasks) {
       throw new Error('No valid tasks found');
@@ -294,7 +245,6 @@ async function removeStep(tasksPath, stepId, options = {}) {
     let newTaskId = null;
     
     if (convert) {
-      // Convert to standalone task
       const maxId = Math.max(...data.tasks.map(t => t.id));
       newTaskId = maxId + 1;
       
@@ -317,8 +267,6 @@ async function removeStep(tasksPath, stepId, options = {}) {
     
     // Remove step
     steps.splice(stepIndex, 1);
-    
-    // Sync field names
     if (stepsField === 'steps') {
       parentTask.subtasks = parentTask.steps;
     } else {
@@ -342,20 +290,11 @@ async function removeStep(tasksPath, stepId, options = {}) {
   }
 }
 
-/**
- * Clear all steps from a task
- * @param {string} tasksPath - Path to the tasks.json file
- * @param {number|string} taskId - Task ID or "all"
- * @param {Object} options - Options
- * @returns {Promise<Object>} Result
- */
 async function clearSteps(tasksPath, taskId, options = {}) {
   const { projectRoot, context, outputFormat = 'text' } = options;
   
   try {
     log('info', `Clearing steps from ${taskId === 'all' ? 'all tasks' : `task #${taskId}`}...`);
-    
-    // Read tasks
     const data = readJSON(tasksPath, projectRoot, context);
     if (!data || !data.tasks) {
       throw new Error('No valid tasks found');

@@ -1,8 +1,3 @@
-/**
- * Git Utilities
- * Helper functions for Git operations
- * Copyright (c) 2025 TaskMaster AI LLC
- */
 
 import { execSync, exec } from 'child_process';
 import path from 'path';
@@ -10,11 +5,6 @@ import fs from 'fs';
 
 import { log } from '../utils.js';
 
-/**
- * Check if a directory is a Git repository
- * @param {string} dir - Directory path
- * @returns {boolean} True if Git repo
- */
 function isGitRepo(dir = process.cwd()) {
   try {
     execSync('git rev-parse --is-inside-work-tree', {
@@ -27,11 +17,6 @@ function isGitRepo(dir = process.cwd()) {
   }
 }
 
-/**
- * Get the current Git branch name
- * @param {string} dir - Directory path
- * @returns {string|null} Branch name or null
- */
 function getCurrentBranch(dir = process.cwd()) {
   try {
     const branch = execSync('git rev-parse --abbrev-ref HEAD', {
@@ -45,11 +30,6 @@ function getCurrentBranch(dir = process.cwd()) {
   }
 }
 
-/**
- * Get the Git root directory
- * @param {string} dir - Starting directory
- * @returns {string|null} Git root path or null
- */
 function getGitRoot(dir = process.cwd()) {
   try {
     const root = execSync('git rev-parse --show-toplevel', {
@@ -63,12 +43,6 @@ function getGitRoot(dir = process.cwd()) {
   }
 }
 
-/**
- * Get the current commit hash
- * @param {string} dir - Directory path
- * @param {boolean} short - Use short hash
- * @returns {string|null} Commit hash or null
- */
 function getCurrentCommit(dir = process.cwd(), short = true) {
   try {
     const cmd = short ? 'git rev-parse --short HEAD' : 'git rev-parse HEAD';
@@ -83,11 +57,6 @@ function getCurrentCommit(dir = process.cwd(), short = true) {
   }
 }
 
-/**
- * Check if there are uncommitted changes
- * @param {string} dir - Directory path
- * @returns {boolean} True if there are changes
- */
 function hasUncommittedChanges(dir = process.cwd()) {
   try {
     const status = execSync('git status --porcelain', {
@@ -101,11 +70,6 @@ function hasUncommittedChanges(dir = process.cwd()) {
   }
 }
 
-/**
- * Get list of changed files
- * @param {string} dir - Directory path
- * @returns {Array<Object>} List of changed files
- */
 function getChangedFiles(dir = process.cwd()) {
   try {
     const output = execSync('git status --porcelain', {
@@ -137,12 +101,6 @@ function getChangedFiles(dir = process.cwd()) {
   }
 }
 
-/**
- * Get recent commit messages
- * @param {string} dir - Directory path
- * @param {number} count - Number of commits
- * @returns {Array<Object>} Commit info
- */
 function getRecentCommits(dir = process.cwd(), count = 5) {
   try {
     const output = execSync(
@@ -168,12 +126,6 @@ function getRecentCommits(dir = process.cwd(), count = 5) {
   }
 }
 
-/**
- * Create a Git branch
- * @param {string} branchName - Branch name
- * @param {string} dir - Directory path
- * @returns {boolean} Success
- */
 function createBranch(branchName, dir = process.cwd()) {
   try {
     execSync(`git checkout -b ${branchName}`, {
@@ -188,12 +140,6 @@ function createBranch(branchName, dir = process.cwd()) {
   }
 }
 
-/**
- * Switch to a Git branch
- * @param {string} branchName - Branch name
- * @param {string} dir - Directory path
- * @returns {boolean} Success
- */
 function switchBranch(branchName, dir = process.cwd()) {
   try {
     execSync(`git checkout ${branchName}`, {
@@ -208,12 +154,6 @@ function switchBranch(branchName, dir = process.cwd()) {
   }
 }
 
-/**
- * Stage files for commit
- * @param {Array<string>} files - File paths (or ['.'] for all)
- * @param {string} dir - Directory path
- * @returns {boolean} Success
- */
 function stageFiles(files = ['.'], dir = process.cwd()) {
   try {
     const fileList = files.join(' ');
@@ -228,12 +168,6 @@ function stageFiles(files = ['.'], dir = process.cwd()) {
   }
 }
 
-/**
- * Create a commit
- * @param {string} message - Commit message
- * @param {string} dir - Directory path
- * @returns {boolean} Success
- */
 function commit(message, dir = process.cwd()) {
   try {
     // Escape quotes in message
@@ -250,11 +184,6 @@ function commit(message, dir = process.cwd()) {
   }
 }
 
-/**
- * Get a sanitized branch name from a string
- * @param {string} text - Text to convert
- * @returns {string} Branch name
- */
 function toBranchName(text) {
   return text
     .toLowerCase()
@@ -263,11 +192,6 @@ function toBranchName(text) {
     .substring(0, 50);
 }
 
-/**
- * Get all local branches
- * @param {string} dir - Directory path
- * @returns {Array<string>} Branch names
- */
 function getLocalBranches(dir = process.cwd()) {
   try {
     const output = execSync('git branch', {
@@ -285,22 +209,10 @@ function getLocalBranches(dir = process.cwd()) {
   }
 }
 
-/**
- * Check if a branch exists
- * @param {string} branchName - Branch name
- * @param {string} dir - Directory path
- * @returns {boolean} True if exists
- */
 function branchExists(branchName, dir = process.cwd()) {
   return getLocalBranches(dir).includes(branchName);
 }
 
-/**
- * Check if a branch name is valid for context creation
- * Some branch names (like HEAD, main, master) shouldn't be used for contexts
- * @param {string} branchName - Branch name to validate
- * @returns {boolean} True if valid for context creation
- */
 function isValidBranchForContext(branchName) {
   if (!branchName || typeof branchName !== 'string') {
     return false;
@@ -320,12 +232,6 @@ function isValidBranchForContext(branchName) {
   return true;
 }
 
-/**
- * Sanitize a git branch name for use as a context name
- * Converts branch name to a valid context name (alphanumeric, hyphens, underscores)
- * @param {string} branchName - Git branch name
- * @returns {string} Sanitized context name
- */
 function sanitizeBranchNameForContext(branchName) {
   if (!branchName || typeof branchName !== 'string') {
     return 'unnamed-context';
@@ -356,11 +262,6 @@ function sanitizeBranchNameForContext(branchName) {
   return contextName;
 }
 
-/**
- * Alias for isGitRepo for consistency with main project naming
- * @param {string} dir - Directory path
- * @returns {Promise<boolean>} True if Git repo
- */
 async function isGitRepository(dir = process.cwd()) {
   return isGitRepo(dir);
 }

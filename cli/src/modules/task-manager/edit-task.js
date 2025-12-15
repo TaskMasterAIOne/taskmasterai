@@ -1,11 +1,3 @@
-/**
- * Edit Task Module
- * Updates a task with new information
- * Copyright (c) 2025 TaskMaster AI LLC
- * 
- * TaskMaster AI Terminology:
- * - "edit" instead of "update-task"
- */
 
 import fs from 'fs';
 import boxen from 'boxen';
@@ -24,19 +16,6 @@ import {
   stopLoadingIndicator
 } from '../ui.js';
 
-/**
- * Edit/update a task with new information
- * @param {string} tasksPath - Path to the tasks.json file
- * @param {string|number} taskId - Task ID to update
- * @param {string} prompt - New information/changes
- * @param {Object} options - Options
- * @param {boolean} [options.useResearch] - Use research AI
- * @param {boolean} [options.append] - Append to details instead of replace
- * @param {string} [options.projectRoot] - Project root path
- * @param {string} [options.context] - Context name
- * @param {string} [options.outputFormat] - Output format
- * @returns {Promise<Object>} Updated task
- */
 async function editTask(tasksPath, taskId, prompt, options = {}) {
   const {
     useResearch = false,
@@ -59,13 +38,9 @@ async function editTask(tasksPath, taskId, prompt, options = {}) {
     }
     
     log('info', `Editing task ${taskId}${append ? ' (append mode)' : ''}...`);
-    
-    // Show loading indicator
     if (outputFormat === 'text' && !isSilentMode()) {
       loadingIndicator = startLoadingIndicator(`Updating task ${taskId}...`);
     }
-    
-    // Read tasks
     const data = readJSON(tasksPath, projectRoot, context);
     if (!data || !data.tasks) {
       throw new Error('No valid tasks found');
@@ -104,13 +79,9 @@ async function editTask(tasksPath, taskId, prompt, options = {}) {
         throw new Error(`Task #${taskIdNum} not found`);
       }
     }
-    
-    // Store old values for comparison
     const oldTitle = task.title;
     const oldDescription = task.description;
     const oldDetails = task.details;
-    
-    // Update task based on mode
     if (append) {
       // Append mode - add timestamped entry to details
       const timestamp = new Date().toISOString();
@@ -135,7 +106,6 @@ async function editTask(tasksPath, taskId, prompt, options = {}) {
     } else {
       // Replace mode - update fields based on prompt
       // In production, this would use AI to intelligently update
-      // For now, update description if short, details if long
       
       if (prompt.length < 200) {
         task.description = prompt;
@@ -209,14 +179,6 @@ async function editTask(tasksPath, taskId, prompt, options = {}) {
   }
 }
 
-/**
- * Bulk update multiple tasks
- * @param {string} tasksPath - Path to the tasks.json file
- * @param {number} fromId - Starting task ID
- * @param {string} prompt - Update context/changes
- * @param {Object} options - Options
- * @returns {Promise<Object>} Update results
- */
 async function editTasks(tasksPath, fromId, prompt, options = {}) {
   const { useResearch = false, projectRoot, context, outputFormat = 'text' } = options;
   
@@ -224,13 +186,9 @@ async function editTasks(tasksPath, fromId, prompt, options = {}) {
   
   try {
     log('info', `Updating tasks from ID ${fromId}...`);
-    
-    // Show loading
     if (outputFormat === 'text' && !isSilentMode()) {
       loadingIndicator = startLoadingIndicator('Updating tasks...');
     }
-    
-    // Read tasks
     const data = readJSON(tasksPath, projectRoot, context);
     if (!data || !data.tasks) {
       throw new Error('No valid tasks found');
@@ -252,8 +210,6 @@ async function editTasks(tasksPath, fromId, prompt, options = {}) {
       
       return { success: true, updated: 0 };
     }
-    
-    // Update each task
     const timestamp = new Date().toISOString();
     const formattedTime = new Date().toLocaleString('en-US', {
       month: 'short',

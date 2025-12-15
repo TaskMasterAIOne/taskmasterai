@@ -1,19 +1,9 @@
-/**
- * Analysis Tools
- * MCP tools for PRD parsing, task expansion, and complexity analysis
- */
 
 import { z } from 'zod';
 import fs from 'fs';
 import path from 'path';
 import { handleApiResult, withToolContext, withAIToolContext } from '../utils.js';
 
-/**
- * Register analysis-related tools with the MCP server
- * @param {import('fastmcp').FastMCP} server - FastMCP server instance
- * @param {Object} options - Registration options
- * @param {boolean} options.coreOnly - Only register core tools (for 'core' tier)
- */
 export function registerAnalysisTools(server, options = {}) {
   const { coreOnly = false } = options;
 
@@ -502,7 +492,7 @@ export function registerAnalysisTools(server, options = {}) {
     }),
   });
 
-  // scope_up_task - Increase task scope/complexity (matching official claude-task-master)
+  // scope_up_task - Increase task scope/complexity (matching )
   server.addTool({
     name: 'scope_up_task',
     description: 'Increase the scope or complexity of a task by adding more subtasks or detail',
@@ -541,8 +531,6 @@ export function registerAnalysisTools(server, options = {}) {
           research,
           prompt: scopePrompt,
         });
-        
-        // Append to existing subtasks
         addSubtasks(id, newSubtasks, false, projectRoot);
         
         return handleApiResult({
@@ -570,7 +558,7 @@ export function registerAnalysisTools(server, options = {}) {
     }),
   });
 
-  // scope_down_task - Decrease task scope/complexity (matching official claude-task-master)
+  // scope_down_task - Decrease task scope/complexity (matching )
   server.addTool({
     name: 'scope_down_task',
     description: 'Decrease the scope or complexity of a task by removing or consolidating subtasks',

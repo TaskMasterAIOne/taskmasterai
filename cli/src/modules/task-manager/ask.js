@@ -1,11 +1,3 @@
-/**
- * Ask (Research) Module
- * AI-powered research with project context
- * Copyright (c) 2025 TaskMaster AI LLC
- * 
- * TaskMaster AI Terminology:
- * - "ask" instead of "research"
- */
 
 import fs from 'fs';
 import path from 'path';
@@ -24,22 +16,6 @@ import {
   stopLoadingIndicator
 } from '../ui.js';
 
-/**
- * Perform AI-powered research query
- * @param {string} query - Research query/prompt
- * @param {Object} options - Research options
- * @param {Array<string>} [options.taskIds] - Task IDs for context
- * @param {Array<string>} [options.filePaths] - File paths for context
- * @param {string} [options.customContext] - Additional context
- * @param {boolean} [options.includeProjectTree] - Include project tree
- * @param {string} [options.detailLevel] - Detail level (low/medium/high)
- * @param {string} [options.saveToId] - Save results to task ID
- * @param {boolean} [options.saveToFile] - Save results to file
- * @param {string} [options.projectRoot] - Project root path
- * @param {string} [options.context] - Context name
- * @param {string} [options.outputFormat] - Output format
- * @returns {Promise<Object>} Research results
- */
 async function ask(query, options = {}) {
   const {
     taskIds = [],
@@ -62,16 +38,12 @@ async function ask(query, options = {}) {
     }
     
     log('info', `Research query: "${truncate(query, 50)}..."`);
-    
-    // Show loading
     if (outputFormat === 'text' && !isSilentMode()) {
       loadingIndicator = startLoadingIndicator('Researching...');
     }
     
     // Gather context
     let contextText = '';
-    
-    // Add task context if specified
     if (taskIds.length > 0) {
       const tasksPath = path.join(getConfigDir(projectRoot), 'tasks', 'tasks.json');
       if (fs.existsSync(tasksPath)) {
@@ -101,8 +73,6 @@ async function ask(query, options = {}) {
         }
       }
     }
-    
-    // Add file context if specified
     for (const filePath of filePaths) {
       try {
         const fullPath = path.isAbsolute(filePath) 
@@ -118,13 +88,9 @@ async function ask(query, options = {}) {
         log('warn', `Could not read file ${filePath}: ${err.message}`);
       }
     }
-    
-    // Add custom context
     if (customContext) {
       contextText += `\n--- Additional Context ---\n${customContext}\n`;
     }
-    
-    // Add project tree if requested
     if (includeProjectTree) {
       const root = projectRoot || process.cwd();
       contextText += `\n--- Project Structure ---\n`;
@@ -138,21 +104,16 @@ async function ask(query, options = {}) {
     }
     
     // In production, this would call the AI service
-    // For now, generate a placeholder response
     const response = generatePlaceholderResponse(query, detailLevel);
     
     // Stop loading
     if (loadingIndicator) {
       stopLoadingIndicator(loadingIndicator, 'Research complete');
     }
-    
-    // Save to file if requested
     let savedPath = null;
     if (saveToFile) {
       savedPath = await saveResearchToFile(query, response, projectRoot);
     }
-    
-    // Save to task if requested
     if (saveToId) {
       await saveResearchToTask(saveToId, query, response, projectRoot, context);
     }
@@ -214,12 +175,6 @@ async function ask(query, options = {}) {
   }
 }
 
-/**
- * Generate a placeholder response
- * @param {string} query - Query text
- * @param {string} detailLevel - Detail level
- * @returns {string} Response text
- */
 function generatePlaceholderResponse(query, detailLevel) {
   const lines = [
     `**Research Query:** ${query}`,
@@ -251,13 +206,6 @@ function generatePlaceholderResponse(query, detailLevel) {
   return lines.join('\n');
 }
 
-/**
- * Save research results to a file
- * @param {string} query - Query text
- * @param {string} response - Response text
- * @param {string} projectRoot - Project root
- * @returns {string} Saved file path
- */
 async function saveResearchToFile(query, response, projectRoot) {
   const docsDir = path.join(getConfigDir(projectRoot), 'docs', 'research');
   
@@ -288,14 +236,6 @@ async function saveResearchToFile(query, response, projectRoot) {
   return filePath;
 }
 
-/**
- * Save research results to a task
- * @param {string} taskId - Task ID
- * @param {string} query - Query text
- * @param {string} response - Response text
- * @param {string} projectRoot - Project root
- * @param {string} context - Context name
- */
 async function saveResearchToTask(taskId, query, response, projectRoot, context) {
   const tasksPath = path.join(getConfigDir(projectRoot), 'tasks', 'tasks.json');
   
@@ -338,11 +278,6 @@ async function saveResearchToTask(taskId, query, response, projectRoot, context)
   }
 }
 
-/**
- * Get a simple project tree
- * @param {string} rootDir - Root directory
- * @returns {string} Tree representation
- */
 function getProjectTree(rootDir, depth = 0, maxDepth = 3) {
   if (depth >= maxDepth) return '';
   
@@ -351,8 +286,6 @@ function getProjectTree(rootDir, depth = 0, maxDepth = 3) {
   
   try {
     const items = fs.readdirSync(rootDir);
-    
-    // Filter and sort
     const filtered = items.filter(item => {
       // Skip hidden and common ignore patterns
       if (item.startsWith('.')) return false;

@@ -1,13 +1,3 @@
-/**
- * Link Manager for TaskMaster AI
- * Manages task links (dependencies) and relationships
- * Copyright (c) 2025 TaskMaster AI LLC
- * 
- * TaskMaster AI Terminology:
- * - "links" instead of "dependencies"
- * - "steps" instead of "subtasks"
- * - "contexts" instead of "tags"
- */
 
 import path from 'path';
 import boxen from 'boxen';
@@ -21,16 +11,8 @@ import {
   writeJSON
 } from './utils.js';
 
-/**
- * Check if a task or step exists in the task list
- * @param {Array} tasks - Array of all tasks
- * @param {string|number} taskId - Task or step ID to find
- * @returns {boolean} True if task/step exists
- */
 function taskExists(tasks, taskId) {
   const idStr = String(taskId);
-  
-  // Check for step (e.g., "1.2")
   if (idStr.includes('.')) {
     const [parentId, stepId] = idStr.split('.').map(Number);
     const parentTask = tasks.find(t => t.id === parentId);
@@ -42,17 +24,8 @@ function taskExists(tasks, taskId) {
   return tasks.some(t => t.id === Number(taskId));
 }
 
-/**
- * Check if adding a link would create a circular dependency
- * @param {Array} tasks - Array of all tasks
- * @param {string|number} taskId - Task ID to check
- * @param {Array} chain - Chain of IDs already visited
- * @returns {boolean} True if circular dependency would be created
- */
 function isCircularLink(tasks, taskId, chain = []) {
   const taskIdStr = String(taskId);
-  
-  // If we've seen this task before, we have a circular link
   if (chain.some(id => String(id) === taskIdStr)) {
     return true;
   }
@@ -78,8 +51,6 @@ function isCircularLink(tasks, taskId, chain = []) {
   // Support both "dependencies" and "links"
   const links = task.dependencies || task.links || [];
   if (links.length === 0) return false;
-  
-  // Check each link recursively
   const newChain = [...chain, taskIdStr];
   return links.some(linkId => {
     let normalizedLinkId = String(linkId);
@@ -91,13 +62,6 @@ function isCircularLink(tasks, taskId, chain = []) {
   });
 }
 
-/**
- * Add a link to a task
- * @param {string} tasksPath - Path to the tasks.json file
- * @param {number|string} taskId - ID of the task to add link to
- * @param {number|string} linkId - ID of the task to link as prerequisite
- * @param {Object} context - Context object
- */
 async function addLink(tasksPath, taskId, linkId, context = {}) {
   log('info', `Adding link ${linkId} to task ${taskId}...`);
   
@@ -106,8 +70,6 @@ async function addLink(tasksPath, taskId, linkId, context = {}) {
     log('error', 'No valid tasks found in tasks.json');
     process.exit(1);
   }
-  
-  // Format IDs
   const formattedTaskId = typeof taskId === 'string' && taskId.includes('.')
     ? taskId
     : parseInt(taskId, 10);
@@ -115,8 +77,6 @@ async function addLink(tasksPath, taskId, linkId, context = {}) {
   const formattedLinkId = typeof linkId === 'string' && linkId.includes('.')
     ? linkId
     : parseInt(linkId, 10);
-  
-  // Check if link target exists
   if (!taskExists(data.tasks, formattedLinkId)) {
     log('error', `Link target ${formattedLinkId} does not exist`);
     process.exit(1);
@@ -158,23 +118,16 @@ async function addLink(tasksPath, taskId, linkId, context = {}) {
     targetTask.dependencies = [];
   }
   const links = targetTask.dependencies || targetTask.links;
-  
-  // Check if link already exists
   if (links.some(d => String(d) === String(formattedLinkId))) {
     log('warn', `Link ${formattedLinkId} already exists in task ${formattedTaskId}`);
     return;
   }
-  
-  // Check for self-link
   if (String(formattedTaskId) === String(formattedLinkId)) {
     log('error', `Task ${formattedTaskId} cannot link to itself`);
     process.exit(1);
   }
-  
-  // Check for circular links
   const chain = [formattedTaskId];
   if (!isCircularLink(data.tasks, formattedLinkId, chain)) {
-    // Add the link
     links.push(formattedLinkId);
     
     // Sort links
@@ -212,13 +165,6 @@ async function addLink(tasksPath, taskId, linkId, context = {}) {
   }
 }
 
-/**
- * Remove a link from a task
- * @param {string} tasksPath - Path to the tasks.json file
- * @param {number|string} taskId - ID of the task to remove link from
- * @param {number|string} linkId - ID of the link to remove
- * @param {Object} context - Context object
- */
 async function removeLink(tasksPath, taskId, linkId, context = {}) {
   log('info', `Removing link ${linkId} from task ${taskId}...`);
   
@@ -227,8 +173,6 @@ async function removeLink(tasksPath, taskId, linkId, context = {}) {
     log('error', 'No valid tasks found');
     process.exit(1);
   }
-  
-  // Format IDs
   const formattedTaskId = typeof taskId === 'string' && taskId.includes('.')
     ? taskId
     : parseInt(taskId, 10);
@@ -236,8 +180,6 @@ async function removeLink(tasksPath, taskId, linkId, context = {}) {
   const formattedLinkId = typeof linkId === 'string' && linkId.includes('.')
     ? linkId
     : parseInt(linkId, 10);
-  
-  // Find the task
   let targetTask = null;
   let isStep = false;
   
@@ -270,24 +212,18 @@ async function removeLink(tasksPath, taskId, linkId, context = {}) {
       process.exit(1);
     }
   }
-  
-  // Get links array - support both field names
   const links = targetTask.dependencies || targetTask.links || [];
   
   if (links.length === 0) {
     log('info', `Task ${formattedTaskId} has no links, nothing to remove`);
     return;
   }
-  
-  // Find the link
   const linkIndex = links.findIndex(d => String(d) === String(formattedLinkId));
   
   if (linkIndex === -1) {
     log('info', `Task ${formattedTaskId} does not have link ${formattedLinkId}`);
     return;
   }
-  
-  // Remove the link
   links.splice(linkIndex, 1);
   
   // Save changes
@@ -310,11 +246,6 @@ async function removeLink(tasksPath, taskId, linkId, context = {}) {
   }
 }
 
-/**
- * Validate all task links
- * @param {Array} tasks - Array of all tasks
- * @returns {Object} Validation result with valid flag and issues array
- */
 function validateLinks(tasks) {
   const issues = [];
   
@@ -322,7 +253,6 @@ function validateLinks(tasks) {
     const links = task.dependencies || task.links || [];
     
     links.forEach(linkId => {
-      // Check for self-links
       if (String(linkId) === String(task.id)) {
         issues.push({
           type: 'self',
@@ -331,8 +261,6 @@ function validateLinks(tasks) {
         });
         return;
       }
-      
-      // Check if link target exists
       if (!taskExists(tasks, linkId)) {
         issues.push({
           type: 'missing',
@@ -342,8 +270,6 @@ function validateLinks(tasks) {
         });
       }
     });
-    
-    // Check for circular links
     if (isCircularLink(tasks, task.id)) {
       issues.push({
         type: 'circular',
@@ -351,15 +277,12 @@ function validateLinks(tasks) {
         message: `Task ${task.id} is part of a circular link chain`
       });
     }
-    
-    // Check steps
     const steps = task.steps || task.subtasks || [];
     steps.forEach(step => {
       const stepLinks = step.dependencies || step.links || [];
       const fullStepId = `${task.id}.${step.id}`;
       
       stepLinks.forEach(linkId => {
-        // Check for self-links
         if (String(linkId) === String(fullStepId) ||
             (typeof linkId === 'number' && linkId === step.id)) {
           issues.push({
@@ -369,8 +292,6 @@ function validateLinks(tasks) {
           });
           return;
         }
-        
-        // Check if link target exists
         if (!taskExists(tasks, linkId)) {
           issues.push({
             type: 'missing',
@@ -380,8 +301,6 @@ function validateLinks(tasks) {
           });
         }
       });
-      
-      // Check for circular links in steps
       if (isCircularLink(tasks, fullStepId)) {
         issues.push({
           type: 'circular',
@@ -398,11 +317,6 @@ function validateLinks(tasks) {
   };
 }
 
-/**
- * Count all links across tasks and steps
- * @param {Array} tasks - Array of all tasks
- * @returns {number} Total number of links
- */
 function countAllLinks(tasks) {
   let count = 0;
   
@@ -420,11 +334,6 @@ function countAllLinks(tasks) {
   return count;
 }
 
-/**
- * Validate links command
- * @param {string} tasksPath - Path to tasks.json
- * @param {Object} options - Options object
- */
 async function checkLinksCommand(tasksPath, options = {}) {
   const { context = {} } = options;
   log('info', 'Checking for invalid links in task files...');
@@ -494,11 +403,6 @@ async function checkLinksCommand(tasksPath, options = {}) {
   }
 }
 
-/**
- * Fix invalid links command
- * @param {string} tasksPath - Path to tasks.json
- * @param {Object} options - Options object
- */
 async function fixLinksCommand(tasksPath, options = {}) {
   const { context = {} } = options;
   log('info', 'Checking for and fixing invalid links in tasks.json...');
@@ -529,21 +433,15 @@ async function fixLinksCommand(tasksPath, options = {}) {
       // Filter out duplicates, self-links, and invalid links
       const validLinks = links.filter(linkId => {
         const linkStr = String(linkId);
-        
-        // Check for duplicates
         if (uniqueLinks.has(linkStr)) {
           stats.duplicateLinksRemoved++;
           return false;
         }
         uniqueLinks.add(linkStr);
-        
-        // Check for self-links
         if (linkStr === String(task.id)) {
           stats.selfLinksRemoved++;
           return false;
         }
-        
-        // Check if link target exists
         if (!taskExists(data.tasks, linkId)) {
           stats.invalidLinksRemoved++;
           return false;
@@ -551,8 +449,6 @@ async function fixLinksCommand(tasksPath, options = {}) {
         
         return true;
       });
-      
-      // Update the links array
       if (task.dependencies) {
         task.dependencies = validLinks;
       } else if (task.links) {
@@ -575,21 +471,15 @@ async function fixLinksCommand(tasksPath, options = {}) {
         
         const validLinks = stepLinks.filter(linkId => {
           const linkStr = String(linkId);
-          
-          // Check for duplicates
           if (uniqueLinks.has(linkStr)) {
             stats.duplicateLinksRemoved++;
             return false;
           }
           uniqueLinks.add(linkStr);
-          
-          // Check for self-links
           if (linkStr === fullStepId || (typeof linkId === 'number' && linkId === step.id)) {
             stats.selfLinksRemoved++;
             return false;
           }
-          
-          // Check if link target exists
           if (!taskExists(data.tasks, linkId)) {
             stats.invalidLinksRemoved++;
             return false;
@@ -597,8 +487,6 @@ async function fixLinksCommand(tasksPath, options = {}) {
           
           return true;
         });
-        
-        // Update the links array
         if (step.dependencies) {
           step.dependencies = validLinks;
         } else if (step.links) {
@@ -611,8 +499,6 @@ async function fixLinksCommand(tasksPath, options = {}) {
       }
     });
   });
-  
-  // Check if changes were made
   const dataChanged = JSON.stringify(data) !== JSON.stringify(originalData);
   
   if (dataChanged) {

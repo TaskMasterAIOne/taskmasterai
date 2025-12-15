@@ -1,8 +1,3 @@
-/**
- * TaskMaster AI CLI
- * Main entry point
- */
-
 import { Command } from 'commander';
 import chalk from 'chalk';
 import boxen from 'boxen';
@@ -10,7 +5,6 @@ import { getLicenseStatus, syncUserConfig, syncHostedApiKeys, canUseHostedApiKey
 import { registerCommands } from './commands/index.js';
 import { getVersion, readProjectConfig, findProjectRoot } from './lib/config.js';
 
-// Commands that don't require license validation
 const LICENSE_EXEMPT_COMMANDS = [
   'activate',
   'deactivate',
@@ -24,15 +18,11 @@ const LICENSE_EXEMPT_COMMANDS = [
   '--version',
   '-V',
   'init',
-  // Auth commands - user needs to login before having a license
   'login',
   'logout',
   'whoami'
 ];
 
-/**
- * Display the TaskMaster AI banner with logo
- */
 export async function displayBanner(options = {}) {
   const { showVersion = true } = options;
   
@@ -40,7 +30,6 @@ export async function displayBanner(options = {}) {
   const projectRoot = findProjectRoot();
   const projectName = projectRoot ? (readProjectConfig(projectRoot)?.projectName || 'TaskMaster AI') : 'TaskMaster AI';
   
-  // ASCII art logo representation  
   const logo = `
   ${chalk.hex('#7C3AED')('╔════════════════════════════════════════════════════════════════════════════╗')}
   ${chalk.hex('#7C3AED')('║')}                                                                            ${chalk.hex('#7C3AED')('║')}
@@ -75,16 +64,10 @@ export async function displayBanner(options = {}) {
   }
 }
 
-/**
- * Display current tag context
- */
 export function displayTagContext(tagName) {
   console.log(chalk.yellow('🏷 tag: ') + chalk.white.bold(tagName));
 }
 
-/**
- * Check license before running commands
- */
 async function checkLicense(commandName) {
   if (LICENSE_EXEMPT_COMMANDS.includes(commandName)) {
     return true;
@@ -112,14 +95,12 @@ async function checkLicense(commandName) {
       return false;
     }
 
-    // Show warning for grace period
     if (status.status === 'grace_period') {
       console.log(
         chalk.yellow('⚠️  Your subscription payment is past due. Update your payment at https://www.taskmaster.one/billing')
       );
     }
 
-    // Show offline warning
     if (status.offline) {
       console.log(
         chalk.yellow('⚠️  Using cached license (offline mode). Connect to internet to revalidate.')
@@ -146,9 +127,6 @@ async function checkLicense(commandName) {
   }
 }
 
-/**
- * Create and configure the CLI program
- */
 function createProgram() {
   const program = new Command();
 
@@ -157,7 +135,6 @@ function createProgram() {
     .description('TaskMaster AI - AI-powered task management for developers')
     .version(getVersion(), '-v, --version', 'Display version number');
 
-  // Add license check hook
   program.hook('preAction', async (thisCommand, actionCommand) => {
     const commandName = actionCommand.name();
     const isValid = await checkLicense(commandName);
@@ -166,10 +143,8 @@ function createProgram() {
     }
   });
 
-  // Register all commands (includes activate, deactivate, license, etc.)
   registerCommands(program);
 
-  // Additional license management commands not in commands/index.js
   program
     .command('sync-keys')
     .description('Sync API keys from dashboard and hosted keys (PRO plan)')
@@ -181,10 +156,8 @@ function createProgram() {
       const spinner = ora('Syncing API keys...').start();
 
       try {
-        // Sync user's own API keys from dashboard
         const configSync = await syncUserConfig(options.force || false);
         
-        // For PRO users, also sync hosted keys
         let hostedKeysSync = null;
         if (canUseHostedApiKeys()) {
           hostedKeysSync = await syncHostedApiKeys(options.force || false);
@@ -196,7 +169,6 @@ function createProgram() {
         
         let output = chalk.bold('API Keys Sync Status\n\n');
         
-        // User's own keys from dashboard
         if (configSync.success) {
           const userKeys = configSync.apiKeys ? Object.keys(configSync.apiKeys) : [];
           if (userKeys.length > 0) {
@@ -211,7 +183,6 @@ function createProgram() {
           output += chalk.red('✗ ') + chalk.white('Failed to sync dashboard config: ') + chalk.dim(configSync.error) + '\n';
         }
         
-        // Hosted keys (PRO only)
         if (status.plan === 'pro') {
           if (hostedKeysSync?.success) {
             const hostedProviders = hostedKeysSync.providers || [];
@@ -246,13 +217,9 @@ function createProgram() {
   return program;
 }
 
-/**
- * Run the CLI
- */
 export async function runCLI() {
   const program = createProgram();
 
-  // Show banner for help commands
   const args = process.argv.slice(2);
   if (args.length === 0 || args[0] === 'help' || args[0] === '--help' || args[0] === '-h') {
     await displayBanner();

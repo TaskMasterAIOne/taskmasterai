@@ -1,8 +1,3 @@
-/**
- * Init Module
- * Initialize TaskMaster AI project structure
- * Copyright (c) 2025 TaskMaster AI LLC
- */
 
 import fs from 'fs';
 import path from 'path';
@@ -16,11 +11,6 @@ import {
   getConfigDir
 } from '../utils.js';
 
-/**
- * Initialize a new TaskMaster AI project
- * @param {Object} options - Init options
- * @returns {Promise<Object>} Result
- */
 async function initProject(options = {}) {
   const {
     name = 'TaskMaster AI Project',
@@ -35,7 +25,6 @@ async function initProject(options = {}) {
   const configDir = getConfigDir(projectRoot);
   
   try {
-    // Check if already initialized
     if (fs.existsSync(configDir) && !force) {
       const message = 'Project already initialized. Use --force to reinitialize.';
       log('warn', message);
@@ -49,8 +38,6 @@ async function initProject(options = {}) {
     }
     
     log('info', `Initializing TaskMaster AI project in ${projectRoot}`);
-    
-    // Create directory structure
     const directories = [
       configDir,
       path.join(configDir, 'tasks'),
@@ -66,8 +53,6 @@ async function initProject(options = {}) {
         log('debug', `Created directory: ${dir}`);
       }
     }
-    
-    // Create config file
     const configPath = path.join(configDir, 'config.json');
     const config = {
       projectName: name,
@@ -107,8 +92,6 @@ async function initProject(options = {}) {
     
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
     log('info', 'Created config.json');
-    
-    // Create state file
     const statePath = path.join(configDir, 'state.json');
     const state = {
       currentContext: 'main',
@@ -118,8 +101,6 @@ async function initProject(options = {}) {
     
     fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
     log('info', 'Created state.json');
-    
-    // Create empty tasks file
     const tasksPath = path.join(configDir, 'tasks', 'tasks.json');
     const tasksData = {
       main: {
@@ -134,8 +115,6 @@ async function initProject(options = {}) {
     
     fs.writeFileSync(tasksPath, JSON.stringify(tasksData, null, 2));
     log('info', 'Created tasks.json');
-    
-    // Create example PRD template
     const templatePath = path.join(configDir, 'templates', 'example_prd.txt');
     const examplePRD = `# Product Requirements Document Template
 
@@ -182,8 +161,6 @@ To use this template:
     
     fs.writeFileSync(templatePath, examplePRD);
     log('info', 'Created example PRD template');
-    
-    // Create .gitignore entries if not skipping git
     if (!skipGit) {
       const gitignorePath = path.join(projectRoot, '.gitignore');
       const gitignoreEntries = [
@@ -249,11 +226,6 @@ To use this template:
   }
 }
 
-/**
- * Check if project is initialized
- * @param {string} projectRoot - Project root path
- * @returns {boolean} True if initialized
- */
 function isProjectInitialized(projectRoot = null) {
   const root = projectRoot || findProjectRoot() || process.cwd();
   const configDir = getConfigDir(root);

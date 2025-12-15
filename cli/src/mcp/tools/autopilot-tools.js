@@ -1,15 +1,7 @@
-/**
- * Autopilot Tools
- * MCP tools for TDD workflow automation
- */
 
 import { z } from 'zod';
 import { handleApiResult, withToolContext } from '../utils.js';
 
-/**
- * Register autopilot-related tools with the MCP server
- * @param {import('fastmcp').FastMCP} server - FastMCP server instance
- */
 export function registerAutopilotTools(server) {
   // autopilot_start - Start a TDD workflow
   server.addTool({

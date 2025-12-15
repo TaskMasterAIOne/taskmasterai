@@ -1,17 +1,6 @@
-/**
- * Test Result Validator
- * Validates TDD phase transitions based on test results
- */
 
 export class TestResultValidator {
-  /**
-   * Validate test results for the current TDD phase
-   * @param {string} tddPhase - Current TDD phase (RED, GREEN, COMMIT)
-   * @param {object} results - Test results { total, passed, failed, skipped }
-   * @returns {boolean} - True if valid
-   * @throws {Error} - If validation fails
-   */
-  validate(tddPhase, results) {
+    validate(tddPhase, results) {
     if (!results || typeof results !== 'object') {
       throw new Error('Invalid test results format');
     }
@@ -48,12 +37,7 @@ export class TestResultValidator {
     return true;
   }
 
-  /**
-   * Parse test results from common formats
-   * @param {string} output - Test runner output
-   * @returns {object} - Parsed results { total, passed, failed, skipped }
-   */
-  parseTestOutput(output) {
+    parseTestOutput(output) {
     // Vitest format: "Tests  2 failed | 8 passed | 10 total"
     const vitestMatch = output.match(/Tests\s+(\d+)\s+failed\s+\|\s+(\d+)\s+passed\s+\|\s+(\d+)\s+total/);
     if (vitestMatch) {

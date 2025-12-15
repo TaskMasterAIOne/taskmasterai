@@ -1,12 +1,3 @@
-/**
- * Context Manager for TaskMaster AI
- * Manages task contexts (isolated task lists)
- * Copyright (c) 2025 TaskMaster AI LLC
- * 
- * TaskMaster AI Terminology:
- * - "contexts" instead of "tags"
- * - "steps" instead of "subtasks"
- */
 
 import fs from 'fs';
 import path from 'path';
@@ -25,11 +16,6 @@ import {
 } from './utils.js';
 import { getStatusWithColor } from './ui.js';
 
-/**
- * Get the current active context from state file
- * @param {string} projectRoot - Project root path
- * @returns {string} Current context name (defaults to 'main')
- */
 function getCurrentContext(projectRoot = null) {
   const root = projectRoot || findProjectRoot() || process.cwd();
   const statePath = path.join(getConfigDir(root), 'state.json');
@@ -46,11 +32,6 @@ function getCurrentContext(projectRoot = null) {
   return 'main';
 }
 
-/**
- * Set the current active context in state file
- * @param {string} contextName - Context name to set as current
- * @param {string} projectRoot - Project root path
- */
 function setCurrentContext(contextName, projectRoot = null) {
   const root = projectRoot || findProjectRoot() || process.cwd();
   const configDir = getConfigDir(root);
@@ -60,8 +41,6 @@ function setCurrentContext(contextName, projectRoot = null) {
   if (!fs.existsSync(configDir)) {
     fs.mkdirSync(configDir, { recursive: true });
   }
-  
-  // Read existing state or create new
   let state = {};
   try {
     if (fs.existsSync(statePath)) {
@@ -70,8 +49,6 @@ function setCurrentContext(contextName, projectRoot = null) {
   } catch (error) {
     log('debug', `Could not read state file: ${error.message}`);
   }
-  
-  // Update state
   state.currentContext = contextName;
   state.currentTag = contextName; // Keep backward compatibility
   state.lastSwitched = new Date().toISOString();
@@ -80,12 +57,6 @@ function setCurrentContext(contextName, projectRoot = null) {
   fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
 }
 
-/**
- * Get tasks for a specific context
- * @param {Object} rawData - Raw tagged data
- * @param {string} contextName - Context name
- * @returns {Array} Tasks array for the context
- */
 function getTasksForContext(rawData, contextName) {
   // Support both "contexts" and legacy "tags" structure
   if (rawData.contexts && rawData.contexts[contextName]) {
@@ -97,36 +68,21 @@ function getTasksForContext(rawData, contextName) {
   return [];
 }
 
-/**
- * List all available contexts
- * @param {string} tasksPath - Path to the tasks.json file
- * @param {Object} options - Options object
- * @param {string} [options.projectRoot] - Project root path
- * @param {boolean} [options.showMetadata] - Show detailed metadata
- * @param {string} [options.outputFormat] - Output format (text or json)
- * @returns {Object} List of contexts with stats
- */
 async function listContexts(tasksPath, options = {}) {
   const { projectRoot, showMetadata = false, outputFormat = 'text' } = options;
   
   try {
     log('info', 'Listing all contexts...');
-    
-    // Read raw data
     const data = readJSON(tasksPath, projectRoot);
     if (!data) {
       throw new Error('Could not read tasks file');
     }
-    
-    // Get raw tagged data
     let rawData = data._rawTaggedData || data;
     
     // Filter out internal fields
     const contextNames = Object.keys(rawData).filter(
       key => !key.startsWith('_') && key !== 'tag' && key !== 'tasks' && key !== 'metadata'
     );
-    
-    // Get current context
     const currentContext = getCurrentContext(projectRoot);
     
     // Build context info
@@ -134,8 +90,6 @@ async function listContexts(tasksPath, options = {}) {
       const contextData = rawData[name];
       const tasks = contextData?.tasks || [];
       const metadata = contextData?.metadata || {};
-      
-      // Calculate stats
       const totalTasks = tasks.length;
       const completedTasks = tasks.filter(t => t.status === 'done' || t.status === 'completed').length;
       const completionPct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
@@ -183,8 +137,6 @@ async function listContexts(tasksPath, options = {}) {
       );
       return { success: true, contexts: [] };
     }
-    
-    // Create table
     const table = new Table({
       head: [
         chalk.cyan.bold(''),
@@ -233,18 +185,6 @@ async function listContexts(tasksPath, options = {}) {
   }
 }
 
-/**
- * Create a new context
- * @param {string} tasksPath - Path to the tasks.json file
- * @param {string} contextName - Name of the new context
- * @param {Object} options - Options object
- * @param {string} [options.projectRoot] - Project root path
- * @param {boolean} [options.copyFromCurrent] - Copy tasks from current context
- * @param {string} [options.copyFrom] - Specific context to copy from
- * @param {string} [options.description] - Context description
- * @param {string} [options.outputFormat] - Output format (text or json)
- * @returns {Object} Creation result
- */
 async function createContext(tasksPath, contextName, options = {}) {
   const { projectRoot, copyFromCurrent = false, copyFrom, description, outputFormat = 'text' } = options;
   
@@ -260,17 +200,11 @@ async function createContext(tasksPath, contextName, options = {}) {
     }
     
     log('info', `Creating new context: ${contextName}`);
-    
-    // Read current data
     const data = readJSON(tasksPath, projectRoot);
     if (!data) {
       throw new Error('Could not read tasks file');
     }
-    
-    // Get raw data
     let rawData = data._rawTaggedData || data;
-    
-    // Check if context already exists
     if (rawData[contextName]) {
       throw new Error(`Context "${contextName}" already exists`);
     }
@@ -284,8 +218,6 @@ async function createContext(tasksPath, contextName, options = {}) {
       sourceTasks = getTasksForContext(rawData, sourceContext);
       log('info', `Copying ${sourceTasks.length} tasks from context "${sourceContext}"`);
     }
-    
-    // Create new context
     rawData[contextName] = {
       tasks: JSON.parse(JSON.stringify(sourceTasks)), // Deep copy
       metadata: {
@@ -343,31 +275,16 @@ async function createContext(tasksPath, contextName, options = {}) {
   }
 }
 
-/**
- * Switch to a different context
- * @param {string} tasksPath - Path to the tasks.json file
- * @param {string} contextName - Context name to switch to
- * @param {Object} options - Options object
- * @param {string} [options.projectRoot] - Project root path
- * @param {string} [options.outputFormat] - Output format (text or json)
- * @returns {Object} Switch result
- */
 async function useContext(tasksPath, contextName, options = {}) {
   const { projectRoot, outputFormat = 'text' } = options;
   
   try {
     log('info', `Switching to context: ${contextName}`);
-    
-    // Read data to verify context exists
     const data = readJSON(tasksPath, projectRoot);
     if (!data) {
       throw new Error('Could not read tasks file');
     }
-    
-    // Get raw data
     const rawData = data._rawTaggedData || data;
-    
-    // Check if context exists
     if (!rawData[contextName]) {
       // List available contexts
       const available = Object.keys(rawData).filter(k => !k.startsWith('_'));
@@ -375,11 +292,7 @@ async function useContext(tasksPath, contextName, options = {}) {
         `Context "${contextName}" not found. Available: ${available.join(', ')}`
       );
     }
-    
-    // Set as current context
     setCurrentContext(contextName, projectRoot);
-    
-    // Get context stats
     const tasks = rawData[contextName].tasks || [];
     const completedTasks = tasks.filter(t => t.status === 'done' || t.status === 'completed').length;
     const pendingTasks = tasks.filter(t => t.status === 'pending').length;
@@ -426,16 +339,6 @@ async function useContext(tasksPath, contextName, options = {}) {
   }
 }
 
-/**
- * Delete a context
- * @param {string} tasksPath - Path to the tasks.json file
- * @param {string} contextName - Context name to delete
- * @param {Object} options - Options object
- * @param {string} [options.projectRoot] - Project root path
- * @param {boolean} [options.force] - Skip confirmation
- * @param {string} [options.outputFormat] - Output format (text or json)
- * @returns {Object} Delete result
- */
 async function deleteContext(tasksPath, contextName, options = {}) {
   const { projectRoot, force = false, outputFormat = 'text' } = options;
   
@@ -446,17 +349,11 @@ async function deleteContext(tasksPath, contextName, options = {}) {
     }
     
     log('info', `Deleting context: ${contextName}`);
-    
-    // Read data
     const data = readJSON(tasksPath, projectRoot);
     if (!data) {
       throw new Error('Could not read tasks file');
     }
-    
-    // Get raw data
     let rawData = data._rawTaggedData || data;
-    
-    // Check if context exists
     if (!rawData[contextName]) {
       throw new Error(`Context "${contextName}" not found`);
     }
@@ -465,8 +362,6 @@ async function deleteContext(tasksPath, contextName, options = {}) {
     
     // Delete context
     delete rawData[contextName];
-    
-    // If this was the current context, switch to main
     const currentContext = getCurrentContext(projectRoot);
     if (currentContext === contextName) {
       setCurrentContext('main', projectRoot);
@@ -513,14 +408,6 @@ async function deleteContext(tasksPath, contextName, options = {}) {
   }
 }
 
-/**
- * Clone a context to a new name
- * @param {string} tasksPath - Path to the tasks.json file
- * @param {string} sourceName - Source context name
- * @param {string} targetName - Target context name
- * @param {Object} options - Options object
- * @returns {Object} Clone result
- */
 async function cloneContext(tasksPath, sourceName, targetName, options = {}) {
   const { projectRoot, description, outputFormat = 'text' } = options;
   
@@ -532,16 +419,6 @@ async function cloneContext(tasksPath, sourceName, targetName, options = {}) {
   });
 }
 
-/**
- * Rename an existing context
- * @param {string} tasksPath - Path to the tasks.json file
- * @param {string} oldName - Current context name
- * @param {string} newName - New context name
- * @param {Object} options - Options object
- * @param {string} [options.projectRoot] - Project root path
- * @param {string} [options.outputFormat] - Output format (text or json)
- * @returns {Object} Rename result
- */
 async function renameContext(tasksPath, oldName, newName, options = {}) {
   const { projectRoot, outputFormat = 'text' } = options;
   
@@ -571,34 +448,20 @@ async function renameContext(tasksPath, oldName, newName, options = {}) {
     }
     
     log('info', `Renaming context from "${oldName}" to "${newName}"`);
-    
-    // Read current data
     const data = readJSON(tasksPath, projectRoot);
     if (!data) {
       throw new Error('Could not read tasks file');
     }
-    
-    // Get raw data
     let rawData = data._rawTaggedData || data;
-    
-    // Check if old context exists
     if (!rawData[oldName]) {
       throw new Error(`Context "${oldName}" does not exist`);
     }
-    
-    // Check if new context already exists
     if (rawData[newName]) {
       throw new Error(`Context "${newName}" already exists`);
     }
-    
-    // Get current context to check if we're renaming the active one
     const currentContext = getCurrentContext(projectRoot);
     const isCurrentContext = currentContext === oldName;
-    
-    // Rename by copying and deleting
     rawData[newName] = { ...rawData[oldName] };
-    
-    // Update metadata
     if (rawData[newName].metadata) {
       rawData[newName].metadata.renamed = {
         from: oldName,
@@ -609,8 +472,6 @@ async function renameContext(tasksPath, oldName, newName, options = {}) {
     
     // Delete old context
     delete rawData[oldName];
-    
-    // If renaming the current context, update state
     if (isCurrentContext) {
       setCurrentContext(newName, projectRoot);
       log('info', `Updated current context to "${newName}"`);
@@ -625,8 +486,6 @@ async function renameContext(tasksPath, oldName, newName, options = {}) {
     }
     
     writeJSON(tasksPath, cleanData, projectRoot);
-    
-    // Get task count
     const taskCount = rawData[newName].tasks?.length || 0;
     
     log('success', `Renamed context from "${oldName}" to "${newName}"`);
@@ -668,33 +527,17 @@ async function renameContext(tasksPath, oldName, newName, options = {}) {
   }
 }
 
-/**
- * Create a context from the current git branch name
- * @param {string} tasksPath - Path to the tasks.json file
- * @param {Object} options - Options object
- * @param {string} [options.projectRoot] - Project root path
- * @param {boolean} [options.copyFromCurrent] - Copy tasks from current context
- * @param {string} [options.description] - Context description
- * @param {boolean} [options.autoSwitch] - Automatically switch to new context
- * @param {string} [options.outputFormat] - Output format (text or json)
- * @returns {Object} Creation result with context name
- */
 async function createContextFromBranch(tasksPath, options = {}) {
   const { projectRoot, copyFromCurrent = false, description, autoSwitch = true, outputFormat = 'text' } = options;
   
   try {
-    // Import git utilities
     const { getCurrentBranch, sanitizeBranchNameForContext, isValidBranchForContext } = await import('./utils/git-utils.js');
     
     const root = projectRoot || findProjectRoot() || process.cwd();
-    
-    // Get current git branch
     const branchName = await getCurrentBranch(root);
     if (!branchName) {
       throw new Error('Could not determine current git branch. Are you in a git repository?');
     }
-    
-    // Check if branch is valid for context creation
     if (!isValidBranchForContext(branchName)) {
       throw new Error(`Branch "${branchName}" cannot be converted to a valid context name`);
     }
@@ -703,8 +546,6 @@ async function createContextFromBranch(tasksPath, options = {}) {
     const contextName = sanitizeBranchNameForContext(branchName);
     
     log('info', `Creating context "${contextName}" from git branch "${branchName}"`);
-    
-    // Create the context
     const createResult = await createContext(tasksPath, contextName, {
       projectRoot: root,
       copyFromCurrent,

@@ -1,7 +1,3 @@
-/**
- * Autopilot Library - TDD Workflow Automation
- * Main exports
- */
 
 export { WorkflowOrchestrator } from './orchestrator.js';
 export { GitAdapter } from './git-adapter.js';

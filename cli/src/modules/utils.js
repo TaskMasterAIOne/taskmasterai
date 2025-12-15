@@ -1,7 +1,3 @@
-/**
- * Utility functions for TaskMaster AI CLI
- * Copyright (c) 2025 TaskMaster AI LLC
- */
 
 import fs from 'fs';
 import path from 'path';
@@ -10,23 +6,14 @@ import chalk from 'chalk';
 // Silent mode tracking
 let silentMode = false;
 
-/**
- * Set silent mode (suppresses console output)
- */
 export function setSilentMode(value) {
   silentMode = value;
 }
 
-/**
- * Check if in silent mode
- */
 export function isSilentMode() {
   return silentMode;
 }
 
-/**
- * Log levels and their priority
- */
 const LOG_LEVELS = {
   error: 0,
   warn: 1,
@@ -34,20 +21,11 @@ const LOG_LEVELS = {
   debug: 3,
 };
 
-/**
- * Get current log level from environment
- */
 function getLogLevel() {
   const level = process.env.TASKMASTER_LOG_LEVEL || 'info';
   return level.toLowerCase();
 }
 
-/**
- * Log a message with the specified level
- * @param {string} level - Log level (error, warn, info, debug)
- * @param {string} message - Message to log
- * @param {...any} args - Additional arguments
- */
 export function log(level, message, ...args) {
   if (isSilentMode()) return;
   
@@ -77,13 +55,6 @@ export function log(level, message, ...args) {
   }
 }
 
-/**
- * Read JSON file safely
- * @param {string} filePath - Path to JSON file
- * @param {string} projectRoot - Project root for relative paths
- * @param {string} context - Optional context name (TaskMaster AI uses "contexts" not "tags")
- * @returns {object|null} Parsed JSON or null on error
- */
 export function readJSON(filePath, projectRoot = null, context = null) {
   try {
     if (!fs.existsSync(filePath)) {
@@ -127,11 +98,6 @@ export function readJSON(filePath, projectRoot = null, context = null) {
   }
 }
 
-/**
- * Write JSON file safely
- * @param {string} filePath - Path to JSON file
- * @param {object} data - Data to write
- */
 export function writeJSON(filePath, data) {
   try {
     const dir = path.dirname(filePath);
@@ -147,34 +113,18 @@ export function writeJSON(filePath, data) {
   }
 }
 
-/**
- * Truncate a string to a maximum length
- * @param {string} str - String to truncate
- * @param {number} maxLength - Maximum length
- * @returns {string} Truncated string with ellipsis if needed
- */
 export function truncate(str, maxLength = 50) {
   if (!str) return '';
   if (str.length <= maxLength) return str;
   return str.substring(0, maxLength - 3) + '...';
 }
 
-/**
- * Format a task ID for display
- * @param {string|number} taskId - Task ID
- * @returns {string} Formatted task ID
- */
 export function formatTaskId(taskId) {
   if (taskId === null || taskId === undefined) return 'null';
   if (taskId === '') return '(empty)';
   return String(taskId);
 }
 
-/**
- * Check if a value is empty (null, undefined, empty string, empty array/object)
- * @param {any} value - Value to check
- * @returns {boolean} True if empty
- */
 export function isEmpty(value) {
   if (value === null || value === undefined) return true;
   if (typeof value === 'string') return value.trim() === '';
@@ -183,11 +133,6 @@ export function isEmpty(value) {
   return false;
 }
 
-/**
- * Find project root by looking for .taskmaster-ai directory
- * @param {string} startDir - Starting directory
- * @returns {string|null} Project root or null if not found
- */
 export function findProjectRoot(startDir = process.cwd()) {
   let currentDir = startDir;
 
@@ -202,38 +147,17 @@ export function findProjectRoot(startDir = process.cwd()) {
   return null;
 }
 
-/**
- * Get the config directory path for a project
- * @param {string} projectRoot - Project root path
- * @returns {string} Path to .taskmaster-ai config directory
- */
 export function getConfigDir(projectRoot) {
   const root = projectRoot || findProjectRoot() || process.cwd();
   return path.join(root, '.taskmaster-ai');
 }
 
-/**
- * Get the tasks file path for a project
- * @param {string} projectRoot - Project root path
- * @returns {string} Path to tasks.json file
- */
 export function getTasksFilePath(projectRoot) {
   return path.join(getConfigDir(projectRoot), 'tasks', 'tasks.json');
 }
 
-/**
- * Find a task by ID (supports dot notation for steps)
- * TaskMaster AI uses "steps" instead of "subtasks"
- * @param {Array} tasks - Array of tasks
- * @param {string|number} taskId - Task ID
- * @param {object} assessmentReport - Optional assessment report
- * @param {string} statusFilter - Optional status filter
- * @returns {object} Object with task, originalStepCount, originalSteps
- */
 export function findTaskById(tasks, taskId, assessmentReport = null, statusFilter = null) {
   const idStr = String(taskId);
-  
-  // Check if it's a step ID (e.g., "1.2")
   if (idStr.includes('.')) {
     const [parentId, stepId] = idStr.split('.').map(Number);
     const parentTask = tasks.find(t => t.id === parentId);
@@ -244,7 +168,6 @@ export function findTaskById(tasks, taskId, assessmentReport = null, statusFilte
     if (parentTask && steps) {
       const step = steps.find(s => s.id === stepId);
       if (step) {
-        // Add assessment score if available
         if (assessmentReport) {
           addAssessmentToTask(step, assessmentReport);
         }
@@ -264,7 +187,6 @@ export function findTaskById(tasks, taskId, assessmentReport = null, statusFilte
     return { task: null, originalStepCount: null, originalSteps: null };
   }
   
-  // Regular task ID
   const task = tasks.find(t => t.id === Number(taskId));
   
   if (!task) {
@@ -273,12 +195,8 @@ export function findTaskById(tasks, taskId, assessmentReport = null, statusFilte
   
   // Support both "steps" (new) and "subtasks" (legacy) field names
   const steps = task.steps || task.subtasks || [];
-  
-  // Store original step info before filtering
   const originalSteps = [...steps];
   const originalStepCount = originalSteps.length;
-  
-  // Add assessment score if available
   if (assessmentReport) {
     addAssessmentToTask(task, assessmentReport);
   }
@@ -288,7 +206,6 @@ export function findTaskById(tasks, taskId, assessmentReport = null, statusFilte
     const filteredSteps = steps.filter(st => 
       st.status && st.status.toLowerCase() === statusFilter.toLowerCase()
     );
-    // Use whichever field name is present
     if (task.steps) {
       task.steps = filteredSteps;
     } else if (task.subtasks) {
@@ -299,12 +216,6 @@ export function findTaskById(tasks, taskId, assessmentReport = null, statusFilte
   return { task, originalStepCount, originalSteps };
 }
 
-/**
- * Add assessment score to a task from the assessment report
- * TaskMaster AI uses "assessment" instead of "complexity"
- * @param {object} task - Task object
- * @param {object} assessmentReport - Assessment report
- */
 export function addAssessmentToTask(task, assessmentReport) {
   // Support both "assessment" (new) and "complexityAnalysis" (legacy) field names
   const analysis = assessmentReport?.assessment || assessmentReport?.complexityAnalysis;
@@ -326,12 +237,6 @@ export function addAssessmentToTask(task, assessmentReport) {
   }
 }
 
-/**
- * Read assessment report from file
- * TaskMaster AI uses "assessment" instead of "complexity"
- * @param {string} reportPath - Path to assessment report
- * @returns {object|null} Assessment report or null
- */
 export function readAssessmentReport(reportPath) {
   if (!reportPath || !fs.existsSync(reportPath)) {
     return null;
@@ -346,13 +251,6 @@ export function readAssessmentReport(reportPath) {
   }
 }
 
-/**
- * Resolve environment variable from various sources
- * @param {string} name - Environment variable name
- * @param {object} session - MCP session (optional)
- * @param {string} projectRoot - Project root for .env file
- * @returns {string|null} Environment variable value
- */
 export function resolveEnvVariable(name, session = null, projectRoot = null) {
   // Priority 1: process.env
   if (process.env[name]) {

@@ -1,7 +1,3 @@
-/**
- * Codex Profile
- * Copyright (c) 2025 TaskMaster AI LLC
- */
 
 import { createProfile } from './base-profile.js';
 

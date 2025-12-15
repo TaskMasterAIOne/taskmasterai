@@ -1,9 +1,3 @@
-/**
- * AI Service for TaskMaster AI
- * Uses Vercel AI SDK for AI model interactions (same as official TaskMaster)
- * Supports all major AI providers: Anthropic, OpenAI, Google, xAI, DeepSeek, etc.
- */
-
 import { generateText, generateObject } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
@@ -12,26 +6,19 @@ import { z } from 'zod';
 import { getApiKey, readProjectConfig, findProjectRoot } from './config.js';
 import { isUsingHostedKey, trackHostedKeyUsage } from './license.js';
 
-// Provider instances cache
 const providers = {};
 
-// Provider base URLs for OpenAI-compatible providers
-// Updated late 2025 - verified endpoints
 const PROVIDER_URLS = {
-  perplexity: 'https://api.perplexity.ai',           // OpenAI-compatible
-  deepseek: 'https://api.deepseek.com',              // DeepSeek official API
-  openrouter: 'https://openrouter.ai/api/v1',        // OpenAI-compatible gateway
-  xai: 'https://api.x.ai/v1',                        // Grok models (Elon Musk's xAI)
-  mistral: 'https://api.mistral.ai/v1',              // Mistral AI
-  zhipu: 'https://open.bigmodel.cn/api/paas/v4',     // GLM models (Chinese provider)
-  moonshot: 'https://api.moonshot.cn/v1',            // Kimi models
-  meta: 'https://api.meta.com/llama',                // Meta LLaMA API
+  perplexity: 'https://api.perplexity.ai',
+  deepseek: 'https://api.deepseek.com',
+  openrouter: 'https://openrouter.ai/api/v1',
+  xai: 'https://api.x.ai/v1',
+  mistral: 'https://api.mistral.ai/v1',
+  zhipu: 'https://open.bigmodel.cn/api/paas/v4',
+  moonshot: 'https://api.moonshot.cn/v1',
+  meta: 'https://api.meta.com/llama',
 };
 
-/**
- * Get or create a provider instance
- * Supports multiple AI providers with their respective SDKs or OpenAI-compatible endpoints
- */
 function getProvider(providerName) {
   if (providers[providerName]) {
     return providers[providerName];
@@ -54,7 +41,6 @@ function getProvider(providerName) {
     case 'google':
       providers[providerName] = createGoogleGenerativeAI({ apiKey });
       break;
-    // OpenAI-compatible providers (use OpenAI SDK with custom baseURL)
     case 'perplexity':
     case 'deepseek':
     case 'openrouter':
@@ -79,9 +65,6 @@ function getProvider(providerName) {
   return providers[providerName];
 }
 
-/**
- * Get the project root (cached for performance)
- */
 let cachedProjectRoot = null;
 function getProjectRoot() {
   if (!cachedProjectRoot) {
@@ -90,9 +73,6 @@ function getProjectRoot() {
   return cachedProjectRoot;
 }
 
-/**
- * Get the model instance for a role
- */
 function getModelForRole(role = 'main') {
   const config = readProjectConfig(getProjectRoot());
   const modelConfig = config.models[role] || config.models.main;
@@ -101,9 +81,6 @@ function getModelForRole(role = 'main') {
   return provider(modelConfig.modelId);
 }
 
-/**
- * Generate text using the configured AI model
- */
 export async function generateAIText(prompt, options = {}) {
   const role = options.role || 'main';
   const config = readProjectConfig(getProjectRoot());
@@ -112,8 +89,6 @@ export async function generateAIText(prompt, options = {}) {
   
   const systemPrompt = options.systemPrompt || 
     'You are a helpful AI assistant specialized in software development and task management.';
-  
-  // Check if using hosted key (for tracking)
   const usingHostedKey = isUsingHostedKey(provider);
   
   try {
@@ -131,11 +106,9 @@ export async function generateAIText(prompt, options = {}) {
       inputTokens: result.usage?.promptTokens,
       outputTokens: result.usage?.completionTokens,
     };
-
-    // Track hosted key usage (async, don't block)
     if (usingHostedKey) {
       trackHostedKeyUsage(provider, options.operation || 'text-generation', usage)
-        .catch(() => {}); // Silently ignore tracking errors
+        .catch(() => {});
     }
 
     return {
@@ -144,7 +117,6 @@ export async function generateAIText(prompt, options = {}) {
       usingHostedKey,
     };
   } catch (error) {
-    // Try fallback if main fails
     if (role === 'main' && config.models.fallback) {
       console.warn(`Main model failed, trying fallback: ${error.message}`);
       return await generateAIText(prompt, { ...options, role: 'fallback' });
@@ -153,9 +125,6 @@ export async function generateAIText(prompt, options = {}) {
   }
 }
 
-/**
- * Generate structured object using the configured AI model
- */
 export async function generateAIObject(prompt, schema, options = {}) {
   const role = options.role || 'main';
   const config = readProjectConfig(getProjectRoot());
@@ -165,7 +134,6 @@ export async function generateAIObject(prompt, schema, options = {}) {
   const systemPrompt = options.systemPrompt || 
     'You are a helpful AI assistant specialized in software development and task management.';
   
-  // Check if using hosted key (for tracking)
   const usingHostedKey = isUsingHostedKey(provider);
   
   try {
@@ -185,10 +153,9 @@ export async function generateAIObject(prompt, schema, options = {}) {
       outputTokens: result.usage?.completionTokens,
     };
 
-    // Track hosted key usage (async, don't block)
     if (usingHostedKey) {
       trackHostedKeyUsage(provider, options.operation || 'object-generation', usage)
-        .catch(() => {}); // Silently ignore tracking errors
+        .catch(() => {});
     }
 
     return {
@@ -197,7 +164,6 @@ export async function generateAIObject(prompt, schema, options = {}) {
       usingHostedKey,
     };
   } catch (error) {
-    // Try fallback if main fails
     if (role === 'main' && config.models.fallback) {
       console.warn(`Main model failed, trying fallback: ${error.message}`);
       return await generateAIObject(prompt, schema, { ...options, role: 'fallback' });
@@ -205,10 +171,6 @@ export async function generateAIObject(prompt, schema, options = {}) {
     throw error;
   }
 }
-
-// ============================================
-// TASK GENERATION SCHEMAS (using Zod like official)
-// ============================================
 
 const taskSchema = z.object({
   title: z.string().describe('Clear, concise task title'),
@@ -253,13 +215,6 @@ const newTaskSchema = z.object({
   testStrategy: z.string().describe('Verification approach'),
 });
 
-// ============================================
-// TASK GENERATION FUNCTIONS
-// ============================================
-
-/**
- * Generate tasks from a PRD (using structured output like official)
- */
 export async function generateTasksFromPRD(prdContent, options = {}) {
   const numTasks = options.numTasks || 10;
   
@@ -290,9 +245,6 @@ Generate tasks that provide a clear implementation path from start to finish.`;
   return result.object.tasks;
 }
 
-/**
- * Expand a task into subtasks
- */
 export async function expandTask(task, options = {}) {
   const numSubtasks = options.numSubtasks || 5;
   
@@ -323,9 +275,6 @@ Generate subtasks that provide a clear implementation path.`;
   return result.object.subtasks;
 }
 
-/**
- * Analyze task complexity
- */
 export async function analyzeComplexity(tasks, options = {}) {
   const systemPrompt = `You are an expert software architect. Analyze development tasks and rate their complexity to help with planning and estimation.
 
@@ -358,9 +307,6 @@ For each task, provide a complexity score and recommended number of subtasks.`;
   return result.object.analysis;
 }
 
-/**
- * Add a new task based on a description
- */
 export async function generateTask(description, options = {}) {
   const systemPrompt = `You are an expert software architect. Create well-structured development tasks based on descriptions.
 
@@ -387,10 +333,6 @@ Generate a well-structured task.`;
   return result.object;
 }
 
-/**
- * Perform AI-powered research
- * Tries Perplexity first for web search capability, falls back to main model
- */
 export async function performResearch(query, options = {}) {
   const config = readProjectConfig(getProjectRoot());
   
@@ -399,7 +341,6 @@ Provide accurate, up-to-date information with practical examples when possible.
 Focus on best practices, latest versions, and security considerations.
 Be concise but thorough in your explanations.`;
 
-  // Try research model (Perplexity) first if configured
   if (config.models.research) {
     try {
       const result = await generateAIText(query, {
@@ -417,7 +358,6 @@ Be concise but thorough in your explanations.`;
     }
   }
   
-  // Fallback to main model
   const result = await generateAIText(query, {
     role: 'main',
     systemPrompt,
@@ -431,9 +371,6 @@ Be concise but thorough in your explanations.`;
   };
 }
 
-/**
- * Update multiple tasks from a starting ID with AI
- */
 export async function batchUpdateTasks(tasks, fromId, prompt, options = {}) {
   const systemPrompt = `You are an expert software architect. Update the given tasks based on new context or requirements.
 Preserve the task structure but update titles, descriptions, details, and test strategies as needed.
@@ -474,9 +411,6 @@ Provide updated versions of each task that incorporate the new context.`;
   return result.object.updates;
 }
 
-/**
- * Update a subtask with appended information
- */
 export async function updateSubtaskWithAI(subtask, prompt, options = {}) {
   const systemPrompt = `You are a software developer documenting implementation progress.
 Generate a concise update to append to the subtask details.

@@ -1,15 +1,7 @@
-/**
- * Configuration Tools
- * MCP tools for project and model configuration
- */
 
 import { z } from 'zod';
 import { handleApiResult, withToolContext } from '../utils.js';
 
-/**
- * Register configuration-related tools with the MCP server
- * @param {import('fastmcp').FastMCP} server - FastMCP server instance
- */
 export function registerConfigTools(server) {
   // models - View or configure AI models
   server.addTool({
@@ -30,8 +22,6 @@ export function registerConfigTools(server) {
       
       try {
         const config = readProjectConfig(projectRoot);
-        
-        // Update models if specified
         let updated = false;
         if (setMain) {
           config.models.main.modelId = setMain;
@@ -168,7 +158,7 @@ export function registerConfigTools(server) {
     }),
   });
 
-  // rules - Manage cursor/IDE rules (matching official claude-task-master)
+  // rules - Manage cursor/IDE rules (matching )
   server.addTool({
     name: 'rules',
     description: 'Get or generate cursor/IDE rules for the project',
@@ -187,8 +177,6 @@ export function registerConfigTools(server) {
         const config = readProjectConfig(projectRoot);
         const tasks = getAllTasks(projectRoot);
         const currentTag = getCurrentTag(projectRoot);
-        
-        // Get current task status for rules
         const stats = {
           total: tasks.length,
           pending: tasks.filter(t => t.status === 'pending').length,
@@ -249,7 +237,7 @@ export function registerConfigTools(server) {
     }),
   });
 
-  // response_language - Set/get response language (matching official claude-task-master)
+  // response_language - Set/get response language (matching )
   server.addTool({
     name: 'response_language',
     description: 'Get or set the response language for AI operations',
@@ -267,7 +255,6 @@ export function registerConfigTools(server) {
         const config = readProjectConfig(projectRoot);
         
         if (language) {
-          // Set language
           if (!config.global) config.global = {};
           config.global.responseLanguage = language;
           writeProjectConfig(config, projectRoot);

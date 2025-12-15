@@ -1,8 +1,3 @@
-/**
- * Models Management Module
- * Handles AI model configuration display and updates
- * Copyright (c) 2025 TaskMaster AI LLC
- */
 
 import https from 'https';
 import http from 'http';
@@ -24,10 +19,6 @@ import {
   isApiKeySet
 } from '../config-manager.js';
 
-/**
- * Fetch models from OpenRouter API
- * @returns {Promise<Array|null>} List of models or null
- */
 async function fetchOpenRouterModels() {
   return new Promise((resolve) => {
     const options = {
@@ -59,11 +50,6 @@ async function fetchOpenRouterModels() {
   });
 }
 
-/**
- * Fetch models from Ollama instance
- * @param {string} baseURL - Ollama base URL
- * @returns {Promise<Array|null>} List of models or null
- */
 async function fetchOllamaModels(baseURL = 'http://localhost:11434/api') {
   return new Promise((resolve) => {
     try {
@@ -108,18 +94,11 @@ async function fetchOllamaModels(baseURL = 'http://localhost:11434/api') {
   });
 }
 
-/**
- * Display current model configuration
- * @param {Object} options - Display options
- * @returns {Object} Configuration data
- */
 async function showModelsConfig(options = {}) {
   const { projectRoot, outputFormat = 'text' } = options;
   
   const config = loadConfig(projectRoot);
   const supportedModels = getSupportedModels();
-  
-  // Get current model settings
   const mainConfig = config.models?.main || {};
   const researchConfig = config.models?.research || {};
   const fallbackConfig = config.models?.fallback || {};
@@ -128,8 +107,6 @@ async function showModelsConfig(options = {}) {
   const mainModel = findModelById(mainConfig.modelId);
   const researchModel = findModelById(researchConfig.modelId);
   const fallbackModel = findModelById(fallbackConfig.modelId);
-  
-  // Check API keys
   const mainKeyOk = isApiKeySet(mainConfig.provider);
   const researchKeyOk = isApiKeySet(researchConfig.provider);
   const fallbackKeyOk = isApiKeySet(fallbackConfig.provider);
@@ -199,11 +176,6 @@ async function showModelsConfig(options = {}) {
   return { success: true, data: configData };
 }
 
-/**
- * List available models
- * @param {Object} options - List options
- * @returns {Object} Available models
- */
 async function listAvailableModels(options = {}) {
   const { projectRoot, outputFormat = 'text' } = options;
   
@@ -238,13 +210,6 @@ async function listAvailableModels(options = {}) {
   return { success: true, data: supportedModels };
 }
 
-/**
- * Set a model for a specific role
- * @param {string} role - Role (main, research, fallback)
- * @param {string} modelId - Model ID
- * @param {Object} options - Options
- * @returns {Object} Result
- */
 async function setRoleModel(role, modelId, options = {}) {
   const { projectRoot, outputFormat = 'text' } = options;
   
@@ -258,8 +223,6 @@ async function setRoleModel(role, modelId, options = {}) {
   if (!model) {
     throw new Error(`Model "${modelId}" not found. Run 'taskmaster models --list' to see available models.`);
   }
-  
-  // Update config
   const success = setModelForRole(role, modelId, projectRoot);
   
   if (!success) {

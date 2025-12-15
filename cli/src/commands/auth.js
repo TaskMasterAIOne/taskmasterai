@@ -1,7 +1,3 @@
-/**
- * Authentication Commands for TaskMaster AI CLI
- * Handles login, logout, and auth status
- */
 
 import chalk from 'chalk';
 import inquirer from 'inquirer';
@@ -13,10 +9,6 @@ import {
   isLoggedIn 
 } from '../lib/auth.js';
 
-/**
- * Register auth-related commands
- * @param {import('commander').Command} program - Commander program instance
- */
 export function registerAuthCommands(program) {
   
   // Login command
@@ -29,8 +21,6 @@ export function registerAuthCommands(program) {
     .action(async (options) => {
       try {
         console.log(chalk.bold('\n🔐 TaskMaster AI Login\n'));
-
-        // Check if already logged in
         if (await isLoggedIn()) {
           const currentUser = await getCurrentUser();
           const { confirmRelogin } = await inquirer.prompt([
@@ -62,8 +52,6 @@ export function registerAuthCommands(program) {
         else {
           let email = options.email;
           let password = options.password;
-
-          // Prompt for email if not provided
           if (!email) {
             const emailPrompt = await inquirer.prompt([
               {
@@ -80,8 +68,6 @@ export function registerAuthCommands(program) {
             ]);
             email = emailPrompt.email;
           }
-
-          // Prompt for password if not provided
           if (!password) {
             const passwordPrompt = await inquirer.prompt([
               {
@@ -193,8 +179,6 @@ export function registerAuthCommands(program) {
         console.log(chalk.dim('User ID:      ') + chalk.dim(currentUser.userId));
         console.log(chalk.dim('Login method: ') + chalk.white(currentUser.loginMethod));
         console.log(chalk.dim('Logged in:    ') + chalk.dim(new Date(currentUser.loginAt).toLocaleString()));
-        
-        // Try to get license info
         const { getLicenseStatus } = await import('../lib/license.js');
         const licenseStatus = await getLicenseStatus();
 

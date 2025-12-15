@@ -1,12 +1,3 @@
-/**
- * Log Step Module
- * Appends timestamped notes to a step (subtask)
- * Copyright (c) 2025 TaskMaster AI LLC
- * 
- * TaskMaster AI Terminology:
- * - "steps" instead of "subtasks"
- * - "log" instead of "update-subtask"
- */
 
 import fs from 'fs';
 import boxen from 'boxen';
@@ -25,18 +16,6 @@ import {
   stopLoadingIndicator
 } from '../ui.js';
 
-/**
- * Log progress to a step by appending timestamped information
- * @param {string} tasksPath - Path to the tasks.json file
- * @param {string} stepId - ID of the step in format "parentId.stepId"
- * @param {string} prompt - Information to append
- * @param {Object} options - Additional options
- * @param {string} [options.projectRoot] - Project root path
- * @param {string} [options.context] - Context name
- * @param {boolean} [options.useResearch] - Use research AI for enhancement
- * @param {string} [options.outputFormat] - Output format (text or json)
- * @returns {Promise<Object>} Updated step data
- */
 async function logStep(tasksPath, stepId, prompt, options = {}) {
   const { projectRoot, context, useResearch = false, outputFormat = 'text' } = options;
   
@@ -61,13 +40,9 @@ async function logStep(tasksPath, stepId, prompt, options = {}) {
     }
     
     log('info', `Logging to step ${stepId}: "${truncate(prompt, 50)}..."`);
-    
-    // Show loading indicator for CLI
     if (outputFormat === 'text' && !isSilentMode()) {
       loadingIndicator = startLoadingIndicator(`Updating step ${stepId}...`);
     }
-    
-    // Read tasks data
     const data = readJSON(tasksPath, projectRoot, context);
     if (!data || !data.tasks) {
       throw new Error('No valid tasks found in tasks file');
@@ -103,8 +78,6 @@ async function logStep(tasksPath, stepId, prompt, options = {}) {
     if (!step) {
       throw new Error(`Step ${stepId} not found in parent task ${parentId}`);
     }
-    
-    // Create timestamp
     const timestamp = new Date().toISOString();
     const formattedTime = new Date().toLocaleString('en-US', {
       month: 'short',
@@ -116,15 +89,11 @@ async function logStep(tasksPath, stepId, prompt, options = {}) {
     
     // Build log entry
     const logEntry = `\n\n---\n**[${formattedTime}]**\n${prompt}`;
-    
-    // Append to step details
     if (step.details) {
       step.details += logEntry;
     } else {
       step.details = `**Implementation Log:**${logEntry}`;
     }
-    
-    // Update the step's updated timestamp if exists
     step.updatedAt = timestamp;
     
     // Stop loading indicator

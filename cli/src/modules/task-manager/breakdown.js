@@ -1,13 +1,3 @@
-/**
- * Breakdown Task Module
- * Breaks down a task into smaller steps
- * Copyright (c) 2025 TaskMaster AI LLC
- * 
- * TaskMaster AI Terminology:
- * - "breakdown" instead of "expand"
- * - "steps" instead of "subtasks"
- * - "assessment" instead of "complexity"
- */
 
 import fs from 'fs';
 import boxen from 'boxen';
@@ -28,20 +18,6 @@ import {
   stopLoadingIndicator
 } from '../ui.js';
 
-/**
- * Break down a task into smaller steps
- * @param {string} tasksPath - Path to the tasks.json file
- * @param {number|string} taskId - Task ID to break down
- * @param {Object} options - Breakdown options
- * @param {number} [options.numSteps] - Target number of steps (uses assessment or default)
- * @param {boolean} [options.useResearch] - Use research AI for better steps
- * @param {string} [options.additionalContext] - Extra context for breakdown
- * @param {boolean} [options.force] - Replace existing steps (default: append)
- * @param {string} [options.projectRoot] - Project root path
- * @param {string} [options.context] - Context name
- * @param {string} [options.outputFormat] - Output format (text or json)
- * @returns {Promise<Object>} Updated task with steps
- */
 async function breakdownTask(tasksPath, taskId, options = {}) {
   const {
     numSteps,
@@ -57,13 +33,9 @@ async function breakdownTask(tasksPath, taskId, options = {}) {
   
   try {
     log('info', `Breaking down task ${taskId}...`);
-    
-    // Show loading indicator for CLI
     if (outputFormat === 'text' && !isSilentMode()) {
       loadingIndicator = startLoadingIndicator(`Analyzing task ${taskId}...`);
     }
-    
-    // Read tasks data
     const data = readJSON(tasksPath, projectRoot, context);
     if (!data || !data.tasks) {
       throw new Error(`Invalid tasks data in ${tasksPath}`);
@@ -95,7 +67,6 @@ async function breakdownTask(tasksPath, taskId, options = {}) {
     let assessmentContext = '';
     
     if (!targetStepCount) {
-      // Try to get from assessment report
       const assessmentReport = readAssessmentReport(null, projectRoot);
       
       if (assessmentReport?.taskAnalysis) {
@@ -109,21 +80,15 @@ async function breakdownTask(tasksPath, taskId, options = {}) {
           log('info', `Using assessment recommendation: ${targetStepCount} steps`);
         }
       }
-      
-      // Default if still not set
       if (!targetStepCount) {
         targetStepCount = 5;
         log('info', `Using default: ${targetStepCount} steps`);
       }
     }
-    
-    // Update loading message
     if (loadingIndicator) {
       stopLoadingIndicator(loadingIndicator, 'Generating steps...');
       loadingIndicator = startLoadingIndicator(`Creating ${targetStepCount} steps for task ${taskId}...`);
     }
-    
-    // For now, generate placeholder steps
     // In production, this would call the AI service
     const currentSteps = task[stepsField] || [];
     const startingId = currentSteps.length > 0 
@@ -235,19 +200,11 @@ async function breakdownTask(tasksPath, taskId, options = {}) {
   }
 }
 
-/**
- * Break down all eligible tasks
- * @param {string} tasksPath - Path to the tasks.json file
- * @param {Object} options - Breakdown options
- * @returns {Promise<Object>} Results summary
- */
 async function breakdownAll(tasksPath, options = {}) {
   const { projectRoot, context, outputFormat = 'text', force = false } = options;
   
   try {
     log('info', 'Breaking down all eligible tasks...');
-    
-    // Read tasks
     const data = readJSON(tasksPath, projectRoot, context);
     if (!data || !data.tasks) {
       throw new Error('No valid tasks found');
@@ -257,8 +214,6 @@ async function breakdownAll(tasksPath, options = {}) {
     const eligibleTasks = data.tasks.filter(task => {
       const status = task.status?.toLowerCase() || 'pending';
       const steps = task.steps || task.subtasks || [];
-      
-      // Skip if done or has steps (unless force)
       if (status === 'done' || status === 'completed') return false;
       if (steps.length > 0 && !force) return false;
       

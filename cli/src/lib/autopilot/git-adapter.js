@@ -1,7 +1,3 @@
-/**
- * Git Adapter
- * Handles git operations for the TDD workflow
- */
 
 import { execSync } from 'child_process';
 
@@ -10,12 +6,7 @@ export class GitAdapter {
     this.cwd = projectRoot;
   }
 
-  /**
-   * Execute a git command
-   * @param {string} command - Git command to execute
-   * @returns {string} - Command output
-   */
-  exec(command) {
+    exec(command) {
     try {
       return execSync(command, { 
         cwd: this.cwd, 
@@ -27,11 +18,7 @@ export class GitAdapter {
     }
   }
 
-  /**
-   * Check if git repository exists
-   * @returns {boolean}
-   */
-  isGitRepo() {
+    isGitRepo() {
     try {
       this.exec('git rev-parse --git-dir');
       return true;
@@ -40,11 +27,7 @@ export class GitAdapter {
     }
   }
 
-  /**
-   * Check if working tree is clean
-   * @returns {boolean}
-   */
-  isClean() {
+    isClean() {
     try {
       const status = this.exec('git status --porcelain');
       return status.trim() === '';
@@ -53,20 +36,11 @@ export class GitAdapter {
     }
   }
 
-  /**
-   * Get current branch name
-   * @returns {string}
-   */
-  getCurrentBranch() {
+    getCurrentBranch() {
     return this.exec('git rev-parse --abbrev-ref HEAD').trim();
   }
 
-  /**
-   * Check if branch exists
-   * @param {string} branchName - Branch name to check
-   * @returns {boolean}
-   */
-  branchExists(branchName) {
+    branchExists(branchName) {
     try {
       this.exec(`git rev-parse --verify ${branchName}`);
       return true;
@@ -75,26 +49,16 @@ export class GitAdapter {
     }
   }
 
-  /**
-   * Create and checkout a new branch
-   * @param {string} branchName - Name of the branch to create
-   */
-  async createBranch(branchName) {
+    async createBranch(branchName) {
     if (this.branchExists(branchName)) {
       // Branch exists, just checkout
       this.exec(`git checkout ${branchName}`);
     } else {
-      // Create and checkout new branch
       this.exec(`git checkout -b ${branchName}`);
     }
   }
 
-  /**
-   * Stage files and create a commit
-   * @param {string} message - Commit message
-   * @param {string[]} files - Specific files to stage (optional)
-   */
-  async commit(message, files) {
+    async commit(message, files) {
     // Stage files
     if (files && files.length > 0) {
       const fileList = files.map(f => `"${f}"`).join(' ');
@@ -102,31 +66,19 @@ export class GitAdapter {
     } else {
       this.exec('git add -A');
     }
-
-    // Check if there are staged changes
     const status = this.exec('git status --porcelain');
     if (status.trim() === '') {
       throw new Error('No staged changes to commit');
     }
-
-    // Create commit with escaped message
     const escapedMessage = message.replace(/"/g, '\\"').replace(/\n/g, '\\n');
     this.exec(`git commit -m "${escapedMessage}"`);
   }
 
-  /**
-   * Get the last commit hash
-   * @returns {string}
-   */
-  getLastCommitHash() {
+    getLastCommitHash() {
     return this.exec('git rev-parse HEAD').trim().substring(0, 7);
   }
 
-  /**
-   * Get list of changed files
-   * @returns {string[]}
-   */
-  getChangedFiles() {
+    getChangedFiles() {
     const status = this.exec('git status --porcelain');
     return status
       .split('\n')

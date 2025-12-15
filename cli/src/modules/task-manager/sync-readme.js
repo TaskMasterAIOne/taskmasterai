@@ -1,13 +1,3 @@
-/**
- * Sync README Module
- * Exports tasks to project README.md file
- * Copyright (c) 2025 TaskMaster AI LLC
- * 
- * TaskMaster AI Terminology:
- * - "steps" instead of "subtasks"
- * - "links" instead of "dependencies"
- * - "contexts" instead of "tags"
- */
 
 import fs from 'fs';
 import path from 'path';
@@ -23,12 +13,6 @@ import {
 } from '../utils.js';
 import { getCurrentContext } from '../context-manager.js';
 
-/**
- * Generate markdown table row for a task
- * @param {Object} task - Task object
- * @param {boolean} showSteps - Whether to include steps count
- * @returns {string} Markdown table row
- */
 function generateTaskRow(task, showSteps = false) {
   const status = task.status === 'done' ? '✅' : 
                  task.status === 'in-progress' ? '🔄' :
@@ -47,14 +31,6 @@ function generateTaskRow(task, showSteps = false) {
   return `| ${task.id} | ${status} | ${priority} | ${title}${stepsInfo} | ${description}${description.length >= 100 ? '...' : ''} |`;
 }
 
-/**
- * Generate task list section for README
- * @param {Array} tasks - Array of tasks
- * @param {Object} options - Options
- * @param {boolean} [options.withSteps] - Include steps in output
- * @param {string} [options.status] - Filter by status
- * @returns {string} Markdown content
- */
 function generateTaskListMarkdown(tasks, options = {}) {
   const { withSteps = false, status = null } = options;
   
@@ -92,11 +68,6 @@ function generateTaskListMarkdown(tasks, options = {}) {
   return markdown;
 }
 
-/**
- * Generate progress statistics
- * @param {Array} tasks - Array of tasks
- * @returns {string} Markdown content with stats
- */
 function generateProgressStats(tasks) {
   const total = tasks.length;
   const done = tasks.filter(t => t.status === 'done' || t.status === 'completed').length;
@@ -123,16 +94,6 @@ function generateProgressStats(tasks) {
   return stats;
 }
 
-/**
- * Sync tasks to README.md file
- * @param {Object} options - Sync options
- * @param {string} [options.projectRoot] - Project root directory
- * @param {string} [options.status] - Filter by status
- * @param {boolean} [options.withSteps] - Include steps
- * @param {string} [options.context] - Context name
- * @param {string} [options.outputFormat] - Output format (text or json)
- * @returns {Object} Sync result
- */
 async function syncReadme(options = {}) {
   const { 
     projectRoot: providedRoot, 
@@ -146,13 +107,9 @@ async function syncReadme(options = {}) {
     const projectRoot = providedRoot || findProjectRoot() || process.cwd();
     const readmePath = path.join(projectRoot, 'README.md');
     const tasksPath = getTasksFilePath(projectRoot);
-    
-    // Get current context
     const currentContext = context || getCurrentContext(projectRoot);
     
     log('info', `Syncing tasks from context "${currentContext}" to README.md...`);
-    
-    // Read tasks
     const data = readJSON(tasksPath, projectRoot, currentContext);
     if (!data || !data.tasks || data.tasks.length === 0) {
       if (outputFormat === 'json') {
@@ -163,8 +120,6 @@ async function syncReadme(options = {}) {
     }
     
     const tasks = data.tasks;
-    
-    // Generate the task section
     const startMarker = '<!-- TASKMASTER-AI:START -->';
     const endMarker = '<!-- TASKMASTER-AI:END -->';
     
@@ -175,14 +130,10 @@ async function syncReadme(options = {}) {
     taskSection += '\n### Task List\n\n';
     taskSection += generateTaskListMarkdown(tasks, { withSteps, status });
     taskSection += `\n${endMarker}`;
-    
-    // Read existing README or create new
     let readmeContent = '';
     if (fs.existsSync(readmePath)) {
       readmeContent = fs.readFileSync(readmePath, 'utf-8');
     }
-    
-    // Check if markers exist
     const hasMarkers = readmeContent.includes(startMarker) && readmeContent.includes(endMarker);
     
     if (hasMarkers) {
@@ -190,7 +141,6 @@ async function syncReadme(options = {}) {
       const regex = new RegExp(`${startMarker}[\\s\\S]*?${endMarker}`, 'g');
       readmeContent = readmeContent.replace(regex, taskSection);
     } else {
-      // Append to end of README
       readmeContent = readmeContent.trim() + '\n\n' + taskSection + '\n';
     }
     

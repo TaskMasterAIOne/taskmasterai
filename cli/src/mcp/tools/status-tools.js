@@ -1,24 +1,7 @@
-/**
- * Status and Info Tools
- * MCP tools for task status and information queries
- * 
- * Core tools (included in 'core' tier):
- * - get_tasks: List all tasks
- * - get_task: Get task details
- * - next_task: Get next task to work on
- * - set_task_status: Update task status
- * - update_subtask: Append notes to subtask
- */
 
 import { z } from 'zod';
 import { handleApiResult, withToolContext } from '../utils.js';
 
-/**
- * Register status-related tools with the MCP server
- * @param {import('fastmcp').FastMCP} server - FastMCP server instance
- * @param {Object} options - Registration options
- * @param {boolean} options.coreOnly - Only register core tools
- */
 export function registerStatusTools(server, options = {}) {
   // All status tools are core tools, so coreOnly doesn't filter anything here
   // But we include the parameter for consistency with other tool registrations

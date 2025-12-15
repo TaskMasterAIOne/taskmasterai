@@ -1,8 +1,3 @@
-/**
- * Configuration Manager for TaskMaster AI
- * Manages project configuration, AI models, and settings
- * Copyright (c) 2025 TaskMaster AI LLC
- */
 
 import fs from 'fs';
 import path from 'path';
@@ -14,12 +9,8 @@ import {
   findProjectRoot,
   getConfigDir
 } from './utils.js';
-
-// Calculate __dirname in ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// Load supported models
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const MODEL_MAP = require('./supported-models.json');
@@ -78,18 +69,10 @@ const ALL_PROVIDERS = [
 let loadedConfig = null;
 let loadedConfigRoot = null;
 
-/**
- * Get all supported models organized by provider
- * @returns {Object} Model map by provider
- */
 function getSupportedModels() {
   return MODEL_MAP;
 }
 
-/**
- * Get all model IDs as a flat list
- * @returns {Array<string>} List of model IDs
- */
 function getAllModelIds() {
   const ids = [];
   for (const provider of Object.values(MODEL_MAP)) {
@@ -100,11 +83,6 @@ function getAllModelIds() {
   return ids;
 }
 
-/**
- * Find a model by ID across all providers
- * @param {string} modelId - Model ID to find
- * @returns {Object|null} Model info or null
- */
 function findModelById(modelId) {
   for (const [providerName, models] of Object.entries(MODEL_MAP)) {
     const model = models.find(m => m.id === modelId);
@@ -115,29 +93,14 @@ function findModelById(modelId) {
   return null;
 }
 
-/**
- * Validate a provider name
- * @param {string} provider - Provider to validate
- * @returns {boolean} True if valid
- */
 function validateProvider(provider) {
   return ALL_PROVIDERS.includes(provider?.toLowerCase());
 }
 
-/**
- * Validate a model ID
- * @param {string} modelId - Model ID to validate
- * @returns {boolean} True if valid
- */
 function validateModelId(modelId) {
   return findModelById(modelId) !== null;
 }
 
-/**
- * Load and validate configuration
- * @param {string} explicitRoot - Explicit project root path
- * @returns {Object} Configuration object
- */
 function loadConfig(explicitRoot = null) {
   const projectRoot = explicitRoot || findProjectRoot() || process.cwd();
   
@@ -179,11 +142,6 @@ function loadConfig(explicitRoot = null) {
   return config;
 }
 
-/**
- * Save configuration to file
- * @param {Object} config - Configuration to save
- * @param {string} projectRoot - Project root path
- */
 function saveConfig(config, projectRoot = null) {
   const root = projectRoot || findProjectRoot() || process.cwd();
   const configDir = getConfigDir(root);
@@ -195,32 +153,18 @@ function saveConfig(config, projectRoot = null) {
   }
   
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-  
-  // Update cache
   loadedConfig = config;
   loadedConfigRoot = root;
   
   log('info', `Configuration saved to ${configPath}`);
 }
 
-/**
- * Get a specific config value
- * @param {string} key - Config key (e.g., 'models.main.modelId')
- * @param {string} projectRoot - Project root path
- * @returns {*} Config value
- */
 function getConfigValue(key, projectRoot = null) {
   const config = loadConfig(projectRoot);
   
   return key.split('.').reduce((obj, k) => obj?.[k], config);
 }
 
-/**
- * Set a specific config value
- * @param {string} key - Config key
- * @param {*} value - Value to set
- * @param {string} projectRoot - Project root path
- */
 function setConfigValue(key, value, projectRoot = null) {
   const config = loadConfig(projectRoot);
   
@@ -239,24 +183,11 @@ function setConfigValue(key, value, projectRoot = null) {
   saveConfig(config, projectRoot);
 }
 
-/**
- * Get model configuration for a role
- * @param {string} role - Role (main, research, fallback)
- * @param {string} projectRoot - Project root path
- * @returns {Object} Model config
- */
 function getModelConfig(role, projectRoot = null) {
   const config = loadConfig(projectRoot);
   return config.models?.[role] || DEFAULTS.models[role];
 }
 
-/**
- * Set model for a role
- * @param {string} role - Role (main, research, fallback)
- * @param {string} modelId - Model ID
- * @param {string} projectRoot - Project root path
- * @returns {boolean} Success
- */
 function setModelForRole(role, modelId, projectRoot = null) {
   const model = findModelById(modelId);
   
@@ -280,66 +211,31 @@ function setModelForRole(role, modelId, projectRoot = null) {
   return true;
 }
 
-/**
- * Get the debug flag value
- * @param {string} projectRoot - Project root path
- * @returns {boolean} Debug flag
- */
 function getDebugFlag(projectRoot = null) {
   return getConfigValue('global.debug', projectRoot) === true;
 }
 
-/**
- * Get the log level
- * @param {string} projectRoot - Project root path
- * @returns {string} Log level
- */
 function getLogLevel(projectRoot = null) {
   return getConfigValue('global.logLevel', projectRoot) || 'info';
 }
 
-/**
- * Get project name
- * @param {string} projectRoot - Project root path
- * @returns {string} Project name
- */
 function getProjectName(projectRoot = null) {
   return getConfigValue('global.projectName', projectRoot) || 'TaskMaster AI';
 }
 
-/**
- * Get default priority
- * @param {string} projectRoot - Project root path
- * @returns {string} Default priority
- */
 function getDefaultPriority(projectRoot = null) {
   return getConfigValue('global.defaultPriority', projectRoot) || 'medium';
 }
 
-/**
- * Get default number of steps
- * @param {string} projectRoot - Project root path
- * @returns {number} Default steps count
- */
 function getDefaultSteps(projectRoot = null) {
   return getConfigValue('global.defaultSteps', projectRoot) || 
          getConfigValue('global.defaultSubtasks', projectRoot) || 5;
 }
 
-/**
- * Check if codebase analysis is enabled
- * @param {string} projectRoot - Project root path
- * @returns {boolean} Enabled flag
- */
 function hasCodebaseAnalysis(projectRoot = null) {
   return getConfigValue('global.enableCodebaseAnalysis', projectRoot) !== false;
 }
 
-/**
- * Check if an API key is set for a provider
- * @param {string} provider - Provider name
- * @returns {boolean} True if API key is set
- */
 function isApiKeySet(provider) {
   const envVars = {
     anthropic: 'ANTHROPIC_API_KEY',
@@ -355,11 +251,6 @@ function isApiKeySet(provider) {
   return envVar ? !!process.env[envVar] : false;
 }
 
-/**
- * Get API key for a provider
- * @param {string} provider - Provider name
- * @returns {string|null} API key or null
- */
 function getApiKey(provider) {
   const envVars = {
     anthropic: 'ANTHROPIC_API_KEY',
@@ -375,18 +266,11 @@ function getApiKey(provider) {
   return envVar ? process.env[envVar] : null;
 }
 
-/**
- * Clear the config cache
- */
 function clearConfigCache() {
   loadedConfig = null;
   loadedConfigRoot = null;
 }
 
-/**
- * Reset config to defaults
- * @param {string} projectRoot - Project root path
- */
 function resetToDefaults(projectRoot = null) {
   saveConfig(DEFAULTS, projectRoot);
   log('info', 'Configuration reset to defaults');
@@ -409,8 +293,6 @@ export {
   validateModelId,
   getModelConfig,
   setModelForRole,
-  
-  // Getters
   getDebugFlag,
   getLogLevel,
   getProjectName,

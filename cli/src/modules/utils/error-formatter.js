@@ -1,15 +1,7 @@
-/**
- * Error Formatter Module
- * Professional error message formatting with context-specific hints and sanitization
- * Copyright (c) 2025 TaskMaster AI LLC
- */
 
 import boxen from 'boxen';
 import chalk from 'chalk';
 
-/**
- * Error type categories for context-specific handling
- */
 export const ERROR_TYPES = {
   AUTHENTICATION: 'authentication',
   VALIDATION: 'validation',
@@ -22,9 +14,6 @@ export const ERROR_TYPES = {
   GENERIC: 'generic'
 };
 
-/**
- * Sensitive data patterns to sanitize from error messages
- */
 const SENSITIVE_PATTERNS = [
   // API Keys and tokens
   /\b[A-Za-z0-9_-]{20,}\b/g, // Generic token pattern
@@ -45,11 +34,6 @@ const SENSITIVE_PATTERNS = [
   /https?:\/\/[^:]+:[^@]+@/g
 ];
 
-/**
- * Sanitize sensitive information from error messages
- * @param {string} message - The message to sanitize
- * @returns {string} Sanitized message
- */
 function sanitizeMessage(message) {
   if (!message || typeof message !== 'string') return message;
 
@@ -63,11 +47,6 @@ function sanitizeMessage(message) {
   return sanitized;
 }
 
-/**
- * Classify error type based on error message and properties
- * @param {Error} error - The error to classify
- * @returns {string} Error type from ERROR_TYPES
- */
 function classifyError(error) {
   const message = (error.message || '').toLowerCase();
   const name = (error.name || '').toLowerCase();
@@ -107,8 +86,6 @@ function classifyError(error) {
   ) {
     return ERROR_TYPES.NETWORK;
   }
-
-  // Timeout errors
   if (
     message.includes('timeout') ||
     message.includes('timed out') ||
@@ -161,12 +138,6 @@ function classifyError(error) {
   return ERROR_TYPES.GENERIC;
 }
 
-/**
- * Get helpful hints based on error type
- * @param {string} errorType - The classified error type
- * @param {Error} error - The original error
- * @returns {string[]} Array of helpful hints
- */
 function getHints(errorType, error) {
   const hints = {
     [ERROR_TYPES.AUTHENTICATION]: [
@@ -219,15 +190,6 @@ function getHints(errorType, error) {
   return hints[errorType] || hints[ERROR_TYPES.GENERIC];
 }
 
-/**
- * Format an error message for display
- * @param {Error} error - The error to format
- * @param {Object} options - Formatting options
- * @param {boolean} [options.showStack=false] - Include stack trace
- * @param {boolean} [options.showHints=true] - Include helpful hints
- * @param {boolean} [options.sanitize=true] - Sanitize sensitive data
- * @returns {string} Formatted error message
- */
 function formatError(error, options = {}) {
   const { showStack = false, showHints = true, sanitize = true } = options;
 
@@ -277,21 +239,10 @@ function formatError(error, options = {}) {
   });
 }
 
-/**
- * Display a formatted error to the console
- * @param {Error} error - The error to display
- * @param {Object} options - Display options
- */
 function displayError(error, options = {}) {
   console.error(formatError(error, options));
 }
 
-/**
- * Create a formatted error object for JSON output
- * @param {Error} error - The error to format
- * @param {Object} options - Formatting options
- * @returns {Object} Formatted error object
- */
 function formatErrorJson(error, options = {}) {
   const { sanitize = true } = options;
   const errorType = classifyError(error);

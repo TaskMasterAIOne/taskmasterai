@@ -1,12 +1,3 @@
-/**
- * Set Task Status Module
- * Updates the status of tasks and steps
- * Copyright (c) 2025 TaskMaster AI LLC
- * 
- * TaskMaster AI Terminology:
- * - "steps" instead of "subtasks"
- * - "contexts" instead of "tags"
- */
 
 import boxen from 'boxen';
 import chalk from 'chalk';
@@ -29,22 +20,10 @@ const TASK_STATUS_OPTIONS = [
   'review'
 ];
 
-/**
- * Check if a status is valid
- * @param {string} status - Status to validate
- * @returns {boolean} True if valid
- */
 function isValidStatus(status) {
   return TASK_STATUS_OPTIONS.includes(status?.toLowerCase());
 }
 
-/**
- * Update a single task or step status
- * @param {Object} data - Tasks data object
- * @param {string} taskId - Task or step ID (e.g., "1" or "1.2")
- * @param {string} newStatus - New status to set
- * @returns {Object} Info about the update
- */
 function updateSingleStatus(data, taskId, newStatus) {
   const idStr = String(taskId);
   let oldStatus = 'pending';
@@ -91,17 +70,6 @@ function updateSingleStatus(data, taskId, newStatus) {
   return { id: taskId, oldStatus, newStatus, updated };
 }
 
-/**
- * Set the status of one or more tasks/steps
- * @param {string} tasksPath - Path to the tasks.json file
- * @param {string} taskIdInput - Task ID(s) to update (comma-separated)
- * @param {string} newStatus - New status
- * @param {Object} options - Additional options
- * @param {string} [options.projectRoot] - Project root path
- * @param {string} [options.context] - Context name
- * @param {boolean} [options.silent] - Suppress output
- * @returns {Object} Result object
- */
 async function setStatus(tasksPath, taskIdInput, newStatus, options = {}) {
   const { projectRoot, context, silent } = options;
   
@@ -113,8 +81,6 @@ async function setStatus(tasksPath, taskIdInput, newStatus, options = {}) {
         `Invalid status value: ${newStatus}. Use one of: ${TASK_STATUS_OPTIONS.join(', ')}`
       );
     }
-    
-    // Display header
     if (!silent && !isSilentMode()) {
       console.log(
         boxen(chalk.white.bold(`Updating Task Status to: ${normalizedStatus}`), {
@@ -126,8 +92,6 @@ async function setStatus(tasksPath, taskIdInput, newStatus, options = {}) {
     }
     
     log('info', `Reading tasks from ${tasksPath}...`);
-    
-    // Read tasks data
     const data = readJSON(tasksPath, projectRoot, context);
     
     if (!data || !data.tasks) {
@@ -137,8 +101,6 @@ async function setStatus(tasksPath, taskIdInput, newStatus, options = {}) {
     // Handle multiple task IDs (comma-separated)
     const taskIds = taskIdInput.split(',').map(id => id.trim());
     const updatedTasks = [];
-    
-    // Update each task
     for (const id of taskIds) {
       const updateInfo = updateSingleStatus(data, id, normalizedStatus);
       updatedTasks.push(updateInfo);
@@ -147,8 +109,6 @@ async function setStatus(tasksPath, taskIdInput, newStatus, options = {}) {
     
     // Write changes back
     writeJSON(tasksPath, data, projectRoot, context);
-    
-    // Display success message
     if (!silent && !isSilentMode()) {
       for (const updateInfo of updatedTasks) {
         const { id, oldStatus } = updateInfo;

@@ -1,23 +1,8 @@
-/**
- * Commit Message Generator
- * Generates conventional commit messages for the TDD workflow
- */
 
 export class CommitMessageGenerator {
-  /**
-   * Generate a commit message for a completed subtask
-   * @param {object} subtask - The completed subtask
-   * @param {string} taskId - Parent task ID
-   * @returns {string} - Formatted commit message
-   */
-  generate(subtask, taskId) {
-    // Clean the title for commit message
+    generate(subtask, taskId) {
     const title = this.cleanTitle(subtask.title);
-    
-    // Build the commit message
     const header = `feat(autopilot): ${title} (Task ${taskId}.${subtask.id})`;
-    
-    // Add body if there's a description
     if (subtask.description) {
       return `${header}\n\n${subtask.description}`;
     }
@@ -25,29 +10,15 @@ export class CommitMessageGenerator {
     return header;
   }
 
-  /**
-   * Generate a commit message with custom prefix
-   * @param {string} type - Commit type (feat, fix, test, etc.)
-   * @param {string} scope - Commit scope
-   * @param {string} message - Commit message
-   * @returns {string}
-   */
-  generateCustom(type, scope, message) {
+    generateCustom(type, scope, message) {
     if (scope) {
       return `${type}(${scope}): ${message}`;
     }
     return `${type}: ${message}`;
   }
 
-  /**
-   * Clean a title for use in a commit message
-   * @param {string} title - Raw title
-   * @returns {string} - Cleaned title
-   */
-  cleanTitle(title) {
+    cleanTitle(title) {
     if (!title) return 'implement feature';
-    
-    // Convert to lowercase for conventional commits
     let cleaned = title.toLowerCase();
     
     // Remove leading articles
@@ -67,12 +38,7 @@ export class CommitMessageGenerator {
     return cleaned;
   }
 
-  /**
-   * Determine commit type based on subtask content
-   * @param {object} subtask - The subtask
-   * @returns {string} - Commit type
-   */
-  inferType(subtask) {
+    inferType(subtask) {
     const title = (subtask.title || '').toLowerCase();
     const description = (subtask.description || '').toLowerCase();
     const content = `${title} ${description}`;

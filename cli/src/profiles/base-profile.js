@@ -1,34 +1,6 @@
-/**
- * Base Profile Factory
- * Creates standardized profile configurations for different editors
- * Copyright (c) 2025 TaskMaster AI LLC
- */
 
 import path from 'path';
 
-/**
- * Creates a standardized profile configuration for different editors
- * @param {Object} editorConfig - Editor-specific configuration
- * @param {string} editorConfig.name - Profile name (e.g., 'cursor', 'vscode')
- * @param {string} [editorConfig.displayName] - Display name for the editor (defaults to name)
- * @param {string} editorConfig.url - Editor website URL
- * @param {string} editorConfig.docsUrl - Editor documentation URL
- * @param {string} editorConfig.profileDir - Directory for profile configuration
- * @param {string} [editorConfig.rulesDir] - Directory for rules files (defaults to profileDir/rules)
- * @param {boolean} [editorConfig.mcpConfig=true] - Whether to create MCP configuration
- * @param {string} [editorConfig.mcpConfigName='mcp.json'] - Name of MCP config file
- * @param {string} [editorConfig.fileExtension='.mdc'] - Source file extension
- * @param {string} [editorConfig.targetExtension='.md'] - Target file extension
- * @param {Object} [editorConfig.toolMappings={}] - Tool name mappings
- * @param {Array} [editorConfig.customReplacements=[]] - Custom text replacements
- * @param {Object} [editorConfig.fileMap={}] - Custom file name mappings
- * @param {boolean} [editorConfig.supportsRulesSubdirectories=false] - Whether to use taskmaster/ subdirectory
- * @param {boolean} [editorConfig.includeDefaultRules=true] - Whether to include default rule files
- * @param {Function} [editorConfig.onAdd] - Lifecycle hook for profile addition
- * @param {Function} [editorConfig.onRemove] - Lifecycle hook for profile removal
- * @param {Function} [editorConfig.onPostConvert] - Lifecycle hook for post-conversion
- * @returns {Object} - Complete profile configuration
- */
 export function createProfile(editorConfig) {
   const {
     name,
@@ -124,8 +96,6 @@ export function createProfile(editorConfig) {
     switch_mode: 'switch_mode',
     ...toolMappings
   };
-
-  // Create conversion config
   const conversionConfig = {
     // Profile name replacements
     profileTerms: [
@@ -245,12 +215,9 @@ export function createProfile(editorConfig) {
   };
 }
 
-// Common tool mappings for editors that share similar tool sets
 export const COMMON_TOOL_MAPPINGS = {
-  // Most editors (Cursor, Cline, Windsurf) keep original tool names
   STANDARD: {},
 
-  // Roo Code uses different tool names
   ROO_STYLE: {
     edit_file: 'apply_diff',
     search: 'search_files',

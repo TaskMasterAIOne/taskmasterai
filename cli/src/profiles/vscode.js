@@ -1,7 +1,3 @@
-/**
- * VS Code Profile (with GitHub Copilot)
- * Copyright (c) 2025 TaskMaster AI LLC
- */
 
 import { createProfile } from './base-profile.js';
 

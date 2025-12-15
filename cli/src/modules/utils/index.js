@@ -1,8 +1,3 @@
-/**
- * Utils Module Hub
- * Exports all utility functions
- * Copyright (c) 2025 TaskMaster AI LLC
- */
 
 export { ContextGatherer } from './context-gatherer.js';
 export { FuzzyTaskSearch } from './fuzzy-search.js';

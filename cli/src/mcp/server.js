@@ -1,13 +1,3 @@
-/**
- * TaskMaster AI MCP Server
- * Machine-to-Machine Communication Protocol server for AI agent integration
- * 
- * Follows the patterns from official claude-task-master @tm/mcp implementation
- * 
- * Environment Variables:
- * - TASK_MASTER_TOOLS: Tool tier configuration ('core', 'standard', 'all', or comma-separated list)
- * - TASK_MASTER_PROJECT_ROOT: Default project root directory
- */
 
 import { FastMCP } from 'fastmcp';
 import { 
@@ -19,22 +9,15 @@ import {
 import { getLicenseStatus } from '../lib/license.js';
 import { getVersion } from '../lib/config.js';
 
-/**
- * Initialize and start the MCP server
- */
 async function startServer() {
-  // Read tool tier from environment using official pattern
   const toolMode = getToolsConfiguration();
   const version = getVersion();
 
-  // Create MCP server
   const server = new FastMCP({
     name: 'TaskMaster AI MCP Server',
     version: version,
     description: 'TaskMaster AI - AI-powered task management and TDD workflow automation',
   });
-
-  // Check license status (warn but don't block - allow limited usage)
   let licenseValid = false;
   let licensePlan = 'none';
   try {
@@ -91,15 +74,11 @@ async function startServer() {
     console.error('Shutting down MCP server...');
     process.exit(0);
   });
-
-  // Start the server with stdio transport (standard for MCP)
   await server.start({
     transportType: 'stdio',
     timeout: 120000 // 2 minutes timeout
   });
 }
-
-// Start the server
 startServer().catch(error => {
   console.error('Failed to start MCP server:', error.message);
   process.exit(1);

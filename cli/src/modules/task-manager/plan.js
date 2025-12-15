@@ -1,11 +1,3 @@
-/**
- * Plan Module
- * Generates tasks from a PRD (Product Requirements Document)
- * Copyright (c) 2025 TaskMaster AI LLC
- * 
- * TaskMaster AI Terminology:
- * - "plan" instead of "parse-prd"
- */
 
 import fs from 'fs';
 import path from 'path';
@@ -25,19 +17,6 @@ import {
   stopLoadingIndicator
 } from '../ui.js';
 
-/**
- * Generate tasks from a PRD file
- * @param {string} prdPath - Path to the PRD file
- * @param {Object} options - Options
- * @param {string} [options.output] - Output path for tasks.json
- * @param {number} [options.numTasks] - Target number of tasks
- * @param {boolean} [options.force] - Overwrite existing tasks
- * @param {boolean} [options.append] - Append to existing tasks
- * @param {string} [options.projectRoot] - Project root path
- * @param {string} [options.context] - Context name
- * @param {string} [options.outputFormat] - Output format
- * @returns {Promise<Object>} Generation results
- */
 async function plan(prdPath, options = {}) {
   const {
     output,
@@ -62,15 +41,11 @@ async function plan(prdPath, options = {}) {
     }
     
     log('info', `Generating tasks from PRD: ${prdPath}`);
-    
-    // Read PRD content
     const prdContent = fs.readFileSync(fullPrdPath, 'utf-8');
     
     if (!prdContent || prdContent.trim().length < 50) {
       throw new Error('PRD file is too short or empty');
     }
-    
-    // Show loading
     if (outputFormat === 'text' && !isSilentMode()) {
       loadingIndicator = startLoadingIndicator('Analyzing PRD and generating tasks...');
     }
@@ -84,8 +59,6 @@ async function plan(prdPath, options = {}) {
     if (!fs.existsSync(tasksDir)) {
       fs.mkdirSync(tasksDir, { recursive: true });
     }
-    
-    // Check for existing tasks
     let existingData = null;
     if (fs.existsSync(tasksPath)) {
       existingData = readJSON(tasksPath, projectRoot, context);
@@ -235,13 +208,6 @@ async function plan(prdPath, options = {}) {
   }
 }
 
-/**
- * Parse PRD content into tasks
- * In production, this would use AI for intelligent parsing
- * @param {string} content - PRD content
- * @param {number} targetCount - Target number of tasks
- * @returns {Array<Object>} Generated tasks
- */
 function parsePRDContent(content, targetCount) {
   const tasks = [];
   
@@ -251,7 +217,6 @@ function parsePRDContent(content, targetCount) {
   let taskId = 1;
   
   for (const line of lines) {
-    // Check for section headers (##, ###, numbered lists)
     const headerMatch = line.match(/^#+\s+(.+)/) || line.match(/^\d+\.\s+(.+)/);
     
     if (headerMatch && tasks.length < targetCount) {
@@ -281,8 +246,6 @@ function parsePRDContent(content, targetCount) {
       currentSection = title;
     }
   }
-  
-  // If we didn't find enough, add generic tasks
   while (tasks.length < Math.min(targetCount, 5)) {
     const id = tasks.length + 1;
     tasks.push({
@@ -304,22 +267,11 @@ function parsePRDContent(content, targetCount) {
   return tasks;
 }
 
-/**
- * Truncate a title to reasonable length
- * @param {string} title - Title text
- * @returns {string} Truncated title
- */
 function truncateTitle(title) {
   if (title.length <= 60) return title;
   return title.substring(0, 57) + '...';
 }
 
-/**
- * Determine task priority based on content
- * @param {string} title - Task title
- * @param {string} line - Full line
- * @returns {string} Priority level
- */
 function determinePriority(title, line) {
   const text = (title + ' ' + line).toLowerCase();
   

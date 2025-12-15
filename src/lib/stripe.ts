@@ -1,9 +1,12 @@
 import { loadStripe } from '@stripe/stripe-js'
 
-// Initialize Stripe with publishable key
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'pk_live_51Sdfi2IIz7GWDlyPBfbbJiW8nDneJsEC42p1r9HsXMUkUl2yoNVJerTYGcRBTjzZGXuuKbFpxlSGn4IsgztIhnTB0060QTfc3G')
+const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+if (!stripePublishableKey) {
+  console.error('ERROR: VITE_STRIPE_PUBLISHABLE_KEY environment variable is not set');
+}
 
-// Firebase Functions base URL - update this with your actual deployed functions URL
+const stripePromise = loadStripe(stripePublishableKey)
+
 const FUNCTIONS_URL = import.meta.env.VITE_FIREBASE_FUNCTIONS_URL || 'https://us-central1-taskmaster-ai-e2302.cloudfunctions.net'
 
 export type PlanType = 'plus' | 'pro' | 'enterprise'

@@ -1,17 +1,7 @@
-/**
- * Dependency Management Tools
- * MCP tools for managing task dependencies
- */
 
 import { z } from 'zod';
 import { handleApiResult, withToolContext } from '../utils.js';
 
-/**
- * Register dependency-related tools with the MCP server
- * @param {import('fastmcp').FastMCP} server - FastMCP server instance
- * @param {Object} options - Registration options
- * @param {boolean} options.coreOnly - Only register core tools
- */
 export function registerDependencyTools(server, options = {}) {
   const { coreOnly = false } = options;
 
