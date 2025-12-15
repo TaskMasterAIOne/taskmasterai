@@ -1024,15 +1024,15 @@ taskmaster update --from=5 --prompt="We switched from MongoDB to PostgreSQL"`}
           <CodeBlock code="DEEPSEEK_API_KEY=sk-your-key-here" filename=".env" />
         </Accordion>
 
-        <Accordion title="Other Providers (GROQ, OpenRouter, xAI, Azure, Ollama)">
+        <Accordion title="Other Providers (OpenRouter, xAI, Azure, Ollama, Mistral)">
           <div className="space-y-4">
-            <div>
-              <p className="font-medium mb-2">GROQ_API_KEY</p>
-              <CodeBlock code="GROQ_API_KEY=your-key-here" filename=".env" />
-            </div>
             <div>
               <p className="font-medium mb-2">OPENROUTER_API_KEY</p>
               <CodeBlock code="OPENROUTER_API_KEY=your-key-here" filename=".env" />
+            </div>
+            <div>
+              <p className="font-medium mb-2">MISTRAL_API_KEY</p>
+              <CodeBlock code="MISTRAL_API_KEY=your-key-here" filename=".env" />
             </div>
             <div>
               <p className="font-medium mb-2">XAI_API_KEY (Grok)</p>
@@ -1268,7 +1268,7 @@ taskmaster sync
           
           <Accordion title="Which AI models are supported?">
             <p className="text-text-muted">
-              TaskMaster AI supports Claude (Anthropic), GPT (OpenAI), Gemini (Google), Perplexity, Grok (xAI), Mistral, and models via OpenRouter.
+              TaskMaster AI supports Claude (Anthropic), GPT (OpenAI), Gemini (Google), Perplexity, Grok (xAI), Mistral, DeepSeek, OpenRouter, Azure OpenAI, and local Ollama models.
             </p>
           </Accordion>
           

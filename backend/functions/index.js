@@ -361,8 +361,8 @@ TaskMaster AI supports multiple AI providers. You bring your own API keys:
 - **Mistral** - mistral-large, mistral-medium
 - **xAI (Grok)** - grok-beta, grok-2
 - **OpenRouter** - Access to 100+ models
-- **GROQ** - Fast inference for open models
 - **Azure OpenAI** - Enterprise Azure deployments
+- **Ollama** - Local models (Llama, Mistral, etc.)
 - **Ollama** - Local models (llama3, codellama, etc.)
 - **Claude Code** - No API key required (requires Claude Code CLI installed)
 
@@ -381,8 +381,9 @@ GOOGLE_API_KEY=your-key-here
 MISTRAL_API_KEY=your-key-here
 OPENROUTER_API_KEY=your-key-here
 XAI_API_KEY=your-key-here
-GROQ_API_KEY=your-key-here
 AZURE_OPENAI_API_KEY=your-key-here
+MISTRAL_API_KEY=your-key-here
+OLLAMA_BASE_URL=http://localhost:11434/v1
 AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
 OLLAMA_BASE_URL=http://localhost:11434/api
 \`\`\`
@@ -643,7 +644,7 @@ TaskMaster will strictly adhere to specific requirements in the PRD (libraries, 
 TaskMaster AI is an AI-powered task management system that helps developers break down complex projects into manageable tasks and execute them efficiently using AI assistance.
 
 **Which AI models are supported?**
-TaskMaster AI supports Claude (Anthropic), GPT (OpenAI), Gemini (Google), Perplexity, Grok (xAI), Mistral, GROQ, and models via OpenRouter.
+TaskMaster AI supports Claude (Anthropic), GPT (OpenAI), Gemini (Google), Perplexity, Grok (xAI), Mistral, DeepSeek, OpenRouter, Azure OpenAI, and local Ollama models.
 
 **How much does it cost?**
 TaskMaster AI is a paid service. Plans start at $29/month (Plus) with 100 tasks and 500 AI operations included. You'll also pay for AI API usage separately (most users spend $5-10 per month on API costs). TaskMaster AI shows the cost of each command after it runs. Check https://www.taskmaster.one/pricing for current plans and features.

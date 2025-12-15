@@ -84,5 +84,33 @@
     { "id": "sonar-reasoning", "name": "Sonar Reasoning", "description": "Real-time reasoning with search", "allowed_roles": ["main", "research", "fallback"], "max_tokens": 8700, "supported": true },
     { "id": "sonar-reasoning-pro", "name": "Sonar Reasoning Pro", "description": "DeepSeek-R1 powered CoT", "allowed_roles": ["main", "research", "fallback"], "max_tokens": 8700, "supported": true },
     { "id": "sonar-deep-research", "name": "Sonar Deep Research", "description": "Expert-level comprehensive research", "allowed_roles": ["research"], "max_tokens": 8700, "supported": true }
+  ],
+  "mistral": [
+    { "id": "mistral-large", "name": "Mistral Large", "description": "Most capable model", "allowed_roles": ["main", "fallback"], "max_tokens": 128000, "supported": true },
+    { "id": "mistral-medium", "name": "Mistral Medium", "description": "Balanced performance", "allowed_roles": ["main", "fallback"], "max_tokens": 32000, "supported": true },
+    { "id": "mistral-small", "name": "Mistral Small", "description": "Fast & efficient", "allowed_roles": ["main", "fallback"], "max_tokens": 32000, "supported": true },
+    { "id": "codestral", "name": "Codestral", "description": "Code-specialized", "allowed_roles": ["main", "fallback"], "max_tokens": 32000, "supported": true }
+  ],
+  "openrouter": [
+    { "id": "anthropic/claude-opus-4.5", "name": "Claude Opus 4.5 (OpenRouter)", "description": "Via OpenRouter", "allowed_roles": ["main", "fallback"], "max_tokens": 200000, "supported": true },
+    { "id": "anthropic/claude-sonnet-4.5", "name": "Claude Sonnet 4.5 (OpenRouter)", "description": "Via OpenRouter", "allowed_roles": ["main", "fallback"], "max_tokens": 200000, "supported": true },
+    { "id": "openai/gpt-4-turbo", "name": "GPT-4 Turbo (OpenRouter)", "description": "Via OpenRouter", "allowed_roles": ["main", "fallback"], "max_tokens": 128000, "supported": true },
+    { "id": "google/gemini-pro-1.5", "name": "Gemini Pro 1.5 (OpenRouter)", "description": "Via OpenRouter", "allowed_roles": ["main", "fallback"], "max_tokens": 2097152, "supported": true },
+    { "id": "meta-llama/llama-3.3-70b", "name": "Llama 3.3 70B (OpenRouter)", "description": "Via OpenRouter", "allowed_roles": ["main", "fallback"], "max_tokens": 131072, "supported": true }
+  ],
+  "azure": [
+    { "id": "gpt-4", "name": "GPT-4 (Azure)", "description": "Azure-hosted GPT-4", "allowed_roles": ["main", "fallback"], "max_tokens": 8192, "supported": true },
+    { "id": "gpt-4-turbo", "name": "GPT-4 Turbo (Azure)", "description": "Azure-hosted GPT-4 Turbo", "allowed_roles": ["main", "fallback"], "max_tokens": 128000, "supported": true },
+    { "id": "gpt-4o", "name": "GPT-4o (Azure)", "description": "Azure-hosted GPT-4o", "allowed_roles": ["main", "fallback"], "max_tokens": 128000, "supported": true },
+    { "id": "gpt-35-turbo", "name": "GPT-3.5 Turbo (Azure)", "description": "Azure-hosted GPT-3.5", "allowed_roles": ["main", "fallback"], "max_tokens": 16384, "supported": true }
+  ],
+  "ollama": [
+    { "id": "llama3", "name": "Llama 3 (Local)", "description": "Meta's Llama 3", "allowed_roles": ["main", "fallback"], "max_tokens": 8192, "supported": true },
+    { "id": "llama3.1", "name": "Llama 3.1 (Local)", "description": "Meta's Llama 3.1", "allowed_roles": ["main", "fallback"], "max_tokens": 131072, "supported": true },
+    { "id": "llama3.2", "name": "Llama 3.2 (Local)", "description": "Meta's Llama 3.2", "allowed_roles": ["main", "fallback"], "max_tokens": 131072, "supported": true },
+    { "id": "mistral", "name": "Mistral (Local)", "description": "Mistral 7B", "allowed_roles": ["main", "fallback"], "max_tokens": 32768, "supported": true },
+    { "id": "codellama", "name": "Code Llama (Local)", "description": "Code-specialized Llama", "allowed_roles": ["main", "fallback"], "max_tokens": 16384, "supported": true },
+    { "id": "deepseek-coder", "name": "DeepSeek Coder (Local)", "description": "DeepSeek code model", "allowed_roles": ["main", "fallback"], "max_tokens": 16384, "supported": true },
+    { "id": "qwen2", "name": "Qwen 2 (Local)", "description": "Alibaba Qwen 2", "allowed_roles": ["main", "fallback"], "max_tokens": 32768, "supported": true }
   ]
 }

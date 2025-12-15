@@ -17,6 +17,8 @@ const PROVIDER_URLS = {
   zhipu: 'https://open.bigmodel.cn/api/paas/v4',
   moonshot: 'https://api.moonshot.cn/v1',
   meta: 'https://api.meta.com/llama',
+  azure: process.env.AZURE_OPENAI_ENDPOINT || 'https://your-resource.openai.azure.com',
+  ollama: process.env.OLLAMA_BASE_URL || 'http://localhost:11434/v1',
 };
 
 function getProvider(providerName) {
@@ -49,6 +51,8 @@ function getProvider(providerName) {
     case 'zhipu':
     case 'moonshot':
     case 'meta':
+    case 'azure':
+    case 'ollama':
       const baseURL = PROVIDER_URLS[providerLower];
       if (!baseURL) {
         throw new Error(`No base URL configured for provider: ${providerName}`);
@@ -59,7 +63,7 @@ function getProvider(providerName) {
       });
       break;
     default:
-      throw new Error(`Unsupported provider: ${providerName}. Supported: anthropic, openai, google, perplexity, deepseek, openrouter, xai, mistral, zhipu, moonshot, meta`);
+      throw new Error(`Unsupported provider: ${providerName}. Supported: anthropic, openai, google, perplexity, deepseek, openrouter, xai, mistral, zhipu, moonshot, meta, azure, ollama`);
   }
 
   return providers[providerName];
