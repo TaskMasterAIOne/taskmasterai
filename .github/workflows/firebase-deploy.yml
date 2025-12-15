@@ -41,7 +41,15 @@ jobs:
         run: npm ci
         working-directory: backend/functions
 
-      # Deploy to Firebase (Hosting + Functions)
+      # Inject CLI version into backend functions
+      - name: Inject CLI version into backend
+        run: |
+          CLI_VERSION=$(node -p "require('./cli/package.json').version")
+          echo "CLI Version: $CLI_VERSION"
+          # Create a version.json file in functions directory
+          echo "{\"name\":\"@taskmasterai/cli\",\"version\":\"$CLI_VERSION\"}" > backend/functions/cli-version.json
+
+      # Deploy to Firebase (Hosting + Functions)  
       - name: Deploy to Firebase
         run: |
           npm install -g firebase-tools

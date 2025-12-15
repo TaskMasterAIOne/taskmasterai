@@ -5,9 +5,32 @@ import admin from 'firebase-admin';
 import Stripe from 'stripe';
 import { v4 as uuidv4 } from 'uuid';
 
-// Package info (hardcoded to avoid dependency on CLI directory in deployed environment)
-const PACKAGE_NAME = '@taskmasterai/cli'
-const PACKAGE_VERSION = '1.0.38'
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// ESM-safe __dirname equivalent
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Read CLI version from cli-version.json (injected during CI/CD deployment)
+// Falls back to hardcoded value if file doesn't exist
+let PACKAGE_NAME = '@taskmasterai/cli';
+let PACKAGE_VERSION = '1.0.38'; // Fallback version
+
+try {
+  const cliVersionPath = path.join(__dirname, 'cli-version.json');
+  if (fs.existsSync(cliVersionPath)) {
+    const cliVersion = JSON.parse(fs.readFileSync(cliVersionPath, 'utf-8'));
+    PACKAGE_NAME = cliVersion.name;
+    PACKAGE_VERSION = cliVersion.version;
+    console.log(`Using CLI version from ci-version.json: ${PACKAGE_VERSION}`);
+  } else {
+    console.log(`cli-version.json not found, using fallback version: ${PACKAGE_VERSION}`);
+  }
+} catch (err) {
+  console.warn('Could not read cli-version.json, using fallback:', err.message);
+}
 
 // Initialize Firebase Admin
 admin.initializeApp();
