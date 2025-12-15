@@ -422,7 +422,7 @@ export default function Dashboard() {
                   Subscribe to a plan to start using AI-powered task management
                 </p>
                 <Link 
-                  to="/app/settings" 
+                  to="/pricing" 
                   className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent-hover transition-colors"
                 >
                   View Plans
