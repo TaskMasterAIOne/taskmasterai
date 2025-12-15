@@ -55,7 +55,6 @@
     "commander": "^12.1.0",
     "dotenv": "^16.4.5",
     "fastmcp": "^3.23.0",
-    "firebase-functions": "^7.0.1",
     "inquirer": "^12.5.0",
     "ora": "^8.0.1",
     "uuid": "^11.1.0",
