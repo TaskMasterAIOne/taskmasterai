@@ -5,6 +5,20 @@ import admin from 'firebase-admin';
 import Stripe from 'stripe';
 import { v4 as uuidv4 } from 'uuid';
 
+import fs from 'fs'
+import path from 'path'
+
+// Resolve path to CLI package.json
+const packageJsonPath = path.resolve(
+  __dirname,
+  '../../cli/package.json'
+)
+
+const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'))
+
+const PACKAGE_NAME = packageJson.name
+const PACKAGE_VERSION = packageJson.version
+
 // Initialize Firebase Admin
 admin.initializeApp();
 const db = admin.firestore();
@@ -761,7 +775,9 @@ Owen 3 Coder
 MiniMax
 MiniMax M2
 
-CURRENT NPM PACKAGE VERSION: 1.0.34
+CURRENT NPM PACKAGE:
+Name: ${PACKAGE_NAME}
+Version: ${PACKAGE_VERSION}
 
 CURRENT NPM README FILE:
 
