@@ -3060,7 +3060,8 @@ export const deleteAccount = onRequest(
 
 /**
  * Get Firebase client configuration
- * Public endpoint - returns client-safe Firebase config for CLI
+ * Public endpoint - returns client-safe Firebase config for CLI authentication
+ * Updated: 2025-12-15 - Hardcoded public config values
  */
 export const getFirebaseConfig = onRequest(
   {
@@ -3069,7 +3070,7 @@ export const getFirebaseConfig = onRequest(
   },
   async (req, res) => {
     try {
-      // Public Firebase client config (safe to expose)
+      // Public Firebase client config (safe to expose - these are client-side keys)
       const firebaseConfig = {
         apiKey: "AIzaSyBFgcODliRWgmsmswoCo4BLbLs8aIFCYLM",
         authDomain: "taskmaster-ai-e2302.firebaseapp.com",
