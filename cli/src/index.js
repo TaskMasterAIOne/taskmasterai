@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import boxen from 'boxen';
 import { getLicenseStatus, syncUserConfig, syncHostedApiKeys, canUseHostedApiKeys } from './lib/license.js';
 import { registerCommands } from './commands/index.js';
+import { registerAuthCommands } from './commands/auth.js';
 import { getVersion, readProjectConfig, findProjectRoot } from './lib/config.js';
 
 const LICENSE_EXEMPT_COMMANDS = [
@@ -144,6 +145,7 @@ function createProgram() {
   });
 
   registerCommands(program);
+  registerAuthCommands(program);
 
   program
     .command('sync-keys')

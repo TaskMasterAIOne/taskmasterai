@@ -3069,28 +3069,15 @@ export const getFirebaseConfig = onRequest(
   },
   async (req, res) => {
     try {
-      // Get all Firebase config from environment variables
+      // Public Firebase client config (safe to expose)
       const firebaseConfig = {
-        apiKey: process.env.FIREBASE_WEB_API_KEY,
-        authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-        messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-        appId: process.env.FIREBASE_APP_ID
+        apiKey: "AIzaSyBFgcODliRWgmsmswoCo4BLbLs8aIFCYLM",
+        authDomain: "taskmaster-ai-e2302.firebaseapp.com",
+        projectId: "taskmaster-ai-e2302",
+        storageBucket: "taskmaster-ai-e2302.firebasestorage.app",
+        messagingSenderId: "795400978174",
+        appId: "1:795400978174:web:27ed00f5ecd8920e042faf"
       };
-
-      // Validate all required fields are present
-      const missingFields = Object.entries(firebaseConfig)
-        .filter(([_, value]) => !value)
-        .map(([key]) => key);
-
-      if (missingFields.length > 0) {
-        console.error('ERROR: Missing Firebase environment variables:', missingFields.join(', '));
-        return res.status(500).json({
-          success: false,
-          error: 'Firebase configuration not available'
-        });
-      }
 
       res.status(200).json({
         success: true,
