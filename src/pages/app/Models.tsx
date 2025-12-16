@@ -14,16 +14,12 @@ interface ModelConfig {
 
 const modelOptions = {
   anthropic: [
-    { id: 'claude-opus-4.5', name: 'Claude Opus 4.5', description: 'Most powerful' },
-    { id: 'claude-4.1-opus', name: 'Claude Opus 4.1', description: 'Advanced reasoning' },
-    { id: 'claude-sonnet-4.5', name: 'Claude Sonnet 4.5', description: 'Best balance' },
-    { id: 'claude-sonnet-4.5-reasoning', name: 'Claude Sonnet 4.5 (Reasoning)', description: 'Enhanced reasoning' },
-    { id: 'claude-4-sonnet', name: 'Claude Sonnet 4', description: 'High capability' },
-    { id: 'claude-4-sonnet-reasoning', name: 'Claude Sonnet 4 (Reasoning)', description: 'With reasoning' },
-    { id: 'claude-3.7-sonnet', name: 'Claude Sonnet 3.7', description: 'Previous gen' },
-    { id: 'claude-3.7-sonnet-reasoning', name: 'Claude Sonnet 3.7 (Reasoning)', description: 'With reasoning' },
-    { id: 'claude-haiku-4.5', name: 'Claude Haiku 4.5', description: 'Fast & efficient' },
-    { id: 'claude-haiku-4.5-reasoning', name: 'Claude Haiku 4.5 (Reasoning)', description: 'Fast with reasoning' },
+    { id: 'claude-opus-4-5-20251101', name: 'Claude Opus 4.5', description: 'Most powerful' },
+    { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', description: 'Best balance' },
+    { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', description: 'Fast & efficient' },
+    { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet', description: 'Previous gen' },
+    { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', description: 'Stable' },
+    { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', description: 'Fast' },
   ],
   openai: [
     { id: 'gpt-5', name: 'GPT 5', description: 'Most capable' },
@@ -55,21 +51,13 @@ const modelOptions = {
     { id: 'gemini-2.0-flash-lite', name: 'Gemini 2.0 Flash Lite', description: 'Lightweight' },
   ],
   deepseek: [
-    { id: 'deepseek-v3', name: 'DeepSeek V3', description: 'Latest version' },
-    { id: 'deepseek-v3.2-exp', name: 'DeepSeek V3.2 Exp', description: 'Experimental' },
-    { id: 'deepseek-v3.2-exp-thinking', name: 'DeepSeek V3.2 Exp (Thinking)', description: 'With reasoning' },
-    { id: 'deepseek-v3.1', name: 'DeepSeek V3.1', description: 'Stable release' },
-    { id: 'deepseek-v3.1-thinking', name: 'DeepSeek V3.1 (Thinking)', description: 'With reasoning' },
-    { id: 'deepseek-v3.1-terminus', name: 'DeepSeek V3.1 Terminus', description: 'Terminal mode' },
-    { id: 'deepseek-v3.1-terminus-thinking', name: 'DeepSeek V3.1 Terminus (Thinking)', description: 'Terminal reasoning' },
-    { id: 'deepseek-r1', name: 'DeepSeek R1', description: 'Reasoning focused' },
+    { id: 'deepseek-chat', name: 'DeepSeek Chat', description: 'Standard mode (V3.2)' },
+    { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner', description: 'Thinking mode (V3.2)' },
   ],
   xai: [
     { id: 'grok-4', name: 'Grok 4', description: 'Latest Grok' },
-    { id: 'grok-4-fast', name: 'Grok 4 Fast', description: 'Quick responses' },
     { id: 'grok-4-fast-reasoning', name: 'Grok 4 Fast (Reasoning)', description: 'Fast reasoning' },
-    { id: 'grok-4.1-fast', name: 'Grok 4.1 Fast', description: 'Updated fast' },
-    { id: 'grok-4.1-fast-reasoning', name: 'Grok 4.1 Fast (Reasoning)', description: 'Updated reasoning' },
+    { id: 'grok-4-fast-non-reasoning', name: 'Grok 4 Fast', description: 'Quick responses' },
     { id: 'grok-3', name: 'Grok 3', description: 'Previous gen' },
     { id: 'grok-3-mini', name: 'Grok 3 Mini', description: 'Compact' },
   ],
@@ -105,14 +93,14 @@ const modelOptions = {
 }
 
 const modelRoles = [
-  { id: 'main', label: 'Main Model', description: 'Primary operations, PRD parsing, task expansion', icon: faMicrochip, recommended: 'claude-sonnet-4.5' },
+  { id: 'main', label: 'Main Model', description: 'Primary operations, PRD parsing, task expansion', icon: faMicrochip, recommended: 'claude-sonnet-4-5-20250929' },
   { id: 'research', label: 'Research Model', description: 'Web-aware responses with --research flag', icon: faMagnifyingGlass, recommended: 'sonar-pro' },
   { id: 'fallback', label: 'Fallback Model', description: 'Used when main model fails or rate limits', icon: faBolt, recommended: 'gemini-2.5-flash' },
 ]
 
 export default function Models() {
   const { user } = useAuth()
-  const [config, setConfig] = useState<ModelConfig>({ main: 'claude-sonnet-4.5', research: 'sonar-pro', fallback: 'gemini-2.5-flash' })
+  const [config, setConfig] = useState<ModelConfig>({ main: 'claude-sonnet-4-5-20250929', research: 'sonar-pro', fallback: 'gemini-2.5-flash' })
   const [, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState('')

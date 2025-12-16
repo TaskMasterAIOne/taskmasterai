@@ -1,6 +1,6 @@
 {
   "name": "@taskmasterai/cli",
-  "version": "1.0.40",
+  "version": "1.0.41",
   "description": "AI-powered task management CLI for developers. Transform PRDs into actionable task lists.",
   "main": "src/index.js",
   "type": "module",
