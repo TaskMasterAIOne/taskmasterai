@@ -103,9 +103,10 @@ export function registerCommands(program) {
       console.log('');
     });
 
-  // Parse PRD command
+  // Parse PRD command (alias: plan)
   program
     .command('parse-prd')
+    .alias('plan')
     .description('Parse a PRD file and generate tasks')
     .argument('[file]', 'Path to the PRD file')
     .option('-i, --input <file>', 'Path to the PRD file')
@@ -420,9 +421,10 @@ export function registerCommands(program) {
       }
     });
 
-  // Expand task command
+  // Expand task command (alias: breakdown)
   program
     .command('expand')
+    .alias('breakdown')
     .description('Expand a task into subtasks using AI')
     .option('-i, --id <id>', 'Task ID to expand')
     .option('-n, --num <number>', 'Number of subtasks to generate', '5')
@@ -536,6 +538,7 @@ export function registerCommands(program) {
     });
   program
     .command('add-task')
+    .alias('new')
     .description('Add a new task')
     .option('-p, --prompt <text>', 'Task description (required)')
     .option('-d, --dependencies <ids>', 'Comma-separated dependency IDs')
@@ -593,9 +596,10 @@ export function registerCommands(program) {
       }
     });
 
-  // Analyze complexity command
+  // Analyze complexity command (alias: assess)
   program
     .command('analyze-complexity')
+    .alias('assess')
     .description('Analyze task complexity')
     .option('-r, --research', 'Use research model')
     .action(async (options) => {
@@ -672,6 +676,7 @@ export function registerCommands(program) {
     });
   program
     .command('add-dependency')
+    .alias('link')
     .description('Add a dependency to a task')
     .option('-i, --id <id>', 'Task ID')
     .option('-d, --depends-on <id>', 'Dependency task ID')
@@ -700,9 +705,10 @@ export function registerCommands(program) {
       }
     });
 
-  // Remove dependency command
+  // Remove dependency command (alias: unlink)
   program
     .command('remove-dependency')
+    .alias('unlink')
     .description('Remove a dependency from a task')
     .option('-i, --id <id>', 'Task ID')
     .option('-d, --depends-on <id>', 'Dependency task ID to remove')
@@ -727,6 +733,7 @@ export function registerCommands(program) {
     });
   program
     .command('update-subtask')
+    .alias('log')
     .description('Append timestamped notes to a subtask')
     .option('-i, --id <id>', 'Subtask ID (e.g., 1.2)')
     .option('-p, --prompt <text>', 'Notes to append')
@@ -781,6 +788,7 @@ export function registerCommands(program) {
     });
   program
     .command('update-task')
+    .alias('edit')
     .description('Update a task with new information')
     .option('-i, --id <id>', 'Task ID')
     .option('-p, --prompt <text>', 'Update information')
@@ -871,9 +879,10 @@ Provide updated details that incorporate the new information.`;
       }
     });
 
-  // Clear subtasks command
+  // Clear subtasks command (alias: clear-steps)
   program
     .command('clear-subtasks')
+    .alias('clear-steps')
     .description('Remove all subtasks from a task')
     .option('-i, --id <id>', 'Task ID')
     .option('--all', 'Clear subtasks from all tasks')
@@ -1112,9 +1121,10 @@ Provide updated details that incorporate the new information.`;
   // ============================================
     // ============================================
 
-  // List tags command
+  // List tags command (alias: contexts)
   program
     .command('tags')
+    .alias('contexts')
     .description('List all tags')
     .option('--show-metadata', 'Show detailed metadata')
     .action(async (options) => {
@@ -1170,6 +1180,7 @@ Provide updated details that incorporate the new information.`;
     });
   program
     .command('add-tag')
+    .alias('context-add')
     .description('Create a new tag')
     .argument('<name>', 'Tag name')
     .option('--from-branch', 'Create tag from current git branch name')
@@ -1216,6 +1227,7 @@ Provide updated details that incorporate the new information.`;
     });
   program
     .command('use-tag')
+    .alias('context')
     .description('Switch to a different tag')
     .argument('<name>', 'Tag name')
     .action(async (name) => {
@@ -1234,9 +1246,10 @@ Provide updated details that incorporate the new information.`;
       }
     });
 
-  // Delete tag command
+  // Delete tag command (alias: delete-context)
   program
     .command('delete-tag')
+    .alias('delete-context')
     .description('Delete a tag')
     .argument('<name>', 'Tag name')
     .option('-y, --yes', 'Skip confirmation')
@@ -1271,9 +1284,10 @@ Provide updated details that incorporate the new information.`;
       }
     });
 
-  // Rename tag command
+  // Rename tag command (alias: rename-context)
   program
     .command('rename-tag')
+    .alias('rename-context')
     .description('Rename a tag')
     .argument('<oldName>', 'Current tag name')
     .argument('<newName>', 'New tag name')
@@ -1293,9 +1307,10 @@ Provide updated details that incorporate the new information.`;
       }
     });
 
-  // Copy tag command
+  // Copy tag command (alias: clone)
   program
     .command('copy-tag')
+    .alias('clone')
     .description('Copy a tag with all its tasks')
     .argument('<source>', 'Source tag name')
     .argument('<target>', 'Target tag name')
@@ -1319,9 +1334,10 @@ Provide updated details that incorporate the new information.`;
   // ============================================
     // ============================================
 
-  // Validate dependencies command
+  // Validate dependencies command (alias: check-links)
   program
     .command('validate-dependencies')
+    .alias('check-links')
     .description('Validate all task dependencies')
     .action(async () => {
       const projectRoot = findProjectRoot();
@@ -1348,9 +1364,10 @@ Provide updated details that incorporate the new information.`;
       console.log('');
     });
 
-  // Fix dependencies command
+  // Fix dependencies command (alias: fix-links)
   program
     .command('fix-dependencies')
+    .alias('fix-links')
     .description('Automatically fix dependency issues')
     .action(async () => {
       const projectRoot = findProjectRoot();
@@ -1401,6 +1418,7 @@ Provide updated details that incorporate the new information.`;
     });
   program
     .command('add-subtask')
+    .alias('add-step')
     .description('Add a subtask to a parent task')
     .option('-p, --parent <id>', 'Parent task ID')
     .option('-t, --title <text>', 'Subtask title')
@@ -1464,9 +1482,10 @@ Provide updated details that incorporate the new information.`;
   // ============================================
     // ============================================
 
-  // Complexity report command
+  // Complexity report command (alias: report)
   program
     .command('complexity-report')
+    .alias('report')
     .description('Display the task complexity analysis report')
     .option('-f, --file <path>', 'Path to complexity report')
     .action(async (options) => {
@@ -1525,9 +1544,10 @@ Provide updated details that incorporate the new information.`;
       }
     });
 
-  // Research command
+  // Research command (alias: ask)
   program
     .command('research')
+    .alias('ask')
     .description('Perform AI-powered research')
     .argument('[query]', 'Research query')
     .option('-q, --query <text>', 'Research query (alternative)')
