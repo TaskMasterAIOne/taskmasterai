@@ -1054,6 +1054,8 @@ Provide updated details that incorporate the new information.`;
     .option('--set-main <model>', 'Set main model')
     .option('--set-research <model>', 'Set research model')
     .option('--set-fallback <model>', 'Set fallback model')
+    .option('--list', 'List all available models')
+    .option('--list-provider <provider>', 'List models for specific provider')
     .option('--setup', 'Run interactive setup')
     .action(async (options) => {
       const projectRoot = findProjectRoot();
@@ -1062,17 +1064,116 @@ Provide updated details that incorporate the new information.`;
         process.exit(1);
       }
 
+      // List models option
+      if (options.list || options.listProvider) {
+        const supportedModelsPath = path.join(findProjectRoot() || process.cwd(), 'node_modules', '@taskmasterai', 'cli', 'src', 'modules', 'supported-models.json');
+        let supportedModels;
+        
+        try {
+          // Try to load from installed package
+          supportedModels = JSON.parse(fs.readFileSync(supportedModelsPath, 'utf-8'));
+        } catch (err) {
+          // Fallback to local development path
+          const localPath = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'modules', 'supported-models.json');
+          try {
+            supportedModels = JSON.parse(fs.readFileSync(localPath, 'utf-8'));
+          } catch (err2) {
+            console.error(chalk.red('Error: Could not load supported models list'));
+            process.exit(1);
+          }
+        }
+
+        console.log('');
+        console.log(chalk.cyan.bold('Available AI Models'));
+        console.log('');
+
+        const providersToShow = options.listProvider 
+          ? [options.listProvider.toLowerCase()]
+          : Object.keys(supportedModels);
+
+        for (const provider of providersToShow) {
+          const models = supportedModels[provider];
+          if (!models) {
+            console.error(chalk.red(`Unknown provider: ${provider}`));
+            continue;
+          }
+
+          console.log(chalk.white.bold(`${provider.charAt(0).toUpperCase() + provider.slice(1)}:`));
+          models.forEach(model => {
+            const rolesBadge = model.allowed_roles.map(r => {
+              if (r === 'main') return chalk.blue('M');
+              if (r === 'research') return chalk.yellow('R');
+              if (r === 'fallback') return chalk.green('F');
+              return r;
+            }).join('');
+            console.log(`  ${chalk.gray(model.id.padEnd(40))} ${rolesBadge}  ${chalk.dim(model.description)}`);
+          });
+          console.log('');
+        }
+
+        console.log(chalk.dim('Legend: ') + chalk.blue('M') + chalk.dim('=Main ') + chalk.yellow('R') + chalk.dim('=Research ') + chalk.green('F') + chalk.dim('=Fallback'));
+        console.log('');
+        console.log(chalk.dim('Set model: ') + chalk.cyan('taskmaster models --set-main <model-id>'));
+        console.log('');
+        return;
+      }
+
       const config = readProjectConfig(projectRoot);
+
+      // Helper function to detect provider from model ID
+      const detectProvider = (modelId) => {
+        const supportedModelsPath = path.join(findProjectRoot() || process.cwd(), 'node_modules', '@taskmasterai', 'cli', 'src', 'modules', 'supported-models.json');
+        let supportedModels;
+        
+        try {
+          supportedModels = JSON.parse(fs.readFileSync(supportedModelsPath, 'utf-8'));
+        } catch (err) {
+          const localPath = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'modules', 'supported-models.json');
+          try {
+            supportedModels = JSON.parse(fs.readFileSync(localPath, 'utf-8'));
+          } catch (err2) {
+            return null;
+          }
+        }
+
+        for (const [provider, models] of Object.entries(supportedModels)) {
+          if (models.some(m => m.id === modelId)) {
+            return provider;
+          }
+        }
+        return null;
+      };
 
       if (options.setMain || options.setResearch || options.setFallback) {
         if (options.setMain) {
-          config.models.main.modelId = options.setMain;
+          const provider = detectProvider(options.setMain);
+          if (provider) {
+            config.models.main.provider = provider;
+            config.models.main.modelId = options.setMain;
+          } else {
+            console.log(chalk.yellow(`⚠ Warning: Model '${options.setMain}' not found in supported list`));
+            config.models.main.modelId = options.setMain;
+          }
         }
         if (options.setResearch) {
-          config.models.research.modelId = options.setResearch;
+          const provider = detectProvider(options.setResearch);
+          if (provider) {
+            config.models.research.provider = provider;
+            config.models.research.modelId = options.setResearch;
+          } else {
+            console.log(chalk.yellow(`⚠ Warning: Model '${options.setResearch}' not found in supported list`));
+            config.models.research.modelId = options.setResearch;
+          }
         }
         if (options.setFallback) {
-          config.models.fallback.modelId = options.setFallback;
+          const provider = detectProvider(options.setFallback);
+          if (provider) {
+            config.models.fallback.provider = provider;
+            config.models.fallback.modelId = options.setFallback;
+          } else {
+            console.log(chalk.yellow(`⚠ Warning: Model '${options.setFallback}' not found in supported list`));
+            config.models.fallback.modelId = options.setFallback;
+          }
         }
         writeProjectConfig(config, projectRoot);
         console.log(chalk.green('✓ Model configuration updated'));
