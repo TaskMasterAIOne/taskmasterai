@@ -164,23 +164,47 @@ export function registerCommands(program) {
         const prdContent = fs.readFileSync(prdPath, 'utf-8');
         
         // Show model info in verbose mode
+        const config = readProjectConfig(projectRoot);
+        const modelConfig = options.research ? config.models.research : config.models.main;
+        
         if (options.verbose) {
-          const config = readProjectConfig(projectRoot);
-          const modelConfig = options.research ? config.models.research : config.models.main;
           spinner.text = `Using ${modelConfig.provider}/${modelConfig.modelId}...`;
           console.log('');
           console.log(chalk.dim(`  Provider: ${modelConfig.provider}`));
           console.log(chalk.dim(`  Model: ${modelConfig.modelId}`));
           console.log(chalk.dim(`  Generating ${numTasks} tasks...`));
           console.log('');
-        } else {
-          spinner.text = 'Generating tasks with AI...';
         }
 
-        const tasks = await generateTasksFromPRD(prdContent, {
-          numTasks,
-          research: options.research,
-        });
+        // Progress tracker - updates spinner every second with elapsed time
+        const startTime = Date.now();
+        const progressInterval = setInterval(() => {
+          const elapsed = Math.floor((Date.now() - startTime) / 1000);
+          if (options.verbose) {
+            spinner.text = `Calling ${modelConfig.provider}/${modelConfig.modelId}... (${elapsed}s)`;
+          } else {
+            spinner.text = `Generating tasks with AI... (${elapsed}s)`;
+          }
+          
+          // Warning if taking too long
+          if (elapsed > 30) {
+            spinner.text = spinner.text + chalk.yellow(' [This is taking longer than usual...]');
+          }
+        }, 1000);
+
+        let tasks;
+        try {
+          tasks = await generateTasksFromPRD(prdContent, {
+            numTasks,
+            research: options.research,
+          });
+          
+          clearInterval(progressInterval);
+        } catch (err) {
+          clearInterval(progressInterval);
+          throw err;
+        }
+        
         await incrementUsage('tasksParsed', tasks.length);
 
         spinner.stop();

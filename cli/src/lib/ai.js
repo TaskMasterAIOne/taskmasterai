@@ -96,7 +96,9 @@ export async function generateAIText(prompt, options = {}) {
   const usingHostedKey = isUsingHostedKey(provider);
   
   // Debug logging
-  if (process.env.TASKMASTER_DEBUG === 'true' || process.env.DEBUG === 'taskmaster') {
+  const debug = process.env.TASKMASTER_DEBUG === 'true' || process.env.DEBUG === 'taskmaster';
+  
+  if (debug) {
     console.log('\n[DEBUG] AI Request:');
     console.log(`  Role: ${role}`);
     console.log(`  Provider: ${provider}`);
@@ -104,11 +106,14 @@ export async function generateAIText(prompt, options = {}) {
     console.log(`  Using hosted key: ${usingHostedKey}`);
     console.log(`  Max tokens: ${modelConfig.maxTokens || 8192}`);
     console.log(`  Temperature: ${options.temperature ?? modelConfig.temperature ?? 0.7}`);
-    console.log('');
+    console.log('  [Calling API...]');
   }
   
   try {
     const model = getModelForRole(role);
+    
+    const startTime = Date.now();
+    if (debug) console.log(`  [${new Date().toISOString()}] API call started...`);
     
     const result = await generateText({
       model,
@@ -117,6 +122,14 @@ export async function generateAIText(prompt, options = {}) {
       maxTokens: modelConfig.maxTokens || 8192,
       temperature: options.temperature ?? modelConfig.temperature ?? 0.7,
     });
+    
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+    if (debug) {
+      console.log(`  [${new Date().toISOString()}] API call completed in ${elapsed}s`);
+      console.log(`  Input tokens: ${result.usage?.promptTokens || 'N/A'}`);
+      console.log(`  Output tokens: ${result.usage?.completionTokens || 'N/A'}`);
+      console.log('');
+    }
 
     const usage = {
       inputTokens: result.usage?.promptTokens,
@@ -153,7 +166,9 @@ export async function generateAIObject(prompt, schema, options = {}) {
   const usingHostedKey = isUsingHostedKey(provider);
 
   // Debug logging
-  if (process.env.TASKMASTER_DEBUG === 'true' || process.env.DEBUG === 'taskmaster') {
+  const debug = process.env.TASKMASTER_DEBUG === 'true' || process.env.DEBUG === 'taskmaster';
+  
+  if (debug) {
     console.log('\n[DEBUG] AI Object Generation:');
     console.log(`  Role: ${role}`);
     console.log(`  Provider: ${provider}`);
@@ -162,11 +177,14 @@ export async function generateAIObject(prompt, schema, options = {}) {
     console.log(`  Max tokens: ${modelConfig.maxTokens || 8192}`);
     console.log(`  Temperature: ${options.temperature ?? modelConfig.temperature ?? 0.7}`);
     console.log(`  Schema: ${schema.description || 'Structured output'}`);
-    console.log('');
+    console.log('  [Calling API...]');
   }
 
   try {
     const model = getModelForRole(role);
+
+    const startTime = Date.now();
+    if (debug) console.log(`  [${new Date().toISOString()}] API call started...`);
 
     const result = await generateObject({
       model,
@@ -176,6 +194,14 @@ export async function generateAIObject(prompt, schema, options = {}) {
       maxTokens: modelConfig.maxTokens || 8192,
       temperature: options.temperature ?? modelConfig.temperature ?? 0.7,
     });
+    
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+    if (debug) {
+      console.log(`  [${new Date().toISOString()}] API call completed in ${elapsed}s`);
+      console.log(`  Input tokens: ${result.usage?.promptTokens || 'N/A'}`);
+      console.log(`  Output tokens: ${result.usage?.completionTokens || 'N/A'}`);
+      console.log('');
+    }
 
     const usage = {
       inputTokens: result.usage?.promptTokens,
