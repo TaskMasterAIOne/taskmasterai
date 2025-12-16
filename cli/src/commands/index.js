@@ -114,6 +114,7 @@ export function registerCommands(program) {
     .option('-f, --force', 'Overwrite existing tasks')
     .option('--append', 'Append to existing tasks')
     .option('-r, --research', 'Use research model for better results')
+    .option('-v, --verbose', 'Show detailed progress and model info')
     .action(async (file, options) => {
       const prdPath = file || options.input;
       
@@ -161,7 +162,20 @@ export function registerCommands(program) {
         }
 
         const prdContent = fs.readFileSync(prdPath, 'utf-8');
-        spinner.text = 'Generating tasks with AI...';
+        
+        // Show model info in verbose mode
+        if (options.verbose) {
+          const config = readProjectConfig(projectRoot);
+          const modelConfig = options.research ? config.models.research : config.models.main;
+          spinner.text = `Using ${modelConfig.provider}/${modelConfig.modelId}...`;
+          console.log('');
+          console.log(chalk.dim(`  Provider: ${modelConfig.provider}`));
+          console.log(chalk.dim(`  Model: ${modelConfig.modelId}`));
+          console.log(chalk.dim(`  Generating ${numTasks} tasks...`));
+          console.log('');
+        } else {
+          spinner.text = 'Generating tasks with AI...';
+        }
 
         const tasks = await generateTasksFromPRD(prdContent, {
           numTasks,
@@ -191,7 +205,22 @@ export function registerCommands(program) {
         console.log('');
       } catch (error) {
         spinner.stop();
-        console.error(chalk.red('Error:'), error.message);
+        console.log('');
+        console.error(chalk.red('✗ Error generating tasks:'), error.message);
+        
+        if (options.verbose || process.env.TASKMASTER_DEBUG === 'true') {
+          console.log('');
+          console.log(chalk.dim('Full error details:'));
+          console.log(chalk.dim(error.stack || error.toString()));
+        }
+        
+        console.log('');
+        console.log(chalk.dim('Troubleshooting:'));
+        console.log(chalk.dim('  1. Check your model configuration: ') + chalk.cyan('taskmaster models'));
+        console.log(chalk.dim('  2. Verify API keys are set: ') + chalk.cyan('taskmaster models'));
+        console.log(chalk.dim('  3. Run with --verbose flag: ') + chalk.cyan('taskmaster plan prd.md --verbose'));
+        console.log(chalk.dim('  4. Enable debug mode: ') + chalk.cyan('TASKMASTER_DEBUG=true taskmaster plan ...'));
+        console.log('');
         process.exit(1);
       }
     });
@@ -432,6 +461,7 @@ export function registerCommands(program) {
     .option('--force', 'Replace existing subtasks')
     .option('-r, --research', 'Use research model')
     .option('--all', 'Expand all pending tasks')
+    .option('-v, --verbose', 'Show detailed progress and model info')
     .action(async (options) => {
       const projectRoot = findProjectRoot();
       if (!projectRoot) {
@@ -544,6 +574,7 @@ export function registerCommands(program) {
     .option('-d, --dependencies <ids>', 'Comma-separated dependency IDs')
     .option('--priority <priority>', 'Task priority (high, medium, low)', 'medium')
     .option('-r, --research', 'Use research model')
+    .option('-v, --verbose', 'Show detailed progress and model info')
     .action(async (options) => {
       if (!options.prompt) {
         console.error(chalk.red('Error: --prompt is required'));
@@ -602,6 +633,7 @@ export function registerCommands(program) {
     .alias('assess')
     .description('Analyze task complexity')
     .option('-r, --research', 'Use research model')
+    .option('-v, --verbose', 'Show detailed progress and model info')
     .action(async (options) => {
       const projectRoot = findProjectRoot();
       if (!projectRoot) {

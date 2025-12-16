@@ -95,6 +95,18 @@ export async function generateAIText(prompt, options = {}) {
     'You are a helpful AI assistant specialized in software development and task management.';
   const usingHostedKey = isUsingHostedKey(provider);
   
+  // Debug logging
+  if (process.env.TASKMASTER_DEBUG === 'true' || process.env.DEBUG === 'taskmaster') {
+    console.log('\n[DEBUG] AI Request:');
+    console.log(`  Role: ${role}`);
+    console.log(`  Provider: ${provider}`);
+    console.log(`  Model: ${modelConfig.modelId}`);
+    console.log(`  Using hosted key: ${usingHostedKey}`);
+    console.log(`  Max tokens: ${modelConfig.maxTokens || 8192}`);
+    console.log(`  Temperature: ${options.temperature ?? modelConfig.temperature ?? 0.7}`);
+    console.log('');
+  }
+  
   try {
     const model = getModelForRole(role);
     
@@ -134,15 +146,28 @@ export async function generateAIObject(prompt, schema, options = {}) {
   const config = readProjectConfig(getProjectRoot());
   const modelConfig = config.models[role] || config.models.main;
   const provider = modelConfig.provider;
-  
-  const systemPrompt = options.systemPrompt || 
+
+  const systemPrompt = options.systemPrompt ||
     'You are a helpful AI assistant specialized in software development and task management.';
-  
+
   const usingHostedKey = isUsingHostedKey(provider);
-  
+
+  // Debug logging
+  if (process.env.TASKMASTER_DEBUG === 'true' || process.env.DEBUG === 'taskmaster') {
+    console.log('\n[DEBUG] AI Object Generation:');
+    console.log(`  Role: ${role}`);
+    console.log(`  Provider: ${provider}`);
+    console.log(`  Model: ${modelConfig.modelId}`);
+    console.log(`  Using hosted key: ${usingHostedKey}`);
+    console.log(`  Max tokens: ${modelConfig.maxTokens || 8192}`);
+    console.log(`  Temperature: ${options.temperature ?? modelConfig.temperature ?? 0.7}`);
+    console.log(`  Schema: ${schema.description || 'Structured output'}`);
+    console.log('');
+  }
+
   try {
     const model = getModelForRole(role);
-    
+
     const result = await generateObject({
       model,
       system: systemPrompt,
