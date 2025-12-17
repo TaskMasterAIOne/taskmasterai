@@ -6,7 +6,7 @@ import { syncTasksToCloud } from './license.js';
 
 export function getCurrentTag(projectRoot = process.cwd()) {
   const state = readState(projectRoot);
-  return state.currentTag || 'master';
+  return state.currentTag || 'main';
 }
 
 export function setCurrentTag(tag, projectRoot = process.cwd()) {
@@ -17,7 +17,7 @@ export function setCurrentTag(tag, projectRoot = process.cwd()) {
   return tag;
 }
 
-export function getTasksForTag(tag = 'master', projectRoot = process.cwd()) {
+export function getTasksForTag(tag = 'main', projectRoot = process.cwd()) {
   const tasksData = readTasks(projectRoot);
   
   if (!tasksData.tags || !tasksData.tags[tag]) {
@@ -32,7 +32,7 @@ export function getAllTasks(projectRoot = process.cwd()) {
   return getTasksForTag(tag, projectRoot);
 }
 
-export function saveTasksForTag(tasks, tag = 'master', projectRoot = process.cwd()) {
+export function saveTasksForTag(tasks, tag = 'main', projectRoot = process.cwd()) {
   const tasksData = readTasks(projectRoot);
   
   if (!tasksData.tags) {
@@ -99,10 +99,12 @@ export function findTaskById(taskId, projectRoot = process.cwd()) {
     const [parentId, subtaskId] = idStr.split('.').map(Number);
     const parentTask = tasks.find(t => t.id === parentId);
     
-    if (parentTask && parentTask.subtasks) {
-      const subtask = parentTask.subtasks.find(s => s.id === subtaskId);
-      if (subtask) {
-        return { ...subtask, parentId, isSubtask: true };
+    if (parentTask) {
+      // Support both 'steps' (per terminology) and 'subtasks' (legacy)
+      const steps = parentTask.steps || parentTask.subtasks || [];
+      const step = steps.find(s => s.id === subtaskId);
+      if (step) {
+        return { ...step, parentId, isSubtask: true, isStep: true };
       }
     }
     return null;
@@ -146,15 +148,19 @@ export function updateTask(taskId, updates, projectRoot = process.cwd()) {
     const [parentId, subtaskId] = idStr.split('.').map(Number);
     const parentTask = tasks.find(t => t.id === parentId);
     
-    if (parentTask && parentTask.subtasks) {
-      const subtaskIndex = parentTask.subtasks.findIndex(s => s.id === subtaskId);
-      if (subtaskIndex !== -1) {
-        parentTask.subtasks[subtaskIndex] = {
-          ...parentTask.subtasks[subtaskIndex],
+    if (parentTask) {
+      // Support both 'steps' (per terminology) and 'subtasks' (legacy)
+      const stepsKey = parentTask.steps ? 'steps' : 'subtasks';
+      const steps = parentTask[stepsKey] || [];
+      const stepIndex = steps.findIndex(s => s.id === subtaskId);
+      if (stepIndex !== -1) {
+        steps[stepIndex] = {
+          ...steps[stepIndex],
           ...updates,
         };
+        parentTask[stepsKey] = steps;
         saveAllTasks(tasks, projectRoot);
-        return parentTask.subtasks[subtaskIndex];
+        return steps[stepIndex];
       }
     }
     return null;
@@ -462,7 +468,7 @@ export function getAllTags(projectRoot = process.cwd()) {
   const currentTag = getCurrentTag(projectRoot);
   
   if (!tasksData.tags) {
-    return [{ name: 'master', taskCount: 0, completedCount: 0, isCurrent: currentTag === 'master' }];
+    return [{ name: 'main', taskCount: 0, completedCount: 0, isCurrent: currentTag === 'main' }];
   }
   
   return Object.entries(tasksData.tags).map(([name, data]) => {
@@ -525,8 +531,8 @@ export function createTag(name, options = {}, projectRoot = process.cwd()) {
 }
 
 export function deleteTagData(name, projectRoot = process.cwd()) {
-  if (name === 'master') {
-    throw new Error("Cannot delete the 'master' tag");
+  if (name === 'main') {
+    throw new Error("Cannot delete the 'main' context");
   }
   
   const tasksData = readTasks(projectRoot);
@@ -536,7 +542,7 @@ export function deleteTagData(name, projectRoot = process.cwd()) {
   }
   const currentTag = getCurrentTag(projectRoot);
   if (currentTag === name) {
-    setCurrentTag('master', projectRoot);
+    setCurrentTag('main', projectRoot);
   }
   
   delete tasksData.tags[name];
@@ -557,8 +563,8 @@ export function switchTag(name, projectRoot = process.cwd()) {
 }
 
 export function renameTag(oldName, newName, projectRoot = process.cwd()) {
-  if (oldName === 'master') {
-    throw new Error("Cannot rename the 'master' tag");
+  if (oldName === 'main') {
+    throw new Error("Cannot rename the 'main' context");
   }
   
   const tasksData = readTasks(projectRoot);

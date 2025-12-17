@@ -16,7 +16,7 @@ const __dirname = path.dirname(__filename);
 // Read CLI version from cli-version.json (injected during CI/CD deployment)
 // Falls back to hardcoded value if file doesn't exist
 let PACKAGE_NAME = '@taskmasterai/cli';
-let PACKAGE_VERSION = '1.0.43'; // Fallback version
+let PACKAGE_VERSION = '1.0.44'; // Fallback version
 
 try {
   const cliVersionPath = path.join(__dirname, 'cli-version.json');
@@ -2741,10 +2741,25 @@ export const syncTasks = onRequest(
       const taskTag = tag || 'master';
       const now = admin.firestore.Timestamp.now();
 
-      // Store tasks in Firestore
-      const tasksRef = db.collection('users').doc(userId)
-        .collection('projects').doc(project)
-        .collection('tags').doc(taskTag);
+      // Count stats
+      const taskCount = Array.isArray(tasks) ? tasks.length : 0;
+      const completedCount = Array.isArray(tasks) 
+        ? tasks.filter(t => t.status === 'done').length 
+        : 0;
+      const pendingCount = Array.isArray(tasks)
+        ? tasks.filter(t => t.status === 'pending').length
+        : 0;
+      const inProgressCount = Array.isArray(tasks)
+        ? tasks.filter(t => t.status === 'in-progress').length
+        : 0;
+      const blockedCount = Array.isArray(tasks)
+        ? tasks.filter(t => t.status === 'blocked').length
+        : 0;
+
+      // Store tasks in Firestore - tags subcollection
+      const projectRef = db.collection('users').doc(userId)
+        .collection('projects').doc(project);
+      const tasksRef = projectRef.collection('tags').doc(taskTag);
 
       await tasksRef.set({
         tasks: tasks || [],
@@ -2753,11 +2768,39 @@ export const syncTasks = onRequest(
         updatedAt: now
       });
 
-      // Count stats
-      const taskCount = Array.isArray(tasks) ? tasks.length : 0;
-      const completedCount = Array.isArray(tasks) 
-        ? tasks.filter(t => t.status === 'done').length 
-        : 0;
+      // Also update the project document with metadata
+      const projectDoc = await projectRef.get();
+      const existingTags = projectDoc.exists ? (projectDoc.data().tags || []) : [];
+      
+      // Update or add the tag info
+      const tagIndex = existingTags.findIndex(t => t.name === taskTag);
+      const tagInfo = {
+        name: taskTag,
+        taskCount,
+        syncedAt: now.toDate().toISOString()
+      };
+      
+      if (tagIndex >= 0) {
+        existingTags[tagIndex] = tagInfo;
+      } else {
+        existingTags.push(tagInfo);
+      }
+
+      await projectRef.set({
+        name: project,
+        lastSynced: now.toDate().toISOString(),
+        updatedAt: now,
+        tags: existingTags,
+        stats: {
+          [taskTag]: {
+            total: taskCount,
+            pending: pendingCount,
+            inProgress: inProgressCount,
+            done: completedCount,
+            blocked: blockedCount
+          }
+        }
+      }, { merge: true });
 
       res.status(200).json({
         success: true,

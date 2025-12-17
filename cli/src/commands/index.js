@@ -2,6 +2,10 @@ import chalk from 'chalk';
 import boxen from 'boxen';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import { 
   ensureProjectConfigDir, 
   findProjectRoot, 
@@ -10,6 +14,7 @@ import {
   readProjectConfig,
   getTasksFilePath,
   getApiKey,
+  writeState,
 } from '../lib/config.js';
 import {
   getAllTasks,
@@ -56,6 +61,89 @@ import {
   readCachedConfig,
 } from '../lib/license.js';
 import Table from 'cli-table3';
+import {
+  displayAsciiBanner,
+  displayBoxedMessage,
+  displayCurrentTagIndicator,
+  displayProjectDashboard,
+  displayAiUsageSummary,
+  displayGettingStarted,
+  displaySuccess,
+  displayError,
+  displayWarning,
+  displayInfo,
+  displayNextSteps,
+  createProgressBar,
+  getStatusWithColor,
+  getAssessmentWithColor,
+  startLoadingIndicator,
+  stopLoadingIndicator,
+  succeedLoadingIndicator,
+  failLoadingIndicator,
+} from '../modules/ui.js';
+
+// ===== Helper Functions for UI =====
+
+function truncateText(text, maxLength) {
+  if (!text) return '';
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength - 3) + '...';
+}
+
+function getStatusColor(status) {
+  switch (status) {
+    case 'done':
+    case 'completed':
+      return chalk.green;
+    case 'in-progress':
+      return chalk.hex('#FFA500');
+    case 'pending':
+      return chalk.yellow;
+    case 'blocked':
+      return chalk.red;
+    case 'cancelled':
+      return chalk.gray;
+    case 'deferred':
+      return chalk.blue;
+    case 'review':
+      return chalk.magenta;
+    default:
+      return chalk.white;
+  }
+}
+
+function getStatusDisplay(status) {
+  switch (status) {
+    case 'done':
+    case 'completed':
+      return chalk.green('✓ done');
+    case 'in-progress':
+      return chalk.hex('#FFA500')('► in-progress');
+    case 'pending':
+      return chalk.yellow('○ pending');
+    case 'blocked':
+      return chalk.red('! blocked');
+    case 'cancelled':
+      return chalk.gray('x cancelled');
+    case 'deferred':
+      return chalk.blue('⏱ deferred');
+    case 'review':
+      return chalk.magenta('? review');
+    default:
+      return chalk.white(status || 'pending');
+  }
+}
+
+function getPriorityBadge(priority) {
+  switch (priority) {
+    case 'high':
+      return chalk.red('▲ high');
+    case 'low':
+      return chalk.blue('▼ low');
+    default:
+      return chalk.yellow('● medium');
+  }
+}
 
 export function registerCommands(program) {
   // Init command
@@ -66,41 +154,108 @@ export function registerCommands(program) {
     .option('-d, --description <text>', 'Project description')
     .option('-y, --yes', 'Skip prompts and use defaults')
     .action(async (options) => {
-      console.log('');
-      console.log(chalk.cyan.bold('Initializing TaskMaster AI...'));
-      console.log('');
+      // Display banner
+      const pkg = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf-8'));
+      displayAsciiBanner({ version: pkg.version, projectName: 'TaskMaster AI' });
 
       const projectRoot = process.cwd();
       if (findProjectRoot(projectRoot)) {
-        console.log(chalk.yellow('⚠️  TaskMaster AI is already initialized in this project.'));
+        displayWarning('TaskMaster AI is already initialized in this project.');
         return;
       }
+
+      displayBoxedMessage(chalk.white('Initializing') + ' your new project', { borderColor: 'cyan' });
+      console.log('');
+
       ensureProjectConfigDir(projectRoot);
       const config = getDefaultConfig();
       config.projectName = options.name || path.basename(projectRoot);
       config.projectDescription = options.description || '';
       writeProjectConfig(config, projectRoot);
+      
       const tasksPath = getTasksFilePath(projectRoot);
+      // Use 'main' as default context per terminology
       const initialTasks = {
         tags: {
-          master: {
+          main: {
             tasks: [],
             metadata: {
               createdAt: new Date().toISOString(),
+              description: 'Main project context'
             }
           }
         }
       };
       fs.writeFileSync(tasksPath, JSON.stringify(initialTasks, null, 2));
+      
+      // Create state.json with 'main' as the default context
+      const initialState = {
+        currentTag: 'main',
+        lastSwitched: new Date().toISOString(),
+        migrationNoticeShown: true,
+      };
+      writeState(initialState, projectRoot);
 
-      console.log(chalk.green('✓ Created .taskmaster directory'));
-      console.log(chalk.green('✓ Created config.json'));
-      console.log(chalk.green('✓ Created tasks.json'));
+      // Create templates directory with example PRD
+      const templatesDir = path.join(projectRoot, '.taskmaster-ai', 'templates');
+      if (!fs.existsSync(templatesDir)) {
+        fs.mkdirSync(templatesDir, { recursive: true });
+      }
+      
+      // Create docs directory
+      const docsDir = path.join(projectRoot, '.taskmaster-ai', 'docs');
+      if (!fs.existsSync(docsDir)) {
+        fs.mkdirSync(docsDir, { recursive: true });
+      }
+      
+      // Create reports directory
+      const reportsDir = path.join(projectRoot, '.taskmaster-ai', 'reports');
+      if (!fs.existsSync(reportsDir)) {
+        fs.mkdirSync(reportsDir, { recursive: true });
+      }
+
+      // Write example PRD template
+      const examplePrd = `# Project Requirements Document (PRD)
+
+## Project Overview
+[Describe your project here - what it does, who it's for, and the main goals]
+
+## Core Features
+1. [Feature 1] - [Brief description]
+2. [Feature 2] - [Brief description]
+3. [Feature 3] - [Brief description]
+
+## Technical Requirements
+- [Requirement 1]
+- [Requirement 2]
+- [Requirement 3]
+
+## User Stories
+- As a [user type], I want to [action] so that [benefit]
+- As a [user type], I want to [action] so that [benefit]
+
+## Success Criteria
+- [Criterion 1]
+- [Criterion 2]
+
+## Out of Scope
+- [What's not included in this version]
+
+## Timeline
+- Phase 1: [Description]
+- Phase 2: [Description]
+`;
+      fs.writeFileSync(path.join(templatesDir, 'example_prd.txt'), examplePrd);
+
+      displaySuccess('Created .taskmaster-ai directory');
+      displaySuccess('Created config.json');
+      displaySuccess('Created tasks.json');
+      displaySuccess('Created templates/example_prd.txt');
+      displayInfo('Default context set to "main" for task organization');
       console.log('');
-      console.log(chalk.dim('Next steps:'));
-      console.log(chalk.dim('  1. Create a PRD file describing your project'));
-      console.log(chalk.dim('  2. Run: ') + chalk.cyan('taskmaster parse-prd <your-prd.md>'));
-      console.log('');
+
+      // Display getting started guide
+      displayGettingStarted();
     });
 
   // Parse PRD command (alias: plan)
@@ -119,36 +274,45 @@ export function registerCommands(program) {
       const prdPath = file || options.input;
       
       if (!prdPath) {
-        console.error(chalk.red('Error: Please provide a PRD file path'));
+        displayError('Please provide a PRD file path');
         process.exit(1);
       }
 
       if (!fs.existsSync(prdPath)) {
-        console.error(chalk.red(`Error: File not found: ${prdPath}`));
+        displayError(`File not found: ${prdPath}`);
         process.exit(1);
       }
 
       const projectRoot = findProjectRoot() || process.cwd();
       ensureProjectConfigDir(projectRoot);
+      
+      // Display banner
+      const pkg = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf-8'));
+      const config = readProjectConfig(projectRoot);
+      displayAsciiBanner({ version: pkg.version, projectName: config.projectName || 'TaskMaster' });
+
+      // Show current context
+      const currentTag = getCurrentTag(projectRoot);
+      displayCurrentTagIndicator(currentTag);
+
       const existingTasks = getAllTasks(projectRoot);
       if (existingTasks.length > 0 && !options.force && !options.append) {
-        console.log(chalk.yellow('⚠️  Tasks already exist. Use --force to overwrite or --append to add.'));
+        displayWarning('Tasks already exist. Use --force to overwrite or --append to add.');
         process.exit(1);
       }
 
-      console.log('');
-      console.log(chalk.cyan('Parsing PRD and generating tasks...'));
+      console.log(chalk.cyan(`Parsing PRD file: ${prdPath}`));
+      const numTasks = parseInt(options.numTasks) || 10;
+      console.log(chalk.cyan(`Generating ${numTasks} tasks...`));
       console.log('');
 
-      const ora = (await import('ora')).default;
-      const spinner = ora('Reading PRD file...').start();
+      const spinner = startLoadingIndicator('Parsing PRD and generating tasks...');
 
       try {
-        const numTasks = parseInt(options.numTasks) || 10;
         try {
           enforceUsageLimit(numTasks);
         } catch (limitError) {
-          spinner.stop();
+          stopLoadingIndicator(spinner);
           console.log('');
           console.log(
             boxen(
@@ -164,37 +328,24 @@ export function registerCommands(program) {
         const prdContent = fs.readFileSync(prdPath, 'utf-8');
         
         // Show model info in verbose mode
-        const config = readProjectConfig(projectRoot);
         const modelConfig = options.research ? config.models.research : config.models.main;
         
         if (options.verbose) {
-          spinner.text = `Using ${modelConfig.provider}/${modelConfig.modelId}...`;
-          console.log('');
-          console.log(chalk.dim(`  Provider: ${modelConfig.provider}`));
-          console.log(chalk.dim(`  Model: ${modelConfig.modelId}`));
-          console.log(chalk.dim(`  Generating ${numTasks} tasks...`));
-          console.log('');
+          displayInfo(`Using ${modelConfig.provider}/${modelConfig.modelId}`);
         }
 
         // Progress tracker - updates spinner every second with elapsed time
         const startTime = Date.now();
         const progressInterval = setInterval(() => {
           const elapsed = Math.floor((Date.now() - startTime) / 1000);
-          if (options.verbose) {
-            spinner.text = `Calling ${modelConfig.provider}/${modelConfig.modelId}... (${elapsed}s)`;
-          } else {
-            spinner.text = `Generating tasks with AI... (${elapsed}s)`;
-          }
-          
-          // Warning if taking too long
-          if (elapsed > 30) {
-            spinner.text = spinner.text + chalk.yellow(' [This is taking longer than usual...]');
+          if (spinner) {
+            spinner.text = `Calling AI service to generate tasks from PRD... (${elapsed}s)`;
           }
         }, 1000);
 
-        let tasks;
+        let result;
         try {
-          tasks = await generateTasksFromPRD(prdContent, {
+          result = await generateTasksFromPRD(prdContent, {
             numTasks,
             research: options.research,
           });
@@ -204,10 +355,15 @@ export function registerCommands(program) {
           clearInterval(progressInterval);
           throw err;
         }
+
+        // Handle both array (legacy) and object with telemetry (new) returns
+        const tasks = Array.isArray(result) ? result : (result.tasks || result);
+        const telemetryData = Array.isArray(result) ? null : result.telemetryData;
         
         await incrementUsage('tasksParsed', tasks.length);
 
-        spinner.stop();
+        succeedLoadingIndicator(spinner, 'Tasks generated successfully!');
+        
         let finalTasks;
         if (options.append) {
           const maxId = existingTasks.length > 0 
@@ -223,14 +379,44 @@ export function registerCommands(program) {
 
         saveAllTasks(finalTasks, projectRoot);
 
-        console.log(chalk.green(`✓ Generated ${tasks.length} tasks`));
         console.log('');
-        console.log(chalk.dim('Run ') + chalk.cyan('taskmaster list') + chalk.dim(' to see your tasks'));
+        console.log(
+          boxen(
+            chalk.green(`Successfully generated ${tasks.length} new tasks. Total tasks in ${getTasksFilePath(projectRoot)}: ${finalTasks.length}`),
+            {
+              padding: { top: 0, bottom: 0, left: 1, right: 1 },
+              borderColor: 'green',
+              borderStyle: 'round',
+            }
+          )
+        );
         console.log('');
+
+        // Display next steps
+        displayNextSteps([
+          `Run ${chalk.cyan('taskmaster list')} to view all tasks`,
+          `Run ${chalk.cyan('taskmaster breakdown --id=<id>')} to break down a task into steps`,
+        ]);
+
+        // Display telemetry if available
+        if (telemetryData) {
+          displayAiUsageSummary(telemetryData, 'cli');
+        } else {
+          // Create basic telemetry for display
+          displayAiUsageSummary({
+            commandName: 'plan',
+            providerName: modelConfig.provider,
+            modelUsed: modelConfig.modelId,
+            inputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0,
+            totalCost: 0,
+          }, 'cli');
+        }
       } catch (error) {
-        spinner.stop();
+        failLoadingIndicator(spinner, 'Failed to generate tasks');
         console.log('');
-        console.error(chalk.red('✗ Error generating tasks:'), error.message);
+        displayError(`Error generating tasks: ${error.message}`);
         
         if (options.verbose || process.env.TASKMASTER_DEBUG === 'true') {
           console.log('');
@@ -249,43 +435,77 @@ export function registerCommands(program) {
       }
     });
 
-  // List tasks command (with table format )
+  // List tasks command (with table format and dashboard)
   program
     .command('list')
     .description('List all tasks')
     .option('-s, --status <status>', 'Filter by status')
-    .option('--with-subtasks', 'Include subtasks')
+    .option('--with-subtasks', 'Include subtasks/steps')
+    .option('--with-steps', 'Include subtasks/steps (alias)')
     .action(async (options) => {
       const projectRoot = findProjectRoot();
       
       if (!projectRoot) {
-        console.error(chalk.red('Error: Not in a TaskMaster project. Run "taskmaster init" first.'));
+        displayError('Not in a TaskMaster project. Run "taskmaster init" first.');
         process.exit(1);
       }
 
+      // Display banner
+      const pkg = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf-8'));
+      const config = readProjectConfig(projectRoot);
+      displayAsciiBanner({ version: pkg.version, projectName: config.projectName || 'TaskMaster' });
+
+      // Show current context
+      const currentTag = getCurrentTag(projectRoot);
+      displayCurrentTagIndicator(currentTag);
+
+      console.log(chalk.gray(`Listing tasks from: ${getTasksFilePath(projectRoot)}`));
+      console.log('');
+
       let tasks = getAllTasks(projectRoot);
+      const allTasks = [...tasks]; // Keep unfiltered copy for dashboard
 
       if (options.status) {
         const statuses = options.status.split(',').map(s => s.trim());
         tasks = tasks.filter(t => statuses.includes(t.status));
       }
 
+      // Display project dashboard with all tasks (unfiltered)
+      displayProjectDashboard(null, {
+        tasks: allTasks,
+        showDependencyStatus: true,
+        showNextTask: true,
+      });
+
       if (tasks.length === 0) {
-        console.log(chalk.yellow('No tasks found.'));
+        displayWarning('No tasks found matching the filter criteria.');
         return;
       }
 
       console.log('');
+
+      // Calculate terminal width for responsive columns
+      const terminalWidth = process.stdout.columns || 100;
+      const idWidth = 8;
+      const statusWidth = 16;
+      const priorityWidth = 12;
+      const depsWidth = 14;
+      const titleWidth = Math.max(30, terminalWidth - idWidth - statusWidth - priorityWidth - depsWidth - 10);
+
       const table = new Table({
         head: [
-          chalk.cyan('ID'),
-          chalk.cyan('Status'),
-          chalk.cyan('Pri'),
-          chalk.cyan('Title'),
-          chalk.cyan('Deps'),
+          chalk.cyan.bold('ID'),
+          chalk.cyan.bold('Title'),
+          chalk.cyan.bold('Status'),
+          chalk.cyan.bold('Priority'),
+          chalk.cyan.bold('Dependencies'),
         ],
-        colWidths: [6, 14, 5, 50, 10],
+        colWidths: [idWidth, titleWidth, statusWidth, priorityWidth, depsWidth],
         wordWrap: true,
+        style: {
+          head: [],
+          border: [],
+        },
       });
 
       tasks.forEach(task => {
@@ -293,27 +513,31 @@ export function registerCommands(program) {
         const priorityDisplay = getPriorityBadge(task.priority);
         const depsDisplay = task.dependencies?.length > 0 
           ? task.dependencies.map(d => {
-              const depTask = tasks.find(t => t.id === d);
+              const depTask = allTasks.find(t => t.id === d);
               return depTask?.status === 'done' ? chalk.green(d) : chalk.yellow(d);
-            }).join(',')
-          : '-';
+            }).join(', ')
+          : chalk.gray('-');
         
         table.push([
           chalk.white(task.id),
+          truncateText(task.title, titleWidth - 2),
           statusDisplay,
           priorityDisplay,
-          truncateText(task.title, 48),
           depsDisplay,
         ]);
 
-        if (options.withSubtasks && task.subtasks && task.subtasks.length > 0) {
-          task.subtasks.forEach(subtask => {
-            const subStatusDisplay = getStatusDisplay(subtask.status);
+        // Show subtasks/steps if requested
+        const showSteps = options.withSubtasks || options.withSteps;
+        const steps = task.steps || task.subtasks || [];
+        
+        if (showSteps && steps.length > 0) {
+          steps.forEach(step => {
+            const stepStatusDisplay = getStatusDisplay(step.status);
             table.push([
-              chalk.gray(`  ${task.id}.${subtask.id}`),
-              subStatusDisplay,
+              chalk.gray(`  ${task.id}.${step.id}`),
+              chalk.dim(truncateText(step.title, titleWidth - 4)),
+              stepStatusDisplay,
               '',
-              chalk.dim(truncateText(subtask.title, 46)),
               '',
             ]);
           });
@@ -322,79 +546,176 @@ export function registerCommands(program) {
 
       console.log(table.toString());
       console.log('');
-      const stats = getTaskStats(projectRoot);
-      const progress = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
-      
-      console.log(
-        chalk.dim('Progress: ') + 
-        chalk.cyan(`${progress}%`) + 
-        chalk.dim(` (${stats.done}/${stats.total} tasks)`) +
-        chalk.dim(' | ') +
-        chalk.green(`✓ ${stats.done}`) +
-        chalk.dim(' | ') +
-        chalk.yellow(`◐ ${stats.inProgress}`) +
-        chalk.dim(' | ') +
-        chalk.gray(`○ ${stats.pending}`)
-      );
-      console.log('');
     });
   program
     .command('show')
     .description('Show detailed information for a task')
-    .argument('<id>', 'Task ID (e.g., 1 or 1.2 for subtask)')
+    .argument('<id>', 'Task ID (e.g., 1 or 1.2 for step)')
     .action(async (id) => {
       const projectRoot = findProjectRoot();
       
       if (!projectRoot) {
-        console.error(chalk.red('Error: Not in a TaskMaster project.'));
+        displayError('Not in a TaskMaster project.');
         process.exit(1);
       }
+
+      // Display banner
+      const pkg = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf-8'));
+      const config = readProjectConfig(projectRoot);
+      displayAsciiBanner({ version: pkg.version, projectName: config.projectName || 'TaskMaster' });
+
+      // Show current context
+      const currentTag = getCurrentTag(projectRoot);
+      displayCurrentTagIndicator(currentTag);
 
       const task = findTaskById(id, projectRoot);
 
       if (!task) {
-        console.error(chalk.red(`Task ${id} not found.`));
+        displayError(`Task ${id} not found.`);
         process.exit(1);
       }
 
-      console.log('');
+      // Build task header box
+      const priorityColors = {
+        high: chalk.red,
+        medium: chalk.yellow,
+        low: chalk.blue,
+      };
+      const priorityColor = priorityColors[task.priority || 'medium'] || chalk.white;
+
       console.log(
         boxen(
-          chalk.cyan.bold(`Task ${id}: ${task.title}`) + '\n\n' +
-          chalk.white.bold('Status: ') + getStatusColor(task.status)(task.status) + '\n' +
-          chalk.white.bold('Priority: ') + (task.priority || 'medium') + '\n' +
-          (task.dependencies?.length > 0 
-            ? chalk.white.bold('Dependencies: ') + task.dependencies.join(', ') + '\n' 
-            : '') +
-          '\n' +
-          chalk.white.bold('Description:') + '\n' +
-          chalk.dim(task.description || 'No description') + '\n\n' +
-          chalk.white.bold('Details:') + '\n' +
-          chalk.dim(task.details || 'No details') + '\n\n' +
-          (task.testStrategy 
-            ? chalk.white.bold('Test Strategy:') + '\n' + chalk.dim(task.testStrategy) + '\n'
-            : ''),
+          chalk.white.bold(`Task #${id} - ${task.title}`),
           {
-            padding: 1,
-            borderColor: 'cyan',
-            borderStyle: 'round'
+            padding: { top: 0, bottom: 0, left: 1, right: 1 },
+            borderColor: 'blue',
+            borderStyle: 'round',
           }
         )
       );
 
-      if (task.subtasks && task.subtasks.length > 0) {
-        console.log(chalk.white.bold('Subtasks:'));
-        task.subtasks.forEach(subtask => {
-          const statusColor = getStatusColor(subtask.status);
-          console.log(
-            '  ' + chalk.gray(`[${task.id}.${subtask.id}]`) + ' ' +
-            statusColor(`[${subtask.status}]`) + ' ' +
-            subtask.title
-          );
-        });
+      // Task details table
+      const detailsTable = new Table({
+        style: { head: [], border: [], compact: true },
+        chars: { mid: '', 'left-mid': '', 'mid-mid': '', 'right-mid': '' },
+        colWidths: [15, Math.min(75, process.stdout.columns - 20 || 60)],
+        wordWrap: true,
+      });
+
+      detailsTable.push(
+        [chalk.cyan.bold('ID:'), id],
+        [chalk.cyan.bold('Title:'), task.title],
+        [chalk.cyan.bold('Status:'), getStatusWithColor(task.status)],
+        [chalk.cyan.bold('Priority:'), priorityColor(task.priority || 'medium')],
+      );
+
+      if (task.dependencies?.length > 0) {
+        const allTasks = getAllTasks(projectRoot);
+        const depsFormatted = task.dependencies.map(depId => {
+          const depTask = allTasks.find(t => t.id === depId);
+          if (depTask) {
+            return depTask.status === 'done' ? chalk.green(depId) : chalk.yellow(depId);
+          }
+          return chalk.red(`${depId} (not found)`);
+        }).join(', ');
+        detailsTable.push([chalk.cyan.bold('Dependencies:'), depsFormatted]);
       }
 
-      console.log('');
+      detailsTable.push([chalk.cyan.bold('Description:'), task.description || chalk.gray('No description')]);
+
+      console.log(detailsTable.toString());
+
+      // Implementation details box
+      if (task.details && task.details.trim().length > 0) {
+        console.log(
+          boxen(
+            chalk.white.bold('Implementation Details:') + '\n\n' + task.details,
+            {
+              padding: { top: 0, bottom: 0, left: 1, right: 1 },
+              borderColor: 'cyan',
+              borderStyle: 'round',
+              margin: { top: 1, bottom: 0 },
+            }
+          )
+        );
+      }
+
+      // Test strategy box
+      if (task.testStrategy) {
+        console.log(
+          boxen(
+            chalk.white.bold('Test Strategy:') + '\n\n' + task.testStrategy,
+            {
+              padding: { top: 0, bottom: 0, left: 1, right: 1 },
+              borderColor: 'yellow',
+              borderStyle: 'round',
+              margin: { top: 1, bottom: 0 },
+            }
+          )
+        );
+      }
+
+      // Display steps/subtasks
+      const steps = task.steps || task.subtasks || [];
+      if (steps.length > 0) {
+        console.log(
+          boxen(
+            chalk.white.bold('Steps'),
+            {
+              padding: { top: 0, bottom: 0, left: 1, right: 1 },
+              margin: { top: 1, bottom: 0 },
+              borderColor: 'magenta',
+              borderStyle: 'round',
+            }
+          )
+        );
+
+        const stepsTable = new Table({
+          head: [
+            chalk.magenta.bold('ID'),
+            chalk.magenta.bold('Status'),
+            chalk.magenta.bold('Title'),
+          ],
+          colWidths: [10, 16, 60],
+          style: { head: [], border: [], compact: true },
+          wordWrap: true,
+        });
+
+        steps.forEach(step => {
+          stepsTable.push([
+            `${id}.${step.id}`,
+            getStatusWithColor(step.status),
+            step.title,
+          ]);
+        });
+
+        console.log(stepsTable.toString());
+      }
+
+      // Suggested actions
+      const suggestedActions = [
+        `Mark as in-progress: ${chalk.yellow(`taskmaster set-status --id ${id} --status in-progress`)}`,
+        `Mark as done: ${chalk.yellow(`taskmaster set-status --id ${id} --status done`)}`,
+      ];
+      
+      if (steps.length === 0) {
+        suggestedActions.push(`Break down into steps: ${chalk.yellow(`taskmaster breakdown --id=${id}`)}`);
+      } else {
+        suggestedActions.push(`Update step status: ${chalk.yellow(`taskmaster set-status --id ${id}.1 --status done`)}`);
+      }
+
+      console.log(
+        boxen(
+          chalk.white.bold('Suggested Actions:') + '\n' +
+          suggestedActions.map((action, i) => `${chalk.cyan(i + 1 + '.')} ${action}`).join('\n'),
+          {
+            padding: { top: 0, bottom: 0, left: 1, right: 1 },
+            borderColor: 'green',
+            borderStyle: 'round',
+            margin: { top: 1 },
+          }
+        )
+      );
     });
 
   // Next task command
@@ -405,38 +726,187 @@ export function registerCommands(program) {
       const projectRoot = findProjectRoot();
       
       if (!projectRoot) {
-        console.error(chalk.red('Error: Not in a TaskMaster project.'));
+        displayError('Not in a TaskMaster project.');
         process.exit(1);
       }
+
+      // Display banner
+      const pkg = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf-8'));
+      const config = readProjectConfig(projectRoot);
+      displayAsciiBanner({ version: pkg.version, projectName: config.projectName || 'TaskMaster' });
+
+      // Show current context
+      const currentTag = getCurrentTag(projectRoot);
+      displayCurrentTagIndicator(currentTag);
 
       const task = getNextTask(projectRoot);
 
       if (!task) {
-        console.log(chalk.green('🎉 All tasks completed! No pending tasks.'));
+        console.log(
+          boxen(
+            chalk.yellow('No eligible tasks found!') + '\n\n' +
+            'All pending tasks have unsatisfied dependencies, or all tasks are completed.',
+            {
+              padding: { top: 0, bottom: 0, left: 1, right: 1 },
+              borderColor: 'yellow',
+              borderStyle: 'round',
+            }
+          )
+        );
         return;
       }
 
-      console.log('');
-      console.log(chalk.cyan.bold('Next Task:'));
-      console.log('');
+      // Build task header box
       console.log(
         boxen(
-          chalk.white.bold(`[${task.id}] ${task.title}`) + '\n\n' +
-          chalk.dim(task.description || 'No description') + '\n\n' +
-          chalk.white.bold('Priority: ') + getPriorityBadge(task.priority) + '\n' +
-          (task.dependencies?.length > 0 
-            ? chalk.white.bold('Dependencies: ') + chalk.green('✓ All complete')
-            : ''),
+          chalk.white.bold(`Next Task: #${task.id} - ${task.title}`),
           {
-            padding: 1,
-            borderColor: 'green',
-            borderStyle: 'round'
+            padding: { top: 0, bottom: 0, left: 1, right: 1 },
+            borderColor: 'blue',
+            borderStyle: 'round',
           }
         )
       );
-      console.log('');
-      console.log(chalk.dim('Start with: ') + chalk.cyan(`taskmaster set-status --id ${task.id} --status in-progress`));
-      console.log('');
+
+      // Task details table
+      const priorityColors = {
+        high: chalk.red.bold,
+        medium: chalk.yellow,
+        low: chalk.gray,
+      };
+      const priorityColor = priorityColors[task.priority || 'medium'] || chalk.white;
+
+      const allTasks = getAllTasks(projectRoot);
+      const depsFormatted = (task.dependencies?.length > 0)
+        ? task.dependencies.map(depId => {
+            const depTask = allTasks.find(t => t.id === depId);
+            if (depTask) {
+              return depTask.status === 'done' ? chalk.green(depId) : chalk.yellow(depId);
+            }
+            return chalk.red(`${depId} (not found)`);
+          }).join(', ')
+        : chalk.gray('None');
+
+      const detailsTable = new Table({
+        style: { head: [], border: [], compact: true },
+        chars: { mid: '', 'left-mid': '', 'mid-mid': '', 'right-mid': '' },
+        colWidths: [15, Math.min(75, process.stdout.columns - 20 || 60)],
+        wordWrap: true,
+      });
+
+      detailsTable.push(
+        [chalk.cyan.bold('ID:'), task.id.toString()],
+        [chalk.cyan.bold('Title:'), task.title],
+        [chalk.cyan.bold('Priority:'), priorityColor(task.priority || 'medium')],
+        [chalk.cyan.bold('Dependencies:'), depsFormatted],
+        [chalk.cyan.bold('Complexity:'), task.complexityScore ? getAssessmentWithColor(task.complexityScore) : chalk.gray('N/A')],
+        [chalk.cyan.bold('Description:'), task.description || chalk.gray('No description')],
+      );
+
+      console.log(detailsTable.toString());
+
+      // Implementation details box
+      if (task.details && task.details.trim().length > 0) {
+        console.log(
+          boxen(
+            chalk.white.bold('Implementation Details:') + '\n\n' + task.details,
+            {
+              padding: { top: 0, bottom: 0, left: 1, right: 1 },
+              borderColor: 'cyan',
+              borderStyle: 'round',
+              margin: { top: 1, bottom: 0 },
+            }
+          )
+        );
+      }
+
+      // Display steps/subtasks
+      const steps = task.steps || task.subtasks || [];
+      if (steps.length > 0) {
+        console.log(
+          boxen(
+            chalk.white.bold('Steps'),
+            {
+              padding: { top: 0, bottom: 0, left: 1, right: 1 },
+              margin: { top: 1, bottom: 0 },
+              borderColor: 'magenta',
+              borderStyle: 'round',
+            }
+          )
+        );
+
+        const stepsTable = new Table({
+          head: [
+            chalk.magenta.bold('ID'),
+            chalk.magenta.bold('Status'),
+            chalk.magenta.bold('Title'),
+            chalk.magenta.bold('Deps'),
+          ],
+          colWidths: [10, 16, 50, 15],
+          style: { head: [], border: [], compact: true },
+          wordWrap: true,
+        });
+
+        steps.forEach(step => {
+          const stepDeps = step.dependencies?.length > 0 
+            ? step.dependencies.map(d => {
+                const targetStep = steps.find(s => s.id === d);
+                if (targetStep) {
+                  return targetStep.status === 'done' ? chalk.green(`${task.id}.${d}`) : chalk.yellow(`${task.id}.${d}`);
+                }
+                return chalk.red(`${task.id}.${d}`);
+              }).join(', ')
+            : chalk.gray('None');
+
+          stepsTable.push([
+            `${task.id}.${step.id}`,
+            getStatusWithColor(step.status),
+            step.title,
+            stepDeps,
+          ]);
+        });
+
+        console.log(stepsTable.toString());
+      } else {
+        // Suggest expanding if no steps
+        console.log(
+          boxen(
+            chalk.yellow('No steps found. Consider breaking down this task:') + '\n' +
+            chalk.white(`Run: ${chalk.cyan(`taskmaster breakdown --id=${task.id}`)}`),
+            {
+              padding: { top: 0, bottom: 0, left: 1, right: 1 },
+              borderColor: 'yellow',
+              borderStyle: 'round',
+              margin: { top: 1, bottom: 0 },
+            }
+          )
+        );
+      }
+
+      // Suggested actions
+      const suggestedActions = [
+        `Mark as in-progress: ${chalk.yellow(`taskmaster set-status --id ${task.id} --status in-progress`)}`,
+        `Mark as done when completed: ${chalk.yellow(`taskmaster set-status --id ${task.id} --status done`)}`,
+      ];
+      
+      if (steps.length > 0) {
+        suggestedActions.push(`Update step status: ${chalk.yellow(`taskmaster set-status --id ${task.id}.1 --status done`)}`);
+      } else {
+        suggestedActions.push(`Break down into steps: ${chalk.yellow(`taskmaster breakdown --id=${task.id}`)}`);
+      }
+
+      console.log(
+        boxen(
+          chalk.white.bold('Suggested Actions:') + '\n' +
+          suggestedActions.map((action, i) => `${chalk.cyan(i + 1 + '.')} ${action}`).join('\n'),
+          {
+            padding: { top: 0, bottom: 0, left: 1, right: 1 },
+            borderColor: 'green',
+            borderStyle: 'round',
+            margin: { top: 1 },
+          }
+        )
+      );
     });
   program
     .command('set-status')
@@ -716,7 +1186,7 @@ export function registerCommands(program) {
         console.log('');
 
         // Save report
-        const reportPath = path.join(projectRoot, '.taskmaster', 'reports', 'complexity-report.json');
+        const reportPath = path.join(projectRoot, '.taskmaster-ai', 'reports', 'complexity-report.json');
         fs.writeFileSync(reportPath, JSON.stringify({
           generatedAt: new Date().toISOString(),
           analysis,
@@ -1178,18 +1648,28 @@ Provide updated details that incorporate the new information.`;
 
       // Helper function to detect provider from model ID
       const detectProvider = (modelId) => {
-        const supportedModelsPath = path.join(findProjectRoot() || process.cwd(), 'node_modules', '@taskmasterai', 'cli', 'src', 'modules', 'supported-models.json');
+        // Try multiple paths to find supported-models.json
+        const possiblePaths = [
+          path.join(__dirname, '..', 'modules', 'supported-models.json'),
+          path.join(findProjectRoot() || process.cwd(), 'node_modules', '@taskmasterai', 'cli', 'src', 'modules', 'supported-models.json'),
+          path.join(findProjectRoot() || process.cwd(), 'node_modules', 'taskmaster-ai-cli', 'src', 'modules', 'supported-models.json'),
+        ];
+        
         let supportedModels;
         
-        try {
-          supportedModels = JSON.parse(fs.readFileSync(supportedModelsPath, 'utf-8'));
-        } catch (err) {
-          const localPath = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'modules', 'supported-models.json');
+        for (const modelPath of possiblePaths) {
           try {
-            supportedModels = JSON.parse(fs.readFileSync(localPath, 'utf-8'));
-          } catch (err2) {
-            return null;
+            if (fs.existsSync(modelPath)) {
+              supportedModels = JSON.parse(fs.readFileSync(modelPath, 'utf-8'));
+              break;
+            }
+          } catch (err) {
+            continue;
           }
+        }
+        
+        if (!supportedModels) {
+          return null;
         }
 
         for (const [provider, models] of Object.entries(supportedModels)) {
@@ -1653,7 +2133,7 @@ Provide updated details that incorporate the new information.`;
       }
 
       const reportPath = options.file || 
-        path.join(projectRoot, '.taskmaster', 'reports', 'complexity-report.json');
+        path.join(projectRoot, '.taskmaster-ai', 'reports', 'complexity-report.json');
 
       if (!fs.existsSync(reportPath)) {
         console.log(chalk.yellow('No complexity report found.'));
@@ -2231,61 +2711,6 @@ Provide updated details that incorporate the new information.`;
         process.exit(1);
       }
     });
-}
-
-function truncateText(text, maxLength) {
-  if (!text) return '';
-  if (text.length <= maxLength) return text;
-  return text.substring(0, maxLength - 3) + '...';
-}
-
-function getStatusColor(status) {
-  switch (status) {
-    case 'done':
-      return chalk.green;
-    case 'in-progress':
-      return chalk.yellow;
-    case 'pending':
-      return chalk.gray;
-    case 'blocked':
-      return chalk.red;
-    case 'cancelled':
-      return chalk.dim;
-    case 'deferred':
-      return chalk.blue;
-    default:
-      return chalk.white;
-  }
-}
-
-function getStatusDisplay(status) {
-  switch (status) {
-    case 'done':
-      return chalk.green('✓ done');
-    case 'in-progress':
-      return chalk.yellow('◐ in-progress');
-    case 'pending':
-      return chalk.gray('○ pending');
-    case 'blocked':
-      return chalk.red('✗ blocked');
-    case 'cancelled':
-      return chalk.dim('⊘ cancelled');
-    case 'deferred':
-      return chalk.blue('◑ deferred');
-    default:
-      return chalk.white(status);
-  }
-}
-
-function getPriorityBadge(priority) {
-  switch (priority) {
-    case 'high':
-      return chalk.red('▲');
-    case 'low':
-      return chalk.blue('▼');
-    default:
-      return chalk.yellow('●');
-  }
 }
 
 export default { registerCommands };
