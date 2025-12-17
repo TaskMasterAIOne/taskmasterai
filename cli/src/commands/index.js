@@ -2132,12 +2132,27 @@ Provide updated details that incorporate the new information.`;
         process.exit(1);
       }
 
-      const reportPath = options.file || 
-        path.join(projectRoot, '.taskmaster-ai', 'reports', 'complexity-report.json');
+      // Check multiple possible report locations
+      const possiblePaths = [
+        options.file,
+        path.join(projectRoot, '.taskmaster-ai', 'reports', 'complexity-report.json'),
+        path.join(os.homedir(), '.taskmaster-ai', 'reports', 'complexity-report.json'),
+      ].filter(Boolean);
 
-      if (!fs.existsSync(reportPath)) {
+      let reportPath = null;
+      for (const p of possiblePaths) {
+        if (fs.existsSync(p)) {
+          reportPath = p;
+          break;
+        }
+      }
+
+      if (!reportPath) {
         console.log(chalk.yellow('No complexity report found.'));
-        console.log(chalk.dim('Run ') + chalk.cyan('taskmaster analyze-complexity') + chalk.dim(' first'));
+        console.log(chalk.dim('Checked:'));
+        possiblePaths.forEach(p => console.log(chalk.dim(`  - ${p}`)));
+        console.log('');
+        console.log(chalk.dim('Run ') + chalk.cyan('taskmaster assess') + chalk.dim(' first'));
         return;
       }
 

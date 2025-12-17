@@ -735,20 +735,22 @@ export function moveTask(fromId, toId, projectRoot = process.cwd()) {
     throw new Error(`Task ${fromStr} not found`);
   }
   
-  const task = tasks[fromIndex];
-  tasks.splice(fromIndex, 1);
+  const toNum = Number(toStr);
+  const fromNum = Number(fromStr);
   
-  // Find insertion point or create placeholder
-  let toIndex = tasks.findIndex(t => t.id === Number(toStr));
-  if (toIndex === -1) {
-    task.id = Number(toStr);
-    tasks.push(task);
-    tasks.sort((a, b) => a.id - b.id);
-  } else {
-    task.id = Number(toStr);
-    tasks.splice(toIndex, 0, task);
+  // Check if target ID already exists (and is not the same task)
+  const existingTargetIndex = tasks.findIndex(t => t.id === toNum);
+  if (existingTargetIndex !== -1 && existingTargetIndex !== fromIndex) {
+    throw new Error(`Task ID ${toStr} already exists. Use a different target ID or remove the existing task first.`);
   }
-  updateDependencyReferences(tasks, Number(fromStr), Number(toStr));
+  
+  const task = tasks[fromIndex];
+  task.id = toNum;
+  
+  // Sort tasks by ID to maintain order
+  tasks.sort((a, b) => a.id - b.id);
+  
+  updateDependencyReferences(tasks, fromNum, toNum);
   
   saveAllTasks(tasks, projectRoot);
   return task;
