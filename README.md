@@ -32,9 +32,11 @@ TaskMaster AI intelligently breaks down your product requirements into structure
 - 📊 **Complexity Analysis** - AI analyzes task complexity and recommends step counts
 - 🔄 **Status Tracking** - Track task progress with intuitive status management
 - 🔗 **Task Linking** - Define task dependencies with circular dependency prevention
+- ☁️ **Cloud Sync** - Tasks automatically sync to web dashboard in real-time
 - 📈 **Usage Dashboard** - Monitor your AI operations in real-time
-- 🔑 **Dashboard Sync** - Configure API keys and models from the web dashboard
-- 🧠 **Multi-Model Support** - Use Claude, GPT, Gemini, DeepSeek, and more
+- 🔑 **Hosted API Keys** - Pro/Enterprise users get hosted keys (no API keys needed!)
+- 🧠 **Multi-Model Support** - Use Claude, GPT, Gemini, DeepSeek, Grok, and 10+ providers
+- 🔧 **MCP Integration** - Works with Cursor, Windsurf, VS Code, and other AI editors
 
 ## 📦 Installation
 
@@ -194,9 +196,9 @@ taskmaster logout
 | Command | Description |
 |---------|-------------|
 | `taskmaster contexts` | List all contexts |
-| `taskmaster context <name>` | Create a new context |
-| `taskmaster switch <name>` | Switch to a different context |
-| `taskmaster clone <source> <target>` | Clone a context |
+| `taskmaster context-add <name>` | Create a new context |
+| `taskmaster context <name>` | Switch to a different context |
+| `taskmaster clone <source> <target>` | Clone a context with all tasks |
 | `taskmaster delete-context <name>` | Delete a context |
 | `taskmaster rename-context <old> <new>` | Rename a context |
 
@@ -214,9 +216,9 @@ taskmaster logout
 
 | Command | Description |
 |---------|-------------|
-| `taskmaster license` | Show license status |
+| `taskmaster activate <key>` | Activate a license key |
 | `taskmaster usage` | View usage and plan limits |
-| `taskmaster sync` | Sync API keys and models from dashboard |
+| `taskmaster sync-keys` | Sync API keys and hosted keys from dashboard |
 
 ### Configuration
 
