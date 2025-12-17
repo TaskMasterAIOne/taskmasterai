@@ -16,7 +16,7 @@ const __dirname = path.dirname(__filename);
 // Read CLI version from cli-version.json (injected during CI/CD deployment)
 // Falls back to hardcoded value if file doesn't exist
 let PACKAGE_NAME = '@taskmasterai/cli';
-let PACKAGE_VERSION = '1.0.44'; // Fallback version
+let PACKAGE_VERSION = '1.0.46'; // Fallback version
 
 try {
   const cliVersionPath = path.join(__dirname, 'cli-version.json');
