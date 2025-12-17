@@ -2,6 +2,7 @@ import { generateText, generateObject } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { createPerplexity } from '@ai-sdk/perplexity';
 import { z } from 'zod';
 import { getApiKey, readProjectConfig, findProjectRoot } from './config.js';
 import { isUsingHostedKey, trackHostedKeyUsage } from './license.js';
@@ -9,8 +10,7 @@ import { isUsingHostedKey, trackHostedKeyUsage } from './license.js';
 const providers = {};
 
 const PROVIDER_URLS = {
-  perplexity: 'https://api.perplexity.ai',
-  deepseek: 'https://api.deepseek.com',
+  deepseek: 'https://api.deepseek.com/v1',
   openrouter: 'https://openrouter.ai/api/v1',
   xai: 'https://api.x.ai/v1',
   mistral: 'https://api.mistral.ai/v1',
@@ -44,6 +44,9 @@ function getProvider(providerName) {
       providers[providerName] = createGoogleGenerativeAI({ apiKey });
       break;
     case 'perplexity':
+      // Use official Perplexity SDK
+      providers[providerName] = createPerplexity({ apiKey });
+      break;
     case 'deepseek':
     case 'openrouter':
     case 'xai':
