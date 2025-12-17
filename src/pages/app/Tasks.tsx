@@ -1,8 +1,17 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../../contexts/AuthContext'
-import { doc, collection, onSnapshot } from 'firebase/firestore'
+import { doc, collection, onSnapshot, Timestamp } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
+
+// Helper to convert Firestore Timestamp or string to Date
+const toDate = (value: Timestamp | string | { seconds: number; nanoseconds: number } | null | undefined): Date | null => {
+  if (!value) return null
+  if (value instanceof Timestamp) return value.toDate()
+  if (typeof value === 'string') return new Date(value)
+  if (typeof value === 'object' && 'seconds' in value) return new Date(value.seconds * 1000)
+  return null
+}
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { 
   faCheckCircle,
@@ -65,7 +74,7 @@ interface TagData {
     createdAt?: string
     updatedAt?: string
   }
-  syncedAt?: string
+  syncedAt?: Timestamp | string | { seconds: number; nanoseconds: number }
 }
 
 const statusConfig: { [key: string]: { icon: typeof faClock; color: string; bg: string; label: string } } = {
@@ -285,7 +294,7 @@ export default function Tasks() {
   const [selectedTag, setSelectedTag] = useState<string>('master')
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
-  const [lastSynced, setLastSynced] = useState<string | null>(null)
+  const [lastSynced, setLastSynced] = useState<Date | null>(null)
   const [expandedTasks, setExpandedTasks] = useState<Set<number>>(new Set())
 
   // Load projects
@@ -329,7 +338,7 @@ export default function Tasks() {
         if (snapshot.exists()) {
           const data = snapshot.data() as TagData
           setTasks(data.tasks || [])
-          setLastSynced(data.syncedAt || null)
+          setLastSynced(toDate(data.syncedAt))
         } else {
           setTasks([])
           setLastSynced(null)
@@ -468,7 +477,7 @@ export default function Tasks() {
           {lastSynced && (
             <div className="flex items-center gap-2 text-xs text-text-muted bg-surface-highlight px-3 py-1.5 rounded-lg">
               <FontAwesomeIcon icon={faSync} className="w-3 h-3" />
-              Synced {new Date(lastSynced).toLocaleString()}
+              Synced {lastSynced.toLocaleString()}
             </div>
           )}
         </div>
