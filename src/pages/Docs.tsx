@@ -643,8 +643,8 @@ taskmaster init --rules cursor,windsurf,vscode`}
                 <td className="py-2">View AI operations usage and remaining limits</td>
               </tr>
               <tr className="border-b border-border">
-                <td className="py-2 pr-4 font-mono text-xs">taskmaster sync</td>
-                <td className="py-2">Sync API keys and model config from your dashboard</td>
+                <td className="py-2 pr-4 font-mono text-xs">taskmaster sync-keys</td>
+                <td className="py-2">Sync API keys and hosted keys from your dashboard</td>
               </tr>
             </tbody>
           </table>
@@ -1167,8 +1167,8 @@ taskmaster whoami`}
                 <td className="py-2">View current AI operations count and remaining limits for the billing period</td>
               </tr>
               <tr className="border-b border-border">
-                <td className="py-2 pr-4 font-mono text-xs">taskmaster sync</td>
-                <td className="py-2">Sync API keys and model configuration from your dashboard</td>
+                <td className="py-2 pr-4 font-mono text-xs">taskmaster sync-keys</td>
+                <td className="py-2">Sync API keys and hosted keys from your dashboard</td>
               </tr>
             </tbody>
           </table>
@@ -1204,12 +1204,12 @@ taskmaster whoami`}
 
         <CodeBlock 
           code={`# Configure keys in dashboard, then sync
-taskmaster sync
+taskmaster sync-keys
 
 # This syncs:
 # - API keys from your dashboard
-# - Model configuration (main, ask, fallback)
-# - Any updated settings`}
+# - Hosted keys (Pro/Enterprise)
+# - Model configuration`}
           filename="Terminal"
         />
 
@@ -1407,8 +1407,8 @@ taskmaster sync
             <p className="text-sm text-text-muted mt-1">Parse a PRD file to generate tasks. Use --append to add to existing tasks, --force to overwrite.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">taskmaster sync [-f, --force]</code>
-            <p className="text-sm text-text-muted mt-1">Sync API keys and model configuration from your TaskMaster dashboard.</p>
+            <code className="text-sm text-accent font-mono">taskmaster sync-keys</code>
+            <p className="text-sm text-text-muted mt-1">Sync API keys and hosted keys from your TaskMaster dashboard.</p>
           </div>
         </div>
 
@@ -2040,12 +2040,12 @@ taskmaster breakdown --all`}
         
         <CodeBlock 
           code={`# After configuring keys in https://taskmaster.one/app/api-keys
-taskmaster sync
+taskmaster sync-keys
 
 # This syncs:
 # - All your API keys (Anthropic, OpenAI, Google, etc.)
-# - Model configuration (main, ask, fallback)
-# - Any other dashboard settings`}
+# - Hosted keys (Pro/Enterprise - no API keys needed!)
+# - Model configuration`}
           filename="Terminal"
         />
 
@@ -3528,7 +3528,7 @@ const docKeywords: Record<string, string[]> = {
   'advanced-configuration': ['models', 'config', 'main model', 'ask model', 'fallback', 'temperature', 'parameters'],
   'advanced-tasks': ['dependencies', 'priority', 'steps', 'subtasks', 'update', 'batch', 'move', 'organization'],
   'mcp-tools': ['mcp', 'tools', 'core', 'standard', 'all', 'list', 'next', 'breakdown', 'plan', 'set_status', 'autopilot'],
-  'cli-commands': ['taskmaster', 'init', 'plan', 'list', 'show', 'next', 'set-status', 'breakdown', 'new', 'edit', 'log', 'update', 'assess', 'report', 'link', 'unlink', 'contexts', 'context', 'switch', 'clone', 'ask', 'usage', 'models', 'sync', 'autopilot', 'move', 'add-step', 'generate', 'check-links', 'fix-links', 'remove-task', 'clear-steps', 'delete-context', 'rename-context'],
+  'cli-commands': ['taskmaster', 'init', 'plan', 'list', 'show', 'next', 'set-status', 'breakdown', 'new', 'edit', 'log', 'update', 'assess', 'report', 'link', 'unlink', 'contexts', 'context', 'switch', 'clone', 'ask', 'usage', 'models', 'sync-keys', 'activate', 'autopilot', 'move', 'add-step', 'generate', 'check-links', 'fix-links', 'remove-task', 'clear-steps', 'delete-context', 'rename-context', 'cloud sync', 'hosted keys'],
   'task-structure': ['id', 'title', 'description', 'status', 'dependencies', 'priority', 'details', 'steps', 'testStrategy', 'tasks.json'],
   'tdd-quick-start': ['tdd', 'test driven', 'autopilot', 'red green refactor', 'testing', 'workflow', 'git branch'],
   'agent-integration': ['ai agent', 'cursor', 'automation', 'mcp tools', 'autopilot_start', 'autopilot_next', 'autopilot_status', 'autopilot_commit'],
