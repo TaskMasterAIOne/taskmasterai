@@ -288,7 +288,7 @@ Configure your API keys in the TaskMaster dashboard and they'll automatically sy
 
 1. Go to [taskmaster.one/app/api-keys](https://taskmaster.one/app/api-keys)
 2. Add your API keys for the providers you want to use
-3. Run `taskmaster sync` to pull the keys to your CLI
+3. Run `taskmaster sync-keys` to pull the keys to your CLI
 
 ### Supported Providers
 

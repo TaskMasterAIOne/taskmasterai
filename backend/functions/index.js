@@ -16,7 +16,7 @@ const __dirname = path.dirname(__filename);
 // Read CLI version from cli-version.json (injected during CI/CD deployment)
 // Falls back to hardcoded value if file doesn't exist
 let PACKAGE_NAME = '@taskmasterai/cli';
-let PACKAGE_VERSION = '1.0.50'; // Fallback version
+let PACKAGE_VERSION = '1.0.51'; // Fallback version
 
 try {
   const cliVersionPath = path.join(__dirname, 'cli-version.json');
@@ -145,7 +145,7 @@ TaskMaster AI uses login-based authentication (no manual license key activation 
 - \`taskmaster logout\` - Logout and clear session
 - \`taskmaster whoami\` - Show current user, license status, and plan details
 - \`taskmaster usage\` - View AI operations usage count and remaining limits
-- \`taskmaster sync\` - Sync API keys and model config from dashboard
+- \`taskmaster sync-keys\` - Sync API keys and model config from dashboard
 
 When you login, TaskMaster AI automatically syncs your license and API keys from your Dashboard.
 
@@ -335,13 +335,13 @@ Default context is "main". Contexts isolate work across different features/branc
 - \`taskmaster logout\` - Logout and clear your session
 - \`taskmaster whoami\` - Display current user, license status, and plan details
 - \`taskmaster usage\` - View AI operations usage count and remaining limit for current billing period
-- \`taskmaster sync\` - Sync API keys and model configuration from your TaskMaster dashboard
+- \`taskmaster sync-keys\` - Sync API keys and model configuration from your TaskMaster dashboard
 
 ## Model Configuration
 - \`taskmaster models\` - Display current AI model configuration (main, ask, fallback)
 - \`taskmaster models --setup\` - Interactive setup for configuring AI models
 - \`taskmaster models --set-main <model>\` - Set main model (e.g., claude-sonnet-4-20250514)
-- \`taskmaster models --set-ask <model>\` - Set ask model (e.g., sonar-pro)
+- \`taskmaster models --set-research <model>\` - Set research model (e.g., sonar-pro)
 - \`taskmaster models --set-fallback <model>\` - Set fallback model (e.g., gpt-4o-mini)
 
 ## Other Commands
@@ -935,7 +935,7 @@ License & Usage
 Command	Description
 taskmaster license	Show license status
 taskmaster usage	View usage and plan limits
-taskmaster sync	Sync API keys and models from dashboard
+taskmaster sync-keys	Sync API keys and models from dashboard
 Configuration
 Command	Description
 taskmaster models	View AI model configuration
@@ -987,7 +987,7 @@ Configure your API keys in the TaskMaster dashboard and they'll automatically sy
 
 Go to taskmaster.one/app/api-keys
 Add your API keys for the providers you want to use
-Run taskmaster sync to pull the keys to your CLI
+Run taskmaster sync-keys to pull the keys to your CLI
 Supported Providers
 Provider	Environment Variable	Models
 Anthropic	ANTHROPIC_API_KEY	Claude Opus, Sonnet, Haiku

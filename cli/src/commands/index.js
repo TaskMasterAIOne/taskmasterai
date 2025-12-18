@@ -1565,10 +1565,10 @@ Provide updated details that incorporate the new information.`;
           }
         }
         console.log('');
-        console.log(chalk.dim('  Tip: Run ') + chalk.cyan('taskmaster sync') + chalk.dim(' to refresh config from dashboard'));
+        console.log(chalk.dim('  Tip: Run ') + chalk.cyan('taskmaster sync-keys') + chalk.dim(' to refresh config from dashboard'));
         console.log('');
       } else {
-        console.log(chalk.dim('No dashboard config synced. Run ') + chalk.cyan('taskmaster sync') + chalk.dim(' after adding API keys in the dashboard.'));
+        console.log(chalk.dim('No dashboard config synced. Run ') + chalk.cyan('taskmaster sync-keys') + chalk.dim(' after adding API keys in the dashboard.'));
         console.log('');
       }
     });

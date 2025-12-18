@@ -235,7 +235,7 @@ taskmaster init --rules cursor,windsurf,vscode
 | taskmaster logout | Logout and clear session |
 | taskmaster license | Show current license status and plan details |
 | taskmaster usage | View AI operations usage and remaining limits |
-| taskmaster sync | Sync API keys and model config from your dashboard |
+| taskmaster sync-keys | Sync API keys and model config from your dashboard |
 
 ---
 
@@ -624,7 +624,7 @@ We'd love to hear from you! Here's how to reach us:
 | taskmaster license | Show license info |
 | taskmaster usage | Show usage stats |
 | taskmaster models | View/set AI models |
-| taskmaster sync | Sync config from dashboard |
+| taskmaster sync-keys | Sync config from dashboard |
 
 ---
 

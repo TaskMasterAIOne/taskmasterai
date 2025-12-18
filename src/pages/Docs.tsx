@@ -694,7 +694,7 @@ OPENAI_API_KEY=your_openai_key_here`}
 taskmaster models --set-main claude-sonnet-4-20250514
 
 # Set ask model
-taskmaster models --set-ask sonar-pro
+taskmaster models --set-research sonar-pro
 
 # Set fallback model
 taskmaster models --set-fallback gpt-4o-mini`}
@@ -1567,7 +1567,7 @@ taskmaster sync-keys
             <p className="text-sm text-text-muted mt-1">Set the main AI model for task generation.</p>
           </div>
           <div className="card p-4">
-            <code className="text-sm text-accent font-mono">taskmaster models --set-ask &lt;model&gt;</code>
+            <code className="text-sm text-accent font-mono">taskmaster models --set-research &lt;model&gt;</code>
             <p className="text-sm text-text-muted mt-1">Set the ask model for research-backed operations.</p>
           </div>
           <div className="card p-4">
@@ -2166,7 +2166,7 @@ taskmaster models
 
 # Set specific models
 taskmaster models --set-main claude-sonnet-4-20250514
-taskmaster models --set-ask sonar-pro
+taskmaster models --set-research sonar-pro
 taskmaster models --set-fallback gpt-4o-mini
 
 # Use custom Ollama model

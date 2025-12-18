@@ -217,7 +217,7 @@ export function enforceUsageLimit(operationCount = 1) {
   if (failedSyncs > 20) {
     throw new Error(
       `Usage tracking offline. Please check your network connection and try again.\n` +
-      `If this persists, run: taskmaster sync --usage`
+      `If this persists, run: taskmaster sync-keys`
     );
   }
   
