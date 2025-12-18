@@ -112,8 +112,7 @@ async function addLink(tasksPath, taskId, linkId, context = {}) {
       process.exit(1);
     }
   }
-  
-  // Initialize links array - support both field names
+
   if (!targetTask.dependencies && !targetTask.links) {
     targetTask.dependencies = [];
   }
@@ -140,8 +139,7 @@ async function addLink(tasksPath, taskId, linkId, context = {}) {
       if (aP !== bP) return aP - bP;
       return aC - bC;
     });
-    
-    // Save changes
+
     writeJSON(tasksPath, data, context.projectRoot, context.context);
     log('success', `Added link ${formattedLinkId} to task ${formattedTaskId}`);
     
@@ -225,8 +223,7 @@ async function removeLink(tasksPath, taskId, linkId, context = {}) {
     return;
   }
   links.splice(linkIndex, 1);
-  
-  // Save changes
+
   writeJSON(tasksPath, data, context.projectRoot, context.context);
   log('success', `Removed link: Task ${formattedTaskId} no longer depends on ${formattedLinkId}`);
   

@@ -22,19 +22,17 @@ async function logStep(tasksPath, stepId, prompt, options = {}) {
   let loadingIndicator = null;
   
   try {
-    // Validate step ID format
+
     if (!stepId || typeof stepId !== 'string' || !stepId.includes('.')) {
       throw new Error(
         `Invalid step ID format: ${stepId}. Step ID must be in format "parentId.stepId" (e.g., "1.2")`
       );
     }
-    
-    // Validate prompt
+
     if (!prompt || typeof prompt !== 'string' || prompt.trim() === '') {
       throw new Error('Prompt cannot be empty. Please provide information to log.');
     }
-    
-    // Validate file exists
+
     if (!fs.existsSync(tasksPath)) {
       throw new Error(`Tasks file not found at: ${tasksPath}`);
     }
@@ -47,8 +45,7 @@ async function logStep(tasksPath, stepId, prompt, options = {}) {
     if (!data || !data.tasks) {
       throw new Error('No valid tasks found in tasks file');
     }
-    
-    // Parse step ID
+
     const [parentIdStr, stepIdStr] = stepId.split('.');
     const parentId = parseInt(parentIdStr, 10);
     const stepIdNum = parseInt(stepIdStr, 10);

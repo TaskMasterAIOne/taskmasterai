@@ -159,8 +159,7 @@ async function assessComplexity(options) {
       summary,
       taskAnalysis
     };
-    
-    // Save report
+
     const reportPath = outputPath || path.join(
       getConfigDir(projectRoot),
       'reports',

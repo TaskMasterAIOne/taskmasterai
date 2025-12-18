@@ -36,12 +36,11 @@ async function newTask(tasksPath, options = {}) {
   let loadingIndicator = null;
   
   try {
-    // Validate we have something to work with
+
     if (!prompt && !title) {
       throw new Error('Either prompt or title is required to create a task');
     }
-    
-    // Validate priority
+
     const normalizedPriority = priority?.toLowerCase();
     if (!TASK_PRIORITY_OPTIONS.includes(normalizedPriority)) {
       log('warn', `Invalid priority "${priority}". Using default: ${DEFAULT_PRIORITY}`);
@@ -49,8 +48,7 @@ async function newTask(tasksPath, options = {}) {
     const effectivePriority = TASK_PRIORITY_OPTIONS.includes(normalizedPriority) 
       ? normalizedPriority 
       : DEFAULT_PRIORITY;
-    
-    // Parse links if string
+
     let taskLinks = [];
     if (typeof links === 'string') {
       taskLinks = links.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id));
@@ -66,8 +64,7 @@ async function newTask(tasksPath, options = {}) {
     if (!data) {
       throw new Error('Could not read tasks file');
     }
-    
-    // Initialize tasks array if needed
+
     if (!data.tasks) {
       data.tasks = [];
     }
@@ -94,8 +91,7 @@ async function newTask(tasksPath, options = {}) {
       testStrategy: null,
       createdAt: new Date().toISOString()
     };
-    
-    // Validate links exist
+
     for (const linkId of taskLinks) {
       const linkedTask = data.tasks.find(t => t.id === linkId);
       if (!linkedTask) {

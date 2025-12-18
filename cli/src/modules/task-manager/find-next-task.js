@@ -2,7 +2,7 @@
 import { addAssessmentToTask } from '../utils.js';
 
 function findNextTask(tasks, assessmentReport = null) {
-  // ---------- helpers ----------------------------------------------------
+
   const priorityValues = { high: 3, medium: 2, low: 1 };
 
   const toFullStepId = (parentId, maybeDotId) => {
@@ -14,7 +14,6 @@ function findNextTask(tasks, assessmentReport = null) {
     return `${parentId}.${maybeDotId}`;
   };
 
-  // ---------- build completed-ID set (tasks *and* steps) --------------
   const completedIds = new Set();
   tasks.forEach((t) => {
     if (t.status === 'done' || t.status === 'completed') {
@@ -31,7 +30,6 @@ function findNextTask(tasks, assessmentReport = null) {
     }
   });
 
-  // ---------- 1) look for eligible steps ------------------------------
   const candidateSteps = [];
 
   tasks

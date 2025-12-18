@@ -212,8 +212,7 @@ async function listAvailableModels(options = {}) {
 
 async function setRoleModel(role, modelId, options = {}) {
   const { projectRoot, outputFormat = 'text' } = options;
-  
-  // Validate role
+
   if (!['main', 'research', 'fallback'].includes(role)) {
     throw new Error(`Invalid role: ${role}. Must be main, research, or fallback.`);
   }

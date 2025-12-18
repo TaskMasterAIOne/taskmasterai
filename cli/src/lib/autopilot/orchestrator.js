@@ -66,7 +66,6 @@ export class WorkflowOrchestrator {
       throw new Error(`Failed to create branch: ${error.message}`);
     }
 
-    // Initialize state
     const state = {
       taskId: String(taskId),
       branchName,
@@ -195,7 +194,6 @@ export class WorkflowOrchestrator {
       throw new Error('Workflow is already complete');
     }
 
-    // Validate phase transition
     try {
       this.validator.validate(state.tddPhase, testResults);
     } catch (error) {
@@ -279,7 +277,6 @@ export class WorkflowOrchestrator {
       throw new Error('No active workflow');
     }
 
-    // Delete state file
     fs.unlinkSync(this.statePath);
 
     return {

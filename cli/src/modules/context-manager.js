@@ -189,12 +189,11 @@ async function createContext(tasksPath, contextName, options = {}) {
   const { projectRoot, copyFromCurrent = false, copyFrom, description, outputFormat = 'text' } = options;
   
   try {
-    // Validate context name
+
     if (!contextName || typeof contextName !== 'string') {
       throw new Error('Context name is required');
     }
-    
-    // Validate format
+
     if (!/^[a-zA-Z0-9_-]+$/.test(contextName)) {
       throw new Error('Context name can only contain letters, numbers, hyphens, and underscores');
     }
@@ -359,8 +358,7 @@ async function deleteContext(tasksPath, contextName, options = {}) {
     }
     
     const taskCount = rawData[contextName].tasks?.length || 0;
-    
-    // Delete context
+
     delete rawData[contextName];
     const currentContext = getCurrentContext(projectRoot);
     if (currentContext === contextName) {
@@ -423,15 +421,14 @@ async function renameContext(tasksPath, oldName, newName, options = {}) {
   const { projectRoot, outputFormat = 'text' } = options;
   
   try {
-    // Validate parameters
+
     if (!oldName || typeof oldName !== 'string') {
       throw new Error('Old context name is required');
     }
     if (!newName || typeof newName !== 'string') {
       throw new Error('New context name is required');
     }
-    
-    // Validate new name format
+
     if (!/^[a-zA-Z0-9_-]+$/.test(newName)) {
       throw new Error('New context name can only contain letters, numbers, hyphens, and underscores');
     }
@@ -469,8 +466,7 @@ async function renameContext(tasksPath, oldName, newName, options = {}) {
       };
       rawData[newName].metadata.updated = new Date().toISOString();
     }
-    
-    // Delete old context
+
     delete rawData[oldName];
     if (isCurrentContext) {
       setCurrentContext(newName, projectRoot);

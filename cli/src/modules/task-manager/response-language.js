@@ -37,7 +37,6 @@ function setResponseLanguage(lang, options = {}) {
     };
   }
 
-  // Validate response language
   if (typeof lang !== 'string' || lang.trim() === '') {
     return {
       success: false,

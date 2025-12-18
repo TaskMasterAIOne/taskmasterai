@@ -103,8 +103,7 @@ function validateModelId(modelId) {
 
 function loadConfig(explicitRoot = null) {
   const projectRoot = explicitRoot || findProjectRoot() || process.cwd();
-  
-  // Return cached config if same root
+
   if (loadedConfig && loadedConfigRoot === projectRoot) {
     return loadedConfig;
   }
@@ -301,8 +300,7 @@ export {
   hasCodebaseAnalysis,
   isApiKeySet,
   getApiKey,
-  
-  // Constants
+
   DEFAULTS,
   ALL_PROVIDERS,
   MODEL_MAP

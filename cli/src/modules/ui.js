@@ -11,7 +11,6 @@ import ora from 'ora';
 import gradient from 'gradient-string';
 import { isSilentMode, truncate, findTaskById, readAssessmentReport } from './utils.js';
 
-// Create branded gradient for TaskMaster AI (Purple theme)
 const taskmasterGradient = gradient(['#c084fc', '#a855f7', '#9333ea', '#7c3aed']);
 
 // Task status configuration
@@ -449,7 +448,6 @@ export function displayProjectDashboard(stats, options = {}) {
     }
   }
 
-  // Create side-by-side display
   const leftLines = leftColumn.split('\n');
   const rightLines = rightColumn.split('\n');
   const maxLines = Math.max(leftLines.length, rightLines.length);
@@ -761,8 +759,6 @@ export function displayNextSteps(steps) {
   );
 }
 
-// ===== Helper Functions =====
-
 function truncateString(str, maxLength) {
   if (!str) return '';
   if (str.length <= maxLength) return str;
@@ -915,7 +911,6 @@ function calculateDependencyStats(tasks) {
       dependentCount[depId] = (dependentCount[depId] || 0) + 1;
     }
 
-    // Check if task is ready (all deps done)
     const allDepsDone = deps.every(depId => {
       const depTask = tasks.find(t => t.id === depId);
       return depTask && (depTask.status === 'done' || depTask.status === 'completed');

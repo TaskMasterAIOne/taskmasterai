@@ -315,8 +315,7 @@ export function registerAnalysisTools(server, options = {}) {
         
         log.info(`Analyzing complexity of ${tasks.length} tasks`);
         const analysis = await analyzeComplexity(tasks, { research });
-        
-        // Save report
+
         const reportDir = path.join(getProjectConfigDir(projectRoot), 'reports');
         if (!fs.existsSync(reportDir)) {
           fs.mkdirSync(reportDir, { recursive: true });

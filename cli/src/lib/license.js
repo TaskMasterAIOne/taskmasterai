@@ -129,7 +129,6 @@ export async function activateLicense(licenseKey) {
     };
   }
 
-  // Validate the license key format (should start with tm_live_ or tm_test_)
   if (!licenseKey.startsWith('tm_live_') && !licenseKey.startsWith('tm_test_')) {
     return {
       success: false,
@@ -137,7 +136,6 @@ export async function activateLicense(licenseKey) {
     };
   }
 
-  // Validate with server
   const validation = await validateLicenseWithServer(licenseKey);
 
   if (!validation.valid) {
@@ -218,7 +216,6 @@ export async function getLicenseStatus(forceRefresh = false) {
     };
   }
 
-  // Validate with server
   const validation = await validateLicenseWithServer(stored.licenseKey);
 
   // Handle offline mode - allow if recently validated and was active
@@ -336,9 +333,7 @@ export function formatLicenseStatus(status) {
   return lines.join('\n');
 }
 
-// ============================================
 // CONFIG SYNC (API Keys + Models from Dashboard)
-// ============================================
 
 export function readCachedConfig() {
   const configPath = getConfigCachePath();
@@ -431,7 +426,7 @@ export async function syncUserConfig(forceRefresh = false) {
   const result = await fetchUserConfig(stored.licenseKey);
   
   if (result.success) {
-    // Save to cache
+
     const configToCache = {
       apiKeys: result.apiKeys,
       models: result.models,
@@ -487,10 +482,8 @@ export function clearConfigCache() {
   }
 }
 
-// ============================================
 // HOSTED API KEYS (PRO Plan Only)
 // Provides API keys hosted by TaskMaster AI for PRO subscribers
-// ============================================
 
 export function getHostedKeysCachePath() {
   const taskmasterDir = path.join(os.homedir(), '.taskmaster-ai');
@@ -610,7 +603,7 @@ export async function syncHostedApiKeys(forceRefresh = false) {
   const result = await fetchHostedApiKeys(stored.licenseKey);
   
   if (result.success) {
-    // Save to cache
+
     const dataToCache = {
       hostedKeys: result.hostedKeys,
       providers: result.providers,
@@ -732,9 +725,6 @@ export function isUsingHostedKey(provider) {
   return !!hostedKey;
 }
 
-// ============================================
-// ============================================
-
 export async function incrementUsage(operation, count = 1) {
   const stored = readStoredLicense();
   
@@ -829,9 +819,6 @@ export default {
   trackHostedKeyUsage,
   isUsingHostedKey,
 };
-
-// ============================================
-// ============================================
 
 const TASK_SYNC_API_URL = process.env.TASKMASTER_TASK_SYNC_URL || 
   `${FUNCTIONS_BASE_URL}/syncTasks`;

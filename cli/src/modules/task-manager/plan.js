@@ -31,7 +31,7 @@ async function plan(prdPath, options = {}) {
   let loadingIndicator = null;
   
   try {
-    // Validate PRD file exists
+
     const fullPrdPath = path.isAbsolute(prdPath) 
       ? prdPath 
       : path.join(projectRoot || process.cwd(), prdPath);
@@ -72,8 +72,7 @@ async function plan(prdPath, options = {}) {
         );
       }
     }
-    
-    // Parse PRD and generate tasks
+
     // In production, this would use AI to intelligently parse
     const generatedTasks = parsePRDContent(prdContent, numTasks);
     

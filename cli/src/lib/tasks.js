@@ -460,9 +460,6 @@ export function getTaskStats(projectRoot = process.cwd()) {
   return stats;
 }
 
-// ============================================
-// ============================================
-
 export function getAllTags(projectRoot = process.cwd()) {
   const tasksData = readTasks(projectRoot);
   const currentTag = getCurrentTag(projectRoot);
@@ -495,8 +492,7 @@ export function createTag(name, options = {}, projectRoot = process.cwd()) {
   if (tasksData.tags[name]) {
     throw new Error(`Tag '${name}' already exists`);
   }
-  
-  // Validate tag name
+
   if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
     throw new Error('Tag name can only contain alphanumeric characters, hyphens, and underscores');
   }
@@ -576,8 +572,7 @@ export function renameTag(oldName, newName, projectRoot = process.cwd()) {
   if (tasksData.tags[newName]) {
     throw new Error(`Tag '${newName}' already exists`);
   }
-  
-  // Validate new tag name
+
   if (!/^[a-zA-Z0-9_-]+$/.test(newName)) {
     throw new Error('Tag name can only contain alphanumeric characters, hyphens, and underscores');
   }
@@ -605,8 +600,7 @@ export function copyTag(sourceName, targetName, options = {}, projectRoot = proc
   if (tasksData.tags[targetName]) {
     throw new Error(`Target tag '${targetName}' already exists`);
   }
-  
-  // Validate target tag name
+
   if (!/^[a-zA-Z0-9_-]+$/.test(targetName)) {
     throw new Error('Tag name can only contain alphanumeric characters, hyphens, and underscores');
   }
@@ -623,9 +617,6 @@ export function copyTag(sourceName, targetName, options = {}, projectRoot = proc
   writeTasks(tasksData, projectRoot);
   return tasksData.tags[targetName];
 }
-
-// ============================================
-// ============================================
 
 export function validateDependencies(projectRoot = process.cwd()) {
   const tasks = getAllTasks(projectRoot);
@@ -711,9 +702,6 @@ export function fixDependencies(projectRoot = process.cwd()) {
   return { fixedCount, tasks };
 }
 
-// ============================================
-// ============================================
-
 export function moveTask(fromId, toId, projectRoot = process.cwd()) {
   const tasks = getAllTasks(projectRoot);
   const fromStr = String(fromId);
@@ -737,8 +725,7 @@ export function moveTask(fromId, toId, projectRoot = process.cwd()) {
   
   const toNum = Number(toStr);
   const fromNum = Number(fromStr);
-  
-  // Check if target ID already exists (and is not the same task)
+
   const existingTargetIndex = tasks.findIndex(t => t.id === toNum);
   if (existingTargetIndex !== -1 && existingTargetIndex !== fromIndex) {
     throw new Error(`Task ID ${toStr} already exists. Use a different target ID or remove the existing task first.`);
@@ -884,9 +871,6 @@ export function addSingleSubtask(parentId, subtaskData, projectRoot = process.cw
   
   return { parent, subtask };
 }
-
-// ============================================
-// ============================================
 
 export function generateTaskFiles(projectRoot = process.cwd(), outputDir = null) {
   const tasks = getAllTasks(projectRoot);

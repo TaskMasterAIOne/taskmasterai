@@ -309,9 +309,6 @@ export function writeTasks(tasksData, projectRoot = process.cwd()) {
   }
 }
 
-// ============================================
-// ============================================
-
 export function getStateFilePath(projectRoot = process.cwd()) {
   return path.join(getProjectConfigDir(projectRoot), 'state.json');
 }

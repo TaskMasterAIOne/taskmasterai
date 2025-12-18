@@ -116,8 +116,7 @@ export function registerConfigTools(server) {
       
       try {
         const config = readProjectConfig(projectRoot);
-        
-        // Return safe config (no sensitive data)
+
         return handleApiResult({
           result: {
             success: true,

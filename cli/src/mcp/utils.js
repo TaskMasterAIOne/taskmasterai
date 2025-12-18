@@ -258,9 +258,7 @@ export function withAIToolContext(commandName, operationType, executeFn, options
   });
 }
 
-// ============================================
 // LEGACY HELPERS (for backwards compatibility)
-// ============================================
 
 export function successResponse(data, message) {
   return {

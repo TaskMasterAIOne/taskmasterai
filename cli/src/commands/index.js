@@ -82,8 +82,6 @@ import {
   failLoadingIndicator,
 } from '../modules/ui.js';
 
-// ===== Helper Functions for UI =====
-
 function truncateText(text, maxLength) {
   if (!text) return '';
   if (text.length <= maxLength) return text;
@@ -187,8 +185,7 @@ export function registerCommands(program) {
         }
       };
       fs.writeFileSync(tasksPath, JSON.stringify(initialTasks, null, 2));
-      
-      // Create state.json with 'main' as the default context
+
       const initialState = {
         currentTag: 'main',
         lastSwitched: new Date().toISOString(),
@@ -196,19 +193,16 @@ export function registerCommands(program) {
       };
       writeState(initialState, projectRoot);
 
-      // Create templates directory with example PRD
       const templatesDir = path.join(projectRoot, '.taskmaster-ai', 'templates');
       if (!fs.existsSync(templatesDir)) {
         fs.mkdirSync(templatesDir, { recursive: true });
       }
-      
-      // Create docs directory
+
       const docsDir = path.join(projectRoot, '.taskmaster-ai', 'docs');
       if (!fs.existsSync(docsDir)) {
         fs.mkdirSync(docsDir, { recursive: true });
       }
-      
-      // Create reports directory
+
       const reportsDir = path.join(projectRoot, '.taskmaster-ai', 'reports');
       if (!fs.existsSync(reportsDir)) {
         fs.mkdirSync(reportsDir, { recursive: true });
@@ -258,7 +252,6 @@ export function registerCommands(program) {
       displayGettingStarted();
     });
 
-  // Parse PRD command (alias: plan)
   program
     .command('parse-prd')
     .alias('plan')
@@ -402,7 +395,7 @@ export function registerCommands(program) {
         if (telemetryData) {
           displayAiUsageSummary(telemetryData, 'cli');
         } else {
-          // Create basic telemetry for display
+
           displayAiUsageSummary({
             commandName: 'plan',
             providerName: modelConfig.provider,
@@ -1185,7 +1178,6 @@ export function registerCommands(program) {
 
         console.log('');
 
-        // Save report
         const reportPath = path.join(projectRoot, '.taskmaster-ai', 'reports', 'complexity-report.json');
         fs.writeFileSync(reportPath, JSON.stringify({
           generatedAt: new Date().toISOString(),
@@ -1755,9 +1747,6 @@ Provide updated details that incorporate the new information.`;
       console.log('');
     });
 
-  // ============================================
-    // ============================================
-
   // List tags command (alias: contexts)
   program
     .command('tags')
@@ -1883,7 +1872,6 @@ Provide updated details that incorporate the new information.`;
       }
     });
 
-  // Delete tag command (alias: delete-context)
   program
     .command('delete-tag')
     .alias('delete-context')
@@ -1968,10 +1956,6 @@ Provide updated details that incorporate the new information.`;
       }
     });
 
-  // ============================================
-    // ============================================
-
-  // Validate dependencies command (alias: check-links)
   program
     .command('validate-dependencies')
     .alias('check-links')
@@ -2023,9 +2007,6 @@ Provide updated details that incorporate the new information.`;
       }
       console.log('');
     });
-
-  // ============================================
-    // ============================================
 
   // Move task command
   program
@@ -2116,9 +2097,6 @@ Provide updated details that incorporate the new information.`;
       }
     });
 
-  // ============================================
-    // ============================================
-
   // Complexity report command (alias: report)
   program
     .command('complexity-report')
@@ -2132,7 +2110,6 @@ Provide updated details that incorporate the new information.`;
         process.exit(1);
       }
 
-      // Check multiple possible report locations
       const possiblePaths = [
         options.file,
         path.join(projectRoot, '.taskmaster-ai', 'reports', 'complexity-report.json'),
@@ -2269,9 +2246,6 @@ Provide updated details that incorporate the new information.`;
       }
     });
 
-  // ============================================
-    // ============================================
-
   // Batch update command
   program
     .command('update')
@@ -2347,9 +2321,6 @@ Provide updated details that incorporate the new information.`;
         process.exit(1);
       }
     });
-
-  // ============================================
-    // ============================================
 
   // Autopilot parent command
   const autopilot = program

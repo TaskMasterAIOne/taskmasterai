@@ -28,7 +28,7 @@ async function addStep(tasksPath, parentId, options = {}) {
   } = options;
   
   try {
-    // Validate input
+
     if (!convertTaskId && !title) {
       throw new Error('Either title or convertTaskId is required to add a step');
     }
@@ -49,8 +49,7 @@ async function addStep(tasksPath, parentId, options = {}) {
     if (!parentTask) {
       throw new Error(`Parent task #${parentIdNum} not found`);
     }
-    
-    // Initialize steps array (support both field names)
+
     const stepsField = parentTask.steps ? 'steps' : 'subtasks';
     if (!parentTask[stepsField]) {
       parentTask[stepsField] = [];
@@ -101,8 +100,7 @@ async function addStep(tasksPath, parentId, options = {}) {
       const maxStepId = parentTask[stepsField].length > 0
         ? Math.max(...parentTask[stepsField].map(s => s.id))
         : 0;
-      
-      // Parse links
+
       let stepLinks = [];
       if (typeof links === 'string') {
         stepLinks = links.split(',').map(id => id.trim()).filter(Boolean);

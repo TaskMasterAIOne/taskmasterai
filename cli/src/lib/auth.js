@@ -23,7 +23,6 @@ async function getFirebaseApiKey() {
     return process.env.TASKMASTER_FIREBASE_API_KEY;
   }
 
-  // Check cache
   if (FIREBASE_API_KEY_CACHE) {
     return FIREBASE_API_KEY_CACHE;
   }
@@ -512,7 +511,7 @@ export async function verifyLicenseOwnership(licenseKey) {
     const result = await response.json();
 
     if (result.success) {
-      // Update stored license info
+
       const { writeLicenseData } = await import('./license.js');
       writeLicenseData({
         licenseKey: licenseKey,

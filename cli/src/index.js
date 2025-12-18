@@ -79,8 +79,7 @@ async function checkLicense(commandName) {
 
     if (!status.valid) {
       console.log('');
-      
-      // Check if the error is specifically about not being logged in
+
       const isLoginError = status.error && status.error.includes('Not logged in');
       
       console.log(

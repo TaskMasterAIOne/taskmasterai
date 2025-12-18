@@ -225,7 +225,6 @@ async function migrateProject(options = {}) {
     }
   }
 
-  // Execute migration
   const result = executeMigration(projectRoot, migrationPlan, { dryRun });
   if (outputFormat === 'text' && !isSilentMode()) {
     if (result.success) {

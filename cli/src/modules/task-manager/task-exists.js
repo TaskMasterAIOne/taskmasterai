@@ -7,8 +7,7 @@ function taskExists(tasks, taskId) {
   // Handle step IDs (e.g., "1.2")
   if (typeof taskId === 'string' && taskId.includes('.')) {
     const parts = taskId.split('.');
-    
-    // Validate format (parentId.stepId)
+
     if (parts.length !== 2 || !parts[0] || !parts[1]) {
       // Invalid format - treat as regular task ID
       const id = parseInt(taskId, 10);
