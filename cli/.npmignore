@@ -10,6 +10,7 @@ tests/
 
 # Misc
 *.log
-*.md
-!README.md
+TERMINOLOGY.md
+CHANGELOG.md
+my-prd.txt
 .DS_Store
