@@ -219,7 +219,7 @@ export default function PublicLayout() {
               </p>
               <div className="flex items-center gap-4">
                 <a href="https://www.npmjs.com/package/@taskmasterai/cli" target="_blank" rel="noopener noreferrer" className="text-text-muted hover:text-text transition-colors" title="View on NPM">
-                  <FontAwesomeIcon icon={faNpm} className="w-8 h-8" />
+                  <FontAwesomeIcon icon={faNpm} className="w-10 h-10" />
                 </a>
               </div>
             </div>
