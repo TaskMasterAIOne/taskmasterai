@@ -122,13 +122,13 @@ export default function PublicLayout() {
                 {/* Theme Toggle for Mobile */}
                 <button
                   onClick={toggleTheme}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-text-muted hover:text-text hover:bg-surface-elevated transition-colors text-sm"
+                  className="w-full flex items-center justify-start gap-3 px-3 py-2.5 rounded-lg text-text-muted hover:text-text hover:bg-surface-elevated transition-colors text-sm"
                 >
                   <FontAwesomeIcon 
                     icon={mode === 'system' ? faDesktop : mode === 'dark' ? faMoon : faSun} 
-                    className="w-4 h-4" 
+                    className="w-4 h-4 flex-shrink-0" 
                   />
-                  {mode === 'system' ? 'System Theme' : mode === 'dark' ? 'Dark Mode' : 'Light Mode'}
+                  <span className="flex-1 text-left">{mode === 'system' ? 'System Theme' : mode === 'dark' ? 'Dark Mode' : 'Light Mode'}</span>
                 </button>
                 
                 {user ? (
