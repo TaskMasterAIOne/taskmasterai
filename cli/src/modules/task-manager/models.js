@@ -16,7 +16,8 @@ import {
   findModelById,
   getModelConfig,
   setModelForRole,
-  isApiKeySet
+  isApiKeySet,
+  syncConfigFromCloud
 } from '../config-manager.js';
 
 async function fetchOpenRouterModels() {
@@ -96,6 +97,9 @@ async function fetchOllamaModels(baseURL = 'http://localhost:11434/api') {
 
 async function showModelsConfig(options = {}) {
   const { projectRoot, outputFormat = 'text' } = options;
+  
+  // Sync from cloud first (silently)
+  await syncConfigFromCloud(projectRoot).catch(() => {});
   
   const config = loadConfig(projectRoot);
   const supportedModels = getSupportedModels();

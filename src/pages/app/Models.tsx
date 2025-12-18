@@ -21,6 +21,12 @@ const modelOptions = {
     { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', description: 'Stable' },
     { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', description: 'Fast' },
   ],
+  mistral: [
+    { id: 'mistral-large-latest', name: 'Mistral Large', description: 'Most capable' },
+    { id: 'mistral-medium-latest', name: 'Mistral Medium', description: 'Balanced performance' },
+    { id: 'mistral-small-latest', name: 'Mistral Small', description: 'Fast & efficient' },
+    { id: 'codestral-latest', name: 'Codestral', description: 'Code-specialized' },
+  ],
   openai: [
     { id: 'gpt-5', name: 'GPT 5', description: 'Most capable' },
     { id: 'gpt-5-reasoning', name: 'GPT 5 (Reasoning)', description: 'With reasoning' },
@@ -55,11 +61,15 @@ const modelOptions = {
     { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner', description: 'Thinking mode (V3.2)' },
   ],
   xai: [
-    { id: 'grok-4', name: 'Grok 4', description: 'Latest Grok' },
+    { id: 'grok-4-0709', name: 'Grok 4', description: 'Latest Grok (Jul 2025)' },
+    { id: 'grok-4-1-fast-reasoning', name: 'Grok 4.1 Fast (Reasoning)', description: 'Fast reasoning v4.1' },
+    { id: 'grok-4-1-fast-non-reasoning', name: 'Grok 4.1 Fast', description: 'Quick responses v4.1' },
     { id: 'grok-4-fast-reasoning', name: 'Grok 4 Fast (Reasoning)', description: 'Fast reasoning' },
     { id: 'grok-4-fast-non-reasoning', name: 'Grok 4 Fast', description: 'Quick responses' },
+    { id: 'grok-code-fast-1', name: 'Grok Code Fast', description: 'Optimized for coding' },
     { id: 'grok-3', name: 'Grok 3', description: 'Previous gen' },
     { id: 'grok-3-mini', name: 'Grok 3 Mini', description: 'Compact' },
+    { id: 'grok-2-vision-1212', name: 'Grok 2 Vision', description: 'Vision model' },
   ],
   meta: [
     { id: 'llama-4-maverick', name: 'Llama 4 Maverick', description: 'Most capable' },
@@ -77,8 +87,14 @@ const modelOptions = {
     { id: 'glm-4.5v-thinking', name: 'GLM 4.5V (Thinking)', description: 'Vision reasoning' },
   ],
   moonshot: [
-    { id: 'kimi-k2', name: 'Kimi K2', description: 'Latest Kimi' },
-    { id: 'kimi-k2-thinking', name: 'Kimi K2 (Thinking)', description: 'With reasoning' },
+    { id: 'moonshot-v1-8k', name: 'Moonshot V1 8K', description: '8K context window' },
+    { id: 'moonshot-v1-32k', name: 'Moonshot V1 32K', description: '32K context window' },
+    { id: 'moonshot-v1-128k', name: 'Moonshot V1 128K', description: '128K context window' },
+    { id: 'kimi-k2-0711-preview', name: 'Kimi K2 (0711)', description: '256K context' },
+    { id: 'kimi-k2-0905-preview', name: 'Kimi K2 (0905)', description: '256K, improved coding' },
+    { id: 'kimi-k2-turbo-preview', name: 'Kimi K2 Turbo', description: 'Fast 60-100 tokens/s' },
+    { id: 'kimi-k2-thinking', name: 'Kimi K2 (Thinking)', description: 'Deep reasoning' },
+    { id: 'kimi-k2-thinking-turbo', name: 'Kimi K2 Thinking Turbo', description: 'Fast reasoning' },
   ],
   perplexity: [
     // Search Models - Quick information retrieval and synthesis

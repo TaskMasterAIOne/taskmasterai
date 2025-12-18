@@ -9,6 +9,7 @@ import {
   findProjectRoot,
   getConfigDir
 } from './utils.js';
+import { syncUserConfig, pushModelConfigToCloud } from '../lib/license.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 import { createRequire } from 'module';
@@ -141,6 +142,42 @@ function loadConfig(explicitRoot = null) {
   return config;
 }
 
+async function syncConfigFromCloud(projectRoot = null) {
+  try {
+    const syncResult = await syncUserConfig(false);
+    
+    if (syncResult.success && syncResult.models) {
+      const config = loadConfig(projectRoot);
+      let hasChanges = false;
+      
+      // Merge synced models with local config
+      for (const role of ['main', 'research', 'fallback']) {
+        if (syncResult.models[role] && syncResult.models[role] !== config.models[role].modelId) {
+          const model = findModelById(syncResult.models[role]);
+          if (model) {
+            config.models[role].modelId = model.id;
+            config.models[role].provider = model.provider;
+            hasChanges = true;
+          }
+        }
+      }
+      
+      // Save if there were changes from cloud
+      if (hasChanges) {
+        saveConfig(config, projectRoot);
+        log('info', 'Synced model configuration from dashboard');
+        return { success: true, synced: true, changes: true };
+      }
+      
+      return { success: true, synced: true, changes: false };
+    }
+    
+    return { success: false, error: syncResult.error };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
 function saveConfig(config, projectRoot = null) {
   const root = projectRoot || findProjectRoot() || process.cwd();
   const configDir = getConfigDir(root);
@@ -206,6 +243,15 @@ function setModelForRole(role, modelId, projectRoot = null) {
   
   saveConfig(config, projectRoot);
   log('success', `Set ${role} model to ${modelId} (${model.provider})`);
+  
+  // Push to cloud for dashboard sync
+  pushModelConfigToCloud({
+    main: config.models.main.modelId,
+    research: config.models.research.modelId,
+    fallback: config.models.fallback.modelId
+  }).catch(() => {
+    // Silently ignore push errors
+  });
   
   return true;
 }
@@ -283,6 +329,7 @@ export {
   setConfigValue,
   clearConfigCache,
   resetToDefaults,
+  syncConfigFromCloud,
   
   // Model operations
   getSupportedModels,

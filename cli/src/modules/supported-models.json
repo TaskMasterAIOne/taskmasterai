@@ -36,15 +36,19 @@
     { "id": "gemini-2.0-flash-lite", "name": "Gemini 2.0 Flash Lite", "description": "Lightweight", "allowed_roles": ["main", "fallback"], "max_tokens": 1048000, "supported": true }
   ],
   "deepseek": [
-    { "id": "deepseek-chat", "name": "DeepSeek Chat", "description": "Standard mode (V3.2)", "allowed_roles": ["main", "fallback"], "max_tokens": 64000, "supported": true },
-    { "id": "deepseek-reasoner", "name": "DeepSeek Reasoner", "description": "Thinking mode (V3.2)", "allowed_roles": ["main", "research"], "max_tokens": 64000, "supported": true }
+    { "id": "deepseek-chat", "name": "DeepSeek Chat (V3.2)", "description": "128K context, standard mode", "allowed_roles": ["main", "fallback"], "max_tokens": 8192, "supported": true },
+    { "id": "deepseek-reasoner", "name": "DeepSeek Reasoner (V3.2)", "description": "Thinking mode with CoT", "allowed_roles": ["main", "research"], "max_tokens": 64000, "supported": true }
   ],
   "xai": [
-    { "id": "grok-4", "name": "Grok 4", "description": "Latest Grok", "allowed_roles": ["main", "fallback", "research"], "max_tokens": 256000, "supported": true },
+    { "id": "grok-4-0709", "name": "Grok 4", "description": "Latest Grok (Jul 2025)", "allowed_roles": ["main", "fallback", "research"], "max_tokens": 256000, "supported": true },
+    { "id": "grok-4-1-fast-reasoning", "name": "Grok 4.1 Fast (Reasoning)", "description": "Fast reasoning v4.1", "allowed_roles": ["main", "fallback", "research"], "max_tokens": 256000, "supported": true },
+    { "id": "grok-4-1-fast-non-reasoning", "name": "Grok 4.1 Fast", "description": "Quick responses v4.1", "allowed_roles": ["main", "fallback", "research"], "max_tokens": 256000, "supported": true },
     { "id": "grok-4-fast-reasoning", "name": "Grok 4 Fast (Reasoning)", "description": "Fast reasoning", "allowed_roles": ["main", "fallback", "research"], "max_tokens": 256000, "supported": true },
     { "id": "grok-4-fast-non-reasoning", "name": "Grok 4 Fast", "description": "Quick responses", "allowed_roles": ["main", "fallback", "research"], "max_tokens": 256000, "supported": true },
+    { "id": "grok-code-fast-1", "name": "Grok Code Fast", "description": "Optimized for coding", "allowed_roles": ["main", "fallback"], "max_tokens": 256000, "supported": true },
     { "id": "grok-3", "name": "Grok 3", "description": "Previous gen", "allowed_roles": ["main", "fallback", "research"], "max_tokens": 131072, "supported": true },
-    { "id": "grok-3-mini", "name": "Grok 3 Mini", "description": "Compact", "allowed_roles": ["main", "fallback"], "max_tokens": 32768, "supported": true }
+    { "id": "grok-3-mini", "name": "Grok 3 Mini", "description": "Compact", "allowed_roles": ["main", "fallback"], "max_tokens": 32768, "supported": true },
+    { "id": "grok-2-vision-1212", "name": "Grok 2 Vision", "description": "Vision model", "allowed_roles": ["main", "fallback"], "max_tokens": 32768, "supported": true }
   ],
   "meta": [
     { "id": "llama-4-maverick", "name": "Llama 4 Maverick", "description": "Most capable", "allowed_roles": ["main", "fallback", "research"], "max_tokens": 1000000, "supported": true },
@@ -62,8 +66,14 @@
     { "id": "glm-4.5v-thinking", "name": "GLM 4.5V (Thinking)", "description": "Vision reasoning", "allowed_roles": ["main", "fallback"], "max_tokens": 131072, "supported": true }
   ],
   "moonshot": [
-    { "id": "kimi-k2", "name": "Kimi K2", "description": "Latest Kimi", "allowed_roles": ["main", "fallback"], "max_tokens": 16384, "supported": true },
-    { "id": "kimi-k2-thinking", "name": "Kimi K2 (Thinking)", "description": "With reasoning", "allowed_roles": ["main", "fallback"], "max_tokens": 16384, "supported": true }
+    { "id": "moonshot-v1-8k", "name": "Moonshot V1 8K", "description": "8K context window", "allowed_roles": ["main", "fallback"], "max_tokens": 8000, "supported": true },
+    { "id": "moonshot-v1-32k", "name": "Moonshot V1 32K", "description": "32K context window", "allowed_roles": ["main", "fallback"], "max_tokens": 32000, "supported": true },
+    { "id": "moonshot-v1-128k", "name": "Moonshot V1 128K", "description": "128K context window", "allowed_roles": ["main", "fallback"], "max_tokens": 128000, "supported": true },
+    { "id": "kimi-k2-0711-preview", "name": "Kimi K2 (0711)", "description": "K2 preview model", "allowed_roles": ["main", "fallback"], "max_tokens": 256000, "supported": true },
+    { "id": "kimi-k2-0905-preview", "name": "Kimi K2 (0905)", "description": "256K context, improved coding", "allowed_roles": ["main", "fallback"], "max_tokens": 256000, "supported": true },
+    { "id": "kimi-k2-turbo-preview", "name": "Kimi K2 Turbo", "description": "Fast 60-100 tokens/s", "allowed_roles": ["main", "fallback"], "max_tokens": 256000, "supported": true },
+    { "id": "kimi-k2-thinking", "name": "Kimi K2 (Thinking)", "description": "Deep reasoning model", "allowed_roles": ["main", "fallback"], "max_tokens": 32768, "supported": true },
+    { "id": "kimi-k2-thinking-turbo", "name": "Kimi K2 Thinking Turbo", "description": "Fast reasoning", "allowed_roles": ["main", "fallback"], "max_tokens": 32768, "supported": true }
   ],
   "perplexity": [
     { "id": "sonar", "name": "Sonar", "description": "Lightweight search with grounding", "allowed_roles": ["research"], "max_tokens": 8700, "supported": true },
@@ -73,10 +83,10 @@
     { "id": "sonar-deep-research", "name": "Sonar Deep Research", "description": "Expert-level comprehensive research", "allowed_roles": ["research"], "max_tokens": 8700, "supported": true }
   ],
   "mistral": [
-    { "id": "mistral-large", "name": "Mistral Large", "description": "Most capable model", "allowed_roles": ["main", "fallback"], "max_tokens": 128000, "supported": true },
-    { "id": "mistral-medium", "name": "Mistral Medium", "description": "Balanced performance", "allowed_roles": ["main", "fallback"], "max_tokens": 32000, "supported": true },
-    { "id": "mistral-small", "name": "Mistral Small", "description": "Fast & efficient", "allowed_roles": ["main", "fallback"], "max_tokens": 32000, "supported": true },
-    { "id": "codestral", "name": "Codestral", "description": "Code-specialized", "allowed_roles": ["main", "fallback"], "max_tokens": 32000, "supported": true }
+    { "id": "mistral-large-latest", "name": "Mistral Large", "description": "Most capable model", "allowed_roles": ["main", "fallback"], "max_tokens": 128000, "supported": true },
+    { "id": "mistral-medium-latest", "name": "Mistral Medium", "description": "Balanced performance", "allowed_roles": ["main", "fallback"], "max_tokens": 32000, "supported": true },
+    { "id": "mistral-small-latest", "name": "Mistral Small", "description": "Fast & efficient", "allowed_roles": ["main", "fallback"], "max_tokens": 32000, "supported": true },
+    { "id": "codestral-latest", "name": "Codestral", "description": "Code-specialized", "allowed_roles": ["main", "fallback"], "max_tokens": 32000, "supported": true }
   ],
   "openrouter": [
     { "id": "anthropic/claude-opus-4.5", "name": "Claude Opus 4.5 (OpenRouter)", "description": "Via OpenRouter", "allowed_roles": ["main", "fallback"], "max_tokens": 200000, "supported": true },

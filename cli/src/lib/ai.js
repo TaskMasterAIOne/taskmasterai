@@ -15,7 +15,7 @@ const PROVIDER_URLS = {
   xai: 'https://api.x.ai/v1',
   mistral: 'https://api.mistral.ai/v1',
   zhipu: 'https://open.bigmodel.cn/api/paas/v4',
-  moonshot: 'https://api.moonshot.cn/v1',
+  moonshot: 'https://api.moonshot.ai/v1',
   meta: 'https://api.meta.com/llama',
   azure: process.env.AZURE_OPENAI_ENDPOINT || 'https://your-resource.openai.azure.com',
   ollama: process.env.OLLAMA_BASE_URL || 'http://localhost:11434/v1',
@@ -85,6 +85,12 @@ function getModelForRole(role = 'main') {
   const modelConfig = config.models[role] || config.models.main;
   const provider = getProvider(modelConfig.provider);
   
+  // For providers using OpenAI-compatible APIs, explicitly use chat() method
+  const providerLower = modelConfig.provider.toLowerCase();
+  if (['deepseek', 'openrouter', 'xai', 'mistral', 'zhipu', 'moonshot', 'meta', 'azure', 'ollama'].includes(providerLower)) {
+    return provider.chat(modelConfig.modelId);
+  }
+  
   return provider(modelConfig.modelId);
 }
 
@@ -118,13 +124,28 @@ export async function generateAIText(prompt, options = {}) {
     const startTime = Date.now();
     if (debug) console.log(`  [${new Date().toISOString()}] API call started...`);
     
-    const result = await generateText({
-      model,
-      system: systemPrompt,
-      prompt,
-      maxTokens: modelConfig.maxTokens || 8192,
-      temperature: options.temperature ?? modelConfig.temperature ?? 0.7,
-    });
+    // Moonshot, DeepSeek, xAI, Mistral, and Zhipu don't support system role via AI SDK - prepend it to the user message instead
+    const providerLower = provider.toLowerCase();
+    const needsSystemWorkaround = ['moonshot', 'deepseek', 'xai', 'mistral', 'zhipu'].includes(providerLower);
+    
+    let result;
+    if (needsSystemWorkaround) {
+      const combinedPrompt = `${systemPrompt}\n\n${prompt}`;
+      result = await generateText({
+        model,
+        prompt: combinedPrompt,
+        maxTokens: modelConfig.maxTokens || 8192,
+        temperature: options.temperature ?? modelConfig.temperature ?? 0.7,
+      });
+    } else {
+      result = await generateText({
+        model,
+        system: systemPrompt,
+        prompt,
+        maxTokens: modelConfig.maxTokens || 8192,
+        temperature: options.temperature ?? modelConfig.temperature ?? 0.7,
+      });
+    }
     
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
     if (debug) {
@@ -189,14 +210,30 @@ export async function generateAIObject(prompt, schema, options = {}) {
     const startTime = Date.now();
     if (debug) console.log(`  [${new Date().toISOString()}] API call started...`);
 
-    const result = await generateObject({
-      model,
-      system: systemPrompt,
-      prompt,
-      schema,
-      maxTokens: modelConfig.maxTokens || 8192,
-      temperature: options.temperature ?? modelConfig.temperature ?? 0.7,
-    });
+    // Moonshot, DeepSeek, xAI, Mistral, and Zhipu don't support system role via AI SDK - prepend it to the user message instead
+    const providerLower = provider.toLowerCase();
+    const needsSystemWorkaround = ['moonshot', 'deepseek', 'xai', 'mistral', 'zhipu'].includes(providerLower);
+    
+    let result;
+    if (needsSystemWorkaround) {
+      const combinedPrompt = `${systemPrompt}\n\n${prompt}`;
+      result = await generateObject({
+        model,
+        prompt: combinedPrompt,
+        schema,
+        maxTokens: modelConfig.maxTokens || 8192,
+        temperature: options.temperature ?? modelConfig.temperature ?? 0.7,
+      });
+    } else {
+      result = await generateObject({
+        model,
+        system: systemPrompt,
+        prompt,
+        schema,
+        maxTokens: modelConfig.maxTokens || 8192,
+        temperature: options.temperature ?? modelConfig.temperature ?? 0.7,
+      });
+    }
     
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
     if (debug) {

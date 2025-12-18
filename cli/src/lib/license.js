@@ -11,6 +11,8 @@ const LICENSE_API_URL = process.env.TASKMASTER_LICENSE_API_URL ||
   `${FUNCTIONS_BASE_URL}/validateLicense`;
 const CONFIG_API_URL = process.env.TASKMASTER_CONFIG_API_URL || 
   `${FUNCTIONS_BASE_URL}/getUserConfig`;
+const PUSH_CONFIG_URL = process.env.TASKMASTER_PUSH_CONFIG_URL || 
+  `${FUNCTIONS_BASE_URL}/pushUserConfig`;
 const USAGE_API_URL = process.env.TASKMASTER_USAGE_API_URL || 
   `${FUNCTIONS_BASE_URL}/incrementUsage`;
 
@@ -471,6 +473,56 @@ export function getSyncedModels() {
   return cachedConfig?.models || null;
 }
 
+export async function pushModelConfigToCloud(modelConfig) {
+  const stored = readStoredLicense();
+  
+  if (!stored?.licenseKey) {
+    return {
+      success: false,
+      error: 'No license key found. Login first.',
+    };
+  }
+
+  try {
+    const response = await fetch(PUSH_CONFIG_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ 
+        licenseKey: stored.licenseKey,
+        models: modelConfig
+      }),
+    });
+
+    const result = await response.json();
+    
+    if (result.success) {
+      // Update local cache
+      const cachedConfig = readCachedConfig() || {};
+      cachedConfig.models = modelConfig;
+      cachedConfig.syncedAt = new Date().toISOString();
+      writeConfigCache(cachedConfig);
+      
+      return {
+        success: true,
+        synced: true,
+      };
+    }
+    
+    return {
+      success: false,
+      error: result.error || 'Failed to push config',
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: 'Network error pushing config',
+      offline: true,
+    };
+  }
+}
+
 export function clearConfigCache() {
   const configPath = getConfigCachePath();
   try {
@@ -802,6 +854,7 @@ export default {
   readCachedConfig,
   getSyncedApiKey,
   getSyncedModels,
+  pushModelConfigToCloud,
   clearConfigCache,
   getConfigCachePath,
   // Usage tracking exports

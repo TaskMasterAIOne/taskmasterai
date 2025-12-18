@@ -132,8 +132,8 @@ function mapDashboardModel(dashboardModelId, existingConfig) {
   else if (modelId.startsWith('glm-')) {
     provider = 'zhipu';
   }
-  // Moonshot: kimi-* models
-  else if (modelId.startsWith('kimi-')) {
+  // Moonshot: kimi-* and moonshot-* models
+  else if (modelId.startsWith('kimi-') || modelId.startsWith('moonshot-')) {
     provider = 'moonshot';
   }
   // Perplexity: sonar-* models

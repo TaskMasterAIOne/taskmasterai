@@ -1979,6 +1979,94 @@ export const getUserConfig = onRequest(
 );
 
 // ============================================
+// PUSH USER CONFIG (Called by CLI to sync model changes to dashboard)
+// ============================================
+
+export const pushUserConfig = onRequest(
+  {
+    cors: true,
+    maxInstances: 50
+  },
+  async (req, res) => {
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Method not allowed' });
+      return;
+    }
+
+    try {
+      const { licenseKey, models } = req.body;
+
+      if (!licenseKey) {
+        res.status(400).json({ 
+          success: false, 
+          error: 'License key is required' 
+        });
+        return;
+      }
+
+      if (!models) {
+        res.status(400).json({ 
+          success: false, 
+          error: 'Model configuration is required' 
+        });
+        return;
+      }
+
+      // Validate the license
+      const licenseDoc = await db.collection('licenses').doc(licenseKey).get();
+
+      if (!licenseDoc.exists) {
+        res.status(404).json({ 
+          success: false, 
+          error: 'License key not found' 
+        });
+        return;
+      }
+
+      const license = licenseDoc.data();
+      
+      // Check if license is active
+      if (license.status !== 'active' && license.status !== 'grace_period') {
+        res.status(403).json({ 
+          success: false, 
+          error: 'License is not active' 
+        });
+        return;
+      }
+
+      const userId = license.userId;
+
+      // Save model configuration to Firestore
+      const modelsRef = db.collection('users').doc(userId).collection('settings').doc('models');
+      await modelsRef.set(models, { merge: true });
+
+      // Update last synced timestamp
+      await db.collection('licenses').doc(licenseKey).update({
+        lastConfigPush: admin.firestore.Timestamp.now()
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'Model configuration synced to dashboard'
+      });
+
+    } catch (error) {
+      console.error('Error pushing user config:', error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Failed to push user config',
+        details: error.message 
+      });
+    }
+  }
+);
+
+// ============================================
 // INCREMENT USAGE (Called by CLI after AI operations)
 // ============================================
 
