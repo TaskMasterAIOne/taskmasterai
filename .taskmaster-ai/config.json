@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "models": {
     "main": {
-      "provider": "anthropic",
-      "modelId": "claude-opus-4.5",
+      "provider": "mistral",
+      "modelId": "mistral-large-latest",
       "maxTokens": 8192,
       "temperature": 0.7
     },
