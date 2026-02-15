@@ -1,5 +1,8 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+
+// TEMP: Set to false to re-enable pricing
+const PRICING_DISABLED = true
 import { motion } from 'framer-motion'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCheck, faStar, faSpinner } from '@fortawesome/free-solid-svg-icons'
@@ -76,7 +79,7 @@ const faqs = [
   },
   {
     q: 'What happens if I exceed my monthly limit?',
-    a: 'You can continue using TaskMaster AI at the per-task overage rate for your plan ($0.20/task for Plus, $0.15/task for Pro). Enterprise plans have volume discounts.',
+    a: 'You can continue using TaskMaster AI at the per-task overage rate for your plan ($0.20/task for Plus, $0.15/task for Pro). NOTE: Enterprise plans may exceed $1,000 with continued usage.',
   },
   {
     q: 'Do I need my own API keys?',
@@ -170,7 +173,22 @@ export default function Pricing() {
         </motion.div>
       )}
 
-      {/* Pricing cards */}
+      {/* Pricing cards - or disabled message */}
+      {PRICING_DISABLED ? (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="max-w-lg mx-auto p-8 sm:p-12 bg-surface border border-border rounded-xl text-center"
+        >
+          <p className="text-lg text-text-muted">
+            Pricing is temporarily unavailable. Please check back soon or contact us at{' '}
+            <a href="mailto:taskmasteroneai@gmail.com" className="text-accent hover:underline">
+              taskmasteroneai@gmail.com
+            </a>{' '}
+            for assistance.
+          </p>
+        </motion.div>
+      ) : (
       <div className="max-w-5xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-4xl mx-auto">
           {tiers.map((tier, index) => {
@@ -242,6 +260,7 @@ export default function Pricing() {
           })}
         </div>
       </div>
+      )}
 
       {/* FAQs */}
       <div className="max-w-2xl mx-auto mt-12 sm:mt-20">
