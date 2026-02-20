@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -24,13 +24,10 @@ import {
   faCheck,
   faTerminal,
   faExternalLink,
-  faXmark,
   faRightFromBracket
 } from '@fortawesome/free-solid-svg-icons'
 import { Link } from 'react-router-dom'
 import { openCustomerPortal } from '../../lib/stripe'
-
-const FUNCTIONS_URL = import.meta.env.VITE_FIREBASE_FUNCTIONS_URL || 'https://us-central1-taskmaster-ai-e2302.cloudfunctions.net'
 
 // Plan labels for display only (pricing/plans UI lives on /pricing)
 const PLAN_LABELS: Record<string, { name: string; price: number | null }> = {
