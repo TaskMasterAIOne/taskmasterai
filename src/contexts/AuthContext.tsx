@@ -5,6 +5,7 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
+  sendPasswordResetEmail,
   GoogleAuthProvider,
   signInWithPopup,
   signInWithRedirect,
@@ -279,14 +280,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   const resetPassword = async (email: string) => {
+    const trimmedEmail = email.trim()
     const baseUrl = import.meta.env.VITE_FIREBASE_FUNCTIONS_URL || 'https://us-central1-taskmaster-ai-e2302.cloudfunctions.net'
-    const res = await fetch(`${baseUrl}/requestPasswordReset`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: email.trim() }),
-    })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || 'Failed to send password reset email')
+    try {
+      const res = await fetch(`${baseUrl}/requestPasswordReset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: trimmedEmail }),
+      })
+      if (res.ok) return
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error || 'Failed to send')
+    } catch (err) {
+      // Fallback to Firebase built-in when branded EmailJS flow fails (e.g. EmailJS not configured)
+      await sendPasswordResetEmail(auth, trimmedEmail)
+    }
   }
 
   const updateUserProfile = async (data: { displayName?: string; photoFile?: File }) => {

@@ -3351,10 +3351,12 @@ export const requestPasswordReset = onRequest(
       }
       const trimmedEmail = email.trim();
 
+      const defaultContinueUrl = 'https://www.taskmaster.one/signin';
+      const continueUrl = req.body.continueUrl || defaultContinueUrl;
       let resetLink;
       try {
         resetLink = await admin.auth().generatePasswordResetLink(trimmedEmail, {
-          url: req.body.continueUrl || undefined
+          url: continueUrl
         });
       } catch (authErr) {
         console.error('requestPasswordReset generatePasswordResetLink:', authErr?.code || authErr?.message, authErr);
@@ -3368,9 +3370,11 @@ export const requestPasswordReset = onRequest(
           EMAILJS_SERVICE_ID,
           EMAILJS_TEMPLATE_PASSWORD_RESET,
           {
+            email: trimmedEmail,
+            link: resetLink,
+            expiry_time: expiryTime,
             to_email: trimmedEmail,
-            reset_link: resetLink,
-            expiry_time: expiryTime
+            reset_link: resetLink
           },
           {
             publicKey: EMAILJS_PUBLIC_KEY,
