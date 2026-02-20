@@ -115,20 +115,20 @@ export default function Terms() {
               </p>
               <p className="mb-3">
                 In the event of a payment dispute or chargeback initiated by you or your bank, we will provide our 
-                payment processor (Stripe) and the card issuer with evidence demonstrating that the purchase was 
+                payment processor and the card issuer with evidence demonstrating that the purchase was 
                 made and that you accepted these Terms, including this billing and refund policy, prior to the 
                 purchase. This may include account records, login and usage indicators, subscription status, 
-                cancellation timestamps (if any), and confirmation screens or emails. The final outcome of any 
+                cancellation timestamps (if any), and emails. The final outcome of any 
                 dispute is determined by the card issuer; we cannot guarantee the result.
               </p>
 
               <h3 className="text-lg font-medium text-text mt-4 mb-2">Delivery and Cancellation</h3>
               <p className="mb-3">
                 Upon successful payment, access to the corresponding subscription features is granted promptly, 
-                typically within minutes. You will receive an email confirmation. You may cancel your subscription 
-                at any time through your account settings or by contacting us. Cancellation takes effect at the end 
-                of your current billing period; you will not be charged for subsequent periods and will retain 
-                access until the end of that term. No refunds are issued for the remaining period upon cancellation.
+                typically within minutes. You may cancel your subscription at any time by contacting us. 
+                Cancellation takes effect at the end of your current billing period; you will 
+                not be charged for subsequent periods and will retain access until the end of that term.
+                No refunds are issued for the remaining period upon cancellation.
               </p>
             </section>
 
