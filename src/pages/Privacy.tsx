@@ -10,7 +10,7 @@ export default function Privacy() {
           transition={{ duration: 0.5, ease: 'easeOut' }}
         >
           <h1 className="text-3xl md:text-4xl font-bold mb-4">Privacy Policy</h1>
-          <p className="text-text-muted mb-8">Last updated: December 12, 2025</p>
+          <p className="text-text-muted mb-8">Last updated: April 2025</p>
 
           <div className="space-y-8 text-text-muted">
             <section>
@@ -76,6 +76,16 @@ export default function Privacy() {
                 <li><strong>Business Transfers:</strong> In connection with a merger, acquisition, or sale of assets</li>
                 <li><strong>With Your Consent:</strong> When you explicitly agree to share your information</li>
               </ul>
+
+              <h3 className="text-lg font-medium text-text mt-4 mb-2">Payment and Billing Disputes</h3>
+              <p className="mb-3">
+                Our payments are processed by Stripe. For any billing questions, refund requests, or payment 
+                disputes, you must contact us first at taskmasteroneai@gmail.com before initiating a chargeback 
+                or bank dispute. We use the information you provide (e.g., account email, invoice details, dates) 
+                to investigate and resolve issues. In the event of a chargeback or dispute, we may share relevant 
+                account and transaction information with our payment processor (Stripe) and the card issuer as 
+                necessary to resolve the dispute, in accordance with our Terms of Service and applicable law.
+              </p>
             </section>
 
             <section>

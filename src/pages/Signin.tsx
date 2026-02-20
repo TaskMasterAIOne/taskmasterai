@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
@@ -19,9 +19,10 @@ const LOGO_URL = 'https://firebasestorage.googleapis.com/v0/b/taskmaster-ai-e230
 
 export default function Signin() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { signIn, signInWithGoogle, resetPassword } = useAuth()
   
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(() => searchParams.get('email') ?? '')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')

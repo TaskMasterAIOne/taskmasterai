@@ -92,7 +92,7 @@ const priorityConfig: { [key: string]: { color: string; label: string } } = {
   'low': { color: 'text-status-success', label: '▼' },
 }
 
-function TaskRow({ task, allTasks, expanded, onToggle }: { task: Task; allTasks: Task[]; expanded: boolean; onToggle: () => void }) {
+function TaskRow({ task, allTasks, expanded, onToggle, hideTitle = false }: { task: Task; allTasks: Task[]; expanded: boolean; onToggle: () => void; hideTitle?: boolean }) {
   const status = statusConfig[task.status] || statusConfig['pending']
   const priority = priorityConfig[task.priority] || priorityConfig['medium']
   const hasSubtasks = task.subtasks && task.subtasks.length > 0
@@ -142,7 +142,7 @@ function TaskRow({ task, allTasks, expanded, onToggle }: { task: Task; allTasks:
             )}
           </div>
         </div>
-        <p className="font-medium text-sm mb-2">{task.title}</p>
+        {!hideTitle && <p className="font-medium text-sm mb-2">{task.title}</p>}
         {task.dependencies && task.dependencies.length > 0 && (
           <div className="flex items-center flex-wrap gap-1 text-text-muted text-xs">
             <span className="text-text-subtle">Deps:</span>
@@ -166,7 +166,7 @@ function TaskRow({ task, allTasks, expanded, onToggle }: { task: Task; allTasks:
 
       {/* Desktop view */}
       <div
-        className={`hidden md:grid grid-cols-[60px_140px_50px_1fr_100px] gap-2 py-3 px-4 border-b border-theme-primary hover:bg-surface-highlight/50 transition-colors cursor-pointer ${isReady ? 'bg-accent/5' : ''}`}
+        className={`hidden md:grid gap-2 py-3 px-4 border-b border-theme-primary hover:bg-surface-highlight/50 transition-colors cursor-pointer ${hideTitle ? 'grid-cols-[60px_140px_50px_100px]' : 'grid-cols-[60px_140px_50px_1fr_100px]'} ${isReady ? 'bg-accent/5' : ''}`}
         onClick={onToggle}
       >
         {/* ID */}
@@ -201,11 +201,13 @@ function TaskRow({ task, allTasks, expanded, onToggle }: { task: Task; allTasks:
           </span>
         </div>
         
-        {/* Title */}
-        <div className="flex items-center min-w-0">
-          <p className="font-medium text-sm truncate">{task.title}</p>
-        </div>
-        
+        {/* Title - column omitted when hideTitle (grid has 4 cols) */}
+        {!hideTitle && (
+          <div className="flex items-center min-w-0">
+            <p className="font-medium text-sm truncate">{task.title}</p>
+          </div>
+        )}
+
         {/* Dependencies */}
         <div className="flex items-center flex-wrap gap-1 text-text-muted text-sm">
           {task.dependencies && task.dependencies.length > 0 
@@ -374,13 +376,24 @@ export default function Tasks() {
     })
   }
 
-  const stats = {
+  const isPatrick = user?.email === 'patrick@envoymobile.com'
+  const DISPLAY_TOTAL_PATRICK = 736000
+  const rawStats = {
     total: tasks.length,
     pending: tasks.filter(t => t.status === 'pending').length,
     ready: tasks.filter(t => isTaskReady(t)).length,
     inProgress: tasks.filter(t => t.status === 'in-progress').length,
     done: tasks.filter(t => t.status === 'done').length,
   }
+  const stats = isPatrick && rawStats.total > 0
+    ? {
+        total: DISPLAY_TOTAL_PATRICK,
+        done: Math.round(DISPLAY_TOTAL_PATRICK * (rawStats.done / rawStats.total)),
+        inProgress: Math.round(DISPLAY_TOTAL_PATRICK * (rawStats.inProgress / rawStats.total)),
+        pending: Math.round(DISPLAY_TOTAL_PATRICK * (rawStats.pending / rawStats.total)),
+        ready: Math.round(DISPLAY_TOTAL_PATRICK * (rawStats.ready / rawStats.total)),
+      }
+    : rawStats
 
   const progress = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0
 
@@ -600,6 +613,12 @@ export default function Tasks() {
               taskmaster plan your-prd.md
             </code>
           </div>
+        ) : isPatrick ? (
+          <div className="card p-8 text-center">
+            <FontAwesomeIcon icon={faListCheck} className="w-10 h-10 text-accent mb-3" />
+            <p className="text-2xl font-bold">{stats.total.toLocaleString()}</p>
+            <p className="text-sm text-text-muted">tasks synced</p>
+          </div>
         ) : (
           <div className="card overflow-hidden">
             {/* Fixed header - Desktop only */}
@@ -621,6 +640,7 @@ export default function Tasks() {
                   allTasks={tasks}
                   expanded={expandedTasks.has(task.id)}
                   onToggle={() => toggleTask(task.id)}
+                  hideTitle={isPatrick}
                 />
               ))}
             </div>

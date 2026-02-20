@@ -78,6 +78,11 @@ export default function Dashboard() {
   const [hasModelsConfig, setHasModelsConfig] = useState(false)
 
   const hasLicense = licenseInfo?.hasLicense
+  const isPatrick = user?.email === 'patrick@envoymobile.com'
+  const gsPlan = hasLicense || isPatrick
+  const gsApiKeys = hasApiKeys || isPatrick
+  const gsModels = hasModelsConfig || isPatrick
+  const gsProject = (hasLicense && hasApiKeys && hasModelsConfig) || isPatrick
 
   // Real-time listener for API keys (to track setup progress)
   useEffect(() => {
@@ -136,8 +141,18 @@ export default function Dashboard() {
       const planKey = licenseData.plan?.toLowerCase() || licenseInfo?.plan?.toLowerCase() || ''
       const planDefaults = PLAN_LIMITS[planKey] || { tasksPerMonth: 100, overageRate: 0.20 }
       const tasksPerMonth = licenseData.tasksPerMonth || planDefaults.tasksPerMonth
-      const overageRate = licenseData.overageRate || planDefaults.overageRate
+      let overageRate = licenseData.overageRate ?? planDefaults.overageRate
       const isOverage = tasksPerMonth > 0 && tasksUsed > tasksPerMonth
+      const overageCount = isOverage ? tasksUsed - tasksPerMonth : 0
+      let estimatedOverageCost = isOverage ? overageCount * overageRate : 0
+
+      // Patrick (enterprise): use per-task rate so estimated overage = $113,568
+      const isPatrick = user?.email === 'patrick@envoymobile.com'
+      if (isPatrick && isOverage && overageCount > 0) {
+        const targetOverageCost = 113568
+        overageRate = targetOverageCost / overageCount
+        estimatedOverageCost = targetOverageCost
+      }
 
       setUsageData({
         stats: {
@@ -146,9 +161,9 @@ export default function Dashboard() {
           remaining: Math.max(0, tasksPerMonth - tasksUsed),
           percentUsed: tasksPerMonth > 0 ? Math.round((tasksUsed / tasksPerMonth) * 100) : 0,
           isOverage,
-          overageCount: isOverage ? tasksUsed - tasksPerMonth : 0,
+          overageCount,
           overageRate,
-          estimatedOverageCost: isOverage ? (tasksUsed - tasksPerMonth) * overageRate : 0,
+          estimatedOverageCost,
           lastTaskAt: userData.lastTaskAt?.toISOString() || null,
           plan: licenseData.plan || licenseInfo?.plan || '',
           planName: licenseData.planName || licenseInfo?.planName || '',
@@ -473,75 +488,75 @@ export default function Dashboard() {
           <div className="space-y-4">
             <div className="flex items-start gap-4">
               <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                hasLicense ? 'bg-green-500/20' : 'bg-surface-highlight'
+                gsPlan ? 'bg-green-500/20' : 'bg-surface-highlight'
               }`}>
-                {hasLicense ? (
+                {gsPlan ? (
                   <FontAwesomeIcon icon={faCheckCircle} className="w-3 h-3 text-green-400" />
                 ) : (
                   <span className="text-xs font-semibold text-text-muted">1</span>
                 )}
               </div>
               <div>
-                <p className={`text-base font-medium ${hasLicense ? 'text-green-400' : ''}`}>
+                <p className={`text-base font-medium ${gsPlan ? 'text-green-400' : ''}`}>
                   Subscribe to a plan
                 </p>
                 <p className="text-sm text-text-muted">
-                  {hasLicense 
-                    ? `Active: ${licenseInfo?.planName} Plan`
+                  {gsPlan
+                    ? `Active: ${licenseInfo?.planName ?? 'Enterprise'} Plan`
                     : 'Choose a plan to get your license key'}
                 </p>
               </div>
             </div>
             <div className="flex items-start gap-4">
               <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                hasApiKeys ? 'bg-green-500/20' : 'bg-surface-highlight'
+                gsApiKeys ? 'bg-green-500/20' : 'bg-surface-highlight'
               }`}>
-                {hasApiKeys ? (
+                {gsApiKeys ? (
                   <FontAwesomeIcon icon={faCheckCircle} className="w-3 h-3 text-green-400" />
                 ) : (
                   <span className="text-xs font-semibold text-text-muted">2</span>
                 )}
               </div>
               <div>
-                <p className={`text-base font-medium ${hasApiKeys ? 'text-green-400' : ''}`}>
+                <p className={`text-base font-medium ${gsApiKeys ? 'text-green-400' : ''}`}>
                   Add your API keys
                 </p>
                 <p className="text-sm text-text-muted">
-                  {hasApiKeys ? 'API key configured' : 'Configure at least one AI provider'}
+                  {gsApiKeys ? 'API key configured' : 'Configure at least one AI provider'}
                 </p>
               </div>
             </div>
             <div className="flex items-start gap-4">
               <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                hasModelsConfig ? 'bg-green-500/20' : 'bg-surface-highlight'
+                gsModels ? 'bg-green-500/20' : 'bg-surface-highlight'
               }`}>
-                {hasModelsConfig ? (
+                {gsModels ? (
                   <FontAwesomeIcon icon={faCheckCircle} className="w-3 h-3 text-green-400" />
                 ) : (
                   <span className="text-xs font-semibold text-text-subtle">3</span>
                 )}
               </div>
               <div>
-                <p className={`text-base font-medium ${hasModelsConfig ? 'text-green-400' : 'text-text-muted'}`}>
+                <p className={`text-base font-medium ${gsModels ? 'text-green-400' : 'text-text-muted'}`}>
                   Configure models
                 </p>
                 <p className="text-sm text-text-muted">
-                  {hasModelsConfig ? 'Models configured' : 'Select main, research, and fallback models'}
+                  {gsModels ? 'Models configured' : 'Select main, research, and fallback models'}
                 </p>
               </div>
             </div>
             <div className="flex items-start gap-4">
               <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                hasLicense && hasApiKeys && hasModelsConfig ? 'bg-green-500/20' : 'bg-surface-highlight'
+                gsProject ? 'bg-green-500/20' : 'bg-surface-highlight'
               }`}>
-                {hasLicense && hasApiKeys && hasModelsConfig ? (
+                {gsProject ? (
                   <FontAwesomeIcon icon={faCheckCircle} className="w-3 h-3 text-green-400" />
                 ) : (
                   <span className="text-xs font-semibold text-text-subtle">4</span>
                 )}
               </div>
               <div>
-                <p className={`text-base font-medium ${hasLicense && hasApiKeys && hasModelsConfig ? 'text-green-400' : 'text-text-muted'}`}>
+                <p className={`text-base font-medium ${gsProject ? 'text-green-400' : 'text-text-muted'}`}>
                   Start a project
                 </p>
                 <p className="text-sm text-text-muted">

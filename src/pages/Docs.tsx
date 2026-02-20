@@ -252,37 +252,6 @@ const docContent: Record<string, { title: string; breadcrumb?: string; content: 
 
         <hr className="border-border my-10" />
 
-        <div className="bg-surface border border-border rounded-lg p-6 mb-8">
-          <h3 className="text-lg font-semibold mb-4">Pricing Plans</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 border border-border rounded-lg">
-              <h4 className="font-semibold text-accent">Plus</h4>
-              <p className="text-2xl font-bold mt-1">$29<span className="text-sm font-normal text-text-muted">/mo</span></p>
-              <p className="text-sm text-text-muted mt-2">Up to 100 tasks/mo</p>
-              <p className="text-xs text-text-subtle">$0.20 per extra task</p>
-            </div>
-            <div className="p-4 border border-accent rounded-lg bg-surface-elevated">
-              <h4 className="font-semibold text-accent">Pro</h4>
-              <p className="text-2xl font-bold mt-1">$199<span className="text-sm font-normal text-text-muted">/mo</span></p>
-              <p className="text-sm text-text-muted mt-2">Up to 1,000 tasks/mo</p>
-              <p className="text-xs text-text-subtle">$0.15 per extra task</p>
-            </div>
-            <div className="p-4 border border-border rounded-lg">
-              <h4 className="font-semibold text-accent">Enterprise</h4>
-              <p className="text-2xl font-bold mt-1">$599<span className="text-sm font-normal text-text-muted">+</span></p>
-              <p className="text-sm text-text-muted mt-2">5,000+ tasks/mo</p>
-              <p className="text-xs text-text-subtle">Volume discounts available</p>
-            </div>
-          </div>
-        </div>
-
-        <p className="text-text-muted mb-4">
-          Have questions about pricing or need a custom plan? Contact our{' '}
-          <a href="mailto:taskmasteroneai@gmail.com" className="text-text hover:text-accent underline">
-            sales team
-          </a>.
-        </p>
-
         <p className="text-text-muted">
           Need support? Contact us at{' '}
           <a href="mailto:taskmasteroneai@gmail.com" className="text-text hover:text-accent underline">
@@ -1216,37 +1185,6 @@ taskmaster sync-keys
         <TipBox>
           Dashboard sync is optional. You can also configure API keys directly via environment variables or <code className="bg-surface-highlight px-1 rounded">.env</code> files.
         </TipBox>
-
-        <h3 className="text-xl font-semibold mb-4 mt-8">Plan Limits</h3>
-        
-        <div className="overflow-x-auto mb-6">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left py-2 pr-4 text-text-muted font-medium">Plan</th>
-                <th className="text-left py-2 pr-4 text-text-muted font-medium">Price</th>
-                <th className="text-left py-2 text-text-muted font-medium">AI Operations/Month</th>
-              </tr>
-            </thead>
-            <tbody className="text-text-muted">
-              <tr className="border-b border-border">
-                <td className="py-2 pr-4 font-medium">Plus</td>
-                <td className="py-2 pr-4">$29/month</td>
-                <td className="py-2">100</td>
-              </tr>
-              <tr className="border-b border-border">
-                <td className="py-2 pr-4 font-medium">Pro</td>
-                <td className="py-2 pr-4">$199/month</td>
-                <td className="py-2">1,000</td>
-              </tr>
-              <tr className="border-b border-border">
-                <td className="py-2 pr-4 font-medium">Enterprise</td>
-                <td className="py-2 pr-4">Custom</td>
-                <td className="py-2">5,000</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
 
         <p className="text-text-muted">
           Upgrade your plan anytime from your <a href="/app/billing" className="text-accent underline">Dashboard → Billing</a> page. Usage resets at the start of each billing cycle.

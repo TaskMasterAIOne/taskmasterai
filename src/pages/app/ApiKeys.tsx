@@ -204,7 +204,8 @@ export default function ApiKeys() {
   const [hostedStats, setHostedStats] = useState<HostedKeyStats | null>(null)
   const [loadingStats, setLoadingStats] = useState(false)
 
-  const isPro = licenseData?.plan === 'pro' && licenseData?.status === 'active'
+  const hasHostedKeys = (licenseData?.plan === 'pro' || licenseData?.plan === 'enterprise') && licenseData?.status === 'active'
+  const hostedPlanLabel = licenseData?.plan === 'enterprise' ? 'Enterprise' : 'PRO'
 
   // Real-time listener for API keys
   useEffect(() => {
@@ -258,9 +259,9 @@ export default function ApiKeys() {
     return () => unsubscribe()
   }, [user])
 
-  // Fetch hosted key stats for PRO users
+  // Fetch hosted key stats for Pro/Enterprise users
   useEffect(() => {
-    if (!user || !isPro) {
+    if (!user || !hasHostedKeys) {
       setHostedStats(null)
       return
     }
@@ -285,7 +286,7 @@ export default function ApiKeys() {
     }
 
     fetchStats()
-  }, [user, isPro])
+  }, [user, hasHostedKeys])
 
   const maskKey = (key: string) => {
     if (key.length <= 8) return '••••••••'
@@ -352,8 +353,8 @@ export default function ApiKeys() {
         </div>
       </motion.div>
 
-      {/* Hosted API Keys Section (PRO Only) */}
-      {isPro && (
+      {/* Hosted API Keys Section (Pro & Enterprise) */}
+      {hasHostedKeys && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15, duration: 0.4, ease: 'easeOut' }} className="mb-8">
           <div className="card p-5 border-2 border-brand-primary/30 bg-gradient-to-br from-brand-primary/5 to-transparent">
             <div className="flex items-start gap-4">
@@ -365,7 +366,7 @@ export default function ApiKeys() {
                   <h2 className="text-lg font-semibold">Hosted API Keys</h2>
                   <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-primary/20 text-brand-primary text-xs font-medium">
                     <FontAwesomeIcon icon={faCrown} className="w-3 h-3" />
-                    PRO
+                    {hostedPlanLabel}
                   </span>
                 </div>
                 <p className="text-sm text-text-muted mb-4">
@@ -445,8 +446,8 @@ export default function ApiKeys() {
         </motion.div>
       )}
 
-      {/* Upgrade prompt for non-PRO users */}
-      {licenseData && !isPro && (
+      {/* Upgrade prompt for Plus / non–Pro, non-Enterprise users */}
+      {licenseData && !hasHostedKeys && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15, duration: 0.4, ease: 'easeOut' }} className="mb-8">
           <div className="card p-5 border border-border-default/50 bg-surface-elevated/50">
             <div className="flex items-start gap-4">
@@ -457,15 +458,15 @@ export default function ApiKeys() {
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className="font-medium">Hosted API Keys</h3>
                   <span className="px-2 py-0.5 rounded-full bg-surface text-text-muted text-xs font-medium">
-                    PRO Only
+                    Pro & Enterprise
                   </span>
                 </div>
                 <p className="text-sm text-text-muted mb-3">
-                  Upgrade to Pro to use our hosted API keys — no need to manage your own keys!
+                  Upgrade to Pro or Enterprise to use our hosted API keys — no need to manage your own keys!
                 </p>
                 <a href="/pricing" className="btn-primary text-sm py-2 px-4 inline-flex items-center gap-2">
                   <FontAwesomeIcon icon={faCrown} className="w-3.5 h-3.5" />
-                  Upgrade to Pro
+                  View plans
                 </a>
               </div>
             </div>

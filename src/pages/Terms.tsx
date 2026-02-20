@@ -10,7 +10,7 @@ export default function Terms() {
           transition={{ duration: 0.5, ease: 'easeOut' }}
         >
           <h1 className="text-3xl md:text-4xl font-bold mb-4">Terms of Service</h1>
-          <p className="text-text-muted mb-8">Last updated: December 12, 2025</p>
+          <p className="text-text-muted mb-8">Last updated: April 2025</p>
 
           <div className="space-y-8 text-text-muted">
             <section>
@@ -80,16 +80,56 @@ export default function Terms() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-text mb-3">7. Subscription and Payments</h2>
+              <h2 className="text-xl font-semibold text-text mb-3">7. Pricing, Payments, and Billing</h2>
               <p className="mb-3">
-                Certain features of the Service require a paid subscription. By subscribing:
+                Certain features of the Service require a paid subscription. Payments are processed securely through 
+                Stripe. By subscribing, you authorize us to charge your payment method on a recurring basis. Prices 
+                may change with 30 days' notice.
               </p>
-              <ul className="list-disc pl-5 space-y-2">
-                <li>You authorize us to charge your payment method on a recurring basis</li>
-                <li>You can cancel your subscription at any time</li>
-                <li>Refunds are provided in accordance with our refund policy</li>
-                <li>Prices may change with 30 days notice</li>
-              </ul>
+
+              <h3 className="text-lg font-medium text-text mt-4 mb-2">No-Refund Policy</h3>
+              <p className="mb-3">
+                All sales are final. We do not offer refunds or credits for subscription plans (Plus, Pro, or 
+                Enterprise) under any circumstances. Once a payment is made, you will not be eligible for a refund. 
+                This applies including but not limited to: accidental purchase, dissatisfaction with the Service, 
+                forgetting to cancel before renewal, or unauthorized use of your account or payment method. You are 
+                responsible for the security of your account and payment information. By completing a purchase, you 
+                acknowledge that you have read, understood, and agree to this no-refund policy.
+              </p>
+
+              <h3 className="text-lg font-medium text-text mt-4 mb-2">Billing Issues and Disputes — Contact Us First</h3>
+              <p className="mb-3">
+                All billing questions or issues—including claims of cancellation, renewal, duplicate charges, 
+                unexpected charges, plan changes, access issues, or any other payment-related concern—must be 
+                submitted to us via email at taskmasteroneai@gmail.com as your required first step. You are 
+                responsible for promptly notifying us so we can investigate, verify account status, and provide a 
+                resolution. If you do not contact us by email, issues may persist (including continued renewals) 
+                because we may not be aware of the problem.
+              </p>
+              <p className="mb-3">
+                You agree to make a good-faith effort to resolve billing concerns with us directly before initiating 
+                a bank dispute, chargeback, or payment reversal. If you initiate a dispute or chargeback without 
+                first emailing us and providing reasonable details (such as account email, invoice/receipt details, 
+                dates, and the nature of the issue), we reserve the right to suspend or terminate your access to the 
+                Service and/or restrict future purchases, to the extent permitted by law.
+              </p>
+              <p className="mb-3">
+                In the event of a payment dispute or chargeback initiated by you or your bank, we will provide our 
+                payment processor (Stripe) and the card issuer with evidence demonstrating that the purchase was 
+                made and that you accepted these Terms, including this billing and refund policy, prior to the 
+                purchase. This may include account records, login and usage indicators, subscription status, 
+                cancellation timestamps (if any), and confirmation screens or emails. The final outcome of any 
+                dispute is determined by the card issuer; we cannot guarantee the result.
+              </p>
+
+              <h3 className="text-lg font-medium text-text mt-4 mb-2">Delivery and Cancellation</h3>
+              <p className="mb-3">
+                Upon successful payment, access to the corresponding subscription features is granted promptly, 
+                typically within minutes. You will receive an email confirmation. You may cancel your subscription 
+                at any time through your account settings or by contacting us. Cancellation takes effect at the end 
+                of your current billing period; you will not be charged for subsequent periods and will retain 
+                access until the end of that term. No refunds are issued for the remaining period upon cancellation.
+              </p>
             </section>
 
             <section>

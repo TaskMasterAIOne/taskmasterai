@@ -20,24 +20,6 @@ A detailed glossary of every root command and available capability — meant for
 
 ---
 
-### Pricing Plans
-
-**Plus** - $29/mo
-- Up to 100 tasks/mo
-- $0.20 per extra task
-
-**Pro** - $199/mo
-- Up to 1,000 tasks/mo
-- $0.15 per extra task
-
-**Enterprise** - $599+
-- 5,000+ tasks/mo
-- Volume discounts available
-
-Have questions about pricing or need a custom plan? Contact our sales team at taskmasteroneai@gmail.com
-
----
-
 ## Quick Start
 
 This guide is for new subscribers who want to start using TaskMaster AI with minimal setup time. Make sure you have an active subscription before proceeding.

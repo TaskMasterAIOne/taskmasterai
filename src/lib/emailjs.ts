@@ -25,7 +25,7 @@ import emailjs from '@emailjs/browser'
 
 const EMAILJS_SERVICE_ID = 'service_92n9n5w'
 const EMAILJS_TEMPLATE_ID = 'contact-taskmaster'
-const EMAILJS_PUBLIC_KEY = 'aRQy8p6n59lq-Ro0BOcWX'
+const EMAILJS_PUBLIC_KEY = 'uE6sEAu0ykEIf36_V'
 
 export interface ContactFormData {
   name: string

@@ -17,6 +17,7 @@
     "@google/generative-ai": "^0.21.0",
     "cors": "^2.8.5",
     "stripe": "^14.14.0",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "@emailjs/nodejs": "^5.0.2"
   }
 }

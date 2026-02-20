@@ -4,6 +4,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import admin from 'firebase-admin';
 import Stripe from 'stripe';
 import { v4 as uuidv4 } from 'uuid';
+import emailjs from '@emailjs/nodejs';
 
 import fs from 'fs';
 import path from 'path';
@@ -52,6 +53,7 @@ const hostedOpenRouterKey = defineSecret('HOSTED_OPENROUTER_API_KEY');
 const hostedMistralKey = defineSecret('HOSTED_MISTRAL_API_KEY');
 const hostedMoonshotKey = defineSecret('HOSTED_MOONSHOT_API_KEY');
 const hostedZhipuKey = defineSecret('HOSTED_ZHIPU_API_KEY');
+const emailjsPrivateKey = defineSecret('EMAILJS_PRIVATE_KEY');
 
 // Stripe price IDs
 // Products: Plus (prod_TavHzv0QcBs8E5), Pro (prod_TavI05fFQmSCHF)
@@ -3312,6 +3314,79 @@ export const deleteAccount = onRequest(
         error: 'Failed to delete account',
         details: error.message 
       });
+    }
+  }
+);
+
+// EmailJS config for password reset (template: task_password_reset)
+// In EmailJS dashboard: Account → Security → enable "Allow non-browser requests" for Node.js to work
+const EMAILJS_SERVICE_ID = 'service_92n9n5w';
+const EMAILJS_TEMPLATE_PASSWORD_RESET = 'task_password_reset';
+const EMAILJS_PUBLIC_KEY = 'uE6sEAu0ykEIf36_V';
+
+/**
+ * Request password reset - generates Firebase reset link and sends branded email via EmailJS
+ * POST body: { email: string }
+ */
+export const requestPasswordReset = onRequest(
+  {
+    cors: true,
+    secrets: [emailjsPrivateKey],
+    maxInstances: 10
+  },
+  async (req, res) => {
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Method not allowed' });
+      return;
+    }
+    try {
+      const { email } = req.body;
+      if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+        res.status(400).json({ error: 'Valid email is required' });
+        return;
+      }
+      const trimmedEmail = email.trim();
+
+      let resetLink;
+      try {
+        resetLink = await admin.auth().generatePasswordResetLink(trimmedEmail, {
+          url: req.body.continueUrl || undefined
+        });
+      } catch (authErr) {
+        console.error('requestPasswordReset generatePasswordResetLink:', authErr?.code || authErr?.message, authErr);
+        res.status(500).json({ error: 'Failed to send password reset email' });
+        return;
+      }
+
+      const expiryTime = new Date(Date.now() + 60 * 60 * 1000).toLocaleString();
+      try {
+        await emailjs.send(
+          EMAILJS_SERVICE_ID,
+          EMAILJS_TEMPLATE_PASSWORD_RESET,
+          {
+            to_email: trimmedEmail,
+            reset_link: resetLink,
+            expiry_time: expiryTime
+          },
+          {
+            publicKey: EMAILJS_PUBLIC_KEY,
+            privateKey: emailjsPrivateKey.value()
+          }
+        );
+      } catch (emailErr) {
+        console.error('requestPasswordReset emailjs.send:', emailErr?.status || emailErr?.text || emailErr?.message, emailErr);
+        res.status(500).json({ error: 'Failed to send password reset email' });
+        return;
+      }
+
+      res.status(200).json({ success: true, message: 'Password reset email sent' });
+    } catch (err) {
+      console.error('requestPasswordReset error:', err?.message || err);
+      res.status(500).json({ error: 'Failed to send password reset email' });
     }
   }
 );

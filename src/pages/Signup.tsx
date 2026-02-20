@@ -28,6 +28,7 @@ export default function Signup() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
+  const [alreadyExists, setAlreadyExists] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const passwordRequirements = [
@@ -39,6 +40,7 @@ export default function Signup() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setAlreadyExists(false)
 
     if (password !== confirmPassword) {
       setError('Passwords do not match')
@@ -57,10 +59,11 @@ export default function Signup() {
       await signUp(email, password)
       navigate('/app/dashboard')
     } catch (err: unknown) {
-      const error = err as { code?: string; message?: string }
-      if (error.code === 'auth/email-already-in-use') {
-        setError('An account with this email already exists')
-      } else if (error.code === 'auth/weak-password') {
+      const authError = err as { code?: string; message?: string }
+      if (authError.code === 'auth/email-already-in-use') {
+        setAlreadyExists(true)
+        setError('An account with this email already exists. Sign in instead.')
+      } else if (authError.code === 'auth/weak-password') {
         setError('Password is too weak')
       } else {
         setError('Failed to create account. Please try again.')
@@ -72,15 +75,19 @@ export default function Signup() {
 
   const handleGoogleSignUp = async () => {
     setError('')
+    setAlreadyExists(false)
     setLoading(true)
 
     try {
       await signInWithGoogle()
       navigate('/app/dashboard')
     } catch (err: unknown) {
-      const error = err as { code?: string; message?: string }
-      if (error.code === 'auth/popup-closed-by-user') {
+      const authError = err as { code?: string; message?: string }
+      if (authError.code === 'auth/popup-closed-by-user') {
         // User closed popup
+      } else if (authError.code === 'auth/account-exists-with-different-credential') {
+        setAlreadyExists(true)
+        setError('An account already exists with this email. Please sign in with your password.')
       } else {
         setError('Failed to sign up with Google')
       }
@@ -118,9 +125,19 @@ export default function Signup() {
 
           {/* Error message */}
           {error && (
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-surface-elevated border border-status-error text-status-error text-sm mb-5">
-              <FontAwesomeIcon icon={faCircleExclamation} className="w-4 h-4 flex-shrink-0" />
-              {error}
+            <div className="mb-5 space-y-3">
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-surface-elevated border border-status-error text-status-error text-sm">
+                <FontAwesomeIcon icon={faCircleExclamation} className="w-4 h-4 flex-shrink-0" />
+                {error}
+              </div>
+              {alreadyExists && (
+                <Link
+                  to={email ? `/signin?email=${encodeURIComponent(email)}` : '/signin'}
+                  className="btn-primary w-full py-2.5 block text-center text-sm"
+                >
+                  Sign in instead
+                </Link>
+              )}
             </div>
           )}
 

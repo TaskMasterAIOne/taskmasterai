@@ -67,7 +67,7 @@ const tiers = [
       'Team management',
       'SLA guarantees',
     ],
-    cta: 'Contact Sales',
+    cta: 'Email us',
     popular: false,
   },
 ]
