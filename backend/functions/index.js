@@ -3351,7 +3351,7 @@ export const requestPasswordReset = onRequest(
       }
       const trimmedEmail = email.trim();
 
-      const defaultContinueUrl = 'https://www.taskmaster.one/signin';
+      const defaultContinueUrl = 'https://taskmaster-ai-e2302.web.app/signin';
       const continueUrl = req.body.continueUrl || defaultContinueUrl;
       let resetLink;
       try {
