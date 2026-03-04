@@ -6,7 +6,6 @@ import {
   signInWithPopup,
 } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
-import { useAuth } from '../contexts/AuthContext'
 import { auth, db } from '../lib/firebase'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faEnvelope, faLock, faEye, faEyeSlash, faCircleExclamation, faCheck } from '@fortawesome/free-solid-svg-icons'
@@ -27,8 +26,7 @@ export default function Signup() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const selectedPlan = searchParams.get('plan') || 'pro'
-  const { signUp } = useAuth()
-  
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
