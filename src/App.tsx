@@ -11,6 +11,7 @@ import Pricing from './pages/Pricing'
 import Docs from './pages/Docs'
 import Signin from './pages/Signin'
 import Signup from './pages/Signup'
+import TermsAcceptance from './pages/TermsAcceptance'
 import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
 import CliLogin from './pages/CliLogin'
@@ -91,6 +92,14 @@ export default function App() {
         element={
           <AuthRoute>
             <Signup />
+          </AuthRoute>
+        }
+      />
+      <Route
+        path="/terms-acceptance"
+        element={
+          <AuthRoute>
+            <TermsAcceptance />
           </AuthRoute>
         }
       />

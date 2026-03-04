@@ -1,7 +1,13 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import {
+  GoogleAuthProvider,
+  signInWithPopup,
+} from 'firebase/auth'
+import { doc, getDoc } from 'firebase/firestore'
 import { useAuth } from '../contexts/AuthContext'
+import { auth, db } from '../lib/firebase'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faEnvelope, faLock, faEye, faEyeSlash, faCircleExclamation, faCheck } from '@fortawesome/free-solid-svg-icons'
 
@@ -21,7 +27,7 @@ export default function Signup() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const selectedPlan = searchParams.get('plan') || 'pro'
-  const { signUp, signInWithGoogle } = useAuth()
+  const { signUp } = useAuth()
   
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -53,24 +59,16 @@ export default function Signup() {
       return
     }
 
-    setLoading(true)
-
-    try {
-      await signUp(email, password)
-      navigate('/app/dashboard')
-    } catch (err: unknown) {
-      const authError = err as { code?: string; message?: string }
-      if (authError.code === 'auth/email-already-in-use') {
-        setAlreadyExists(true)
-        setError('An account with this email already exists. Sign in instead.')
-      } else if (authError.code === 'auth/weak-password') {
-        setError('Password is too weak')
-      } else {
-        setError('Failed to create account. Please try again.')
+    // Navigate to terms acceptance page with signup data
+    navigate('/terms-acceptance', {
+      state: {
+        signupData: {
+          method: 'email' as const,
+          email,
+          password,
+        }
       }
-    } finally {
-      setLoading(false)
-    }
+    })
   }
 
   const handleGoogleSignUp = async () => {
@@ -79,8 +77,27 @@ export default function Signup() {
     setLoading(true)
 
     try {
-      await signInWithGoogle()
-      navigate('/app/dashboard')
+      const provider = new GoogleAuthProvider()
+      const result = await signInWithPopup(auth, provider)
+      const user = result.user
+
+      // Check if user document exists (user already signed up before)
+      const userDoc = await getDoc(doc(db, 'users', user.uid))
+      if (userDoc.exists()) {
+        // User already exists, just navigate to dashboard
+        navigate('/app/dashboard')
+        return
+      }
+
+      // New user - navigate to terms acceptance page
+      navigate('/terms-acceptance', {
+        state: {
+          signupData: {
+            method: 'google' as const,
+            googleUser: user,
+          }
+        }
+      })
     } catch (err: unknown) {
       const authError = err as { code?: string; message?: string }
       if (authError.code === 'auth/popup-closed-by-user') {

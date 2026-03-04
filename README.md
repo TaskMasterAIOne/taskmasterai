@@ -451,5 +451,5 @@ Get your license at: [taskmaster.one/pricing](https://www.taskmaster.one/pricing
 ---
 
 <p align="center">
-  <b>© 2025 TaskMaster AI LLC. All rights reserved.</b>
+  <b>© 2026 TaskMaster AI LLC. All rights reserved.</b>
 </p>

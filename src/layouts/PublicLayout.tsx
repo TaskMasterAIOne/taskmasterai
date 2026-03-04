@@ -215,7 +215,7 @@ export default function PublicLayout() {
             
             <div className="mt-10 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
               <p className="text-sm text-text-subtle">
-                © 2025 TaskMaster AI LLC. All rights reserved.
+                © 2026 TaskMaster AI LLC. All rights reserved.
               </p>
               <div className="flex items-center gap-4">
                 <a href="https://www.npmjs.com/package/@taskmasterai/cli" target="_blank" rel="noopener noreferrer" className="text-text-muted hover:text-text transition-colors" title="View on NPM">

@@ -70,7 +70,7 @@ export default function Privacy() {
             <section>
               <h2 className="text-xl font-semibold text-text mb-3">5. Data Sharing and Disclosure</h2>
               <p className="mb-3">We do not sell your personal information. We may share your information:</p>
-              <ul className="list-disc pl-5 space-y-2">
+              <ul className="list-disc pl-5 space-y-2 mb-4">
                 <li><strong>With Service Providers:</strong> Third parties that help us operate the Service (hosting, payment processing)</li>
                 <li><strong>For Legal Reasons:</strong> When required by law or to protect rights and safety</li>
                 <li><strong>Business Transfers:</strong> In connection with a merger, acquisition, or sale of assets</li>
@@ -79,12 +79,21 @@ export default function Privacy() {
 
               <h3 className="text-lg font-medium text-text mt-4 mb-2">Payment and Billing Disputes</h3>
               <p className="mb-3">
-                Our payments are processed by Stripe. For any billing questions, refund requests, or payment 
-                disputes, you must contact us first at taskmasteroneai@gmail.com before initiating a chargeback 
-                or bank dispute. We use the information you provide (e.g., account email, invoice details, dates) 
-                to investigate and resolve issues. In the event of a chargeback or dispute, we may share relevant 
-                account and transaction information with our payment processor (Stripe) and the card issuer as 
-                necessary to resolve the dispute, in accordance with our Terms of Service and applicable law.
+                Payments for the Service are processed through Stripe, our payment processing provider.
+              </p>
+              <p className="mb-3">
+                To investigate billing concerns and respond to payment disputes, we may use and share certain information with our payment processor and the card issuer, including:
+              </p>
+              <ul className="list-disc pl-5 space-y-2 mb-4">
+                <li>Account registration details</li>
+                <li>IP address logs</li>
+                <li>Subscription authorization records</li>
+                <li>Billing history and invoices</li>
+                <li>Service usage records</li>
+                <li>Login activity and timestamps</li>
+              </ul>
+              <p className="mb-3">
+                This information may be used solely for the purpose of resolving payment disputes, preventing fraud, and enforcing our billing agreements. We do not sell personal data and only disclose such information as necessary to resolve payment disputes or comply with legal obligations.
               </p>
             </section>
 

@@ -1121,7 +1121,7 @@ Proprietary software. Requires valid license.
 
 Get your license at: taskmaster.one/pricing
 
-© 2025 TaskMaster AI LLC. All rights reserved.
+© 2026 TaskMaster AI LLC. All rights reserved.
 
 Readme
 `;

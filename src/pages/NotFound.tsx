@@ -91,7 +91,7 @@ export default function NotFound() {
       {/* Footer */}
       <footer className="py-8 text-center">
         <p className="text-sm text-text-subtle">
-          © 2025 TaskMaster AI LLC. All rights reserved.
+          © 2026 TaskMaster AI LLC. All rights reserved.
         </p>
       </footer>
     </div>
