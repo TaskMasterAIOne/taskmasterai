@@ -295,9 +295,9 @@ export default function TermsAcceptance() {
                         All sales are final. We do not offer refunds or credits for subscription plans (Plus, Pro, or 
                         Enterprise) under any circumstances. Once a payment is made, you will not be eligible for a refund. 
                         This applies including but not limited to: accidental purchase, dissatisfaction with the Service, 
-                        forgetting to cancel before renewal, or unauthorized use of your account or payment method. You are 
-                        responsible for the security of your account and payment information. By completing a purchase, you 
-                        acknowledge that you have read, understood, and agree to this no-refund policy.
+                        forgetting to cancel before renewal. You are responsible for the security of your account and payment 
+                        information. By completing a purchase, you acknowledge that you have read, understood, and agree to 
+                        this no-refund policy.
                       </p>
 
                       <h5 className="text-sm font-medium text-text mt-4 mb-2">Billing Issues and Disputes — Contact Us First</h5>
