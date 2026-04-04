@@ -16,7 +16,7 @@ const __dirname = path.dirname(__filename);
 
 // CLI package version: (1) cli-version.json from CI deploy, (2) ../../cli/package.json for local emulator — keep default in sync with cli/package.json
 const DEFAULT_CLI_PACKAGE_NAME = '@taskmasterai/cli';
-const DEFAULT_CLI_PACKAGE_VERSION = '1.1.1';
+const DEFAULT_CLI_PACKAGE_VERSION = '1.1.2';
 
 function loadCliPackageInfo() {
   const injectedPath = path.join(__dirname, 'cli-version.json');
