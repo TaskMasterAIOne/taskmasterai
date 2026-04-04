@@ -577,6 +577,8 @@ We'd love to hear from you! Here's how to reach us:
 | taskmaster expand --all | Expand all pending tasks |
 | taskmaster update-task --id <id> --prompt "<context>" | Update a task |
 | taskmaster update --from <id> --prompt "<context>" | Update multiple tasks |
+| taskmaster remove-task --id <id> | Remove a top-level task |
+| taskmaster remove-subtask --id <id> | Remove a subtask (--convert to promote to task) |
 
 ### PRD & Project
 
@@ -633,6 +635,7 @@ MCP tools are available when using TaskMaster AI through an MCP-compatible edito
 | complexity_report | View complexity report |
 | add_dependency | Add a dependency |
 | remove_dependency | Remove a dependency |
+| remove_subtask | Remove a subtask (or convert to standalone task) |
 | validate_dependencies | Check dependencies |
 | fix_dependencies | Fix dependency issues |
 | research | Perform AI research |
@@ -817,11 +820,17 @@ taskmaster clear-subtasks --all
 ### Removing Tasks
 
 \`\`\`bash
-# Remove a task
+# Remove a top-level task
 taskmaster remove-task --id 5
 
 # Remove without confirmation
 taskmaster remove-task --id 5 --yes
+
+# Remove a subtask
+taskmaster remove-subtask --id 5.2
+
+# Remove and promote subtask to standalone task
+taskmaster remove-subtask --id 5.2 --convert
 \`\`\`
 
 ---

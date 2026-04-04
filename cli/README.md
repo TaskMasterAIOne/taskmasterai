@@ -159,7 +159,7 @@ taskmaster logout
 | `taskmaster next` | Show the next task to work on |
 | `taskmaster set-status --id <id> --status <status>` | Update task status |
 | `taskmaster new --prompt "description"` | Add a new task with AI |
-| `taskmaster remove-task --id <id>` | Remove a task or step |
+| `taskmaster remove-task --id <id>` | Remove a top-level task |
 | `taskmaster move --from <id> --to <id>` | Move tasks in the hierarchy |
 
 **`list` filters:** `--status` / `-s`, `--with-steps`, `--ready` (dependencies satisfied), `--blocking` (other tasks depend on it), `--all-tags` (across contexts). Combine as needed, e.g. `taskmaster list --ready --blocking`.
@@ -198,6 +198,7 @@ taskmaster logout
 | Command | Description |
 |---------|-------------|
 | `taskmaster add-step --parent <id> --title "Step title"` | Add a step to a task |
+| `taskmaster remove-step --id <id>` | Remove a subtask (`--convert` to promote to standalone task, `--yes` to skip prompt) |
 | `taskmaster clear-steps --id <id>` | Clear all steps from a task |
 
 ### Task Linking

@@ -589,7 +589,7 @@ export function displayHelp() {
         { name: 'set-status', args: '<id> <status>', desc: 'Update task status (pending, in-progress, done, blocked, etc.)' },
         { name: 'new', args: '--prompt="<text>"', desc: 'Add a new task using AI' },
         { name: 'edit', args: '--id=<id> --prompt="<text>"', desc: 'Update a task with new information' },
-        { name: 'remove-task', args: '--id=<id> [-y]', desc: 'Permanently remove a task or step' },
+        { name: 'remove-task', args: '--id=<id> [-y]', desc: 'Permanently remove a top-level task' },
       ],
     },
     {

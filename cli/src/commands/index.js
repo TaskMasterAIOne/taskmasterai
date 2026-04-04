@@ -3123,6 +3123,8 @@ function generateRuleContent(profile) {
 - Use \`taskmaster show <id>\` for task details before implementing.
 - Mark tasks done with \`taskmaster set-status -i <id> -s done\`.
 - Expand complex tasks with \`taskmaster expand -i <id>\`.
+- Add subtasks with \`taskmaster add-step --parent <id> --title "..."\`.
+- Remove subtasks with \`taskmaster remove-step --id <parentId.stepId>\` (use \`--convert\` to promote to task).
 `;
 }
 

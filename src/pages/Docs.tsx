@@ -1402,7 +1402,7 @@ taskmaster sync-keys
           </div>
           <div className="marketing-panel border rounded-xl p-4">
             <code className="text-sm text-marketing-link font-mono">taskmaster remove-task -i, --id &lt;id&gt; [-y, --yes]</code>
-            <p className="text-sm text-marketing-muted mt-1">Remove a task or step permanently. Use -y to skip confirmation.</p>
+            <p className="text-sm text-marketing-muted mt-1">Remove a top-level task permanently. Use -y to skip confirmation.</p>
           </div>
         </div>
 
@@ -1447,6 +1447,10 @@ taskmaster sync-keys
           <div className="marketing-panel border rounded-xl p-4">
             <code className="text-sm text-marketing-link font-mono">taskmaster add-step -p, --parent &lt;id&gt; -t, --title &lt;text&gt; [-d, --description] [--details] [--dependencies] [-s, --status]</code>
             <p className="text-sm text-marketing-muted mt-1">Add a step to a parent task manually without AI.</p>
+          </div>
+          <div className="marketing-panel border rounded-xl p-4">
+            <code className="text-sm text-marketing-link font-mono">taskmaster remove-step -i, --id &lt;id&gt; [-c, --convert] [-y, --yes]</code>
+            <p className="text-sm text-marketing-muted mt-1">Remove a subtask. Use --convert to promote it to a standalone top-level task instead of deleting.</p>
           </div>
           <div className="marketing-panel border rounded-xl p-4">
             <code className="text-sm text-marketing-link font-mono">taskmaster generate [-o, --output]</code>
@@ -3506,7 +3510,7 @@ const docKeywords: Record<string, string[]> = {
   'advanced-configuration': ['models', 'config', 'main model', 'ask model', 'fallback', 'temperature', 'parameters'],
   'advanced-tasks': ['dependencies', 'priority', 'steps', 'subtasks', 'update', 'batch', 'move', 'organization'],
   'mcp-tools': ['mcp', 'tools', 'core', 'standard', 'all', 'list', 'next', 'breakdown', 'plan', 'set_status', 'autopilot'],
-  'cli-commands': ['taskmaster', 'init', 'plan', 'list', 'show', 'next', 'set-status', 'breakdown', 'new', 'edit', 'log', 'update', 'assess', 'report', 'link', 'unlink', 'contexts', 'context', 'switch', 'clone', 'ask', 'usage', 'models', 'sync-keys', 'activate', 'autopilot', 'move', 'add-step', 'generate', 'check-links', 'fix-links', 'remove-task', 'clear-steps', 'delete-context', 'rename-context', 'cloud sync', 'hosted keys'],
+  'cli-commands': ['taskmaster', 'init', 'plan', 'list', 'show', 'next', 'set-status', 'breakdown', 'new', 'edit', 'log', 'update', 'assess', 'report', 'link', 'unlink', 'contexts', 'context', 'switch', 'clone', 'ask', 'usage', 'models', 'sync-keys', 'activate', 'autopilot', 'move', 'add-step', 'remove-step', 'remove-subtask', 'generate', 'check-links', 'fix-links', 'remove-task', 'clear-steps', 'delete-context', 'rename-context', 'cloud sync', 'hosted keys'],
   'task-structure': ['id', 'title', 'description', 'status', 'dependencies', 'priority', 'details', 'steps', 'testStrategy', 'tasks.json'],
   'tdd-quick-start': ['tdd', 'test driven', 'autopilot', 'red green refactor', 'testing', 'workflow', 'git branch'],
   'agent-integration': ['ai agent', 'cursor', 'automation', 'mcp tools', 'autopilot_start', 'autopilot_next', 'autopilot_status', 'autopilot_commit'],

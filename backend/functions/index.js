@@ -331,8 +331,10 @@ Example MCP configuration (mcpServers format for Cursor & Windsurf):
 - \`taskmaster add-step --parent=1 --title="Step"\` - Add step to a parent task
 - \`taskmaster set-status --id=<id> --status=<status>\` - Update status (pending, in-progress, done, blocked, deferred, cancelled)
 - \`taskmaster set-status --id=1,2,3 --status=in-progress\` - Update multiple tasks
-- \`taskmaster remove-task --id=<id>\` - Remove a task or step
+- \`taskmaster remove-task --id=<id>\` - Remove a top-level task
 - \`taskmaster remove-task --id=<id> -y\` - Remove without confirmation
+- \`taskmaster remove-step --id=<id>\` - Remove a subtask
+- \`taskmaster remove-step --id=<id> --convert\` - Remove subtask and promote to standalone task
 
 ## Task Updates
 - \`taskmaster edit --id=<id> --prompt="changes"\` - Update specific task with AI
@@ -533,7 +535,7 @@ You can also use "lean" as an alias for "core". If TASK_MASTER_TOOLS is not set,
 
 ### all (Full Mode)
 Full functionality including all task management and analysis tools.
-All core tools plus: \`init\`, \`assess\`, \`breakdown_all\`, \`remove_task\`, \`new\`, \`link\`, \`unlink\`, and all autopilot tools.
+All core tools plus: \`init\`, \`assess\`, \`breakdown_all\`, \`remove_task\`, \`remove_subtask\`, \`new\`, \`link\`, \`unlink\`, and all autopilot tools.
 
 # PROJECT STRUCTURE
 
@@ -989,7 +991,7 @@ taskmaster show <id>	Show detailed information for a task
 taskmaster next	Show the next task to work on
 taskmaster set-status --id <id> --status <status>	Update task status
 taskmaster new --prompt "description"	Add a new task with AI
-taskmaster remove-task --id <id>	Remove a task or step
+taskmaster remove-task --id <id>	Remove a top-level task
 taskmaster move --from <id> --to <id>	Move tasks in the hierarchy
 AI Operations
 Command	Description
@@ -1004,6 +1006,7 @@ taskmaster update --from <id> --prompt "info"	Update multiple tasks from an ID
 Steps (Subtasks)
 Command	Description
 taskmaster add-step --parent <id> --title "Step title"	Add a step to a task
+taskmaster remove-step --id <id>	Remove a subtask (--convert to promote to task)
 taskmaster clear-steps --id <id>	Clear all steps from a task
 Task Linking
 Command	Description
