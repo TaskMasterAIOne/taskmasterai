@@ -20,6 +20,7 @@ import {
   faChartLine,
   faInfoCircle
 } from '@fortawesome/free-solid-svg-icons'
+import supportedModelsCatalog from '@cli-supported-models'
 
 interface ApiKey {
   id: string
@@ -175,21 +176,41 @@ const ProviderLogos: { [key: string]: React.ReactNode } = {
   ),
 }
 
-const providers = [
-  { id: 'anthropic', name: 'Anthropic (Claude)', description: 'Opus 4.5, Sonnet 4.5, Haiku 4.5', docsUrl: 'https://console.anthropic.com/' },
-  { id: 'openai', name: 'OpenAI (GPT)', description: 'GPT 5.2, GPT 5.1, GPT 5, o3', docsUrl: 'https://platform.openai.com/api-keys' },
-  { id: 'google', name: 'Google (Gemini)', description: 'Gemini 3.1 / 3 Flash, 2.5 Pro/Flash/Lite', docsUrl: 'https://aistudio.google.com/app/apikey' },
-  { id: 'perplexity', name: 'Perplexity', description: 'Research and web search', docsUrl: 'https://www.perplexity.ai/settings/api' },
-  { id: 'deepseek', name: 'DeepSeek', description: 'DeepSeek V3, V3.1, R1', docsUrl: 'https://platform.deepseek.com/' },
-  { id: 'xai', name: 'xAI (Grok)', description: 'Grok 4.1, Grok 4, Grok 3', docsUrl: 'https://console.x.ai/' },
-  { id: 'openrouter', name: 'OpenRouter', description: 'Multiple models', docsUrl: 'https://openrouter.ai/keys' },
-  { id: 'mistral', name: 'Mistral', description: 'Mistral AI models', docsUrl: 'https://console.mistral.ai/api-keys/' },
-  { id: 'moonshot', name: 'Moonshot', description: 'Kimi K2', docsUrl: 'https://platform.moonshot.cn/' },
-  { id: 'zhipu', name: 'Zhipu AI', description: 'GLM 4.6, GLM 4.5', docsUrl: 'https://open.bigmodel.cn/' },
-  { id: 'meta', name: 'Meta (Llama)', description: 'Llama 4, Llama 3.3 70B', docsUrl: 'https://ai.meta.com/' },
-  { id: 'azure', name: 'Azure OpenAI', description: 'Azure-hosted OpenAI', docsUrl: 'https://portal.azure.com/' },
-  { id: 'ollama', name: 'Ollama', description: 'Local models', docsUrl: 'https://ollama.com/' },
-]
+type CatalogModel = { id: string; name: string; supported?: boolean }
+
+const supportedModelsRaw = supportedModelsCatalog as Record<string, CatalogModel[]>
+
+/** Catalog order lists newest first — same source as Models page (`@cli-supported-models`). */
+function latestModelNamesSummary(providerId: string, maxNames = 4): string {
+  const models = supportedModelsRaw[providerId]?.filter((m) => m.supported !== false) ?? []
+  return models
+    .slice(0, maxNames)
+    .map((m) => m.name)
+    .join(', ')
+}
+
+const providerDefs = [
+  { id: 'anthropic', name: 'Anthropic (Claude)', docsUrl: 'https://console.anthropic.com/' },
+  { id: 'openai', name: 'OpenAI (GPT)', docsUrl: 'https://platform.openai.com/api-keys' },
+  { id: 'google', name: 'Google (Gemini)', docsUrl: 'https://aistudio.google.com/app/apikey' },
+  { id: 'perplexity', name: 'Perplexity', docsUrl: 'https://www.perplexity.ai/settings/api' },
+  { id: 'deepseek', name: 'DeepSeek', docsUrl: 'https://platform.deepseek.com/' },
+  { id: 'xai', name: 'xAI (Grok)', docsUrl: 'https://console.x.ai/' },
+  { id: 'openrouter', name: 'OpenRouter', docsUrl: 'https://openrouter.ai/keys' },
+  { id: 'mistral', name: 'Mistral', docsUrl: 'https://console.mistral.ai/api-keys/' },
+  { id: 'moonshot', name: 'Moonshot', docsUrl: 'https://platform.moonshot.cn/' },
+  { id: 'zhipu', name: 'Zhipu AI', docsUrl: 'https://open.bigmodel.cn/' },
+  { id: 'meta', name: 'Meta (Llama)', docsUrl: 'https://ai.meta.com/' },
+  { id: 'azure', name: 'Azure OpenAI', docsUrl: 'https://portal.azure.com/' },
+  { id: 'ollama', name: 'Ollama', docsUrl: 'https://ollama.com/' },
+] as const
+
+const providers = providerDefs.map((p) => ({
+  ...p,
+  description:
+    latestModelNamesSummary(p.id) ||
+    'Use the Models page to pick from all supported IDs for this provider.',
+}))
 
 export default function ApiKeys() {
   const { user } = useAuth()
