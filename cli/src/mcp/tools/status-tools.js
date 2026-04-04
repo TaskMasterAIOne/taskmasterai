@@ -139,19 +139,20 @@ export function registerStatusTools(server, options = {}) {
     }),
   });
 
-  // update_subtask - Append notes to subtask
+  // update_subtask - Append notes to subtask (with optional metadata)
   server.addTool({
     name: 'update_subtask',
-    description: 'Append timestamped notes to a subtask',
+    description: 'Append timestamped notes to a subtask. Metadata updates require TASK_MASTER_ALLOW_METADATA_UPDATES=true.',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
       id: z.string().describe('Subtask ID (e.g., 1.2)'),
-      prompt: z.string().describe('Notes to append'),
+      prompt: z.string().optional().describe('Notes to append'),
+      metadata: z.string().optional().describe('JSON string of metadata (requires TASK_MASTER_ALLOW_METADATA_UPDATES=true)'),
     }),
     execute: withToolContext('update-subtask', async (args, context) => {
       const { findTaskById, getAllTasks, saveAllTasks, getCurrentTag } = await import('../../lib/tasks.js');
       const { projectRoot, log } = context;
-      const { id, prompt } = args;
+      const { id, prompt, metadata } = args;
       
       try {
         if (!id.includes('.')) {
@@ -173,9 +174,17 @@ export function registerStatusTools(server, options = {}) {
             projectRoot,
           });
         }
-        
-        const timestamp = new Date().toISOString();
-        const newNote = `\n\n--- Update [${timestamp}] ---\n${prompt}`;
+
+        if (metadata && process.env.TASK_MASTER_ALLOW_METADATA_UPDATES !== 'true') {
+          return handleApiResult({
+            result: {
+              success: false,
+              error: { message: 'Metadata updates require TASK_MASTER_ALLOW_METADATA_UPDATES=true in env.' },
+            },
+            log,
+            projectRoot,
+          });
+        }
         
         const [parentId, subtaskId] = id.split('.').map(Number);
         const tasks = getAllTasks(projectRoot);
@@ -184,17 +193,30 @@ export function registerStatusTools(server, options = {}) {
         if (parent && parent.subtasks) {
           const subtask = parent.subtasks.find(s => s.id === subtaskId);
           if (subtask) {
-            subtask.details = (subtask.details || '') + newNote;
+            if (prompt) {
+              const timestamp = new Date().toISOString();
+              subtask.details = (subtask.details || '') + `\n\n--- Update [${timestamp}] ---\n${prompt}`;
+            }
+            if (metadata) {
+              try { subtask.metadata = JSON.parse(metadata); }
+              catch (_) {
+                return handleApiResult({
+                  result: { success: false, error: { message: 'Invalid JSON in metadata parameter.' } },
+                  log,
+                  projectRoot,
+                });
+              }
+            }
             saveAllTasks(tasks, projectRoot);
           }
         }
         
-        log.info(`Appended note to subtask ${id}`);
+        log.info(`Updated subtask ${id}`);
         
         return handleApiResult({
           result: {
             success: true,
-            data: { id, timestamp, message: `Appended note to subtask ${id}` },
+            data: { id, metadataUpdated: !!metadata, message: `Updated subtask ${id}` },
           },
           log,
           projectRoot,

@@ -55,6 +55,13 @@ export default function Settings() {
 
   const paymentSuccess = searchParams.get('success') === 'true'
 
+  // Sync with Stripe-backed license API when opening Settings (e.g. after Customer Portal or client-side navigation)
+  useEffect(() => {
+    if (user?.uid) {
+      void refreshLicenseInfo()
+    }
+  }, [user?.uid, refreshLicenseInfo])
+
   // Refresh license info on mount and after successful payment
   useEffect(() => {
     if (paymentSuccess) {
@@ -156,13 +163,6 @@ export default function Settings() {
     <div className="mx-auto max-w-6xl overflow-x-hidden p-4 sm:p-5 lg:p-8">
       {/* Header */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, ease: 'easeOut' }} className="mb-6 sm:mb-8">
-        <div className="mb-3 flex items-center gap-3">
-          <div className="h-px w-8 bg-gradient-to-r from-transparent to-indigo-400/50" />
-          <span className="bg-gradient-to-r from-indigo-500 to-violet-400 bg-clip-text text-sm font-medium text-transparent">
-            Account
-          </span>
-          <div className="h-px w-8 bg-gradient-to-l from-transparent to-indigo-400/50" />
-        </div>
         <h1 className="marketing-gradient-text font-display mb-1 text-xl font-semibold tracking-tight sm:text-2xl md:text-3xl">Settings</h1>
         <p className="text-open-sm text-marketing-muted">Manage your account and preferences</p>
       </motion.div>
@@ -308,9 +308,9 @@ export default function Settings() {
               >
                 <FontAwesomeIcon 
                   icon={option.icon} 
-                  className={`h-4 w-4 sm:h-5 sm:w-5 ${mode === option.id ? 'text-indigo-600 dark:text-indigo-400' : 'text-marketing-muted'}`} 
+                  className={`h-4 w-4 sm:h-5 sm:w-5 ${mode === option.id ? 'text-accent-primary' : 'text-marketing-muted'}`} 
                 />
-                <span className={`text-xs font-medium sm:text-sm ${mode === option.id ? 'text-indigo-600 dark:text-indigo-400' : 'text-marketing-muted'}`}>
+                <span className={`text-xs font-medium sm:text-sm ${mode === option.id ? 'text-accent-primary' : 'text-marketing-muted'}`}>
                   {option.label}
                 </span>
               </button>
@@ -327,13 +327,13 @@ export default function Settings() {
         {hasLicense && licenseInfo?.licenseKey && (
           <div className="card-marketing p-4 sm:p-5 mb-4">
             <div className="flex items-center gap-2 mb-4">
-              <FontAwesomeIcon icon={faKey} className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+              <FontAwesomeIcon icon={faKey} className="h-4 w-4 text-accent-primary" />
               <span className="text-sm font-medium">Your License Key</span>
             </div>
             
             {/* License key display */}
             <div className="flex items-center gap-2 sm:gap-3 mb-4">
-              <code className="min-w-0 flex-1 overflow-x-auto rounded-lg border border-marketing-border bg-marketing-bg px-3 py-2.5 font-mono text-xs text-indigo-600 dark:text-indigo-400 sm:px-4 sm:py-3 sm:text-sm">
+              <code className="min-w-0 flex-1 overflow-x-auto rounded-lg border border-marketing-border bg-marketing-bg px-3 py-2.5 font-mono text-xs text-accent-primary sm:px-4 sm:py-3 sm:text-sm">
                 {licenseInfo.licenseKey}
               </code>
               <button
@@ -360,7 +360,7 @@ export default function Settings() {
                 {licenseInfo.status === 'active' ? 'Active' : 
                  licenseInfo.status === 'grace_period' ? 'Grace Period' : 'Expired'}
               </span>
-              <span className="rounded-full border border-indigo-500/40 bg-indigo-500/10 px-2.5 py-1 text-xs font-medium text-indigo-600 dark:text-indigo-400">
+              <span className="rounded-full border border-indigo-500/40 bg-indigo-500/10 px-2.5 py-1 text-xs font-medium text-accent-primary">
                 {licenseInfo.planName} Plan
               </span>
               {licenseInfo.tasksPerMonth && (
@@ -457,7 +457,7 @@ export default function Settings() {
                 <div>
                   <p className="text-base font-medium text-marketing-muted">No active plan</p>
                   <p className="text-sm text-marketing-muted">
-                    <Link to="/pricing" className="text-indigo-600 hover:underline dark:text-indigo-400">Visit the Pricing page</Link> to choose a plan.
+                    <Link to="/pricing" className="text-indigo-600 hover:underline dark:text-accent-primary">Visit the Pricing page</Link> to choose a plan.
                   </p>
                 </div>
               )}

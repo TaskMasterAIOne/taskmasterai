@@ -179,7 +179,7 @@ export default function TermsAcceptance() {
 
               {!hasScrolledToBottom ? (
                 <div className="mt-3 rounded-lg border border-indigo-500/30 bg-indigo-500/10 p-2">
-                  <p className="text-center text-xs font-medium text-indigo-700 dark:text-indigo-300 sm:text-sm">
+                  <p className="text-center text-xs font-medium text-indigo-700 dark:text-accent-primary sm:text-sm">
                     Please scroll to the bottom to continue
                   </p>
                 </div>

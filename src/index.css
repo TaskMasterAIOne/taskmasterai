@@ -162,6 +162,20 @@
   /* Link Colors */
   --link-primary: #4f46e5;
   --link-primary-dark: #818cf8;
+
+  /* Material-style emphasis + accent (light: dark ink on light surfaces) */
+  --text-on-surface-high: rgba(0, 0, 0, 0.87);
+  --text-on-surface-medium: rgba(0, 0, 0, 0.6);
+  --text-on-surface-disabled: rgba(0, 0, 0, 0.38);
+  --accent-primary: #4f46e5;
+  --accent-primary-hover: #4338ca;
+
+  /* Light elevation aliases (optional utilities; main app uses --bg-*) */
+  --surface-base: #ffffff;
+  --surface-1: #fafafa;
+  --surface-2: #f4f4f5;
+  --surface-4: #f3f3f3;
+  --surface-8: #e8e8e8;
   
   /* Scrollbar Colors */
   --scrollbar-thumb: #d1d5db;
@@ -193,11 +207,25 @@
   --marketing-panel-edge: var(--marketing-border);
 }
 
-/* Dark Mode — aligned with Landing `.open-sample` (gray-950 page → gray-900 rail; cards match pill nav) */
+/* Dark Mode — Material baseline #121212 + elevation overlays; marketing tokens derive from same scale */
 .dark {
-  --bg-primary: #030712;
-  --bg-sidebar: #111827;
-  --bg-highlight: #374151;
+  /* 0dp canvas — dark grey, not pure black (Material) */
+  --surface-base: #121212;
+  /* Elevation = semi-transparent white on base (Material dp → overlay %) */
+  --surface-1: color-mix(in srgb, white 5%, var(--surface-base));
+  --surface-2: color-mix(in srgb, white 7%, var(--surface-base));
+  --surface-3: color-mix(in srgb, white 8%, var(--surface-base));
+  --surface-4: color-mix(in srgb, white 9%, var(--surface-base));
+  --surface-6: color-mix(in srgb, white 11%, var(--surface-base));
+  --surface-8: color-mix(in srgb, white 12%, var(--surface-base));
+  --surface-12: color-mix(in srgb, white 14%, var(--surface-base));
+  --surface-16: color-mix(in srgb, white 15%, var(--surface-base));
+  --surface-24: color-mix(in srgb, white 16%, var(--surface-base));
+
+  --bg-primary: var(--surface-base);
+  --bg-sidebar: var(--surface-1);
+  --bg-card: var(--surface-4);
+  --bg-highlight: var(--surface-8);
   --bg-solid-button: #635BFF;
   --bg-border-radius: #1f2937;
   --bg-header: #5249d9;
@@ -209,25 +237,36 @@
   --bg-gradient-start-dark: #4E46DC;
   --bg-gradient-end-dark: #8A85FF;
 
-  --text-primary: #e5e7eb;
-  --text-secondary: #d1d5db;
-  --text-muted: #9ca3af;
-  --text-placeholder: #afafaf;
-  --text-white: #FFFFFF;
+  /* Material on-surface emphasis (white @ 87% / 60% / 38%) */
+  --text-on-surface-high: rgba(255, 255, 255, 0.87);
+  --text-on-surface-medium: rgba(255, 255, 255, 0.6);
+  --text-on-surface-disabled: rgba(255, 255, 255, 0.38);
+  /* Lighter indigo tones on dark (Material “200” family) — links, icons, small accents */
+  --accent-primary: #a5b4fc;
+  --accent-primary-hover: #c7d2fe;
+
+  --text-primary: var(--text-on-surface-high);
+  --text-secondary: rgba(255, 255, 255, 0.74);
+  --text-muted: var(--text-on-surface-medium);
+  --text-placeholder: var(--text-on-surface-disabled);
+  --text-white: #ffffff;
   --text-white-muted: rgba(255, 255, 255, 0.8);
 
   /* Solid Button Text Color */
-  --text-solid-button: #8A85FF;
+  --text-solid-button: #8a85ff;
 
-  /* Hairlines: 800 on 950/900 canvas; 700 on gray-800 surfaces (Landing card edges) */
-  --border-primary: #1f2937;
-  --border-secondary: #374151;
+  /* Hairlines on dark surfaces */
+  --border-primary: rgba(255, 255, 255, 0.12);
+  --border-secondary: rgba(255, 255, 255, 0.24);
+
+  --bg-border-radius: var(--surface-4);
   
   /* Status Colors - Dark Mode */
-  --status-success: #16A34A;
+  --status-success: #16a34a;
   --status-warning: #d2a124;
-  --status-error: #EF5050;
-  --status-info: #60A5FA;
+  /* Material baseline dark error — AA on elevated surfaces */
+  --status-error: #cf6679;
+  --status-info: #60a5fa;
   
   /* Chat Style Colors - Dark Mode */
   --chat-style-rose: #FB7185;
@@ -314,25 +353,23 @@
   --scrollbar-thumb-hover: #6b7280;
   --scrollbar-thumb-hover-dark: #6b7280;
 
-  /* Marketing shell — same stack as Landing / PublicLayout (gray-950 / 900 / 800) */
-  --marketing-bg: #030712;
-  --marketing-surface: #111827;
-  --marketing-elevated: #1f2937;
-  --marketing-text: #e5e7eb;
-  --marketing-text-muted: #9ca3af;
-  --marketing-link: #a5b4fc;
-  --marketing-link-hover: #c7d2fe;
-  --marketing-border: #1f2937;
-  --marketing-pill-bg: rgba(17, 24, 39, 0.92);
-  /* Same as pill nav — `.card`, btn-secondary, bg-theme-card */
-  --bg-card: var(--marketing-pill-bg);
-  --marketing-headline-a: #e5e7eb;
-  --marketing-headline-b: #c7d2fe;
-  --marketing-headline-c: #f9fafb;
-  --marketing-eyebrow: #a5b4fc;
-  /* Panels: same fill as pill nav (`--marketing-pill-bg`); gray-700 edge */
-  --marketing-panel-bg: var(--marketing-pill-bg);
-  --marketing-panel-edge: #374151;
+  /* Marketing / app shell — tied to elevation scale */
+  --marketing-bg: var(--surface-base);
+  --marketing-surface: var(--surface-1);
+  --marketing-elevated: var(--surface-4);
+  --marketing-text: var(--text-on-surface-high);
+  --marketing-text-muted: var(--text-on-surface-medium);
+  --marketing-link: var(--accent-primary);
+  --marketing-link-hover: var(--accent-primary-hover);
+  --marketing-border: rgba(255, 255, 255, 0.12);
+  --marketing-pill-bg: color-mix(in srgb, var(--surface-2) 92%, transparent);
+  --marketing-headline-a: var(--text-on-surface-high);
+  --marketing-headline-b: var(--accent-primary-hover);
+  --marketing-headline-c: #fafafa;
+  --marketing-eyebrow: var(--accent-primary);
+  /* Panels: elevated surface; subtle edge */
+  --marketing-panel-bg: var(--surface-4);
+  --marketing-panel-edge: rgba(255, 255, 255, 0.14);
 }
 
 @layer base {
@@ -379,10 +416,6 @@
     width: max-content;
   }
   
-  .infinite-carousel:hover {
-    animation-play-state: paused;
-  }
-  
   .carousel-set {
     display: flex;
     align-items: center;
@@ -391,19 +424,13 @@
     flex-shrink: 0;
   }
   
-  /* Provider logo styling - uniform color with hover effect */
+  /* Provider logo styling — static ink (former hover emphasis) */
   .provider-logo {
-    color: var(--text-muted);
-    opacity: 0.8;
-    transition: opacity 0.2s ease, color 0.2s ease;
+    color: var(--text-secondary);
+    opacity: 1;
     height: 32px;
     display: flex;
     align-items: center;
-  }
-  
-  .provider-logo:hover {
-    opacity: 1;
-    color: var(--text-secondary);
   }
   
   /* Ensure all SVGs within provider-logo have consistent height and color */
@@ -412,47 +439,23 @@
     height: 32px;
     width: auto;
     flex-shrink: 0;
-    color: #333333;
-  }
-
-  .provider-logo:hover svg,
-  svg.provider-logo:hover {
     color: #1a1a1a;
   }
 
   /* Dark mode - lighten SVG logos */
   .dark .provider-logo svg,
   .dark svg.provider-logo {
-    color: var(--text-muted);
-  }
-
-  .dark .provider-logo:hover svg,
-  .dark svg.provider-logo:hover {
     color: var(--text-secondary);
   }
   
-  /* For image-based provider logos */
+  /* Image-based provider logos */
   .provider-logo img {
     height: 32px;
     width: auto;
-    transition: filter 0.2s ease;
-  }
-
-  /* Light mode - darken logos */
-  .provider-logo img {
-    filter: grayscale(100%) brightness(0.5);
-  }
-  
-  .provider-logo:hover img {
     filter: grayscale(100%) brightness(0.3);
   }
-  
-  /* Dark mode - lighten logos */
+
   .dark .provider-logo img {
-    filter: invert(1) grayscale(100%) brightness(0.85);
-  }
-  
-  .dark .provider-logo:hover img {
     filter: invert(1) grayscale(100%) brightness(1);
   }
   
@@ -482,19 +485,11 @@
 
   /* Light mode text color for OpenRouter span */
   .provider-logo-xl span {
-    color: #333333;
-  }
-
-  .provider-logo-xl:hover span {
     color: #1a1a1a;
   }
 
   /* Dark mode text color for OpenRouter span */
   .dark .provider-logo-xl span {
-    color: var(--text-muted);
-  }
-
-  .dark .provider-logo-xl:hover span {
     color: var(--text-secondary);
   }
   
@@ -683,7 +678,7 @@
     border-color: var(--marketing-link);
   }
 
-  /* Dark: Open template — indigo primary, gray-800 secondary + visible borders */
+  /* Dark: indigo primary; secondary uses elevation surfaces + accent border on hover */
   .dark .btn-marketing-primary {
     background: linear-gradient(to top, #4f46e5 0%, #6366f1 100%);
     box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.14);
@@ -697,14 +692,14 @@
   }
 
   .dark .btn-marketing-secondary {
-    color: #d1d5db;
-    background: linear-gradient(to bottom, #1f2937, rgba(31, 41, 55, 0.58));
-    border: 1px solid rgba(55, 65, 81, 0.95);
+    color: var(--text-on-surface-high);
+    background: linear-gradient(to bottom, var(--surface-4), color-mix(in srgb, var(--surface-4) 65%, var(--surface-base)));
+    border: 1px solid var(--border-secondary);
   }
 
   .dark .btn-marketing-secondary:hover {
-    color: #f3f4f6;
-    border-color: #818cf8;
+    color: var(--text-on-surface-high);
+    border-color: var(--accent-primary);
   }
 }
 
@@ -856,6 +851,12 @@ html.theme-ready * {
   transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  html.theme-ready * {
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* Placeholder Text Styling */
 ::placeholder {
   color: var(--text-placeholder);
@@ -930,6 +931,123 @@ html.theme-ready * {
   --color-indigo-600: #4f46e5;
   --color-slate-400: #94a3b8;
   --color-white: #ffffff;
+}
+
+/* Dark: Cruip `--color-gray-*` + Landing canvas (beats stray light bg-slate-50 on `.open-sample`) */
+.dark .open-sample,
+.dark .app-cruip {
+  --color-gray-950: var(--surface-base);
+  --color-gray-900: var(--surface-1);
+  --color-gray-800: var(--surface-4);
+  --color-gray-700: color-mix(in srgb, white 14%, var(--surface-base));
+  --color-gray-600: color-mix(in srgb, white 22%, var(--surface-base));
+}
+
+.dark .open-sample {
+  background-color: var(--marketing-bg);
+  color: var(--marketing-text);
+  /* Template still references slate/indigo stops — keep them on-canvas in dark */
+  --color-slate-400: color-mix(in srgb, white 24%, var(--surface-base));
+  --color-indigo-200: #a5b4fc;
+}
+
+/* Softer horizontal rules than light-mode slate-400 hairlines */
+.dark .open-sample .open-sample-section-divider {
+  border-image: linear-gradient(
+      to right,
+      transparent,
+      color-mix(in srgb, white 14%, transparent),
+      transparent
+    )
+    1;
+}
+
+/* Headings inherit UA styles; ensure Cruip titles use theme ink in dark mode */
+.dark .open-sample h1,
+.dark .open-sample h2,
+.dark .open-sample h3 {
+  color: var(--marketing-text);
+}
+
+/**
+ * Landing — Cruip template uses light gradients (`from-white`, `via-white`) that can win over `dark:` utilities.
+ * These rules force correct dark surfaces/ink for buttons, tabs, and CTA band.
+ */
+.dark .open-sample .landing-primary-cta {
+  background-image: linear-gradient(to top, #4338ca, #6366f1) !important;
+  color: #fff !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.14) !important;
+}
+
+.dark .open-sample .landing-secondary-cta {
+  background-image: none !important;
+  background-color: var(--surface-4) !important;
+  color: var(--marketing-text) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  box-shadow: none !important;
+}
+
+.dark .open-sample .testimonial-tabs-track {
+  background: color-mix(in srgb, var(--surface-4) 72%, transparent) !important;
+}
+
+.dark .open-sample .testimonial-tab--active {
+  background-image: none !important;
+  background: linear-gradient(to bottom, var(--surface-6), var(--surface-3)) !important;
+  color: var(--marketing-text) !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.1), 0 1px 2px rgba(0, 0, 0, 0.35) !important;
+  opacity: 1 !important;
+}
+
+.dark .open-sample .testimonial-tab--active::before {
+  display: none !important;
+}
+
+.dark .open-sample .testimonial-tab--inactive {
+  color: var(--marketing-text-muted) !important;
+  opacity: 1 !important;
+}
+
+.dark .open-sample .testimonial-tab--inactive:hover {
+  opacity: 0.95 !important;
+  color: var(--marketing-text) !important;
+}
+
+.dark .open-sample .testimonial-tab--active svg {
+  color: #a5b4fc !important;
+}
+
+.dark .open-sample .testimonial-tab--inactive svg {
+  color: rgba(255, 255, 255, 0.42) !important;
+}
+
+.dark .open-sample .landing-cta-band {
+  background-image: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in srgb, var(--surface-4) 55%, transparent),
+    transparent
+  ) !important;
+}
+
+/* Decorative mesh / blur assets — slightly dimmer on dark canvas */
+.dark .open-sample .landing-deco-img {
+  filter: saturate(0.95) opacity(0.92);
+}
+
+/* Testimonial cards — solid elevated surface (template gradient read as light smear in dark) */
+.dark .open-sample .landing-testimonial-card {
+  background-color: var(--surface-3) !important;
+  background-image: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.35) !important;
+  backdrop-filter: none !important;
+}
+
+.dark .open-sample .landing-testimonial-card::before {
+  display: none !important;
 }
 
 /* `border-image: linear-gradient(..., --theme(--color-slate-400/.25), ...)` from Open Features / Testimonials */
@@ -1008,32 +1126,23 @@ html.theme-ready * {
   backdrop-filter: blur(8px);
 }
 
-/* Provider logos on marketing pages — use marketing muted ink */
+/* Provider logos on marketing pages — full emphasis (former hover), no hover shift */
 .marketing-page .provider-logo svg,
 .marketing-page svg.provider-logo {
-  color: var(--marketing-text-muted) !important;
+  color: var(--marketing-text) !important;
 }
 
-.marketing-page .provider-logo:hover svg,
-.marketing-page .provider-logo:hover {
+.marketing-page .provider-logo {
   color: var(--marketing-text) !important;
 }
 
 .marketing-page .provider-logo img {
   filter: none !important;
-  opacity: 0.75;
-}
-
-.marketing-page .provider-logo:hover img {
   opacity: 1;
 }
 
 .dark .marketing-page .provider-logo img {
   filter: brightness(0) invert(1) !important;
-  opacity: 0.65;
-}
-
-.dark .marketing-page .provider-logo:hover img {
   opacity: 0.9;
 }
 
@@ -1060,9 +1169,9 @@ html.theme-ready * {
   pointer-events: none;
 }
 
-/* Open header: linear-gradient(to_right, gray-800, gray-700, gray-800) */
+/* Open header — elevation-tinted greys (no saturated large surfaces) */
 .dark .marketing-pill-border::before {
-  background: linear-gradient(135deg, #1f2937, #374151, #1f2937);
+  background: linear-gradient(135deg, var(--surface-4), var(--surface-6), var(--surface-4));
 }
 
 /* Nacelle — bundled with Cruip open-react-template (same files as upstream public/fonts) */

@@ -21,7 +21,10 @@ const LICENSE_EXEMPT_COMMANDS = [
   'init',
   'login',
   'logout',
-  'whoami'
+  'whoami',
+  'lang',
+  'rules',
+  'migrate',
 ];
 
 export async function displayBanner(options = {}) {
@@ -226,10 +229,16 @@ function createProgram() {
 }
 
 export async function runCLI() {
+  // Strip --no-banner before Commander sees it
+  const noBanner = process.argv.includes('--no-banner');
+  if (noBanner) {
+    process.argv = process.argv.filter(a => a !== '--no-banner');
+  }
+
   const program = createProgram();
 
   const args = process.argv.slice(2);
-  if (args.length === 0 || args[0] === 'help' || args[0] === '--help' || args[0] === '-h') {
+  if (!noBanner && (args.length === 0 || args[0] === 'help' || args[0] === '--help' || args[0] === '-h')) {
     await displayBanner();
   }
 

@@ -79,7 +79,7 @@ interface TagData {
 
 const statusConfig: { [key: string]: { icon: typeof faClock; color: string; bg: string; label: string } } = {
   'pending': { icon: faClock, color: 'text-marketing-muted', bg: 'bg-marketing-elevated', label: 'Pending' },
-  'in-progress': { icon: faSpinner, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-500/10', label: 'In Progress' },
+  'in-progress': { icon: faSpinner, color: 'text-accent-primary', bg: 'bg-indigo-500/10', label: 'In Progress' },
   'done': { icon: faCheckCircle, color: 'text-status-success', bg: 'bg-status-success/10', label: 'Done' },
   'blocked': { icon: faExclamationTriangle, color: 'text-status-error', bg: 'bg-status-error/10', label: 'Blocked' },
   'cancelled': { icon: faBan, color: 'text-marketing-muted', bg: 'bg-marketing-elevated', label: 'Cancelled' },
@@ -136,7 +136,7 @@ function TaskRow({ task, allTasks, expanded, onToggle, hideTitle = false }: { ta
               {status.label}
             </span>
             {isReady && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-medium">
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-indigo-500/20 text-accent-primary font-medium">
                 Ready
               </span>
             )}
@@ -188,7 +188,7 @@ function TaskRow({ task, allTasks, expanded, onToggle, hideTitle = false }: { ta
             {status.label}
           </span>
           {isReady && (
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-medium">
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-indigo-500/20 text-accent-primary font-medium">
               Ready
             </span>
           )}
@@ -390,7 +390,7 @@ export default function Tasks() {
     return (
       <div className="mx-auto max-w-6xl p-5 lg:p-8">
         <div className="flex h-64 items-center justify-center">
-          <FontAwesomeIcon icon={faSpinner} className="h-5 w-5 animate-spin text-indigo-600 dark:text-indigo-400" />
+          <FontAwesomeIcon icon={faSpinner} className="h-5 w-5 animate-spin text-accent-primary" />
           <span className="ml-3 text-marketing-muted">Loading tasks...</span>
         </div>
       </div>
@@ -406,19 +406,13 @@ export default function Tasks() {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.4, ease: 'easeOut' }}
         >
-          <div className="mb-3 flex items-center gap-3">
-            <div className="h-px w-8 bg-gradient-to-r from-transparent to-indigo-400/50" />
-            <span className="bg-gradient-to-r from-indigo-500 to-violet-400 bg-clip-text text-sm font-medium text-transparent">
-              Live
-            </span>
-            <div className="h-px w-8 bg-gradient-to-l from-transparent to-indigo-400/50" />
-          </div>
+
           <h1 className="marketing-gradient-text font-display mb-1 text-2xl font-semibold tracking-tight md:text-3xl">Tasks</h1>
           <p className="mb-8 text-open-sm text-marketing-muted">Real-time view of your CLI tasks</p>
 
           <div className="card-marketing p-8 text-center">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-indigo-500/10">
-              <FontAwesomeIcon icon={faTerminal} className="h-8 w-8 text-indigo-600 dark:text-indigo-400" />
+              <FontAwesomeIcon icon={faTerminal} className="h-8 w-8 text-accent-primary" />
             </div>
             <h2 className="font-display mb-2 text-xl font-semibold">Get Started with TaskMaster CLI</h2>
             <p className="mx-auto mb-6 max-w-md text-marketing-muted">
@@ -458,7 +452,7 @@ export default function Tasks() {
 
             <p className="text-xs text-marketing-muted/80 mt-6">
               Your license key can be found in your{' '}
-              <a href="/app/settings" className="text-indigo-600 hover:underline dark:text-indigo-400">Settings</a> page
+              <a href="/app/settings" className="text-indigo-600 hover:underline dark:text-accent-primary">Settings</a> page
             </p>
           </div>
         </motion.div>
@@ -477,13 +471,6 @@ export default function Tasks() {
       >
         <div className="flex items-start justify-between">
           <div>
-            <div className="mb-3 flex items-center gap-3">
-              <div className="h-px w-8 bg-gradient-to-r from-transparent to-indigo-400/50" />
-              <span className="bg-gradient-to-r from-indigo-500 to-violet-400 bg-clip-text text-sm font-medium text-transparent">
-                Live
-              </span>
-              <div className="h-px w-8 bg-gradient-to-l from-transparent to-indigo-400/50" />
-            </div>
             <h1 className="marketing-gradient-text font-display mb-1 text-2xl font-semibold tracking-tight md:text-3xl">Tasks</h1>
             <p className="text-open-sm text-marketing-muted">
               Real-time view of your CLI tasks
@@ -567,7 +554,7 @@ export default function Tasks() {
                   <p className="text-xs text-marketing-muted">Ready</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-lg font-semibold text-indigo-600 dark:text-indigo-400">{stats.inProgress}</p>
+                  <p className="text-lg font-semibold text-accent-primary">{stats.inProgress}</p>
                   <p className="text-xs text-marketing-muted">Active</p>
                 </div>
                 <div className="text-center">
@@ -601,7 +588,7 @@ export default function Tasks() {
         transition={{ delay: 0.2, duration: 0.4, ease: 'easeOut' }}
       >
         <h2 className="text-base font-semibold mb-4 flex items-center gap-2">
-          <FontAwesomeIcon icon={faListCheck} className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+          <FontAwesomeIcon icon={faListCheck} className="h-4 w-4 text-accent-primary" />
           Task List
         </h2>
 

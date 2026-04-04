@@ -5,6 +5,7 @@
  */
 import { Link } from 'react-router-dom'
 import { HeroProviderCarousel } from '../components/ProviderLogosCarousel'
+import WorkflowCards from '../components/WorkflowCards'
 import { 
   useCallback,
   useEffect,
@@ -20,30 +21,18 @@ const OPEN_SAMPLE_PUBLIC = 'https://raw.githubusercontent.com/cruip/open-react-t
 
 const img = (name: string) => `${OPEN_SAMPLE_PUBLIC}/images/${name}`
 
-/** CLI & MCP workflow card — light mode only (dark keeps template asset) */
-const IDE_CLI_CARD_IMAGE_LIGHT =
-  'https://firebasestorage.googleapis.com/v0/b/taskmaster-ai-e2302.firebasestorage.app/o/ide.avif?alt=media&token=fd707188-15d0-4648-87b3-d77b5c58647b'
+const landingTitleClass = 'font-nacelle font-semibold text-slate-900 dark:text-marketing-text'
 
-/** Plan & parse workflow card — light mode only */
-const PLAN_PARSE_CARD_IMAGE_LIGHT =
-  'https://firebasestorage.googleapis.com/v0/b/taskmaster-ai-e2302.firebasestorage.app/o/connect.avif?alt=media&token=3e200725-83bf-426a-ad4f-b9d0abde203a'
-
-/** Dashboard sync workflow card — light mode only */
-const DASHBOARD_SYNC_CARD_IMAGE_LIGHT =
-  'https://firebasestorage.googleapis.com/v0/b/taskmaster-ai-e2302.firebasestorage.app/o/link.avif?alt=media&token=a879bfa0-63bc-44d7-9e9f-ed3512fbd8f8'
-
-const landingTitleClass = 'font-nacelle font-semibold text-slate-900 dark:text-gray-100'
-
-/** Secondary outline CTA — light: slate surface; dark: Cruip gray gradient border (unchanged). */
+/** Secondary outline CTA — dark styles: `.dark .open-sample .landing-secondary-cta` in index.css */
 const secondaryCtaClass =
-  'btn relative w-full bg-gradient-to-b from-white to-slate-100 bg-[length:100%_100%] bg-bottom text-slate-800 shadow-sm border border-slate-300/70 hover:bg-[length:100%_150%] sm:ml-4 sm:w-auto dark:border-transparent dark:shadow-none dark:from-gray-800 dark:to-gray-800/60 dark:text-gray-300 dark:before:pointer-events-none dark:before:absolute dark:before:inset-0 dark:before:rounded-[inherit] dark:before:border dark:before:border-transparent dark:before:[background:linear-gradient(to_right,var(--color-gray-800),var(--color-gray-700),var(--color-gray-800))_border-box] dark:before:[mask-composite:exclude_!important] dark:before:[mask:linear-gradient(white_0_0)_padding-box,_linear-gradient(white_0_0)]'
+  'landing-secondary-cta btn relative w-full bg-gradient-to-b from-white to-slate-100 bg-[length:100%_100%] bg-bottom text-slate-800 shadow-sm border border-slate-300/70 hover:bg-[length:100%_150%] sm:ml-4 sm:w-auto'
 
 function PageIllustration({ multiple = false }: { multiple?: boolean }) {
   return (
     <>
       <div className="pointer-events-none absolute left-1/2 top-0 -z-10 -translate-x-1/4 opacity-50 dark:opacity-100" aria-hidden>
         <img
-          className="max-w-none opacity-90 saturate-[0.95] dark:opacity-100 dark:saturate-100"
+          className="landing-deco-img max-w-none opacity-90 saturate-[0.95] dark:opacity-100 dark:saturate-100"
           src={img('page-illustration.svg')}
           width={846}
           height={594}
@@ -57,7 +46,7 @@ function PageIllustration({ multiple = false }: { multiple?: boolean }) {
             aria-hidden
           >
             <img
-              className="max-w-none opacity-90 dark:opacity-100"
+              className="landing-deco-img max-w-none opacity-90 dark:opacity-100"
               src={img('blurred-shape-gray.svg')}
               width={760}
               height={668}
@@ -66,7 +55,7 @@ function PageIllustration({ multiple = false }: { multiple?: boolean }) {
           </div>
           <div className="pointer-events-none absolute left-1/2 top-[440px] -z-10 -translate-x-1/3 opacity-40 dark:opacity-100" aria-hidden>
             <img
-              className="max-w-none opacity-90 dark:opacity-100"
+              className="landing-deco-img max-w-none opacity-90 dark:opacity-100"
               src={img('blurred-shape.svg')}
               width={760}
               height={668}
@@ -76,68 +65,6 @@ function PageIllustration({ multiple = false }: { multiple?: boolean }) {
         </>
       )}
     </>
-  )
-}
-
-function useMousePosition() {
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
-  useEffect(() => {
-    const handleMouseMove = (event: MouseEvent) => {
-      setMousePosition({ x: event.clientX, y: event.clientY })
-    }
-    window.addEventListener('mousemove', handleMouseMove)
-    return () => window.removeEventListener('mousemove', handleMouseMove)
-  }, [])
-  return mousePosition
-}
-
-function Spotlight({ children, className = '' }: { children: ReactNode; className?: string }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const mousePosition = useMousePosition()
-  const mouse = useRef({ x: 0, y: 0 })
-  const containerSize = useRef({ w: 0, h: 0 })
-  const [boxes, setBoxes] = useState<HTMLElement[]>([])
-
-  useEffect(() => {
-    if (containerRef.current) {
-      setBoxes(Array.from(containerRef.current.children) as HTMLElement[])
-    }
-  }, [])
-
-  useEffect(() => {
-    const initContainer = () => {
-      if (containerRef.current) {
-        containerSize.current.w = containerRef.current.offsetWidth
-        containerSize.current.h = containerRef.current.offsetHeight
-      }
-    }
-    initContainer()
-    window.addEventListener('resize', initContainer)
-    return () => window.removeEventListener('resize', initContainer)
-  }, [boxes])
-
-  useEffect(() => {
-    if (!containerRef.current) return
-    const rect = containerRef.current.getBoundingClientRect()
-    const { w, h } = containerSize.current
-    const x = mousePosition.x - rect.left
-    const y = mousePosition.y - rect.top
-    const inside = x < w && x > 0 && y < h && y > 0
-    if (inside) {
-      mouse.current = { x, y }
-      boxes.forEach((box) => {
-        const boxX = -(box.getBoundingClientRect().left - rect.left) + mouse.current.x
-        const boxY = -(box.getBoundingClientRect().top - rect.top) + mouse.current.y
-        box.style.setProperty('--mouse-x', `${boxX}px`)
-        box.style.setProperty('--mouse-y', `${boxY}px`)
-      })
-    }
-  }, [mousePosition, boxes])
-
-  return (
-    <div className={className} ref={containerRef}>
-      {children}
-    </div>
   )
 }
 
@@ -151,14 +78,14 @@ function HeroHome() {
               The PM for your AI coding agents
             </h1>
             <div className="mx-auto max-w-3xl">
-              <p className="mb-8 text-open-xl text-slate-600 dark:text-indigo-200/65">
+              <p className="mb-8 text-open-xl text-slate-600 dark:text-marketing-muted">
                 TaskMaster AI turns PRDs into structured, dependency-aware tasks—so your CLI, MCP, and dashboard stay in
                 sync from plan to merge. Built for Cursor, Windsurf, VS Code, and every workflow that ships with AI.
               </p>
               <div className="mx-auto max-w-xs sm:flex sm:max-w-none sm:justify-center">
                 <div>
                   <Link
-                    className="btn group mb-4 w-full bg-gradient-to-t from-indigo-600 to-indigo-500 bg-[length:100%_100%] bg-bottom text-white shadow-[inset_0px_1px_0px_0px_color-mix(in_srgb,var(--color-white)_16%,transparent)] hover:bg-[length:100%_150%] sm:mb-0 sm:w-auto"
+                    className="landing-primary-cta btn group mb-4 w-full bg-gradient-to-t from-indigo-600 to-indigo-500 bg-[length:100%_100%] bg-bottom text-white shadow-[inset_0px_1px_0px_0px_color-mix(in_srgb,var(--color-white)_16%,transparent)] hover:bg-[length:100%_150%] sm:mb-0 sm:w-auto"
                     to="/signup?plan=pro"
                   >
                     <span className="relative inline-flex items-center">
@@ -195,180 +122,26 @@ function Workflows() {
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <div className="pb-12 md:pb-20">
           <div className="mx-auto max-w-3xl pb-12 text-center md:pb-20">
-            <div className="inline-flex items-center gap-3 pb-3 before:h-px before:w-8 before:bg-gradient-to-r before:from-transparent before:to-indigo-200/50 after:h-px after:w-8 after:bg-gradient-to-l after:from-transparent after:to-indigo-200/50">
-              <span className="inline-flex bg-gradient-to-r from-indigo-500 to-indigo-200 bg-clip-text text-transparent">
+            <div className="inline-flex items-center gap-3 pb-3 before:h-px before:w-8 before:bg-gradient-to-r before:from-transparent before:to-indigo-200/50 after:h-px after:w-8 after:bg-gradient-to-l after:from-transparent after:to-indigo-200/50 dark:before:to-indigo-400/35 dark:after:to-indigo-400/35">
+              <span className="inline-flex bg-gradient-to-r from-indigo-500 to-indigo-200 bg-clip-text text-transparent dark:from-indigo-400 dark:to-indigo-200">
                 How it works
               </span>
             </div>
             <h2 className={`${landingTitleClass} pb-4 text-open-3xl md:text-open-4xl`}>From PRD to tasks your agents can run</h2>
-            <p className="text-open-lg text-slate-600 dark:text-indigo-200/65">
+            <p className="text-open-lg text-slate-600 dark:text-marketing-muted">
               Parse requirements, break work into steps, and track dependencies in one place—then drive it from the
               terminal, your editor, or the web app. No more lost context between your spec and your AI tools.
             </p>
           </div>
-          <Spotlight className="group mx-auto grid max-w-sm items-start gap-6 lg:max-w-none lg:grid-cols-3">
-            <a
-              className="group/card relative h-full overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-md dark:border-0 dark:bg-gray-800 dark:p-px dark:shadow-none before:pointer-events-none before:absolute before:-left-40 before:-top-40 before:z-10 before:h-80 before:w-80 before:translate-x-[var(--mouse-x)] before:translate-y-[var(--mouse-y)] before:rounded-full before:bg-indigo-500/80 before:opacity-0 before:blur-3xl before:transition-opacity before:duration-500 after:pointer-events-none after:absolute after:-left-48 after:-top-48 after:z-30 after:h-64 after:w-64 after:translate-x-[var(--mouse-x)] after:translate-y-[var(--mouse-y)] after:rounded-full after:bg-indigo-500 after:opacity-0 after:blur-3xl after:transition-opacity after:duration-500 hover:after:opacity-20 group-hover:before:opacity-100"
-              href="#0"
-            >
-              <div className="relative z-20 h-full overflow-hidden rounded-[inherit] bg-white after:pointer-events-none after:absolute after:inset-0 after:bg-gradient-to-br after:from-transparent after:via-transparent after:to-transparent after:opacity-0 dark:!bg-gray-950 dark:after:from-gray-900/50 dark:after:via-gray-800/25 dark:after:to-gray-900/50 dark:after:opacity-100">
-                <div
-                  className="absolute right-6 top-6 flex h-8 w-8 items-center justify-center rounded-full border border-slate-300/80 bg-white/95 text-slate-700 opacity-0 transition-opacity group-hover/card:opacity-100 dark:border-gray-700/50 dark:bg-gray-800/65 dark:text-gray-200"
-                  aria-hidden
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width={9}
-                    height={8}
-                    fill="none"
-                    className="text-slate-600 dark:text-zinc-100"
-                  >
-                    <path fill="currentColor" d="m4.92 8-.787-.763 2.733-2.68H0V3.443h6.866L4.133.767 4.92 0 9 4 4.92 8Z" />
-                  </svg>
-                </div>
-                <div className="overflow-hidden bg-slate-950 dark:bg-transparent">
-                  <img
-                    className="inline-flex w-full brightness-[1.02] contrast-[1.03] dark:hidden"
-                    src={PLAN_PARSE_CARD_IMAGE_LIGHT}
-                    width={350}
-                    height={288}
-                    alt="PRDs, task hierarchy, and team alignment"
-                    loading="lazy"
-                  />
-                  <img
-                    className="hidden w-full dark:inline-flex dark:brightness-100 dark:contrast-100"
-                    src={img('workflow-01.png')}
-                    width={350}
-                    height={288}
-                    alt="Plan and parse workflow"
-                    loading="lazy"
-                  />
-                </div>
-                <div className="p-6">
-                  <div className="mb-3">
-                    <span className="btn-sm relative rounded-full border border-slate-300/60 bg-slate-100/90 px-2.5 py-0.5 text-open-xs font-normal hover:bg-slate-100 dark:border-transparent dark:bg-gray-800/40 dark:before:pointer-events-none dark:before:absolute dark:before:inset-0 dark:before:rounded-[inherit] dark:before:border dark:before:border-transparent dark:before:[background:linear-gradient(to_bottom,color-mix(in_srgb,var(--color-gray-700)_15%,transparent),color-mix(in_srgb,var(--color-gray-700)_50%,transparent))_border-box] dark:before:[mask-composite:exclude_!important] dark:before:[mask:linear-gradient(white_0_0)_padding-box,_linear-gradient(white_0_0)] dark:hover:bg-gray-800/60">
-                      <span className="bg-gradient-to-r from-indigo-500 to-indigo-200 bg-clip-text text-transparent">
-                        Plan &amp; parse
-                      </span>
-                    </span>
-                  </div>
-                  <p className="text-slate-700 dark:text-indigo-200/65">
-                    Ingest PRDs and generate a clear task hierarchy with IDs, statuses, and dependencies your whole team
-                    can follow.
-                  </p>
-                </div>
-              </div>
-            </a>
-            <a
-              className="group/card relative h-full overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-md dark:border-0 dark:bg-gray-800 dark:p-px dark:shadow-none before:pointer-events-none before:absolute before:-left-40 before:-top-40 before:z-10 before:h-80 before:w-80 before:translate-x-[var(--mouse-x)] before:translate-y-[var(--mouse-y)] before:rounded-full before:bg-indigo-500/80 before:opacity-0 before:blur-3xl before:transition-opacity before:duration-500 after:pointer-events-none after:absolute after:-left-48 after:-top-48 after:z-30 after:h-64 after:w-64 after:translate-x-[var(--mouse-x)] after:translate-y-[var(--mouse-y)] after:rounded-full after:bg-indigo-500 after:opacity-0 after:blur-3xl after:transition-opacity after:duration-500 hover:after:opacity-20 group-hover:before:opacity-100"
-              href="#0"
-            >
-              <div className="relative z-20 h-full overflow-hidden rounded-[inherit] bg-white after:pointer-events-none after:absolute after:inset-0 after:bg-gradient-to-br after:from-transparent after:via-transparent after:to-transparent after:opacity-0 dark:!bg-gray-950 dark:after:from-gray-900/50 dark:after:via-gray-800/25 dark:after:to-gray-900/50 dark:after:opacity-100">
-                <div
-                  className="absolute right-6 top-6 flex h-8 w-8 items-center justify-center rounded-full border border-slate-300/80 bg-white/95 text-slate-700 opacity-0 transition-opacity group-hover/card:opacity-100 dark:border-gray-700/50 dark:bg-gray-800/65 dark:text-gray-200"
-                  aria-hidden
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width={9}
-                    height={8}
-                    fill="none"
-                    className="text-slate-600 dark:text-zinc-100"
-                  >
-                    <path fill="currentColor" d="m4.92 8-.787-.763 2.733-2.68H0V3.443h6.866L4.133.767 4.92 0 9 4 4.92 8Z" />
-                  </svg>
-                </div>
-                <div className="overflow-hidden bg-slate-950 dark:bg-transparent">
-                  <img
-                    className="inline-flex w-full brightness-[1.02] contrast-[1.03] dark:hidden"
-                    src={IDE_CLI_CARD_IMAGE_LIGHT}
-                    width={350}
-                    height={288}
-                    alt="Cursor, Windsurf, and MCP hosts with TaskMaster"
-                    loading="lazy"
-                  />
-                  <img
-                    className="hidden w-full dark:inline-flex dark:brightness-100 dark:contrast-100"
-                    src={img('workflow-02.png')}
-                    width={350}
-                    height={288}
-                    alt="CLI and MCP workflow"
-                    loading="lazy"
-                  />
-                </div>
-                <div className="p-6">
-                  <div className="mb-3">
-                    <span className="btn-sm relative rounded-full border border-slate-300/60 bg-slate-100/90 px-2.5 py-0.5 text-open-xs font-normal hover:bg-slate-100 dark:border-transparent dark:bg-gray-800/40 dark:before:pointer-events-none dark:before:absolute dark:before:inset-0 dark:before:rounded-[inherit] dark:before:border dark:before:border-transparent dark:before:[background:linear-gradient(to_bottom,color-mix(in_srgb,var(--color-gray-700)_15%,transparent),color-mix(in_srgb,var(--color-gray-700)_50%,transparent))_border-box] dark:before:[mask-composite:exclude_!important] dark:before:[mask:linear-gradient(white_0_0)_padding-box,_linear-gradient(white_0_0)] dark:hover:bg-gray-800/60">
-                      <span className="bg-gradient-to-r from-indigo-500 to-indigo-200 bg-clip-text text-transparent">
-                        CLI &amp; MCP
-                      </span>
-                    </span>
-                  </div>
-                  <p className="text-slate-700 dark:text-indigo-200/65">
-                    Run <code className="text-indigo-700 dark:text-indigo-200/80">taskmaster</code> in the terminal and wire tools into Cursor,
-                    Windsurf, and other MCP hosts—same tasks, everywhere you code.
-                  </p>
-                </div>
-              </div>
-            </a>
-            <a
-              className="group/card relative h-full overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-md dark:border-0 dark:bg-gray-800 dark:p-px dark:shadow-none before:pointer-events-none before:absolute before:-left-40 before:-top-40 before:z-10 before:h-80 before:w-80 before:translate-x-[var(--mouse-x)] before:translate-y-[var(--mouse-y)] before:rounded-full before:bg-indigo-500/80 before:opacity-0 before:blur-3xl before:transition-opacity before:duration-500 after:pointer-events-none after:absolute after:-left-48 after:-top-48 after:z-30 after:h-64 after:w-64 after:translate-x-[var(--mouse-x)] after:translate-y-[var(--mouse-y)] after:rounded-full after:bg-indigo-500 after:opacity-0 after:blur-3xl after:transition-opacity after:duration-500 hover:after:opacity-20 group-hover:before:opacity-100"
-              href="#0"
-            >
-              <div className="relative z-20 h-full overflow-hidden rounded-[inherit] bg-white after:pointer-events-none after:absolute after:inset-0 after:bg-gradient-to-br after:from-transparent after:via-transparent after:to-transparent after:opacity-0 dark:!bg-gray-950 dark:after:from-gray-900/50 dark:after:via-gray-800/25 dark:after:to-gray-900/50 dark:after:opacity-100">
-                <div
-                  className="absolute right-6 top-6 flex h-8 w-8 items-center justify-center rounded-full border border-slate-300/80 bg-white/95 text-slate-700 opacity-0 transition-opacity group-hover/card:opacity-100 dark:border-gray-700/50 dark:bg-gray-800/65 dark:text-gray-200"
-                  aria-hidden
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width={9}
-                    height={8}
-                    fill="none"
-                    className="text-slate-600 dark:text-zinc-100"
-                  >
-                    <path fill="currentColor" d="m4.92 8-.787-.763 2.733-2.68H0V3.443h6.866L4.133.767 4.92 0 9 4 4.92 8Z" />
-                  </svg>
-                </div>
-                <div className="overflow-hidden bg-slate-950 dark:bg-transparent">
-                  <img
-                    className="inline-flex w-full brightness-[1.02] contrast-[1.03] dark:hidden"
-                    src={DASHBOARD_SYNC_CARD_IMAGE_LIGHT}
-                    width={350}
-                    height={288}
-                    alt="Dashboard and web app linked to local agents"
-                    loading="lazy"
-                  />
-                  <img
-                    className="hidden w-full dark:inline-flex dark:brightness-100 dark:contrast-100"
-                    src={img('workflow-03.png')}
-                    width={350}
-                    height={288}
-                    alt="Dashboard sync workflow"
-                    loading="lazy"
-                  />
-                </div>
-                <div className="p-6">
-                  <div className="mb-3">
-                    <span className="btn-sm relative rounded-full border border-slate-300/60 bg-slate-100/90 px-2.5 py-0.5 text-open-xs font-normal hover:bg-slate-100 dark:border-transparent dark:bg-gray-800/40 dark:before:pointer-events-none dark:before:absolute dark:before:inset-0 dark:before:rounded-[inherit] dark:before:border dark:before:border-transparent dark:before:[background:linear-gradient(to_bottom,color-mix(in_srgb,var(--color-gray-700)_15%,transparent),color-mix(in_srgb,var(--color-gray-700)_50%,transparent))_border-box] dark:before:[mask-composite:exclude_!important] dark:before:[mask:linear-gradient(white_0_0)_padding-box,_linear-gradient(white_0_0)] dark:hover:bg-gray-800/60">
-                      <span className="bg-gradient-to-r from-indigo-500 to-indigo-200 bg-clip-text text-transparent">
-                        Dashboard sync
-                      </span>
-                    </span>
-                  </div>
-                  <p className="text-slate-700 dark:text-indigo-200/65">
-                    Watch usage, license status, and task activity in the web dashboard—aligned with what your agents do
-                    locally.
-                  </p>
-                </div>
-              </div>
-            </a>
-          </Spotlight>
+          <WorkflowCards />
         </div>
       </div>
     </section>
   )
 }
+
+const featurePlatformIconClass =
+  'mb-3 h-6 w-6 shrink-0 fill-current text-indigo-600 dark:text-accent-primary'
 
 function Features() {
   return (
@@ -378,7 +151,7 @@ function Features() {
         aria-hidden="true"
       >
         <img
-          className="max-w-none opacity-90 dark:opacity-100"
+          className="landing-deco-img max-w-none opacity-90 dark:opacity-100"
           src={img('blurred-shape-gray.svg')}
           width={760}
           height={668}
@@ -390,7 +163,7 @@ function Features() {
         aria-hidden="true"
       >
         <img
-          className="max-w-none opacity-90 dark:opacity-100"
+          className="landing-deco-img max-w-none opacity-90 dark:opacity-100"
           src={img('blurred-shape.svg')}
           width={760}
           height={668}
@@ -400,8 +173,8 @@ function Features() {
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <div className="open-sample-section-divider py-12 md:py-20">
           <div className="mx-auto max-w-3xl pb-12 text-center md:pb-16">
-            <div className="inline-flex items-center gap-3 pb-3 before:h-px before:w-8 before:bg-gradient-to-r before:from-transparent before:to-indigo-200/50 after:h-px after:w-8 after:bg-gradient-to-l after:from-transparent after:to-indigo-200/50">
-              <span className="inline-flex bg-gradient-to-r from-indigo-500 to-indigo-200 bg-clip-text text-transparent">
+            <div className="inline-flex items-center gap-3 pb-3 before:h-px before:w-8 before:bg-gradient-to-r before:from-transparent before:to-indigo-200/50 after:h-px after:w-8 after:bg-gradient-to-l after:from-transparent after:to-indigo-200/50 dark:before:to-indigo-400/35 dark:after:to-indigo-400/35">
+              <span className="inline-flex bg-gradient-to-r from-indigo-500 to-indigo-200 bg-clip-text text-transparent dark:from-indigo-400 dark:to-indigo-200">
                 Platform
               </span>
             </div>
@@ -410,89 +183,110 @@ function Features() {
             >
               Everything your agents need to stay on track
             </h2>
-            <p className="text-open-lg text-slate-600 dark:text-indigo-200/65">
+            <p className="text-open-lg text-slate-600 dark:text-marketing-muted">
               Complexity scoring, task expansion, research mode, hosted or bring-your-own API keys, and usage that syncs to
               your account—so you ship faster without juggling five different tools.
             </p>
           </div>
           <div className="mx-auto grid max-w-sm gap-12 sm:max-w-none sm:grid-cols-2 md:gap-x-14 md:gap-y-16 lg:grid-cols-3">
             <article>
-              <svg className="mb-3 fill-indigo-500" xmlns="http://www.w3.org/2000/svg" width={24} height={24}>
-                <path d="M0 0h14v17H0V0Zm2 2v13h10V2H2Z" />
+              <svg className={featurePlatformIconClass} xmlns="http://www.w3.org/2000/svg" width={24} height={24}>
+                <path fill="currentColor" d="M0 0h14v17H0V0Zm2 2v13h10V2H2Z" />
                 <path
-                  fillOpacity=".48"
+                  fill="currentColor"
+                  fillOpacity={0.48}
                   d="m16.295 5.393 7.528 2.034-4.436 16.412L5.87 20.185l.522-1.93 11.585 3.132 3.392-12.55-5.597-1.514.522-1.93Z"
                 />
               </svg>
-              <h3 className="mb-1 font-nacelle text-[1rem] font-semibold text-slate-900 dark:text-gray-200">Task hierarchy</h3>
-              <p className="text-slate-600 dark:text-indigo-200/65">
+              <h3 className="mb-1 font-nacelle text-[1rem] font-semibold text-slate-900 dark:text-marketing-text">Task hierarchy</h3>
+              <p className="text-slate-600 dark:text-marketing-muted">
                 Nested tasks and subtasks with stable IDs so agents, humans, and your PRD all reference the same work.
               </p>
             </article>
             <article>
-              <svg className="mb-3 fill-indigo-500" xmlns="http://www.w3.org/2000/svg" width={24} height={24}>
-                <path fillOpacity=".48" d="M7 8V0H5v8h2Zm12 16v-4h-2v4h2Z" />
-                <path d="M19 6H0v2h17v8H7v-6H5v8h19v-2h-5V6Z" />
+              <svg className={featurePlatformIconClass} xmlns="http://www.w3.org/2000/svg" width={24} height={24}>
+                <path fill="currentColor" fillOpacity={0.48} d="M7 8V0H5v8h2Zm12 16v-4h-2v4h2Z" />
+                <path fill="currentColor" d="M19 6H0v2h17v8H7v-6H5v8h19v-2h-5V6Z" />
               </svg>
-              <h3 className="mb-1 font-nacelle text-[1rem] font-semibold text-slate-900 dark:text-gray-200">Dashboard &amp; sync</h3>
-              <p className="text-slate-600 dark:text-indigo-200/65">
+              <h3 className="mb-1 font-nacelle text-[1rem] font-semibold text-slate-900 dark:text-marketing-text">Dashboard &amp; sync</h3>
+              <p className="text-slate-600 dark:text-marketing-muted">
                 See tasks and usage in the browser while the CLI keeps your repo as the source of truth.
               </p>
             </article>
             <article>
-              <svg className="mb-3 fill-indigo-500" xmlns="http://www.w3.org/2000/svg" width={24} height={24}>
-                <path d="M23.414 6 18 .586 16.586 2l3 3H7a6 6 0 0 0-6 6h2a4 4 0 0 1 4-4h12.586l-3 3L18 11.414 23.414 6Z" />
+              <svg className={featurePlatformIconClass} xmlns="http://www.w3.org/2000/svg" width={24} height={24}>
                 <path
-                  fillOpacity=".48"
+                  fill="currentColor"
+                  d="M23.414 6 18 .586 16.586 2l3 3H7a6 6 0 0 0-6 6h2a4 4 0 0 1 4-4h12.586l-3 3L18 11.414 23.414 6Z"
+                />
+                <path
+                  fill="currentColor"
+                  fillOpacity={0.48}
                   d="M13.01 12.508a2.5 2.5 0 0 0-3.502.482L1.797 23.16.203 21.952l7.71-10.17a4.5 4.5 0 1 1 7.172 5.437l-4.84 6.386-1.594-1.209 4.841-6.385a2.5 2.5 0 0 0-.482-3.503Z"
                 />
               </svg>
-              <h3 className="mb-1 font-nacelle text-[1rem] font-semibold text-slate-900 dark:text-gray-200">Next task &amp; deps</h3>
-              <p className="text-slate-600 dark:text-indigo-200/65">
+              <h3 className="mb-1 font-nacelle text-[1rem] font-semibold text-slate-900 dark:text-marketing-text">Next task &amp; deps</h3>
+              <p className="text-slate-600 dark:text-marketing-muted">
                 Dependency-aware &quot;what&apos;s next&quot; so agents stop guessing which task to implement first.
               </p>
             </article>
             <article>
-              <svg className="mb-3 fill-indigo-500" xmlns="http://www.w3.org/2000/svg" width={24} height={24}>
+              <svg className={featurePlatformIconClass} xmlns="http://www.w3.org/2000/svg" width={24} height={24}>
                 <path
-                  fillOpacity=".48"
+                  fill="currentColor"
+                  fillOpacity={0.48}
                   d="m3.031 9.05-.593-.805 1.609-1.187.594.804a6.966 6.966 0 0 1 0 8.276l-.594.805-1.61-1.188.594-.805a4.966 4.966 0 0 0 0-5.9Z"
                 />
-                <path d="m7.456 6.676-.535-.845 1.69-1.07.534.844a11.944 11.944 0 0 1 0 12.789l-.535.845-1.69-1.071.536-.845a9.944 9.944 0 0 0 0-10.647Z" />
                 <path
-                  d="m11.888 4.35-.514-.858 1.717-1.027.513.858a16.9 16.9 0 0 1 2.4 8.677 16.9 16.9 0 0 1-2.4 8.676l-.513.859-1.717-1.028.514-.858A14.9 14.9 0 0 0 14.003 12a14.9 14.9 0 0 0-2.115-7.65Z"
-                  opacity=".48"
+                  fill="currentColor"
+                  d="m7.456 6.676-.535-.845 1.69-1.07.534.844a11.944 11.944 0 0 1 0 12.789l-.535.845-1.69-1.071.536-.845a9.944 9.944 0 0 0 0-10.647Z"
                 />
-                <path d="m16.321 2-.5-.866 1.733-1 .5.866A22 22 0 0 1 21 12c0 3.852-1.017 7.636-2.948 10.97l-.502.865-1.73-1.003.501-.865A19.878 19.878 0 0 0 19 12a20 20 0 0 0-2.679-10Z" />
+                <path
+                  fill="currentColor"
+                  fillOpacity={0.48}
+                  d="m11.888 4.35-.514-.858 1.717-1.027.513.858a16.9 16.9 0 0 1 2.4 8.677 16.9 16.9 0 0 1-2.4 8.676l-.513.859-1.717-1.028.514-.858A14.9 14.9 0 0 0 14.003 12a14.9 14.9 0 0 0-2.115-7.65Z"
+                />
+                <path
+                  fill="currentColor"
+                  d="m16.321 2-.5-.866 1.733-1 .5.866A22 22 0 0 1 21 12c0 3.852-1.017 7.636-2.948 10.97l-.502.865-1.73-1.003.501-.865A19.878 19.878 0 0 0 19 12a20 20 0 0 0-2.679-10Z"
+                />
               </svg>
-              <h3 className="mb-1 font-nacelle text-[1rem] font-semibold text-slate-900 dark:text-gray-200">PRD parsing &amp; planning</h3>
-              <p className="text-slate-600 dark:text-indigo-200/65">
+              <h3 className="mb-1 font-nacelle text-[1rem] font-semibold text-slate-900 dark:text-marketing-text">PRD parsing &amp; planning</h3>
+              <p className="text-slate-600 dark:text-marketing-muted">
                 Go from product doc to structured tasks in one pass—ready for breakdown and implementation.
               </p>
             </article>
             <article>
-              <svg className="mb-3 fill-indigo-500" xmlns="http://www.w3.org/2000/svg" width={24} height={24}>
+              <svg className={featurePlatformIconClass} xmlns="http://www.w3.org/2000/svg" width={24} height={24}>
                 <path
-                  fillOpacity=".48"
+                  fill="currentColor"
+                  fillOpacity={0.48}
                   d="M12 8.8a3 3 0 1 0 0 6 3 3 0 0 0 0-6Zm-5 3a5 5 0 1 1 10 0 5 5 0 0 1-10 0Z"
                 />
-                <path d="m7.454 2.891.891-.454L7.437.655l-.891.454a12 12 0 0 0 0 21.382l.89.454.91-1.781-.892-.455a10 10 0 0 1 0-17.818ZM17.456 1.11l-.891-.454-.909 1.782.891.454a10 10 0 0 1 0 17.819l-.89.454.908 1.781.89-.454a12 12 0 0 0 0-21.382Z" />
+                <path
+                  fill="currentColor"
+                  d="m7.454 2.891.891-.454L7.437.655l-.891.454a12 12 0 0 0 0 21.382l.89.454.91-1.781-.892-.455a10 10 0 0 1 0-17.818ZM17.456 1.11l-.891-.454-.909 1.782.891.454a10 10 0 0 1 0 17.819l-.89.454.908 1.781.89-.454a12 12 0 0 0 0-21.382Z"
+                />
               </svg>
-              <h3 className="mb-1 font-nacelle text-[1rem] font-semibold text-slate-900 dark:text-gray-200">Models per role</h3>
-              <p className="text-slate-600 dark:text-indigo-200/65">
+              <h3 className="mb-1 font-nacelle text-[1rem] font-semibold text-slate-900 dark:text-marketing-text">Models per role</h3>
+              <p className="text-slate-600 dark:text-marketing-muted">
                 Point main, research, and fallback models at the providers you trust—OpenAI, Anthropic, Gemini, and more.
               </p>
             </article>
             <article>
-              <svg className="mb-3 fill-indigo-500" xmlns="http://www.w3.org/2000/svg" width={24} height={24}>
+              <svg className={featurePlatformIconClass} xmlns="http://www.w3.org/2000/svg" width={24} height={24}>
                 <path
-                  fillOpacity=".48"
+                  fill="currentColor"
+                  fillOpacity={0.48}
                   d="M19 8h5v2h-5V8Zm-4 5h9v2h-9v-2Zm9 5H11v2h13v-2Z"
                 />
-                <path d="M19.406 3.844 6.083 20.497.586 15 2 13.586l3.917 3.917L17.844 2.595l1.562 1.25Z" />
+                <path
+                  fill="currentColor"
+                  d="M19.406 3.844 6.083 20.497.586 15 2 13.586l3.917 3.917L17.844 2.595l1.562 1.25Z"
+                />
               </svg>
-              <h3 className="mb-1 font-nacelle text-[1rem] font-semibold text-slate-900 dark:text-gray-200">Usage &amp; activity</h3>
-              <p className="text-slate-600 dark:text-indigo-200/65">
+              <h3 className="mb-1 font-nacelle text-[1rem] font-semibold text-slate-900 dark:text-marketing-text">Usage &amp; activity</h3>
+              <p className="text-slate-600 dark:text-marketing-muted">
                 Transparent usage and recent operations so you know what your agents consumed this month.
               </p>
             </article>
@@ -663,7 +457,7 @@ function TestimonialCard({
 }) {
   return (
     <article
-      className={`relative rounded-2xl border border-slate-200/90 bg-white/95 p-5 shadow-sm backdrop-blur-sm transition-opacity dark:!border-transparent dark:!bg-transparent dark:bg-gradient-to-br dark:from-gray-900/50 dark:via-gray-800/25 dark:to-gray-900/50 dark:shadow-none dark:before:pointer-events-none dark:before:absolute dark:before:inset-0 dark:before:rounded-[inherit] dark:before:border dark:before:border-transparent dark:before:[background:linear-gradient(to_right,var(--color-gray-800),var(--color-gray-700),var(--color-gray-800))_border-box] dark:before:[mask-composite:exclude_!important] dark:before:[mask:linear-gradient(white_0_0)_padding-box,_linear-gradient(white_0_0)] ${
+      className={`landing-testimonial-card relative rounded-2xl border border-slate-200/90 bg-white/95 p-5 shadow-sm backdrop-blur-sm transition-opacity dark:!border-transparent dark:!bg-transparent dark:bg-gradient-to-br dark:from-surface-1/50 dark:via-surface-4/25 dark:to-surface-1/50 dark:shadow-none dark:before:pointer-events-none dark:before:absolute dark:before:inset-0 dark:before:rounded-[inherit] dark:before:border dark:before:border-transparent dark:before:[background:linear-gradient(to_right,var(--color-gray-800),var(--color-gray-700),var(--color-gray-800))_border-box] dark:before:[mask-composite:exclude_!important] dark:before:[mask:linear-gradient(white_0_0)_padding-box,_linear-gradient(white_0_0)] ${
         !testimonial.categories.includes(category) ? 'opacity-30' : ''
       }`}
     >
@@ -682,20 +476,20 @@ function TestimonialCard({
             }`}
           />
         </div>
-        <p className="text-slate-600 before:content-['\201C'] after:content-['\201D'] dark:text-indigo-200/65">{children}</p>
+        <p className="text-slate-600 before:content-['\201C'] after:content-['\201D'] dark:text-marketing-muted">{children}</p>
         <div className="flex items-center gap-3">
           <img
-            className="inline-flex shrink-0 rounded-full ring-2 ring-white shadow-sm dark:ring-gray-700/80 dark:shadow-none"
+            className="inline-flex shrink-0 rounded-full ring-2 ring-white shadow-sm dark:ring-white/10 dark:shadow-none"
             src={testimonial.img}
             width={36}
             height={36}
             alt={testimonial.name}
           />
-          <div className="text-open-sm font-medium text-slate-900 dark:text-gray-200">
+          <div className="text-open-sm font-medium text-slate-900 dark:text-marketing-text">
             <span>{testimonial.name}</span>
-            <span className="text-slate-400 dark:text-gray-700"> - </span>
+            <span className="text-slate-400 dark:text-marketing-muted/70"> - </span>
             <a
-              className="text-indigo-600 transition-colors hover:text-indigo-500 dark:text-indigo-200/65 dark:hover:text-indigo-400"
+              className="text-indigo-600 transition-colors hover:text-indigo-500 dark:text-accent-primary dark:hover:text-accent-primary-hover"
               href="#0"
             >
               {testimonial.company}
@@ -711,10 +505,12 @@ function Testimonials() {
   const [category, setCategory] = useState(1)
   const masonryContainer = useMasonry(category)
 
-  const activeTab = (n: number) =>
-    category === n
-      ? 'relative bg-gradient-to-b from-indigo-50 via-white to-slate-50 text-slate-900 shadow-sm ring-1 ring-inset ring-indigo-200/90 dark:!bg-gradient-to-b dark:from-gray-900 dark:via-gray-800/60 dark:to-gray-900 dark:text-white dark:shadow-none dark:ring-0 dark:before:pointer-events-none dark:before:absolute dark:before:inset-0 dark:before:rounded-[inherit] dark:before:border dark:before:border-transparent dark:before:[background:linear-gradient(to_bottom,color-mix(in_srgb,var(--color-indigo-500)_0%,transparent),color-mix(in_srgb,var(--color-indigo-500)_50%,transparent))_border-box] dark:before:[mask-composite:exclude_!important] dark:before:[mask:linear-gradient(white_0_0)_padding-box,_linear-gradient(white_0_0)]'
-      : 'text-slate-700 opacity-[0.85] transition-opacity hover:opacity-100 dark:text-gray-200 dark:opacity-[0.75] dark:hover:opacity-95'
+  const testimonialTabClass = (n: number) =>
+    `testimonial-tab flex h-8 flex-1 items-center gap-2.5 whitespace-nowrap rounded-full px-3 text-open-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/30 dark:focus-visible:ring-indigo-400/40 ${
+      category === n
+        ? 'testimonial-tab--active relative bg-gradient-to-b from-indigo-50 via-white to-slate-50 text-slate-900 shadow-sm ring-1 ring-inset ring-indigo-200/90 dark:from-surface-6 dark:via-surface-3 dark:to-surface-4 dark:text-marketing-text dark:ring-white/12'
+        : 'testimonial-tab--inactive text-slate-700 opacity-[0.85] transition-opacity hover:opacity-100 dark:text-marketing-muted'
+    }`
 
   return (
     <section className="relative z-[1]">
@@ -722,7 +518,7 @@ function Testimonials() {
         <div className="open-sample-section-divider py-12 md:py-20">
         <div className="mx-auto max-w-3xl pb-12 text-center">
           <h2 className={`${landingTitleClass} pb-4 text-open-3xl md:text-open-4xl`}>Ship faster with agents that stay aligned</h2>
-          <p className="text-open-lg text-slate-600 dark:text-indigo-200/65">
+          <p className="text-open-lg text-slate-600 dark:text-marketing-muted">
             Builders and teams use TaskMaster AI to turn specs into executable work—without losing the thread between your
             PRD, terminal, and editor.
           </p>
@@ -730,15 +526,15 @@ function Testimonials() {
 
         <div>
           <div className="flex justify-center pb-12 max-md:hidden md:pb-16">
-            <div className="relative inline-flex flex-wrap justify-center rounded-[1.25rem] bg-slate-200/90 p-1 dark:bg-gray-800/40">
+            <div className="testimonial-tabs-track relative inline-flex flex-wrap justify-center rounded-[1.25rem] bg-slate-200/90 p-1">
               <button
                 type="button"
-                className={`flex h-8 flex-1 items-center gap-2.5 whitespace-nowrap rounded-full px-3 text-open-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/30 dark:focus-visible:ring-indigo-200 ${activeTab(1)}`}
+                className={testimonialTabClass(1)}
                 aria-pressed={category === 1}
                 onClick={() => setCategory(1)}
               >
                 <svg
-                  className={`fill-current ${category === 1 ? 'text-indigo-500' : 'text-slate-500 dark:text-gray-600'}`}
+                  className={`fill-current ${category === 1 ? 'text-indigo-500' : 'text-slate-500 dark:text-marketing-muted/70'}`}
                   xmlns="http://www.w3.org/2000/svg"
                   width="16"
                   height={16}
@@ -749,12 +545,12 @@ function Testimonials() {
               </button>
               <button
                 type="button"
-                className={`flex h-8 flex-1 items-center gap-2.5 whitespace-nowrap rounded-full px-3 text-open-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/30 dark:focus-visible:ring-indigo-200 ${activeTab(2)}`}
+                className={testimonialTabClass(2)}
                 aria-pressed={category === 2}
                 onClick={() => setCategory(2)}
               >
                 <svg
-                  className={`fill-current ${category === 2 ? 'text-indigo-500' : 'text-slate-500 dark:text-gray-600'}`}
+                  className={`fill-current ${category === 2 ? 'text-indigo-500' : 'text-slate-500 dark:text-marketing-muted/70'}`}
                   xmlns="http://www.w3.org/2000/svg"
                   width="16"
                   height={16}
@@ -765,12 +561,12 @@ function Testimonials() {
               </button>
               <button
                 type="button"
-                className={`flex h-8 flex-1 items-center gap-2.5 whitespace-nowrap rounded-full px-3 text-open-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/30 dark:focus-visible:ring-indigo-200 ${activeTab(3)}`}
+                className={testimonialTabClass(3)}
                 aria-pressed={category === 3}
                 onClick={() => setCategory(3)}
               >
                 <svg
-                  className={`fill-current ${category === 3 ? 'text-indigo-500' : 'text-slate-500 dark:text-gray-600'}`}
+                  className={`fill-current ${category === 3 ? 'text-indigo-500' : 'text-slate-500 dark:text-marketing-muted/70'}`}
                   xmlns="http://www.w3.org/2000/svg"
                   width="16"
                   height={16}
@@ -781,12 +577,12 @@ function Testimonials() {
               </button>
               <button
                 type="button"
-                className={`flex h-8 flex-1 items-center gap-2.5 whitespace-nowrap rounded-full px-3 text-open-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/30 dark:focus-visible:ring-indigo-200 ${activeTab(4)}`}
+                className={testimonialTabClass(4)}
                 aria-pressed={category === 4}
                 onClick={() => setCategory(4)}
               >
                 <svg
-                  className={`fill-current ${category === 4 ? 'text-indigo-500' : 'text-slate-500 dark:text-gray-600'}`}
+                  className={`fill-current ${category === 4 ? 'text-indigo-500' : 'text-slate-500 dark:text-marketing-muted/70'}`}
                   xmlns="http://www.w3.org/2000/svg"
                   width="16"
                   height={16}
@@ -797,12 +593,12 @@ function Testimonials() {
               </button>
               <button
                 type="button"
-                className={`flex h-8 flex-1 items-center gap-2.5 whitespace-nowrap rounded-full px-3 text-open-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/30 dark:focus-visible:ring-indigo-200 ${activeTab(5)}`}
+                className={testimonialTabClass(5)}
                 aria-pressed={category === 5}
                 onClick={() => setCategory(5)}
               >
                 <svg
-                  className={`fill-current ${category === 5 ? 'text-indigo-500' : 'text-slate-500 dark:text-gray-600'}`}
+                  className={`fill-current ${category === 5 ? 'text-indigo-500' : 'text-slate-500 dark:text-marketing-muted/70'}`}
                   xmlns="http://www.w3.org/2000/svg"
                   width="16"
                   height={16}
@@ -841,7 +637,7 @@ function Cta() {
         aria-hidden="true"
       >
         <img
-          className="max-w-none opacity-90 dark:opacity-100"
+          className="landing-deco-img max-w-none opacity-90 dark:opacity-100"
           src={img('blurred-shape.svg')}
           width={760}
           height={668}
@@ -849,13 +645,13 @@ function Cta() {
         />
       </div>
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <div className="bg-gradient-to-r from-transparent via-slate-200/80 to-transparent py-12 md:py-20 dark:via-gray-800/50">
+        <div className="landing-cta-band bg-gradient-to-r from-transparent via-slate-200/80 to-transparent py-12 md:py-20">
           <div className="mx-auto max-w-3xl text-center">
-            <h2 className={`${landingTitleClass} pb-8 text-open-3xl md:text-open-4xl`}>Ready to give your agents a real backlog?</h2>
+            <h2 className={`${landingTitleClass} pb-8 text-open-3xl md:text-open-4xl`}>Your agents are ready. Are you?</h2>
             <div className="mx-auto max-w-xs sm:flex sm:max-w-none sm:justify-center">
               <div>
                 <Link
-                  className="btn group mb-4 w-full bg-gradient-to-t from-indigo-600 to-indigo-500 bg-[length:100%_100%] bg-bottom text-white shadow-[inset_0px_1px_0px_0px_color-mix(in_srgb,var(--color-white)_16%,transparent)] hover:bg-[length:100%_150%] sm:mb-0 sm:w-auto"
+                  className="landing-primary-cta btn group mb-4 w-full bg-gradient-to-t from-indigo-600 to-indigo-500 bg-[length:100%_100%] bg-bottom text-white shadow-[inset_0px_1px_0px_0px_color-mix(in_srgb,var(--color-white)_16%,transparent)] hover:bg-[length:100%_150%] sm:mb-0 sm:w-auto"
                   to="/signup?plan=pro"
                 >
                   <span className="relative inline-flex items-center">
@@ -886,7 +682,7 @@ function Cta() {
 
 export default function Landing() {
   return (
-    <div className="open-sample relative min-h-screen bg-slate-50 font-inter text-open-base text-slate-800 antialiased supports-[overflow:clip]:overflow-x-clip dark:bg-gray-950 dark:text-gray-200">
+    <div className="open-sample relative min-h-screen bg-slate-50 font-inter text-open-base text-marketing-text antialiased supports-[overflow:clip]:overflow-x-clip dark:bg-marketing-bg">
       <PageIllustration />
       <HeroHome />
       <Workflows />

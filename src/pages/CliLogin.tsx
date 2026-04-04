@@ -259,8 +259,8 @@ export default function CliLogin() {
         <div className="marketing-panel rounded-2xl border p-7 shadow-xl">
           <div className="mb-7 text-center">
             <div className="mb-3 flex items-center justify-center gap-2">
-              <FontAwesomeIcon icon={faTerminal} className="h-5 w-5 text-indigo-500 dark:text-indigo-400" />
-              <span className="text-xs font-semibold uppercase tracking-wider text-indigo-500 dark:text-indigo-400">
+              <FontAwesomeIcon icon={faTerminal} className="h-5 w-5 text-indigo-500 dark:text-accent-primary" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-indigo-500 dark:text-accent-primary">
                 CLI Login
               </span>
             </div>

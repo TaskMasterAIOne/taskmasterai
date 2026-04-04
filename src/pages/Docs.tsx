@@ -859,7 +859,19 @@ taskmaster list
 taskmaster list --status=pending
 
 # Include steps
-taskmaster list --with-steps`}
+taskmaster list --with-steps
+
+# Show only tasks whose dependencies are satisfied
+taskmaster list --ready
+
+# Show only tasks that block others
+taskmaster list --blocking
+
+# Combine: high-impact tasks ready to work on
+taskmaster list --ready --blocking
+
+# List ready tasks across all tags
+taskmaster list --ready --all-tags`}
           filename="Terminal" 
         />
 
@@ -1353,8 +1365,8 @@ taskmaster sync-keys
         <h3 className="text-xl font-semibold mb-4">Task Viewing</h3>
         <div className="space-y-3 mb-8">
           <div className="marketing-panel border rounded-xl p-4">
-            <code className="text-sm text-marketing-link font-mono">taskmaster list [-s, --status] [--with-steps]</code>
-            <p className="text-sm text-marketing-muted mt-1">Display all tasks in a table format. Filter by status (comma-separated) or include steps.</p>
+            <code className="text-sm text-marketing-link font-mono">taskmaster list [-s, --status] [--with-steps] [--ready] [--blocking] [--all-tags]</code>
+            <p className="text-sm text-marketing-muted mt-1">Display all tasks in a table format. Filter by status (comma-separated), include steps, show only ready tasks (dependencies satisfied), show only blocking tasks (that others depend on), or list across all tags.</p>
           </div>
           <div className="marketing-panel border rounded-xl p-4">
             <code className="text-sm text-marketing-link font-mono">taskmaster next</code>
@@ -1415,6 +1427,14 @@ taskmaster sync-keys
           <div className="marketing-panel border rounded-xl p-4">
             <code className="text-sm text-marketing-link font-mono">taskmaster clear-steps -i, --id &lt;id&gt; | --all</code>
             <p className="text-sm text-marketing-muted mt-1">Remove all steps from a specific task or all tasks.</p>
+          </div>
+          <div className="marketing-panel border rounded-xl p-4">
+            <code className="text-sm text-marketing-link font-mono">taskmaster scope-up -i, --id &lt;id&gt; [-s, --strength] [-p, --prompt] [-r, --research]</code>
+            <p className="text-sm text-marketing-muted mt-1">Increase the scope of a task via AI. Strength: light, regular, aggressive.</p>
+          </div>
+          <div className="marketing-panel border rounded-xl p-4">
+            <code className="text-sm text-marketing-link font-mono">taskmaster scope-down -i, --id &lt;id&gt; [-s, --strength] [-p, --prompt]</code>
+            <p className="text-sm text-marketing-muted mt-1">Decrease the scope of a task by removing pending subtasks. Strength controls how aggressively to trim.</p>
           </div>
         </div>
 
@@ -1511,6 +1531,26 @@ taskmaster sync-keys
           <div className="marketing-panel border rounded-xl p-4">
             <code className="text-sm text-marketing-link font-mono">taskmaster models --set-fallback &lt;model&gt;</code>
             <p className="text-sm text-marketing-muted mt-1">Set the fallback model if primary fails.</p>
+          </div>
+          <div className="marketing-panel border rounded-xl p-4">
+            <code className="text-sm text-marketing-link font-mono">taskmaster lang [--response &lt;code&gt;] [--setup]</code>
+            <p className="text-sm text-marketing-muted mt-1">View or set the response language for AI output (e.g. en, es, ja).</p>
+          </div>
+          <div className="marketing-panel border rounded-xl p-4">
+            <code className="text-sm text-marketing-link font-mono">taskmaster sync-readme [--with-subtasks] [-s, --status]</code>
+            <p className="text-sm text-marketing-muted mt-1">Sync task list into your project README.md between marker comments.</p>
+          </div>
+          <div className="marketing-panel border rounded-xl p-4">
+            <code className="text-sm text-marketing-link font-mono">taskmaster rules &lt;add|remove&gt; &lt;cursor|windsurf|vscode&gt; [-f, --force]</code>
+            <p className="text-sm text-marketing-muted mt-1">Add or remove IDE rule profiles for Cursor, Windsurf, or VS Code.</p>
+          </div>
+          <div className="marketing-panel border rounded-xl p-4">
+            <code className="text-sm text-marketing-link font-mono">taskmaster migrate [-f, --force] [-y, --yes] [--dry-run]</code>
+            <p className="text-sm text-marketing-muted mt-1">Migrate project layout from legacy .taskmaster to .taskmaster-ai directory.</p>
+          </div>
+          <div className="marketing-panel border rounded-xl p-4">
+            <code className="text-sm text-marketing-link font-mono">taskmaster --no-banner &lt;command&gt;</code>
+            <p className="text-sm text-marketing-muted mt-1">Suppress the startup ASCII banner (useful in scripts and CI).</p>
           </div>
         </div>
 
@@ -4057,6 +4097,12 @@ export default function Docs() {
 
   return (
     <div className="marketing-page flex min-h-screen flex-col bg-marketing-bg font-inter text-marketing-text">
+      {/* Frosted top band: docs body scrolls underneath; blur hides text behind nav + search (z below both) */}
+      <div
+        className="pointer-events-none fixed inset-x-0 top-0 z-[30] h-[10.5rem] bg-marketing-bg/75 backdrop-blur-md supports-[backdrop-filter]:bg-marketing-bg/55 sm:h-[11rem]"
+        aria-hidden
+      />
+
       {/* Mobile menu button - Hidden when sidebar is open */}
       {!showMobileMenu && (
         <button 
@@ -4318,7 +4364,7 @@ export default function Docs() {
         )}
       </AnimatePresence>
 
-      <div className="flex pt-8">
+      <div className="flex pt-3">
         {/* Left Sidebar */}
         <aside className={`w-64 border-r border-marketing-border bg-marketing-bg fixed top-0 lg:top-28 bottom-0 overflow-y-auto overscroll-contain z-[110] lg:z-30 transition-transform lg:translate-x-0 left-0 lg:left-[max(0px,calc((100vw-1024px)/2))] ${showMobileMenu ? 'translate-x-0' : '-translate-x-full'}`}>
           <div className="p-4">
@@ -4378,7 +4424,7 @@ export default function Docs() {
 
         {/* Main Content */}
         <main className="flex-1 lg:ml-[calc(max(0px,(100vw-1024px)/2)+256px)] lg:mr-[max(0px,calc((100vw-1024px)/2))] overflow-x-hidden">
-          <div className="px-4 md:px-8 pt-16 lg:pt-28 pb-32 lg:pb-24 max-w-full overflow-x-hidden">
+          <div className="px-4 md:px-8 pt-11 lg:pt-14 pb-32 lg:pb-24 max-w-full overflow-x-hidden">
             <motion.div
               key={activeSection}
               initial={{ opacity: 0, y: 10 }}

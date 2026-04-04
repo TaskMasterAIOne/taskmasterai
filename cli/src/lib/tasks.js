@@ -133,6 +133,7 @@ export function addTask(task, projectRoot = process.cwd()) {
     priority: task.priority || 'medium',
     dependencies: task.dependencies || [],
     subtasks: task.subtasks || [],
+    ...(task.metadata !== undefined ? { metadata: task.metadata } : {}),
   };
   
   tasks.push(newTask);
@@ -141,22 +142,35 @@ export function addTask(task, projectRoot = process.cwd()) {
   return newTask;
 }
 
+/**
+ * Update a task or subtask. Existing `metadata` is preserved unless the
+ * caller explicitly passes a new `metadata` value AND the env flag
+ * TASK_MASTER_ALLOW_METADATA_UPDATES is truthy.
+ */
 export function updateTask(taskId, updates, projectRoot = process.cwd()) {
   const tasks = getAllTasks(projectRoot);
   const idStr = String(taskId);
+
+  const allowMetaWrite = process.env.TASK_MASTER_ALLOW_METADATA_UPDATES === 'true';
+  const safeUpdates = { ...updates };
+  if ('metadata' in safeUpdates && !allowMetaWrite) {
+    delete safeUpdates.metadata;
+  }
+
   if (idStr.includes('.')) {
     const [parentId, subtaskId] = idStr.split('.').map(Number);
     const parentTask = tasks.find(t => t.id === parentId);
     
     if (parentTask) {
-      // Support both 'steps' (per terminology) and 'subtasks' (legacy)
       const stepsKey = parentTask.steps ? 'steps' : 'subtasks';
       const steps = parentTask[stepsKey] || [];
       const stepIndex = steps.findIndex(s => s.id === subtaskId);
       if (stepIndex !== -1) {
+        const existing = steps[stepIndex];
         steps[stepIndex] = {
-          ...steps[stepIndex],
-          ...updates,
+          ...existing,
+          ...safeUpdates,
+          ...(existing.metadata && !safeUpdates.metadata ? { metadata: existing.metadata } : {}),
         };
         parentTask[stepsKey] = steps;
         saveAllTasks(tasks, projectRoot);
@@ -166,13 +180,14 @@ export function updateTask(taskId, updates, projectRoot = process.cwd()) {
     return null;
   }
   
-  // Regular task
   const taskIndex = tasks.findIndex(t => t.id === Number(taskId));
   if (taskIndex === -1) return null;
   
+  const existing = tasks[taskIndex];
   tasks[taskIndex] = {
-    ...tasks[taskIndex],
-    ...updates,
+    ...existing,
+    ...safeUpdates,
+    ...(existing.metadata && !safeUpdates.metadata ? { metadata: existing.metadata } : {}),
   };
   
   saveAllTasks(tasks, projectRoot);
@@ -241,6 +256,7 @@ export function addSubtasks(taskId, subtasks, replace = false, projectRoot = pro
       id: startId + index,
       ...subtask,
       status: subtask.status || 'pending',
+      ...(subtask.metadata !== undefined ? { metadata: subtask.metadata } : {}),
     });
   });
   
@@ -872,6 +888,35 @@ export function addSingleSubtask(parentId, subtaskData, projectRoot = process.cw
   return { parent, subtask };
 }
 
+/**
+ * Return tasks whose dependencies are all satisfied (status done/completed)
+ * and whose own status is actionable (pending or in-progress).
+ * Deferred and blocked tasks are excluded.
+ */
+export function getReadyTasks(projectRoot = process.cwd()) {
+  const tasks = getAllTasks(projectRoot);
+  const completedIds = new Set(
+    tasks.filter(t => t.status === 'done' || t.status === 'completed').map(t => t.id)
+  );
+  const actionable = new Set(['pending', 'in-progress']);
+  return tasks.filter(t => {
+    if (!actionable.has(t.status)) return false;
+    return (t.dependencies || []).every(dep => completedIds.has(dep));
+  });
+}
+
+/**
+ * Return tasks that at least one other task depends on (i.e. they block progress).
+ */
+export function getBlockingTasks(projectRoot = process.cwd()) {
+  const tasks = getAllTasks(projectRoot);
+  const depTargets = new Set();
+  for (const t of tasks) {
+    for (const d of (t.dependencies || [])) depTargets.add(d);
+  }
+  return tasks.filter(t => depTargets.has(t.id));
+}
+
 export function generateTaskFiles(projectRoot = process.cwd(), outputDir = null) {
   const tasks = getAllTasks(projectRoot);
   const tasksDir = outputDir || path.join(getProjectConfigDir(projectRoot), 'tasks');
@@ -959,4 +1004,7 @@ export default {
   addSingleSubtask,
   // File generation
   generateTaskFiles,
+  // Dependency-aware filters
+  getReadyTasks,
+  getBlockingTasks,
 };

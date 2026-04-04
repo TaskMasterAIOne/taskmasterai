@@ -297,15 +297,74 @@ export function readTasks(projectRoot = process.cwd()) {
   }
 }
 
+/**
+ * Atomically write tasks.json using a temp-file + rename strategy.
+ * This prevents partial writes when the process is interrupted or
+ * multiple CLI / MCP instances target the same project concurrently.
+ */
 export function writeTasks(tasksData, projectRoot = process.cwd()) {
   ensureProjectConfigDir(projectRoot);
   const tasksPath = getTasksFilePath(projectRoot);
-  
+  const tmpPath   = `${tasksPath}.${process.pid}.tmp`;
+
   try {
-    fs.writeFileSync(tasksPath, JSON.stringify(tasksData, null, 2), 'utf-8');
+    const json = JSON.stringify(tasksData, null, 2);
+    fs.writeFileSync(tmpPath, json, 'utf-8');
+    fs.renameSync(tmpPath, tasksPath);
     return true;
   } catch (error) {
+    // Clean up orphaned tmp file on failure
+    try { fs.unlinkSync(tmpPath); } catch (_) { /* ignore */ }
     throw new Error(`Failed to write tasks: ${error.message}`);
+  }
+}
+
+/**
+ * Read → mutate → write with a simple lock file so concurrent processes
+ * don't clobber each other's changes. The lock auto-expires after
+ * LOCK_STALE_MS so a crashed process can't block everyone forever.
+ */
+const LOCK_STALE_MS = 10_000;
+
+function acquireLock(filePath, timeoutMs = 5000) {
+  const lockPath = `${filePath}.lock`;
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    try {
+      fs.writeFileSync(lockPath, String(process.pid), { flag: 'wx' });
+      return lockPath;
+    } catch (_) {
+      // Lock exists — check staleness
+      try {
+        const stat = fs.statSync(lockPath);
+        if (Date.now() - stat.mtimeMs > LOCK_STALE_MS) {
+          fs.unlinkSync(lockPath);
+          continue;
+        }
+      } catch (_) { /* lock disappeared, retry */ continue; }
+      // Spin-wait 50ms
+      const until = Date.now() + 50;
+      while (Date.now() < until) { /* busy wait */ }
+    }
+  }
+  throw new Error(`Could not acquire lock on ${filePath} within ${timeoutMs}ms`);
+}
+
+function releaseLock(lockPath) {
+  try { fs.unlinkSync(lockPath); } catch (_) { /* already released */ }
+}
+
+export function modifyTasks(mutateFn, projectRoot = process.cwd()) {
+  const tasksPath = getTasksFilePath(projectRoot);
+  const lockPath = acquireLock(tasksPath);
+  try {
+    const current = readTasks(projectRoot);
+    const result = mutateFn(current);
+    writeTasks(current, projectRoot);
+    return result;
+  } finally {
+    releaseLock(lockPath);
   }
 }
 
@@ -395,6 +454,7 @@ export default {
   isApiKeySet,
   readTasks,
   writeTasks,
+  modifyTasks,
   getStateFilePath,
   readState,
   writeState,

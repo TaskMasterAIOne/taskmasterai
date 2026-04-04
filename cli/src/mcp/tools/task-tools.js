@@ -136,21 +136,22 @@ export function registerTaskTools(server, options = {}) {
     }),
   });
 
-  // update_task - Update a task
+  // update_task - Update a task (with optional metadata when TASK_MASTER_ALLOW_METADATA_UPDATES=true)
   server.addTool({
     name: 'update_task',
-    description: 'Update a task with new information',
+    description: 'Update a task with new information. Metadata updates require TASK_MASTER_ALLOW_METADATA_UPDATES=true.',
     parameters: z.object({
       projectRoot: z.string().optional().describe('Project root directory'),
       id: z.string().describe('Task ID'),
-      prompt: z.string().describe('Update information'),
+      prompt: z.string().optional().describe('Update information'),
       append: z.boolean().optional().describe('Append to details instead of replacing'),
       research: z.boolean().optional().describe('Use research model'),
+      metadata: z.string().optional().describe('JSON string of metadata to set (requires TASK_MASTER_ALLOW_METADATA_UPDATES=true)'),
     }),
     execute: withToolContext('update-task', async (args, context) => {
       const { findTaskById, updateTask, getCurrentTag } = await import('../../lib/tasks.js');
       const { projectRoot, log } = context;
-      const { id, prompt, append } = args;
+      const { id, prompt, append, metadata } = args;
       
       try {
         const task = findTaskById(id, projectRoot);
@@ -164,18 +165,45 @@ export function registerTaskTools(server, options = {}) {
         
         log.info(`Updating task ${id}`);
         
-        if (append) {
-          const timestamp = new Date().toISOString();
-          const newNote = `\n\n--- Update [${timestamp}] ---\n${prompt}`;
-          updateTask(id, { details: (task.details || '') + newNote }, projectRoot);
-        } else {
-          updateTask(id, { details: prompt }, projectRoot);
+        const updates = {};
+
+        if (prompt) {
+          if (append) {
+            const timestamp = new Date().toISOString();
+            updates.details = (task.details || '') + `\n\n--- Update [${timestamp}] ---\n${prompt}`;
+          } else {
+            updates.details = prompt;
+          }
         }
+
+        if (metadata) {
+          if (process.env.TASK_MASTER_ALLOW_METADATA_UPDATES !== 'true') {
+            return handleApiResult({
+              result: {
+                success: false,
+                error: { message: 'Metadata updates require TASK_MASTER_ALLOW_METADATA_UPDATES=true in env.' },
+              },
+              log,
+              projectRoot,
+            });
+          }
+          try {
+            updates.metadata = JSON.parse(metadata);
+          } catch (_) {
+            return handleApiResult({
+              result: { success: false, error: { message: 'Invalid JSON in metadata parameter.' } },
+              log,
+              projectRoot,
+            });
+          }
+        }
+
+        updateTask(id, updates, projectRoot);
         
         return handleApiResult({
           result: {
             success: true,
-            data: { id, message: 'Task updated' },
+            data: { id, metadataUpdated: !!metadata, message: 'Task updated' },
           },
           log,
           projectRoot,

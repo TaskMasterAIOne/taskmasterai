@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react'
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from 'react'
 import {
   User,
   onAuthStateChanged,
@@ -68,7 +68,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const fetchLicenseInfo = useCallback(async (userId: string) => {
     try {
       const info = await getLicenseInfo(userId)
-      setLicenseInfo(info)
+      setLicenseInfo((prev) => ({
+        ...info,
+        tasksUsed: info.tasksUsed ?? prev?.tasksUsed,
+      }))
     } catch (error) {
       console.error('Error fetching license info:', error)
       setLicenseInfo({ hasLicense: false })
@@ -80,6 +83,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (user?.uid) {
       await fetchLicenseInfo(user.uid)
     }
+  }, [user?.uid, fetchLicenseInfo])
+
+  // Pull Stripe-aligned fields (period end, cancel-at-period-end) from getLicenseInfo once per login.
+  // Firestore snapshot stays the source for tasksUsed; API fills gaps when license/current lags webhooks.
+  const licenseApiFetchForUid = useRef<string | null>(null)
+  useEffect(() => {
+    if (!user?.uid) {
+      licenseApiFetchForUid.current = null
+      return
+    }
+    if (licenseApiFetchForUid.current === user.uid) return
+    licenseApiFetchForUid.current = user.uid
+    void fetchLicenseInfo(user.uid)
   }, [user?.uid, fetchLicenseInfo])
 
   useEffect(() => {
@@ -174,9 +190,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 periodEnd = data.currentPeriodEnd
               }
             }
-            setLicenseInfo({
+            setLicenseInfo((prev) => ({
               hasLicense: data.status === 'active' || data.status === 'grace_period',
-              licenseKey: data.licenseKey,
+              licenseKey: data.licenseKey ?? prev?.licenseKey,
               status: data.status,
               plan: data.plan,
               planName: data.planName,
@@ -184,9 +200,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
               tasksPerMonth: data.tasksPerMonth,
               tasksUsed: data.tasksUsed,
               overageRate: data.overageRate,
-              currentPeriodEnd: periodEnd,
-              cancelAtPeriodEnd: data.cancelAtPeriodEnd,
-            })
+              currentPeriodEnd: periodEnd ?? prev?.currentPeriodEnd,
+              cancelAtPeriodEnd: data.cancelAtPeriodEnd ?? prev?.cancelAtPeriodEnd,
+              subscriptionStatus: data.subscriptionStatus ?? prev?.subscriptionStatus,
+            }))
           } else {
             // No license document, try fetching via API (fallback)
             fetchLicenseInfo(firebaseUser.uid)

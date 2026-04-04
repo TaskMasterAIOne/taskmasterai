@@ -43,7 +43,7 @@ export default function AppLayout() {
       case 'plus':
         return 'bg-marketing-elevated text-status-success border-status-success'
       case 'pro':
-        return 'bg-marketing-elevated border-indigo-300 text-indigo-600 dark:border-indigo-500/50 dark:text-indigo-400'
+        return 'bg-marketing-elevated border-accent-primary/35 text-accent-primary'
       case 'enterprise':
         return 'bg-marketing-elevated text-status-info border-status-info'
       default:

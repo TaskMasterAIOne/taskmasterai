@@ -338,13 +338,6 @@ export default function ApiKeys() {
     <div className="mx-auto max-w-6xl p-5 lg:p-8">
       {/* Header */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, ease: 'easeOut' }} className="mb-8">
-        <div className="mb-3 flex items-center gap-3">
-          <div className="h-px w-8 bg-gradient-to-r from-transparent to-indigo-400/50" />
-          <span className="bg-gradient-to-r from-indigo-500 to-violet-400 bg-clip-text text-sm font-medium text-transparent">
-            Security
-          </span>
-          <div className="h-px w-8 bg-gradient-to-l from-transparent to-indigo-400/50" />
-        </div>
         <h1 className="marketing-gradient-text font-display mb-1 text-2xl font-semibold tracking-tight md:text-3xl">API Keys</h1>
         <p className="text-open-sm text-marketing-muted">Securely store your AI provider API keys</p>
       </motion.div>
@@ -366,12 +359,12 @@ export default function ApiKeys() {
           <div className="card-marketing border-2 border-indigo-500/40 bg-gradient-to-br from-indigo-500/10 to-transparent p-5">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 rounded-xl bg-indigo-500/20 flex items-center justify-center flex-shrink-0">
-                <FontAwesomeIcon icon={faServer} className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+                <FontAwesomeIcon icon={faServer} className="w-6 h-6 text-accent-primary" />
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   <h2 className="text-lg font-semibold">Hosted API Keys</h2>
-                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-medium">
+                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-500/20 text-accent-primary text-xs font-medium">
                     <FontAwesomeIcon icon={faCrown} className="w-3 h-3" />
                     {hostedPlanLabel}
                   </span>

@@ -188,7 +188,7 @@ export default function Pricing() {
         >
           <p className="text-lg text-marketing-muted">
             Pricing is temporarily unavailable. Please check back soon or contact us at{' '}
-            <a href="mailto:taskmasteroneai@gmail.com" className="text-indigo-500 hover:underline dark:text-indigo-400">
+            <a href="mailto:taskmasteroneai@gmail.com" className="text-indigo-500 hover:underline dark:text-accent-primary">
               taskmasteroneai@gmail.com
             </a>{' '}
             for assistance.

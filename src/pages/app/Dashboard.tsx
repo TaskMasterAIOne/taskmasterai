@@ -262,13 +262,7 @@ export default function Dashboard() {
         transition={{ duration: 0.4, ease: 'easeOut' }}
         className="mb-8"
       >
-        <div className="mb-3 flex items-center gap-3">
-          <div className="h-px w-8 bg-gradient-to-r from-transparent to-indigo-400/50" />
-          <span className="bg-gradient-to-r from-indigo-500 to-violet-400 bg-clip-text text-sm font-medium text-transparent">
-            Overview
-          </span>
-          <div className="h-px w-8 bg-gradient-to-l from-transparent to-indigo-400/50" />
-        </div>
+
         <h1 className="marketing-gradient-text font-display mb-1 text-2xl font-semibold tracking-tight md:text-3xl">
           Welcome{user?.displayName ? `, ${user.displayName.split(' ')[0]}` : ''}
         </h1>
@@ -286,7 +280,7 @@ export default function Dashboard() {
           className="mb-8"
         >
           <h2 className="text-base font-semibold mb-4 flex items-center gap-2">
-            <FontAwesomeIcon icon={faChartLine} className="h-4 w-4 text-indigo-500 dark:text-indigo-400" />
+            <FontAwesomeIcon icon={faChartLine} className="h-4 w-4 text-indigo-500 dark:text-accent-primary" />
             Usage This Month
           </h2>
 
@@ -337,6 +331,17 @@ export default function Dashboard() {
                       <span>{usageData.stats.percentUsed}% used</span>
                       <span>{usageData.stats.remaining} remaining</span>
                     </div>
+                    {licenseInfo?.currentPeriodEnd && (
+                      <p className="mt-3 text-xs text-marketing-muted">
+                        Usage resets on{' '}
+                        {new Date(licenseInfo.currentPeriodEnd).toLocaleDateString('en-US', {
+                          month: 'long',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })}
+                        {' '}(current billing period end).
+                      </p>
+                    )}
                   </>
                 )}
 
@@ -428,7 +433,7 @@ export default function Dashboard() {
         >
           <div className="card-marketing border border-indigo-500/25 bg-indigo-500/5 p-5">
             <div className="flex items-start gap-4">
-              <FontAwesomeIcon icon={faCreditCard} className="mt-0.5 h-5 w-5 text-indigo-500 dark:text-indigo-400" />
+              <FontAwesomeIcon icon={faCreditCard} className="mt-0.5 h-5 w-5 text-indigo-500 dark:text-accent-primary" />
               <div className="flex-1">
                 <h3 className="mb-1 font-medium">Get Started with TaskMaster AI</h3>
                 <p className="mb-4 text-sm text-marketing-muted">

@@ -128,7 +128,7 @@ export function HeroProviderCarousel() {
   return (
         <section className="overflow-hidden py-8 sm:py-10" aria-label="AI providers">
           <div className="mx-auto max-w-2xl px-4">
-            <p className="mb-8 text-center text-open-sm text-slate-500 dark:text-gray-400">
+            <p className="mb-8 text-center text-open-sm text-slate-500 dark:text-marketing-muted">
               Works with your favorite AI providers
             </p>
             <div className="carousel-wrapper">

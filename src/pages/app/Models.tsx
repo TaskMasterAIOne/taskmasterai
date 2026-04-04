@@ -172,13 +172,6 @@ export default function Models() {
     <div className="mx-auto max-w-6xl overflow-x-hidden p-4 sm:p-5 lg:p-8">
       {/* Header */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, ease: 'easeOut' }} className="mb-6 sm:mb-8">
-        <div className="mb-3 flex items-center gap-3">
-          <div className="h-px w-8 bg-gradient-to-r from-transparent to-indigo-400/50" />
-          <span className="bg-gradient-to-r from-indigo-500 to-violet-400 bg-clip-text text-sm font-medium text-transparent">
-            AI
-          </span>
-          <div className="h-px w-8 bg-gradient-to-l from-transparent to-indigo-400/50" />
-        </div>
         <h1 className="marketing-gradient-text font-display mb-1 text-xl font-semibold tracking-tight sm:text-2xl md:text-3xl">Model Configuration</h1>
         <p className="text-open-sm text-marketing-muted">Configure AI models for different operations</p>
       </motion.div>

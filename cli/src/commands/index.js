@@ -42,6 +42,9 @@ import {
   moveTask,
   addSingleSubtask,
   generateTaskFiles,
+  getReadyTasks,
+  getBlockingTasks,
+  getTasksForTag,
 } from '../lib/tasks.js';
 import {
   generateTasksFromPRD,
@@ -435,6 +438,9 @@ export function registerCommands(program) {
     .option('-s, --status <status>', 'Filter by status')
     .option('--with-subtasks', 'Include subtasks/steps')
     .option('--with-steps', 'Include subtasks/steps (alias)')
+    .option('--ready', 'Show only tasks whose dependencies are satisfied')
+    .option('--blocking', 'Show only tasks that other tasks depend on')
+    .option('--all-tags', 'List tasks across all tags (use with --ready)')
     .action(async (options) => {
       const projectRoot = findProjectRoot();
       
@@ -443,24 +449,51 @@ export function registerCommands(program) {
         process.exit(1);
       }
 
-      // Display banner
       const pkg = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf-8'));
       const config = readProjectConfig(projectRoot);
       displayAsciiBanner({ version: pkg.version, projectName: config.projectName || 'TaskMaster' });
 
-      // Show current context
       const currentTag = getCurrentTag(projectRoot);
       displayCurrentTagIndicator(currentTag);
 
       console.log(chalk.gray(`Listing tasks from: ${getTasksFilePath(projectRoot)}`));
       console.log('');
 
-      let tasks = getAllTasks(projectRoot);
-      const allTasks = [...tasks]; // Keep unfiltered copy for dashboard
+      let tasks;
+      if (options.allTags) {
+        const tags = getAllTags(projectRoot);
+        tasks = [];
+        for (const tag of tags) {
+          const tagTasks = getTasksForTag(tag.name, projectRoot);
+          tagTasks.forEach(t => tasks.push({ ...t, _tag: tag.name }));
+        }
+      } else {
+        tasks = getAllTasks(projectRoot);
+      }
+      const allTasks = [...tasks];
 
       if (options.status) {
         const statuses = options.status.split(',').map(s => s.trim());
         tasks = tasks.filter(t => statuses.includes(t.status));
+      }
+
+      if (options.ready) {
+        const completedIds = new Set(
+          allTasks.filter(t => t.status === 'done' || t.status === 'completed').map(t => t.id)
+        );
+        const actionable = new Set(['pending', 'in-progress']);
+        tasks = tasks.filter(t =>
+          actionable.has(t.status) &&
+          (t.dependencies || []).every(dep => completedIds.has(dep))
+        );
+      }
+
+      if (options.blocking) {
+        const depTargets = new Set();
+        for (const t of allTasks) {
+          for (const d of (t.dependencies || [])) depTargets.add(d);
+        }
+        tasks = tasks.filter(t => depTargets.has(t.id));
       }
 
       // Display project dashboard with all tasks (unfiltered)
@@ -485,15 +518,46 @@ export function registerCommands(program) {
       const depsWidth = 14;
       const titleWidth = Math.max(30, terminalWidth - idWidth - statusWidth - priorityWidth - depsWidth - 10);
 
+      // Build "blocks" map for the Blocks column
+      const blocksMap = new Map();
+      if (options.blocking) {
+        for (const t of allTasks) {
+          for (const d of (t.dependencies || [])) {
+            if (!blocksMap.has(d)) blocksMap.set(d, []);
+            blocksMap.get(d).push(t.id);
+          }
+        }
+      }
+
+      const headCols = [];
+      const colWidths = [];
+
+      if (options.allTags) {
+        headCols.push(chalk.cyan.bold('Tag'));
+        colWidths.push(12);
+      }
+
+      headCols.push(
+        chalk.cyan.bold('ID'),
+        chalk.cyan.bold('Title'),
+        chalk.cyan.bold('Status'),
+        chalk.cyan.bold('Priority'),
+        chalk.cyan.bold('Dependencies'),
+      );
+
+      const extraCols = (options.allTags ? 12 : 0) + (options.blocking ? 14 : 0);
+      const adjustedTitleWidth = Math.max(24, titleWidth - extraCols);
+
+      colWidths.push(idWidth, adjustedTitleWidth, statusWidth, priorityWidth, depsWidth);
+
+      if (options.blocking) {
+        headCols.push(chalk.cyan.bold('Blocks'));
+        colWidths.push(14);
+      }
+
       const table = new Table({
-        head: [
-          chalk.cyan.bold('ID'),
-          chalk.cyan.bold('Title'),
-          chalk.cyan.bold('Status'),
-          chalk.cyan.bold('Priority'),
-          chalk.cyan.bold('Dependencies'),
-        ],
-        colWidths: [idWidth, titleWidth, statusWidth, priorityWidth, depsWidth],
+        head: headCols,
+        colWidths,
         wordWrap: true,
         style: {
           head: [],
@@ -511,28 +575,38 @@ export function registerCommands(program) {
             }).join(', ')
           : chalk.gray('-');
         
-        table.push([
+        const row = [];
+        if (options.allTags) row.push(chalk.magenta(task._tag || '-'));
+        row.push(
           chalk.white(task.id),
-          truncateText(task.title, titleWidth - 2),
+          truncateText(task.title, adjustedTitleWidth - 2),
           statusDisplay,
           priorityDisplay,
           depsDisplay,
-        ]);
+        );
+        if (options.blocking) {
+          const blocked = blocksMap.get(task.id);
+          row.push(blocked ? blocked.join(', ') : chalk.gray('-'));
+        }
+        table.push(row);
 
-        // Show subtasks/steps if requested
         const showSteps = options.withSubtasks || options.withSteps;
         const steps = task.steps || task.subtasks || [];
         
         if (showSteps && steps.length > 0) {
           steps.forEach(step => {
             const stepStatusDisplay = getStatusDisplay(step.status);
-            table.push([
+            const stepRow = [];
+            if (options.allTags) stepRow.push('');
+            stepRow.push(
               chalk.gray(`  ${task.id}.${step.id}`),
-              chalk.dim(truncateText(step.title, titleWidth - 4)),
+              chalk.dim(truncateText(step.title, adjustedTitleWidth - 4)),
               stepStatusDisplay,
               '',
               '',
-            ]);
+            );
+            if (options.blocking) stepRow.push('');
+            table.push(stepRow);
           });
         }
       });
@@ -2697,6 +2771,310 @@ Provide updated details that incorporate the new information.`;
         process.exit(1);
       }
     });
+
+  // ── scope-up (AI) ──
+  program
+    .command('scope-up')
+    .description('Increase the scope/complexity of a task via AI')
+    .option('-i, --id <id>', 'Task ID')
+    .option('-s, --strength <level>', 'Strength: light | regular | aggressive', 'regular')
+    .option('-p, --prompt <text>', 'Additional guidance for scope increase')
+    .option('-r, --research', 'Use research model for deeper context')
+    .action(async (options) => {
+      const projectRoot = findProjectRoot();
+      if (!projectRoot) {
+        displayError('Not in a TaskMaster project. Run "taskmaster init" first.');
+        process.exit(1);
+      }
+      if (!options.id) {
+        displayError('--id is required');
+        process.exit(1);
+      }
+
+      const task = findTaskById(options.id, projectRoot);
+      if (!task || task.isSubtask) {
+        displayError(`Task ${options.id} not found or is a subtask (scope-up applies to top-level tasks).`);
+        process.exit(1);
+      }
+
+      const spinner = startLoadingIndicator('Increasing task scope via AI…');
+      try {
+        await enforceUsageLimit(1);
+        const { aiExpandTask } = await import('../lib/ai.js');
+
+        const systemPrompt = `You are increasing the scope of an existing task. Strength: ${options.strength}.
+${options.prompt ? `User guidance: ${options.prompt}` : ''}
+Add more subtasks and make the task more comprehensive. Return a JSON object with keys: "title" (string), "description" (string), "details" (string), "subtasks" (array of {title, description, status:"pending"}).`;
+
+        const result = await aiExpandTask(task, {
+          num: options.strength === 'aggressive' ? 8 : options.strength === 'light' ? 3 : 5,
+          prompt: systemPrompt,
+          research: options.research,
+          projectRoot,
+        });
+
+        if (result && result.subtasks) {
+          addSubtasks(task.id, result.subtasks, false, projectRoot);
+          if (result.details) updateTask(task.id, { details: result.details }, projectRoot);
+        }
+
+        await incrementUsage('tasksAdded', 1);
+        succeedLoadingIndicator(spinner, `Scope increased for task ${options.id}`);
+      } catch (error) {
+        failLoadingIndicator(spinner, error.message);
+        process.exit(1);
+      }
+    });
+
+  // ── scope-down (AI) ──
+  program
+    .command('scope-down')
+    .description('Decrease the scope/complexity of a task via AI')
+    .option('-i, --id <id>', 'Task ID')
+    .option('-s, --strength <level>', 'Strength: light | regular | aggressive', 'regular')
+    .option('-p, --prompt <text>', 'Additional guidance for scope decrease')
+    .option('-r, --research', 'Use research model')
+    .action(async (options) => {
+      const projectRoot = findProjectRoot();
+      if (!projectRoot) {
+        displayError('Not in a TaskMaster project. Run "taskmaster init" first.');
+        process.exit(1);
+      }
+      if (!options.id) {
+        displayError('--id is required');
+        process.exit(1);
+      }
+
+      const task = findTaskById(options.id, projectRoot);
+      if (!task || task.isSubtask) {
+        displayError(`Task ${options.id} not found or is a subtask.`);
+        process.exit(1);
+      }
+
+      const subtasks = task.subtasks || task.steps || [];
+      const pendingOnly = subtasks.filter(s => s.status === 'pending');
+      const keepCount = options.strength === 'aggressive' ? 1
+                      : options.strength === 'light'      ? Math.max(1, pendingOnly.length - 1)
+                      :                                     Math.max(1, Math.ceil(pendingOnly.length / 2));
+
+      if (pendingOnly.length <= keepCount) {
+        displayInfo(`Task ${options.id} already has ${pendingOnly.length} pending subtask(s); nothing to remove.`);
+        return;
+      }
+
+      const toRemove = pendingOnly.slice(keepCount);
+      const stepsKey = task.steps ? 'steps' : 'subtasks';
+      const remaining = (task[stepsKey] || []).filter(s => !toRemove.some(r => r.id === s.id));
+      updateTask(task.id, { [stepsKey]: remaining }, projectRoot);
+
+      displaySuccess(`Removed ${toRemove.length} pending subtask(s) from task ${options.id}`);
+    });
+
+  // ── sync-readme ──
+  program
+    .command('sync-readme')
+    .description('Sync task list into the project README.md')
+    .option('--with-subtasks', 'Include subtasks in the output')
+    .option('-s, --status <status>', 'Filter by status')
+    .action(async (options) => {
+      const projectRoot = findProjectRoot();
+      if (!projectRoot) {
+        displayError('Not in a TaskMaster project. Run "taskmaster init" first.');
+        process.exit(1);
+      }
+
+      let tasks = getAllTasks(projectRoot);
+
+      if (options.status) {
+        const statuses = options.status.split(',').map(s => s.trim());
+        tasks = tasks.filter(t => statuses.includes(t.status));
+      }
+
+      let mdSection = '## Tasks\n\n| ID | Title | Status | Priority |\n|---|---|---|---|\n';
+      for (const t of tasks) {
+        const statusIcon = t.status === 'done' ? '✅' : t.status === 'in-progress' ? '🔄' : '⬜';
+        mdSection += `| ${t.id} | ${t.title} | ${statusIcon} ${t.status} | ${t.priority || 'medium'} |\n`;
+
+        if (options.withSubtasks && Array.isArray(t.subtasks)) {
+          for (const s of t.subtasks) {
+            const sIcon = s.status === 'done' ? '✅' : s.status === 'in-progress' ? '🔄' : '⬜';
+            mdSection += `| ${t.id}.${s.id} | ↳ ${s.title} | ${sIcon} ${s.status} | |\n`;
+          }
+        }
+      }
+
+      const readmePath = path.join(projectRoot, 'README.md');
+      const marker = { start: '<!-- taskmaster:tasks:start -->', end: '<!-- taskmaster:tasks:end -->' };
+
+      let readme = '';
+      if (fs.existsSync(readmePath)) {
+        readme = fs.readFileSync(readmePath, 'utf-8');
+      }
+
+      const wrapped = `${marker.start}\n${mdSection}\n${marker.end}`;
+      if (readme.includes(marker.start) && readme.includes(marker.end)) {
+        const re = new RegExp(`${marker.start}[\\s\\S]*?${marker.end}`, 'g');
+        readme = readme.replace(re, wrapped);
+      } else {
+        readme += `\n${wrapped}\n`;
+      }
+
+      fs.writeFileSync(readmePath, readme, 'utf-8');
+      displaySuccess('README.md updated with task list');
+    });
+
+  // ── lang (response language) ──
+  program
+    .command('lang')
+    .description('View or set the response language for AI output')
+    .option('--response <language>', 'Set the response language (e.g. en, es, ja)')
+    .option('--setup', 'Interactive language setup')
+    .action(async (options) => {
+      const projectRoot = findProjectRoot();
+      if (!projectRoot) {
+        displayError('Not in a TaskMaster project. Run "taskmaster init" first.');
+        process.exit(1);
+      }
+
+      const config = readProjectConfig(projectRoot);
+
+      if (options.setup) {
+        const inquirer = (await import('inquirer')).default;
+        const { lang } = await inquirer.prompt([{
+          type: 'input',
+          name: 'lang',
+          message: 'Response language code (e.g. en, es, ja, zh):',
+          default: config.responseLanguage || 'en',
+        }]);
+        config.responseLanguage = lang;
+        writeProjectConfig(config, projectRoot);
+        displaySuccess(`Response language set to: ${lang}`);
+        return;
+      }
+
+      if (options.response) {
+        config.responseLanguage = options.response;
+        writeProjectConfig(config, projectRoot);
+        displaySuccess(`Response language set to: ${options.response}`);
+        return;
+      }
+
+      console.log(chalk.cyan('Response language: ') + (config.responseLanguage || 'en (default)'));
+    });
+
+  // ── migrate ──
+  program
+    .command('migrate')
+    .description('Migrate project layout from legacy to .taskmaster-ai')
+    .option('-f, --force', 'Overwrite existing .taskmaster-ai directory')
+    .option('-y, --yes', 'Skip confirmation prompts')
+    .option('--dry-run', 'Show what would be migrated without changes')
+    .action(async (options) => {
+      const projectRoot = process.cwd();
+      const legacyDir = path.join(projectRoot, '.taskmaster');
+      const newDir    = path.join(projectRoot, '.taskmaster-ai');
+
+      if (!fs.existsSync(legacyDir)) {
+        displayInfo('No legacy .taskmaster directory found. Nothing to migrate.');
+        return;
+      }
+
+      if (fs.existsSync(newDir) && !options.force) {
+        displayWarning('.taskmaster-ai already exists. Use --force to overwrite.');
+        return;
+      }
+
+      if (options.dryRun) {
+        displayInfo(`Would migrate: ${legacyDir} → ${newDir}`);
+        return;
+      }
+
+      if (!options.yes) {
+        const inquirer = (await import('inquirer')).default;
+        const { confirm } = await inquirer.prompt([{
+          type: 'confirm',
+          name: 'confirm',
+          message: `Migrate ${legacyDir} → ${newDir}?`,
+          default: true,
+        }]);
+        if (!confirm) {
+          displayInfo('Migration cancelled.');
+          return;
+        }
+      }
+
+      fs.cpSync(legacyDir, newDir, { recursive: true });
+      displaySuccess(`Migrated .taskmaster → .taskmaster-ai`);
+      displayInfo('You can safely delete .taskmaster after verifying the migration.');
+    });
+
+  // ── rules ──
+  program
+    .command('rules')
+    .description('Add or remove IDE rule profiles (.cursor/rules, etc.)')
+    .argument('[action]', '"add" or "remove"')
+    .argument('[profiles...]', 'Profile names: cursor, windsurf, vscode, etc.')
+    .option('-f, --force', 'Overwrite existing rules files')
+    .action(async (action, profiles, options) => {
+      const projectRoot = findProjectRoot() || process.cwd();
+
+      if (!action || !['add', 'remove'].includes(action)) {
+        displayError('Usage: taskmaster rules <add|remove> <profile ...>');
+        process.exit(1);
+      }
+
+      if (!profiles || profiles.length === 0) {
+        displayError('Specify at least one profile: cursor, windsurf, vscode');
+        process.exit(1);
+      }
+
+      for (const profile of profiles) {
+        const target = getRuleTargetPath(projectRoot, profile);
+        if (!target) {
+          displayWarning(`Unknown profile: ${profile}`);
+          continue;
+        }
+
+        if (action === 'add') {
+          if (fs.existsSync(target) && !options.force) {
+            displayWarning(`${target} already exists. Use --force to overwrite.`);
+            continue;
+          }
+          fs.mkdirSync(path.dirname(target), { recursive: true });
+          const content = generateRuleContent(profile, projectRoot);
+          fs.writeFileSync(target, content, 'utf-8');
+          displaySuccess(`Created ${target}`);
+        } else {
+          if (fs.existsSync(target)) {
+            fs.unlinkSync(target);
+            displaySuccess(`Removed ${target}`);
+          } else {
+            displayInfo(`${target} does not exist.`);
+          }
+        }
+      }
+    });
+}
+
+function getRuleTargetPath(projectRoot, profile) {
+  const map = {
+    cursor:   path.join(projectRoot, '.cursor', 'rules', 'taskmaster.mdc'),
+    windsurf: path.join(projectRoot, '.windsurf', 'rules', 'taskmaster.md'),
+    vscode:   path.join(projectRoot, '.vscode', 'settings.json'),
+  };
+  return map[profile] || null;
+}
+
+function generateRuleContent(profile) {
+  return `# TaskMaster AI — ${profile} rules
+# Auto-generated by \`taskmaster rules add ${profile}\`
+# Customize as needed.
+
+- Use \`taskmaster next\` to find the next task to work on.
+- Use \`taskmaster show <id>\` for task details before implementing.
+- Mark tasks done with \`taskmaster set-status -i <id> -s done\`.
+- Expand complex tasks with \`taskmaster expand -i <id>\`.
+`;
 }
 
 export default { registerCommands };

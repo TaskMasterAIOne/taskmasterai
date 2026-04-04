@@ -65,7 +65,39 @@ const STRIPE_PRICES = {
   // Enterprise: Custom pricing, not a fixed Stripe product
 };
 
+/** Stripe price id -> internal plan key (portal plan changes update price, not metadata) */
+const PRICE_ID_TO_PLAN = Object.fromEntries(
+  Object.entries(STRIPE_PRICES).map(([planKey, priceId]) => [priceId, planKey])
+);
 
+/**
+ * Prefer subscription.items[0].price.id mapping; fallback to subscription.metadata.plan.
+ */
+function getPlanKeyFromStripeSubscription(subscription) {
+  const priceId = subscription?.items?.data?.[0]?.price?.id;
+  if (priceId && PRICE_ID_TO_PLAN[priceId]) {
+    return PRICE_ID_TO_PLAN[priceId];
+  }
+  const metaPlan = subscription?.metadata?.plan;
+  if (metaPlan && PLAN_DETAILS[metaPlan]) {
+    return metaPlan;
+  }
+  return metaPlan || null;
+}
+
+function periodTimestampsFromSubscription(subscription) {
+  if (!subscription?.current_period_start || !subscription?.current_period_end) {
+    return { currentPeriodStart: null, currentPeriodEnd: null };
+  }
+  return {
+    currentPeriodStart: admin.firestore.Timestamp.fromDate(
+      new Date(subscription.current_period_start * 1000)
+    ),
+    currentPeriodEnd: admin.firestore.Timestamp.fromDate(
+      new Date(subscription.current_period_end * 1000)
+    )
+  };
+}
 
 // Plan details (matching pricing page)
 const PLAN_DETAILS = {
@@ -1321,7 +1353,7 @@ export const handleStripeWebhook = onRequest(
       switch (event.type) {
         case 'checkout.session.completed': {
           const session = event.data.object;
-          await handleCheckoutComplete(session);
+          await handleCheckoutComplete(stripe, session);
           break;
         }
         
@@ -1345,7 +1377,7 @@ export const handleStripeWebhook = onRequest(
         
         case 'invoice.payment_succeeded': {
           const invoice = event.data.object;
-          await handlePaymentSucceeded(invoice);
+          await handlePaymentSucceeded(stripe, invoice);
           break;
         }
         
@@ -1362,20 +1394,27 @@ export const handleStripeWebhook = onRequest(
 );
 
 // Helper: Handle successful checkout
-async function handleCheckoutComplete(session) {
+async function handleCheckoutComplete(stripe, session) {
   const userId = session.metadata.userId;
-  const plan = session.metadata.plan;
+  const metadataPlan = session.metadata.plan;
   const subscriptionId = session.subscription;
   const customerId = session.customer;
+
+  if (!userId || !subscriptionId) {
+    console.error('handleCheckoutComplete: missing userId or subscription id');
+    return;
+  }
+
+  const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+  const plan = getPlanKeyFromStripeSubscription(subscription) || metadataPlan;
+  const { currentPeriodStart, currentPeriodEnd } = periodTimestampsFromSubscription(subscription);
+  const expiresAt = currentPeriodEnd || admin.firestore.Timestamp.fromDate(
+    new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+  );
 
   // Generate unique license key
   const licenseKey = `tm_live_${uuidv4()}`;
   const now = admin.firestore.Timestamp.now();
-  
-  // Calculate expiry (1 month from now)
-  const expiresAt = admin.firestore.Timestamp.fromDate(
-    new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-  );
 
   // Get plan details for the license document
   const planDetails = PLAN_DETAILS[plan] || {};
@@ -1392,18 +1431,20 @@ async function handleCheckoutComplete(session) {
     stripeCustomerId: customerId
   });
 
-  // Update user document
+  // Update user document (period fields used by incrementUsage + dashboard)
   await db.collection('users').doc(userId).set({
     plan: plan,
     licenseKey: licenseKey,
     stripeCustomerId: customerId,
     stripeSubscriptionId: subscriptionId,
     subscriptionStatus: 'active',
+    tasksUsed: 0,
+    currentPeriodStart: currentPeriodStart || null,
+    currentPeriodEnd: currentPeriodEnd || null,
     updatedAt: now
   }, { merge: true });
 
   // Also write to users/{userId}/license/current for real-time frontend updates
-  // This allows the frontend to listen to this path for instant subscription updates
   await db.collection('users').doc(userId).collection('license').doc('current').set({
     licenseKey: licenseKey,
     plan: plan,
@@ -1415,7 +1456,8 @@ async function handleCheckoutComplete(session) {
     status: 'active',
     createdAt: now,
     expiresAt: expiresAt,
-    currentPeriodEnd: expiresAt,
+    currentPeriodStart: currentPeriodStart || null,
+    currentPeriodEnd: currentPeriodEnd || expiresAt,
     cancelAtPeriodEnd: false,
     stripeSubscriptionId: subscriptionId,
     stripeCustomerId: customerId,
@@ -1428,11 +1470,21 @@ async function handleCheckoutComplete(session) {
 // Helper: Handle subscription update
 async function handleSubscriptionUpdate(subscription) {
   const userId = subscription.metadata.userId;
-  const plan = subscription.metadata.plan;
   const status = subscription.status;
 
   if (!userId) {
     console.error('No userId in subscription metadata');
+    return;
+  }
+
+  const userDocPre = await db.collection('users').doc(userId).get();
+  const fallbackPlan = userDocPre.exists ? userDocPre.data()?.plan : null;
+  const plan = getPlanKeyFromStripeSubscription(subscription) ||
+    subscription.metadata.plan ||
+    fallbackPlan;
+
+  if (!plan) {
+    console.error('handleSubscriptionUpdate: could not resolve plan from subscription', subscription.id);
     return;
   }
 
@@ -1446,29 +1498,32 @@ async function handleSubscriptionUpdate(subscription) {
   const licenseStatus = subscriptionStatus === 'active' ? 'active' : 
                         subscriptionStatus === 'past_due' ? 'grace_period' : 'expired';
 
+  const { currentPeriodStart, currentPeriodEnd } = periodTimestampsFromSubscription(subscription);
+
   await db.collection('users').doc(userId).update({
     plan: plan,
     subscriptionStatus: subscriptionStatus,
+    currentPeriodStart: currentPeriodStart || null,
+    currentPeriodEnd: currentPeriodEnd || null,
     updatedAt: now
   });
 
-  // Update license status
-  const userDoc = await db.collection('users').doc(userId).get();
+  const userDoc = userDocPre;
   const licenseKey = userDoc.data()?.licenseKey;
   
   if (licenseKey) {
-    await db.collection('licenses').doc(licenseKey).update({
+    const licensePatch = {
       plan: plan,
       status: licenseStatus,
       updatedAt: now
-    });
+    };
+    if (currentPeriodEnd) {
+      licensePatch.expiresAt = currentPeriodEnd;
+    }
+    await db.collection('licenses').doc(licenseKey).update(licensePatch);
   }
 
   // Update real-time license document for frontend
-  const currentPeriodEnd = subscription.current_period_end 
-    ? admin.firestore.Timestamp.fromDate(new Date(subscription.current_period_end * 1000))
-    : null;
-
   await db.collection('users').doc(userId).collection('license').doc('current').set({
     plan: plan,
     planName: planDetails.name || plan,
@@ -1476,7 +1531,8 @@ async function handleSubscriptionUpdate(subscription) {
     tasksPerMonth: planDetails.tasksPerMonth,
     overageRate: planDetails.overageRate,
     status: licenseStatus,
-    currentPeriodEnd: currentPeriodEnd,
+    currentPeriodStart: currentPeriodStart || null,
+    currentPeriodEnd: currentPeriodEnd || null,
     cancelAtPeriodEnd: subscription.cancel_at_period_end || false,
     updatedAt: now
   }, { merge: true });
@@ -1557,9 +1613,13 @@ async function handlePaymentFailed(invoice) {
 }
 
 // Helper: Handle payment succeeded
-async function handlePaymentSucceeded(invoice) {
+async function handlePaymentSucceeded(stripe, invoice) {
   const customerId = invoice.customer;
-  
+  const subscriptionRef = invoice.subscription;
+  const subscriptionId = typeof subscriptionRef === 'string'
+    ? subscriptionRef
+    : subscriptionRef?.id;
+
   const usersSnapshot = await db.collection('users')
     .where('stripeCustomerId', '==', customerId)
     .limit(1)
@@ -1567,43 +1627,83 @@ async function handlePaymentSucceeded(invoice) {
 
   if (usersSnapshot.empty) return;
 
+  // Non-subscription invoices (e.g. one-off) — nothing to sync
+  if (!subscriptionId) {
+    return;
+  }
+
   const userDoc = usersSnapshot.docs[0];
   const userId = userDoc.id;
   const userData = userDoc.data();
   const licenseKey = userData.licenseKey;
-  const plan = userData.plan;
   const now = admin.firestore.Timestamp.now();
-  const planDetails = PLAN_DETAILS[plan] || {};
 
-  // Extend license by 1 month
-  const expiresAt = admin.firestore.Timestamp.fromDate(
-    new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-  );
-
-  await db.collection('users').doc(userId).update({
-    subscriptionStatus: 'active',
-    tasksUsed: 0, // Reset usage on new billing period
-    gracePeriodEnd: admin.firestore.FieldValue.delete(),
-    updatedAt: now
-  });
-
-  if (licenseKey) {
-    await db.collection('licenses').doc(licenseKey).update({
-      status: 'active',
-      expiresAt: expiresAt,
-      gracePeriodEnd: admin.firestore.FieldValue.delete(),
-      updatedAt: now
-    });
+  const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+  const plan = getPlanKeyFromStripeSubscription(subscription) || userData.plan;
+  if (!plan) {
+    console.error('handlePaymentSucceeded: could not resolve plan', subscriptionId);
+    return;
   }
 
-  // Update real-time license document for frontend
-  await db.collection('users').doc(userId).collection('license').doc('current').set({
-    status: 'active',
-    tasksUsed: 0, // Reset usage on new billing period
-    currentPeriodEnd: expiresAt,
-    expiresAt: expiresAt,
+  const planDetails = PLAN_DETAILS[plan] || {};
+  const { currentPeriodStart, currentPeriodEnd } = periodTimestampsFromSubscription(subscription);
+  const expiresAt = currentPeriodEnd || null;
+
+  const billingReason = invoice.billing_reason;
+  // Renewals: reset usage. First payment: checkout already set 0; idempotent. Mid-cycle plan changes: do not reset.
+  const shouldResetUsage =
+    billingReason === 'subscription_cycle' ||
+    billingReason === 'subscription_create';
+
+  const userUpdate = {
+    subscriptionStatus: 'active',
+    plan: plan,
+    currentPeriodStart: currentPeriodStart || null,
+    currentPeriodEnd: currentPeriodEnd || null,
+    gracePeriodEnd: admin.firestore.FieldValue.delete(),
     updatedAt: now
-  }, { merge: true });
+  };
+  if (shouldResetUsage) {
+    userUpdate.tasksUsed = 0;
+  }
+
+  await db.collection('users').doc(userId).update(userUpdate);
+
+  if (licenseKey) {
+    const licPatch = {
+      status: 'active',
+      plan: plan,
+      gracePeriodEnd: admin.firestore.FieldValue.delete(),
+      updatedAt: now
+    };
+    if (expiresAt) {
+      licPatch.expiresAt = expiresAt;
+    }
+    await db.collection('licenses').doc(licenseKey).update(licPatch);
+  }
+
+  const licenseCurrentPatch = {
+    status: 'active',
+    plan: plan,
+    planName: planDetails.name || plan,
+    planPrice: planDetails.price,
+    tasksPerMonth: planDetails.tasksPerMonth,
+    overageRate: planDetails.overageRate,
+    currentPeriodStart: currentPeriodStart || null,
+    currentPeriodEnd: currentPeriodEnd || null,
+    updatedAt: now
+  };
+  if (expiresAt) {
+    licenseCurrentPatch.expiresAt = expiresAt;
+  }
+  if (shouldResetUsage) {
+    licenseCurrentPatch.tasksUsed = 0;
+  }
+
+  await db.collection('users').doc(userId).collection('license').doc('current').set(
+    licenseCurrentPatch,
+    { merge: true }
+  );
 }
 
 // ============================================
@@ -2075,7 +2175,8 @@ export const pushUserConfig = onRequest(
 export const incrementUsage = onRequest(
   {
     cors: true,
-    maxInstances: 100
+    maxInstances: 100,
+    secrets: [stripeSecretKey]
   },
   async (req, res) => {
     if (req.method === 'OPTIONS') {
@@ -2123,24 +2224,70 @@ export const incrementUsage = onRequest(
       const userId = license.userId;
       const userRef = db.collection('users').doc(userId);
       const now = admin.firestore.Timestamp.now();
+      const stripe = new Stripe(stripeSecretKey.value());
 
       // Get current usage
       const userDoc = await userRef.get();
       const userData = userDoc.exists ? userDoc.data() : {};
       
-      // Check if we need to reset monthly usage (based on subscription period)
       let currentTasksUsed = userData.tasksUsed || 0;
-      const lastResetDate = userData.usageResetDate?.toDate();
-      const currentPeriodEnd = userData.currentPeriodEnd?.toDate();
-      
-      // Reset if we're past the current period end
-      if (currentPeriodEnd && new Date() > currentPeriodEnd) {
+      const periodEnd = userData.currentPeriodEnd?.toDate?.() ?? null;
+      const periodStale = !periodEnd || new Date() > periodEnd;
+
+      let effectivePlan = userData.plan || license.plan;
+
+      // Align billing period with Stripe when local period is missing or past end (webhook may lag)
+      if (periodStale && userData.stripeSubscriptionId) {
+        try {
+          const subscription = await stripe.subscriptions.retrieve(userData.stripeSubscriptionId);
+          const planKey = getPlanKeyFromStripeSubscription(subscription) || userData.plan || license.plan;
+          effectivePlan = planKey;
+          const { currentPeriodStart, currentPeriodEnd } = periodTimestampsFromSubscription(subscription);
+          const planDetailsSync = PLAN_DETAILS[planKey] || {};
+
+          currentTasksUsed = 0;
+
+          await userRef.set({
+            plan: planKey,
+            currentPeriodStart: currentPeriodStart || null,
+            currentPeriodEnd: currentPeriodEnd || null,
+            tasksUsed: 0,
+            updatedAt: now
+          }, { merge: true });
+
+          await db.collection('users').doc(userId).collection('license').doc('current').set({
+            plan: planKey,
+            planName: planDetailsSync.name || planKey,
+            planPrice: planDetailsSync.price,
+            tasksPerMonth: planDetailsSync.tasksPerMonth,
+            overageRate: planDetailsSync.overageRate,
+            currentPeriodStart: currentPeriodStart || null,
+            currentPeriodEnd: currentPeriodEnd || null,
+            tasksUsed: 0,
+            updatedAt: now
+          }, { merge: true });
+
+          if (userData.licenseKey) {
+            const licRef = db.collection('licenses').doc(userData.licenseKey);
+            const licPatch = { plan: planKey, updatedAt: now };
+            if (currentPeriodEnd) {
+              licPatch.expiresAt = currentPeriodEnd;
+            }
+            await licRef.set(licPatch, { merge: true });
+          }
+        } catch (stripeErr) {
+          console.error('incrementUsage: Stripe period sync failed', stripeErr);
+          if (periodEnd && new Date() > periodEnd) {
+            currentTasksUsed = 0;
+          }
+        }
+      } else if (periodStale) {
         currentTasksUsed = 0;
       }
 
       // Increment usage
       const newTasksUsed = currentTasksUsed + count;
-      const planDetails = PLAN_DETAILS[license.plan] || {};
+      const planDetails = PLAN_DETAILS[effectivePlan] || {};
       const tasksPerMonth = planDetails.tasksPerMonth || 0;
       const isOverage = tasksPerMonth > 0 && newTasksUsed > tasksPerMonth;
       const overageCount = isOverage ? newTasksUsed - tasksPerMonth : 0;
