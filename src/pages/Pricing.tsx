@@ -6,7 +6,18 @@ import { motion } from 'framer-motion'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCheck, faStar, faSpinner } from '@fortawesome/free-solid-svg-icons'
 import { useAuth } from '../contexts/AuthContext'
-import { createCheckout, PlanType } from '../lib/stripe'
+import { createCheckout, PlanType, type LicenseInfo } from '../lib/stripe'
+
+/** Current paid tier from license only — avoids stale userData.plan after cancel. */
+function activePlanTierFromLicense(licenseInfo: LicenseInfo | null): PlanType | null {
+  const st = licenseInfo?.status
+  const entitled =
+    licenseInfo?.hasLicense === true &&
+    (st === 'active' || st === 'grace_period')
+  if (!entitled || !licenseInfo?.plan) return null
+  const id = licenseInfo.plan.toLowerCase() as PlanType
+  return id === 'plus' || id === 'pro' || id === 'enterprise' ? id : null
+}
 
 const tiers = [
   {
@@ -95,7 +106,8 @@ const faqs = [
 ]
 
 export default function Pricing() {
-  const { user, userData } = useAuth()
+  const { user, userData, licenseInfo } = useAuth()
+  const currentTier = activePlanTierFromLicense(licenseInfo)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [loadingPlan, setLoadingPlan] = useState<PlanType | null>(null)
@@ -198,7 +210,7 @@ export default function Pricing() {
       <div className="relative z-[1] mx-auto max-w-5xl">
         <div className="mx-auto grid max-w-4xl grid-cols-1 gap-6 md:grid-cols-3">
           {tiers.map((tier, index) => {
-            const isCurrentPlan = userData?.plan === tier.id
+            const isCurrentPlan = currentTier === tier.id
             const isLoading = loadingPlan === tier.id
 
             return (

@@ -204,7 +204,10 @@ export default function ApiKeys() {
   const [hostedStats, setHostedStats] = useState<HostedKeyStats | null>(null)
   const [loadingStats, setLoadingStats] = useState(false)
 
-  const hasHostedKeys = (licenseData?.plan === 'pro' || licenseData?.plan === 'enterprise') && licenseData?.status === 'active'
+  const licenseOkForHosted =
+    licenseData?.status === 'active' || licenseData?.status === 'grace_period'
+  const hasHostedKeys =
+    (licenseData?.plan === 'pro' || licenseData?.plan === 'enterprise') && licenseOkForHosted
   const hostedPlanLabel = licenseData?.plan === 'enterprise' ? 'Enterprise' : 'PRO'
 
   // Real-time listener for API keys
