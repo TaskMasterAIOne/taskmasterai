@@ -153,23 +153,30 @@ export default function Settings() {
   ] as const
 
   return (
-    <div className="p-4 sm:p-5 lg:p-8 max-w-3xl mx-auto overflow-x-hidden">
+    <div className="mx-auto max-w-6xl overflow-x-hidden p-4 sm:p-5 lg:p-8">
       {/* Header */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, ease: 'easeOut' }} className="mb-6 sm:mb-8">
-        <h1 className="text-xl sm:text-2xl font-bold mb-1">Settings</h1>
-        <p className="text-sm text-text-muted">Manage your account and preferences</p>
+        <div className="mb-3 flex items-center gap-3">
+          <div className="h-px w-8 bg-gradient-to-r from-transparent to-indigo-400/50" />
+          <span className="bg-gradient-to-r from-indigo-500 to-violet-400 bg-clip-text text-sm font-medium text-transparent">
+            Account
+          </span>
+          <div className="h-px w-8 bg-gradient-to-l from-transparent to-indigo-400/50" />
+        </div>
+        <h1 className="marketing-gradient-text font-display mb-1 text-xl font-semibold tracking-tight sm:text-2xl md:text-3xl">Settings</h1>
+        <p className="text-open-sm text-marketing-muted">Manage your account and preferences</p>
       </motion.div>
 
       {/* Status messages */}
       {error && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 p-3 rounded-lg bg-surface-elevated border border-status-error text-status-error text-sm mb-5">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 p-3 rounded-lg bg-marketing-elevated border border-status-error text-status-error text-sm mb-5">
           <FontAwesomeIcon icon={faCircleExclamation} className="w-4 h-4 flex-shrink-0" />
           {error}
         </motion.div>
       )}
 
       {success && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 p-3 rounded-lg bg-surface-elevated border border-status-success text-status-success text-sm mb-5">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 p-3 rounded-lg bg-marketing-elevated border border-status-success text-status-success text-sm mb-5">
           <FontAwesomeIcon icon={faCheckCircle} className="w-4 h-4 flex-shrink-0" />
           {success}
         </motion.div>
@@ -178,11 +185,11 @@ export default function Settings() {
       {/* Profile Section */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1, duration: 0.4, ease: 'easeOut' }} className="mb-6 sm:mb-8">
         <h2 className="text-base font-semibold mb-4">Profile</h2>
-        <div className="card p-4 sm:p-5">
+        <div className="card-marketing p-4 sm:p-5">
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
             {/* Profile Photo */}
             <div className="relative group">
-              <div className="w-16 h-16 rounded-full bg-surface-highlight flex items-center justify-center flex-shrink-0 overflow-hidden">
+              <div className="w-16 h-16 rounded-full bg-marketing-elevated flex items-center justify-center flex-shrink-0 overflow-hidden">
                 {user?.photoURL && !imageError ? (
                   <img 
                     src={user.photoURL} 
@@ -192,7 +199,7 @@ export default function Settings() {
                     referrerPolicy="no-referrer"
                   />
                 ) : (
-                  <FontAwesomeIcon icon={faUser} className="w-6 h-6 text-text-muted" />
+                  <FontAwesomeIcon icon={faUser} className="w-6 h-6 text-marketing-muted" />
                 )}
               </div>
               <button
@@ -214,7 +221,7 @@ export default function Settings() {
             <div className="flex-1 space-y-3 w-full sm:w-auto text-center sm:text-left">
               {/* Editable Name */}
               <div>
-                <p className="text-xs text-text-subtle uppercase tracking-wide mb-1">Name</p>
+                <p className="text-xs text-marketing-muted/80 uppercase tracking-wide mb-1">Name</p>
                 {isEditingName ? (
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                     <input
@@ -229,7 +236,7 @@ export default function Settings() {
                     <button
                       onClick={handleNameSave}
                       disabled={saving}
-                        className="btn-primary text-sm py-1.5 px-3 flex-1 sm:flex-none"
+                        className="btn-marketing-primary flex-1 px-3 py-1.5 text-sm sm:flex-none"
                     >
                       {saving ? '...' : 'Save'}
                     </button>
@@ -252,7 +259,7 @@ export default function Settings() {
                         setNewDisplayName(user?.displayName || '')
                         setIsEditingName(true)
                       }}
-                      className="p-1 text-text-subtle hover:text-text transition-colors"
+                      className="p-1 text-marketing-muted/80 transition-colors hover:text-marketing-text"
                     >
                       <FontAwesomeIcon icon={faPen} className="w-3 h-3" />
                     </button>
@@ -261,13 +268,13 @@ export default function Settings() {
               </div>
 
               <div className="flex items-center justify-center sm:justify-start gap-2">
-                <FontAwesomeIcon icon={faEnvelope} className="w-3.5 h-3.5 text-text-subtle" />
-                <p className="text-sm text-text-muted truncate">{user?.email}</p>
+                <FontAwesomeIcon icon={faEnvelope} className="w-3.5 h-3.5 text-marketing-muted/80" />
+                <p className="text-sm text-marketing-muted truncate">{user?.email}</p>
               </div>
               {userData?.createdAt && (
                 <div className="flex items-center justify-center sm:justify-start gap-2">
-                  <FontAwesomeIcon icon={faCalendar} className="w-3.5 h-3.5 text-text-subtle" />
-                  <p className="text-sm text-text-muted">
+                  <FontAwesomeIcon icon={faCalendar} className="w-3.5 h-3.5 text-marketing-muted/80" />
+                  <p className="text-sm text-marketing-muted">
                     Joined {new Date(userData.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                   </p>
                 </div>
@@ -280,12 +287,12 @@ export default function Settings() {
       {/* Appearance Section */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15, duration: 0.4, ease: 'easeOut' }} className="mb-6 sm:mb-8">
         <h2 className="text-base font-semibold mb-4">Appearance</h2>
-        <div className="card p-4 sm:p-5">
+        <div className="card-marketing p-4 sm:p-5">
           <div className="flex items-start gap-3 sm:gap-4 mb-4">
-            <FontAwesomeIcon icon={faPalette} className="w-5 h-5 text-text-muted mt-0.5 flex-shrink-0" />
+            <FontAwesomeIcon icon={faPalette} className="w-5 h-5 text-marketing-muted mt-0.5 flex-shrink-0" />
             <div>
               <p className="text-base font-medium">Theme</p>
-              <p className="text-xs sm:text-sm text-text-muted">Choose how TaskMaster AI looks to you</p>
+              <p className="text-xs sm:text-sm text-marketing-muted">Choose how TaskMaster AI looks to you</p>
             </div>
           </div>
           <div className="grid grid-cols-3 gap-2 sm:gap-3">
@@ -295,15 +302,15 @@ export default function Settings() {
                 onClick={() => setMode(option.id)}
                 className={`flex flex-col items-center gap-1.5 sm:gap-2 p-3 sm:p-4 rounded-lg border transition-all ${
                   mode === option.id
-                    ? 'border-accent bg-accent/10'
-                    : 'border-border bg-surface hover:border-border-light'
+                    ? 'border-indigo-500/50 bg-indigo-500/10'
+                    : 'border-marketing-border bg-marketing-elevated hover:border-indigo-400/40'
                 }`}
               >
                 <FontAwesomeIcon 
                   icon={option.icon} 
-                  className={`w-4 sm:w-5 h-4 sm:h-5 ${mode === option.id ? 'text-accent' : 'text-text-muted'}`} 
+                  className={`h-4 w-4 sm:h-5 sm:w-5 ${mode === option.id ? 'text-indigo-600 dark:text-indigo-400' : 'text-marketing-muted'}`} 
                 />
-                <span className={`text-xs sm:text-sm font-medium ${mode === option.id ? 'text-accent' : 'text-text-muted'}`}>
+                <span className={`text-xs font-medium sm:text-sm ${mode === option.id ? 'text-indigo-600 dark:text-indigo-400' : 'text-marketing-muted'}`}>
                   {option.label}
                 </span>
               </button>
@@ -318,25 +325,25 @@ export default function Settings() {
         
         {/* License Key - Only show if user has a license */}
         {hasLicense && licenseInfo?.licenseKey && (
-          <div className="card p-4 sm:p-5 mb-4">
+          <div className="card-marketing p-4 sm:p-5 mb-4">
             <div className="flex items-center gap-2 mb-4">
-              <FontAwesomeIcon icon={faKey} className="w-4 h-4 text-accent" />
+              <FontAwesomeIcon icon={faKey} className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
               <span className="text-sm font-medium">Your License Key</span>
             </div>
             
             {/* License key display */}
             <div className="flex items-center gap-2 sm:gap-3 mb-4">
-              <code className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-background rounded-lg font-mono text-xs sm:text-sm text-accent border border-theme-primary overflow-x-auto min-w-0">
+              <code className="min-w-0 flex-1 overflow-x-auto rounded-lg border border-marketing-border bg-marketing-bg px-3 py-2.5 font-mono text-xs text-indigo-600 dark:text-indigo-400 sm:px-4 sm:py-3 sm:text-sm">
                 {licenseInfo.licenseKey}
               </code>
               <button
                 onClick={handleCopyLicense}
-                className="p-2.5 sm:p-3 bg-surface-highlight rounded-lg border border-theme-primary hover:border-accent transition-colors flex-shrink-0"
+                className="flex-shrink-0 rounded-lg border border-marketing-border bg-marketing-elevated p-2.5 transition-colors hover:border-indigo-500 sm:p-3"
                 title="Copy to clipboard"
               >
                 <FontAwesomeIcon 
                   icon={copied ? faCheck : faCopy} 
-                  className={`w-4 h-4 ${copied ? 'text-green-400' : 'text-text-muted'}`} 
+                  className={`w-4 h-4 ${copied ? 'text-green-400' : 'text-marketing-muted'}`} 
                 />
               </button>
             </div>
@@ -353,23 +360,23 @@ export default function Settings() {
                 {licenseInfo.status === 'active' ? 'Active' : 
                  licenseInfo.status === 'grace_period' ? 'Grace Period' : 'Expired'}
               </span>
-              <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-accent/10 text-accent border border-accent">
+              <span className="rounded-full border border-indigo-500/40 bg-indigo-500/10 px-2.5 py-1 text-xs font-medium text-indigo-600 dark:text-indigo-400">
                 {licenseInfo.planName} Plan
               </span>
               {licenseInfo.tasksPerMonth && (
-                <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-surface-highlight text-text-muted border border-theme-primary">
+                <span className="rounded-full border border-marketing-border bg-marketing-elevated px-2.5 py-1 text-xs font-medium text-marketing-muted">
                   {licenseInfo.tasksPerMonth.toLocaleString()} tasks/month
                 </span>
               )}
             </div>
 
             {/* CLI Instructions */}
-            <div className="p-3 sm:p-4 bg-background rounded-lg border border-theme-primary">
+            <div className="rounded-lg border border-marketing-border bg-marketing-bg p-3 sm:p-4">
               <div className="flex items-center gap-2 mb-2">
-                <FontAwesomeIcon icon={faTerminal} className="w-4 h-4 text-text-muted" />
+                <FontAwesomeIcon icon={faTerminal} className="w-4 h-4 text-marketing-muted" />
                 <span className="text-sm font-medium">Login via CLI</span>
               </div>
-              <code className="block px-3 py-2 bg-surface rounded-lg font-mono text-xs text-text-secondary border border-theme-primary overflow-x-auto">
+              <code className="block overflow-x-auto rounded-lg border border-marketing-border bg-marketing-elevated px-3 py-2 font-mono text-xs text-marketing-text">
                 taskmaster login
               </code>
             </div>
@@ -398,33 +405,33 @@ export default function Settings() {
 
         {/* Usage Stats */}
         {hasLicense && licenseInfo?.tasksPerMonth && licenseInfo.tasksPerMonth > 0 && (
-          <div className="card p-4 sm:p-5 mb-4">
+          <div className="card-marketing p-4 sm:p-5 mb-4">
             <p className="text-sm font-medium mb-3">Usage This Month</p>
             <div className="flex items-center justify-between mb-3">
               <div>
                 <p className="text-xl sm:text-2xl font-bold">{licenseInfo.tasksUsed || 0}</p>
-                <p className="text-xs text-text-muted">tasks used</p>
+                <p className="text-xs text-marketing-muted">tasks used</p>
               </div>
               <div className="text-right">
                 <p className="text-xl sm:text-2xl font-bold">{licenseInfo.tasksPerMonth.toLocaleString()}</p>
-                <p className="text-xs text-text-muted">included</p>
+                <p className="text-xs text-marketing-muted">included</p>
               </div>
             </div>
-            <div className="w-full h-3 bg-surface-highlight rounded-full overflow-hidden">
+            <div className="w-full h-3 bg-marketing-elevated rounded-full overflow-hidden">
               <div 
                 className={`h-full rounded-full transition-all ${
                   ((licenseInfo.tasksUsed || 0) / licenseInfo.tasksPerMonth) > 0.9 
                     ? 'bg-red-500' 
                     : ((licenseInfo.tasksUsed || 0) / licenseInfo.tasksPerMonth) > 0.7 
                       ? 'bg-amber-500' 
-                      : 'bg-accent'
+                      : 'bg-indigo-500'
                 }`}
                 style={{ 
                   width: `${Math.min(100, ((licenseInfo.tasksUsed || 0) / licenseInfo.tasksPerMonth) * 100)}%` 
                 }}
               />
             </div>
-            <p className="text-xs text-text-muted mt-2">
+            <p className="text-xs text-marketing-muted mt-2">
               {((licenseInfo.tasksUsed || 0) / licenseInfo.tasksPerMonth * 100).toFixed(1)}% used
               {licenseInfo.currentPeriodEnd && (
                 <span className="ml-2">· Resets {new Date(licenseInfo.currentPeriodEnd).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
@@ -434,32 +441,32 @@ export default function Settings() {
         )}
 
         {/* Current Plan & Manage */}
-        <div className="card p-4 sm:p-5 mb-4">
+        <div className="card-marketing p-4 sm:p-5 mb-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3 sm:gap-4">
-              <FontAwesomeIcon icon={faCreditCard} className="w-5 h-5 text-text-muted flex-shrink-0" />
+              <FontAwesomeIcon icon={faCreditCard} className="w-5 h-5 text-marketing-muted flex-shrink-0" />
               {currentPlanLabel || licenseInfo?.hasLicense ? (
                 <div>
                   <p className="text-base font-medium">{licenseInfo?.planName || currentPlanLabel?.name} Plan</p>
-                  <p className="text-sm text-text-muted">
+                  <p className="text-sm text-marketing-muted">
                     {licenseInfo?.planPrice != null ? `$${licenseInfo.planPrice}` : currentPlanLabel?.price != null ? `$${currentPlanLabel.price}` : ''}
                     {(licenseInfo?.planPrice != null || currentPlanLabel?.price != null) && '/month'}
                   </p>
                 </div>
               ) : (
                 <div>
-                  <p className="text-base font-medium text-text-muted">No active plan</p>
-                  <p className="text-sm text-text-muted">
-                    <Link to="/pricing" className="text-accent hover:underline">Visit the Pricing page</Link> to choose a plan.
+                  <p className="text-base font-medium text-marketing-muted">No active plan</p>
+                  <p className="text-sm text-marketing-muted">
+                    <Link to="/pricing" className="text-indigo-600 hover:underline dark:text-indigo-400">Visit the Pricing page</Link> to choose a plan.
                   </p>
                 </div>
               )}
             </div>
-            {(currentPlanLabel || licenseInfo?.hasLicense) && user?.email !== 'patrick@envoymobile.com' && (
+            {(currentPlanLabel || licenseInfo?.hasLicense) && (
               <button
                 onClick={handleManageSubscription}
                 disabled={loadingPortal}
-                className="btn-secondary text-sm flex items-center gap-2"
+                className="btn-marketing-secondary flex items-center gap-2 text-sm"
               >
                 {loadingPortal ? (
                   <FontAwesomeIcon icon={faSpinner} className="w-3 h-3 animate-spin" />
@@ -479,13 +486,13 @@ export default function Settings() {
         <h2 className="text-base font-semibold mb-4">Account</h2>
         
         {/* Sign Out */}
-        <div className="card p-4 sm:p-5 mb-4">
+        <div className="card-marketing p-4 sm:p-5 mb-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <FontAwesomeIcon icon={faRightFromBracket} className="w-5 h-5 text-text-muted flex-shrink-0" />
+              <FontAwesomeIcon icon={faRightFromBracket} className="w-5 h-5 text-marketing-muted flex-shrink-0" />
               <div>
                 <p className="text-base font-medium">Sign Out</p>
-                <p className="text-xs sm:text-sm text-text-muted">Sign out of your account on this device</p>
+                <p className="text-xs sm:text-sm text-marketing-muted">Sign out of your account on this device</p>
               </div>
             </div>
             <button 
@@ -493,7 +500,7 @@ export default function Settings() {
                 await logout()
                 navigate('/')
               }}
-              className="btn-secondary text-sm w-full sm:w-auto"
+              className="btn-marketing-secondary w-full text-sm sm:w-auto"
             >
               Sign Out
             </button>

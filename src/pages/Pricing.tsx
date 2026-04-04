@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
-// TEMP: Set to false to re-enable pricing
-const PRICING_DISABLED = true
+const PRICING_DISABLED = false
 import { motion } from 'framer-motion'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCheck, faStar, faSpinner } from '@fortawesome/free-solid-svg-icons'
@@ -134,18 +133,25 @@ export default function Pricing() {
   }
 
   return (
-    <div className="relative py-12 sm:py-20 px-4">
+    <div className="marketing-page open-sample relative px-4 py-12 sm:py-20">
       {/* Header */}
-      <div className="max-w-5xl mx-auto text-center mb-10 sm:mb-14">
+      <div className="relative z-[1] mx-auto mb-10 max-w-5xl text-center sm:mb-14">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, ease: 'easeOut' }}
         >
-          <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 shimmer-heading">
+          <div className="mb-4 flex items-center justify-center gap-3">
+            <div className="h-px w-8 bg-gradient-to-r from-transparent to-indigo-400/50" />
+            <span className="bg-gradient-to-r from-indigo-500 to-violet-400 bg-clip-text text-sm font-medium text-transparent">
+              Pricing
+            </span>
+            <div className="h-px w-8 bg-gradient-to-l from-transparent to-indigo-400/50" />
+          </div>
+          <h1 className="marketing-gradient-text font-display mb-4 text-3xl font-semibold tracking-tight md:text-4xl lg:text-5xl">
             Simple, transparent pricing
           </h1>
-          <p className="text-lg text-text-muted max-w-lg mx-auto">
+          <p className="mx-auto max-w-lg text-lg leading-relaxed text-marketing-muted">
             Choose the plan that fits your workflow. Get started in minutes.
           </p>
         </motion.div>
@@ -178,19 +184,19 @@ export default function Pricing() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="max-w-lg mx-auto p-8 sm:p-12 bg-surface border border-border rounded-xl text-center"
+          className="marketing-panel mx-auto max-w-lg rounded-xl border p-8 text-center sm:p-12"
         >
-          <p className="text-lg text-text-muted">
+          <p className="text-lg text-marketing-muted">
             Pricing is temporarily unavailable. Please check back soon or contact us at{' '}
-            <a href="mailto:taskmasteroneai@gmail.com" className="text-accent hover:underline">
+            <a href="mailto:taskmasteroneai@gmail.com" className="text-indigo-500 hover:underline dark:text-indigo-400">
               taskmasteroneai@gmail.com
             </a>{' '}
             for assistance.
           </p>
         </motion.div>
       ) : (
-      <div className="max-w-5xl mx-auto">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-4xl mx-auto">
+      <div className="relative z-[1] mx-auto max-w-5xl">
+        <div className="mx-auto grid max-w-4xl grid-cols-1 gap-6 md:grid-cols-3">
           {tiers.map((tier, index) => {
             const isCurrentPlan = userData?.plan === tier.id
             const isLoading = loadingPlan === tier.id
@@ -198,61 +204,68 @@ export default function Pricing() {
             return (
               <motion.div
                 key={tier.name}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: index * 0.1, ease: 'easeOut' }}
-                className={`relative rounded-xl p-6 ${
+                className={`relative flex flex-col rounded-2xl p-6 ${
                   tier.popular
-                    ? 'bg-surface-elevated border-2 border-accent'
-                    : 'bg-surface border border-border'
+                    ? 'border-2 border-indigo-500/60 bg-marketing-panel shadow-xl shadow-indigo-500/10 ring-1 ring-indigo-500/25 dark:border-indigo-400/50'
+                    : 'marketing-panel border shadow-lg shadow-black/5 dark:shadow-black/20'
                 }`}
               >
                 {tier.popular && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <div className="flex items-center gap-1.5 px-3 py-1 bg-accent rounded-full text-xs font-medium text-white">
+                    <div className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 px-3 py-1 text-xs font-semibold text-white shadow-lg">
                       <FontAwesomeIcon icon={faStar} className="w-3 h-3" />
                       Most Popular
                     </div>
                   </div>
                 )}
 
-                <div className="pt-2">
-                  <h3 className="text-lg font-semibold mb-1">{tier.name}</h3>
-                  <div className="flex items-baseline gap-1 mb-2">
-                    <span className="text-4xl font-bold">{tier.priceLabel}</span>
-                    <span className="text-sm text-text-muted">{tier.priceSuffix}</span>
+                <div className="flex flex-1 flex-col pt-2">
+                  <h3 className="mb-1 font-display text-lg font-semibold text-marketing-text">{tier.name}</h3>
+                  <div className="mb-2 flex items-baseline gap-1">
+                    <span className="text-4xl font-bold tabular-nums text-marketing-text">{tier.priceLabel}</span>
+                    <span className="text-sm text-marketing-muted">{tier.priceSuffix}</span>
                   </div>
-                  <p className="text-sm text-text-muted mb-5">{tier.description}</p>
+                  <p className="mb-6 text-sm leading-relaxed text-marketing-muted">{tier.description}</p>
 
                   {isCurrentPlan ? (
-                    <div className="w-full py-2.5 px-4 rounded-lg bg-surface-highlight border border-border text-text-muted text-sm text-center">
+                    <div className="w-full rounded-xl border border-marketing-border bg-marketing-surface px-4 py-3 text-center text-sm font-medium text-marketing-muted">
                       Current Plan
                     </div>
                   ) : (
                     <button
+                      type="button"
                       onClick={() => handleSelectPlan(tier.id)}
                       disabled={isLoading || loadingPlan !== null}
-                      className={`w-full py-2.5 px-4 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                        tier.popular
-                          ? 'bg-accent text-white hover:bg-accent-hover'
-                          : 'bg-surface-highlight border border-border hover:border-border-light'
+                      className={`w-full rounded-xl px-4 py-3 text-sm font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
+                        tier.popular ? 'btn-marketing-primary' : 'btn-marketing-secondary'
                       }`}
                     >
                       {isLoading ? (
-                        <FontAwesomeIcon icon={faSpinner} className="w-4 h-4 animate-spin" />
+                        <FontAwesomeIcon icon={faSpinner} className="w-4 h-4 animate-spin mx-auto" />
                       ) : (
                         tier.cta
                       )}
                     </button>
                   )}
 
-                  <div className="mt-6 space-y-3">
-                    {tier.features.map((feature) => (
-                      <div key={feature} className="flex items-start gap-2.5">
-                        <FontAwesomeIcon icon={faCheck} className="w-4 h-4 text-status-success flex-shrink-0 mt-0.5" />
-                        <span className="text-sm text-text-muted">{feature}</span>
-                      </div>
-                    ))}
+                  <div className="mt-8 flex flex-1 flex-col">
+                    <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-marketing-muted">
+                      What&apos;s included
+                    </p>
+                    <ul className="space-y-3">
+                      {tier.features.map((feature) => (
+                        <li key={feature} className="flex items-start gap-2.5">
+                          <FontAwesomeIcon
+                            icon={faCheck}
+                            className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-500 dark:text-emerald-400"
+                          />
+                          <span className="text-sm leading-snug text-marketing-muted">{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 </div>
               </motion.div>
@@ -263,8 +276,9 @@ export default function Pricing() {
       )}
 
       {/* FAQs */}
-      <div className="max-w-2xl mx-auto mt-12 sm:mt-20">
-        <h2 className="text-xl sm:text-2xl font-bold text-center mb-8 sm:mb-10 shimmer-heading">
+      <div className="relative z-[1] mx-auto mt-12 max-w-2xl sm:mt-20">
+        <div className="open-sample-section-divider mb-8 sm:mb-10" aria-hidden />
+        <h2 className="mb-8 text-center font-display text-xl font-bold text-marketing-text sm:mb-10 sm:text-2xl">
           Frequently Asked Questions
         </h2>
         <div className="space-y-4">
@@ -274,10 +288,10 @@ export default function Pricing() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.4, delay: 0.4 + index * 0.1, ease: 'easeOut' }}
-              className="card p-5"
+              className="marketing-panel rounded-xl border p-5 shadow-md shadow-black/5 dark:shadow-black/15"
             >
-              <h3 className="text-base font-semibold mb-2">{faq.q}</h3>
-              <p className="text-sm text-text-muted">{faq.a}</p>
+              <h3 className="mb-2 text-base font-semibold text-marketing-text">{faq.q}</h3>
+              <p className="text-sm text-marketing-muted">{faq.a}</p>
             </motion.div>
           ))}
         </div>

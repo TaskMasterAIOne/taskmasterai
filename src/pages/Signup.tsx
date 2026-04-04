@@ -112,28 +112,28 @@ export default function Signup() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4 py-12">
+    <div className="marketing-page app-cruip relative flex min-h-screen items-center justify-center px-4 py-12">
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: 'easeOut' }}
-        className="w-full max-w-sm"
+        className="relative z-[1] w-full max-w-sm"
       >
         {/* Logo */}
-        <Link to="/" className="flex items-center justify-center gap-1.5 mb-8">
+        <Link to="/" className="mb-8 flex items-center justify-center gap-1.5">
           <img 
             src={LOGO_URL} 
             alt="TaskMaster AI" 
-            className="w-7 h-7 rounded-lg object-contain invert dark:invert-0"
+            className="h-7 w-7 rounded-lg object-contain invert dark:invert-0"
           />
-          <span className="pixel-text text-[10px]">TASKMASTER AI</span>
+          <span className="pixel-text text-[10px] text-marketing-text">TASKMASTER AI</span>
         </Link>
 
         {/* Card */}
-        <div className="card-elevated p-7">
-          <div className="text-center mb-7">
-            <h1 className="text-2xl font-bold mb-1">Create account</h1>
-            <p className="text-sm text-text-muted">
+        <div className="marketing-panel rounded-2xl border p-7 shadow-xl shadow-black/10 dark:shadow-black/30">
+          <div className="mb-7 text-center">
+            <h1 className="marketing-gradient-text font-display mb-1 text-2xl font-semibold tracking-tight">Create account</h1>
+            <p className="text-open-sm text-marketing-muted">
               Get started with {selectedPlan.charAt(0).toUpperCase() + selectedPlan.slice(1)}
             </p>
           </div>
@@ -141,14 +141,14 @@ export default function Signup() {
           {/* Error message */}
           {error && (
             <div className="mb-5 space-y-3">
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-surface-elevated border border-status-error text-status-error text-sm">
+              <div className="flex items-center gap-2 p-3 rounded-lg border border-status-error bg-marketing-surface text-status-error text-sm">
                 <FontAwesomeIcon icon={faCircleExclamation} className="w-4 h-4 flex-shrink-0" />
                 {error}
               </div>
               {alreadyExists && (
                 <Link
                   to={email ? `/signin?email=${encodeURIComponent(email)}` : '/signin'}
-                  className="btn-primary w-full py-2.5 block text-center text-sm"
+                  className="btn-marketing-primary block w-full py-2.5 text-center text-sm"
                 >
                   Sign in instead
                 </Link>
@@ -160,7 +160,7 @@ export default function Signup() {
           <button
             onClick={handleGoogleSignUp}
             disabled={loading}
-            className="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-lg bg-surface border border-border hover:bg-surface-elevated transition-colors disabled:opacity-50 text-sm font-medium"
+            className="flex w-full items-center justify-center gap-2.5 rounded-lg border border-marketing-border bg-marketing-surface px-4 py-2.5 text-sm font-medium text-marketing-text transition-colors hover:bg-marketing-bg disabled:opacity-50"
           >
             <GoogleLogo />
             Continue with Google
@@ -169,10 +169,10 @@ export default function Signup() {
           {/* Divider */}
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border" />
+              <div className="w-full border-t border-marketing-border" />
             </div>
             <div className="relative flex justify-center text-xs">
-              <span className="px-3 bg-surface-elevated text-text-subtle">or</span>
+              <span className="bg-marketing-surface px-3 text-marketing-muted">or</span>
             </div>
           </div>
 
@@ -181,7 +181,7 @@ export default function Signup() {
             <div>
               <label htmlFor="email" className="label">Email</label>
               <div className="relative">
-                <FontAwesomeIcon icon={faEnvelope} className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-subtle" />
+                <FontAwesomeIcon icon={faEnvelope} className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-marketing-muted" />
                 <input
                   id="email"
                   type="email"
@@ -198,7 +198,7 @@ export default function Signup() {
             <div>
               <label htmlFor="password" className="label">Password</label>
               <div className="relative">
-                <FontAwesomeIcon icon={faLock} className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-subtle" />
+                <FontAwesomeIcon icon={faLock} className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-marketing-muted" />
                 <input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
@@ -212,7 +212,7 @@ export default function Signup() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-subtle hover:text-text"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-marketing-muted hover:text-marketing-text"
                 >
                   <FontAwesomeIcon icon={showPassword ? faEyeSlash : faEye} className="w-4 h-4" />
                 </button>
@@ -238,7 +238,7 @@ export default function Signup() {
             <div>
               <label htmlFor="confirmPassword" className="label">Confirm Password</label>
               <div className="relative">
-                <FontAwesomeIcon icon={faLock} className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-subtle" />
+                <FontAwesomeIcon icon={faLock} className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-marketing-muted" />
                 <input
                   id="confirmPassword"
                   type={showPassword ? 'text' : 'password'}
@@ -258,24 +258,28 @@ export default function Signup() {
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary w-full py-2.5 mt-5"
+              className="btn-marketing-primary mt-5 w-full py-2.5"
             >
               {loading ? 'Creating account...' : 'Create account'}
             </button>
           </form>
 
-          <p className="text-xs text-text-subtle text-center mt-5">
+          <p className="mt-5 text-center text-xs text-marketing-muted">
             By creating an account, you agree to our{' '}
-            <Link to="/terms" className="text-text-muted hover:underline">Terms</Link>
-            {' '}and{' '}
-            <Link to="/privacy" className="text-text-muted hover:underline">Privacy Policy</Link>
+            <Link to="/terms" className="text-marketing-link hover:underline">
+              Terms
+            </Link>{' '}
+            and{' '}
+            <Link to="/privacy" className="text-marketing-link hover:underline">
+              Privacy Policy
+            </Link>
           </p>
         </div>
 
         {/* Sign in link */}
-        <p className="text-center text-text-muted text-sm mt-5">
+        <p className="mt-5 text-center text-sm text-marketing-muted">
           Already have an account?{' '}
-          <Link to="/signin" className="text-text hover:underline font-medium">
+          <Link to="/signin" className="font-medium text-marketing-link hover:underline">
             Sign in
           </Link>
         </p>

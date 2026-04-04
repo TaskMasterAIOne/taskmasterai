@@ -27,10 +27,13 @@ import Settings from './pages/app/Settings'
 // Loading component
 function LoadingScreen() {
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
+    <div className="flex min-h-screen items-center justify-center bg-marketing-bg font-inter text-marketing-text">
       <div className="flex flex-col items-center gap-4">
-        <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-        <p className="text-text-muted">Loading...</p>
+        <div
+          className="h-10 w-10 animate-spin rounded-full border-4 border-indigo-500/25 border-t-indigo-600 dark:border-t-indigo-400"
+          aria-hidden
+        />
+        <p className="text-sm text-marketing-muted">Loading...</p>
       </div>
     </div>
   )
@@ -76,6 +79,7 @@ export default function App() {
         <Route path="/docs" element={<Docs />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/privacy" element={<Privacy />} />
+        <Route path="*" element={<NotFound />} />
       </Route>
 
       {/* Auth routes */}
@@ -124,9 +128,6 @@ export default function App() {
         <Route path="billing" element={<Navigate to="/app/settings" replace />} />
         <Route path="settings" element={<Settings />} />
       </Route>
-
-      {/* 404 Not Found */}
-      <Route path="*" element={<NotFound />} />
     </Routes>
   )
 }

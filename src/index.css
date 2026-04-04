@@ -1,8 +1,35 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Press+Start+2P&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Marketing border utilities: preflight sets border-color #e5e7eb on * — force Open-style gray borders */
+@layer utilities {
+  .border-marketing-border {
+    border-color: var(--marketing-border);
+  }
+  .border-x-marketing-border {
+    border-left-color: var(--marketing-border);
+    border-right-color: var(--marketing-border);
+  }
+  .border-y-marketing-border {
+    border-top-color: var(--marketing-border);
+    border-bottom-color: var(--marketing-border);
+  }
+  .border-t-marketing-border {
+    border-top-color: var(--marketing-border);
+  }
+  .border-b-marketing-border {
+    border-bottom-color: var(--marketing-border);
+  }
+  .border-l-marketing-border {
+    border-left-color: var(--marketing-border);
+  }
+  .border-r-marketing-border {
+    border-right-color: var(--marketing-border);
+  }
+}
 
 /* Global Theme Colors - No Gradients, Pure Theme-Based Colors */
 
@@ -142,20 +169,37 @@
   --scrollbar-thumb-hover: #9ca3af;
   --scrollbar-thumb-hover-dark: #6b7280;
   
-  /* Font Families - Centralized */
-  --font-heading: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-mono: 'Menlo', 'Monaco', 'Courier New', monospace;
+  /* Font Families — Inter app-wide (matches Landing / marketing); Press Start 2P = .pixel-text only */
+  --font-heading: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-body: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, Menlo, Monaco, monospace;
+
+  /* Marketing shell (Cruip Open–inspired, light) */
+  --marketing-bg: #f8fafc;
+  --marketing-surface: #ffffff;
+  --marketing-elevated: #f1f5f9;
+  --marketing-text: #0f172a;
+  --marketing-text-muted: #64748b;
+  --marketing-link: #4f46e5;
+  --marketing-link-hover: #4338ca;
+  --marketing-border: rgba(148, 163, 184, 0.35);
+  --marketing-pill-bg: rgba(255, 255, 255, 0.88);
+  --marketing-headline-a: #64748b;
+  --marketing-headline-b: #6366f1;
+  --marketing-headline-c: #0f172a;
+  --marketing-eyebrow: #6366f1;
+  /* Open-style cards: elevated fill + marketing border */
+  --marketing-panel-bg: var(--marketing-elevated);
+  --marketing-panel-edge: var(--marketing-border);
 }
 
-/* Dark Mode Colors */
+/* Dark Mode — aligned with Landing `.open-sample` (gray-950 page → gray-900 rail; cards match pill nav) */
 .dark {
-  --bg-primary: #171717;
-  --bg-sidebar: #1F1F1F;
-  --bg-card: #1E1E1E;
-  --bg-highlight: #2A2A2A;
+  --bg-primary: #030712;
+  --bg-sidebar: #111827;
+  --bg-highlight: #374151;
   --bg-solid-button: #635BFF;
-  --bg-border-radius: #2C2C2C;
+  --bg-border-radius: #1f2937;
   --bg-header: #5249d9;
   --bg-header-secondary: #635BFF;
   --bg-accent: #736ee8;
@@ -165,18 +209,19 @@
   --bg-gradient-start-dark: #4E46DC;
   --bg-gradient-end-dark: #8A85FF;
 
-  --text-primary: #E5E7EB;
-  --text-secondary: #D1D5DB;
-  --text-muted: #9CA3AF;
-  --text-placeholder: #AFAFAF;
+  --text-primary: #e5e7eb;
+  --text-secondary: #d1d5db;
+  --text-muted: #9ca3af;
+  --text-placeholder: #afafaf;
   --text-white: #FFFFFF;
   --text-white-muted: rgba(255, 255, 255, 0.8);
 
   /* Solid Button Text Color */
   --text-solid-button: #8A85FF;
 
-  --border-primary: #2A2A2A;
-  --border-secondary: #3f3f3f;
+  /* Hairlines: 800 on 950/900 canvas; 700 on gray-800 surfaces (Landing card edges) */
+  --border-primary: #1f2937;
+  --border-secondary: #374151;
   
   /* Status Colors - Dark Mode */
   --status-success: #16A34A;
@@ -268,6 +313,26 @@
   --scrollbar-thumb-dark: #4b5563;
   --scrollbar-thumb-hover: #6b7280;
   --scrollbar-thumb-hover-dark: #6b7280;
+
+  /* Marketing shell — same stack as Landing / PublicLayout (gray-950 / 900 / 800) */
+  --marketing-bg: #030712;
+  --marketing-surface: #111827;
+  --marketing-elevated: #1f2937;
+  --marketing-text: #e5e7eb;
+  --marketing-text-muted: #9ca3af;
+  --marketing-link: #a5b4fc;
+  --marketing-link-hover: #c7d2fe;
+  --marketing-border: #1f2937;
+  --marketing-pill-bg: rgba(17, 24, 39, 0.92);
+  /* Same as pill nav — `.card`, btn-secondary, bg-theme-card */
+  --bg-card: var(--marketing-pill-bg);
+  --marketing-headline-a: #e5e7eb;
+  --marketing-headline-b: #c7d2fe;
+  --marketing-headline-c: #f9fafb;
+  --marketing-eyebrow: #a5b4fc;
+  /* Panels: same fill as pill nav (`--marketing-pill-bg`); gray-700 edge */
+  --marketing-panel-bg: var(--marketing-pill-bg);
+  --marketing-panel-edge: #374151;
 }
 
 @layer base {
@@ -282,6 +347,14 @@
     font-family: var(--font-body);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-heading);
+    letter-spacing: -0.02em;
   }
   
   /* Infinite carousel animation */
@@ -425,39 +498,12 @@
     color: var(--text-secondary);
   }
   
-  /* Shimmer animation keyframes - left to right */
-  @keyframes shimmer {
-    0% {
-      background-position: 100% 0;
-    }
-    100% {
-      background-position: -100% 0;
-    }
-  }
-  
   .pixel-text {
     font-family: 'Press Start 2P', monospace;
     color: var(--text-primary);
     letter-spacing: 0.05em;
   }
   
-  .shimmer-heading {
-    color: var(--text-muted);
-    background: linear-gradient(
-      90deg,
-      var(--text-muted) 0%,
-      var(--text-muted) 40%,
-      var(--text-secondary) 50%,
-      var(--text-muted) 60%,
-      var(--text-muted) 100%
-    );
-    background-size: 200% 100%;
-    animation: shimmer 2.5s infinite linear;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
   ::selection {
     background-color: var(--bg-accent);
     color: var(--text-white);
@@ -538,6 +584,17 @@
     @apply rounded-xl p-5 transition-all duration-150 overflow-hidden max-w-full;
   }
 
+  /** Marketing/Cruip panels — signed-in app + auth (theme-aware via --marketing-panel-*) */
+  .card-marketing {
+    background-color: var(--marketing-panel-bg);
+    border: 1px solid var(--marketing-panel-edge);
+    @apply rounded-xl p-5 transition-all duration-150 overflow-hidden max-w-full;
+  }
+
+  .card-marketing:hover {
+    @apply ring-1 ring-indigo-500/15;
+  }
+
   .input {
     @apply w-full px-4 py-2.5 rounded-lg
            transition-all duration-150 focus:outline-none focus:ring-1;
@@ -559,6 +616,95 @@
   .label {
     @apply block text-xs font-medium mb-2;
     color: var(--text-muted);
+  }
+
+  /* Marketing / Yorby-style tier CTAs */
+  .btn-cta-dark {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg text-sm font-semibold
+           transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2
+           disabled:opacity-50 disabled:pointer-events-none;
+    background: linear-gradient(to top, #171717 0%, #525252 100%);
+    color: #ffffff;
+    border: 2px solid #404040;
+    box-shadow:
+      0 8px 16px rgba(0, 0, 0, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  .btn-cta-dark:hover {
+    background: linear-gradient(to top, #262626 0%, #737373 100%);
+    border-color: #525252;
+    box-shadow:
+      0 12px 24px rgba(0, 0, 0, 0.45),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  }
+
+  .btn-cta-dark:focus-visible {
+    --tw-ring-color: var(--border-secondary);
+  }
+
+  .btn-cta-outline {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg text-sm font-semibold
+           transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2
+           disabled:opacity-50 disabled:pointer-events-none;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    border: 2px solid var(--border-primary);
+    box-shadow: 0 1px 2px var(--shadow-light);
+  }
+
+  .btn-cta-outline:hover {
+    background-color: var(--bg-sidebar);
+    border-color: var(--border-secondary);
+  }
+
+  .btn-marketing-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold text-white transition-all duration-200;
+    background: linear-gradient(to top, var(--bg-header) 0%, var(--bg-accent) 100%);
+    box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
+  }
+
+  .btn-marketing-primary:hover {
+    filter: brightness(1.05);
+    box-shadow:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.16),
+      0 4px 20px rgba(99, 91, 255, 0.35);
+  }
+
+  .btn-marketing-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold transition-all duration-200;
+    color: var(--marketing-text);
+    background: linear-gradient(to bottom, var(--marketing-elevated), var(--marketing-surface));
+    border: 1px solid var(--marketing-border);
+  }
+
+  .btn-marketing-secondary:hover {
+    color: var(--marketing-link-hover);
+    border-color: var(--marketing-link);
+  }
+
+  /* Dark: Open template — indigo primary, gray-800 secondary + visible borders */
+  .dark .btn-marketing-primary {
+    background: linear-gradient(to top, #4f46e5 0%, #6366f1 100%);
+    box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.14);
+  }
+
+  .dark .btn-marketing-primary:hover {
+    filter: brightness(1.06);
+    box-shadow:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.18),
+      0 6px 28px rgba(79, 70, 229, 0.42);
+  }
+
+  .dark .btn-marketing-secondary {
+    color: #d1d5db;
+    background: linear-gradient(to bottom, #1f2937, rgba(31, 41, 55, 0.58));
+    border: 1px solid rgba(55, 65, 81, 0.95);
+  }
+
+  .dark .btn-marketing-secondary:hover {
+    color: #f3f4f6;
+    border-color: #818cf8;
   }
 }
 
@@ -731,17 +877,241 @@ html.theme-ready * {
   opacity: 1;
 }
 
-/* Shimmer effect for loading indicators */
-.shimmer-text {
-  background: linear-gradient(
-    90deg,
-    var(--text-primary) 0%,
-    var(--bg-accent) 50%,
-    var(--text-primary) 100%
-  );
-  background-size: 1000px 100%;
-  animation: shimmer 2s infinite linear;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+/* Landing: mesh gradient + grain (atmospheric depth) */
+.mesh-bg {
+  background-color: var(--bg-primary);
+  background-image:
+    radial-gradient(ellipse 100% 85% at 50% -35%, rgba(99, 91, 255, 0.2), transparent 58%),
+    radial-gradient(ellipse 55% 45% at 100% 15%, rgba(139, 92, 246, 0.12), transparent 52%),
+    radial-gradient(ellipse 45% 40% at 0% 85%, rgba(79, 70, 220, 0.09), transparent 48%);
 }
+
+.dark .mesh-bg {
+  background-image:
+    radial-gradient(ellipse 100% 85% at 50% -35%, rgba(99, 91, 255, 0.28), transparent 58%),
+    radial-gradient(ellipse 55% 45% at 100% 15%, rgba(139, 92, 246, 0.18), transparent 52%),
+    radial-gradient(ellipse 45% 40% at 0% 85%, rgba(79, 70, 220, 0.14), transparent 48%);
+}
+
+.grain-overlay {
+  position: relative;
+}
+
+.grain-overlay::after {
+  content: '';
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0.35;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23a)' opacity='0.45'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+}
+
+.dark .grain-overlay::after {
+  opacity: 0.22;
+  mix-blend-mode: soft-light;
+}
+
+/**
+ * Cruip open-react-template uses Tailwind v4 `var(--color-*)` in gradients.
+ * Default palette values (same as tailwindcss theme) — scoped to `.open-sample`.
+ */
+.open-sample {
+  --color-gray-50: #f9fafb;
+  --color-gray-200: #e5e7eb;
+  --color-gray-600: #4b5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1f2937;
+  --color-gray-900: #111827;
+  --color-gray-950: #030712;
+  --color-indigo-200: #c7d2fe;
+  --color-indigo-300: #a5b4fc;
+  --color-indigo-500: #6366f1;
+  --color-indigo-600: #4f46e5;
+  --color-slate-400: #94a3b8;
+  --color-white: #ffffff;
+}
+
+/* `border-image: linear-gradient(..., --theme(--color-slate-400/.25), ...)` from Open Features / Testimonials */
+.open-sample .open-sample-section-divider {
+  border-top-width: 1px;
+  border-top-style: solid;
+  border-top-color: transparent;
+  border-image: linear-gradient(
+      to right,
+      transparent,
+      color-mix(in srgb, var(--color-slate-400) 25%, transparent),
+      transparent
+    )
+    1;
+}
+
+.public-page-inner {
+  max-width: 64rem;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.public-page-prose {
+  max-width: 42rem;
+}
+
+/**
+ * Bordered panels for marketing/auth/legal — use with `border` + rounded-*.
+ * Light: elevated fill + marketing border; dark: same fill as pill nav + gray-700 edge.
+ */
+.marketing-panel {
+  background-color: var(--marketing-panel-bg);
+  border-color: var(--marketing-panel-edge);
+}
+
+/**
+ * Cruip color bridge for signed-in shell — same scale as `.open-sample` (Landing)
+ * without pulling full open-sample typography scope.
+ */
+.app-cruip {
+  --color-gray-50: #f9fafb;
+  --color-gray-200: #e5e7eb;
+  --color-gray-600: #4b5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1f2937;
+  --color-gray-900: #111827;
+  --color-gray-950: #030712;
+  --color-indigo-200: #c7d2fe;
+  --color-indigo-300: #a5b4fc;
+  --color-indigo-500: #6366f1;
+  --color-indigo-600: #4f46e5;
+}
+
+.marketing-page {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.marketing-page .input:focus,
+.marketing-page .input:focus-visible,
+.app-cruip .input:focus,
+.app-cruip .input:focus-visible {
+  border-color: rgb(99 102 241);
+  box-shadow: 0 0 0 1px rgb(99 102 241 / 0.35);
+}
+
+.marketing-gradient-text {
+  color: var(--marketing-text);
+}
+
+/* Pill nav: gradient border via pseudo (Open template) */
+.marketing-pill-border {
+  position: relative;
+  background: var(--marketing-pill-bg);
+  backdrop-filter: blur(8px);
+}
+
+/* Provider logos on marketing pages — use marketing muted ink */
+.marketing-page .provider-logo svg,
+.marketing-page svg.provider-logo {
+  color: var(--marketing-text-muted) !important;
+}
+
+.marketing-page .provider-logo:hover svg,
+.marketing-page .provider-logo:hover {
+  color: var(--marketing-text) !important;
+}
+
+.marketing-page .provider-logo img {
+  filter: none !important;
+  opacity: 0.75;
+}
+
+.marketing-page .provider-logo:hover img {
+  opacity: 1;
+}
+
+.dark .marketing-page .provider-logo img {
+  filter: brightness(0) invert(1) !important;
+  opacity: 0.65;
+}
+
+.dark .marketing-page .provider-logo:hover img {
+  opacity: 0.9;
+}
+
+.marketing-pill-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    var(--marketing-border),
+    rgba(99, 102, 241, 0.35),
+    var(--marketing-border)
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Open header: linear-gradient(to_right, gray-800, gray-700, gray-800) */
+.dark .marketing-pill-border::before {
+  background: linear-gradient(135deg, #1f2937, #374151, #1f2937);
+}
+
+/* Nacelle — bundled with Cruip open-react-template (same files as upstream public/fonts) */
+@font-face {
+  font-family: Nacelle;
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('https://raw.githubusercontent.com/cruip/open-react-template/master/public/fonts/nacelle-regular.woff2')
+    format('woff2');
+}
+@font-face {
+  font-family: Nacelle;
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url('https://raw.githubusercontent.com/cruip/open-react-template/master/public/fonts/nacelle-italic.woff2')
+    format('woff2');
+}
+@font-face {
+  font-family: Nacelle;
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('https://raw.githubusercontent.com/cruip/open-react-template/master/public/fonts/nacelle-semibold.woff2')
+    format('woff2');
+}
+@font-face {
+  font-family: Nacelle;
+  font-style: italic;
+  font-weight: 600;
+  font-display: swap;
+  src: url('https://raw.githubusercontent.com/cruip/open-react-template/master/public/fonts/nacelle-semibolditalic.woff2')
+    format('woff2');
+}
+
+/* Cruip open-react-template button primitives (Landing open-sample port) */
+@layer components {
+  .open-sample .btn,
+  .open-sample .btn-sm {
+    @apply inline-flex items-center justify-center whitespace-nowrap rounded-lg text-open-sm font-medium transition-all;
+  }
+
+  .open-sample .btn {
+    @apply px-4 py-[11px];
+  }
+
+  .open-sample .btn-sm {
+    @apply px-3 py-[7px];
+  }
+}
+

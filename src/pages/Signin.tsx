@@ -86,33 +86,33 @@ export default function Signin() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4 py-12">
+    <div className="marketing-page app-cruip relative flex min-h-screen items-center justify-center px-4 py-12">
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: 'easeOut' }}
-        className="w-full max-w-sm"
+        className="relative z-[1] w-full max-w-sm"
       >
         {/* Logo */}
-        <Link to="/" className="flex items-center justify-center gap-1.5 mb-8">
+        <Link to="/" className="mb-8 flex items-center justify-center gap-1.5">
           <img 
             src={LOGO_URL} 
             alt="TaskMaster AI" 
-            className="w-7 h-7 rounded-lg object-contain invert dark:invert-0"
+            className="h-7 w-7 rounded-lg object-contain invert dark:invert-0"
           />
-          <span className="pixel-text text-[10px]">TASKMASTER AI</span>
+          <span className="pixel-text text-[10px] text-marketing-text">TASKMASTER AI</span>
         </Link>
 
         {/* Card */}
-        <div className="card-elevated p-7">
-          <div className="text-center mb-7">
-            <h1 className="text-2xl font-bold mb-1">Welcome back</h1>
-            <p className="text-sm text-text-muted">Sign in to your account</p>
+        <div className="marketing-panel rounded-2xl border p-7 shadow-xl shadow-black/10 dark:shadow-black/30">
+          <div className="mb-7 text-center">
+            <h1 className="marketing-gradient-text font-display mb-1 text-2xl font-semibold tracking-tight">Welcome back</h1>
+            <p className="text-open-sm text-marketing-muted">Sign in to your account</p>
           </div>
 
           {/* Error message */}
           {error && (
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-surface-elevated border border-status-error text-status-error text-sm mb-5">
+            <div className="flex items-center gap-2 p-3 rounded-lg border border-status-error bg-marketing-surface text-status-error text-sm mb-5">
               <FontAwesomeIcon icon={faCircleExclamation} className="w-4 h-4 flex-shrink-0" />
               {error}
             </div>
@@ -120,7 +120,7 @@ export default function Signin() {
 
           {/* Reset sent message */}
           {resetSent && (
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-surface-elevated border border-status-success text-status-success text-sm mb-5">
+            <div className="flex items-center gap-2 p-3 rounded-lg border border-status-success bg-marketing-surface text-status-success text-sm mb-5">
               Password reset email sent!
             </div>
           )}
@@ -129,7 +129,7 @@ export default function Signin() {
           <button
             onClick={handleGoogleSignIn}
             disabled={loading}
-            className="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-lg bg-surface border border-border hover:bg-surface-elevated transition-colors disabled:opacity-50 text-sm font-medium"
+            className="flex w-full items-center justify-center gap-2.5 rounded-lg border border-marketing-border bg-marketing-surface px-4 py-2.5 text-sm font-medium text-marketing-text transition-colors hover:bg-marketing-bg disabled:opacity-50"
           >
             <GoogleLogo />
             Continue with Google
@@ -138,10 +138,10 @@ export default function Signin() {
           {/* Divider */}
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border" />
+              <div className="w-full border-t border-marketing-border" />
             </div>
             <div className="relative flex justify-center text-xs">
-              <span className="px-3 bg-surface-elevated text-text-subtle">or</span>
+              <span className="bg-marketing-surface px-3 text-marketing-muted">or</span>
             </div>
           </div>
 
@@ -150,7 +150,7 @@ export default function Signin() {
             <div>
               <label htmlFor="email" className="label">Email</label>
               <div className="relative">
-                <FontAwesomeIcon icon={faEnvelope} className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-subtle" />
+                <FontAwesomeIcon icon={faEnvelope} className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-marketing-muted" />
                 <input
                   id="email"
                   type="email"
@@ -167,7 +167,7 @@ export default function Signin() {
             <div>
               <label htmlFor="password" className="label">Password</label>
               <div className="relative">
-                <FontAwesomeIcon icon={faLock} className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-subtle" />
+                <FontAwesomeIcon icon={faLock} className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-marketing-muted" />
                 <input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
@@ -181,7 +181,7 @@ export default function Signin() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-subtle hover:text-text"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-marketing-muted hover:text-marketing-text"
                 >
                   <FontAwesomeIcon icon={showPassword ? faEyeSlash : faEye} className="w-4 h-4" />
                 </button>
@@ -192,7 +192,7 @@ export default function Signin() {
               <button
                 type="button"
                 onClick={handleResetPassword}
-                className="text-sm text-text-muted hover:text-text"
+                className="text-sm text-marketing-muted hover:text-marketing-link"
               >
                 Forgot password?
               </button>
@@ -201,7 +201,7 @@ export default function Signin() {
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary w-full py-2.5"
+              className="btn-marketing-primary w-full py-2.5"
             >
               {loading ? 'Signing in...' : 'Sign in'}
             </button>
@@ -209,9 +209,9 @@ export default function Signin() {
         </div>
 
         {/* Sign up link */}
-        <p className="text-center text-text-muted text-sm mt-5">
-          Don't have an account?{' '}
-          <Link to="/signup" className="text-text hover:underline font-medium">
+        <p className="mt-5 text-center text-sm text-marketing-muted">
+          Don&apos;t have an account?{' '}
+          <Link to="/signup" className="font-medium text-marketing-link hover:underline">
             Sign up
           </Link>
         </p>

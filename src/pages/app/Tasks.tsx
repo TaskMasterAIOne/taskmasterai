@@ -78,11 +78,11 @@ interface TagData {
 }
 
 const statusConfig: { [key: string]: { icon: typeof faClock; color: string; bg: string; label: string } } = {
-  'pending': { icon: faClock, color: 'text-text-muted', bg: 'bg-surface-highlight', label: 'Pending' },
-  'in-progress': { icon: faSpinner, color: 'text-accent', bg: 'bg-accent/10', label: 'In Progress' },
+  'pending': { icon: faClock, color: 'text-marketing-muted', bg: 'bg-marketing-elevated', label: 'Pending' },
+  'in-progress': { icon: faSpinner, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-500/10', label: 'In Progress' },
   'done': { icon: faCheckCircle, color: 'text-status-success', bg: 'bg-status-success/10', label: 'Done' },
   'blocked': { icon: faExclamationTriangle, color: 'text-status-error', bg: 'bg-status-error/10', label: 'Blocked' },
-  'cancelled': { icon: faBan, color: 'text-text-muted', bg: 'bg-surface-highlight', label: 'Cancelled' },
+  'cancelled': { icon: faBan, color: 'text-marketing-muted', bg: 'bg-marketing-elevated', label: 'Cancelled' },
   'deferred': { icon: faClock, color: 'text-status-warning', bg: 'bg-status-warning/10', label: 'Deferred' },
 }
 
@@ -114,7 +114,7 @@ function TaskRow({ task, allTasks, expanded, onToggle, hideTitle = false }: { ta
     <>
       {/* Mobile view */}
       <div
-        className={`md:hidden p-4 border-b border-theme-primary hover:bg-surface-highlight/50 transition-colors cursor-pointer ${isReady ? 'bg-accent/5' : ''}`}
+        className={`md:hidden p-4 border-b border-marketing-border hover:bg-marketing-elevated/50 transition-colors cursor-pointer ${isReady ? 'bg-indigo-500/5' : ''}`}
         onClick={onToggle}
       >
         <div className="flex items-start justify-between gap-3 mb-2">
@@ -122,10 +122,10 @@ function TaskRow({ task, allTasks, expanded, onToggle, hideTitle = false }: { ta
             {hasSubtasks && (
               <FontAwesomeIcon 
                 icon={expanded ? faChevronDown : faChevronRight} 
-                className="text-text-muted text-xs w-3 flex-shrink-0"
+                className="text-marketing-muted text-xs w-3 flex-shrink-0"
               />
             )}
-            <span className="text-text-muted font-mono text-sm flex-shrink-0">#{task.id}</span>
+            <span className="text-marketing-muted font-mono text-sm flex-shrink-0">#{task.id}</span>
             <span className={`${priority.color} text-sm flex-shrink-0`} title={task.priority}>
               {priority.label}
             </span>
@@ -136,7 +136,7 @@ function TaskRow({ task, allTasks, expanded, onToggle, hideTitle = false }: { ta
               {status.label}
             </span>
             {isReady && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-accent/20 text-accent font-medium">
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-medium">
                 Ready
               </span>
             )}
@@ -144,15 +144,15 @@ function TaskRow({ task, allTasks, expanded, onToggle, hideTitle = false }: { ta
         </div>
         {!hideTitle && <p className="font-medium text-sm mb-2">{task.title}</p>}
         {task.dependencies && task.dependencies.length > 0 && (
-          <div className="flex items-center flex-wrap gap-1 text-text-muted text-xs">
-            <span className="text-text-subtle">Deps:</span>
+          <div className="flex items-center flex-wrap gap-1 text-marketing-muted text-xs">
+            <span className="text-marketing-muted/80">Deps:</span>
             {task.dependencies.map(d => {
               const done = isDependencyDone(d)
               return (
                 <span 
                   key={d} 
                   className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded font-mono ${
-                    done ? 'bg-status-success/20 text-status-success' : 'bg-surface-highlight text-text-muted'
+                    done ? 'bg-status-success/20 text-status-success' : 'bg-marketing-elevated text-marketing-muted'
                   }`}
                 >
                   {done && <span className="text-[10px]">✓</span>}
@@ -166,7 +166,7 @@ function TaskRow({ task, allTasks, expanded, onToggle, hideTitle = false }: { ta
 
       {/* Desktop view */}
       <div
-        className={`hidden md:grid gap-2 py-3 px-4 border-b border-theme-primary hover:bg-surface-highlight/50 transition-colors cursor-pointer ${hideTitle ? 'grid-cols-[60px_140px_50px_100px]' : 'grid-cols-[60px_140px_50px_1fr_100px]'} ${isReady ? 'bg-accent/5' : ''}`}
+        className={`hidden md:grid gap-2 py-3 px-4 border-b border-marketing-border hover:bg-marketing-elevated/50 transition-colors cursor-pointer ${hideTitle ? 'grid-cols-[60px_140px_50px_100px]' : 'grid-cols-[60px_140px_50px_1fr_100px]'} ${isReady ? 'bg-indigo-500/5' : ''}`}
         onClick={onToggle}
       >
         {/* ID */}
@@ -174,11 +174,11 @@ function TaskRow({ task, allTasks, expanded, onToggle, hideTitle = false }: { ta
           {hasSubtasks && (
             <FontAwesomeIcon 
               icon={expanded ? faChevronDown : faChevronRight} 
-              className="text-text-muted text-xs w-3"
+              className="text-marketing-muted text-xs w-3"
             />
           )}
           {!hasSubtasks && <span className="w-3" />}
-          <span className="text-text-muted font-mono text-sm">{task.id}</span>
+          <span className="text-marketing-muted font-mono text-sm">{task.id}</span>
         </div>
         
         {/* Status */}
@@ -188,7 +188,7 @@ function TaskRow({ task, allTasks, expanded, onToggle, hideTitle = false }: { ta
             {status.label}
           </span>
           {isReady && (
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-accent/20 text-accent font-medium">
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-medium">
               Ready
             </span>
           )}
@@ -209,7 +209,7 @@ function TaskRow({ task, allTasks, expanded, onToggle, hideTitle = false }: { ta
         )}
 
         {/* Dependencies */}
-        <div className="flex items-center flex-wrap gap-1 text-text-muted text-sm">
+        <div className="flex items-center flex-wrap gap-1 text-marketing-muted text-sm">
           {task.dependencies && task.dependencies.length > 0 
             ? task.dependencies.map(d => {
                 const done = isDependencyDone(d)
@@ -217,7 +217,7 @@ function TaskRow({ task, allTasks, expanded, onToggle, hideTitle = false }: { ta
                   <span 
                     key={d} 
                     className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-mono ${
-                      done ? 'bg-status-success/20 text-status-success' : 'bg-surface-highlight text-text-muted'
+                      done ? 'bg-status-success/20 text-status-success' : 'bg-marketing-elevated text-marketing-muted'
                     }`}
                     title={done ? `Task ${d} is complete` : `Waiting for task ${d}`}
                   >
@@ -226,7 +226,7 @@ function TaskRow({ task, allTasks, expanded, onToggle, hideTitle = false }: { ta
                   </span>
                 )
               })
-            : <span className="text-text-muted/50">—</span>
+            : <span className="text-marketing-muted/50">—</span>
           }
         </div>
       </div>
@@ -241,16 +241,16 @@ function TaskRow({ task, allTasks, expanded, onToggle, hideTitle = false }: { ta
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="md:hidden pl-8 pr-4 py-3 border-b border-theme-primary bg-surface/50"
+              className="md:hidden pl-8 pr-4 py-3 border-b border-marketing-border bg-marketing-elevated/50"
             >
               <div className="flex items-start justify-between gap-2 mb-1">
-                <span className="text-text-muted font-mono text-xs">{task.id}.{subtask.id}</span>
+                <span className="text-marketing-muted font-mono text-xs">{task.id}.{subtask.id}</span>
                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${subStatus.bg} ${subStatus.color}`}>
                   <FontAwesomeIcon icon={subStatus.icon} className={`w-2.5 h-2.5 ${subtask.status === 'in-progress' ? 'animate-spin' : ''}`} />
                   {subStatus.label}
                 </span>
               </div>
-              <p className="text-sm text-text-muted">{subtask.title}</p>
+              <p className="text-sm text-marketing-muted">{subtask.title}</p>
             </motion.div>
           )
         })}
@@ -266,10 +266,10 @@ function TaskRow({ task, allTasks, expanded, onToggle, hideTitle = false }: { ta
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="hidden md:grid grid-cols-[60px_140px_50px_1fr_100px] gap-2 py-2.5 px-4 pl-8 border-b border-theme-primary bg-surface/50"
+              className="hidden md:grid grid-cols-[60px_140px_50px_1fr_100px] gap-2 py-2.5 px-4 pl-8 border-b border-marketing-border bg-marketing-elevated/50"
             >
               <div className="flex items-center">
-                <span className="text-text-muted font-mono text-xs">{task.id}.{subtask.id}</span>
+                <span className="text-marketing-muted font-mono text-xs">{task.id}.{subtask.id}</span>
               </div>
               <div className="flex items-center">
                 <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs ${subStatus.bg} ${subStatus.color}`}>
@@ -279,7 +279,7 @@ function TaskRow({ task, allTasks, expanded, onToggle, hideTitle = false }: { ta
               </div>
               <div></div>
               <div className="flex items-center col-span-2 min-w-0">
-                <p className="text-sm text-text-muted truncate">{subtask.title}</p>
+                <p className="text-sm text-marketing-muted truncate">{subtask.title}</p>
               </div>
             </motion.div>
           )
@@ -376,33 +376,22 @@ export default function Tasks() {
     })
   }
 
-  const isPatrick = user?.email === 'patrick@envoymobile.com'
-  const DISPLAY_TOTAL_PATRICK = 736000
-  const rawStats = {
+  const stats = {
     total: tasks.length,
     pending: tasks.filter(t => t.status === 'pending').length,
     ready: tasks.filter(t => isTaskReady(t)).length,
     inProgress: tasks.filter(t => t.status === 'in-progress').length,
     done: tasks.filter(t => t.status === 'done').length,
   }
-  const stats = isPatrick && rawStats.total > 0
-    ? {
-        total: DISPLAY_TOTAL_PATRICK,
-        done: Math.round(DISPLAY_TOTAL_PATRICK * (rawStats.done / rawStats.total)),
-        inProgress: Math.round(DISPLAY_TOTAL_PATRICK * (rawStats.inProgress / rawStats.total)),
-        pending: Math.round(DISPLAY_TOTAL_PATRICK * (rawStats.pending / rawStats.total)),
-        ready: Math.round(DISPLAY_TOTAL_PATRICK * (rawStats.ready / rawStats.total)),
-      }
-    : rawStats
 
   const progress = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0
 
   if (loading) {
     return (
-      <div className="p-5 lg:p-8 max-w-5xl mx-auto">
-        <div className="flex items-center justify-center h-64">
-          <FontAwesomeIcon icon={faSpinner} className="w-5 h-5 text-accent animate-spin" />
-          <span className="ml-3 text-text-muted">Loading tasks...</span>
+      <div className="mx-auto max-w-6xl p-5 lg:p-8">
+        <div className="flex h-64 items-center justify-center">
+          <FontAwesomeIcon icon={faSpinner} className="h-5 w-5 animate-spin text-indigo-600 dark:text-indigo-400" />
+          <span className="ml-3 text-marketing-muted">Loading tasks...</span>
         </div>
       </div>
     )
@@ -411,58 +400,65 @@ export default function Tasks() {
   // Show getting started guide when no projects exist
   if (projects.length === 0) {
     return (
-      <div className="p-5 lg:p-8 max-w-3xl mx-auto">
+      <div className="mx-auto max-w-6xl p-5 lg:p-8">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.4, ease: 'easeOut' }}
         >
-          <h1 className="text-2xl font-bold mb-1">Tasks</h1>
-          <p className="text-sm text-text-muted mb-8">Real-time view of your CLI tasks</p>
+          <div className="mb-3 flex items-center gap-3">
+            <div className="h-px w-8 bg-gradient-to-r from-transparent to-indigo-400/50" />
+            <span className="bg-gradient-to-r from-indigo-500 to-violet-400 bg-clip-text text-sm font-medium text-transparent">
+              Live
+            </span>
+            <div className="h-px w-8 bg-gradient-to-l from-transparent to-indigo-400/50" />
+          </div>
+          <h1 className="marketing-gradient-text font-display mb-1 text-2xl font-semibold tracking-tight md:text-3xl">Tasks</h1>
+          <p className="mb-8 text-open-sm text-marketing-muted">Real-time view of your CLI tasks</p>
 
-          <div className="card p-8 text-center">
-            <div className="w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <FontAwesomeIcon icon={faTerminal} className="w-8 h-8 text-accent" />
+          <div className="card-marketing p-8 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-indigo-500/10">
+              <FontAwesomeIcon icon={faTerminal} className="h-8 w-8 text-indigo-600 dark:text-indigo-400" />
             </div>
-            <h2 className="text-xl font-semibold mb-2">Get Started with TaskMaster CLI</h2>
-            <p className="text-text-muted mb-6 max-w-md mx-auto">
+            <h2 className="font-display mb-2 text-xl font-semibold">Get Started with TaskMaster CLI</h2>
+            <p className="mx-auto mb-6 max-w-md text-marketing-muted">
               Tasks will sync here automatically when you use the CLI. Follow these steps to get started:
             </p>
 
-            <div className="text-left bg-surface-highlight rounded-lg p-5 max-w-lg mx-auto space-y-4">
+            <div className="mx-auto max-w-lg space-y-4 rounded-lg bg-marketing-elevated p-5 text-left">
               <div className="flex gap-3">
-                <span className="flex-shrink-0 w-6 h-6 bg-accent text-white rounded-full flex items-center justify-center text-sm font-medium">1</span>
+                <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-indigo-600 text-sm font-medium text-white dark:bg-indigo-500">1</span>
                 <div>
                   <p className="font-medium">Install the CLI</p>
-                  <code className="text-sm text-text-muted block mt-1">npm install -g @taskmasterai/cli</code>
+                  <code className="text-sm text-marketing-muted block mt-1">npm install -g @taskmasterai/cli</code>
                 </div>
               </div>
               <div className="flex gap-3">
-                <span className="flex-shrink-0 w-6 h-6 bg-accent text-white rounded-full flex items-center justify-center text-sm font-medium">2</span>
+                <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-indigo-600 text-sm font-medium text-white dark:bg-indigo-500">2</span>
                 <div>
                   <p className="font-medium">Login to TaskMaster AI</p>
-                  <code className="text-sm text-text-muted block mt-1">taskmaster login</code>
+                  <code className="text-sm text-marketing-muted block mt-1">taskmaster login</code>
                 </div>
               </div>
               <div className="flex gap-3">
-                <span className="flex-shrink-0 w-6 h-6 bg-accent text-white rounded-full flex items-center justify-center text-sm font-medium">3</span>
+                <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-indigo-600 text-sm font-medium text-white dark:bg-indigo-500">3</span>
                 <div>
                   <p className="font-medium">Initialize in your project</p>
-                  <code className="text-sm text-text-muted block mt-1">cd your-project && taskmaster init</code>
+                  <code className="text-sm text-marketing-muted block mt-1">cd your-project && taskmaster init</code>
                 </div>
               </div>
               <div className="flex gap-3">
-                <span className="flex-shrink-0 w-6 h-6 bg-accent text-white rounded-full flex items-center justify-center text-sm font-medium">4</span>
+                <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-indigo-600 text-sm font-medium text-white dark:bg-indigo-500">4</span>
                 <div>
                   <p className="font-medium">Generate tasks from your PRD</p>
-                  <code className="text-sm text-text-muted block mt-1">taskmaster plan your-prd.md</code>
+                  <code className="text-sm text-marketing-muted block mt-1">taskmaster plan your-prd.md</code>
                 </div>
               </div>
             </div>
 
-            <p className="text-xs text-text-subtle mt-6">
+            <p className="text-xs text-marketing-muted/80 mt-6">
               Your license key can be found in your{' '}
-              <a href="/app/settings" className="text-accent hover:underline">Settings</a> page
+              <a href="/app/settings" className="text-indigo-600 hover:underline dark:text-indigo-400">Settings</a> page
             </p>
           </div>
         </motion.div>
@@ -471,7 +467,7 @@ export default function Tasks() {
   }
 
   return (
-    <div className="p-5 lg:p-8 max-w-5xl mx-auto">
+    <div className="mx-auto max-w-6xl p-5 lg:p-8">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0 }}
@@ -481,14 +477,21 @@ export default function Tasks() {
       >
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-bold mb-1">Tasks</h1>
-            <p className="text-sm text-text-muted">
+            <div className="mb-3 flex items-center gap-3">
+              <div className="h-px w-8 bg-gradient-to-r from-transparent to-indigo-400/50" />
+              <span className="bg-gradient-to-r from-indigo-500 to-violet-400 bg-clip-text text-sm font-medium text-transparent">
+                Live
+              </span>
+              <div className="h-px w-8 bg-gradient-to-l from-transparent to-indigo-400/50" />
+            </div>
+            <h1 className="marketing-gradient-text font-display mb-1 text-2xl font-semibold tracking-tight md:text-3xl">Tasks</h1>
+            <p className="text-open-sm text-marketing-muted">
               Real-time view of your CLI tasks
             </p>
           </div>
           
           {lastSynced && (
-            <div className="flex items-center gap-2 text-xs text-text-muted bg-surface-highlight px-3 py-1.5 rounded-lg">
+            <div className="flex items-center gap-2 rounded-lg bg-marketing-elevated px-3 py-1.5 text-xs text-marketing-muted">
               <FontAwesomeIcon icon={faSync} className="w-3 h-3" />
               Synced {lastSynced.toLocaleString()}
             </div>
@@ -505,11 +508,11 @@ export default function Tasks() {
           className="mb-6 flex flex-wrap gap-3"
         >
           <div className="flex items-center gap-2">
-            <FontAwesomeIcon icon={faFolder} className="w-4 h-4 text-text-muted" />
+            <FontAwesomeIcon icon={faFolder} className="w-4 h-4 text-marketing-muted" />
             <select
               value={selectedProject || ''}
               onChange={(e) => setSelectedProject(e.target.value)}
-              className="bg-surface border border-theme-primary rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent"
+              className="rounded-lg border border-marketing-border bg-marketing-surface px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
             >
               {projects.map((project) => (
                 <option key={project.id} value={project.id}>
@@ -520,11 +523,11 @@ export default function Tasks() {
           </div>
 
           <div className="flex items-center gap-2">
-            <FontAwesomeIcon icon={faTag} className="w-4 h-4 text-text-muted" />
+            <FontAwesomeIcon icon={faTag} className="w-4 h-4 text-marketing-muted" />
             <select
               value={selectedTag}
               onChange={(e) => setSelectedTag(e.target.value)}
-              className="bg-surface border border-theme-primary rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent"
+              className="rounded-lg border border-marketing-border bg-marketing-surface px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
             >
               <option value="master">master</option>
               {projects.find(p => p.id === selectedProject)?.tags?.map((tag) => (
@@ -546,43 +549,43 @@ export default function Tasks() {
         transition={{ delay: 0.15, duration: 0.4, ease: 'easeOut' }}
         className="mb-6"
       >
-        <div className="card p-5">
+        <div className="card-marketing p-5">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
             <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
               <div>
                 <p className="text-2xl font-bold">{stats.total}</p>
-                <p className="text-xs text-text-muted">Total</p>
+                <p className="text-xs text-marketing-muted">Total</p>
               </div>
-              <div className="hidden sm:block h-8 w-px bg-border" />
+              <div className="hidden h-8 w-px bg-marketing-border sm:block" />
               <div className="flex gap-3 sm:gap-4 flex-wrap">
                 <div className="text-center" title="Tasks waiting for dependencies">
-                  <p className="text-lg font-semibold text-text-muted">{stats.pending - stats.ready}</p>
-                  <p className="text-xs text-text-muted">Waiting</p>
+                  <p className="text-lg font-semibold text-marketing-muted">{stats.pending - stats.ready}</p>
+                  <p className="text-xs text-marketing-muted">Waiting</p>
                 </div>
                 <div className="text-center" title="Tasks ready to start (all deps done)">
                   <p className="text-lg font-semibold text-status-warning">{stats.ready}</p>
-                  <p className="text-xs text-text-muted">Ready</p>
+                  <p className="text-xs text-marketing-muted">Ready</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-lg font-semibold text-accent">{stats.inProgress}</p>
-                  <p className="text-xs text-text-muted">Active</p>
+                  <p className="text-lg font-semibold text-indigo-600 dark:text-indigo-400">{stats.inProgress}</p>
+                  <p className="text-xs text-marketing-muted">Active</p>
                 </div>
                 <div className="text-center">
                   <p className="text-lg font-semibold text-status-success">{stats.done}</p>
-                  <p className="text-xs text-text-muted">Done</p>
+                  <p className="text-xs text-marketing-muted">Done</p>
                 </div>
               </div>
             </div>
             <div className="text-left sm:text-right">
               <p className="text-2xl font-bold">{progress}%</p>
-              <p className="text-xs text-text-muted">Complete</p>
+              <p className="text-xs text-marketing-muted">Complete</p>
             </div>
           </div>
           
           {/* Progress bar */}
-          <div className="w-full h-2 bg-surface-highlight rounded-full overflow-hidden">
+          <div className="w-full h-2 bg-marketing-elevated rounded-full overflow-hidden">
             <motion.div
-              className="h-full bg-accent rounded-full"
+              className="h-full rounded-full bg-indigo-500"
               initial={{ width: 0 }}
               animate={{ width: `${progress}%` }}
               transition={{ duration: 0.5, ease: 'easeOut' }}
@@ -598,37 +601,31 @@ export default function Tasks() {
         transition={{ delay: 0.2, duration: 0.4, ease: 'easeOut' }}
       >
         <h2 className="text-base font-semibold mb-4 flex items-center gap-2">
-          <FontAwesomeIcon icon={faListCheck} className="w-4 h-4 text-accent" />
+          <FontAwesomeIcon icon={faListCheck} className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
           Task List
         </h2>
 
         {tasks.length === 0 ? (
-          <div className="card p-8 text-center">
-            <FontAwesomeIcon icon={faTerminal} className="w-8 h-8 text-text-muted mb-3" />
+          <div className="card-marketing p-8 text-center">
+            <FontAwesomeIcon icon={faTerminal} className="w-8 h-8 text-marketing-muted mb-3" />
             <h3 className="text-base font-semibold mb-2">No tasks synced yet</h3>
-            <p className="text-sm text-text-muted max-w-md mx-auto mb-4">
+            <p className="text-sm text-marketing-muted max-w-md mx-auto mb-4">
               Tasks will appear here automatically when you use the CLI.
             </p>
-            <code className="inline-block bg-surface-highlight px-3 py-1.5 rounded text-sm font-mono text-text-muted">
+            <code className="inline-block bg-marketing-elevated px-3 py-1.5 rounded text-sm font-mono text-marketing-muted">
               taskmaster plan your-prd.md
             </code>
           </div>
-        ) : isPatrick ? (
-          <div className="card p-8 text-center">
-            <FontAwesomeIcon icon={faListCheck} className="w-10 h-10 text-accent mb-3" />
-            <p className="text-2xl font-bold">{stats.total.toLocaleString()}</p>
-            <p className="text-sm text-text-muted">tasks synced</p>
-          </div>
         ) : (
-          <div className="card overflow-hidden">
+          <div className="card-marketing overflow-hidden">
             {/* Fixed header - Desktop only */}
-            <div className="hidden md:block bg-surface-highlight/50 border-b border-theme-primary">
+            <div className="hidden md:block bg-marketing-elevated/50 border-b border-marketing-border">
               <div className="grid grid-cols-[60px_140px_50px_1fr_100px] gap-2 py-3 px-4">
-                <span className="text-xs font-medium text-text-muted uppercase tracking-wider">ID</span>
-                <span className="text-xs font-medium text-text-muted uppercase tracking-wider">Status</span>
-                <span className="text-xs font-medium text-text-muted uppercase tracking-wider">Pri</span>
-                <span className="text-xs font-medium text-text-muted uppercase tracking-wider">Title</span>
-                <span className="text-xs font-medium text-text-muted uppercase tracking-wider">Deps</span>
+                <span className="text-xs font-medium text-marketing-muted uppercase tracking-wider">ID</span>
+                <span className="text-xs font-medium text-marketing-muted uppercase tracking-wider">Status</span>
+                <span className="text-xs font-medium text-marketing-muted uppercase tracking-wider">Pri</span>
+                <span className="text-xs font-medium text-marketing-muted uppercase tracking-wider">Title</span>
+                <span className="text-xs font-medium text-marketing-muted uppercase tracking-wider">Deps</span>
               </div>
             </div>
             {/* Scrollable body */}
@@ -640,7 +637,6 @@ export default function Tasks() {
                   allTasks={tasks}
                   expanded={expandedTasks.has(task.id)}
                   onToggle={() => toggleTask(task.id)}
-                  hideTitle={isPatrick}
                 />
               ))}
             </div>

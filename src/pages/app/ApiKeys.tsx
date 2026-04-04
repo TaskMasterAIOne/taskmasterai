@@ -335,20 +335,27 @@ export default function ApiKeys() {
   const getKeyForProvider = (providerId: string) => keys.find((k) => k.provider === providerId)
 
   return (
-    <div className="p-5 lg:p-8 max-w-3xl mx-auto">
+    <div className="mx-auto max-w-6xl p-5 lg:p-8">
       {/* Header */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, ease: 'easeOut' }} className="mb-8">
-        <h1 className="text-2xl font-bold mb-1">API Keys</h1>
-        <p className="text-sm text-text-muted">Securely store your AI provider API keys</p>
+        <div className="mb-3 flex items-center gap-3">
+          <div className="h-px w-8 bg-gradient-to-r from-transparent to-indigo-400/50" />
+          <span className="bg-gradient-to-r from-indigo-500 to-violet-400 bg-clip-text text-sm font-medium text-transparent">
+            Security
+          </span>
+          <div className="h-px w-8 bg-gradient-to-l from-transparent to-indigo-400/50" />
+        </div>
+        <h1 className="marketing-gradient-text font-display mb-1 text-2xl font-semibold tracking-tight md:text-3xl">API Keys</h1>
+        <p className="text-open-sm text-marketing-muted">Securely store your AI provider API keys</p>
       </motion.div>
 
       {/* Security notice */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1, duration: 0.4, ease: 'easeOut' }} className="mb-8">
-        <div className="card flex items-start gap-4 p-5">
-          <FontAwesomeIcon icon={faShield} className="w-5 h-5 text-text-muted flex-shrink-0 mt-0.5" />
+        <div className="card-marketing flex items-start gap-4 p-5">
+          <FontAwesomeIcon icon={faShield} className="w-5 h-5 text-marketing-muted flex-shrink-0 mt-0.5" />
           <div>
             <p className="text-base font-medium">Your keys are secure</p>
-            <p className="text-sm text-text-muted">API keys are encrypted and never exposed in the browser</p>
+            <p className="text-sm text-marketing-muted">API keys are encrypted and never exposed in the browser</p>
           </div>
         </div>
       </motion.div>
@@ -356,29 +363,29 @@ export default function ApiKeys() {
       {/* Hosted API Keys Section (Pro & Enterprise) */}
       {hasHostedKeys && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15, duration: 0.4, ease: 'easeOut' }} className="mb-8">
-          <div className="card p-5 border-2 border-brand-primary/30 bg-gradient-to-br from-brand-primary/5 to-transparent">
+          <div className="card-marketing border-2 border-indigo-500/40 bg-gradient-to-br from-indigo-500/10 to-transparent p-5">
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-xl bg-brand-primary/20 flex items-center justify-center flex-shrink-0">
-                <FontAwesomeIcon icon={faServer} className="w-6 h-6 text-brand-primary" />
+              <div className="w-12 h-12 rounded-xl bg-indigo-500/20 flex items-center justify-center flex-shrink-0">
+                <FontAwesomeIcon icon={faServer} className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   <h2 className="text-lg font-semibold">Hosted API Keys</h2>
-                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-primary/20 text-brand-primary text-xs font-medium">
+                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-medium">
                     <FontAwesomeIcon icon={faCrown} className="w-3 h-3" />
                     {hostedPlanLabel}
                   </span>
                 </div>
-                <p className="text-sm text-text-muted mb-4">
+                <p className="text-sm text-marketing-muted mb-4">
                   You have access to hosted API keys — no need to configure your own! The CLI will automatically use our hosted keys if you haven't set your own.
                 </p>
 
                 {/* Available Providers */}
                 <div className="mb-4 overflow-x-auto">
-                  <p className="text-xs font-medium text-text-subtle uppercase tracking-wide mb-2">Available Providers</p>
+                  <p className="text-xs font-medium text-marketing-muted/80 uppercase tracking-wide mb-2">Available Providers</p>
                   <div className="flex flex-wrap gap-2 min-w-0">
                     {HOSTED_PROVIDERS.map((provider) => (
-                      <span key={provider} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface text-sm">
+                      <span key={provider} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-marketing-elevated text-sm">
                         <span className="w-4 h-4 flex items-center justify-center">
                           {ProviderLogos[provider]}
                         </span>
@@ -390,29 +397,29 @@ export default function ApiKeys() {
 
                 {/* Usage Stats */}
                 {loadingStats ? (
-                  <div className="flex items-center gap-2 text-sm text-text-muted">
-                    <div className="w-4 h-4 border-2 border-text-muted/30 border-t-brand-primary rounded-full animate-spin" />
+                  <div className="flex items-center gap-2 text-sm text-marketing-muted">
+                    <div className="w-4 h-4 border-2 border-text-muted/30 border-t-indigo-500 rounded-full animate-spin" />
                     Loading usage stats...
                   </div>
                 ) : hostedStats?.stats ? (
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="p-3 rounded-lg bg-surface">
-                      <div className="flex items-center gap-1.5 text-xs text-text-muted mb-1">
+                    <div className="p-3 rounded-lg bg-marketing-elevated">
+                      <div className="flex items-center gap-1.5 text-xs text-marketing-muted mb-1">
                         <FontAwesomeIcon icon={faChartLine} className="w-3 h-3" />
                         Total Operations
                       </div>
                       <div className="text-lg font-semibold">{hostedStats.stats.totalOperations?.toLocaleString() || 0}</div>
                     </div>
-                    <div className="p-3 rounded-lg bg-surface">
-                      <div className="flex items-center gap-1.5 text-xs text-text-muted mb-1">
+                    <div className="p-3 rounded-lg bg-marketing-elevated">
+                      <div className="flex items-center gap-1.5 text-xs text-marketing-muted mb-1">
                         <FontAwesomeIcon icon={faKey} className="w-3 h-3" />
                         Total Tokens
                       </div>
                       <div className="text-lg font-semibold">{hostedStats.stats.totalTokens?.toLocaleString() || 0}</div>
                     </div>
                     {hostedStats.rateLimits?.hourly && (
-                      <div className="p-3 rounded-lg bg-surface">
-                        <div className="flex items-center gap-1.5 text-xs text-text-muted mb-1">
+                      <div className="p-3 rounded-lg bg-marketing-elevated">
+                        <div className="flex items-center gap-1.5 text-xs text-marketing-muted mb-1">
                           Hourly Limit
                         </div>
                         <div className="text-lg font-semibold">
@@ -421,8 +428,8 @@ export default function ApiKeys() {
                       </div>
                     )}
                     {hostedStats.rateLimits?.daily && (
-                      <div className="p-3 rounded-lg bg-surface">
-                        <div className="flex items-center gap-1.5 text-xs text-text-muted mb-1">
+                      <div className="p-3 rounded-lg bg-marketing-elevated">
+                        <div className="flex items-center gap-1.5 text-xs text-marketing-muted mb-1">
                           Daily Limit
                         </div>
                         <div className="text-lg font-semibold">
@@ -434,9 +441,9 @@ export default function ApiKeys() {
                 ) : null}
 
                 {/* Info Note */}
-                <div className="flex items-start gap-2 mt-4 p-3 rounded-lg bg-surface-elevated text-sm">
-                  <FontAwesomeIcon icon={faInfoCircle} className="w-4 h-4 text-text-muted flex-shrink-0 mt-0.5" />
-                  <p className="text-text-muted">
+                <div className="flex items-start gap-2 mt-4 p-3 rounded-lg bg-marketing-elevated-elevated text-sm">
+                  <FontAwesomeIcon icon={faInfoCircle} className="w-4 h-4 text-marketing-muted flex-shrink-0 mt-0.5" />
+                  <p className="text-marketing-muted">
                     Your own API keys take priority. Hosted keys are used as a fallback when you haven't configured your own.
                   </p>
                 </div>
@@ -449,22 +456,22 @@ export default function ApiKeys() {
       {/* Upgrade prompt for Plus / non–Pro, non-Enterprise users */}
       {licenseData && !hasHostedKeys && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15, duration: 0.4, ease: 'easeOut' }} className="mb-8">
-          <div className="card p-5 border border-border-default/50 bg-surface-elevated/50">
+          <div className="card-marketing p-5 border border-marketing-border bg-marketing-elevated/50">
             <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-lg bg-surface flex items-center justify-center flex-shrink-0">
-                <FontAwesomeIcon icon={faServer} className="w-5 h-5 text-text-muted" />
+              <div className="w-10 h-10 rounded-lg bg-marketing-elevated flex items-center justify-center flex-shrink-0">
+                <FontAwesomeIcon icon={faServer} className="w-5 h-5 text-marketing-muted" />
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className="font-medium">Hosted API Keys</h3>
-                  <span className="px-2 py-0.5 rounded-full bg-surface text-text-muted text-xs font-medium">
+                  <span className="rounded-full bg-marketing-elevated px-2 py-0.5 text-xs font-medium text-marketing-muted">
                     Pro & Enterprise
                   </span>
                 </div>
-                <p className="text-sm text-text-muted mb-3">
+                <p className="text-sm text-marketing-muted mb-3">
                   Upgrade to Pro or Enterprise to use our hosted API keys — no need to manage your own keys!
                 </p>
-                <a href="/pricing" className="btn-primary text-sm py-2 px-4 inline-flex items-center gap-2">
+                <a href="/pricing" className="btn-marketing-primary inline-flex items-center gap-2 px-4 py-2 text-sm">
                   <FontAwesomeIcon icon={faCrown} className="w-3.5 h-3.5" />
                   View plans
                 </a>
@@ -476,14 +483,14 @@ export default function ApiKeys() {
 
       {/* Status messages */}
       {error && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 p-3 rounded-lg bg-surface-elevated border border-status-error text-status-error text-sm mb-5">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 p-3 rounded-lg bg-marketing-elevated-elevated border border-status-error text-status-error text-sm mb-5">
           <FontAwesomeIcon icon={faCircleExclamation} className="w-4 h-4 flex-shrink-0" />
           {error}
         </motion.div>
       )}
 
       {success && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 p-3 rounded-lg bg-surface-elevated border border-status-success text-status-success text-sm mb-5">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 p-3 rounded-lg bg-marketing-elevated-elevated border border-status-success text-status-success text-sm mb-5">
           <FontAwesomeIcon icon={faCheck} className="w-4 h-4 flex-shrink-0" />
           {success}
         </motion.div>
@@ -496,11 +503,11 @@ export default function ApiKeys() {
           const isAdding = addingKey === provider.id
 
           return (
-            <div key={provider.id} className="card p-4 sm:p-5">
+            <div key={provider.id} className="card-marketing p-4 sm:p-5">
               <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                 <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
                   {/* Provider Logo */}
-                  <div className="w-10 h-10 rounded-lg bg-surface-highlight flex items-center justify-center flex-shrink-0 text-text-secondary">
+                  <div className="w-10 h-10 rounded-lg bg-marketing-elevated-highlight flex items-center justify-center flex-shrink-0 text-marketing-text">
                     {ProviderLogos[provider.id]}
                   </div>
                   
@@ -514,15 +521,15 @@ export default function ApiKeys() {
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-text-muted">{provider.description}</p>
+                    <p className="text-sm text-marketing-muted">{provider.description}</p>
 
                   {existingKey && !isAdding && (
                     <div className="flex items-center gap-2 mt-3 flex-wrap">
-                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface font-mono text-sm overflow-hidden">
-                        <FontAwesomeIcon icon={faKey} className="w-3.5 h-3.5 text-text-subtle flex-shrink-0" />
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-marketing-elevated font-mono text-sm overflow-hidden">
+                        <FontAwesomeIcon icon={faKey} className="w-3.5 h-3.5 text-marketing-muted/80 flex-shrink-0" />
                         <span className="truncate">{showKey === provider.id ? existingKey.maskedKey : '••••••••••••'}</span>
                       </div>
-                      <button onClick={() => setShowKey(showKey === provider.id ? null : provider.id)} className="p-1.5 text-text-subtle hover:text-text">
+                      <button onClick={() => setShowKey(showKey === provider.id ? null : provider.id)} className="p-1.5 text-marketing-muted/80 hover:text-text">
                         <FontAwesomeIcon icon={showKey === provider.id ? faEyeSlash : faEye} className="w-4 h-4" />
                       </button>
                     </div>
@@ -543,7 +550,7 @@ export default function ApiKeys() {
                         autoFocus
                       />
                       <div className="flex items-center gap-2">
-                        <button type="submit" disabled={!newKeyValue.trim()} className="btn-primary py-2 px-3 flex-1 sm:flex-none">
+                        <button type="submit" disabled={!newKeyValue.trim()} className="btn-marketing-primary flex-1 py-2 px-3 sm:flex-none">
                         <FontAwesomeIcon icon={faCheck} className="w-4 h-4" />
                       </button>
                         <button type="button" onClick={() => { setAddingKey(null); setNewKeyValue('') }} className="btn-ghost py-2 px-3 flex-1 sm:flex-none">
@@ -556,13 +563,13 @@ export default function ApiKeys() {
                 </div>
 
                 <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-start">
-                  <a href={provider.docsUrl} target="_blank" rel="noopener noreferrer" className="p-2 text-text-subtle hover:text-text" title="Get API key">
+                  <a href={provider.docsUrl} target="_blank" rel="noopener noreferrer" className="p-2 text-marketing-muted/80 hover:text-text" title="Get API key">
                     <FontAwesomeIcon icon={faArrowUpRightFromSquare} className="w-4 h-4" />
                   </a>
                   
                   {existingKey ? (
                     <>
-                      <button onClick={() => { setAddingKey(provider.id); setNewKeyValue('') }} className="btn-secondary text-sm py-2 px-3">
+                      <button onClick={() => { setAddingKey(provider.id); setNewKeyValue('') }} className="btn-marketing-secondary px-3 py-2 text-sm">
                         Update
                       </button>
                       <button onClick={() => handleDeleteKey(provider.id)} className="p-2 text-status-error hover:bg-status-error/10 rounded-lg">
@@ -571,7 +578,7 @@ export default function ApiKeys() {
                     </>
                   ) : (
                     !isAdding && (
-                      <button onClick={() => setAddingKey(provider.id)} className="btn-primary text-sm py-2 px-3">
+                      <button onClick={() => setAddingKey(provider.id)} className="btn-marketing-primary px-3 py-2 text-sm">
                         <FontAwesomeIcon icon={faPlus} className="w-4 h-4 mr-1.5" />
                         Add
                       </button>

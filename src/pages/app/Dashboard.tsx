@@ -78,11 +78,10 @@ export default function Dashboard() {
   const [hasModelsConfig, setHasModelsConfig] = useState(false)
 
   const hasLicense = licenseInfo?.hasLicense
-  const isPatrick = user?.email === 'patrick@envoymobile.com'
-  const gsPlan = hasLicense || isPatrick
-  const gsApiKeys = hasApiKeys || isPatrick
-  const gsModels = hasModelsConfig || isPatrick
-  const gsProject = (hasLicense && hasApiKeys && hasModelsConfig) || isPatrick
+  const gsPlan = hasLicense
+  const gsApiKeys = hasApiKeys
+  const gsModels = hasModelsConfig
+  const gsProject = hasLicense && hasApiKeys && hasModelsConfig
 
   // Real-time listener for API keys (to track setup progress)
   useEffect(() => {
@@ -141,18 +140,10 @@ export default function Dashboard() {
       const planKey = licenseData.plan?.toLowerCase() || licenseInfo?.plan?.toLowerCase() || ''
       const planDefaults = PLAN_LIMITS[planKey] || { tasksPerMonth: 100, overageRate: 0.20 }
       const tasksPerMonth = licenseData.tasksPerMonth || planDefaults.tasksPerMonth
-      let overageRate = licenseData.overageRate ?? planDefaults.overageRate
+      const overageRate = licenseData.overageRate ?? planDefaults.overageRate
       const isOverage = tasksPerMonth > 0 && tasksUsed > tasksPerMonth
       const overageCount = isOverage ? tasksUsed - tasksPerMonth : 0
-      let estimatedOverageCost = isOverage ? overageCount * overageRate : 0
-
-      // Patrick (enterprise): use per-task rate so estimated overage = $113,568
-      const isPatrick = user?.email === 'patrick@envoymobile.com'
-      if (isPatrick && isOverage && overageCount > 0) {
-        const targetOverageCost = 113568
-        overageRate = targetOverageCost / overageCount
-        estimatedOverageCost = targetOverageCost
-      }
+      const estimatedOverageCost = isOverage ? overageCount * overageRate : 0
 
       setUsageData({
         stats: {
@@ -263,7 +254,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="p-5 lg:p-8 max-w-4xl mx-auto">
+    <div className="mx-auto max-w-6xl p-5 lg:p-8">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0 }}
@@ -271,10 +262,17 @@ export default function Dashboard() {
         transition={{ duration: 0.4, ease: 'easeOut' }}
         className="mb-8"
       >
-        <h1 className="text-2xl font-bold mb-1">
+        <div className="mb-3 flex items-center gap-3">
+          <div className="h-px w-8 bg-gradient-to-r from-transparent to-indigo-400/50" />
+          <span className="bg-gradient-to-r from-indigo-500 to-violet-400 bg-clip-text text-sm font-medium text-transparent">
+            Overview
+          </span>
+          <div className="h-px w-8 bg-gradient-to-l from-transparent to-indigo-400/50" />
+        </div>
+        <h1 className="marketing-gradient-text font-display mb-1 text-2xl font-semibold tracking-tight md:text-3xl">
           Welcome{user?.displayName ? `, ${user.displayName.split(' ')[0]}` : ''}
         </h1>
-        <p className="text-sm text-text-muted">
+        <p className="text-open-sm text-marketing-muted">
           Overview of your TaskMaster AI workspace
         </p>
       </motion.div>
@@ -288,42 +286,42 @@ export default function Dashboard() {
           className="mb-8"
         >
           <h2 className="text-base font-semibold mb-4 flex items-center gap-2">
-            <FontAwesomeIcon icon={faChartLine} className="w-4 h-4 text-accent" />
+            <FontAwesomeIcon icon={faChartLine} className="h-4 w-4 text-indigo-500 dark:text-indigo-400" />
             Usage This Month
           </h2>
 
           {loadingUsage ? (
-            <div className="card p-8 flex items-center justify-center">
-              <FontAwesomeIcon icon={faSpinner} className="w-5 h-5 animate-spin text-text-muted" />
-              <span className="ml-3 text-text-muted">Loading usage data...</span>
+            <div className="card-marketing p-8 flex items-center justify-center">
+              <FontAwesomeIcon icon={faSpinner} className="w-5 h-5 animate-spin text-marketing-muted" />
+              <span className="ml-3 text-marketing-muted">Loading usage data...</span>
             </div>
           ) : usageError ? (
-            <div className="card p-5 bg-red-500/5 border-red-500/20">
+            <div className="card-marketing p-5 bg-red-500/5 border-red-500/20">
               <p className="text-sm text-red-400">{usageError}</p>
             </div>
           ) : usageData?.stats ? (
             <div className="space-y-4">
               {/* Main usage card */}
-              <div className="card p-4 sm:p-5">
+              <div className="card-marketing p-4 sm:p-5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
                   <div>
                     <p className="text-2xl sm:text-3xl font-bold">{usageData.stats.tasksUsed}</p>
-                    <p className="text-sm text-text-muted">tasks used this month</p>
+                    <p className="text-sm text-marketing-muted">tasks used this month</p>
                   </div>
                   <div className="text-left sm:text-right">
-                    <p className="text-lg sm:text-xl font-semibold text-text-secondary">
+                    <p className="text-lg font-semibold text-marketing-text sm:text-xl">
                       {usageData.stats.tasksPerMonth > 0 
                         ? usageData.stats.tasksPerMonth.toLocaleString() 
                         : 'Unlimited'}
                     </p>
-                    <p className="text-sm text-text-muted">included in plan</p>
+                    <p className="text-sm text-marketing-muted">included in plan</p>
                   </div>
                 </div>
 
                 {/* Progress bar */}
                 {usageData.stats.tasksPerMonth > 0 && (
                   <>
-                    <div className="w-full h-3 bg-surface-highlight rounded-full overflow-hidden">
+                    <div className="w-full h-3 bg-marketing-elevated rounded-full overflow-hidden">
                       <div 
                         className={`h-full rounded-full transition-all ${
                           usageData.stats.percentUsed > 90 
@@ -335,7 +333,7 @@ export default function Dashboard() {
                         style={{ width: `${Math.min(100, usageData.stats.percentUsed)}%` }}
                       />
                     </div>
-                    <div className="flex justify-between mt-2 text-xs text-text-muted">
+                    <div className="flex justify-between mt-2 text-xs text-marketing-muted">
                       <span>{usageData.stats.percentUsed}% used</span>
                       <span>{usageData.stats.remaining} remaining</span>
                     </div>
@@ -361,7 +359,7 @@ export default function Dashboard() {
 
               {/* Operation breakdown */}
               {usageData.operationBreakdown && Object.keys(usageData.operationBreakdown).length > 0 && (
-                <div className="card p-4 sm:p-5">
+                <div className="card-marketing p-4 sm:p-5">
                   <h3 className="text-sm font-medium mb-3">Usage by Operation</h3>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
                     {Object.entries(usageData.operationBreakdown)
@@ -369,9 +367,9 @@ export default function Dashboard() {
                       .sort(([, a], [, b]) => b - a)
                       .slice(0, 6)
                       .map(([operation, count]) => (
-                        <div key={operation} className="p-3 bg-surface-highlight rounded-lg">
+                        <div key={operation} className="p-3 bg-marketing-elevated rounded-lg">
                           <p className="text-lg font-semibold">{count}</p>
-                          <p className="text-xs text-text-muted truncate">{formatOperationName(operation)}</p>
+                          <p className="text-xs text-marketing-muted truncate">{formatOperationName(operation)}</p>
                         </div>
                       ))
                     }
@@ -381,17 +379,17 @@ export default function Dashboard() {
 
               {/* Recent activity */}
               {usageData.recentActivity && usageData.recentActivity.length > 0 && (
-                <div className="card p-4 sm:p-5">
+                <div className="card-marketing p-4 sm:p-5">
                   <h3 className="text-sm font-medium mb-3">Recent Activity</h3>
                   <div className="space-y-2">
                     {usageData.recentActivity.slice(0, 5).map((activity, index) => (
-                      <div key={index} className="flex flex-col sm:flex-row sm:items-center justify-between py-2 border-b border-border last:border-0 gap-1 sm:gap-3">
+                      <div key={index} className="flex flex-col sm:flex-row sm:items-center justify-between py-2 border-b border-marketing-border last:border-0 gap-1 sm:gap-3">
                         <div className="flex items-center gap-3">
-                          <FontAwesomeIcon icon={faTerminal} className="w-3 h-3 text-text-subtle flex-shrink-0" />
+                          <FontAwesomeIcon icon={faTerminal} className="w-3 h-3 text-marketing-muted/80 flex-shrink-0" />
                           <span className="text-sm">{formatOperationName(activity.operation)}</span>
                         </div>
                         <div className="text-left sm:text-right ml-6 sm:ml-0">
-                          <span className="text-xs text-text-muted">
+                          <span className="text-xs text-marketing-muted">
                             {activity.timestamp 
                               ? new Date(activity.timestamp).toLocaleDateString('en-US', { 
                                   month: 'short', 
@@ -409,10 +407,10 @@ export default function Dashboard() {
               )}
             </div>
           ) : (
-            <div className="card p-5 text-center">
-              <FontAwesomeIcon icon={faChartLine} className="w-8 h-8 text-text-subtle mx-auto mb-3" />
-              <p className="text-sm text-text-muted">No usage data yet</p>
-              <p className="text-xs text-text-subtle mt-1">
+            <div className="card-marketing p-5 text-center">
+              <FontAwesomeIcon icon={faChartLine} className="w-8 h-8 text-marketing-muted/80 mx-auto mb-3" />
+              <p className="text-sm text-marketing-muted">No usage data yet</p>
+              <p className="text-xs text-marketing-muted/80 mt-1">
                 Start using TaskMaster AI CLI to see your usage here
               </p>
             </div>
@@ -428,20 +426,20 @@ export default function Dashboard() {
           transition={{ delay: 0.1, duration: 0.4, ease: 'easeOut' }}
           className="mb-8"
         >
-          <div className="card p-5 border-accent/30 bg-accent/5">
+          <div className="card-marketing border border-indigo-500/25 bg-indigo-500/5 p-5">
             <div className="flex items-start gap-4">
-              <FontAwesomeIcon icon={faCreditCard} className="w-5 h-5 text-accent mt-0.5" />
+              <FontAwesomeIcon icon={faCreditCard} className="mt-0.5 h-5 w-5 text-indigo-500 dark:text-indigo-400" />
               <div className="flex-1">
-                <h3 className="font-medium mb-1">Get Started with TaskMaster AI</h3>
-                <p className="text-sm text-text-muted mb-4">
+                <h3 className="mb-1 font-medium">Get Started with TaskMaster AI</h3>
+                <p className="mb-4 text-sm text-marketing-muted">
                   Subscribe to a plan to start using AI-powered task management
                 </p>
                 <Link 
                   to="/pricing" 
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent-hover transition-colors"
+                  className="btn-marketing-primary inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm"
                 >
                   View Plans
-                  <FontAwesomeIcon icon={faArrowUpRightFromSquare} className="w-3 h-3" />
+                  <FontAwesomeIcon icon={faArrowUpRightFromSquare} className="h-3 w-3" />
                 </Link>
               </div>
             </div>
@@ -462,15 +460,15 @@ export default function Dashboard() {
             <Link
               key={action.title}
               to={action.href}
-              className="card group hover:border-border-light flex items-start gap-4 p-5"
+              className="card-marketing group flex items-start gap-4 p-5 hover:border-indigo-500/35"
             >
-              <FontAwesomeIcon icon={action.icon} className="w-5 h-5 text-text-muted mt-0.5" />
+              <FontAwesomeIcon icon={action.icon} className="w-5 h-5 text-marketing-muted mt-0.5" />
               <div className="flex-1">
                 <h3 className="text-base font-medium flex items-center gap-2">
                   {action.title}
-                  <FontAwesomeIcon icon={faArrowUpRightFromSquare} className="w-3 h-3 text-text-subtle opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <FontAwesomeIcon icon={faArrowUpRightFromSquare} className="w-3 h-3 text-marketing-muted/80 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </h3>
-                <p className="text-sm text-text-muted">{action.description}</p>
+                <p className="text-sm text-marketing-muted">{action.description}</p>
               </div>
             </Link>
           ))}
@@ -484,23 +482,23 @@ export default function Dashboard() {
         transition={{ delay: 0.25, duration: 0.4, ease: 'easeOut' }}
       >
         <h2 className="text-base font-semibold mb-4">Getting Started</h2>
-        <div className="card p-5">
+        <div className="card-marketing p-5">
           <div className="space-y-4">
             <div className="flex items-start gap-4">
               <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                gsPlan ? 'bg-green-500/20' : 'bg-surface-highlight'
+                gsPlan ? 'bg-green-500/20' : 'bg-marketing-elevated'
               }`}>
                 {gsPlan ? (
                   <FontAwesomeIcon icon={faCheckCircle} className="w-3 h-3 text-green-400" />
                 ) : (
-                  <span className="text-xs font-semibold text-text-muted">1</span>
+                  <span className="text-xs font-semibold text-marketing-muted">1</span>
                 )}
               </div>
               <div>
                 <p className={`text-base font-medium ${gsPlan ? 'text-green-400' : ''}`}>
                   Subscribe to a plan
                 </p>
-                <p className="text-sm text-text-muted">
+                <p className="text-sm text-marketing-muted">
                   {gsPlan
                     ? `Active: ${licenseInfo?.planName ?? 'Enterprise'} Plan`
                     : 'Choose a plan to get your license key'}
@@ -509,58 +507,58 @@ export default function Dashboard() {
             </div>
             <div className="flex items-start gap-4">
               <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                gsApiKeys ? 'bg-green-500/20' : 'bg-surface-highlight'
+                gsApiKeys ? 'bg-green-500/20' : 'bg-marketing-elevated'
               }`}>
                 {gsApiKeys ? (
                   <FontAwesomeIcon icon={faCheckCircle} className="w-3 h-3 text-green-400" />
                 ) : (
-                  <span className="text-xs font-semibold text-text-muted">2</span>
+                  <span className="text-xs font-semibold text-marketing-muted">2</span>
                 )}
               </div>
               <div>
                 <p className={`text-base font-medium ${gsApiKeys ? 'text-green-400' : ''}`}>
                   Add your API keys
                 </p>
-                <p className="text-sm text-text-muted">
+                <p className="text-sm text-marketing-muted">
                   {gsApiKeys ? 'API key configured' : 'Configure at least one AI provider'}
                 </p>
               </div>
             </div>
             <div className="flex items-start gap-4">
               <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                gsModels ? 'bg-green-500/20' : 'bg-surface-highlight'
+                gsModels ? 'bg-green-500/20' : 'bg-marketing-elevated'
               }`}>
                 {gsModels ? (
                   <FontAwesomeIcon icon={faCheckCircle} className="w-3 h-3 text-green-400" />
                 ) : (
-                  <span className="text-xs font-semibold text-text-subtle">3</span>
+                  <span className="text-xs font-semibold text-marketing-muted/80">3</span>
                 )}
               </div>
               <div>
-                <p className={`text-base font-medium ${gsModels ? 'text-green-400' : 'text-text-muted'}`}>
+                <p className={`text-base font-medium ${gsModels ? 'text-green-400' : 'text-marketing-muted'}`}>
                   Configure models
                 </p>
-                <p className="text-sm text-text-muted">
+                <p className="text-sm text-marketing-muted">
                   {gsModels ? 'Models configured' : 'Select main, research, and fallback models'}
                 </p>
               </div>
             </div>
             <div className="flex items-start gap-4">
               <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                gsProject ? 'bg-green-500/20' : 'bg-surface-highlight'
+                gsProject ? 'bg-green-500/20' : 'bg-marketing-elevated'
               }`}>
                 {gsProject ? (
                   <FontAwesomeIcon icon={faCheckCircle} className="w-3 h-3 text-green-400" />
                 ) : (
-                  <span className="text-xs font-semibold text-text-subtle">4</span>
+                  <span className="text-xs font-semibold text-marketing-muted/80">4</span>
                 )}
               </div>
               <div>
-                <p className={`text-base font-medium ${gsProject ? 'text-green-400' : 'text-text-muted'}`}>
+                <p className={`text-base font-medium ${gsProject ? 'text-green-400' : 'text-marketing-muted'}`}>
                   Start a project
                 </p>
-                <p className="text-sm text-text-muted">
-                  Run <code className="px-1.5 py-0.5 rounded bg-surface-highlight text-xs font-mono">taskmaster init</code>
+                <p className="text-sm text-marketing-muted">
+                  Run <code className="px-1.5 py-0.5 rounded bg-marketing-elevated text-xs font-mono">taskmaster init</code>
                 </p>
               </div>
             </div>

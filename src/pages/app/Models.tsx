@@ -169,23 +169,30 @@ export default function Models() {
   }
 
   return (
-    <div className="p-4 sm:p-5 lg:p-8 max-w-3xl mx-auto overflow-x-hidden">
+    <div className="mx-auto max-w-6xl overflow-x-hidden p-4 sm:p-5 lg:p-8">
       {/* Header */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, ease: 'easeOut' }} className="mb-6 sm:mb-8">
-        <h1 className="text-xl sm:text-2xl font-bold mb-1">Model Configuration</h1>
-        <p className="text-sm text-text-muted">Configure AI models for different operations</p>
+        <div className="mb-3 flex items-center gap-3">
+          <div className="h-px w-8 bg-gradient-to-r from-transparent to-indigo-400/50" />
+          <span className="bg-gradient-to-r from-indigo-500 to-violet-400 bg-clip-text text-sm font-medium text-transparent">
+            AI
+          </span>
+          <div className="h-px w-8 bg-gradient-to-l from-transparent to-indigo-400/50" />
+        </div>
+        <h1 className="marketing-gradient-text font-display mb-1 text-xl font-semibold tracking-tight sm:text-2xl md:text-3xl">Model Configuration</h1>
+        <p className="text-open-sm text-marketing-muted">Configure AI models for different operations</p>
       </motion.div>
 
       {/* Status messages */}
       {error && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 p-3 rounded-lg bg-surface-elevated border border-status-error text-status-error text-sm mb-5">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 p-3 rounded-lg bg-marketing-elevated border border-status-error text-status-error text-sm mb-5">
           <FontAwesomeIcon icon={faCircleExclamation} className="w-4 h-4 flex-shrink-0" />
           {error}
         </motion.div>
       )}
 
       {success && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 p-3 rounded-lg bg-surface-elevated border border-status-success text-status-success text-sm mb-5">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 p-3 rounded-lg bg-marketing-elevated border border-status-success text-status-success text-sm mb-5">
           <FontAwesomeIcon icon={faCheck} className="w-4 h-4 flex-shrink-0" />
           {success}
         </motion.div>
@@ -194,12 +201,12 @@ export default function Models() {
       {/* Model roles */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1, duration: 0.4, ease: 'easeOut' }} className="space-y-4 sm:space-y-5">
         {modelRoles.map((role) => (
-          <div key={role.id} className="card p-4 sm:p-5">
+          <div key={role.id} className="card-marketing p-4 sm:p-5">
             <div className="flex items-start gap-3 sm:gap-4 mb-4">
-              <FontAwesomeIcon icon={role.icon} className="w-5 h-5 text-text-muted mt-0.5 flex-shrink-0" />
+              <FontAwesomeIcon icon={role.icon} className="w-5 h-5 text-marketing-muted mt-0.5 flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <h3 className="text-base font-medium">{role.label}</h3>
-                <p className="text-xs sm:text-sm text-text-muted">{role.description}</p>
+                <p className="text-xs sm:text-sm text-marketing-muted">{role.description}</p>
               </div>
             </div>
 
@@ -220,20 +227,20 @@ export default function Models() {
                 ))}
               </select>
               <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                <svg className="w-4 h-4 text-text-subtle" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-marketing-muted/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </div>
             </div>
 
-            <p className="text-xs text-text-subtle mt-2">Recommended: {getModelName(role.recommended)}</p>
+            <p className="text-xs text-marketing-muted/80 mt-2">Recommended: {getModelName(role.recommended)}</p>
           </div>
         ))}
       </motion.div>
 
       {/* Save button */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15, duration: 0.4, ease: 'easeOut' }} className="mt-8 flex justify-end">
-        <button onClick={handleSave} disabled={saving} className="btn-primary">
+        <button onClick={handleSave} disabled={saving} className="btn-marketing-primary">
           {saving ? 'Saving...' : 'Save Configuration'}
         </button>
       </motion.div>
@@ -241,14 +248,14 @@ export default function Models() {
       {/* CLI equivalent */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2, duration: 0.4, ease: 'easeOut' }} className="mt-8 sm:mt-10">
         <h2 className="text-base font-semibold mb-4">CLI Equivalent</h2>
-        <div className="card-elevated overflow-hidden">
-          <div className="flex items-center gap-2 px-3 sm:px-4 py-3 bg-surface">
+        <div className="card-marketing overflow-hidden border">
+          <div className="flex items-center gap-2 bg-marketing-elevated px-3 py-3 sm:px-4">
             <div className="w-3 h-3 rounded-full bg-[#FF5F57]" />
             <div className="w-3 h-3 rounded-full bg-[#FEBC2E]" />
             <div className="w-3 h-3 rounded-full bg-[#28C840]" />
-            <span className="text-xs text-text-subtle ml-2 font-mono">terminal</span>
+            <span className="text-xs text-marketing-muted/80 ml-2 font-mono">terminal</span>
           </div>
-          <pre className="p-3 sm:p-4 font-mono text-xs sm:text-sm overflow-x-auto bg-background text-text-muted">
+          <pre className="overflow-x-auto bg-marketing-bg p-3 font-mono text-xs text-marketing-muted sm:p-4 sm:text-sm">
 {`$ taskmaster models --setup
 
 # Or set individual models:

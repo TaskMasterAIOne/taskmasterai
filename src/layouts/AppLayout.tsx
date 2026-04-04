@@ -41,11 +41,11 @@ export default function AppLayout() {
   const getPlanBadgeStyle = (plan: string | undefined | null) => {
     switch (plan) {
       case 'plus':
-        return 'bg-surface-elevated text-status-success border-status-success'
+        return 'bg-marketing-elevated text-status-success border-status-success'
       case 'pro':
-        return 'bg-surface-elevated text-accent border-accent'
+        return 'bg-marketing-elevated border-indigo-300 text-indigo-600 dark:border-indigo-500/50 dark:text-indigo-400'
       case 'enterprise':
-        return 'bg-surface-elevated text-status-info border-status-info'
+        return 'bg-marketing-elevated text-status-info border-status-info'
       default:
         return null // No badge when no plan
     }
@@ -56,37 +56,40 @@ export default function AppLayout() {
     return plan.toUpperCase()
   }
 
+  const navLinkClass = (isActive: boolean) =>
+    `flex items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-sm transition-all ${
+      isActive
+        ? 'border-indigo-500/30 bg-indigo-500/10 font-medium text-marketing-link'
+        : 'text-marketing-muted hover:bg-marketing-elevated hover:text-marketing-text'
+    }`
+
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="app-cruip flex min-h-screen bg-marketing-bg font-inter text-marketing-text antialiased">
       {/* Sidebar - Desktop */}
-      <aside className="hidden lg:flex lg:flex-col lg:w-60 lg:fixed lg:inset-y-0 bg-surface">
+      <aside className="hidden border-r border-marketing-border bg-marketing-surface lg:fixed lg:inset-y-0 lg:flex lg:w-60 lg:flex-col">
         {/* Logo */}
-        <div className="pt-6 pb-3 px-4">
+        <div className="px-4 pb-3 pt-6">
           <Link to="/" className="inline-flex items-center gap-2">
             <img 
               src={LOGO_URL} 
               alt="TaskMaster AI" 
-              className="w-6 h-6 rounded-md object-contain invert dark:invert-0 flex-shrink-0"
+              className="h-6 w-6 flex-shrink-0 rounded-md object-contain invert dark:invert-0"
             />
-            <span className="pixel-text text-[11px] leading-none mt-0.5">TASKMASTER AI</span>
+            <span className="pixel-text mt-0.5 text-[11px] leading-none">TASKMASTER AI</span>
           </Link>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 pt-2 pb-5 space-y-1">
+        <nav className="flex-1 space-y-1 px-3 pb-5 pt-2">
           {sidebarLinks.map((link) => {
             const isActive = location.pathname === link.path
             return (
               <Link
                 key={link.path}
                 to={link.path}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${
-                  isActive
-                    ? 'bg-surface-highlight text-text'
-                    : 'text-text-muted hover:text-text hover:bg-surface-elevated'
-                }`}
+                className={navLinkClass(isActive)}
               >
-                <FontAwesomeIcon icon={link.icon} className="w-4 h-4" />
+                <FontAwesomeIcon icon={link.icon} className="h-4 w-4" />
                 {link.label}
               </Link>
             )
@@ -98,32 +101,32 @@ export default function AppLayout() {
           <div className="relative">
             <button
               onClick={() => setUserMenuOpen(!userMenuOpen)}
-              className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-surface-elevated transition-colors"
+              className="flex w-full items-center gap-3 rounded-xl p-2.5 transition-colors hover:bg-marketing-elevated"
             >
-              <div className="w-8 h-8 rounded-full bg-surface-highlight flex items-center justify-center overflow-hidden">
+              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-marketing-elevated">
                 {user?.photoURL && !imageError ? (
                   <img 
                     src={user.photoURL} 
                     alt="" 
-                    className="w-8 h-8 rounded-full object-cover"
+                    className="h-8 w-8 rounded-full object-cover"
                     onError={() => setImageError(true)}
                     referrerPolicy="no-referrer"
                   />
                 ) : (
-                  <span className="text-xs font-medium text-text-muted">
+                  <span className="text-xs font-medium text-marketing-muted">
                     {user?.email?.charAt(0).toUpperCase()}
                   </span>
                 )}
               </div>
-              <div className="flex-1 text-left min-w-0">
-                <p className="text-xs font-medium truncate">{user?.displayName || user?.email?.split('@')[0]}</p>
+              <div className="min-w-0 flex-1 text-left">
+                <p className="truncate text-xs font-medium">{user?.displayName || user?.email?.split('@')[0]}</p>
                 {getPlanLabel(userData?.plan) && (
-                  <span className={`inline-block px-1.5 py-0.5 text-[10px] font-medium rounded border ${getPlanBadgeStyle(userData?.plan)}`}>
+                  <span className={`inline-block rounded border px-1.5 py-0.5 text-[10px] font-medium ${getPlanBadgeStyle(userData?.plan)}`}>
                     {getPlanLabel(userData?.plan)}
                   </span>
                 )}
               </div>
-              <FontAwesomeIcon icon={faChevronDown} className={`w-3 h-3 text-text-muted transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
+              <FontAwesomeIcon icon={faChevronDown} className={`h-3 w-3 flex-shrink-0 text-marketing-muted transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {userMenuOpen && (
@@ -131,13 +134,13 @@ export default function AppLayout() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.2, ease: 'easeOut' }}
-                className="absolute bottom-full left-0 right-0 mb-2 bg-surface-elevated border border-border rounded-lg shadow-lg overflow-hidden"
+                className="absolute bottom-full left-0 right-0 mb-2 overflow-hidden rounded-xl border border-marketing-border bg-marketing-elevated shadow-lg"
               >
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-status-error hover:bg-surface transition-colors"
+                  className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-status-error transition-colors hover:bg-marketing-surface"
                 >
-                  <FontAwesomeIcon icon={faRightFromBracket} className="w-4 h-4" />
+                  <FontAwesomeIcon icon={faRightFromBracket} className="h-4 w-4" />
                   Sign out
                 </button>
               </motion.div>
@@ -148,21 +151,25 @@ export default function AppLayout() {
 
       {/* Mobile header - hidden when sidebar is open */}
       {!sidebarOpen && (
-        <div className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-surface z-50 flex items-center justify-between px-4">
-          <Link to="/" className="inline-flex items-center gap-2">
-            <img 
-              src={LOGO_URL} 
-              alt="TaskMaster AI" 
-              className="w-6 h-6 rounded-md object-contain invert dark:invert-0 flex-shrink-0"
-            />
-            <span className="pixel-text text-[11px] leading-none mt-0.5">TASKMASTER AI</span>
-          </Link>
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="w-6 h-6 flex items-center justify-center text-text-muted hover:text-text"
-          >
-            <FontAwesomeIcon icon={faBars} className="w-4 h-4" />
-          </button>
+        <div className="fixed left-0 right-0 top-0 z-50 px-4 pt-4 lg:hidden">
+          <div className="marketing-pill-border relative flex h-14 items-center justify-between gap-3 rounded-2xl px-3 shadow-lg">
+            <Link to="/" className="inline-flex flex-shrink-0 items-center gap-2">
+              <img 
+                src={LOGO_URL} 
+                alt="TaskMaster AI" 
+                className="h-6 w-6 flex-shrink-0 rounded-md object-contain invert dark:invert-0"
+              />
+              <span className="pixel-text mt-0.5 text-[11px] leading-none">TASKMASTER AI</span>
+            </Link>
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-marketing-muted transition-colors hover:bg-marketing-elevated hover:text-marketing-text"
+              aria-label="Open menu"
+            >
+              <FontAwesomeIcon icon={faBars} className="h-5 w-5" />
+            </button>
+          </div>
         </div>
       )}
 
@@ -183,27 +190,29 @@ export default function AppLayout() {
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.25, ease: 'easeOut' }}
-          className="lg:hidden fixed top-0 bottom-0 left-0 w-60 bg-surface z-50 flex flex-col max-h-screen"
+          className="fixed bottom-0 left-0 top-0 z-50 flex max-h-screen w-60 flex-col border-r border-marketing-border bg-marketing-surface shadow-xl lg:hidden"
         >
           {/* Sidebar header with logo and close button */}
-          <div className="h-14 flex items-center justify-between px-4 flex-shrink-0">
+          <div className="flex h-14 flex-shrink-0 items-center justify-between px-4">
             <Link to="/" className="inline-flex items-center gap-2" onClick={() => setSidebarOpen(false)}>
               <img 
                 src={LOGO_URL} 
                 alt="TaskMaster AI" 
-                className="w-6 h-6 rounded-md object-contain invert dark:invert-0 flex-shrink-0"
+                className="h-6 w-6 flex-shrink-0 rounded-md object-contain invert dark:invert-0"
               />
-              <span className="pixel-text text-[11px] leading-none mt-0.5">TASKMASTER AI</span>
+              <span className="pixel-text mt-0.5 text-[11px] leading-none">TASKMASTER AI</span>
             </Link>
             <button
+              type="button"
               onClick={() => setSidebarOpen(false)}
-              className="w-6 h-6 flex items-center justify-center text-text-muted hover:text-text"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-marketing-muted hover:bg-marketing-elevated hover:text-marketing-text"
+              aria-label="Close menu"
             >
-              <FontAwesomeIcon icon={faXmark} className="w-4 h-4" />
+              <FontAwesomeIcon icon={faXmark} className="h-5 w-5" />
             </button>
           </div>
 
-          <nav className="flex-1 px-3 py-3 space-y-1 overflow-y-auto">
+          <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-3">
             {sidebarLinks.map((link) => {
               const isActive = location.pathname === link.path
               return (
@@ -211,58 +220,55 @@ export default function AppLayout() {
                   key={link.path}
                   to={link.path}
                   onClick={() => setSidebarOpen(false)}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${
-                    isActive
-                      ? 'bg-surface-highlight text-text'
-                      : 'text-text-muted hover:text-text hover:bg-surface-elevated'
-                  }`}
+                  className={navLinkClass(isActive)}
                 >
-                  <FontAwesomeIcon icon={link.icon} className="w-4 h-4" />
+                  <FontAwesomeIcon icon={link.icon} className="h-4 w-4" />
                   {link.label}
                 </Link>
               )
             })}
           </nav>
 
-          <div className="p-3 pb-6 flex-shrink-0 border-t border-border">
+          <div className="flex-shrink-0 border-t border-marketing-border p-3 pb-6">
             <div className="flex items-center gap-3 p-2.5">
-              <div className="w-8 h-8 rounded-full bg-surface-highlight flex items-center justify-center overflow-hidden">
+              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-marketing-elevated">
                 {user?.photoURL && !imageError ? (
                   <img 
                     src={user.photoURL} 
                     alt="" 
-                    className="w-8 h-8 rounded-full object-cover"
+                    className="h-8 w-8 rounded-full object-cover"
                     onError={() => setImageError(true)}
                     referrerPolicy="no-referrer"
                   />
                 ) : (
-                  <span className="text-xs font-medium text-text-muted">
+                  <span className="text-xs font-medium text-marketing-muted">
                     {user?.email?.charAt(0).toUpperCase()}
                   </span>
                 )}
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium truncate">{user?.displayName || user?.email?.split('@')[0]}</p>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-medium">{user?.displayName || user?.email?.split('@')[0]}</p>
                 {getPlanLabel(userData?.plan) && (
-                  <span className={`inline-block px-1.5 py-0.5 text-[10px] font-medium rounded border ${getPlanBadgeStyle(userData?.plan)}`}>
+                  <span className={`inline-block rounded border px-1.5 py-0.5 text-[10px] font-medium ${getPlanBadgeStyle(userData?.plan)}`}>
                     {getPlanLabel(userData?.plan)}
                   </span>
                 )}
               </div>
             </div>
             <button
+              type="button"
               onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-3 py-2.5 mt-2 rounded-lg text-sm text-status-error hover:bg-surface-elevated transition-colors"
+              className="mt-2 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-status-error transition-colors hover:bg-marketing-elevated"
             >
-              <FontAwesomeIcon icon={faRightFromBracket} className="w-4 h-4" />
+              <FontAwesomeIcon icon={faRightFromBracket} className="h-4 w-4" />
               Sign out
             </button>
           </div>
         </motion.aside>
       )}
 
-      {/* Main content */}
-      <main className="flex-1 lg:pl-60 pt-14 lg:pt-0 overflow-x-hidden">
+      {/* Main content — pt accounts for floating pill header on mobile */}
+      <main className="flex-1 overflow-x-hidden pt-24 lg:pl-60 lg:pt-0">
         <div className="min-h-screen w-full max-w-full">
           <Outlet />
         </div>

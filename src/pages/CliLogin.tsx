@@ -191,19 +191,19 @@ export default function CliLogin() {
   // Show error state
   if (!isValidCallback && authState === 'error') {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center px-4 py-12">
+      <div className="marketing-page app-cruip relative flex min-h-screen items-center justify-center px-4 py-12">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="w-full max-w-sm text-center"
+          className="relative z-[1] w-full max-w-sm text-center"
         >
-          <div className="card-elevated p-7">
-            <FontAwesomeIcon icon={faCircleExclamation} className="w-12 h-12 text-status-error mb-4" />
-            <h1 className="text-xl font-bold mb-2">Invalid Request</h1>
-            <p className="text-text-muted text-sm mb-6">
+          <div className="marketing-panel rounded-2xl border p-7 shadow-xl">
+            <FontAwesomeIcon icon={faCircleExclamation} className="mb-4 h-12 w-12 text-status-error" />
+            <h1 className="marketing-gradient-text font-display mb-2 text-xl font-semibold">Invalid Request</h1>
+            <p className="mb-6 text-open-sm text-marketing-muted">
               This page is for CLI authentication only. Please use the CLI to initiate login.
             </p>
-            <Link to="/signin" className="btn-primary w-full py-2.5 block text-center">
+            <Link to="/signin" className="btn-marketing-primary block w-full py-2.5 text-center">
               Go to Sign In
             </Link>
           </div>
@@ -215,21 +215,19 @@ export default function CliLogin() {
   // Show success state
   if (authState === 'success' || authState === 'redirecting') {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center px-4 py-12">
+      <div className="marketing-page app-cruip relative flex min-h-screen items-center justify-center px-4 py-12">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="w-full max-w-sm text-center"
+          className="relative z-[1] w-full max-w-sm text-center"
         >
-          <div className="card-elevated p-7">
-            <div className="w-16 h-16 bg-status-success/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <FontAwesomeIcon icon={faCheckCircle} className="w-8 h-8 text-status-success" />
+          <div className="marketing-panel rounded-2xl border p-7 shadow-xl">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10">
+              <FontAwesomeIcon icon={faCheckCircle} className="h-8 w-8 text-emerald-500 dark:text-emerald-400" />
             </div>
-            <h1 className="text-xl font-bold mb-2">Authentication Successful!</h1>
-            <p className="text-text-muted text-sm mb-4">
-              Sending credentials to CLI...
-            </p>
-            <div className="flex items-center justify-center gap-2 text-text-subtle text-sm">
+            <h1 className="marketing-gradient-text font-display mb-2 text-xl font-semibold">Authentication Successful!</h1>
+            <p className="mb-4 text-open-sm text-marketing-muted">Sending credentials to CLI...</p>
+            <div className="flex items-center justify-center gap-2 text-sm text-marketing-muted">
               <FontAwesomeIcon icon={faTerminal} className="w-4 h-4" />
               <span>You can close this window</span>
             </div>
@@ -240,39 +238,41 @@ export default function CliLogin() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4 py-12">
+    <div className="marketing-page app-cruip relative flex min-h-screen items-center justify-center px-4 py-12">
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: 'easeOut' }}
-        className="w-full max-w-sm"
+        className="relative z-[1] w-full max-w-sm"
       >
         {/* Logo */}
-        <Link to="/" className="flex items-center justify-center gap-1.5 mb-8">
+        <Link to="/" className="mb-8 flex items-center justify-center gap-1.5">
           <img 
             src={LOGO_URL} 
             alt="TaskMaster AI" 
-            className="w-7 h-7 rounded-lg object-contain invert dark:invert-0"
+            className="h-7 w-7 rounded-lg object-contain invert dark:invert-0"
           />
-          <span className="pixel-text text-[10px]">TASKMASTER AI</span>
+          <span className="pixel-text text-[10px] text-marketing-text">TASKMASTER AI</span>
         </Link>
 
         {/* Card */}
-        <div className="card-elevated p-7">
-          <div className="text-center mb-7">
-            <div className="flex items-center justify-center gap-2 mb-3">
-              <FontAwesomeIcon icon={faTerminal} className="w-5 h-5 text-primary" />
-              <span className="text-xs font-medium text-primary uppercase tracking-wider">CLI Login</span>
+        <div className="marketing-panel rounded-2xl border p-7 shadow-xl">
+          <div className="mb-7 text-center">
+            <div className="mb-3 flex items-center justify-center gap-2">
+              <FontAwesomeIcon icon={faTerminal} className="h-5 w-5 text-indigo-500 dark:text-indigo-400" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-indigo-500 dark:text-indigo-400">
+                CLI Login
+              </span>
             </div>
-            <h1 className="text-2xl font-bold mb-1">Sign in to CLI</h1>
-            <p className="text-sm text-text-muted">
+            <h1 className="marketing-gradient-text font-display mb-1 text-2xl font-semibold tracking-tight">Sign in to CLI</h1>
+            <p className="text-open-sm text-marketing-muted">
               Authenticate to use TaskMaster in your terminal
             </p>
           </div>
 
           {/* Error message */}
           {error && authState === 'error' && (
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-surface-elevated border border-status-error text-status-error text-sm mb-5">
+            <div className="flex items-center gap-2 p-3 rounded-lg border border-status-error bg-marketing-surface text-status-error text-sm mb-5">
               <FontAwesomeIcon icon={faCircleExclamation} className="w-4 h-4 flex-shrink-0" />
               {error}
             </div>
@@ -282,7 +282,7 @@ export default function CliLogin() {
           {(authState === 'authenticating' || authState === 'fetching-token') && (
             <div className="flex items-center justify-center gap-3 p-4 mb-5">
               <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-              <span className="text-sm text-text-muted">
+              <span className="text-sm text-marketing-muted">
                 {authState === 'authenticating' ? 'Signing in...' : 'Fetching credentials...'}
               </span>
             </div>
@@ -295,7 +295,7 @@ export default function CliLogin() {
               <button
                 onClick={handleGoogleSignIn}
                 disabled={loading}
-                className="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-lg bg-surface border border-border hover:bg-surface-elevated transition-colors disabled:opacity-50 text-sm font-medium"
+                className="flex w-full items-center justify-center gap-2.5 rounded-lg border border-marketing-border bg-marketing-surface px-4 py-2.5 text-sm font-medium text-marketing-text transition-colors hover:bg-marketing-bg disabled:opacity-50"
               >
                 <GoogleLogo />
                 Continue with Google
@@ -304,10 +304,10 @@ export default function CliLogin() {
               {/* Divider */}
               <div className="relative my-6">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-border" />
+                  <div className="w-full border-t border-marketing-border" />
                 </div>
                 <div className="relative flex justify-center text-xs">
-                  <span className="px-3 bg-surface-elevated text-text-subtle">or</span>
+                  <span className="bg-marketing-surface px-3 text-marketing-muted">or</span>
                 </div>
               </div>
 
@@ -316,7 +316,7 @@ export default function CliLogin() {
                 <div>
                   <label htmlFor="email" className="label">Email</label>
                   <div className="relative">
-                    <FontAwesomeIcon icon={faEnvelope} className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-subtle" />
+                    <FontAwesomeIcon icon={faEnvelope} className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-marketing-muted" />
                     <input
                       id="email"
                       type="email"
@@ -334,7 +334,7 @@ export default function CliLogin() {
                 <div>
                   <label htmlFor="password" className="label">Password</label>
                   <div className="relative">
-                    <FontAwesomeIcon icon={faLock} className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-subtle" />
+                    <FontAwesomeIcon icon={faLock} className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-marketing-muted" />
                     <input
                       id="password"
                       type={showPassword ? 'text' : 'password'}
@@ -349,7 +349,7 @@ export default function CliLogin() {
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-text-subtle hover:text-text"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-marketing-muted hover:text-marketing-text"
                     >
                       <FontAwesomeIcon icon={showPassword ? faEyeSlash : faEye} className="w-4 h-4" />
                     </button>
@@ -359,7 +359,7 @@ export default function CliLogin() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="btn-primary w-full py-2.5"
+                  className="btn-marketing-primary w-full py-2.5"
                 >
                   {loading ? 'Signing in...' : 'Sign in'}
                 </button>
@@ -369,9 +369,9 @@ export default function CliLogin() {
         </div>
 
         {/* Sign up link */}
-        <p className="text-center text-text-muted text-sm mt-5">
-          Don't have an account?{' '}
-          <Link to="/signup" className="text-text hover:underline font-medium">
+        <p className="mt-5 text-center text-sm text-marketing-muted">
+          Don&apos;t have an account?{' '}
+          <Link to="/signup" className="font-medium text-marketing-link hover:underline">
             Sign up
           </Link>
         </p>

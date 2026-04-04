@@ -142,44 +142,44 @@ export default function TermsAcceptance() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <header className="py-4 px-4 sm:px-6">
+    <div className="marketing-page app-cruip relative flex min-h-screen flex-col bg-marketing-bg text-marketing-text">
+      <header className="relative z-[1] border-b border-marketing-border bg-marketing-bg/90 px-4 py-4 backdrop-blur-sm sm:px-6">
         <button
           onClick={handleGoBack}
-          className="flex items-center gap-2 text-text-muted hover:text-text transition-colors"
+          className="flex items-center gap-2 text-marketing-muted transition-colors hover:text-marketing-link"
         >
           <FontAwesomeIcon icon={faArrowLeft} className="w-4 h-4" />
           <span className="text-sm">Back to signup</span>
         </button>
       </header>
 
-      <main className="flex flex-grow items-center justify-center px-4 py-4 sm:py-8">
+      <main className="flex flex-grow items-center justify-center px-4 py-4 sm:py-8 relative z-[1]">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, ease: 'easeOut' }}
           className="w-full max-w-3xl"
         >
-          <div className="card-elevated p-4 sm:p-6 md:p-8">
-            <div className="text-center mb-4 sm:mb-6">
+          <div className="marketing-panel rounded-2xl border p-4 shadow-xl sm:p-6 md:p-8">
+            <div className="mb-4 text-center sm:mb-6">
               {/* Logo */}
-              <Link to="/" className="flex items-center justify-center gap-1.5 mb-4">
+              <Link to="/" className="mb-4 flex items-center justify-center gap-1.5">
                 <img 
                   src={LOGO_URL} 
                   alt="TaskMaster AI" 
-                  className="w-10 h-10 rounded-lg object-contain invert dark:invert-0"
+                  className="h-10 w-10 rounded-lg object-contain invert dark:invert-0"
                 />
               </Link>
-              <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-text">
+              <h2 className="marketing-gradient-text font-display text-xl font-semibold tracking-tight sm:text-2xl md:text-3xl">
                 Terms & Privacy Policy
               </h2>
-              <p className="text-text-muted text-sm mt-2">
+              <p className="mt-2 text-open-sm text-marketing-muted">
                 Please review and accept our terms to create your account
               </p>
 
               {!hasScrolledToBottom ? (
-                <div className="mt-3 p-2 bg-primary/10 rounded-lg">
-                  <p className="text-primary text-xs sm:text-sm font-medium text-center">
+                <div className="mt-3 rounded-lg border border-indigo-500/30 bg-indigo-500/10 p-2">
+                  <p className="text-center text-xs font-medium text-indigo-700 dark:text-indigo-300 sm:text-sm">
                     Please scroll to the bottom to continue
                   </p>
                 </div>
@@ -195,19 +195,19 @@ export default function TermsAcceptance() {
             <div
               ref={contentRef}
               onScroll={handleScroll}
-              className="h-[45vh] sm:h-[50vh] overflow-y-auto bg-surface border border-border rounded-lg p-4 sm:p-6 text-sm text-text-muted leading-relaxed mb-4 sm:mb-6"
+              className="mb-4 h-[45vh] overflow-y-auto rounded-lg border border-marketing-border bg-marketing-surface p-4 text-sm leading-relaxed text-marketing-muted sm:mb-6 sm:h-[50vh] sm:p-6"
             >
               <div className="space-y-8">
                 {/* Terms of Service Section */}
                 <div>
-                  <h3 className="text-xl font-bold text-text mb-4">
+                  <h3 className="text-xl font-bold text-marketing-text mb-4">
                     Terms of Service
                   </h3>
-                  <p className="text-xs text-text-subtle mb-4">Last updated: April 2025</p>
+                  <p className="text-xs text-marketing-muted mb-4">Last updated: April 2025</p>
 
                   <div className="space-y-6">
                     <section>
-                      <h4 className="text-base font-semibold text-text mb-2">
+                      <h4 className="text-base font-semibold text-marketing-text mb-2">
                         1. Acceptance of Terms
                       </h4>
                       <p className="mb-2">
@@ -219,7 +219,7 @@ export default function TermsAcceptance() {
                     </section>
 
                     <section>
-                      <h4 className="text-base font-semibold text-text mb-2">
+                      <h4 className="text-base font-semibold text-marketing-text mb-2">
                         2. Description of Service
                       </h4>
                       <p className="mb-2">
@@ -231,7 +231,7 @@ export default function TermsAcceptance() {
                     </section>
 
                     <section>
-                      <h4 className="text-base font-semibold text-text mb-2">
+                      <h4 className="text-base font-semibold text-marketing-text mb-2">
                         3. User Accounts
                       </h4>
                       <p className="mb-2">To access certain features of the Service, you must create an account.</p>
@@ -250,7 +250,7 @@ export default function TermsAcceptance() {
                     </section>
 
                     <section>
-                      <h4 className="text-base font-semibold text-text mb-2">
+                      <h4 className="text-base font-semibold text-marketing-text mb-2">
                         4. API Keys and Third-Party Services
                       </h4>
                       <p className="mb-2">
@@ -268,7 +268,7 @@ export default function TermsAcceptance() {
                     </section>
 
                     <section>
-                      <h4 className="text-base font-semibold text-text mb-2">
+                      <h4 className="text-base font-semibold text-marketing-text mb-2">
                         5. Acceptable Use
                       </h4>
                       <p className="mb-2">You agree not to:</p>
@@ -285,7 +285,7 @@ export default function TermsAcceptance() {
                     </section>
 
                     <section>
-                      <h4 className="text-base font-semibold text-text mb-2">
+                      <h4 className="text-base font-semibold text-marketing-text mb-2">
                         6. Intellectual Property
                       </h4>
                       <p className="mb-2">
@@ -300,7 +300,7 @@ export default function TermsAcceptance() {
                     </section>
 
                     <section>
-                      <h4 className="text-base font-semibold text-text mb-2">
+                      <h4 className="text-base font-semibold text-marketing-text mb-2">
                         7. Pricing, Payments, and Billing
                       </h4>
                       <p className="mb-2">
@@ -316,7 +316,7 @@ export default function TermsAcceptance() {
                         Prices may change from time to time. If prices change, the updated price will apply to future billing periods.
                       </p>
 
-                      <h5 className="text-sm font-medium text-text mt-3 mb-2">Subscription Renewal</h5>
+                      <h5 className="text-sm font-medium text-marketing-text mt-3 mb-2">Subscription Renewal</h5>
                       <p className="mb-2">
                         Subscriptions automatically renew at the end of each billing period unless canceled before the renewal date.
                       </p>
@@ -324,7 +324,7 @@ export default function TermsAcceptance() {
                         By maintaining an active subscription, you authorize recurring charges for future billing periods until the subscription is canceled.
                       </p>
 
-                      <h5 className="text-sm font-medium text-text mt-3 mb-2">Cancellation</h5>
+                      <h5 className="text-sm font-medium text-marketing-text mt-3 mb-2">Cancellation</h5>
                       <p className="mb-2">
                         You may cancel your subscription at any time.
                       </p>
@@ -335,7 +335,7 @@ export default function TermsAcceptance() {
                         After cancellation, your subscription will remain active until the end of the current billing term, after which access to paid features may be limited.
                       </p>
 
-                      <h5 className="text-sm font-medium text-text mt-3 mb-2">Refund Policy</h5>
+                      <h5 className="text-sm font-medium text-marketing-text mt-3 mb-2">Refund Policy</h5>
                       <p className="mb-2">
                         Except where required by law, payments for subscription plans are non-refundable.
                       </p>
@@ -352,7 +352,7 @@ export default function TermsAcceptance() {
                         However, we may review billing issues on a case-by-case basis at our discretion.
                       </p>
 
-                      <h5 className="text-sm font-medium text-text mt-3 mb-2">Billing Issues and Support</h5>
+                      <h5 className="text-sm font-medium text-marketing-text mt-3 mb-2">Billing Issues and Support</h5>
                       <p className="mb-2">
                         If you believe a charge was made in error, you must contact us first at:
                       </p>
@@ -364,7 +364,7 @@ export default function TermsAcceptance() {
                         Most billing issues can be resolved directly through our support team.
                       </p>
 
-                      <h5 className="text-sm font-medium text-text mt-3 mb-2">Chargebacks and Payment Disputes</h5>
+                      <h5 className="text-sm font-medium text-marketing-text mt-3 mb-2">Chargebacks and Payment Disputes</h5>
                       <p className="mb-2">
                         By purchasing a subscription, you agree to make a good-faith effort to resolve billing concerns with TaskMaster AI before initiating a chargeback or payment dispute with your bank.
                       </p>
@@ -388,7 +388,7 @@ export default function TermsAcceptance() {
                     </section>
 
                     <section>
-                      <h4 className="text-base font-semibold text-text mb-2">
+                      <h4 className="text-base font-semibold text-marketing-text mb-2">
                         8. Delivery of Digital Services
                       </h4>
                       <p className="mb-2">
@@ -400,7 +400,7 @@ export default function TermsAcceptance() {
                     </section>
 
                     <section>
-                      <h4 className="text-base font-semibold text-text mb-2">
+                      <h4 className="text-base font-semibold text-marketing-text mb-2">
                         9. Limitation of Liability
                       </h4>
                       <p className="mb-2">
@@ -412,7 +412,7 @@ export default function TermsAcceptance() {
                     </section>
 
                     <section>
-                      <h4 className="text-base font-semibold text-text mb-2">
+                      <h4 className="text-base font-semibold text-marketing-text mb-2">
                         10. Disclaimer of Warranties
                       </h4>
                       <p className="mb-2">
@@ -430,7 +430,7 @@ export default function TermsAcceptance() {
                     </section>
 
                     <section>
-                      <h4 className="text-base font-semibold text-text mb-2">
+                      <h4 className="text-base font-semibold text-marketing-text mb-2">
                         11. Termination
                       </h4>
                       <p className="mb-2">We may suspend or terminate accounts that:</p>
@@ -442,7 +442,7 @@ export default function TermsAcceptance() {
                     </section>
 
                     <section>
-                      <h4 className="text-base font-semibold text-text mb-2">
+                      <h4 className="text-base font-semibold text-marketing-text mb-2">
                         12. Changes to Terms
                       </h4>
                       <p className="mb-2">
@@ -454,7 +454,7 @@ export default function TermsAcceptance() {
                     </section>
 
                     <section>
-                      <h4 className="text-base font-semibold text-text mb-2">
+                      <h4 className="text-base font-semibold text-marketing-text mb-2">
                         13. Governing Law
                       </h4>
                       <p className="mb-2">
@@ -463,31 +463,31 @@ export default function TermsAcceptance() {
                     </section>
 
                     <section>
-                      <h4 className="text-base font-semibold text-text mb-2">
+                      <h4 className="text-base font-semibold text-marketing-text mb-2">
                         14. Contact Information
                       </h4>
                       <p className="mb-2">
                         If you have questions regarding these Terms, please contact:
                       </p>
-                      <p className="text-text">taskmasteroneai@gmail.com</p>
+                      <p className="text-marketing-text">taskmasteroneai@gmail.com</p>
                     </section>
 
                     <section>
-                      <p className="text-text text-xs">© 2026 TaskMaster AI LLC. All rights reserved.</p>
+                      <p className="text-marketing-text text-xs">© 2026 TaskMaster AI LLC. All rights reserved.</p>
                     </section>
                   </div>
                 </div>
 
                 {/* Privacy Policy Section */}
                 <div className="pt-8 border-t-2 border-border">
-                  <h3 className="text-xl font-bold text-text mb-4">
+                  <h3 className="text-xl font-bold text-marketing-text mb-4">
                     Privacy Policy
                   </h3>
-                  <p className="text-xs text-text-subtle mb-4">Last updated: April 2025</p>
+                  <p className="text-xs text-marketing-muted mb-4">Last updated: April 2025</p>
 
                   <div className="space-y-6">
                     <section>
-                      <h4 className="text-base font-semibold text-text mb-2">
+                      <h4 className="text-base font-semibold text-marketing-text mb-2">
                         1. Introduction
                       </h4>
                       <p>
@@ -497,11 +497,11 @@ export default function TermsAcceptance() {
                     </section>
 
                     <section>
-                      <h4 className="text-base font-semibold text-text mb-2">
+                      <h4 className="text-base font-semibold text-marketing-text mb-2">
                         2. Information We Collect
                       </h4>
                       
-                      <h5 className="text-sm font-medium text-text mt-3 mb-2">2.1 Information You Provide</h5>
+                      <h5 className="text-sm font-medium text-marketing-text mt-3 mb-2">2.1 Information You Provide</h5>
                       <ul className="list-disc pl-5 space-y-1 mb-4">
                         <li><strong>Account Information:</strong> Email address, name, and password when you create an account</li>
                         <li><strong>Payment Information:</strong> Billing details processed securely through our payment provider (Stripe)</li>
@@ -509,7 +509,7 @@ export default function TermsAcceptance() {
                         <li><strong>Content:</strong> PRDs, tasks, and other content you create using the Service</li>
                       </ul>
 
-                      <h5 className="text-sm font-medium text-text mt-3 mb-2">2.2 Information Collected Automatically</h5>
+                      <h5 className="text-sm font-medium text-marketing-text mt-3 mb-2">2.2 Information Collected Automatically</h5>
                       <ul className="list-disc pl-5 space-y-1">
                         <li><strong>Usage Data:</strong> How you interact with the Service, features used, and actions taken</li>
                         <li><strong>Device Information:</strong> Browser type, operating system, and device identifiers</li>
@@ -518,7 +518,7 @@ export default function TermsAcceptance() {
                     </section>
 
                     <section>
-                      <h4 className="text-base font-semibold text-text mb-2">
+                      <h4 className="text-base font-semibold text-marketing-text mb-2">
                         3. How We Use Your Information
                       </h4>
                       <p className="mb-2">We use the information we collect to:</p>
@@ -534,7 +534,7 @@ export default function TermsAcceptance() {
                     </section>
 
                     <section>
-                      <h4 className="text-base font-semibold text-text mb-2">
+                      <h4 className="text-base font-semibold text-marketing-text mb-2">
                         4. Data Security
                       </h4>
                       <p className="mb-2">
@@ -549,7 +549,7 @@ export default function TermsAcceptance() {
                     </section>
 
                     <section>
-                      <h4 className="text-base font-semibold text-text mb-2">
+                      <h4 className="text-base font-semibold text-marketing-text mb-2">
                         5. Data Sharing and Disclosure
                       </h4>
                       <p className="mb-2">We do not sell your personal information. We may share your information:</p>
@@ -560,7 +560,7 @@ export default function TermsAcceptance() {
                         <li><strong>With Your Consent:</strong> When you explicitly agree to share your information</li>
                       </ul>
 
-                      <h5 className="text-sm font-medium text-text mt-4 mb-2">Payment and Billing Disputes</h5>
+                      <h5 className="text-sm font-medium text-marketing-text mt-4 mb-2">Payment and Billing Disputes</h5>
                       <p>
                         Our payments are processed by Stripe. For any billing questions, refund requests, or payment 
                         disputes, you must contact us first at taskmasteroneai@gmail.com before initiating a chargeback 
@@ -572,7 +572,7 @@ export default function TermsAcceptance() {
                     </section>
 
                     <section>
-                      <h4 className="text-base font-semibold text-text mb-2">
+                      <h4 className="text-base font-semibold text-marketing-text mb-2">
                         6. Third-Party AI Providers
                       </h4>
                       <p className="mb-2">
@@ -587,7 +587,7 @@ export default function TermsAcceptance() {
                     </section>
 
                     <section>
-                      <h4 className="text-base font-semibold text-text mb-2">
+                      <h4 className="text-base font-semibold text-marketing-text mb-2">
                         7. Your Rights and Choices
                       </h4>
                       <p className="mb-2">You have the right to:</p>
@@ -604,7 +604,7 @@ export default function TermsAcceptance() {
                     </section>
 
                     <section>
-                      <h4 className="text-base font-semibold text-text mb-2">
+                      <h4 className="text-base font-semibold text-marketing-text mb-2">
                         8. Data Retention
                       </h4>
                       <p className="mb-2">
@@ -623,7 +623,7 @@ export default function TermsAcceptance() {
                     </section>
 
                     <section>
-                      <h4 className="text-base font-semibold text-text mb-2">
+                      <h4 className="text-base font-semibold text-marketing-text mb-2">
                         9. Cookies and Tracking
                       </h4>
                       <p className="mb-2">
@@ -642,7 +642,7 @@ export default function TermsAcceptance() {
                     </section>
 
                     <section>
-                      <h4 className="text-base font-semibold text-text mb-2">
+                      <h4 className="text-base font-semibold text-marketing-text mb-2">
                         10. Children&apos;s Privacy
                       </h4>
                       <p>
@@ -653,7 +653,7 @@ export default function TermsAcceptance() {
                     </section>
 
                     <section>
-                      <h4 className="text-base font-semibold text-text mb-2">
+                      <h4 className="text-base font-semibold text-marketing-text mb-2">
                         11. International Data Transfers
                       </h4>
                       <p>
@@ -663,7 +663,7 @@ export default function TermsAcceptance() {
                     </section>
 
                     <section>
-                      <h4 className="text-base font-semibold text-text mb-2">
+                      <h4 className="text-base font-semibold text-marketing-text mb-2">
                         12. Changes to This Policy
                       </h4>
                       <p>
@@ -674,7 +674,7 @@ export default function TermsAcceptance() {
                     </section>
 
                     <section>
-                      <h4 className="text-base font-semibold text-text mb-2">
+                      <h4 className="text-base font-semibold text-marketing-text mb-2">
                         13. Contact Us
                       </h4>
                       <p className="mb-2">
@@ -717,8 +717,8 @@ export default function TermsAcceptance() {
                   <span
                     className={`text-xs sm:text-sm leading-relaxed ${
                       !hasScrolledToBottom
-                        ? 'text-text-subtle'
-                        : 'text-text'
+                        ? 'text-marketing-muted'
+                        : 'text-marketing-text'
                     } transition-colors`}
                   >
                     I have read and agree to the{' '}
@@ -766,14 +766,14 @@ export default function TermsAcceptance() {
               <button
                 onClick={handleGoBack}
                 disabled={loading}
-                className="flex-1 py-3 sm:py-3.5 text-sm sm:text-base bg-surface border border-border text-text font-medium rounded-lg transition-all duration-200 hover:bg-surface-elevated disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn-marketing-secondary flex-1 rounded-lg py-3 text-sm font-medium sm:py-3.5 sm:text-base"
               >
                 Go Back
               </button>
               <button
                 onClick={handleAcceptAndContinue}
                 disabled={loading}
-                className="flex-1 py-3 sm:py-3.5 text-sm sm:text-base bg-primary hover:bg-primary-hover text-white font-semibold rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="btn-marketing-primary flex flex-1 items-center justify-center gap-2 rounded-lg py-3 text-sm font-semibold sm:py-3.5 sm:text-base disabled:cursor-not-allowed"
               >
                 {loading ? (
                   <>
