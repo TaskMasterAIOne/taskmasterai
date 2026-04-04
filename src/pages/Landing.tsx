@@ -355,7 +355,7 @@ const testimonialsData = [
     clientImg: devLogo('cursor'),
     clientLogoAlt: 'Cursor',
     logoWhiteInDark: true,
-    name: 'Jordan M.',
+    name: 'Maya K.',
     company: 'Solo dev · Cursor',
     content:
       'I live in Cursor all day—TaskMaster is the backlog that finally matches my PRD. The MCP integration means I expand and reorder tasks without breaking flow, and dependency IDs stay consistent across agent runs.',
@@ -366,7 +366,7 @@ const testimonialsData = [
     clientImg: devLogo('hashicorp'),
     clientLogoAlt: 'HashiCorp',
     logoWhiteInDark: true,
-    name: 'Priya S.',
+    name: 'Marcus T.',
     company: 'Platform · HashiCorp',
     content:
       'Our platform team treats specs like contracts. TaskMaster turns them into stable task IDs before anything hits Terraform or CI, and complexity scoring kept a gnarly state migration from turning into chat chaos.',
@@ -377,7 +377,7 @@ const testimonialsData = [
     clientImg: devLogo('vercel'),
     clientLogoAlt: 'Vercel',
     logoWhiteInDark: true,
-    name: 'Alex R.',
+    name: 'Olivia S.',
     company: 'Engineering · Vercel',
     content:
       'We ship fast on Vercel; TaskMaster keeps the plan tied to the repo. Hosted keys on Pro mean every engineer gets the same models without another .env ritual, and usage in the dashboard is honest when we are close to limits.',
@@ -387,7 +387,7 @@ const testimonialsData = [
     img: img('testimonial-04.jpg'),
     clientImg: devLogo('gitlab'),
     clientLogoAlt: 'GitLab',
-    name: 'Chris L.',
+    name: 'Rachel N.',
     company: 'Consulting · GitLab',
     content:
       'Clients hand me messy PRDs; TaskMaster turns them into tasks and subtasks with dependencies so my agent does not wander. Merge requests in GitLab reference the same IDs the CLI uses—reviewers never argue about what “done” means.',
@@ -405,7 +405,7 @@ const testimonialsData = [
     categories: [1, 2, 4],
   },
   {
-    img: img('testimonial-06.jpg'),
+    img: '/testimonial-sam.jpg',
     clientImg: devLogo('supabase'),
     clientLogoAlt: 'Supabase',
     name: 'Sam T.',
@@ -418,7 +418,7 @@ const testimonialsData = [
     img: img('testimonial-07.jpg'),
     clientImg: devLogo('linear'),
     clientLogoAlt: 'Linear',
-    name: 'Elena V.',
+    name: 'James R.',
     company: 'Product · Linear',
     content:
       'We still plan initiatives in Linear, but engineering’s executable truth is TaskMaster’s graph—no more “what’s next?” in standup. The same ordered list shows up in the terminal and in review, so product and eng share one language.',
