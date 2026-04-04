@@ -15,8 +15,7 @@ import {
 } from 'firebase/auth'
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { auth, db } from '../lib/firebase'
-
-const LOGO_URL = 'https://firebasestorage.googleapis.com/v0/b/taskmaster-ai-e2302.firebasestorage.app/o/taskmaster_ai_new_logo-removebg.png?alt=media&token=29e7f6a0-f33d-4ec9-84bd-abf3ddbb78b8'
+import { TaskMasterAILogo } from '../components/TaskMasterAILogo'
 
 interface SignupData {
   method: 'email' | 'google'
@@ -163,12 +162,12 @@ export default function TermsAcceptance() {
           <div className="marketing-panel rounded-2xl border p-4 shadow-xl sm:p-6 md:p-8">
             <div className="mb-4 text-center sm:mb-6">
               {/* Logo */}
-              <Link to="/" className="mb-4 flex items-center justify-center gap-1.5">
-                <img 
-                  src={LOGO_URL} 
-                  alt="TaskMaster AI" 
-                  className="h-10 w-10 rounded-lg object-contain invert dark:invert-0"
-                />
+              <Link
+                to="/"
+                className="mb-4 flex items-center justify-center gap-1.5"
+                aria-label="TaskMaster AI home"
+              >
+                <TaskMasterAILogo className="h-10 w-10 rounded-lg" />
               </Link>
               <h2 className="marketing-gradient-text font-display text-xl font-semibold tracking-tight sm:text-2xl md:text-3xl">
                 Terms & Privacy Policy

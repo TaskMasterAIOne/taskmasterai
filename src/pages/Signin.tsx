@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faEnvelope, faLock, faEye, faEyeSlash, faCircleExclamation } from '@fortawesome/free-solid-svg-icons'
+import { TaskMasterAILogo } from '../components/TaskMasterAILogo'
 
 // Colored Google Logo SVG
 const GoogleLogo = () => (
@@ -14,8 +15,6 @@ const GoogleLogo = () => (
     <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
   </svg>
 )
-
-const LOGO_URL = 'https://firebasestorage.googleapis.com/v0/b/taskmaster-ai-e2302.firebasestorage.app/o/taskmaster_ai_new_logo-removebg.png?alt=media&token=29e7f6a0-f33d-4ec9-84bd-abf3ddbb78b8'
 
 export default function Signin() {
   const navigate = useNavigate()
@@ -95,11 +94,7 @@ export default function Signin() {
       >
         {/* Logo */}
         <Link to="/" className="mb-8 flex items-center justify-center gap-1.5">
-          <img 
-            src={LOGO_URL} 
-            alt="TaskMaster AI" 
-            className="h-7 w-7 rounded-lg object-contain invert dark:invert-0"
-          />
+          <TaskMasterAILogo className="h-7 w-7 rounded-lg" />
           <span className="pixel-text text-[10px] text-marketing-text">TASKMASTER AI</span>
         </Link>
 

@@ -14,8 +14,7 @@ import {
   faChevronDown,
   faListCheck
 } from '@fortawesome/free-solid-svg-icons'
-
-const LOGO_URL = 'https://firebasestorage.googleapis.com/v0/b/taskmaster-ai-e2302.firebasestorage.app/o/taskmaster_ai_new_logo-removebg.png?alt=media&token=29e7f6a0-f33d-4ec9-84bd-abf3ddbb78b8'
+import { TaskMasterAILogo } from '../components/TaskMasterAILogo'
 
 const sidebarLinks = [
   { path: '/app/dashboard', label: 'Dashboard', icon: faGauge },
@@ -78,11 +77,7 @@ export default function AppLayout() {
         {/* Logo */}
         <div className="px-4 pb-3 pt-6">
           <Link to="/" className="inline-flex items-center gap-2">
-            <img 
-              src={LOGO_URL} 
-              alt="TaskMaster AI" 
-              className="h-6 w-6 flex-shrink-0 rounded-md object-contain invert dark:invert-0"
-            />
+            <TaskMasterAILogo className="h-6 w-6 rounded-md" />
             <span className="pixel-text mt-0.5 text-[11px] leading-none">TASKMASTER AI</span>
           </Link>
         </div>
@@ -162,11 +157,7 @@ export default function AppLayout() {
         <div className="fixed left-0 right-0 top-0 z-50 px-4 pt-4 lg:hidden">
           <div className="marketing-pill-border relative flex h-14 items-center justify-between gap-3 rounded-2xl px-3 shadow-lg">
             <Link to="/" className="inline-flex flex-shrink-0 items-center gap-2">
-              <img 
-                src={LOGO_URL} 
-                alt="TaskMaster AI" 
-                className="h-6 w-6 flex-shrink-0 rounded-md object-contain invert dark:invert-0"
-              />
+              <TaskMasterAILogo className="h-6 w-6 rounded-md" />
               <span className="pixel-text mt-0.5 text-[11px] leading-none">TASKMASTER AI</span>
             </Link>
             <button
@@ -203,11 +194,7 @@ export default function AppLayout() {
           {/* Sidebar header with logo and close button */}
           <div className="flex h-14 flex-shrink-0 items-center justify-between px-4">
             <Link to="/" className="inline-flex items-center gap-2" onClick={() => setSidebarOpen(false)}>
-              <img 
-                src={LOGO_URL} 
-                alt="TaskMaster AI" 
-                className="h-6 w-6 flex-shrink-0 rounded-md object-contain invert dark:invert-0"
-              />
+              <TaskMasterAILogo className="h-6 w-6 rounded-md" />
               <span className="pixel-text mt-0.5 text-[11px] leading-none">TASKMASTER AI</span>
             </Link>
             <button

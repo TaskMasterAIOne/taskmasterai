@@ -102,7 +102,43 @@
           "details": "1. **Dependency Setup:** Install necessary JWT libraries (e.g., 'jsonwebtoken' for Node.js/Express, or equivalent for target framework).\n2. **Login/Registration Flow:** Modify the user login endpoint to generate a JWT upon successful credential verification. The token payload must minimally include the user ID and relevant roles.\n3. **Token Generation:** Implement a service/utility function for signing JWTs using a securely stored secret key (stored in environment variables).\n4. **Authentication Middleware:** Create a middleware function that intercepts requests to protected routes. This middleware must extract the token from the Authorization header, verify its signature and expiration, and attach the decoded user payload to the request object if valid.\n5. **Error Handling:** Implement robust error responses (401 Unauthorized) for missing, invalid, or expired tokens.\n6. **Secret Management:** Ensure the JWT secret key is loaded securely via environment variables and not hardcoded.",
           "testStrategy": "1. **Unit Tests:** Write tests for the token generation and validation utility functions (e.g., testing token creation, expiration handling, and signature verification failures).\n2. **Integration Tests:** Test the login endpoint to ensure a valid JWT is returned on successful authentication.\n3. **API Tests:** Use tools like Postman or integrated framework tests to verify:\n    a) Accessing a protected route without a token returns 401.\n    b) Accessing a protected route with a valid token succeeds.\n    c) Accessing a protected route with a deliberately expired or tampered token returns 401.",
           "dependencies": [],
-          "subtasks": []
+          "subtasks": [
+            {
+              "id": 1,
+              "title": "Install JWT Library and Configure Secret",
+              "description": "Install the necessary JWT library for the target framework and securely configure the JWT secret key using environment variables.",
+              "status": "pending",
+              "details": "1. Install 'jsonwebtoken' for Node.js/Express (or equivalent for your framework like PyJWT for Python, java-jwt for Java).2. Create or update the '.env' file to include a `JWT_SECRET` variable with a strong, random string.3. Ensure the application loads this environment variable correctly at startup.4. Verify the secret key is accessible within the application code."
+            },
+            {
+              "id": 2,
+              "title": "Develop JWT Token Generation Utility",
+              "description": "Create a reusable service or utility function responsible for signing and generating JWTs with a specified payload and expiration.",
+              "status": "pending",
+              "details": "1. Implement a function, e.g., `generateAuthToken(userPayload, expiresIn)`, that takes user-specific data (like user ID, roles) and an expiration time.2. This function should use the installed JWT library to sign the payload with the `JWT_SECRET` loaded from environment variables.3. Ensure the token payload minimally includes the user ID and any relevant roles or permissions.4. Add basic unit tests or manual tests to confirm a valid token is generated with the correct payload and expiration."
+            },
+            {
+              "id": 3,
+              "title": "Integrate Token Generation into Login/Registration",
+              "description": "Modify the user login and/or registration endpoints to generate and return a JWT upon successful credential verification.",
+              "status": "pending",
+              "details": "1. Update the existing user login endpoint handler.2. After successful user authentication (e.g., password verification), call the `generateAuthToken` utility function with the authenticated user's data.3. Return the generated JWT in the response body (e.g., as part of a JSON object) to the client.4. Test the login flow to ensure a valid JWT is received in the response after successful authentication."
+            },
+            {
+              "id": 4,
+              "title": "Create JWT Authentication Middleware",
+              "description": "Develop a middleware function that intercepts incoming requests, extracts the JWT, verifies its signature and expiration, and attaches the decoded user payload to the request object.",
+              "status": "pending",
+              "details": "1. Create a middleware function (e.g., `authenticateJWT`) that expects a JWT in the `Authorization: Bearer <token>` header.2. Use the installed JWT library's verification method (`jwt.verify` for Node.js) to validate the token against the `JWT_SECRET`.3. If the token is valid and not expired, decode the payload and attach it to the request object (e.g., `req.user = decodedPayload`).4. Call `next()` to pass control to the next middleware or route handler.5. Implement initial error handling for missing or malformed tokens (e.g., log errors, but final error responses will be in the next task)."
+            },
+            {
+              "id": 5,
+              "title": "Apply Middleware to Routes and Implement Error Handling",
+              "description": "Apply the JWT authentication middleware to secure specific API endpoints and implement robust error responses for all JWT-related failures.",
+              "status": "pending",
+              "details": "1. Identify and apply the `authenticateJWT` middleware to all sensitive API routes that require authentication.2. Enhance the middleware or create a global error handler to catch specific JWT errors (e.g., `JsonWebTokenError`, `TokenExpiredError`).3. For missing, invalid, or expired tokens, respond with appropriate HTTP status codes (e.g., 401 Unauthorized) and clear error messages.4. Test accessing protected routes: ensure valid tokens grant access, and invalid/expired/missing tokens result in a 401 Unauthorized response."
+            }
+          ]
         },
         {
           "id": 6,
@@ -140,7 +176,7 @@
       ],
       "metadata": {
         "createdAt": "2025-12-13T16:52:27.564Z",
-        "updatedAt": "2025-12-13T21:35:05.755Z"
+        "updatedAt": "2026-04-04T21:32:06.990Z"
       }
     }
   }

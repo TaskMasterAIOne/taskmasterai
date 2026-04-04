@@ -6,7 +6,7 @@ import { useTheme } from '../contexts/ThemeContext'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faNpm } from '@fortawesome/free-brands-svg-icons'
 import { faBars, faXmark, faSun, faMoon, faDesktop } from '@fortawesome/free-solid-svg-icons'
-const LOGO_URL = 'https://firebasestorage.googleapis.com/v0/b/taskmaster-ai-e2302.firebasestorage.app/o/taskmaster_ai_new_logo-removebg.png?alt=media&token=29e7f6a0-f33d-4ec9-84bd-abf3ddbb78b8'
+import { TaskMasterAILogo } from '../components/TaskMasterAILogo'
 
 const NPM_CLI = 'https://www.npmjs.com/package/@taskmasterai/cli'
 
@@ -39,11 +39,7 @@ export default function PublicLayout() {
         <nav className="mx-auto max-w-6xl">
           <div className="marketing-pill-border relative flex h-14 items-center justify-between gap-3 rounded-2xl px-3 shadow-lg">
             <Link to="/" className="inline-flex flex-shrink-0 items-center gap-2">
-              <img
-                src={LOGO_URL}
-                alt="TaskMaster AI"
-                className="h-7 w-7 flex-shrink-0 rounded-lg object-contain invert dark:invert-0"
-              />
+              <TaskMasterAILogo className="h-7 w-7 rounded-lg" />
               <span className="pixel-text mt-0.5 text-[10px] leading-none sm:text-[11px]">TASKMASTER AI</span>
             </Link>
 
@@ -180,11 +176,7 @@ export default function PublicLayout() {
             <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
               <div className="md:col-span-2">
                 <Link to="/" className="mb-4 inline-flex flex-shrink-0 items-center gap-2">
-                  <img
-                    src={LOGO_URL}
-                    alt="TaskMaster AI"
-                    className="h-7 w-7 flex-shrink-0 rounded-lg object-contain invert dark:invert-0"
-                  />
+                  <TaskMasterAILogo className="h-7 w-7 rounded-lg" />
                   <span className="pixel-text mt-0.5 text-sm leading-none">TASKMASTER AI</span>
                 </Link>
                 <p className="max-w-sm text-sm text-marketing-muted">
