@@ -1540,7 +1540,65 @@ async function handleSubscriptionUpdate(subscription) {
 
   const userDocPre = await db.collection('users').doc(userId).get();
   const fallbackPlan = userDocPre.exists ? userDocPre.data()?.plan : null;
-  const plan = getPlanKeyFromStripeSubscription(subscription) ||
+
+  // Map Stripe status to our status
+  let subscriptionStatus = 'active';
+  if (status === 'past_due') subscriptionStatus = 'past_due';
+  if (status === 'canceled' || status === 'unpaid') subscriptionStatus = 'canceled';
+
+  const licenseStatus =
+    subscriptionStatus === 'active'
+      ? 'active'
+      : subscriptionStatus === 'past_due'
+        ? 'grace_period'
+        : 'expired';
+
+  const now = admin.firestore.Timestamp.now();
+  const { currentPeriodStart, currentPeriodEnd } = periodTimestampsFromSubscription(subscription);
+
+  // Subscription ended: clear plan fields so dashboard does not show Plus after cancel
+  if (licenseStatus === 'expired') {
+    const licenseKey = userDocPre.data()?.licenseKey;
+    await db.collection('users').doc(userId).update({
+      plan: null,
+      subscriptionStatus,
+      stripeSubscriptionId: admin.firestore.FieldValue.delete(),
+      currentPeriodStart: currentPeriodStart || null,
+      currentPeriodEnd: currentPeriodEnd || null,
+      updatedAt: now
+    });
+
+    if (licenseKey) {
+      const licensePatch = {
+        status: 'expired',
+        updatedAt: now
+      };
+      if (currentPeriodEnd) {
+        licensePatch.expiresAt = currentPeriodEnd;
+      }
+      await db.collection('licenses').doc(licenseKey).update(licensePatch);
+    }
+
+    await db.collection('users').doc(userId).collection('license').doc('current').set(
+      {
+        plan: null,
+        planName: null,
+        planPrice: null,
+        tasksPerMonth: null,
+        overageRate: null,
+        status: 'expired',
+        currentPeriodStart: currentPeriodStart || null,
+        currentPeriodEnd: currentPeriodEnd || null,
+        cancelAtPeriodEnd: false,
+        updatedAt: now
+      },
+      { merge: true }
+    );
+    return;
+  }
+
+  const plan =
+    getPlanKeyFromStripeSubscription(subscription) ||
     subscription.metadata.plan ||
     fallbackPlan;
 
@@ -1549,17 +1607,7 @@ async function handleSubscriptionUpdate(subscription) {
     return;
   }
 
-  // Map Stripe status to our status
-  let subscriptionStatus = 'active';
-  if (status === 'past_due') subscriptionStatus = 'past_due';
-  if (status === 'canceled' || status === 'unpaid') subscriptionStatus = 'canceled';
-
-  const now = admin.firestore.Timestamp.now();
   const planDetails = PLAN_DETAILS[plan] || {};
-  const licenseStatus = subscriptionStatus === 'active' ? 'active' : 
-                        subscriptionStatus === 'past_due' ? 'grace_period' : 'expired';
-
-  const { currentPeriodStart, currentPeriodEnd } = periodTimestampsFromSubscription(subscription);
 
   await db.collection('users').doc(userId).update({
     plan: plan,
@@ -1569,9 +1617,8 @@ async function handleSubscriptionUpdate(subscription) {
     updatedAt: now
   });
 
-  const userDoc = userDocPre;
-  const licenseKey = userDoc.data()?.licenseKey;
-  
+  const licenseKey = userDocPre.data()?.licenseKey;
+
   if (licenseKey) {
     const licensePatch = {
       plan: plan,
@@ -1584,19 +1631,21 @@ async function handleSubscriptionUpdate(subscription) {
     await db.collection('licenses').doc(licenseKey).update(licensePatch);
   }
 
-  // Update real-time license document for frontend
-  await db.collection('users').doc(userId).collection('license').doc('current').set({
-    plan: plan,
-    planName: planDetails.name || plan,
-    planPrice: planDetails.price,
-    tasksPerMonth: planDetails.tasksPerMonth,
-    overageRate: planDetails.overageRate,
-    status: licenseStatus,
-    currentPeriodStart: currentPeriodStart || null,
-    currentPeriodEnd: currentPeriodEnd || null,
-    cancelAtPeriodEnd: subscription.cancel_at_period_end || false,
-    updatedAt: now
-  }, { merge: true });
+  await db.collection('users').doc(userId).collection('license').doc('current').set(
+    {
+      plan: plan,
+      planName: planDetails.name || plan,
+      planPrice: planDetails.price,
+      tasksPerMonth: planDetails.tasksPerMonth,
+      overageRate: planDetails.overageRate,
+      status: licenseStatus,
+      currentPeriodStart: currentPeriodStart || null,
+      currentPeriodEnd: currentPeriodEnd || null,
+      cancelAtPeriodEnd: subscription.cancel_at_period_end || false,
+      updatedAt: now
+    },
+    { merge: true }
+  );
 }
 
 // Helper: Handle subscription canceled
@@ -1610,7 +1659,9 @@ async function handleSubscriptionCanceled(subscription) {
   const licenseKey = userDoc.data()?.licenseKey;
 
   await db.collection('users').doc(userId).update({
+    plan: null,
     subscriptionStatus: 'canceled',
+    stripeSubscriptionId: admin.firestore.FieldValue.delete(),
     updatedAt: now
   });
 
@@ -1621,12 +1672,19 @@ async function handleSubscriptionCanceled(subscription) {
     });
   }
 
-  // Update real-time license document for frontend
-  await db.collection('users').doc(userId).collection('license').doc('current').set({
-    status: 'expired',
-    cancelAtPeriodEnd: false,
-    updatedAt: now
-  }, { merge: true });
+  await db.collection('users').doc(userId).collection('license').doc('current').set(
+    {
+      plan: null,
+      planName: null,
+      planPrice: null,
+      tasksPerMonth: null,
+      overageRate: null,
+      status: 'expired',
+      cancelAtPeriodEnd: false,
+      updatedAt: now
+    },
+    { merge: true }
+  );
 }
 
 // Helper: Handle payment failed
@@ -1926,12 +1984,14 @@ export const getLicenseInfo = onRequest(
 
       const license = licenseDoc.data();
       const planDetails = PLAN_DETAILS[license.plan] || {};
+      const hasActiveEntitlement =
+        license.status === 'active' || license.status === 'grace_period';
 
-      // Get subscription details from Stripe if available
+      // Get subscription details from Stripe only while license is active/grace (avoid stale UI after cancel)
       let currentPeriodEnd = null;
       let cancelAtPeriodEnd = false;
-      
-      if (userData.stripeSubscriptionId) {
+
+      if (hasActiveEntitlement && userData.stripeSubscriptionId) {
         try {
           const stripe = new Stripe(stripeSecretKey.value());
           const subscription = await stripe.subscriptions.retrieve(userData.stripeSubscriptionId);
@@ -1940,10 +2000,13 @@ export const getLicenseInfo = onRequest(
         } catch (stripeError) {
           console.error('Error fetching subscription from Stripe:', stripeError);
         }
+      } else if (license.expiresAt?.toDate) {
+        currentPeriodEnd = license.expiresAt.toDate().toISOString();
+        cancelAtPeriodEnd = false;
       }
 
       res.status(200).json({
-        hasLicense: true,
+        hasLicense: hasActiveEntitlement,
         licenseKey: licenseKey,
         plan: license.plan,
         planName: planDetails.name,
@@ -1951,7 +2014,9 @@ export const getLicenseInfo = onRequest(
         tasksPerMonth: planDetails.tasksPerMonth,
         tasksUsed: userData.tasksUsed || 0,
         status: license.status,
-        expiresAt: license.expiresAt.toDate().toISOString(),
+        expiresAt: license.expiresAt?.toDate
+          ? license.expiresAt.toDate().toISOString()
+          : undefined,
         currentPeriodEnd: currentPeriodEnd,
         cancelAtPeriodEnd: cancelAtPeriodEnd,
         subscriptionStatus: userData.subscriptionStatus

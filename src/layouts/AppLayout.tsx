@@ -28,7 +28,7 @@ const sidebarLinks = [
 export default function AppLayout() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { user, userData, logout } = useAuth()
+  const { user, userData, licenseInfo, logout } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [imageError, setImageError] = useState(false)
@@ -55,6 +55,15 @@ export default function AppLayout() {
     if (!plan) return null
     return plan.toUpperCase()
   }
+
+  /** Match Settings: badge only while license is active/grace (not expired/canceled). */
+  const showSidebarPlanBadge = (() => {
+    if (!userData?.plan) return false
+    if (!licenseInfo) return true
+    const active =
+      licenseInfo.status === 'active' || licenseInfo.status === 'grace_period'
+    return licenseInfo.hasLicense === true && active
+  })()
 
   const navLinkClass = (isActive: boolean) =>
     `flex items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-sm transition-all ${
@@ -120,7 +129,7 @@ export default function AppLayout() {
               </div>
               <div className="min-w-0 flex-1 text-left">
                 <p className="truncate text-xs font-medium">{user?.displayName || user?.email?.split('@')[0]}</p>
-                {getPlanLabel(userData?.plan) && (
+                {showSidebarPlanBadge && getPlanLabel(userData?.plan) && (
                   <span className={`inline-block rounded border px-1.5 py-0.5 text-[10px] font-medium ${getPlanBadgeStyle(userData?.plan)}`}>
                     {getPlanLabel(userData?.plan)}
                   </span>
@@ -248,7 +257,7 @@ export default function AppLayout() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-medium">{user?.displayName || user?.email?.split('@')[0]}</p>
-                {getPlanLabel(userData?.plan) && (
+                {showSidebarPlanBadge && getPlanLabel(userData?.plan) && (
                   <span className={`inline-block rounded border px-1.5 py-0.5 text-[10px] font-medium ${getPlanBadgeStyle(userData?.plan)}`}>
                     {getPlanLabel(userData?.plan)}
                   </span>

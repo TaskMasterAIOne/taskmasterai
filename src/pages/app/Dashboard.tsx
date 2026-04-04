@@ -78,10 +78,16 @@ export default function Dashboard() {
   const [hasModelsConfig, setHasModelsConfig] = useState(false)
 
   const hasLicense = licenseInfo?.hasLicense
-  const gsPlan = hasLicense
+  const licenseStatus = licenseInfo?.status
+  const isActiveSubscription =
+    licenseStatus === 'active' || licenseStatus === 'grace_period'
+  /** Align with Settings: paid usage only while license is active or grace (not expired) */
+  const hasActiveEntitlement = hasLicense === true && isActiveSubscription
+
+  const gsPlan = hasActiveEntitlement
   const gsApiKeys = hasApiKeys
   const gsModels = hasModelsConfig
-  const gsProject = hasLicense && hasApiKeys && hasModelsConfig
+  const gsProject = hasActiveEntitlement && hasApiKeys && hasModelsConfig
 
   // Real-time listener for API keys (to track setup progress)
   useEffect(() => {
@@ -113,10 +119,11 @@ export default function Dashboard() {
     return () => unsubscribe()
   }, [user?.uid])
 
-  // Real-time listener for usage stats
+  // Real-time listener for usage stats (active subscription only)
   useEffect(() => {
-    if (!user?.uid || !hasLicense) {
+    if (!user?.uid || !hasActiveEntitlement) {
       setLoadingUsage(false)
+      setUsageData(null)
       return
     }
 
@@ -237,7 +244,15 @@ export default function Dashboard() {
       unsubscribeLicense()
       unsubscribeUsageLog()
     }
-  }, [user?.uid, hasLicense, licenseInfo?.plan, licenseInfo?.tasksPerMonth, licenseInfo?.overageRate, licenseInfo?.planName])
+  }, [
+    user?.uid,
+    hasActiveEntitlement,
+    licenseInfo?.plan,
+    licenseInfo?.tasksPerMonth,
+    licenseInfo?.overageRate,
+    licenseInfo?.planName,
+    licenseInfo?.status,
+  ])
 
   // Format operation name for display
   const formatOperationName = (op: string) => {
@@ -271,8 +286,8 @@ export default function Dashboard() {
         </p>
       </motion.div>
 
-      {/* Usage Stats - Only for paid users */}
-      {hasLicense && (
+      {/* Usage Stats — active paid subscription only */}
+      {hasActiveEntitlement && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -423,8 +438,8 @@ export default function Dashboard() {
         </motion.div>
       )}
 
-      {/* Plan Status - For non-subscribers */}
-      {!hasLicense && (
+      {/* Plan status — no active entitlement (includes expired / never subscribed) */}
+      {!hasActiveEntitlement && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -505,8 +520,10 @@ export default function Dashboard() {
                 </p>
                 <p className="text-sm text-marketing-muted">
                   {gsPlan
-                    ? `Active: ${licenseInfo?.planName ?? 'Enterprise'} Plan`
-                    : 'Choose a plan to get your license key'}
+                    ? `Active: ${licenseInfo?.planName ?? 'Plus'} Plan`
+                    : licenseInfo?.status === 'expired'
+                      ? 'Your subscription has ended — choose a plan to continue'
+                      : 'Choose a plan to get your license key'}
                 </p>
               </div>
             </div>

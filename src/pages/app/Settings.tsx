@@ -94,6 +94,25 @@ export default function Settings() {
 
   const currentPlanLabel = userData?.plan ? PLAN_LABELS[userData.plan] : null
   const hasLicense = licenseInfo?.hasLicense
+  const licenseStatus = licenseInfo?.status
+  const isActiveSubscription =
+    licenseStatus === 'active' || licenseStatus === 'grace_period'
+  /** Show key + status for active entitlement or ended license (read-only) */
+  const showLicenseKeySection =
+    Boolean(licenseInfo?.licenseKey) &&
+    (hasLicense === true ||
+      licenseStatus === 'expired' ||
+      licenseStatus === 'revoked')
+  /** Stripe Customer Portal: resubscribe or manage payment method */
+  const showBillingPortal =
+    Boolean(currentPlanLabel) || hasLicense === true || Boolean(licenseInfo?.licenseKey)
+  /** Do not use `userData.plan` alone — it can lag after cancel; require active entitlement when license is loaded */
+  const hasPaidPlanDisplay =
+    licenseInfo == null
+      ? Boolean(currentPlanLabel)
+      : isActiveSubscription &&
+        hasLicense === true &&
+        (Boolean(currentPlanLabel) || Boolean(licenseInfo?.planName))
 
   const handlePhotoClick = () => {
     fileInputRef.current?.click()
@@ -323,8 +342,8 @@ export default function Settings() {
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2, duration: 0.4, ease: 'easeOut' }} className="mb-6 sm:mb-8">
         <h2 className="text-base font-semibold mb-4">Billing & Subscription</h2>
         
-        {/* License Key - Only show if user has a license */}
-        {hasLicense && licenseInfo?.licenseKey && (
+        {/* License Key — active subscription or expired key (read-only) */}
+        {showLicenseKeySection && licenseInfo?.licenseKey && (
           <div className="card-marketing p-4 sm:p-5 mb-4">
             <div className="flex items-center gap-2 mb-4">
               <FontAwesomeIcon icon={faKey} className="h-4 w-4 text-accent-primary" />
@@ -360,10 +379,12 @@ export default function Settings() {
                 {licenseInfo.status === 'active' ? 'Active' : 
                  licenseInfo.status === 'grace_period' ? 'Grace Period' : 'Expired'}
               </span>
+              {isActiveSubscription && licenseInfo.planName && (
               <span className="rounded-full border border-indigo-500/40 bg-indigo-500/10 px-2.5 py-1 text-xs font-medium text-accent-primary">
                 {licenseInfo.planName} Plan
               </span>
-              {licenseInfo.tasksPerMonth && (
+              )}
+              {isActiveSubscription && licenseInfo.tasksPerMonth && (
                 <span className="rounded-full border border-marketing-border bg-marketing-elevated px-2.5 py-1 text-xs font-medium text-marketing-muted">
                   {licenseInfo.tasksPerMonth.toLocaleString()} tasks/month
                 </span>
@@ -381,6 +402,16 @@ export default function Settings() {
               </code>
             </div>
 
+            {licenseInfo.status === 'expired' && (
+              <p className="mt-4 text-sm text-marketing-muted">
+                Your subscription has ended.{' '}
+                <Link to="/pricing" className="text-indigo-600 hover:underline dark:text-accent-primary">
+                  Choose a plan
+                </Link>{' '}
+                to continue using TaskMaster AI.
+              </p>
+            )}
+
             {/* Grace period warning */}
             {licenseInfo.status === 'grace_period' && (
               <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
@@ -391,8 +422,8 @@ export default function Settings() {
               </div>
             )}
 
-            {/* Cancellation notice */}
-            {licenseInfo.cancelAtPeriodEnd && (
+            {/* Scheduled cancellation — only while subscription is still active */}
+            {licenseInfo.cancelAtPeriodEnd && isActiveSubscription && (
               <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
                 <p className="text-sm text-amber-400">
                   <FontAwesomeIcon icon={faExclamationTriangle} className="w-4 h-4 mr-2" />
@@ -403,8 +434,11 @@ export default function Settings() {
           </div>
         )}
 
-        {/* Usage Stats */}
-        {hasLicense && licenseInfo?.tasksPerMonth && licenseInfo.tasksPerMonth > 0 && (
+        {/* Usage Stats — only while subscription is active (not expired/canceled) */}
+        {hasLicense === true &&
+          isActiveSubscription &&
+          licenseInfo?.tasksPerMonth &&
+          licenseInfo.tasksPerMonth > 0 && (
           <div className="card-marketing p-4 sm:p-5 mb-4">
             <p className="text-sm font-medium mb-3">Usage This Month</p>
             <div className="flex items-center justify-between mb-3">
@@ -445,12 +479,21 @@ export default function Settings() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3 sm:gap-4">
               <FontAwesomeIcon icon={faCreditCard} className="w-5 h-5 text-marketing-muted flex-shrink-0" />
-              {currentPlanLabel || licenseInfo?.hasLicense ? (
+              {hasPaidPlanDisplay ? (
                 <div>
-                  <p className="text-base font-medium">{licenseInfo?.planName || currentPlanLabel?.name} Plan</p>
+                  <p className="text-base font-medium">
+                    {currentPlanLabel?.name ||
+                      (isActiveSubscription && licenseInfo?.planName
+                        ? licenseInfo.planName
+                        : '')}{' '}
+                    Plan
+                  </p>
                   <p className="text-sm text-marketing-muted">
-                    {licenseInfo?.planPrice != null ? `$${licenseInfo.planPrice}` : currentPlanLabel?.price != null ? `$${currentPlanLabel.price}` : ''}
-                    {(licenseInfo?.planPrice != null || currentPlanLabel?.price != null) && '/month'}
+                    {currentPlanLabel?.price != null
+                      ? `$${currentPlanLabel.price}/month`
+                      : isActiveSubscription && licenseInfo?.planPrice != null
+                        ? `$${licenseInfo.planPrice}/month`
+                        : ''}
                   </p>
                 </div>
               ) : (
@@ -462,7 +505,7 @@ export default function Settings() {
                 </div>
               )}
             </div>
-            {(currentPlanLabel || licenseInfo?.hasLicense) && (
+            {showBillingPortal && (
               <button
                 onClick={handleManageSubscription}
                 disabled={loadingPortal}
