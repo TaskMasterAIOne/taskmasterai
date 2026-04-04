@@ -41,6 +41,7 @@ import {
   fixDependencies,
   moveTask,
   addSingleSubtask,
+  removeSubtask,
   generateTaskFiles,
   getReadyTasks,
   getBlockingTasks,
@@ -1553,6 +1554,54 @@ Provide updated details that incorporate the new information.`;
         console.log(chalk.green(`✓ Task ${options.id} removed`));
       } else {
         console.error(chalk.red('Failed to remove task.'));
+      }
+    });
+
+  // Remove subtask command (alias: remove-step)
+  program
+    .command('remove-subtask')
+    .alias('remove-step')
+    .description('Remove a subtask, optionally converting it to a standalone task')
+    .option('-i, --id <id>', 'Subtask ID (e.g., 5.2)')
+    .option('-c, --convert', 'Convert to a standalone top-level task instead of deleting')
+    .option('-y, --yes', 'Skip confirmation')
+    .action(async (options) => {
+      if (!options.id) {
+        console.error(chalk.red('Error: --id is required (e.g., --id 5.2)'));
+        process.exit(1);
+      }
+
+      const projectRoot = findProjectRoot();
+      if (!projectRoot) {
+        console.error(chalk.red('Error: Not in a TaskMaster project.'));
+        process.exit(1);
+      }
+
+      if (!options.yes) {
+        const inquirer = (await import('inquirer')).default;
+        const verb = options.convert ? 'convert to a standalone task' : 'remove';
+        const { confirm } = await inquirer.prompt([{
+          type: 'confirm',
+          name: 'confirm',
+          message: `Are you sure you want to ${verb} subtask ${options.id}?`,
+          default: false
+        }]);
+        if (!confirm) {
+          console.log(chalk.yellow('Cancelled.'));
+          return;
+        }
+      }
+
+      try {
+        const result = removeSubtask(options.id, { convert: !!options.convert }, projectRoot);
+        if (options.convert && result.convertedTask) {
+          console.log(chalk.green(`✓ Subtask ${options.id} converted to standalone task #${result.convertedTask.id}: ${result.removed.title}`));
+        } else {
+          console.log(chalk.green(`✓ Subtask ${options.id} removed: ${result.removed.title}`));
+        }
+      } catch (error) {
+        console.error(chalk.red('Error:'), error.message);
+        process.exit(1);
       }
     });
 

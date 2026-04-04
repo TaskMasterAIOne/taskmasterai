@@ -16,7 +16,7 @@
   ],
   "scripts": {
     "start": "node bin/taskmaster.js",
-    "test": "node --test",
+    "test": "node --test tests/**/*.test.js",
     "prepublishOnly": "echo 'Ready to publish!'"
   },
   "keywords": [

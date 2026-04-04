@@ -858,6 +858,45 @@ function updateDependencyReferences(tasks, oldId, newId) {
   }
 }
 
+export function removeSubtask(subtaskIdStr, { convert = false } = {}, projectRoot = process.cwd()) {
+  if (!subtaskIdStr.includes('.')) {
+    throw new Error('ID must be a subtask ID (e.g., 1.2)');
+  }
+
+  const [parentId, subtaskId] = subtaskIdStr.split('.').map(Number);
+  const tasks = getAllTasks(projectRoot);
+  const parent = tasks.find(t => t.id === parentId);
+
+  if (!parent) throw new Error(`Parent task ${parentId} not found`);
+  if (!parent.subtasks?.length) throw new Error(`Task ${parentId} has no subtasks`);
+
+  const subtaskIndex = parent.subtasks.findIndex(s => s.id === subtaskId);
+  if (subtaskIndex === -1) throw new Error(`Subtask ${subtaskIdStr} not found`);
+
+  const removed = parent.subtasks.splice(subtaskIndex, 1)[0];
+
+  if (convert) {
+    const nextId = getNextTaskId(projectRoot);
+    const newTask = {
+      id: nextId,
+      title: removed.title,
+      description: removed.description || '',
+      status: removed.status || 'pending',
+      priority: 'medium',
+      dependencies: [],
+      details: removed.details || '',
+      testStrategy: '',
+      subtasks: [],
+    };
+    tasks.push(newTask);
+    saveAllTasks(tasks, projectRoot);
+    return { removed, convertedTask: newTask };
+  }
+
+  saveAllTasks(tasks, projectRoot);
+  return { removed };
+}
+
 export function addSingleSubtask(parentId, subtaskData, projectRoot = process.cwd()) {
   const tasks = getAllTasks(projectRoot);
   const parent = tasks.find(t => t.id === Number(parentId));

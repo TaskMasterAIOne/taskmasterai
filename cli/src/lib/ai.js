@@ -170,6 +170,8 @@ export async function generateAIText(prompt, options = {}) {
       text: result.text,
       usage,
       usingHostedKey,
+      model: modelConfig.modelId,
+      provider: modelConfig.provider,
     };
   } catch (error) {
     if (role === 'main' && config.models.fallback) {
@@ -259,6 +261,8 @@ export async function generateAIObject(prompt, schema, options = {}) {
       object: result.object,
       usage,
       usingHostedKey,
+      model: modelConfig.modelId,
+      provider: modelConfig.provider,
     };
   } catch (error) {
     if (role === 'main' && config.models.fallback) {
@@ -445,27 +449,17 @@ Be concise but thorough in your explanations.`;
         systemPrompt,
         ...options,
       });
-      return {
-        ...result,
-        model: config.models.research.modelId,
-        provider: config.models.research.provider,
-      };
+      return result;
     } catch (error) {
       console.warn(`Research model failed: ${error.message}. Falling back to main model.`);
     }
   }
   
-  const result = await generateAIText(query, {
+  return await generateAIText(query, {
     role: 'main',
     systemPrompt,
     ...options,
   });
-  
-  return {
-    ...result,
-    model: config.models.main.modelId,
-    provider: config.models.main.provider,
-  };
 }
 
 export async function batchUpdateTasks(tasks, fromId, prompt, options = {}) {

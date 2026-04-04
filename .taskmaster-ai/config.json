@@ -4,20 +4,20 @@
   "version": "0.1.0",
   "models": {
     "main": {
-      "provider": "mistral",
-      "modelId": "mistral-large-latest",
+      "provider": "google",
+      "modelId": "gemini-2.5-flash",
       "maxTokens": 8192,
       "temperature": 0.7
     },
     "research": {
-      "provider": "deepseek",
-      "modelId": "deepseek-r1",
+      "provider": "google",
+      "modelId": "gemini-2.5-pro",
       "maxTokens": 8192,
       "temperature": 0.5
     },
     "fallback": {
       "provider": "google",
-      "modelId": "gemini-2.5-flash",
+      "modelId": "gemini-2.0-flash",
       "maxTokens": 4096,
       "temperature": 0.7
     }
