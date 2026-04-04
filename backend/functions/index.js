@@ -14,7 +14,10 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// CLI package version: (1) cli-version.json from CI deploy, (2) ../../cli/package.json for local emulator — keep default in sync with cli/package.json
+// CLI version for docs/prompts — not fetched from npm at runtime. Resolution order:
+// (1) cli-version.json next to this file (committed; CI overwrites from cli/package.json before deploy — must not be gitignored or Firebase omits it from upload),
+// (2) ../../cli/package.json in monorepo / emulator,
+// (3) DEFAULT_* below — keep in sync with cli/package.json when bumping releases.
 const DEFAULT_CLI_PACKAGE_NAME = '@taskmasterai/cli';
 const DEFAULT_CLI_PACKAGE_VERSION = '1.1.2';
 

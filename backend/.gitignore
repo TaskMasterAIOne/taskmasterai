@@ -13,5 +13,5 @@ firebase-debug.*.log
 # Build
 functions/lib/
 
-# Generated during CI/CD
-functions/cli-version.json
+# Note: functions/cli-version.json is written by CI before deploy and must be tracked
+# (or at least not gitignored) so Firebase CLI includes it in the upload. See index.js loadCliPackageInfo.
