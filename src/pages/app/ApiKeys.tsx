@@ -178,7 +178,7 @@ const ProviderLogos: { [key: string]: React.ReactNode } = {
 const providers = [
   { id: 'anthropic', name: 'Anthropic (Claude)', description: 'Opus 4.5, Sonnet 4.5, Haiku 4.5', docsUrl: 'https://console.anthropic.com/' },
   { id: 'openai', name: 'OpenAI (GPT)', description: 'GPT 5.2, GPT 5.1, GPT 5, o3', docsUrl: 'https://platform.openai.com/api-keys' },
-  { id: 'google', name: 'Google (Gemini)', description: 'Gemini 3 Pro, 2.5 Pro/Flash', docsUrl: 'https://aistudio.google.com/app/apikey' },
+  { id: 'google', name: 'Google (Gemini)', description: 'Gemini 3.1 / 3 Flash, 2.5 Pro/Flash/Lite', docsUrl: 'https://aistudio.google.com/app/apikey' },
   { id: 'perplexity', name: 'Perplexity', description: 'Research and web search', docsUrl: 'https://www.perplexity.ai/settings/api' },
   { id: 'deepseek', name: 'DeepSeek', description: 'DeepSeek V3, V3.1, R1', docsUrl: 'https://platform.deepseek.com/' },
   { id: 'xai', name: 'xAI (Grok)', description: 'Grok 4.1, Grok 4, Grok 3', docsUrl: 'https://console.x.ai/' },

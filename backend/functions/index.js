@@ -14,24 +14,47 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Read CLI version from cli-version.json (injected during CI/CD deployment)
-// Falls back to hardcoded value if file doesn't exist
-let PACKAGE_NAME = '@taskmasterai/cli';
-let PACKAGE_VERSION = '1.0.55'; // Fallback version
+// CLI package version: (1) cli-version.json from CI deploy, (2) ../../cli/package.json for local emulator — keep default in sync with cli/package.json
+const DEFAULT_CLI_PACKAGE_NAME = '@taskmasterai/cli';
+const DEFAULT_CLI_PACKAGE_VERSION = '1.1.0';
 
-try {
-  const cliVersionPath = path.join(__dirname, 'cli-version.json');
-  if (fs.existsSync(cliVersionPath)) {
-    const cliVersion = JSON.parse(fs.readFileSync(cliVersionPath, 'utf-8'));
-    PACKAGE_NAME = cliVersion.name;
-    PACKAGE_VERSION = cliVersion.version;
-    console.log(`Using CLI version from ci-version.json: ${PACKAGE_VERSION}`);
-  } else {
-    console.log(`cli-version.json not found, using fallback version: ${PACKAGE_VERSION}`);
+function loadCliPackageInfo() {
+  const injectedPath = path.join(__dirname, 'cli-version.json');
+  try {
+    if (fs.existsSync(injectedPath)) {
+      const cliVersion = JSON.parse(fs.readFileSync(injectedPath, 'utf-8'));
+      const name = cliVersion.name || DEFAULT_CLI_PACKAGE_NAME;
+      const version = cliVersion.version || DEFAULT_CLI_PACKAGE_VERSION;
+      console.log(`Using CLI version from cli-version.json: ${name}@${version}`);
+      return { name, version };
+    }
+  } catch (err) {
+    console.warn('Could not read cli-version.json:', err.message);
   }
-} catch (err) {
-  console.warn('Could not read cli-version.json, using fallback:', err.message);
+
+  const monorepoCliPkg = path.join(__dirname, '../../cli/package.json');
+  try {
+    if (fs.existsSync(monorepoCliPkg)) {
+      const pkg = JSON.parse(fs.readFileSync(monorepoCliPkg, 'utf-8'));
+      const name = pkg.name || DEFAULT_CLI_PACKAGE_NAME;
+      const version = pkg.version || DEFAULT_CLI_PACKAGE_VERSION;
+      console.log(`Using CLI version from ../../cli/package.json: ${name}@${version}`);
+      return { name, version };
+    }
+  } catch (err) {
+    console.warn('Could not read ../../cli/package.json:', err.message);
+  }
+
+  console.log(
+    `cli-version.json and ../../cli/package.json not found; using default ${DEFAULT_CLI_PACKAGE_NAME}@${DEFAULT_CLI_PACKAGE_VERSION}`
+  );
+  return { name: DEFAULT_CLI_PACKAGE_NAME, version: DEFAULT_CLI_PACKAGE_VERSION };
 }
+
+const { name: PACKAGE_NAME, version: PACKAGE_VERSION } = loadCliPackageInfo();
+
+/** Hosted docs assistant — text generation only; matches cli supported-models google IDs */
+const DOCS_ASSISTANT_GEMINI_MODEL = 'gemini-3.1-flash-lite-preview';
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -113,6 +136,10 @@ const SYSTEM_PROMPT = `You are the official AI assistant for TaskMaster AI docum
 
 IMPORTANT: The current version of @taskmasterai/cli is ${PACKAGE_VERSION}. Always use this version when asked about the CLI version - do NOT search the web or use outdated information.
 
+This assistant uses Google Gemini for text responses (model ID: ${DOCS_ASSISTANT_GEMINI_MODEL}).
+
+The CLI npm package is ${PACKAGE_NAME} version ${PACKAGE_VERSION} (same version you must cite for users). For the full list of selectable model IDs, users should run \`taskmaster models\` or open the Dashboard **Models** page at https://www.taskmaster.one/app/models — the catalog is **text/chat inference only** (no image-only, video, TTS, or Live-only Gemini models).
+
 # WHAT IS TASKMASTER AI?
 
 TaskMaster AI is an AI-powered task management system designed for developers. It transforms Product Requirements Documents (PRDs) into structured, executable task lists that guide AI coding agents through complex implementations. It works as both a CLI tool and via MCP (Model Context Protocol) integration with IDEs like Cursor, Windsurf, VS Code, and Claude Code.
@@ -161,7 +188,7 @@ AI operations that count toward your limit:
 - \`log\` - Updating a step with AI assistance
 - \`assess\` - Analyzing task complexity
 - \`update\` (batch) - Batch updating tasks
-- \`ask\` - Performing AI research
+- \`research\` (alias: \`ask\`) - AI-powered research with the research model
 
 ## Overage billing
 If you exceed your monthly limit, you can continue using TaskMaster AI at the per-task overage rate for your plan.
@@ -264,9 +291,12 @@ Example MCP configuration (mcpServers format for Cursor & Windsurf):
         "PERPLEXITY_API_KEY": "YOUR_PERPLEXITY_API_KEY_HERE",
         "OPENAI_API_KEY": "YOUR_OPENAI_KEY_HERE",
         "GOOGLE_API_KEY": "YOUR_GOOGLE_KEY_HERE",
+        "DEEPSEEK_API_KEY": "YOUR_DEEPSEEK_KEY_HERE",
         "MISTRAL_API_KEY": "YOUR_MISTRAL_KEY_HERE",
         "OPENROUTER_API_KEY": "YOUR_OPENROUTER_KEY_HERE",
-        "XAI_API_KEY": "YOUR_XAI_KEY_HERE"
+        "XAI_API_KEY": "YOUR_XAI_KEY_HERE",
+        "MOONSHOT_API_KEY": "YOUR_MOONSHOT_KEY_HERE",
+        "ZHIPU_API_KEY": "YOUR_ZHIPU_KEY_HERE"
       }
     }
   }
@@ -293,7 +323,7 @@ Example MCP configuration (mcpServers format for Cursor & Windsurf):
 
 ## Task Management
 - \`taskmaster new --prompt="description"\` - Add new task with AI structuring
-- \`taskmaster new --prompt="..." --ask\` - Add with ask model
+- \`taskmaster new --prompt="..." --research\` - Add with research model
 - \`taskmaster new --prompt="..." --dependencies=3,4 --priority=high\` - Add with dependencies and priority
 - \`taskmaster add-step --parent=1 --title="Step"\` - Add step to a parent task
 - \`taskmaster set-status --id=<id> --status=<status>\` - Update status (pending, in-progress, done, blocked, deferred, cancelled)
@@ -304,7 +334,7 @@ Example MCP configuration (mcpServers format for Cursor & Windsurf):
 ## Task Updates
 - \`taskmaster edit --id=<id> --prompt="changes"\` - Update specific task with AI
 - \`taskmaster edit --id=<id> --prompt="notes" --append\` - Append timestamped notes
-- \`taskmaster edit --id=<id> --prompt="..." --ask\` - Update with ask model
+- \`taskmaster edit --id=<id> --prompt="..." --research\` - Update with research model
 - \`taskmaster log --id=<id> --prompt="implementation notes"\` - Add timestamped notes to step
 - \`taskmaster update --from=<id> --prompt="context change"\` - Update all tasks from ID onwards with new context
 
@@ -312,16 +342,16 @@ Example MCP configuration (mcpServers format for Cursor & Windsurf):
 - \`taskmaster breakdown --id=<id>\` - Break down task into steps
 - \`taskmaster breakdown --id=<id> --num=5\` - Specify number of steps
 - \`taskmaster breakdown --id=<id> --prompt="Focus on error handling"\` - Break down with additional context
-- \`taskmaster breakdown --id=<id> --ask\` - Use ask model for better steps
+- \`taskmaster breakdown --id=<id> --research\` - Use research model for better steps
 - \`taskmaster breakdown --id=<id> --force\` - Replace existing steps
 - \`taskmaster breakdown --all\` - Break down all pending tasks (uses assessment report if exists)
-- \`taskmaster breakdown --all --ask\` - Break down all with ask model
+- \`taskmaster breakdown --all --research\` - Break down all with research model
 - \`taskmaster clear-steps --id=<id>\` - Clear steps from a specific task
 - \`taskmaster clear-steps --all\` - Clear steps from all tasks
 
 ## Complexity Assessment
 - \`taskmaster assess\` - Analyze all tasks for complexity (1-10 scale)
-- \`taskmaster assess --ask\` - Use ask model for more informed analysis
+- \`taskmaster assess --research\` - Use research model for more informed analysis
 - \`taskmaster report\` - View formatted assessment report with ready-to-use breakdown commands
 
 The assessment report contains:
@@ -358,10 +388,10 @@ Contexts allow separate task workspaces for different features/branches:
 Default context is "main". Contexts isolate work across different features/branches and prevent merge conflicts in tasks.json.
 
 ## AI Research
-- \`taskmaster ask "query"\` - Perform AI-powered research
-- \`taskmaster ask "query" --tree\` - Include project tree in context
-- \`taskmaster ask "query" --save-to=<id>\` - Save research results to a task
-- \`taskmaster ask "query" --detail=high\` - Set detail level (low, medium, high)
+- \`taskmaster research "query"\` (alias: \`taskmaster ask\`) - Perform AI-powered research with the research model
+- \`taskmaster research "query" --tree\` - Include project tree in context
+- \`taskmaster research "query" --save-to=<id>\` - Save research results to a task
+- \`taskmaster research "query" --detail=high\` - Set detail level (low, medium, high)
 
 ## Authentication & Usage
 - \`taskmaster login\` - Login to your account (automatically activates license)
@@ -372,11 +402,11 @@ Default context is "main". Contexts isolate work across different features/branc
 - \`taskmaster sync-keys\` - Sync API keys and model configuration from your TaskMaster dashboard
 
 ## Model Configuration
-- \`taskmaster models\` - Display current AI model configuration (main, ask, fallback)
+- \`taskmaster models\` - Display current AI model configuration (main, research, fallback)
 - \`taskmaster models --setup\` - Interactive setup for configuring AI models
-- \`taskmaster models --set-main <model>\` - Set main model (e.g., claude-sonnet-4-20250514)
-- \`taskmaster models --set-research <model>\` - Set research model (e.g., sonar-pro)
-- \`taskmaster models --set-fallback <model>\` - Set fallback model (e.g., gpt-4o-mini)
+- \`taskmaster models --set-main <model-id>\` - Set main model (e.g., claude-sonnet-4-6)
+- \`taskmaster models --set-research <model-id>\` - Set research model (e.g., sonar-pro)
+- \`taskmaster models --set-fallback <model-id>\` - Set fallback model (e.g., gemini-2.5-flash)
 
 ## Other Commands
 - \`taskmaster generate\` - Generate individual task markdown files
@@ -414,19 +444,22 @@ All autopilot commands support \`--json\` flag for machine-readable output.
 
 # SUPPORTED AI PROVIDERS
 
-TaskMaster AI supports multiple AI providers. You bring your own API keys:
+TaskMaster AI supports multiple AI providers. You bring your own API keys. Use \`taskmaster models --list\` or the Dashboard Models page for exact current IDs.
 
-- **Anthropic (Claude)** - claude-sonnet-4-20250514, claude-3-5-sonnet, claude-3-opus, claude-3-haiku (RECOMMENDED for main model)
-- **OpenAI (GPT)** - gpt-4o, gpt-4o-mini, gpt-4-turbo, o1-preview, o1-mini
-- **Google (Gemini)** - gemini-2.0-flash, gemini-1.5-pro, gemini-pro, gemini-ultra
-- **Perplexity** - sonar-pro, sonar (RECOMMENDED for research model)
-- **Mistral** - mistral-large, mistral-medium
-- **xAI (Grok)** - grok-beta, grok-2
-- **OpenRouter** - Access to 100+ models
+- **Anthropic (Claude)** - e.g. claude-sonnet-4-6, claude-opus-4-6, claude-sonnet-4-5-20250929, claude-haiku-4-5-20251001 (recommended main: a current Sonnet/Opus ID from the catalog)
+- **OpenAI (GPT)** - e.g. gpt-5.4, gpt-5.2-instant, gpt-4o, o1, o3-mini, o4-mini (see OpenAI models docs)
+- **Google (Gemini)** - e.g. gemini-3.1-pro-preview, gemini-3.1-pro-preview-customtools, gemini-3-flash-preview, gemini-3.1-flash-lite-preview, gemini-2.5-pro, gemini-2.5-flash, gemini-2.5-flash-lite (text/chat only; Gemini 3 Pro Preview deprecated in favor of 3.1 Pro Preview)
+- **Perplexity** - sonar-pro, sonar, sonar-reasoning, etc. (strong for research role)
+- **DeepSeek** - deepseek-chat, deepseek-reasoner
+- **xAI (Grok)** - grok-4.20-*, grok-4-*, grok-4.1-fast-*, grok-3, grok-code-fast-1, etc.
+- **Mistral** - mistral-large-latest, mistral-medium-latest, codestral-latest, etc.
+- **Moonshot (Kimi)** - kimi-k2.5, kimi-k2-*-preview, moonshot-v1-auto, moonshot-v1-8k/32k/128k (text endpoints only; not *-vision-preview)
+- **Zhipu (GLM)** - glm-4.6, glm-4.5, glm-4.5-air, glm-4.5v, with optional -thinking variants
+- **Meta (Llama)** - llama-4-maverick, llama-4-scout, llama-3.3-70b
+- **OpenRouter** - Curated third-party model IDs (see OpenRouter)
 - **Azure OpenAI** - Enterprise Azure deployments
-- **Ollama** - Local models (Llama, Mistral, etc.)
-- **Ollama** - Local models (llama3, codellama, etc.)
-- **Claude Code** - No API key required (requires Claude Code CLI installed)
+- **Ollama** - Local models (Llama, Mistral, Qwen, etc.)
+- **Claude Code** - No TaskMaster API key (requires Claude Code CLI where applicable)
 
 # API KEYS CONFIGURATION
 
@@ -440,12 +473,14 @@ PERPLEXITY_API_KEY=pplx-your-key-here
 # Optional - add as needed
 OPENAI_API_KEY=sk-your-key-here
 GOOGLE_API_KEY=your-key-here
+DEEPSEEK_API_KEY=your-key-here
 MISTRAL_API_KEY=your-key-here
 OPENROUTER_API_KEY=your-key-here
 XAI_API_KEY=your-key-here
+MOONSHOT_API_KEY=your-key-here
+ZHIPU_API_KEY=your-key-here
+META_API_KEY=your-key-here
 AZURE_OPENAI_API_KEY=your-key-here
-MISTRAL_API_KEY=your-key-here
-OLLAMA_BASE_URL=http://localhost:11434/v1
 AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
 OLLAMA_BASE_URL=http://localhost:11434/api
 \`\`\`
@@ -469,7 +504,7 @@ taskmaster sync
 
 # This syncs:
 # - API keys from your dashboard
-# - Model configuration (main, ask, fallback)
+# - Model configuration (main, research, fallback)
 # - Any updated settings
 \`\`\`
 Dashboard sync is especially useful when working across multiple machines or projects. Configure once, sync everywhere.
@@ -522,17 +557,21 @@ project/
   "models": {
     "main": {
       "provider": "anthropic",
-      "modelId": "claude-sonnet-4-20250514",
-      "maxTokens": 8000,
-      "temperature": 0.7
+      "modelId": "claude-sonnet-4-6",
+      "maxTokens": 64000,
+      "temperature": 0.2
     },
-    "ask": {
+    "research": {
       "provider": "perplexity",
-      "modelId": "sonar-pro"
+      "modelId": "sonar-pro",
+      "maxTokens": 8700,
+      "temperature": 0.1
     },
     "fallback": {
-      "provider": "openai",
-      "modelId": "gpt-4o-mini"
+      "provider": "google",
+      "modelId": "gemini-2.5-flash",
+      "maxTokens": 1048000,
+      "temperature": 0.2
     }
   },
   "global": {
@@ -551,7 +590,7 @@ project/
 3. **Initialize**: \`taskmaster init\`
 4. **Create PRD**: Write your PRD in .taskmaster-ai/docs/ (use templates in .taskmaster-ai/templates/ as reference)
 5. **Parse PRD**: \`taskmaster plan .taskmaster-ai/docs/prd.md\`
-6. **Analyze complexity**: \`taskmaster assess --ask\`
+6. **Analyze complexity**: \`taskmaster assess --research\`
 7. **View report**: \`taskmaster report\`
 8. **Break down tasks**: \`taskmaster breakdown --all\`
 9. **Daily workflow** (repeat this cycle):
@@ -706,7 +745,7 @@ TaskMaster will strictly adhere to specific requirements in the PRD (libraries, 
 TaskMaster AI is an AI-powered task management system that helps developers break down complex projects into manageable tasks and execute them efficiently using AI assistance.
 
 **Which AI models are supported?**
-TaskMaster AI supports Claude (Anthropic), GPT (OpenAI), Gemini (Google), Perplexity, Grok (xAI), Mistral, DeepSeek, OpenRouter, Azure OpenAI, and local Ollama models.
+TaskMaster AI supports Claude (Anthropic), GPT (OpenAI), Gemini (Google), Perplexity, Grok (xAI), Mistral, DeepSeek, Moonshot (Kimi), Zhipu (GLM), Meta (Llama via API), OpenRouter, Azure OpenAI, and local Ollama. The canonical list of model IDs is in the CLI (\`taskmaster models\`) and Dashboard **Models** page; the product catalog is text/chat inference only (not image, video, or TTS-only models).
 
 **How much does it cost?**
 TaskMaster AI is a paid service. Plans start at $29/month (Plus) with 100 tasks and 500 AI operations included. You'll also pay for AI API usage separately (most users spend $5-10 per month on API costs). TaskMaster AI shows the cost of each command after it runs. Check https://www.taskmaster.one/pricing for current plans and features.
@@ -729,16 +768,22 @@ Answer questions helpfully and concisely. For questions about pricing or billing
 
 CURRENT AI MODELS:
 Google (Gemini)
-Gemini 2.0 Flash
-Gemini 2.0 Flash Lite
+Gemini 3.1 Pro (Preview)
+Gemini 3.1 Pro (Preview, custom tools)
+Gemini 3 Flash (Preview)
+Gemini 3.1 Flash-Lite (Preview)
+Gemini 2.5 Pro
 Gemini 2.5 Flash
 Gemini 2.5 Flash (Thinking)
 Gemini 2.5 Flash Lite
 Gemini 2.5 Flash Lite (Thinking)
-Gemini 2.5 Pro
-Gemini 3 Pro
+Gemini 2.0 Flash
+Gemini 2.0 Flash Lite
+(Gemini 3 Pro Preview is deprecated; prefer Gemini 3.1 Pro Preview)
 
 Anthropic (Claude)
+Claude Opus 4.6
+Claude Sonnet 4.6
 Claude Sonnet 3.7 
 Claude Sonnet 3.7 (Reasoning)
 Claude Sonnet 4
@@ -756,6 +801,7 @@ GPT 4.1 Mini
 GPT 4.1 Nano
 GPT 4o
 GPT 4o-Mini
+O1
 GPT 5
 GPT 5 (Reasoning)
 GPT 5 Mini
@@ -765,6 +811,10 @@ GPT 5.1 (Reasoning)
 GPT 5.2 (Instant)
 GPT 5.2 (Reasoning)
 GPT 5.2 Pro
+GPT 5.4
+GPT 5.4 Pro
+GPT 5.4 Mini
+GPT 5.4 Nano
 GPT OSS 20B
 GPT OSS 120B
 o3
@@ -790,6 +840,9 @@ Llama 4 Scout
 Llama 4 Maverick
 
 xAI (Grok)
+Grok 4.20 (Reasoning)
+Grok 4.20 (standard)
+Grok 4.20 (Multi-agent)
 Grok 3
 Grok 3 Mini
 Grok 4
@@ -799,9 +852,14 @@ Grok 4.1 Fast
 Grok 4.1 Fast (Reasoning)
 
 Moonshot AI (Kimi)
-Kimi K2 (0711)
+Kimi K2.5
 Kimi K2 (0905)
+Kimi K2 (0711)
+Kimi K2 Turbo
 Kimi K2 (Thinking)
+Kimi K2 Thinking Turbo
+Moonshot V1 Auto
+Moonshot V1 (8K / 32K / 128K)
 
 Zhipu AI (GLM)
 GLM 4.5
@@ -819,7 +877,7 @@ Qwen 2.5 32B
 Qwen 3 32B
 Qwen 3 235B
 Qwen 3 235B (Thinking)
-Owen 3 Coder
+Qwen 3 Coder
 
 MiniMax
 MiniMax M2
@@ -1112,19 +1170,19 @@ cancelled	No longer needed
 deferred	Postponed
 🤖 Supported AI Providers & Models
 Anthropic (Claude)
-Claude Opus 4.5, Claude 4.1 Opus, Claude Sonnet 4.5, Claude Sonnet 4.5 (Reasoning), Claude 4 Sonnet, Claude 4 Sonnet (Reasoning), Claude 3.7 Sonnet, Claude 3.7 Sonnet (Reasoning), Claude Haiku 4.5, Claude Haiku 4.5 (Reasoning)
+Claude Opus 4.6, Claude Sonnet 4.6, Claude Opus 4.5, Claude Sonnet 4.5, Claude 4.1 Opus, Claude Haiku 4.5, Claude 3.7 Sonnet, Claude 3.5 Sonnet, Claude 3.5 Haiku
 
 OpenAI (GPT)
-GPT-5.2 (Instant), GPT-5.2 (Reasoning), GPT-5.1 (Instant), GPT-5.1 (Reasoning), GPT-5, GPT-5 (Reasoning), GPT-5 Mini, GPT-5 Nano, GPT-4.1, GPT-4.1 Mini, GPT-4.1 Nano, GPT-4o, GPT-4o Mini, o3 Mini, o3 Pro, o4 Mini, GPT OSS 20B, GPT OSS 120B
+GPT-5.4, GPT-5.4 Pro, GPT-5.4 Mini, GPT-5.4 Nano, GPT-5.2 (Instant), GPT-5.2 (Reasoning), GPT-5.2 Pro, GPT-5.1 (Instant), GPT-5, GPT-5 Mini, GPT-5 Nano, GPT-4.1, GPT-4.1 Mini, GPT-4.1 Nano, GPT-4o, GPT-4o Mini, O1, O3, O3 Mini, O3 Pro, O4 Mini, GPT OSS 20B, GPT OSS 120B
 
 Google (Gemini)
-Gemini 3 Pro, Gemini 2.5 Pro, Gemini 2.5 Flash, Gemini 2.5 Flash (Thinking), Gemini 2.5 Flash Lite (Thinking), Gemini 2.0 Flash, Gemini 2.0 Flash Lite
+Gemini 3.1 Pro (Preview), Gemini 3 Pro, Gemini 2.5 Pro, Gemini 2.5 Flash, Gemini 2.5 Flash (Thinking), Gemini 2.5 Flash Lite (Thinking), Gemini 2.0 Flash, Gemini 2.0 Flash Lite
 
 DeepSeek
-DeepSeek R1, DeepSeek V3, DeepSeek V3.2 Exp, DeepSeek V3.2 Exp (Thinking), DeepSeek V3.1, DeepSeek V3.1 (Thinking), DeepSeek V3.1 Terminus, DeepSeek V3.1 Terminus (Thinking)
+DeepSeek Chat (V3.2), DeepSeek Reasoner (V3.2)
 
 xAI (Grok)
-Grok 4, Grok 4 Fast, Grok 4 Fast (Reasoning), Grok 4.1 Fast, Grok 4.1 Fast (Reasoning), Grok 3, Grok 3 Mini
+Grok 4.20 (Reasoning / standard / multi-agent), Grok 4, Grok 4 Fast, Grok 4.1 Fast, Grok Code Fast, Grok 3, Grok 3 Mini
 
 Meta (Llama)
 Llama 4 Maverick, Llama 4 Scout, Llama 3.3 70B
@@ -1133,7 +1191,7 @@ Zhipu AI (GLM)
 GLM 4.6, GLM 4.6 (Thinking), GLM 4.5, GLM 4.5 (Thinking), GLM 4.5 Air, GLM 4.5 Air (Thinking), GLM 4.5V, GLM 4.5V (Thinking)
 
 Moonshot (Kimi)
-Kimi K2, Kimi K2 (Thinking)
+Kimi K2 (0711), Kimi K2 (0905), Kimi K2 Turbo, Kimi K2 (Thinking), Kimi K2 Thinking Turbo
 
 Additional Providers
 Provider	Description
@@ -1189,7 +1247,7 @@ export const askQuestion = onRequest(
 
       // Initialize Gemini with secret
       const genAI = new GoogleGenerativeAI(googleApiKey.value());
-      const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
+      const model = genAI.getGenerativeModel({ model: DOCS_ASSISTANT_GEMINI_MODEL });
       const result = await model.generateContent([
         { text: SYSTEM_PROMPT },
         { text: `User question: ${question}` }

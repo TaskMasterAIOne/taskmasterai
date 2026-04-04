@@ -5,6 +5,7 @@ import { doc, setDoc, onSnapshot } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCheck, faCircleExclamation, faMicrochip, faMagnifyingGlass, faBolt } from '@fortawesome/free-solid-svg-icons'
+import supportedModelsCatalog from '@cli-supported-models'
 
 interface ModelConfig {
   main: string
@@ -12,111 +13,31 @@ interface ModelConfig {
   fallback: string
 }
 
-const modelOptions = {
-  anthropic: [
-    { id: 'claude-opus-4-5-20251101', name: 'Claude Opus 4.5', description: 'Most powerful' },
-    { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', description: 'Best balance' },
-    { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', description: 'Fast & efficient' },
-    { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet', description: 'Previous gen' },
-    { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', description: 'Stable' },
-    { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', description: 'Fast' },
-  ],
-  mistral: [
-    { id: 'mistral-large-latest', name: 'Mistral Large', description: 'Most capable' },
-    { id: 'mistral-medium-latest', name: 'Mistral Medium', description: 'Balanced performance' },
-    { id: 'mistral-small-latest', name: 'Mistral Small', description: 'Fast & efficient' },
-    { id: 'codestral-latest', name: 'Codestral', description: 'Code-specialized' },
-  ],
-  openai: [
-    { id: 'gpt-5', name: 'GPT 5', description: 'Most capable' },
-    { id: 'gpt-5-reasoning', name: 'GPT 5 (Reasoning)', description: 'With reasoning' },
-    { id: 'gpt-5.2-instant', name: 'GPT 5.2 (Instant)', description: 'Fast responses' },
-    { id: 'gpt-5.2-reasoning', name: 'GPT 5.2 (Reasoning)', description: 'Enhanced reasoning' },
-    { id: 'gpt-5.1-instant', name: 'GPT 5.1 (Instant)', description: 'Quick tasks' },
-    { id: 'gpt-5.1-reasoning', name: 'GPT 5.1 (Reasoning)', description: 'Reasoning mode' },
-    { id: 'gpt-5-mini', name: 'GPT 5 Mini', description: 'Compact & fast' },
-    { id: 'gpt-5-nano', name: 'GPT 5 Nano', description: 'Ultra light' },
-    { id: 'gpt-4.1', name: 'GPT 4.1', description: 'Stable release' },
-    { id: 'gpt-4.1-mini', name: 'GPT 4.1 Mini', description: 'Cost-effective' },
-    { id: 'gpt-4.1-nano', name: 'GPT 4.1 Nano', description: 'Lightweight' },
-    { id: 'gpt-4o', name: 'GPT 4o', description: 'Multimodal' },
-    { id: 'gpt-4o-mini', name: 'GPT 4o Mini', description: 'Fast multimodal' },
-    { id: 'o3-mini', name: 'o3 Mini', description: 'Reasoning model' },
-    { id: 'o3-pro', name: 'o3 Pro', description: 'Advanced reasoning' },
-    { id: 'o4-mini', name: 'o4 Mini', description: 'Latest reasoning' },
-    { id: 'gpt-oss-20b', name: 'GPT OSS 20B', description: 'Open source' },
-    { id: 'gpt-oss-120b', name: 'GPT OSS 120B', description: 'Large open source' },
-  ],
-  google: [
-    { id: 'gemini-3-pro', name: 'Gemini 3 Pro', description: 'Most powerful' },
-    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Advanced tasks' },
-    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Fast & capable' },
-    { id: 'gemini-2.5-flash-thinking', name: 'Gemini 2.5 Flash (Thinking)', description: 'With reasoning' },
-    { id: 'gemini-2.5-flash-lite-thinking', name: 'Gemini 2.5 Flash Lite (Thinking)', description: 'Light reasoning' },
-    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Previous gen' },
-    { id: 'gemini-2.0-flash-lite', name: 'Gemini 2.0 Flash Lite', description: 'Lightweight' },
-  ],
-  deepseek: [
-    { id: 'deepseek-chat', name: 'DeepSeek Chat', description: 'Standard mode (V3.2)' },
-    { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner', description: 'Thinking mode (V3.2)' },
-  ],
-  xai: [
-    { id: 'grok-4-0709', name: 'Grok 4', description: 'Latest Grok (Jul 2025)' },
-    { id: 'grok-4-1-fast-reasoning', name: 'Grok 4.1 Fast (Reasoning)', description: 'Fast reasoning v4.1' },
-    { id: 'grok-4-1-fast-non-reasoning', name: 'Grok 4.1 Fast', description: 'Quick responses v4.1' },
-    { id: 'grok-4-fast-reasoning', name: 'Grok 4 Fast (Reasoning)', description: 'Fast reasoning' },
-    { id: 'grok-4-fast-non-reasoning', name: 'Grok 4 Fast', description: 'Quick responses' },
-    { id: 'grok-code-fast-1', name: 'Grok Code Fast', description: 'Optimized for coding' },
-    { id: 'grok-3', name: 'Grok 3', description: 'Previous gen' },
-    { id: 'grok-3-mini', name: 'Grok 3 Mini', description: 'Compact' },
-    { id: 'grok-2-vision-1212', name: 'Grok 2 Vision', description: 'Vision model' },
-  ],
-  meta: [
-    { id: 'llama-4-maverick', name: 'Llama 4 Maverick', description: 'Most capable' },
-    { id: 'llama-4-scout', name: 'Llama 4 Scout', description: 'Efficient' },
-    { id: 'llama-3.3-70b', name: 'Llama 3.3 70B', description: 'Large model' },
-  ],
-  zhipu: [
-    { id: 'glm-4.6', name: 'GLM 4.6', description: 'Latest GLM' },
-    { id: 'glm-4.6-thinking', name: 'GLM 4.6 (Thinking)', description: 'With reasoning' },
-    { id: 'glm-4.5', name: 'GLM 4.5', description: 'Standard' },
-    { id: 'glm-4.5-thinking', name: 'GLM 4.5 (Thinking)', description: 'With reasoning' },
-    { id: 'glm-4.5-air', name: 'GLM 4.5 Air', description: 'Lightweight' },
-    { id: 'glm-4.5-air-thinking', name: 'GLM 4.5 Air (Thinking)', description: 'Light reasoning' },
-    { id: 'glm-4.5v', name: 'GLM 4.5V', description: 'Vision model' },
-    { id: 'glm-4.5v-thinking', name: 'GLM 4.5V (Thinking)', description: 'Vision reasoning' },
-  ],
-  moonshot: [
-    { id: 'moonshot-v1-8k', name: 'Moonshot V1 8K', description: '8K context window' },
-    { id: 'moonshot-v1-32k', name: 'Moonshot V1 32K', description: '32K context window' },
-    { id: 'moonshot-v1-128k', name: 'Moonshot V1 128K', description: '128K context window' },
-    { id: 'kimi-k2-0711-preview', name: 'Kimi K2 (0711)', description: '256K context' },
-    { id: 'kimi-k2-0905-preview', name: 'Kimi K2 (0905)', description: '256K, improved coding' },
-    { id: 'kimi-k2-turbo-preview', name: 'Kimi K2 Turbo', description: 'Fast 60-100 tokens/s' },
-    { id: 'kimi-k2-thinking', name: 'Kimi K2 (Thinking)', description: 'Deep reasoning' },
-    { id: 'kimi-k2-thinking-turbo', name: 'Kimi K2 Thinking Turbo', description: 'Fast reasoning' },
-  ],
-  perplexity: [
-    // Search Models - Quick information retrieval and synthesis
-    { id: 'sonar', name: 'Sonar', description: 'Lightweight search with grounding' },
-    { id: 'sonar-pro', name: 'Sonar Pro', description: 'Advanced search, complex queries' },
-    // Reasoning Models - Complex multi-step problem solving
-    { id: 'sonar-reasoning', name: 'Sonar Reasoning', description: 'Real-time reasoning with search' },
-    { id: 'sonar-reasoning-pro', name: 'Sonar Reasoning Pro', description: 'DeepSeek-R1 powered CoT' },
-    // Research Models - In-depth analysis and reports
-    { id: 'sonar-deep-research', name: 'Sonar Deep Research', description: 'Expert-level comprehensive research' },
-  ],
+type CatalogModel = {
+  id: string
+  name: string
+  description: string
+  supported?: boolean
 }
 
+const supportedModelsRaw = supportedModelsCatalog as Record<string, CatalogModel[]>
+
+const modelOptions = Object.fromEntries(
+  Object.entries(supportedModelsRaw).map(([provider, models]) => [
+    provider,
+    models.filter((m) => m.supported !== false).map((m) => ({ id: m.id, name: m.name, description: m.description })),
+  ])
+) as Record<string, { id: string; name: string; description: string }[]>
+
 const modelRoles = [
-  { id: 'main', label: 'Main Model', description: 'Primary operations, PRD parsing, task expansion', icon: faMicrochip, recommended: 'claude-sonnet-4-5-20250929' },
+  { id: 'main', label: 'Main Model', description: 'Primary operations, PRD parsing, task expansion', icon: faMicrochip, recommended: 'claude-sonnet-4-6' },
   { id: 'research', label: 'Research Model', description: 'Web-aware responses with --research flag', icon: faMagnifyingGlass, recommended: 'sonar-pro' },
   { id: 'fallback', label: 'Fallback Model', description: 'Used when main model fails or rate limits', icon: faBolt, recommended: 'gemini-2.5-flash' },
 ]
 
 export default function Models() {
   const { user } = useAuth()
-  const [config, setConfig] = useState<ModelConfig>({ main: 'claude-sonnet-4-5-20250929', research: 'sonar-pro', fallback: 'gemini-2.5-flash' })
+  const [config, setConfig] = useState<ModelConfig>({ main: 'claude-sonnet-4-6', research: 'sonar-pro', fallback: 'gemini-2.5-flash' })
   const [, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState('')
@@ -161,7 +82,7 @@ export default function Models() {
   }
 
   const getModelName = (modelId: string) => {
-    for (const [, models] of Object.entries(modelOptions)) {
+    for (const models of Object.values(supportedModelsRaw)) {
       const found = models.find((m) => m.id === modelId)
       if (found) return found.name
     }

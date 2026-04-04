@@ -62,4 +62,4 @@ This will start the Firebase emulators. Make sure to set `VITE_USE_EMULATORS=tru
 ## Environment
 
 - Node.js 20
-- Uses Gemini Flash model for AI responses
+- Docs assistant uses Google Gemini `gemini-3.1-flash-lite-preview` for text responses (aligned with CLI supported models)

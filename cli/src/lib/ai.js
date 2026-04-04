@@ -127,6 +127,8 @@ export async function generateAIText(prompt, options = {}) {
     // Moonshot, DeepSeek, xAI, Mistral, and Zhipu don't support system role via AI SDK - prepend it to the user message instead
     const providerLower = provider.toLowerCase();
     const needsSystemWorkaround = ['moonshot', 'deepseek', 'xai', 'mistral', 'zhipu'].includes(providerLower);
+    // Moonshot `kimi-k2.5` supports a provider-specific `thinking` request field in the Chat API; the Vercel AI SDK
+    // `generateText` path here does not forward that parameter. Use the Moonshot API directly if you need thinking mode.
     
     let result;
     if (needsSystemWorkaround) {

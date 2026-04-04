@@ -948,7 +948,7 @@ taskmaster update --from=5 --prompt="We switched from MongoDB to PostgreSQL"`}
             <li>• <strong>Provider:</strong> Anthropic Claude models</li>
             <li>• <strong>Format:</strong> <code className="bg-marketing-elevated px-1 rounded">sk-ant-api03-...</code></li>
             <li>• <strong>Required:</strong> ✅ Yes</li>
-            <li>• <strong>Models:</strong> Claude 3.5 Sonnet, Claude 3 Haiku, Claude 3 Opus</li>
+            <li>• <strong>Models:</strong> Current Claude IDs — use the <a href="/app/models" className="text-marketing-link underline">Models</a> page or <code className="bg-marketing-elevated px-1 rounded">taskmaster models</code></li>
             <li>• <strong>Get Key:</strong> <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer" className="text-marketing-link underline">Anthropic Console</a></li>
           </ul>
           <CodeBlock code="ANTHROPIC_API_KEY=sk-ant-api03-your-key-here" filename=".env" />
@@ -971,7 +971,7 @@ taskmaster update --from=5 --prompt="We switched from MongoDB to PostgreSQL"`}
             <li>• <strong>Provider:</strong> OpenAI GPT models</li>
             <li>• <strong>Format:</strong> <code className="bg-marketing-elevated px-1 rounded">sk-proj-...</code> or <code className="bg-marketing-elevated px-1 rounded">sk-...</code></li>
             <li>• <strong>Required:</strong> ✅ Yes</li>
-            <li>• <strong>Models:</strong> GPT-4, GPT-4 Turbo, GPT-3.5 Turbo, O1 models</li>
+            <li>• <strong>Models:</strong> Current GPT IDs — use the <a href="/app/models" className="text-marketing-link underline">Models</a> page or <code className="bg-marketing-elevated px-1 rounded">taskmaster models</code></li>
             <li>• <strong>Get Key:</strong> <a href="https://platform.openai.com/" target="_blank" rel="noopener noreferrer" className="text-marketing-link underline">OpenAI Platform</a></li>
           </ul>
           <CodeBlock code="OPENAI_API_KEY=sk-your-key-here" filename=".env" />
@@ -980,7 +980,7 @@ taskmaster update --from=5 --prompt="We switched from MongoDB to PostgreSQL"`}
         <Accordion title="GOOGLE_API_KEY">
           <ul className="text-marketing-muted space-y-1 mb-4">
             <li>• <strong>Provider:</strong> Google Gemini models</li>
-            <li>• <strong>Models:</strong> Gemini Pro, Gemini Ultra</li>
+            <li>• <strong>Models:</strong> Current Gemini IDs — use the <a href="/app/models" className="text-marketing-link underline">Models</a> page or <code className="bg-marketing-elevated px-1 rounded">taskmaster models</code></li>
             <li>• <strong>Get Key:</strong> <a href="https://ai.google.dev/" target="_blank" rel="noopener noreferrer" className="text-marketing-link underline">Google AI Studio</a></li>
           </ul>
           <CodeBlock code="GOOGLE_API_KEY=your-key-here" filename=".env" />
@@ -4618,7 +4618,9 @@ export default function Docs() {
                     <div className="w-7 h-7 rounded-lg bg-marketing-link/10 flex items-center justify-center">
                       <FontAwesomeIcon icon={faComments} className="text-marketing-link w-3.5 h-3.5" />
                     </div>
-                    <span className="font-semibold text-sm">Assistant</span>
+                    <div className="flex flex-col">
+                      <span className="font-semibold text-sm">Assistant</span>
+                    </div>
                   </div>
                   <div className="flex items-center gap-1">
                     <button

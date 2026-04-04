@@ -21,7 +21,7 @@ const DEFAULTS = {
   models: {
     main: {
       provider: 'anthropic',
-      modelId: 'claude-sonnet-4.5',
+      modelId: 'claude-sonnet-4-6',
       maxTokens: 64000,
       temperature: 0.2
     },

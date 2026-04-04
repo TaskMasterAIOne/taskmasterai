@@ -154,13 +154,31 @@ taskmaster logout
 
 | Command | Description |
 |---------|-------------|
-| `taskmaster list` | List all tasks |
+| `taskmaster list` | List tasks (see filters below) |
 | `taskmaster show <id>` | Show detailed information for a task |
 | `taskmaster next` | Show the next task to work on |
 | `taskmaster set-status --id <id> --status <status>` | Update task status |
 | `taskmaster new --prompt "description"` | Add a new task with AI |
 | `taskmaster remove-task --id <id>` | Remove a task or step |
 | `taskmaster move --from <id> --to <id>` | Move tasks in the hierarchy |
+
+**`list` filters:** `--status` / `-s`, `--with-steps`, `--ready` (dependencies satisfied), `--blocking` (other tasks depend on it), `--all-tags` (across contexts). Combine as needed, e.g. `taskmaster list --ready --blocking`.
+
+### Scope & README
+
+| Command | Description |
+|---------|-------------|
+| `taskmaster scope-up --id <id>` | Increase task scope via AI (optional `--strength`, `--prompt`, `--research`) |
+| `taskmaster scope-down --id <id>` | Trim pending subtasks to reduce scope (`--strength`, `--prompt`, `--research`) |
+| `taskmaster sync-readme` | Write the task list into `README.md` (`--with-subtasks`, `--status`) |
+
+### Project maintenance
+
+| Command | Description |
+|---------|-------------|
+| `taskmaster migrate` | Move from legacy `.taskmaster/` to `.taskmaster-ai/` (`--force`, `--yes`, `--dry-run`) |
+| `taskmaster rules add …` / `taskmaster rules remove …` | Add or remove IDE rule profiles (`cursor`, `windsurf`, `vscode`, …); `--force` overwrites |
+| `taskmaster lang` | View or set AI response language (`--response`, `--setup`) |
 
 ### AI Operations
 
@@ -227,6 +245,8 @@ taskmaster logout
 | `taskmaster models` | View AI model configuration |
 | `taskmaster models --set-main <model>` | Set main AI model |
 
+**Global CLI flag:** pass `--no-banner` on any command to hide the startup banner.
+
 ### Autopilot Mode
 
 | Command | Description |
@@ -254,12 +274,15 @@ Add to your `~/.cursor/mcp.json` or `~/.codeium/windsurf/mcp_config.json`:
       "command": "npx",
       "args": ["-y", "@taskmasterai/cli", "mcp"],
       "env": {
-        "TASKMASTER_LICENSE_KEY": "tm_live_your_license_key"
+        "TASKMASTER_LICENSE_KEY": "tm_live_your_license_key",
+        "TASK_MASTER_ALLOW_METADATA_UPDATES": "true"
       }
     }
   }
 }
 ```
+
+Set `TASK_MASTER_ALLOW_METADATA_UPDATES=true` only if you want MCP/CLI updates to write optional `metadata` on tasks and subtasks (default is to preserve existing metadata).
 
 ### VS Code
 
@@ -272,7 +295,8 @@ Add to your `.vscode/mcp.json`:
       "command": "npx",
       "args": ["-y", "@taskmasterai/cli", "mcp"],
       "env": {
-        "TASKMASTER_LICENSE_KEY": "tm_live_your_license_key"
+        "TASKMASTER_LICENSE_KEY": "tm_live_your_license_key",
+        "TASK_MASTER_ALLOW_METADATA_UPDATES": "true"
       },
       "type": "stdio"
     }
@@ -296,13 +320,13 @@ Configure your API keys in the TaskMaster dashboard and they'll automatically sy
 |----------|---------------------|--------|
 | Anthropic | `ANTHROPIC_API_KEY` | Claude Opus, Sonnet, Haiku |
 | OpenAI | `OPENAI_API_KEY` | GPT-5.x, GPT-4.x, o3, o4 |
-| Google | `GOOGLE_API_KEY` | Gemini 3, 2.5 Pro/Flash |
+| Google | `GOOGLE_API_KEY` | Gemini 3.1 / 3 Flash, 2.5 Pro/Flash/Lite |
 | Perplexity | `PERPLEXITY_API_KEY` | Sonar Pro, Sonar |
 | DeepSeek | `DEEPSEEK_API_KEY` | DeepSeek R1, V3.x |
 | xAI | `XAI_API_KEY` | Grok 4.x, Grok 3 |
 | OpenRouter | `OPENROUTER_API_KEY` | Any model via OpenRouter |
 | Mistral | `MISTRAL_API_KEY` | Mistral Large, Medium |
-| Moonshot | `MOONSHOT_API_KEY` | Kimi K2 |
+| Moonshot | `MOONSHOT_API_KEY` | Kimi K2.5, K2, Moonshot V1 |
 | Zhipu AI | `ZHIPU_API_KEY` | GLM-4.x |
 | Meta | `META_API_KEY` | Llama 4, Llama 3.3 |
 | Azure OpenAI | `AZURE_OPENAI_API_KEY` | Azure-hosted OpenAI models |
@@ -331,6 +355,9 @@ export AZURE_OPENAI_API_KEY="your-key"  # Azure OpenAI
 export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com"
 export OLLAMA_API_KEY="your-key"        # Ollama (optional)
 export OLLAMA_BASE_URL="http://localhost:11434/api"
+
+# Optional: allow MCP/CLI to persist task metadata (see MCP docs)
+export TASK_MASTER_ALLOW_METADATA_UPDATES="true"
 ```
 
 ## 💰 Pricing Plans
@@ -402,19 +429,19 @@ taskmaster set-status --id 1.1 --status done
 ## 🤖 Supported AI Providers & Models
 
 ### Anthropic (Claude)
-Claude Opus 4.5, Claude 4.1 Opus, Claude Sonnet 4.5, Claude Sonnet 4.5 (Reasoning), Claude 4 Sonnet, Claude 4 Sonnet (Reasoning), Claude 3.7 Sonnet, Claude 3.7 Sonnet (Reasoning), Claude Haiku 4.5, Claude Haiku 4.5 (Reasoning)
+Claude Opus 4.6, Claude Sonnet 4.6, Claude Opus 4.5, Claude Sonnet 4.5, Claude 4.1 Opus, Claude Haiku 4.5, Claude 3.7 Sonnet, Claude 3.5 Sonnet, Claude 3.5 Haiku (see [Anthropic models](https://docs.anthropic.com/en/docs/about-claude/models/all-models))
 
 ### OpenAI (GPT)
-GPT-5.2 (Instant), GPT-5.2 (Reasoning), GPT-5.1 (Instant), GPT-5.1 (Reasoning), GPT-5, GPT-5 (Reasoning), GPT-5 Mini, GPT-5 Nano, GPT-4.1, GPT-4.1 Mini, GPT-4.1 Nano, GPT-4o, GPT-4o Mini, o3 Mini, o3 Pro, o4 Mini, GPT OSS 20B, GPT OSS 120B
+GPT-5.4, GPT-5.4 Pro, GPT-5.4 Mini, GPT-5.4 Nano, GPT-5.2 (Instant), GPT-5.2 (Reasoning), GPT-5.2 Pro, GPT-5.1 (Instant), GPT-5, GPT-5 Mini, GPT-5 Nano, GPT-4.1, GPT-4.1 Mini, GPT-4.1 Nano, GPT-4o, GPT-4o Mini, O1, O3, O3 Mini, O3 Pro, O4 Mini (see [OpenAI models](https://platform.openai.com/docs/models))
 
 ### Google (Gemini)
-Gemini 3 Pro, Gemini 2.5 Pro, Gemini 2.5 Flash, Gemini 2.5 Flash (Thinking), Gemini 2.5 Flash Lite (Thinking), Gemini 2.0 Flash, Gemini 2.0 Flash Lite
+Gemini 3.1 Pro (Preview), Gemini 3.1 Pro (Preview, custom tools), Gemini 3 Flash (Preview), Gemini 3.1 Flash-Lite (Preview), Gemini 2.5 Pro, Gemini 2.5 Flash, Gemini 2.5 Flash (Thinking), Gemini 2.5 Flash-Lite, Gemini 2.5 Flash Lite (Thinking), Gemini 2.0 Flash, Gemini 2.0 Flash Lite (Gemini 3 Pro Preview is deprecated; see [Gemini models](https://ai.google.dev/gemini-api/docs/models))
 
 ### DeepSeek
-DeepSeek R1, DeepSeek V3, DeepSeek V3.2 Exp, DeepSeek V3.2 Exp (Thinking), DeepSeek V3.1, DeepSeek V3.1 (Thinking), DeepSeek V3.1 Terminus, DeepSeek V3.1 Terminus (Thinking)
+DeepSeek Chat (V3.2), DeepSeek Reasoner (V3.2) — long-context chat and chain-of-thought modes
 
 ### xAI (Grok)
-Grok 4, Grok 4 Fast, Grok 4 Fast (Reasoning), Grok 4.1 Fast, Grok 4.1 Fast (Reasoning), Grok 3, Grok 3 Mini
+Grok 4.20 (Reasoning / standard / multi-agent), Grok 4, Grok 4 Fast, Grok 4.1 Fast, Grok Code Fast, Grok 3, Grok 3 Mini (see [xAI models](https://docs.x.ai/docs/models))
 
 ### Meta (Llama)
 Llama 4 Maverick, Llama 4 Scout, Llama 3.3 70B
@@ -423,7 +450,7 @@ Llama 4 Maverick, Llama 4 Scout, Llama 3.3 70B
 GLM 4.6, GLM 4.6 (Thinking), GLM 4.5, GLM 4.5 (Thinking), GLM 4.5 Air, GLM 4.5 Air (Thinking), GLM 4.5V, GLM 4.5V (Thinking)
 
 ### Moonshot (Kimi)
-Kimi K2, Kimi K2 (Thinking)
+Kimi K2.5, Kimi K2 (0905), Kimi K2 (0711), Kimi K2 Turbo, Kimi K2 (Thinking), Kimi K2 Thinking Turbo, Moonshot V1 Auto, Moonshot V1 8K/32K/128K
 
 ### Additional Providers
 | Provider | Description |
