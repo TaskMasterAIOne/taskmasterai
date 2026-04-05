@@ -45,3 +45,6 @@ coverage
 .firebase
 firebase-debug.log
 
+# TaskMaster AI local project state (CLI-generated; do not commit)
+.taskmaster-ai/
+
