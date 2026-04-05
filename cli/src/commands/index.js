@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import boxen from 'boxen';
 import fs from 'fs';
+import { homedir } from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -2236,7 +2237,7 @@ Provide updated details that incorporate the new information.`;
       const possiblePaths = [
         options.file,
         path.join(projectRoot, '.taskmaster-ai', 'reports', 'complexity-report.json'),
-        path.join(os.homedir(), '.taskmaster-ai', 'reports', 'complexity-report.json'),
+        path.join(homedir(), '.taskmaster-ai', 'reports', 'complexity-report.json'),
       ].filter(Boolean);
 
       let reportPath = null;

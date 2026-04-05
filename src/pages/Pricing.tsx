@@ -145,20 +145,16 @@ export default function Pricing() {
   }
 
   return (
-    <div className="marketing-page open-sample relative px-4 py-12 sm:py-20">
+    <div className="marketing-page open-sample relative px-4 pb-10 pt-4 sm:pb-16 sm:pt-6">
       {/* Header */}
-      <div className="relative z-[1] mx-auto mb-10 max-w-5xl text-center sm:mb-14">
+      <div className="relative z-[1] mx-auto mb-6 max-w-5xl text-center sm:mb-8">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, ease: 'easeOut' }}
         >
           <div className="mb-4 flex items-center justify-center gap-3">
-            <div className="h-px w-8 bg-gradient-to-r from-transparent to-indigo-400/50" />
-            <span className="bg-gradient-to-r from-indigo-500 to-violet-400 bg-clip-text text-sm font-medium text-transparent">
-              Pricing
-            </span>
-            <div className="h-px w-8 bg-gradient-to-l from-transparent to-indigo-400/50" />
+
           </div>
           <h1 className="marketing-gradient-text font-display mb-4 text-3xl font-semibold tracking-tight md:text-4xl lg:text-5xl">
             Simple, transparent pricing

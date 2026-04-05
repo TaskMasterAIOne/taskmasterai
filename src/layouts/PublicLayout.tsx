@@ -166,7 +166,13 @@ export default function PublicLayout() {
         />
       )}
 
-      <main className="relative pt-24 sm:pt-28">
+      <main
+        className={
+          location.pathname === '/pricing'
+            ? 'relative pt-16 sm:pt-20'
+            : 'relative pt-24 sm:pt-28'
+        }
+      >
         <Outlet />
       </main>
 

@@ -260,9 +260,9 @@ taskmaster whoami
 
 When you login, your license is automatically activated and API keys are synced from your dashboard.
 
-Optionally sync API keys from dashboard:
+Optionally pull API keys and model config from the dashboard (after login they are usually already synced):
 \`\`\`bash
-taskmaster sync
+taskmaster sync-keys
 \`\`\`
 
 Initialize a new project:
@@ -315,7 +315,8 @@ Example MCP configuration (mcpServers format for Cursor & Windsurf):
 - \`taskmaster init --rules cursor,windsurf,vscode\` - Initialize with specific rule sets
 - \`taskmaster plan <file>\` - Parse PRD and generate tasks
 - \`taskmaster plan <file> --num-tasks=10\` - Limit number of tasks generated
-- \`taskmaster plan <file> --append\` - Append to existing tasks (for additional PRDs)
+- \`taskmaster plan <file> --append\` - Append new tasks when tasks.json already exists (additional PRDs)
+- \`taskmaster plan <file> --force\` - Overwrite existing tasks (destructive; use when replacing the whole list)
 
 ## Task Viewing
 - \`taskmaster list\` - List all tasks with status
@@ -505,7 +506,7 @@ Add keys to your MCP config file (env section).
 ## Method 4: Dashboard Sync (Recommended)
 Configure API keys in your Dashboard at https://www.taskmaster.one/app/api-keys, then sync them to CLI:
 \`\`\`bash
-taskmaster sync
+taskmaster sync-keys
 
 # This syncs:
 # - API keys from your dashboard
@@ -594,7 +595,7 @@ project/
 2. **Login**: \`taskmaster login\` (automatically syncs license and API keys)
 3. **Initialize**: \`taskmaster init\`
 4. **Create PRD**: Write your PRD in .taskmaster-ai/docs/ (use templates in .taskmaster-ai/templates/ as reference)
-5. **Parse PRD**: \`taskmaster plan .taskmaster-ai/docs/prd.md\`
+5. **Parse PRD**: \`taskmaster plan .taskmaster-ai/docs/prd.md\` — If tasks already exist, use \`--append\` to add more or \`--force\` to replace them
 6. **Analyze complexity**: \`taskmaster assess --research\`
 7. **View report**: \`taskmaster report\`
 8. **Break down tasks**: \`taskmaster breakdown --all\`
@@ -1016,10 +1017,10 @@ taskmaster check-links	Validate all task links
 taskmaster fix-links	Auto-fix broken links
 Contexts (Workspaces)
 Command	Description
-taskmaster contexts	List all contexts
-taskmaster context <name>	Create a new context
-taskmaster switch <name>	Switch to a different context
-taskmaster clone <source> <target>	Clone a context
+taskmaster contexts (alias: taskmaster tags)	List all contexts
+taskmaster context-add <name> (alias: add-tag)	Create a new context
+taskmaster context <name> (alias: use-tag)	Switch to a different context
+taskmaster clone <source> <target> (alias: copy-tag)	Copy a context with all its tasks
 taskmaster delete-context <name>	Delete a context
 taskmaster rename-context <old> <new>	Rename a context
 Authentication
@@ -1145,11 +1146,11 @@ taskmaster activate tm_live_your_license_key
 # 2. Initialize project
 taskmaster init --name "My App"
 
-# 3. Sync API keys from dashboard
-taskmaster sync
+# 3. Sync API keys and models from dashboard
+taskmaster sync-keys
 
-# 4. Generate tasks from PRD
-taskmaster plan requirements.md --num-tasks 15
+# 4. Generate tasks from PRD (use --append if tasks already exist, or --force to replace)
+taskmaster plan .taskmaster-ai/docs/prd.md --num-tasks 15
 
 # 5. Analyze complexity
 taskmaster assess --research

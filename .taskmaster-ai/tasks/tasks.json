@@ -172,11 +172,134 @@
           "testStrategy": "1. **Functional Testing**: Verify that clicking the toggle switch correctly switches the entire application's theme between light and dark modes.2. **Persistence Testing**: Confirm that the selected theme preference is saved and correctly applied when the user closes and reopens the browser or navigates to other pages within the application.3. **Default Behavior**: Test that if no preference is saved, the application defaults to the system's `prefers-color-scheme` or the designated default theme.4. **UI/UX Verification**: Visually inspect all major components and pages in both light and dark modes to ensure consistent styling, readability, and correct rendering.5. **Accessibility Testing**: Use accessibility tools (e.g., Lighthouse, browser dev tools) to check contrast ratios in both themes and verify keyboard navigation and ARIA attributes for the toggle.6. **Cross-Browser Compatibility**: Test the functionality and appearance across supported browsers (Chrome, Firefox, Safari, Edge).",
           "dependencies": [],
           "subtasks": []
+        },
+        {
+          "title": "Initialize React + TypeScript Project",
+          "description": "Set up a new React project using Create React App or Vite with TypeScript template, configuring basic project structure.",
+          "status": "pending",
+          "priority": "high",
+          "dependencies": [],
+          "details": "Use `npx create-react-app my-todo-app --template typescript` or `npm create vite@latest my-todo-app -- --template react-ts`. Establish a clean folder structure for components, services, etc.",
+          "testStrategy": "Verify the project compiles successfully and a basic 'Hello World' page renders in the browser.",
+          "id": 9
+        },
+        {
+          "title": "Integrate Tailwind CSS",
+          "description": "Install and configure Tailwind CSS into the React project for styling.",
+          "status": "pending",
+          "priority": "high",
+          "dependencies": [
+            1
+          ],
+          "details": "Follow the official Tailwind CSS PostCSS installation guide for React. Configure `tailwind.config.js` and import base styles into the main CSS file.",
+          "testStrategy": "Apply a simple Tailwind class (e.g., `bg-blue-500`) to an element in `App.tsx` and verify the style is correctly applied in the browser.",
+          "id": 10
+        },
+        {
+          "title": "Implement LocalStorage Utility Service",
+          "description": "Create a utility module or custom hook to encapsulate interactions with LocalStorage for task persistence.",
+          "status": "pending",
+          "priority": "high",
+          "dependencies": [
+            1
+          ],
+          "details": "Develop functions like `getTasks()`, `saveTasks(tasks)`, and `clearTasks()`. Ensure proper serialization (JSON.stringify) and deserialization (JSON.parse) of task data.",
+          "testStrategy": "Write unit tests for the utility functions to confirm data is stored and retrieved correctly. Manually verify by inspecting browser's LocalStorage.",
+          "id": 11
+        },
+        {
+          "title": "Define Task Data Model and Global State",
+          "description": "Define the TypeScript interface for a `Task` and set up the main application state (e.g., in `App.tsx`) to manage the list of tasks, initializing from LocalStorage.",
+          "status": "pending",
+          "priority": "high",
+          "dependencies": [
+            3
+          ],
+          "details": "Define `interface Task { id: string; text: string; completed: boolean; }`. Use `useState` or `useReducer` to manage the `tasks` array. Implement logic to load tasks from LocalStorage on component mount and save on state changes.",
+          "testStrategy": "Verify that tasks saved in LocalStorage persist across page reloads and are correctly loaded into the application state on startup.",
+          "id": 12
+        },
+        {
+          "title": "Develop Add Task Component",
+          "description": "Create a React component with an input field and a button to allow users to add new tasks to the list.",
+          "status": "pending",
+          "priority": "medium",
+          "dependencies": [
+            2,
+            4
+          ],
+          "details": "The component should manage its own input state. On submission, it will call a prop function provided by the parent to add the new task to the global state. Include basic input validation to prevent empty tasks.",
+          "testStrategy": "Add a new task via the UI and verify it appears in the task list and is persisted in LocalStorage.",
+          "id": 13
+        },
+        {
+          "title": "Develop Task Item Component",
+          "description": "Create a React component to display a single task, including its text, a checkbox to mark as complete, and a delete button.",
+          "status": "pending",
+          "priority": "medium",
+          "dependencies": [
+            2,
+            4
+          ],
+          "details": "The component will receive a `Task` object as a prop. It will render the task text, a controlled checkbox (reflecting `task.completed`), and a delete button. It should emit events (via props) for toggling completion status and deleting the task.",
+          "testStrategy": "Render the component with various task states (completed/active). Click the checkbox to verify state toggles. Click the delete button to verify the task removal event is triggered.",
+          "id": 14
+        },
+        {
+          "title": "Develop Task List Component",
+          "description": "Create a component that renders the list of `TaskItem` components based on the filtered current application state.",
+          "status": "pending",
+          "priority": "medium",
+          "dependencies": [
+            6
+          ],
+          "details": "This component will receive an array of `Task` objects as a prop (which will be the filtered list). It will map over this array to render individual `TaskItem` components, passing down the necessary task data and event handlers.",
+          "testStrategy": "Verify that all tasks are displayed correctly. Ensure that actions (complete/delete) on individual items correctly update the main task list via passed-down callbacks.",
+          "id": 15
+        },
+        {
+          "title": "Develop Task Filtering Component",
+          "description": "Create a component with buttons or a dropdown to allow users to filter tasks by status (All, Active, Completed).",
+          "status": "pending",
+          "priority": "medium",
+          "dependencies": [
+            7
+          ],
+          "details": "The component will manage its internal filter state (`'all'`, `'active'`, `'completed'`) and communicate the selected filter to its parent component (e.g., `App.tsx`) to apply the filtering logic before rendering the `TaskList`.",
+          "testStrategy": "Click on each filter option (All, Active, Completed) and verify that only the relevant tasks are displayed in the list.",
+          "id": 16
+        },
+        {
+          "title": "Implement End-to-End Tests",
+          "description": "Write end-to-end tests covering the core user flows: adding, marking complete, deleting, and filtering tasks.",
+          "status": "pending",
+          "priority": "medium",
+          "dependencies": [
+            5,
+            6,
+            7,
+            8
+          ],
+          "details": "Use a framework like Cypress or Playwright. Test scenarios such as adding multiple tasks, marking some complete, deleting others, and verifying the list's state after applying different filters.",
+          "testStrategy": "Run the E2E test suite and ensure all critical user flows pass without errors, simulating real user interactions.",
+          "id": 17
+        },
+        {
+          "title": "Configure Basic Deployment",
+          "description": "Set up the project for deployment to a static hosting service, including build scripts and documentation.",
+          "status": "pending",
+          "priority": "low",
+          "dependencies": [
+            9
+          ],
+          "details": "Configure `package.json` scripts for building the application for production (`npm run build`). Document the steps required to deploy the static assets to a chosen hosting platform (e.g., Netlify, Vercel, GitHub Pages).",
+          "testStrategy": "Successfully build the application (`npm run build`) and verify the `build` directory contains all necessary production-ready static assets. Attempt a test deployment to a staging environment if available.",
+          "id": 18
         }
       ],
       "metadata": {
         "createdAt": "2025-12-13T16:52:27.564Z",
-        "updatedAt": "2026-04-04T21:32:06.990Z"
+        "updatedAt": "2026-04-05T03:08:26.450Z"
       }
     }
   }
