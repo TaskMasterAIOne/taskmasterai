@@ -4,6 +4,7 @@
  * @see https://github.com/cruip/open-react-template
  */
 import { Link } from 'react-router-dom'
+import { defaultDocHref } from '../lib/docRoutes'
 import { HeroProviderCarousel } from '../components/ProviderLogosCarousel'
 import WorkflowCards from '../components/WorkflowCards'
 import { 
@@ -102,7 +103,7 @@ function HeroHome() {
                   </Link>
                 </div>
                 <div>
-                  <Link className={secondaryCtaClass} to="/docs">
+                  <Link className={secondaryCtaClass} to={defaultDocHref()}>
                     View docs
                   </Link>
                 </div>
@@ -668,7 +669,7 @@ function Cta() {
                 </Link>
               </div>
               <div>
-                <Link className={secondaryCtaClass} to="/docs">
+                <Link className={secondaryCtaClass} to={defaultDocHref()}>
                   View docs
                 </Link>
               </div>

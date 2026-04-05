@@ -324,26 +324,24 @@ Write a natural language document describing your project. This can include feat
 Once you've written your PRD, you can parse it to generate tasks:
 
 \`\`\`bash
-# Parse a PRD file
-taskmaster parse-prd your-prd.txt
+# Parse a PRD file (alias: taskmaster plan)
+taskmaster plan .taskmaster-ai/docs/prd.md
 
-# Parse with a specific number of tasks
-taskmaster parse-prd your-prd.txt --num-tasks 15
+# Limit number of tasks generated
+taskmaster plan .taskmaster-ai/docs/prd.md --num-tasks 15
 
-# Force overwrite existing tasks
-taskmaster parse-prd your-prd.txt --force
+# If tasks already exist: append or replace
+taskmaster plan .taskmaster-ai/docs/prd.md --append
+taskmaster plan .taskmaster-ai/docs/prd.md --force
 \`\`\`
 
-Or use the MCP tool:
-\`\`\`
-parse_prd with input="path/to/prd.txt"
-\`\`\`
+Use \`-r\` / \`--research\` on supported commands when you want the research model (requires a configured research API key).
 
 ---
 
 ## Tasks Setup
 
-After parsing your PRD, you'll have a set of tasks in .taskmaster/tasks/tasks.json. Before executing, you should review and prepare them.
+After parsing your PRD, you'll have a set of tasks in .taskmaster-ai/tasks/tasks.json. Before executing, you should review and prepare them.
 
 ### Reviewing Tasks
 
@@ -363,26 +361,26 @@ taskmaster next
 For better planning, analyze task complexity:
 
 \`\`\`bash
-# Analyze complexity of all tasks
-taskmaster analyze-complexity
+# Analyze complexity of all tasks (alias: taskmaster assess)
+taskmaster assess
 
-# View the complexity report
-taskmaster complexity-report
+# View the complexity report (alias: taskmaster report)
+taskmaster report
 \`\`\`
 
 ### Expanding Tasks
 
-Complex tasks should be broken down into subtasks:
+Complex tasks should be broken down into steps (subtasks):
 
 \`\`\`bash
-# Expand a specific task into subtasks
-taskmaster expand --id 1
+# Break down a specific task
+taskmaster breakdown --id 1
 
-# Expand with research for better context
-taskmaster expand --id 1 --research
+# Use research model for better context
+taskmaster breakdown --id 1 --research
 
-# Expand all pending tasks
-taskmaster expand --all
+# Break down all eligible pending tasks
+taskmaster breakdown --all
 \`\`\`
 
 ---
@@ -567,36 +565,36 @@ We'd love to hear from you! Here's how to reach us:
 | taskmaster show <id> | Show task details |
 | taskmaster next | Show next recommended task |
 | taskmaster set-status --id <id> --status <status> | Update task status |
-| taskmaster add-task --prompt "<description>" | Add a new task |
+| taskmaster new --prompt "<description>" | Add a new task (alias: add-task) |
 
 ### Task Operations
 
 | Command | Description |
 |---------|-------------|
-| taskmaster expand --id <id> | Break task into subtasks |
-| taskmaster expand --all | Expand all pending tasks |
-| taskmaster update-task --id <id> --prompt "<context>" | Update a task |
+| taskmaster breakdown --id <id> | Break task into steps (alias: expand) |
+| taskmaster breakdown --all | Break down all eligible pending tasks |
+| taskmaster edit --id <id> --prompt "<context>" | Update a task (alias: update-task) |
 | taskmaster update --from <id> --prompt "<context>" | Update multiple tasks |
 | taskmaster remove-task --id <id> | Remove a top-level task |
-| taskmaster remove-subtask --id <id> | Remove a subtask (--convert to promote to task) |
+| taskmaster remove-step --id <id> | Remove a step (--convert to promote to task) |
 
 ### PRD & Project
 
 | Command | Description |
 |---------|-------------|
 | taskmaster init | Initialize a new project |
-| taskmaster parse-prd <file> | Parse a PRD into tasks |
-| taskmaster analyze-complexity | Analyze task complexity |
-| taskmaster complexity-report | View complexity report |
+| taskmaster plan <file> | Parse a PRD into tasks (alias: parse-prd) |
+| taskmaster assess | Analyze task complexity (alias: analyze-complexity) |
+| taskmaster report | View complexity report (alias: complexity-report) |
 
 ### Dependencies
 
 | Command | Description |
 |---------|-------------|
-| taskmaster add-dependency --id <id> --depends-on <id> | Add dependency |
-| taskmaster remove-dependency --id <id> --depends-on <id> | Remove dependency |
-| taskmaster validate-dependencies | Check for issues |
-| taskmaster fix-dependencies | Auto-fix issues |
+| taskmaster link --id <id> --depends-on <id> | Add dependency (alias: add-dependency) |
+| taskmaster unlink --id <id> --depends-on <id> | Remove dependency (alias: remove-dependency) |
+| taskmaster check-links | Check for issues (alias: validate-dependencies) |
+| taskmaster fix-links | Auto-fix issues (alias: fix-dependencies) |
 
 ### License & Config
 
@@ -605,7 +603,7 @@ We'd love to hear from you! Here's how to reach us:
 | taskmaster login | Login to your account |
 | taskmaster logout | Logout from your account |
 | taskmaster whoami | Show current user info |
-| taskmaster license | Show license info |
+| taskmaster activate <license-key> | Activate a license key for your account |
 | taskmaster usage | Show usage stats |
 | taskmaster models | View/set AI models |
 | taskmaster sync-keys | Sync config from dashboard |
@@ -646,7 +644,7 @@ MCP tools are available when using TaskMaster AI through an MCP-compatible edito
 
 ## Task Structure
 
-Tasks are stored in .taskmaster/tasks/tasks.json with the following structure:
+Tasks are stored in .taskmaster-ai/tasks/tasks.json with the following structure:
 
 \`\`\`json
 {
@@ -771,7 +769,7 @@ taskmaster models --setup
 
 ### Configuration File
 
-Settings are stored in .taskmaster/config.json:
+Settings are stored in .taskmaster-ai/config.json:
 
 \`\`\`json
 {

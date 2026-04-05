@@ -7,13 +7,14 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faNpm } from '@fortawesome/free-brands-svg-icons'
 import { faBars, faXmark, faSun, faMoon, faDesktop } from '@fortawesome/free-solid-svg-icons'
 import { TaskMasterAILogo } from '../components/TaskMasterAILogo'
+import { defaultDocHref } from '../lib/docRoutes'
 
 const NPM_CLI = 'https://www.npmjs.com/package/@taskmasterai/cli'
 
 const navLinks = [
   { path: '/', label: 'Home' },
   { path: '/pricing', label: 'Pricing' },
-  { path: '/docs', label: 'Docs' },
+  { path: defaultDocHref(), label: 'Docs' },
 ]
 
 export default function PublicLayout() {
@@ -22,12 +23,17 @@ export default function PublicLayout() {
   const { mode, toggleTheme } = useTheme()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
-  const linkClass = (path: string) =>
-    `text-sm font-medium transition-colors ${
-      location.pathname === path
-        ? 'text-marketing-text'
-        : 'text-marketing-muted hover:text-marketing-link'
+  const linkClass = (path: string) => {
+    const active =
+      path === '/'
+        ? location.pathname === '/'
+        : path.startsWith('/docs')
+          ? location.pathname.startsWith('/docs')
+          : location.pathname === path
+    return `text-sm font-medium transition-colors ${
+      active ? 'text-marketing-text' : 'text-marketing-muted hover:text-marketing-link'
     }`
+  }
 
   const footerLinkClass =
     'text-sm text-marketing-muted transition hover:text-marketing-link'
@@ -104,7 +110,9 @@ export default function PublicLayout() {
                   key={link.path}
                   to={link.path}
                   className={`block rounded-lg px-3 py-2.5 text-sm ${
-                    location.pathname === link.path
+                    (link.path.startsWith('/docs')
+                      ? location.pathname.startsWith('/docs')
+                      : location.pathname === link.path)
                       ? 'bg-marketing-elevated text-marketing-text'
                       : 'text-marketing-muted hover:bg-marketing-elevated/60 hover:text-marketing-text'
                   }`}
@@ -176,7 +184,7 @@ export default function PublicLayout() {
         <Outlet />
       </main>
 
-      {location.pathname !== '/docs' && (
+      {!location.pathname.startsWith('/docs') && (
         <footer className="relative mt-16 md:mt-20">
           <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
             <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
@@ -200,7 +208,7 @@ export default function PublicLayout() {
                     </Link>
                   </li>
                   <li>
-                    <Link className={footerLinkClass} to="/docs">
+                    <Link className={footerLinkClass} to={defaultDocHref()}>
                       Documentation
                     </Link>
                   </li>

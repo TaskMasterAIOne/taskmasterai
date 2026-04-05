@@ -376,6 +376,8 @@
   html {
     scroll-behavior: smooth;
     font-size: 16px;
+    /* Reserve scrollbar width so vw-based layouts and centered content do not shift when scrollbar appears */
+    scrollbar-gutter: stable;
   }
   
   body {

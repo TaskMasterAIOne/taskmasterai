@@ -16,6 +16,7 @@ import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
 import CliLogin from './pages/CliLogin'
 import NotFound from './pages/NotFound'
+import { defaultDocHref } from './lib/docRoutes'
 
 // Protected Pages
 import Dashboard from './pages/app/Dashboard'
@@ -76,7 +77,8 @@ export default function App() {
       <Route element={<PublicLayout />}>
         <Route path="/" element={<Landing />} />
         <Route path="/pricing" element={<Pricing />} />
-        <Route path="/docs" element={<Docs />} />
+        <Route path="/docs" element={<Navigate to={defaultDocHref()} replace />} />
+        <Route path="/docs/*" element={<Docs />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="*" element={<NotFound />} />

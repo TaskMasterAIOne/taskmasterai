@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { defaultDocHref } from '../lib/docRoutes'
 import { motion } from 'framer-motion'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faHome, faBook, faTag } from '@fortawesome/free-solid-svg-icons'
@@ -39,7 +40,7 @@ export default function NotFound() {
 
         <div className="mt-10 flex items-center justify-center gap-6 text-sm">
           <Link
-            to="/docs"
+            to={defaultDocHref()}
             className="inline-flex items-center gap-2 text-marketing-muted transition hover:text-marketing-link"
           >
             <FontAwesomeIcon icon={faBook} className="h-4 w-4" />

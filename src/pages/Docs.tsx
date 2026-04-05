@@ -1,4 +1,19 @@
-import { useState, useRef, useEffect, createContext, useContext, useCallback } from 'react'
+import {
+  useState,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useCallback,
+  type RefObject,
+} from 'react'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import {
+  toDocHref,
+  sectionIdFromPathname,
+  defaultDocHref,
+  DEFAULT_DOC_SLUG,
+} from '../lib/docRoutes'
 import { ALL_DOCS_TEXT } from '../lib/docsText'
 import { motion, AnimatePresence } from 'framer-motion'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
@@ -114,33 +129,42 @@ const scrollToTop = () => {
   document.body.scrollTop = 0
 }
 
-// Navigation Context for clickable section links
-const NavigationContext = createContext<{
-  navigateToSection: (sectionId: string) => void
-} | null>(null)
-
-// Section Link Component - clickable links that navigate to sections
+// Section Link — deep links to /docs/...
 function SectionLink({ sectionId, children, className = '' }: { sectionId: string; children: React.ReactNode; className?: string }) {
-  const context = useContext(NavigationContext)
-  
   return (
-    <button
-      onClick={() => context?.navigateToSection(sectionId)}
-      className={`text-marketing-text font-medium underline hover:text-marketing-link-hover transition-colors cursor-pointer ${className}`}
+    <Link
+      to={toDocHref(sectionId)}
+      className={`text-marketing-text font-medium underline hover:text-marketing-link-hover transition-colors ${className}`}
     >
       {children}
-    </button>
+    </Link>
   )
 }
 
 // Collapsible Accordion Component
-function Accordion({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
+function Accordion({
+  title,
+  children,
+  defaultOpen = false,
+  id,
+}: {
+  title: string
+  children: React.ReactNode
+  defaultOpen?: boolean
+  /** Anchor for On this page / scroll (e.g. agent-toc-cli-start) */
+  id?: string
+}) {
   const [isOpen, setIsOpen] = useState(defaultOpen)
   
   return (
-    <div className="border border-marketing-border rounded-lg overflow-hidden mb-4">
+    <div
+      id={id}
+      className={`border border-marketing-border rounded-lg overflow-hidden mb-4${id ? ' scroll-mt-28' : ''}`}
+    >
       <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
+        aria-expanded={isOpen}
         className="w-full flex items-center gap-2 px-4 py-3 bg-marketing-surface hover:bg-marketing-elevated transition-colors text-left"
       >
         <FontAwesomeIcon 
@@ -149,11 +173,13 @@ function Accordion({ title, children, defaultOpen = false }: { title: string; ch
         />
         <span className="text-marketing-text font-medium">{title}</span>
       </button>
-      {isOpen && (
-        <div className="px-4 py-4 bg-marketing-bg border-t border-marketing-border overflow-x-auto">
-          {children}
+      {/* Keep body in the DOM when collapsed so "On this page" and in-page anchors see headings (matches agent-integration behavior). */}
+      <div
+        className={`border-t border-marketing-border bg-marketing-bg px-4 py-4 overflow-x-auto ${isOpen ? '' : 'hidden'}`}
+        aria-hidden={!isOpen}
+      >
+        {children}
       </div>
-      )}
     </div>
   )
 }
@@ -776,7 +802,7 @@ taskmaster plan .taskmaster-ai/docs/new-feature.md --append`}
 taskmaster assess
 
 # With ask model for more informed analysis
-taskmaster assess --ask`}
+taskmaster assess --research`}
           filename="Terminal"
         />
 
@@ -826,7 +852,7 @@ taskmaster breakdown --id=5 --prompt="Focus on performance optimization"
 taskmaster breakdown --id=5 --force
 
 # Use ask model for better steps
-taskmaster breakdown --id=5 --ask`}
+taskmaster breakdown --id=5 --research`}
           filename="Terminal"
         />
 
@@ -896,7 +922,7 @@ taskmaster list --ready --all-tags`}
 taskmaster log --id=1.1 --prompt="Implemented the database schema with the following tables..."
 
 # Use ask for AI-powered insights
-taskmaster log --id=1.1 --prompt="Need to optimize query performance" --ask`}
+taskmaster log --id=1.1 --prompt="Need to optimize query performance" --research`}
           filename="Terminal"
         />
 
@@ -1343,8 +1369,32 @@ taskmaster sync-keys
     content: (
       <>
         <p className="text-marketing-muted mb-6">
-          Complete reference of all TaskMaster AI CLI commands organized by category.
+          Complete reference of all TaskMaster AI CLI commands organized by category. The <code className="bg-marketing-elevated px-1 rounded">ask</code> command is an alias for <code className="bg-marketing-elevated px-1 rounded">research</code>; AI-backed flags use <code className="bg-marketing-elevated px-1 rounded">-r</code> / <code className="bg-marketing-elevated px-1 rounded">--research</code>.
         </p>
+
+        <h3 className="text-xl font-semibold mb-4">Authentication and license</h3>
+        <div className="space-y-3 mb-8">
+          <div className="marketing-panel border rounded-xl p-4">
+            <code className="text-sm text-marketing-link font-mono">taskmaster login [-e, --email &lt;email&gt;] [-p, --password &lt;password&gt;] [-g, --google]</code>
+            <p className="text-sm text-marketing-muted mt-1">Sign in with email/password or Google. Activates your license when linked to your account.</p>
+          </div>
+          <div className="marketing-panel border rounded-xl p-4">
+            <code className="text-sm text-marketing-link font-mono">taskmaster logout</code>
+            <p className="text-sm text-marketing-muted mt-1">End the session and clear local auth (license data on this machine is cleared as part of logout).</p>
+          </div>
+          <div className="marketing-panel border rounded-xl p-4">
+            <code className="text-sm text-marketing-link font-mono">taskmaster whoami</code>
+            <p className="text-sm text-marketing-muted mt-1">Show current user, login method, and license/plan summary.</p>
+          </div>
+          <div className="marketing-panel border rounded-xl p-4">
+            <code className="text-sm text-marketing-link font-mono">taskmaster activate &lt;license-key&gt;</code>
+            <p className="text-sm text-marketing-muted mt-1">Associate a license key with your logged-in account (verify ownership with the server).</p>
+          </div>
+          <div className="marketing-panel border rounded-xl p-4">
+            <code className="text-sm text-marketing-link font-mono">taskmaster sync-keys [--force]</code>
+            <p className="text-sm text-marketing-muted mt-1">Pull API keys and model config from the TaskMaster dashboard; hosted keys on Pro/Enterprise when eligible.</p>
+          </div>
+        </div>
 
         <h3 className="text-xl font-semibold mb-4">Project Setup</h3>
         <div className="space-y-3 mb-8">
@@ -1353,7 +1403,7 @@ taskmaster sync-keys
             <p className="text-sm text-marketing-muted mt-1">Initialize TaskMaster AI in the current project. Creates .taskmaster-ai directory with config and tasks files.</p>
           </div>
           <div className="marketing-panel border rounded-xl p-4">
-            <code className="text-sm text-marketing-link font-mono">taskmaster plan &lt;file&gt; [-n, --num-tasks] [-f, --force] [--append] [--ask]</code>
+            <code className="text-sm text-marketing-link font-mono">taskmaster plan &lt;file&gt; [-n, --num-tasks] [-f, --force] [--append] [--research]</code>
             <p className="text-sm text-marketing-muted mt-1">Parse a PRD file to generate tasks. Use --append to add to existing tasks, --force to overwrite.</p>
           </div>
           <div className="marketing-panel border rounded-xl p-4">
@@ -1381,7 +1431,7 @@ taskmaster sync-keys
         <h3 className="text-xl font-semibold mb-4">Task Management</h3>
         <div className="space-y-3 mb-8">
           <div className="marketing-panel border rounded-xl p-4">
-            <code className="text-sm text-marketing-link font-mono">taskmaster new -p, --prompt &lt;text&gt; [-d, --dependencies] [--priority] [--ask]</code>
+            <code className="text-sm text-marketing-link font-mono">taskmaster new -p, --prompt &lt;text&gt; [-d, --dependencies] [--priority] [--research]</code>
             <p className="text-sm text-marketing-muted mt-1">Create a new task using AI. Specify dependencies and priority level.</p>
           </div>
           <div className="marketing-panel border rounded-xl p-4">
@@ -1389,15 +1439,15 @@ taskmaster sync-keys
             <p className="text-sm text-marketing-muted mt-1">Update task status (pending, in-progress, done, blocked, cancelled, deferred). Supports comma-separated IDs.</p>
           </div>
           <div className="marketing-panel border rounded-xl p-4">
-            <code className="text-sm text-marketing-link font-mono">taskmaster log -i, --id &lt;id&gt; -p, --prompt &lt;notes&gt; [--ask]</code>
+            <code className="text-sm text-marketing-link font-mono">taskmaster log -i, --id &lt;id&gt; -p, --prompt &lt;notes&gt; [--research]</code>
             <p className="text-sm text-marketing-muted mt-1">Append timestamped notes to a step (e.g., 1.2). Useful for tracking implementation progress.</p>
           </div>
           <div className="marketing-panel border rounded-xl p-4">
-            <code className="text-sm text-marketing-link font-mono">taskmaster edit -i, --id &lt;id&gt; -p, --prompt &lt;text&gt; [--append] [--ask]</code>
+            <code className="text-sm text-marketing-link font-mono">taskmaster edit -i, --id &lt;id&gt; -p, --prompt &lt;text&gt; [--append] [--research]</code>
             <p className="text-sm text-marketing-muted mt-1">Update a task with new information. Use --append to add notes instead of regenerating.</p>
           </div>
           <div className="marketing-panel border rounded-xl p-4">
-            <code className="text-sm text-marketing-link font-mono">taskmaster update --from &lt;id&gt; -p, --prompt &lt;changes&gt; [--ask]</code>
+            <code className="text-sm text-marketing-link font-mono">taskmaster update --from &lt;id&gt; -p, --prompt &lt;changes&gt; [--research]</code>
             <p className="text-sm text-marketing-muted mt-1">Batch update multiple tasks from a specific ID onwards with new context.</p>
           </div>
           <div className="marketing-panel border rounded-xl p-4">
@@ -1409,15 +1459,15 @@ taskmaster sync-keys
         <h3 className="text-xl font-semibold mb-4">Task Expansion</h3>
         <div className="space-y-3 mb-8">
           <div className="marketing-panel border rounded-xl p-4">
-            <code className="text-sm text-marketing-link font-mono">taskmaster breakdown -i, --id &lt;id&gt; [-n, --num] [-p, --prompt] [--force] [--ask]</code>
+            <code className="text-sm text-marketing-link font-mono">taskmaster breakdown -i, --id &lt;id&gt; [-n, --num] [-p, --prompt] [--force] [--research]</code>
             <p className="text-sm text-marketing-muted mt-1">Break down a task into steps using AI. Use --force to replace existing steps.</p>
           </div>
           <div className="marketing-panel border rounded-xl p-4">
-            <code className="text-sm text-marketing-link font-mono">taskmaster breakdown --all [-n, --num] [-p, --prompt] [--force] [--ask]</code>
+            <code className="text-sm text-marketing-link font-mono">taskmaster breakdown --all [-n, --num] [-p, --prompt] [--force] [--research]</code>
             <p className="text-sm text-marketing-muted mt-1">Break down all pending tasks at once that don't have steps.</p>
           </div>
           <div className="marketing-panel border rounded-xl p-4">
-            <code className="text-sm text-marketing-link font-mono">taskmaster assess [--ask]</code>
+            <code className="text-sm text-marketing-link font-mono">taskmaster assess [--research]</code>
             <p className="text-sm text-marketing-muted mt-1">Analyze task complexity and generate recommendations for step counts. Saves report to .taskmaster-ai/reports/.</p>
           </div>
           <div className="marketing-panel border rounded-xl p-4">
@@ -1922,7 +1972,7 @@ Deploy and confirm 'Hello World' response.`}
           <p className="text-marketing-muted mb-2"><strong>Example workflow:</strong></p>
           <CodeBlock 
             code={`# Generate the complexity analysis report with ask
-taskmaster assess --ask
+taskmaster assess --research
 
 # Review the report in a readable format
 taskmaster report
@@ -2102,7 +2152,7 @@ taskmaster next`}
         
         <h3 className="text-xl font-semibold mb-4">Configuration File</h3>
         <p className="text-marketing-muted mb-4">
-          TaskMaster stores configuration in <code className="bg-marketing-elevated px-1.5 py-0.5 rounded">.taskmaster-ai-ai/config.json</code>. Use the models command to modify it:
+          TaskMaster stores configuration in <code className="bg-marketing-elevated px-1.5 py-0.5 rounded">.taskmaster-ai/config.json</code>. Use the models command to modify it:
         </p>
         
         <CodeBlock 
@@ -2130,7 +2180,7 @@ taskmaster next`}
     "defaultContext": "main"
   }
 }`}
-          filename=".taskmaster-ai-ai/config.json"
+          filename=".taskmaster-ai/config.json"
           language="json"
         />
 
@@ -2227,7 +2277,7 @@ taskmaster edit --id=5 --prompt="We're now using PostgreSQL instead of MongoDB"
 taskmaster edit --id=5 --prompt="Added migration scripts" --append
 
 # Update with ask for more informed changes
-taskmaster edit --id=5 --prompt="Switching to TypeScript" --ask`}
+taskmaster edit --id=5 --prompt="Switching to TypeScript" --research`}
           filename="Terminal"
         />
 
@@ -2243,7 +2293,7 @@ taskmaster breakdown --id=7 --num=5
 taskmaster breakdown --id=7 --prompt="Focus on error handling and edge cases"
 
 # Force regenerate existing steps
-taskmaster breakdown --id=7 --force --ask`}
+taskmaster breakdown --id=7 --force --research`}
           filename="Terminal"
         />
 
@@ -2266,7 +2316,7 @@ taskmaster new --prompt="Implement user authentication with JWT"
 taskmaster new --prompt="Add rate limiting" --dependencies=3,4 --priority=high
 
 # Use ask model for more informed task creation
-taskmaster new --prompt="Implement caching layer" --ask`}
+taskmaster new --prompt="Implement caching layer" --research`}
           filename="Terminal"
         />
       </>
@@ -2458,7 +2508,7 @@ const next = await mcp.call('autopilot_next', {
 });
 
 // Complete phase
-await mcp.call('autopilot_complete_phase', {
+await mcp.call('autopilot_complete', {
   projectRoot: '/path/to/project',
   testResults: { total: 1, passed: 0, failed: 1, skipped: 0 }
 });
@@ -2525,12 +2575,12 @@ taskmaster autopilot finalize          # Complete workflow, mark task done
           Complete guide for integrating AI agents with TaskMaster's autonomous TDD workflow system.
         </p>
 
-        <h3 className="text-xl font-semibold mb-4">Overview</h3>
+        <h3 id="agent-toc-overview" className="text-xl font-semibold mb-4 scroll-mt-28">Overview</h3>
         <p className="text-marketing-muted mb-4">
           TaskMaster provides a complete TDD workflow orchestration system that enables AI agents to autonomously implement features following strict Test-Driven Development practices. The system manages workflow state, git operations, test validation, and progress tracking.
         </p>
 
-        <h4 className="text-lg font-medium mb-3">Key Features</h4>
+        <h4 id="agent-toc-key-features" className="text-lg font-medium mb-3 scroll-mt-28">Key Features</h4>
         <ul className="text-marketing-muted space-y-1 mb-6">
           <li>• <strong>TDD State Machine:</strong> Enforces RED → GREEN → COMMIT cycle</li>
           <li>• <strong>Git Integration:</strong> Automated branch creation, commits with metadata</li>
@@ -2540,7 +2590,7 @@ taskmaster autopilot finalize          # Complete workflow, mark task done
           <li>• <strong>Dual Interface:</strong> CLI commands and MCP tools for flexibility</li>
         </ul>
 
-        <h3 className="text-xl font-semibold mb-4">Architecture</h3>
+        <h3 id="agent-toc-architecture" className="text-xl font-semibold mb-4 scroll-mt-28">Architecture</h3>
         <CodeBlock 
           code={`┌─────────────────────────────────────────────────────┐
 │                   AI Agent                          │
@@ -2568,12 +2618,12 @@ taskmaster autopilot finalize          # Complete workflow, mark task done
           │ Persists to
           ▼
 ┌────────────────────────────────────────────────────┐
-│  .taskmaster-ai-ai/workflow-state.json                    │
+│  .taskmaster-ai/workflow-state.json                    │
 └────────────────────────────────────────────────────┘`}
           filename="Architecture"
         />
 
-        <h4 className="text-lg font-medium mb-3 mt-6">Component Responsibilities</h4>
+        <h4 id="agent-toc-component-responsibilities" className="text-lg font-medium mb-3 mt-6 scroll-mt-28">Component Responsibilities</h4>
         <div className="grid md:grid-cols-2 gap-3 mb-6">
           <div className="bg-marketing-surface border border-marketing-border rounded-lg p-3">
             <code className="text-sm text-marketing-link font-semibold">WorkflowOrchestrator</code>
@@ -2593,219 +2643,33 @@ taskmaster autopilot finalize          # Complete workflow, mark task done
           </div>
         </div>
 
-        <h3 className="text-xl font-semibold mb-4 mt-12">Workflow Phases</h3>
-        <CodeBlock 
-          code={`PREFLIGHT → BRANCH_SETUP → SUBTASK_LOOP → FINALIZE → COMPLETE
-                                   ↓
-                          RED → GREEN → COMMIT
-                           ↑              ↓
-                           └──────────────┘
-                             (Next Step)`}
-          filename="Phase Flow"
-        />
+        <h3 id="agent-toc-getting-started" className="text-xl font-semibold mb-4 mt-12 scroll-mt-28">Getting Started</h3>
+        <p className="text-marketing-muted mb-4">
+          Autopilot is TaskMaster&apos;s TDD workflow for AI agents. For a short walkthrough, see{' '}
+          <SectionLink sectionId="tdd-quick-start">TDD Quick Start</SectionLink>
+          , then use the CLI or MCP tools in this guide from your agent or terminal.
+        </p>
 
-        <h4 className="text-lg font-medium mb-3 mt-6">Phase Descriptions</h4>
-        <div className="space-y-3 mb-8">
-          <div className="bg-marketing-surface border border-marketing-border rounded-lg p-3">
-            <code className="text-sm text-marketing-link font-semibold">PREFLIGHT</code>
-            <p className="text-sm text-marketing-muted mt-1">Validates task has steps, checks git repository state, verifies preconditions</p>
-          </div>
-          <div className="bg-marketing-surface border border-marketing-border rounded-lg p-3">
-            <code className="text-sm text-marketing-link font-semibold">BRANCH_SETUP</code>
-            <p className="text-sm text-marketing-muted mt-1">Creates workflow branch (task-{'{taskId}'}), checks out new branch, initializes workflow context</p>
-          </div>
-          <div className="bg-marketing-surface border border-marketing-border rounded-lg p-3">
-            <code className="text-sm text-marketing-link font-semibold">SUBTASK_LOOP</code>
-            <p className="text-sm text-marketing-muted mt-1">Main development cycle containing RED → GREEN → COMMIT phases for each step</p>
-            <div className="mt-2 ml-4 space-y-1">
-              <p className="text-xs text-marketing-muted"><strong>RED:</strong> Write failing tests. Action: generate_test. Validation: At least one test must fail.</p>
-              <p className="text-xs text-marketing-muted"><strong>GREEN:</strong> Implement code. Action: implement_code. Validation: All tests must pass.</p>
-              <p className="text-xs text-marketing-muted"><strong>COMMIT:</strong> Create commit. Action: commit_changes. Auto-generates message, advances to next step.</p>
-            </div>
-          </div>
-          <div className="bg-marketing-surface border border-marketing-border rounded-lg p-3">
-            <code className="text-sm text-marketing-link font-semibold">FINALIZE</code>
-            <p className="text-sm text-marketing-muted mt-1">All steps complete, workflow ready for review/merge</p>
-          </div>
-          <div className="bg-marketing-surface border border-marketing-border rounded-lg p-3">
-            <code className="text-sm text-marketing-link font-semibold">COMPLETE</code>
-            <p className="text-sm text-marketing-muted mt-1">Workflow finished, state can be cleaned up</p>
-          </div>
-        </div>
+        <h3 id="agent-toc-prerequisites" className="text-xl font-semibold mb-4 mt-12 scroll-mt-28">Prerequisites</h3>
+        <ul className="text-marketing-muted space-y-1 mb-6 list-disc pl-5">
+          <li>A Git repo with a test command configured</li>
+          <li>A task with steps/subtasks in TaskMaster</li>
+          <li>CLI auth (<code className="bg-marketing-elevated px-1 rounded">tm</code> / <code className="bg-marketing-elevated px-1 rounded">taskmaster</code>) or MCP with <code className="bg-marketing-elevated px-1 rounded">projectRoot</code></li>
+        </ul>
 
-        <h3 className="text-xl font-semibold mb-4 mt-12">Responsibility Matrix</h3>
-        <p className="text-marketing-muted mb-6">Clear division of responsibilities between AI Agent and TaskMaster.</p>
-        
-        <div className="grid md:grid-cols-2 gap-4 mb-8">
-          <div className="marketing-panel border rounded-xl p-4">
-            <h4 className="font-medium text-marketing-link mb-3">AI Agent Responsibilities</h4>
-            <ul className="text-sm text-marketing-muted space-y-1">
-              <li>• Read and understand step requirements</li>
-              <li>• Write test code that validates requirements</li>
-              <li>• Run test suite using project's test command</li>
-              <li>• Parse test output into JSON format</li>
-              <li>• Report results to TaskMaster for validation</li>
-              <li>• Write implementation to satisfy tests</li>
-              <li>• Request commits when GREEN phase complete</li>
-              <li>• Handle errors and retry within attempt limits</li>
-            </ul>
-          </div>
-          <div className="marketing-panel border rounded-xl p-4">
-            <h4 className="font-medium text-marketing-link mb-3">TaskMaster Responsibilities</h4>
-            <ul className="text-sm text-marketing-muted space-y-1">
-              <li>• Manage workflow state machine</li>
-              <li>• Enforce TDD rules (RED must fail, GREEN must pass)</li>
-              <li>• Track progress (completed, current, attempts)</li>
-              <li>• Create Git commits with enhanced messages</li>
-              <li>• Manage Git branches and repository safety</li>
-              <li>• Validate transitions between phases</li>
-              <li>• Persist state for resumability</li>
-              <li>• Generate reports and activity logs</li>
-            </ul>
-          </div>
-        </div>
+        <h3 id="agent-toc-quick-start-section" className="text-xl font-semibold mb-4 mt-12 scroll-mt-28">Quick Start</h3>
+        <p className="text-marketing-muted mb-4">
+          Run <code className="bg-marketing-elevated px-1 rounded">tm autopilot start &lt;taskId&gt;</code>, then <code className="bg-marketing-elevated px-1 rounded">tm autopilot next</code> in a loop, completing RED → GREEN → COMMIT until done. More detail:{' '}
+          <SectionLink sectionId="tdd-quick-start">TDD Quick Start</SectionLink>.
+        </p>
 
-        <h3 className="text-xl font-semibold mb-4 mt-12">Complete TDD Cycle Example</h3>
-        <p className="text-marketing-muted mb-6">A complete walkthrough of implementing a feature using the TDD workflow:</p>
-
-        <Accordion title="1. Start Workflow" defaultOpen>
-          <CodeBlock 
-            code={`$ taskmaster autopilot start 7 --json
-{
-  "success": true,
-  "taskId": "7",
-  "branchName": "task-7",
-  "tddPhase": "RED",
-  "currentSubtask": {
-    "id": "1",
-    "title": "Implement start command",
-    "status": "in-progress"
-  },
-  "nextAction": "generate_test"
-}`}
-            filename="Terminal"
-          />
-        </Accordion>
-
-        <Accordion title="2. Get Next Action">
-          <CodeBlock 
-            code={`$ taskmaster autopilot next --json
-{
-  "action": "generate_test",
-  "actionDescription": "Write a failing test for the current step",
-  "tddPhase": "RED",
-  "currentSubtask": {
-    "id": "1",
-    "title": "Implement start command"
-  }
-}`}
-            filename="Terminal"
-          />
-        </Accordion>
-
-        <Accordion title="3. Write Failing Test (AI Agent)">
-          <p className="text-marketing-muted mb-3">AI Agent creates the test file:</p>
-          <CodeBlock 
-            code={`import { describe, it, expect } from 'vitest';
-import { StartCommand } from '../src/commands/start.js';
-
-describe('StartCommand', () => {
-  it('should initialize workflow and create branch', async () => {
-    const command = new StartCommand();
-    const result = await command.execute({ taskId: '7' });
-    expect(result.success).toBe(true);
-    expect(result.branchName).toBe('task-7');
-  });
-});`}
-            filename="tests/start.test.ts"
-            language="typescript"
-          />
-        </Accordion>
-
-        <Accordion title="4. Run Tests & Complete RED Phase">
-          <p className="text-marketing-muted mb-3">Run tests (should fail), then report results:</p>
-          <CodeBlock 
-            code={`# Run tests
-$ npm test
-# Output: 1 test failed (expected)
-
-# Report results to TaskMaster
-$ taskmaster autopilot complete --results '{"total":1,"passed":0,"failed":1,"skipped":0}' --json
-{
-  "success": true,
-  "message": "Completed RED phase",
-  "previousPhase": "RED",
-  "currentPhase": "GREEN",
-  "nextAction": "implement_code"
-}`}
-            filename="Terminal"
-          />
-        </Accordion>
-
-        <Accordion title="5. Implement Code (AI Agent)">
-          <p className="text-marketing-muted mb-3">AI Agent creates implementation:</p>
-          <CodeBlock 
-            code={`export class StartCommand {
-  async execute(options: { taskId: string }) {
-    // Implementation that makes test pass
-    return {
-      success: true,
-      branchName: \`task-\${options.taskId}\`
-    };
-  }
-}`}
-            filename="src/commands/start.ts"
-            language="typescript"
-          />
-        </Accordion>
-
-        <Accordion title="6. Run Tests & Complete GREEN Phase">
-          <p className="text-marketing-muted mb-3">Run tests (should pass), then report results:</p>
-          <CodeBlock 
-            code={`# Run tests
-$ npm test
-# Output: 1 test passed
-
-# Report results to TaskMaster
-$ taskmaster autopilot complete --results '{"total":1,"passed":1,"failed":0,"skipped":0}' --json
-{
-  "success": true,
-  "previousPhase": "GREEN",
-  "currentPhase": "COMMIT",
-  "nextAction": "commit_changes"
-}`}
-            filename="Terminal"
-          />
-        </Accordion>
-
-        <Accordion title="7. Commit Changes">
-          <CodeBlock 
-            code={`$ taskmaster autopilot commit --json
-{
-  "success": true,
-  "commit": {
-    "hash": "abc123",
-    "message": "feat(autopilot): implement start command (Task 7.1)\\n\\n..."
-  },
-  "subtaskCompleted": "1",
-  "currentSubtask": {
-    "id": "2",
-    "title": "Implement resume command"
-  },
-  "nextAction": "generate_test"
-}`}
-            filename="Terminal"
-          />
-          <p className="text-marketing-muted mt-3">Workflow automatically advances to next step. Repeat the cycle!</p>
-        </Accordion>
-
-        <h3 className="text-xl font-semibold mb-4 mt-12">CLI Commands</h3>
+        <h3 id="agent-toc-cli-commands" className="text-xl font-semibold mb-4 mt-12 scroll-mt-28">CLI Commands</h3>
         <p className="text-marketing-muted mb-6">
-          All commands support <code className="bg-marketing-elevated px-1.5 py-0.5 rounded">--json</code> flag for machine-readable output. 
+          All commands support <code className="bg-marketing-elevated px-1.5 py-0.5 rounded">--json</code> flag for machine-readable output.
           Use <code className="bg-marketing-elevated px-1.5 py-0.5 rounded">taskmaster</code> or the shorter alias <code className="bg-marketing-elevated px-1.5 py-0.5 rounded">tm</code>.
         </p>
-        
-        <Accordion title="taskmaster autopilot start <taskId>">
+
+        <Accordion id="agent-toc-cli-start" title="tm autopilot start <taskId>">
           <p className="text-marketing-muted mb-3">Initialize a new TDD workflow for a task.</p>
           <p className="text-sm text-marketing-muted mb-2"><strong>Options:</strong></p>
           <ul className="text-sm text-marketing-muted space-y-1 mb-3">
@@ -2839,7 +2703,7 @@ $ taskmaster autopilot complete --results '{"total":1,"passed":1,"failed":0,"ski
           />
         </Accordion>
 
-        <Accordion title="taskmaster autopilot resume">
+        <Accordion id="agent-toc-cli-resume" title="tm autopilot resume">
           <p className="text-marketing-muted mb-3">Resume a previously started workflow from saved state.</p>
           <CodeBlock 
             code={`$ taskmaster autopilot resume --json
@@ -2859,7 +2723,7 @@ $ taskmaster autopilot complete --results '{"total":1,"passed":1,"failed":0,"ski
           />
         </Accordion>
 
-        <Accordion title="taskmaster autopilot next">
+        <Accordion id="agent-toc-cli-next" title="tm autopilot next">
           <p className="text-marketing-muted mb-3">Get the next action to perform with detailed context.</p>
           <CodeBlock 
             code={`$ taskmaster autopilot next --json
@@ -2893,7 +2757,7 @@ $ taskmaster autopilot complete --results '{"total":1,"passed":1,"failed":0,"ski
           />
         </Accordion>
 
-        <Accordion title="taskmaster autopilot status">
+        <Accordion id="agent-toc-cli-status" title="tm autopilot status">
           <p className="text-marketing-muted mb-3">Get comprehensive workflow progress and state information.</p>
           <CodeBlock 
             code={`$ taskmaster autopilot status --json
@@ -2926,7 +2790,7 @@ $ taskmaster autopilot complete --results '{"total":1,"passed":1,"failed":0,"ski
           />
         </Accordion>
 
-        <Accordion title="taskmaster autopilot complete">
+        <Accordion id="agent-toc-cli-complete" title="tm autopilot complete">
           <p className="text-marketing-muted mb-3">Complete the current TDD phase with test result validation.</p>
           <p className="text-sm text-marketing-muted mb-2"><strong>Options:</strong></p>
           <ul className="text-sm text-marketing-muted space-y-1 mb-3">
@@ -2951,7 +2815,7 @@ $ taskmaster autopilot complete --results '{"total":1,"passed":1,"failed":0,"ski
           </ul>
         </Accordion>
 
-        <Accordion title="taskmaster autopilot commit">
+        <Accordion id="agent-toc-cli-commit" title="tm autopilot commit">
           <p className="text-marketing-muted mb-3">Create a git commit with enhanced message generation.</p>
           <p className="text-sm text-marketing-muted mb-2"><strong>Options:</strong></p>
           <ul className="text-sm text-marketing-muted space-y-1 mb-3">
@@ -2979,7 +2843,7 @@ $ taskmaster autopilot complete --results '{"total":1,"passed":1,"failed":0,"ski
           />
         </Accordion>
 
-        <Accordion title="taskmaster autopilot finalize">
+        <Accordion id="agent-toc-cli-finalize" title="tm autopilot finalize">
           <p className="text-marketing-muted mb-3">Finalize the workflow after all steps are complete.</p>
           <CodeBlock 
             code={`$ taskmaster autopilot finalize --json
@@ -2992,7 +2856,7 @@ $ taskmaster autopilot complete --results '{"total":1,"passed":1,"failed":0,"ski
           />
         </Accordion>
 
-        <Accordion title="taskmaster autopilot abort">
+        <Accordion id="agent-toc-cli-abort" title="tm autopilot abort">
           <p className="text-marketing-muted mb-3">Abort the workflow and clean up state (preserves git branch and code).</p>
           <p className="text-sm text-marketing-muted mb-2"><strong>Options:</strong></p>
           <ul className="text-sm text-marketing-muted space-y-1 mb-3">
@@ -3011,10 +2875,10 @@ $ taskmaster autopilot complete --results '{"total":1,"passed":1,"failed":0,"ski
           />
         </Accordion>
 
-        <h3 className="text-xl font-semibold mb-4 mt-12">MCP Tools</h3>
+        <h3 id="agent-toc-mcp-tools" className="text-xl font-semibold mb-4 mt-12 scroll-mt-28">MCP Tools</h3>
         <p className="text-marketing-muted mb-6">MCP tools provide the same functionality as CLI commands for programmatic integration.</p>
 
-        <Accordion title="autopilot_start">
+        <Accordion id="agent-toc-mcp-start" title="autopilot_start">
           <p className="text-marketing-muted mb-3">Initialize a new TDD workflow for a task.</p>
           <p className="text-sm text-marketing-muted mb-2"><strong>Parameters:</strong></p>
           <CodeBlock 
@@ -3050,7 +2914,11 @@ $ taskmaster autopilot complete --results '{"total":1,"passed":1,"failed":0,"ski
           />
         </Accordion>
 
-        <Accordion title="autopilot_next">
+        <Accordion id="agent-toc-mcp-resume" title="autopilot_resume">
+          <p className="text-marketing-muted mb-3">Resume a previously started workflow. Parameters: <code className="bg-marketing-elevated px-1 rounded">projectRoot</code> (required).</p>
+        </Accordion>
+
+        <Accordion id="agent-toc-mcp-next" title="autopilot_next">
           <p className="text-marketing-muted mb-3">Get the next action to perform with detailed context.</p>
           <p className="text-sm text-marketing-muted mb-2"><strong>Parameters:</strong></p>
           <CodeBlock 
@@ -3082,7 +2950,11 @@ $ taskmaster autopilot complete --results '{"total":1,"passed":1,"failed":0,"ski
           />
         </Accordion>
 
-        <Accordion title="autopilot_complete_phase">
+        <Accordion id="agent-toc-mcp-status" title="autopilot_status">
+          <p className="text-marketing-muted mb-3">Get workflow status. Parameters: <code className="bg-marketing-elevated px-1 rounded">projectRoot</code> (required).</p>
+        </Accordion>
+
+        <Accordion id="agent-toc-mcp-complete" title="autopilot_complete">
           <p className="text-marketing-muted mb-3">Complete the current TDD phase with test result validation.</p>
           <p className="text-sm text-marketing-muted mb-2"><strong>Parameters:</strong></p>
           <CodeBlock 
@@ -3100,7 +2972,7 @@ $ taskmaster autopilot complete --results '{"total":1,"passed":1,"failed":0,"ski
           />
         </Accordion>
 
-        <Accordion title="autopilot_commit">
+        <Accordion id="agent-toc-mcp-commit" title="autopilot_commit">
           <p className="text-marketing-muted mb-3">Create a git commit with enhanced message generation.</p>
           <p className="text-sm text-marketing-muted mb-2"><strong>Parameters:</strong></p>
           <CodeBlock 
@@ -3114,15 +2986,234 @@ $ taskmaster autopilot complete --results '{"total":1,"passed":1,"failed":0,"ski
           />
         </Accordion>
 
-        <Accordion title="Other MCP Tools">
-          <ul className="text-marketing-muted space-y-2">
-            <li>• <code className="bg-marketing-elevated px-1 rounded">autopilot_resume</code> - Resume previously started workflow (params: projectRoot)</li>
-            <li>• <code className="bg-marketing-elevated px-1 rounded">autopilot_status</code> - Get workflow status (params: projectRoot)</li>
-            <li>• <code className="bg-marketing-elevated px-1 rounded">autopilot_abort</code> - Abort workflow (params: projectRoot)</li>
-          </ul>
+        <Accordion id="agent-toc-mcp-finalize" title="autopilot_finalize">
+          <p className="text-marketing-muted mb-3">Finalize the workflow after all steps are complete. Parameters: <code className="bg-marketing-elevated px-1 rounded">projectRoot</code> (required).</p>
         </Accordion>
 
-        <h3 className="text-xl font-semibold mb-6 mt-12">MCP Integration Example</h3>
+        <Accordion id="agent-toc-mcp-abort" title="autopilot_abort">
+          <p className="text-marketing-muted mb-3">Abort the workflow. Parameters: <code className="bg-marketing-elevated px-1 rounded">projectRoot</code> (required).</p>
+        </Accordion>
+
+        <h3 id="agent-toc-workflow-phases" className="text-xl font-semibold mb-4 mt-12 scroll-mt-28">Workflow Phases</h3>
+        <p className="text-marketing-muted mb-4">High-level lifecycle and inner RED → GREEN → COMMIT loop.</p>
+        <h4 id="agent-toc-phase-diagram" className="text-lg font-medium mb-3 mt-2 scroll-mt-28">Phase Diagram</h4>
+        <CodeBlock 
+          code={`PREFLIGHT → BRANCH_SETUP → SUBTASK_LOOP → FINALIZE → COMPLETE
+                                   ↓
+                          RED → GREEN → COMMIT
+                           ↑              ↓
+                           └──────────────┘
+                             (Next Step)`}
+          filename="Phase Flow"
+        />
+
+        <h4 id="agent-toc-phase-descriptions" className="text-lg font-medium mb-3 mt-6 scroll-mt-28">Phase Descriptions</h4>
+        <div className="space-y-3 mb-8">
+          <div className="bg-marketing-surface border border-marketing-border rounded-lg p-3">
+            <code className="text-sm text-marketing-link font-semibold">PREFLIGHT</code>
+            <p className="text-sm text-marketing-muted mt-1">Validates task has steps, checks git repository state, verifies preconditions</p>
+          </div>
+          <div className="bg-marketing-surface border border-marketing-border rounded-lg p-3">
+            <code className="text-sm text-marketing-link font-semibold">BRANCH_SETUP</code>
+            <p className="text-sm text-marketing-muted mt-1">Creates workflow branch (task-{'{taskId}'}), checks out new branch, initializes workflow context</p>
+          </div>
+          <div className="bg-marketing-surface border border-marketing-border rounded-lg p-3">
+            <code className="text-sm text-marketing-link font-semibold">SUBTASK_LOOP</code>
+            <p className="text-sm text-marketing-muted mt-1">Main development cycle containing RED → GREEN → COMMIT phases for each step</p>
+            <div className="mt-2 ml-4 space-y-1">
+              <p className="text-xs text-marketing-muted"><strong>RED:</strong> Write failing tests. Action: generate_test. Validation: At least one test must fail.</p>
+              <p className="text-xs text-marketing-muted"><strong>GREEN:</strong> Implement code. Action: implement_code. Validation: All tests must pass.</p>
+              <p className="text-xs text-marketing-muted"><strong>COMMIT:</strong> Create commit. Action: commit_changes. Auto-generates message, advances to next step.</p>
+            </div>
+          </div>
+          <div className="bg-marketing-surface border border-marketing-border rounded-lg p-3">
+            <code className="text-sm text-marketing-link font-semibold">FINALIZE</code>
+            <p className="text-sm text-marketing-muted mt-1">All steps complete, workflow ready for review/merge</p>
+          </div>
+          <div className="bg-marketing-surface border border-marketing-border rounded-lg p-3">
+            <code className="text-sm text-marketing-link font-semibold">COMPLETE</code>
+            <p className="text-sm text-marketing-muted mt-1">Workflow finished, state can be cleaned up</p>
+          </div>
+        </div>
+
+        <h3 id="agent-toc-responsibility-matrix" className="text-xl font-semibold mb-4 mt-12 scroll-mt-28">Responsibility Matrix</h3>
+        <p className="text-marketing-muted mb-6">Clear division of responsibilities between AI Agent and TaskMaster.</p>
+        
+        <div className="grid md:grid-cols-2 gap-4 mb-8">
+          <div className="marketing-panel border rounded-xl p-4">
+            <h4 id="agent-toc-ai-agent-resp" className="font-medium text-marketing-link mb-3 scroll-mt-28">AI Agent Responsibilities</h4>
+            <ul className="text-sm text-marketing-muted space-y-1">
+              <li>• Read and understand step requirements</li>
+              <li>• Write test code that validates requirements</li>
+              <li>• Run test suite using project's test command</li>
+              <li>• Parse test output into JSON format</li>
+              <li>• Report results to TaskMaster for validation</li>
+              <li>• Write implementation to satisfy tests</li>
+              <li>• Request commits when GREEN phase complete</li>
+              <li>• Handle errors and retry within attempt limits</li>
+            </ul>
+          </div>
+          <div className="marketing-panel border rounded-xl p-4">
+            <h4 id="agent-toc-taskmaster-resp" className="font-medium text-marketing-link mb-3 scroll-mt-28">TaskMaster Responsibilities</h4>
+            <ul className="text-sm text-marketing-muted space-y-1">
+              <li>• Manage workflow state machine</li>
+              <li>• Enforce TDD rules (RED must fail, GREEN must pass)</li>
+              <li>• Track progress (completed, current, attempts)</li>
+              <li>• Create Git commits with enhanced messages</li>
+              <li>• Manage Git branches and repository safety</li>
+              <li>• Validate transitions between phases</li>
+              <li>• Persist state for resumability</li>
+              <li>• Generate reports and activity logs</li>
+            </ul>
+          </div>
+        </div>
+
+        <h3 id="agent-toc-examples" className="text-xl font-semibold mb-4 mt-12 scroll-mt-28">Examples</h3>
+        <h4 id="agent-toc-complete-tdd-example" className="text-lg font-medium mb-3 scroll-mt-28">Complete TDD Cycle Example</h4>
+        <p className="text-marketing-muted mb-6">A complete walkthrough of implementing a feature using the TDD workflow:</p>
+
+        <Accordion id="agent-toc-ex-step-1" title="1. Start Workflow" defaultOpen>
+          <CodeBlock 
+            code={`$ taskmaster autopilot start 7 --json
+{
+  "success": true,
+  "taskId": "7",
+  "branchName": "task-7",
+  "tddPhase": "RED",
+  "currentSubtask": {
+    "id": "1",
+    "title": "Implement start command",
+    "status": "in-progress"
+  },
+  "nextAction": "generate_test"
+}`}
+            filename="Terminal"
+          />
+        </Accordion>
+
+        <Accordion id="agent-toc-ex-step-2" title="2. Get Next Action">
+          <CodeBlock 
+            code={`$ taskmaster autopilot next --json
+{
+  "action": "generate_test",
+  "actionDescription": "Write a failing test for the current step",
+  "tddPhase": "RED",
+  "currentSubtask": {
+    "id": "1",
+    "title": "Implement start command"
+  }
+}`}
+            filename="Terminal"
+          />
+        </Accordion>
+
+        <Accordion id="agent-toc-ex-step-3" title="3. Write Failing Test">
+          <p className="text-marketing-muted mb-3">AI Agent creates the test file:</p>
+          <CodeBlock 
+            code={`import { describe, it, expect } from 'vitest';
+import { StartCommand } from '../src/commands/start.js';
+
+describe('StartCommand', () => {
+  it('should initialize workflow and create branch', async () => {
+    const command = new StartCommand();
+    const result = await command.execute({ taskId: '7' });
+    expect(result.success).toBe(true);
+    expect(result.branchName).toBe('task-7');
+  });
+});`}
+            filename="tests/start.test.ts"
+            language="typescript"
+          />
+        </Accordion>
+
+        <Accordion id="agent-toc-ex-step-4" title="4. Run Tests (Should Fail)">
+          <p className="text-marketing-muted mb-3">Run tests — they should fail until implementation exists:</p>
+          <CodeBlock 
+            code={`# Run tests
+$ npm test
+# Output: 1 test failed (expected)`}
+            filename="Terminal"
+          />
+        </Accordion>
+
+        <Accordion id="agent-toc-ex-step-5" title="5. Complete RED Phase">
+          <p className="text-marketing-muted mb-3">Report results to TaskMaster to complete RED and move to GREEN:</p>
+          <CodeBlock 
+            code={`$ taskmaster autopilot complete --results '{"total":1,"passed":0,"failed":1,"skipped":0}' --json
+{
+  "success": true,
+  "message": "Completed RED phase",
+  "previousPhase": "RED",
+  "currentPhase": "GREEN",
+  "nextAction": "implement_code"
+}`}
+            filename="Terminal"
+          />
+        </Accordion>
+
+        <Accordion id="agent-toc-ex-step-6" title="6. Implement Code">
+          <p className="text-marketing-muted mb-3">AI Agent creates implementation:</p>
+          <CodeBlock 
+            code={`export class StartCommand {
+  async execute(options: { taskId: string }) {
+    // Implementation that makes test pass
+    return {
+      success: true,
+      branchName: \`task-\${options.taskId}\`
+    };
+  }
+}`}
+            filename="src/commands/start.ts"
+            language="typescript"
+          />
+        </Accordion>
+
+        <Accordion id="agent-toc-ex-step-7" title="7. Run Tests (Should Pass)">
+          <p className="text-marketing-muted mb-3">Run tests — they should pass after implementation:</p>
+          <CodeBlock 
+            code={`# Run tests
+$ npm test
+# Output: 1 test passed`}
+            filename="Terminal"
+          />
+        </Accordion>
+
+        <Accordion id="agent-toc-ex-step-8" title="8. Complete GREEN Phase">
+          <p className="text-marketing-muted mb-3">Report results to complete GREEN and move to commit:</p>
+          <CodeBlock 
+            code={`$ taskmaster autopilot complete --results '{"total":1,"passed":1,"failed":0,"skipped":0}' --json
+{
+  "success": true,
+  "previousPhase": "GREEN",
+  "currentPhase": "COMMIT",
+  "nextAction": "commit_changes"
+}`}
+            filename="Terminal"
+          />
+        </Accordion>
+
+        <Accordion id="agent-toc-ex-step-9" title="9. Commit Changes">
+          <CodeBlock 
+            code={`$ taskmaster autopilot commit --json
+{
+  "success": true,
+  "commit": {
+    "hash": "abc123",
+    "message": "feat(autopilot): implement start command (Task 7.1)\\n\\n..."
+  },
+  "subtaskCompleted": "1",
+  "currentSubtask": {
+    "id": "2",
+    "title": "Implement resume command"
+  },
+  "nextAction": "generate_test"
+}`}
+            filename="Terminal"
+          />
+          <p className="text-marketing-muted mt-3">Workflow automatically advances to next step. Repeat the cycle!</p>
+        </Accordion>
+
+        <h3 id="agent-toc-mcp-integration-example" className="text-xl font-semibold mb-6 mt-12 scroll-mt-28">MCP Integration Example</h3>
         <CodeBlock 
           code={`// AI Agent using MCP tools
 async function implementTask(taskId: string) {
@@ -3149,7 +3240,7 @@ async function implementTask(taskId: string) {
       const results = await runTests();
 
       // Complete RED phase
-      await mcp.call('autopilot_complete_phase', {
+      await mcp.call('autopilot_complete', {
         projectRoot: '/path/to/project',
         testResults: results
       });
@@ -3163,7 +3254,7 @@ async function implementTask(taskId: string) {
       const results = await runTests();
 
       // Complete GREEN phase
-      await mcp.call('autopilot_complete_phase', {
+      await mcp.call('autopilot_complete', {
         projectRoot: '/path/to/project',
         testResults: results
       });
@@ -3186,11 +3277,11 @@ async function implementTask(taskId: string) {
           language="javascript"
         />
 
-        <h3 className="text-xl font-semibold mb-6 mt-12">Error Handling</h3>
+        <h3 id="agent-toc-error-handling" className="text-xl font-semibold mb-6 mt-12 scroll-mt-28">Error Handling</h3>
 
-        <Accordion title="Common Errors and Solutions" defaultOpen>
+        <Accordion id="agent-toc-common-errors" title="Common Errors and Solutions" defaultOpen>
           <div className="space-y-4">
-            <div className="bg-marketing-surface border border-marketing-border rounded-lg p-3">
+            <div id="agent-toc-err-workflow-exists" className="bg-marketing-surface border border-marketing-border rounded-lg p-3 scroll-mt-28">
               <p className="font-medium text-marketing-link mb-1">Workflow Already Exists</p>
               <CodeBlock 
                 code={`{
@@ -3202,7 +3293,7 @@ async function implementTask(taskId: string) {
               />
               <p className="text-sm text-marketing-muted mt-2"><strong>Solution:</strong> Use <code className="bg-marketing-elevated px-1 rounded">taskmaster autopilot resume</code> or <code className="bg-marketing-elevated px-1 rounded">--force</code> flag.</p>
             </div>
-            <div className="bg-marketing-surface border border-marketing-border rounded-lg p-3">
+            <div id="agent-toc-err-red-failed" className="bg-marketing-surface border border-marketing-border rounded-lg p-3 scroll-mt-28">
               <p className="font-medium text-marketing-link mb-1">RED Phase Validation Failed</p>
               <CodeBlock 
                 code={`{
@@ -3216,7 +3307,7 @@ async function implementTask(taskId: string) {
               />
               <p className="text-sm text-marketing-muted mt-2"><strong>Solution:</strong> The test isn't actually testing the new feature. Write a test that fails until the feature is implemented.</p>
             </div>
-            <div className="bg-marketing-surface border border-marketing-border rounded-lg p-3">
+            <div id="agent-toc-err-green-failed" className="bg-marketing-surface border border-marketing-border rounded-lg p-3 scroll-mt-28">
               <p className="font-medium text-marketing-link mb-1">GREEN Phase Validation Failed</p>
               <CodeBlock 
                 code={`{
@@ -3230,19 +3321,19 @@ async function implementTask(taskId: string) {
               />
               <p className="text-sm text-marketing-muted mt-2"><strong>Solution:</strong> Debug failing test and fix implementation.</p>
             </div>
-            <div className="bg-marketing-surface border border-marketing-border rounded-lg p-3">
+            <div id="agent-toc-err-no-staged" className="bg-marketing-surface border border-marketing-border rounded-lg p-3 scroll-mt-28">
               <p className="font-medium text-marketing-link mb-1">No Staged Changes</p>
               <p className="text-sm text-marketing-muted"><strong>Solution:</strong> Ensure you've created/modified files before committing.</p>
             </div>
-            <div className="bg-marketing-surface border border-marketing-border rounded-lg p-3">
+            <div id="agent-toc-err-git-dirty" className="bg-marketing-surface border border-marketing-border rounded-lg p-3 scroll-mt-28">
               <p className="font-medium text-marketing-link mb-1">Git Working Tree Not Clean</p>
               <p className="text-sm text-marketing-muted"><strong>Solution:</strong> Commit or stash changes before starting workflow: <code className="bg-marketing-elevated px-1 rounded">git status && git add . && git commit -m "chore: save work"</code></p>
             </div>
           </div>
         </Accordion>
 
-        <Accordion title="Error Recovery Patterns">
-          <p className="text-marketing-muted mb-3"><strong>Retry Pattern:</strong></p>
+        <Accordion id="agent-toc-error-recovery" title="Error Recovery Patterns">
+          <h4 id="agent-toc-retry-pattern" className="text-base font-semibold text-marketing-text mb-2 scroll-mt-28">Retry Pattern</h4>
           <CodeBlock 
             code={`async function withRetry<T>(
   fn: () => Promise<T>,
@@ -3268,11 +3359,11 @@ const results = await withRetry(async () => {
             filename="Retry Pattern"
             language="typescript"
           />
-          <p className="text-marketing-muted mt-4 mb-3"><strong>Graceful Degradation:</strong></p>
+          <h4 id="agent-toc-graceful-degradation" className="text-base font-semibold text-marketing-text mt-6 mb-2 scroll-mt-28">Graceful Degradation</h4>
           <CodeBlock 
             code={`async function completePhase(projectRoot: string, results: TestResults) {
   try {
-    return await mcp.call('autopilot_complete_phase', {
+    return await mcp.call('autopilot_complete', {
       projectRoot,
       testResults: results
     });
@@ -3301,13 +3392,13 @@ const results = await withRetry(async () => {
           />
         </Accordion>
 
-        <h3 className="text-xl font-semibold mb-6 mt-12">Troubleshooting</h3>
+        <h3 id="agent-toc-troubleshooting" className="text-xl font-semibold mb-6 mt-12 scroll-mt-28">Troubleshooting</h3>
 
-        <Accordion title="Workflow State Issues">
+        <Accordion id="agent-toc-trouble-state" title="Workflow State Issues">
           <p className="text-marketing-muted mb-2"><strong>Problem:</strong> State file corrupted or inconsistent</p>
           <CodeBlock 
             code={`# Check state file
-cat .taskmaster-ai-ai/workflow-state.json
+cat .taskmaster-ai/workflow-state.json
 
 # If corrupted, abort and restart
 taskmaster autopilot abort --force
@@ -3316,7 +3407,7 @@ taskmaster autopilot start 7`}
           />
         </Accordion>
 
-        <Accordion title="Test Results Parsing">
+        <Accordion id="agent-toc-trouble-parsing" title="Test Results Parsing">
           <p className="text-marketing-muted mb-2"><strong>Problem:</strong> Test output format not recognized</p>
           <p className="text-sm text-marketing-muted mb-2"><strong>Solution:</strong> Ensure test results JSON has required fields:</p>
           <CodeBlock 
@@ -3331,7 +3422,7 @@ taskmaster autopilot start 7`}
           />
         </Accordion>
 
-        <Accordion title="Branch Conflicts">
+        <Accordion id="agent-toc-trouble-branch" title="Branch Conflicts">
           <p className="text-marketing-muted mb-2"><strong>Problem:</strong> Workflow branch already exists</p>
           <CodeBlock 
             code={`# Check branches
@@ -3346,7 +3437,7 @@ taskmaster autopilot start 7`}
           />
         </Accordion>
 
-        <Accordion title="Permission Issues">
+        <Accordion id="agent-toc-trouble-perms" title="Permission Issues">
           <p className="text-marketing-muted mb-2"><strong>Problem:</strong> Cannot write to .taskmaster-ai directory</p>
           <CodeBlock 
             code={`# Check directory permissions
@@ -3358,31 +3449,36 @@ chmod -R u+w .taskmaster-ai/`}
           />
         </Accordion>
 
-        <h3 className="text-xl font-semibold mb-4 mt-12">Working with AI Agents</h3>
+        <Accordion id="agent-toc-trouble-persist" title="State Persistence Failures">
+          <p className="text-marketing-muted mb-2"><strong>Problem:</strong> Workflow state not saving or loading correctly.</p>
+          <p className="text-sm text-marketing-muted mb-2"><strong>Try:</strong> Confirm <code className="bg-marketing-elevated px-1 rounded">.taskmaster-ai/workflow-state.json</code> is writable, disk is not full, and only one process mutates workflow state at a time. Use <code className="bg-marketing-elevated px-1 rounded">tm autopilot status</code> to verify.</p>
+        </Accordion>
+
+        <h3 id="agent-toc-working-with-agents" className="text-xl font-semibold mb-4 mt-12 scroll-mt-28">Working with AI Agents</h3>
         <p className="text-marketing-muted mb-6">Example prompts for AI agents (Claude Code, Cursor, etc.):</p>
         
         <div className="space-y-4">
-          <div className="marketing-panel border rounded-xl p-4">
+          <div id="agent-toc-wa-starting" className="marketing-panel border rounded-xl p-4 scroll-mt-28">
             <p className="text-sm font-medium text-marketing-link mb-2">Starting a Task</p>
             <p className="text-sm text-marketing-muted italic">"I want to implement Task 7 using TDD workflow. Please: 1) Start the autopilot workflow, 2) Show me the first step to implement, 3) Begin the RED-GREEN-COMMIT cycle"</p>
           </div>
-          <div className="marketing-panel border rounded-xl p-4">
+          <div id="agent-toc-wa-red" className="marketing-panel border rounded-xl p-4 scroll-mt-28">
             <p className="text-sm font-medium text-marketing-link mb-2">RED Phase - Writing Failing Tests</p>
             <p className="text-sm text-marketing-muted italic">"We're in RED phase for step [STEP_TITLE]. Please: 1) Read the step requirements, 2) Write a test that validates the behavior, 3) The test MUST fail because the feature doesn't exist yet, 4) Run the tests and report results to complete the RED phase"</p>
           </div>
-          <div className="marketing-panel border rounded-xl p-4">
+          <div id="agent-toc-wa-green" className="marketing-panel border rounded-xl p-4 scroll-mt-28">
             <p className="text-sm font-medium text-marketing-link mb-2">GREEN Phase - Implementing</p>
             <p className="text-sm text-marketing-muted italic">"We're in GREEN phase. The test is failing with: [ERROR_MESSAGE]. Please: 1) Implement the minimal code to make this test pass, 2) Don't over-engineer or add untested features, 3) Run tests and report results to complete the GREEN phase"</p>
           </div>
-          <div className="marketing-panel border rounded-xl p-4">
+          <div id="agent-toc-wa-errors" className="marketing-panel border rounded-xl p-4 scroll-mt-28">
             <p className="text-sm font-medium text-marketing-link mb-2">Handling Errors</p>
             <p className="text-sm text-marketing-muted italic">"The RED phase validation failed - no test failures detected. Please: 1) Review the test I just wrote, 2) Identify why it's not actually testing new behavior, 3) Rewrite the test to properly fail until the feature is implemented"</p>
           </div>
-          <div className="marketing-panel border rounded-xl p-4">
+          <div id="agent-toc-wa-progress" className="marketing-panel border rounded-xl p-4 scroll-mt-28">
             <p className="text-sm font-medium text-marketing-link mb-2">Checking Progress</p>
             <p className="text-sm text-marketing-muted italic">"What's the current state of the workflow? Please show: - Which subtask we're on, - Current TDD phase (RED/GREEN/COMMIT), - Progress percentage, - Next action required"</p>
           </div>
-          <div className="marketing-panel border rounded-xl p-4">
+          <div id="agent-toc-wa-resume" className="marketing-panel border rounded-xl p-4 scroll-mt-28">
             <p className="text-sm font-medium text-marketing-link mb-2">Resuming Work</p>
             <p className="text-sm text-marketing-muted italic">"I have an in-progress workflow. Please: 1) Resume the autopilot workflow, 2) Show current status, 3) Continue from where we left off"</p>
           </div>
@@ -3394,7 +3490,7 @@ chmod -R u+w .taskmaster-ai/`}
           </TipBox>
         </div>
 
-        <h3 className="text-xl font-semibold mb-4 mt-12">Additional Resources</h3>
+        <h3 id="agent-toc-additional-resources" className="text-xl font-semibold mb-4 mt-12 scroll-mt-28">Additional Resources</h3>
         <ul className="text-marketing-muted space-y-2">
           <li>• <SectionLink sectionId="tdd-quick-start">TDD Quick Start</SectionLink> - Get started in 5 minutes</li>
           <li>• <SectionLink sectionId="cli-commands">CLI Command Reference</SectionLink> - Complete CLI documentation</li>
@@ -3407,16 +3503,16 @@ chmod -R u+w .taskmaster-ai/`}
 }
 
 // Sidebar Item Component
-function SidebarItem({ 
-  item, 
-  activeSection, 
-  setActiveSection,
+function SidebarItem({
+  item,
+  activeSection,
+  onNavigate,
   expandedItems,
-  toggleExpanded
-}: { 
+  toggleExpanded,
+}: {
   item: { id: string; label: string; icon?: any; children?: { id: string; label: string }[] }
   activeSection: string
-  setActiveSection: (id: string) => void
+  onNavigate: (id: string) => void
   expandedItems: Set<string>
   toggleExpanded: (id: string) => void
 }) {
@@ -3426,47 +3522,45 @@ function SidebarItem({
 
   return (
     <div>
-      <button
+      <Link
+        to={toDocHref(item.id)}
         onClick={() => {
           if (hasChildren) {
             toggleExpanded(item.id)
           }
-          setActiveSection(item.id)
-          scrollToTop()
+          onNavigate(item.id)
         }}
         className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
-          isActive 
-            ? 'bg-marketing-link/10 text-marketing-link' 
+          isActive
+            ? 'bg-marketing-link/10 text-marketing-link'
             : 'text-marketing-muted hover:text-marketing-text hover:bg-marketing-surface'
         }`}
       >
         {item.icon && <FontAwesomeIcon icon={item.icon} className="w-3.5 h-3.5" />}
         <span className="flex-1 text-left">{item.label}</span>
         {hasChildren && (
-          <FontAwesomeIcon 
-            icon={isExpanded ? faChevronDown : faChevronRight} 
-            className="w-3 h-3 text-marketing-muted" 
+          <FontAwesomeIcon
+            icon={isExpanded ? faChevronDown : faChevronRight}
+            className="w-3 h-3 text-marketing-muted"
           />
         )}
-      </button>
-      
+      </Link>
+
       {hasChildren && isExpanded && (
         <div className="ml-6 mt-1 space-y-1">
           {item.children!.map((child) => (
-            <button
+            <Link
               key={child.id}
-              onClick={() => {
-                setActiveSection(child.id)
-                scrollToTop()
-              }}
-              className={`w-full text-left px-3 py-1.5 rounded text-sm transition-colors ${
+              to={toDocHref(child.id)}
+              onClick={() => onNavigate(child.id)}
+              className={`block w-full text-left px-3 py-1.5 rounded text-sm transition-colors ${
                 activeSection === child.id
                   ? 'text-marketing-link'
                   : 'text-marketing-muted hover:text-marketing-text'
               }`}
             >
               {child.label}
-            </button>
+            </Link>
           ))}
         </div>
       )}
@@ -3510,7 +3604,7 @@ const docKeywords: Record<string, string[]> = {
   'advanced-configuration': ['models', 'config', 'main model', 'ask model', 'fallback', 'temperature', 'parameters'],
   'advanced-tasks': ['dependencies', 'priority', 'steps', 'subtasks', 'update', 'batch', 'move', 'organization'],
   'mcp-tools': ['mcp', 'tools', 'core', 'standard', 'all', 'list', 'next', 'breakdown', 'plan', 'set_status', 'autopilot'],
-  'cli-commands': ['taskmaster', 'init', 'plan', 'list', 'show', 'next', 'set-status', 'breakdown', 'new', 'edit', 'log', 'update', 'assess', 'report', 'link', 'unlink', 'contexts', 'context', 'switch', 'clone', 'ask', 'usage', 'models', 'sync-keys', 'activate', 'autopilot', 'move', 'add-step', 'remove-step', 'remove-subtask', 'generate', 'check-links', 'fix-links', 'remove-task', 'clear-steps', 'delete-context', 'rename-context', 'cloud sync', 'hosted keys'],
+  'cli-commands': ['taskmaster', 'init', 'plan', 'list', 'show', 'next', 'set-status', 'breakdown', 'new', 'edit', 'log', 'update', 'assess', 'report', 'link', 'unlink', 'contexts', 'context', 'switch', 'clone', 'ask', 'research', 'usage', 'models', 'sync-keys', 'activate', 'login', 'logout', 'whoami', 'autopilot', 'move', 'add-step', 'remove-step', 'remove-subtask', 'generate', 'check-links', 'fix-links', 'remove-task', 'clear-steps', 'delete-context', 'rename-context', 'cloud sync', 'hosted keys'],
   'task-structure': ['id', 'title', 'description', 'status', 'dependencies', 'priority', 'details', 'steps', 'testStrategy', 'tasks.json'],
   'tdd-quick-start': ['tdd', 'test driven', 'autopilot', 'red green refactor', 'testing', 'workflow', 'git branch'],
   'agent-integration': ['ai agent', 'cursor', 'automation', 'mcp tools', 'autopilot_start', 'autopilot_next', 'autopilot_status', 'autopilot_commit'],
@@ -3553,8 +3647,221 @@ const buildSearchIndex = (): SearchResult[] => {
 
 const searchIndex = buildSearchIndex()
 
+/** Manual outline for AI Agent Integration — matches page section order and accordion anchors */
+const AGENT_INTEGRATION_TOC: { id: string; label: string; depth: number }[] = [
+  { id: 'agent-toc-overview', label: 'Overview', depth: 1 },
+  { id: 'agent-toc-key-features', label: 'Key Features', depth: 1 },
+  { id: 'agent-toc-architecture', label: 'Architecture', depth: 1 },
+  { id: 'agent-toc-component-responsibilities', label: 'Component Responsibilities', depth: 1 },
+  { id: 'agent-toc-getting-started', label: 'Getting Started', depth: 1 },
+  { id: 'agent-toc-prerequisites', label: 'Prerequisites', depth: 1 },
+  { id: 'agent-toc-quick-start-section', label: 'Quick Start', depth: 1 },
+  { id: 'agent-toc-cli-commands', label: 'CLI Commands', depth: 1 },
+  { id: 'agent-toc-cli-start', label: 'tm autopilot start <taskId>', depth: 2 },
+  { id: 'agent-toc-cli-resume', label: 'tm autopilot resume', depth: 2 },
+  { id: 'agent-toc-cli-next', label: 'tm autopilot next', depth: 2 },
+  { id: 'agent-toc-cli-status', label: 'tm autopilot status', depth: 2 },
+  { id: 'agent-toc-cli-complete', label: 'tm autopilot complete', depth: 2 },
+  { id: 'agent-toc-cli-commit', label: 'tm autopilot commit', depth: 2 },
+  { id: 'agent-toc-cli-finalize', label: 'tm autopilot finalize', depth: 2 },
+  { id: 'agent-toc-cli-abort', label: 'tm autopilot abort', depth: 2 },
+  { id: 'agent-toc-mcp-tools', label: 'MCP Tools', depth: 1 },
+  { id: 'agent-toc-mcp-start', label: 'autopilot_start', depth: 2 },
+  { id: 'agent-toc-mcp-resume', label: 'autopilot_resume', depth: 2 },
+  { id: 'agent-toc-mcp-next', label: 'autopilot_next', depth: 2 },
+  { id: 'agent-toc-mcp-status', label: 'autopilot_status', depth: 2 },
+  { id: 'agent-toc-mcp-complete', label: 'autopilot_complete', depth: 2 },
+  { id: 'agent-toc-mcp-commit', label: 'autopilot_commit', depth: 2 },
+  { id: 'agent-toc-mcp-finalize', label: 'autopilot_finalize', depth: 2 },
+  { id: 'agent-toc-mcp-abort', label: 'autopilot_abort', depth: 2 },
+  { id: 'agent-toc-workflow-phases', label: 'Workflow Phases', depth: 1 },
+  { id: 'agent-toc-phase-diagram', label: 'Phase Diagram', depth: 1 },
+  { id: 'agent-toc-phase-descriptions', label: 'Phase Descriptions', depth: 1 },
+  { id: 'agent-toc-responsibility-matrix', label: 'Responsibility Matrix', depth: 1 },
+  { id: 'agent-toc-ai-agent-resp', label: 'AI Agent Responsibilities', depth: 1 },
+  { id: 'agent-toc-taskmaster-resp', label: 'TaskMaster Responsibilities', depth: 1 },
+  { id: 'agent-toc-examples', label: 'Examples', depth: 1 },
+  { id: 'agent-toc-complete-tdd-example', label: 'Complete TDD Cycle Example', depth: 2 },
+  { id: 'agent-toc-ex-step-1', label: '1. Start Workflow', depth: 3 },
+  { id: 'agent-toc-ex-step-2', label: '2. Get Next Action', depth: 3 },
+  { id: 'agent-toc-ex-step-3', label: '3. Write Failing Test', depth: 3 },
+  { id: 'agent-toc-ex-step-4', label: '4. Run Tests (Should Fail)', depth: 3 },
+  { id: 'agent-toc-ex-step-5', label: '5. Complete RED Phase', depth: 3 },
+  { id: 'agent-toc-ex-step-6', label: '6. Implement Code', depth: 3 },
+  { id: 'agent-toc-ex-step-7', label: '7. Run Tests (Should Pass)', depth: 3 },
+  { id: 'agent-toc-ex-step-8', label: '8. Complete GREEN Phase', depth: 3 },
+  { id: 'agent-toc-ex-step-9', label: '9. Commit Changes', depth: 3 },
+  { id: 'agent-toc-mcp-integration-example', label: 'MCP Integration Example', depth: 1 },
+  { id: 'agent-toc-error-handling', label: 'Error Handling', depth: 1 },
+  { id: 'agent-toc-common-errors', label: 'Common Errors and Solutions', depth: 2 },
+  { id: 'agent-toc-err-workflow-exists', label: 'Workflow Already Exists', depth: 3 },
+  { id: 'agent-toc-err-red-failed', label: 'RED Phase Validation Failed', depth: 3 },
+  { id: 'agent-toc-err-green-failed', label: 'GREEN Phase Validation Failed', depth: 3 },
+  { id: 'agent-toc-err-no-staged', label: 'No Staged Changes', depth: 3 },
+  { id: 'agent-toc-err-git-dirty', label: 'Git Working Tree Not Clean', depth: 3 },
+  { id: 'agent-toc-error-recovery', label: 'Error Recovery Patterns', depth: 2 },
+  { id: 'agent-toc-retry-pattern', label: 'Retry Pattern', depth: 3 },
+  { id: 'agent-toc-graceful-degradation', label: 'Graceful Degradation', depth: 3 },
+  { id: 'agent-toc-troubleshooting', label: 'Troubleshooting', depth: 1 },
+  { id: 'agent-toc-trouble-state', label: 'Workflow State Issues', depth: 2 },
+  { id: 'agent-toc-trouble-parsing', label: 'Test Results Parsing', depth: 2 },
+  { id: 'agent-toc-trouble-branch', label: 'Branch Conflicts', depth: 2 },
+  { id: 'agent-toc-trouble-perms', label: 'Permission Issues', depth: 2 },
+  { id: 'agent-toc-trouble-persist', label: 'State Persistence Failures', depth: 2 },
+  { id: 'agent-toc-working-with-agents', label: 'Working with AI Agents', depth: 1 },
+  { id: 'agent-toc-wa-starting', label: 'Starting a Task', depth: 2 },
+  { id: 'agent-toc-wa-red', label: 'RED Phase - Writing Failing Tests', depth: 2 },
+  { id: 'agent-toc-wa-green', label: 'GREEN Phase - Implementing', depth: 2 },
+  { id: 'agent-toc-wa-errors', label: 'Handling Errors', depth: 2 },
+  { id: 'agent-toc-wa-progress', label: 'Checking Progress', depth: 2 },
+  { id: 'agent-toc-wa-resume', label: 'Resuming Work', depth: 2 },
+  { id: 'agent-toc-additional-resources', label: 'Additional Resources', depth: 1 },
+]
+
+/** Right-rail "On this page" — manual list for agent-integration; else h2–h5 in document order */
+function useOnThisPageToc(
+  contentRef: RefObject<HTMLDivElement | null>,
+  activeSection: string
+) {
+  const [tocItems, setTocItems] = useState<{ id: string; label: string; depth: number }[]>([])
+  const [activeTocId, setActiveTocId] = useState<string | null>(null)
+
+  useLayoutEffect(() => {
+    const root = contentRef.current
+    if (!root) {
+      setTocItems([])
+      setActiveTocId(null)
+      return
+    }
+    if (activeSection === 'agent-integration') {
+      setTocItems(AGENT_INTEGRATION_TOC)
+      setActiveTocId(AGENT_INTEGRATION_TOC[0]?.id ?? null)
+      return
+    }
+    const headings = Array.from(root.querySelectorAll('h2, h3, h4, h5')) as HTMLElement[]
+    const levels = headings.map((el) => Number.parseInt(el.tagName.slice(1), 10)).filter((n) => n >= 2 && n <= 5)
+    const minLevel = levels.length > 0 ? Math.min(...levels) : 2
+
+    const items: { id: string; label: string; depth: number }[] = []
+    headings.forEach((el, idx) => {
+      const level = Number.parseInt(el.tagName.slice(1), 10)
+      const depth = Math.max(1, Math.min(4, level - minLevel + 1))
+      const id = `doc-toc-${activeSection}-${idx}`
+      el.id = id
+      el.classList.add('scroll-mt-28')
+      const label = el.textContent?.trim() || ''
+      if (label) items.push({ id, label, depth })
+    })
+    setTocItems(items)
+    setActiveTocId(items[0]?.id ?? null)
+  }, [activeSection])
+
+  useEffect(() => {
+    if (tocItems.length === 0) return
+    const elements = tocItems
+      .map((t) => document.getElementById(t.id))
+      .filter((el): el is HTMLElement => !!el)
+    if (elements.length === 0) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting && e.target.id)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)
+        if (visible[0]?.target?.id) {
+          setActiveTocId(visible[0].target.id)
+        }
+      },
+      { root: null, rootMargin: '-64px 0px -55% 0px', threshold: [0, 0.1, 0.25, 0.5, 1] }
+    )
+    elements.forEach((el) => observer.observe(el))
+    return () => observer.disconnect()
+  }, [tocItems])
+
+  const scrollToHeading = useCallback((id: string) => {
+    const el = document.getElementById(id)
+    if (!el) return
+    // ~7rem: clears fixed header + search (top-28) so the section heading stays visible
+    const offsetPx = 112
+    const top = el.getBoundingClientRect().top + window.scrollY - offsetPx
+    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+  }, [])
+
+  return { tocItems, activeTocId, scrollToHeading }
+}
+
+/** Reserves right-rail width so the article column stays the same width on every doc page (xl+). */
+function TocColumnSpacer() {
+  return <div className="hidden w-52 shrink-0 xl:block 2xl:w-60" aria-hidden />
+}
+
+function OnThisPageSidebar({
+  tocItems,
+  activeTocId,
+  onNavigate,
+  assistantOpen,
+}: {
+  tocItems: { id: string; label: string; depth: number }[]
+  activeTocId: string | null
+  onNavigate: (id: string) => void
+  /** When true, hide the fixed TOC panel; column spacer still reserves width so the article does not shift */
+  assistantOpen: boolean
+}) {
+  const showFixedPanel = tocItems.length > 0 && !assistantOpen
+
+  return (
+    <>
+      <TocColumnSpacer />
+      {showFixedPanel && (
+        <aside
+          className="fixed top-28 z-[38] hidden h-[calc(100vh-7rem)] w-52 flex-col bg-marketing-bg pl-0 pr-2 pt-11 lg:pt-14 xl:flex 2xl:w-60 xl:pl-1 xl:pr-3"
+          style={{ right: 'max(1rem, calc((100vw - 72rem) / 2 - 4.75rem))' }}
+        >
+          <nav className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pb-36">
+            <div className="mb-3 flex shrink-0 items-center gap-2 text-xs font-semibold uppercase tracking-wider text-marketing-muted">
+              <FontAwesomeIcon icon={faBars} className="h-3 w-3 opacity-70" />
+              On this page
+            </div>
+            <ul className="space-y-3 pl-0 leading-snug">
+              {tocItems.map((item) => (
+                <li
+                  key={item.id}
+                  className={
+                    item.depth >= 4 ? 'ml-6' : item.depth === 3 ? 'ml-4' : item.depth === 2 ? 'ml-2' : ''
+                  }
+                >
+                  <button
+                    type="button"
+                    onClick={() => onNavigate(item.id)}
+                    className={`w-full text-left text-sm leading-snug transition-colors ${
+                      activeTocId === item.id
+                        ? 'font-medium text-marketing-link'
+                        : 'text-marketing-muted hover:text-marketing-text'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        </aside>
+      )}
+    </>
+  )
+}
+
 export default function Docs() {
-  const [activeSection, setActiveSection] = useState('introduction')
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  const resolvedSectionId = useMemo(
+    () => sectionIdFromPathname(location.pathname),
+    [location.pathname]
+  )
+
+  const activeSection = resolvedSectionId ?? DEFAULT_DOC_SLUG
+
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set(['quick-start']))
   const [searchQuery, setSearchQuery] = useState('')
   const [showMobileMenu, setShowMobileMenu] = useState(false)
@@ -3579,7 +3886,32 @@ export default function Docs() {
   const chatContainerRef = useRef<HTMLDivElement>(null)
   const searchModalInputRef = useRef<HTMLInputElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
-  
+  const { tocItems, activeTocId, scrollToHeading } = useOnThisPageToc(contentRef, activeSection)
+
+  // Expand sidebar group when a child page is active (deep link)
+  useEffect(() => {
+    navigation.forEach((section) => {
+      section.items.forEach((item) => {
+        if (item.children?.some((child) => child.id === activeSection)) {
+          setExpandedItems((prev) => new Set([...prev, item.id]))
+        }
+      })
+    })
+  }, [activeSection])
+
+  useEffect(() => {
+    const doc = docContent[activeSection]
+    if (doc?.title) {
+      document.title = `${doc.title} - TaskMaster`
+    }
+  }, [activeSection])
+
+  useEffect(() => {
+    return () => {
+      document.title = 'TaskMaster AI'
+    }
+  }, [])
+
   // Copy section/all docs state
   const [copiedSection, setCopiedSection] = useState(false)
   const [copiedAllDocs, setCopiedAllDocs] = useState(false)
@@ -3616,7 +3948,7 @@ export default function Docs() {
 
   // Handle selecting a search result
   const handleSelectSearchResult = (result: SearchResult) => {
-    setActiveSection(result.id)
+    navigate(toDocHref(result.id))
     setShowSearchModal(false)
     setSearchQuery('')
     
@@ -4059,21 +4391,6 @@ export default function Docs() {
     })
   }
 
-  // Navigate to a section and expand parent if needed
-  const navigateToSection = (sectionId: string) => {
-    setActiveSection(sectionId)
-    // Expand parent if it's a child item
-    navigation.forEach(section => {
-      section.items.forEach(item => {
-        if (item.children?.some(child => child.id === sectionId)) {
-          setExpandedItems(prev => new Set([...prev, item.id]))
-        }
-      })
-    })
-    // Instantly scroll to top
-    scrollToTop()
-  }
-
   const currentContent = docContent[activeSection] || docContent['introduction']
 
   // Find prev/next for navigation
@@ -4099,11 +4416,15 @@ export default function Docs() {
     return id
   }
 
+  if (resolvedSectionId === null) {
+    return <Navigate to={defaultDocHref()} replace />
+  }
+
   return (
     <div className="marketing-page flex min-h-screen flex-col bg-marketing-bg font-inter text-marketing-text">
-      {/* Frosted top band: docs body scrolls underneath; blur hides text behind nav + search (z below both) */}
+      {/* Solid top band — opaque, no backdrop blur */}
       <div
-        className="pointer-events-none fixed inset-x-0 top-0 z-[30] h-[10.5rem] bg-marketing-bg/75 backdrop-blur-md supports-[backdrop-filter]:bg-marketing-bg/55 sm:h-[11rem]"
+        className="pointer-events-none fixed inset-x-0 top-0 z-[30] h-[10.5rem] bg-marketing-bg sm:h-[11rem]"
         aria-hidden
       />
 
@@ -4120,11 +4441,10 @@ export default function Docs() {
       {/* Search Bar - Centered below navbar (opens modal on click) */}
       <div className="fixed left-1/2 top-28 z-40 w-full max-w-[280px] -translate-x-1/2 px-4 lg:max-w-sm">
         <div className="relative">
-          {/* Blur backdrop - Hidden on mobile */}
-          <div className="absolute -inset-2 -z-10 rounded-full bg-marketing-bg/80 max-lg:bg-marketing-bg max-lg:backdrop-blur-none lg:backdrop-blur-md" />
+          {/* Solid pill behind search — minimal blur */}
           <button
             onClick={() => setShowSearchModal(true)}
-            className="flex w-full items-center gap-3 rounded-full border border-marketing-border bg-marketing-elevated py-2.5 pl-4 pr-4 text-sm text-marketing-muted shadow-lg backdrop-blur-sm transition-colors hover:border-indigo-500/40"
+            className="flex w-full items-center gap-3 rounded-full border border-marketing-border bg-marketing-elevated py-2.5 pl-4 pr-4 text-sm text-marketing-muted shadow-lg transition-colors hover:border-indigo-500/40"
           >
             <FontAwesomeIcon icon={faSearch} className="h-3.5 w-3.5" />
             <span className="flex-1 text-left">Search docs...</span>
@@ -4343,7 +4663,7 @@ export default function Docs() {
                     <button 
                       onClick={() => {
                         setShowContactModal(false)
-                        setActiveSection('contribute')
+                        navigate(toDocHref('contribute'))
                         scrollToTop()
                       }}
                       className="flex items-center gap-4 p-4 bg-marketing-elevated rounded-lg hover:bg-marketing-elevated/80 transition-colors group w-full text-left"
@@ -4370,7 +4690,9 @@ export default function Docs() {
 
       <div className="flex pt-3">
         {/* Left Sidebar */}
-        <aside className={`w-64 border-r border-marketing-border bg-marketing-bg fixed top-0 lg:top-28 bottom-0 overflow-y-auto overscroll-contain z-[110] lg:z-30 transition-transform lg:translate-x-0 left-0 lg:left-[max(0px,calc((100vw-1024px)/2))] ${showMobileMenu ? 'translate-x-0' : '-translate-x-full'}`}>
+        <aside
+          className={`w-64 border-r border-marketing-border bg-marketing-bg fixed top-0 lg:top-28 bottom-0 overflow-y-auto overscroll-contain z-[110] lg:z-30 transition-transform lg:translate-x-0 left-0 lg:left-[max(1rem,calc((100vw-72rem)/2))] ${showMobileMenu ? 'translate-x-0' : '-translate-x-full'}`}
+        >
           <div className="p-4">
             {/* Tab for Documentation */}
             <div className="border-b border-marketing-border mb-4 -mx-4 px-4 pb-3">
@@ -4403,9 +4725,9 @@ export default function Docs() {
                         key={item.id}
                         item={item}
                         activeSection={activeSection}
-                        setActiveSection={(id) => {
-                          setActiveSection(id)
+                        onNavigate={() => {
                           setShowMobileMenu(false)
+                          scrollToTop()
                         }}
                         expandedItems={expandedItems}
                         toggleExpanded={toggleExpanded}
@@ -4426,15 +4748,16 @@ export default function Docs() {
           />
         )}
 
-        {/* Main Content */}
-        <main className="flex-1 lg:ml-[calc(max(0px,(100vw-1024px)/2)+256px)] lg:mr-[max(0px,calc((100vw-1024px)/2))] overflow-x-hidden">
-          <div className="px-4 md:px-8 pt-11 lg:pt-14 pb-32 lg:pb-24 max-w-full overflow-x-hidden">
+        {/* Main Content + On this page */}
+        <main className="flex-1 lg:ml-[calc(16rem+max(1rem,(100vw-72rem)/2))] lg:mr-[max(1rem,calc((100vw-72rem)/2))]">
+          <div className="flex w-full flex-col xl:flex-row xl:items-stretch xl:justify-start xl:gap-2 2xl:gap-3 px-4 sm:px-5 lg:px-0 pt-11 lg:pt-14 pb-32 lg:pb-24 max-w-full">
+            <div className="min-w-0 w-full flex-1 xl:max-w-none lg:pl-5 lg:pr-3 xl:pl-6 xl:pr-3 2xl:pl-7 2xl:pr-4 overflow-x-hidden">
             <motion.div
-              key={activeSection}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }}
-              className="min-w-0"
+              key={location.pathname}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.15 }}
+              className="min-w-0 w-full max-w-[65ch] ml-0 mr-auto"
             >
               {/* Breadcrumb */}
               <p className="text-sm text-marketing-link mb-2">{currentContent.breadcrumb || 'Documentation'}</p>
@@ -4469,11 +4792,9 @@ export default function Docs() {
                 </div>
               </div>
               
-              <NavigationContext.Provider value={{ navigateToSection }}>
-                <div ref={contentRef} data-section-id={activeSection} className="prose prose-invert max-w-full overflow-x-hidden [&_h1]:font-display [&_h2]:font-display [&_h3]:font-display [&_pre]:overflow-x-auto [&_pre]:max-w-full [&_table]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_code]:break-words [&_.marketing-panel]:overflow-hidden [&_.marketing-panel]:max-w-full [&_img]:max-w-full [&>*]:max-w-full">
-                  {currentContent.content}
-                </div>
-              </NavigationContext.Provider>
+              <div ref={contentRef} data-section-id={activeSection} className="prose prose-invert w-full max-w-none overflow-x-hidden [&_h1]:font-display [&_h2]:font-display [&_h3]:font-display [&_pre]:overflow-x-auto [&_pre]:max-w-full [&_table]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_code]:break-words [&_.marketing-panel]:overflow-hidden [&_.marketing-panel]:max-w-full [&_img]:max-w-full [&>*]:max-w-full">
+                {currentContent.content}
+              </div>
 
               {/* Feedback */}
               <div className="flex items-center gap-4 mt-10 pt-6 border-t border-marketing-border">
@@ -4504,8 +4825,9 @@ export default function Docs() {
               <div className="flex items-center justify-between mt-8 pt-6 border-t border-marketing-border">
                 {prevItem ? (
                   <button
+                    type="button"
                     onClick={() => {
-                      setActiveSection(prevItem)
+                      navigate(toDocHref(prevItem))
                       scrollToTop()
                     }}
                     className="flex items-center gap-2 text-marketing-muted hover:text-marketing-text transition-colors"
@@ -4517,8 +4839,9 @@ export default function Docs() {
                 
                 {nextItem && (
                   <button
+                    type="button"
                     onClick={() => {
-                      setActiveSection(nextItem)
+                      navigate(toDocHref(nextItem))
                       scrollToTop()
                     }}
                     className="flex items-center gap-2 text-marketing-muted hover:text-marketing-text transition-colors"
@@ -4529,7 +4852,13 @@ export default function Docs() {
                 )}
               </div>
         </motion.div>
-
+            </div>
+            <OnThisPageSidebar
+              tocItems={tocItems}
+              activeTocId={activeTocId}
+              onNavigate={scrollToHeading}
+              assistantOpen={showAnswerModal}
+            />
           </div>
         </main>
 
@@ -4545,7 +4874,7 @@ export default function Docs() {
               whileHover={{ scale: window.innerWidth >= 1024 ? 1.03 : 1 }}
               whileTap={{ scale: 0.98 }}
               transition={{ duration: 0.2, ease: 'easeOut' }}
-              className={`flex items-center gap-2 px-4 py-2.5 bg-marketing-surface border rounded-full text-sm shadow-xl backdrop-blur-sm transition-colors ${isInputFocused ? 'border-marketing-link' : 'border-marketing-border'}`}
+              className={`flex items-center gap-2 px-4 py-2.5 bg-marketing-elevated border rounded-full text-sm shadow-xl transition-colors ${isInputFocused ? 'border-marketing-link' : 'border-marketing-border'}`}
             >
               <input
                 ref={questionInputRef}
@@ -4600,7 +4929,7 @@ export default function Docs() {
                 exit={window.innerWidth >= 1024 ? { x: '100%' } : { y: '100%' }}
                 transition={{ type: 'spring', damping: 25, stiffness: 300 }}
                 className="fixed z-[61] bg-marketing-bg border-marketing-border shadow-[0_0_40px_rgba(0,0,0,0.15)] flex flex-col
-                           lg:top-28 lg:right-0 lg:bottom-0 lg:border-l lg:border-t lg:rounded-tl-2xl lg:bg-marketing-bg/95 lg:backdrop-blur-xl 
+                           lg:top-28 lg:right-0 lg:bottom-0 lg:border-l lg:border-t lg:rounded-tl-2xl lg:bg-marketing-bg 
                            max-lg:bottom-0 max-lg:left-0 max-lg:right-0 max-lg:top-auto max-lg:rounded-t-2xl max-lg:border-t max-lg:h-[75vh] max-lg:w-full max-lg:pb-safe"
                 style={{ width: window.innerWidth >= 1024 ? sidebarWidth : '100%' }}
               >
