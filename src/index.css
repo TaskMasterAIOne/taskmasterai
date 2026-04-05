@@ -396,28 +396,43 @@
     letter-spacing: -0.02em;
   }
   
-  /* Infinite carousel animation */
-  @keyframes scroll {
-    0% {
-      transform: translateX(0);
+  /* Infinite carousel — one cycle scrolls half the track (two identical rows); -50% loops seamlessly */
+  @keyframes provider-logo-marquee {
+    from {
+      transform: translate3d(0, 0, 0);
     }
-    100% {
-      transform: translateX(-50%);
+    to {
+      transform: translate3d(-50%, 0, 0);
     }
   }
-  
+
   .carousel-wrapper {
     position: relative;
     overflow: hidden;
     width: 100%;
+    mask-image: linear-gradient(to right, transparent, white 10%, white 90%, transparent);
+    -webkit-mask-image: linear-gradient(to right, transparent, white 10%, white 90%, transparent);
   }
-  
+
   .infinite-carousel {
     display: flex;
-    animation: scroll 25s linear infinite;
     width: max-content;
+    /* Animation starts only after `.infinite-carousel--ready` so layout is stable (no load-time glitch). */
   }
-  
+
+  .infinite-carousel.infinite-carousel--ready {
+    will-change: transform;
+    animation: provider-logo-marquee 32s linear infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .infinite-carousel.infinite-carousel--ready {
+      animation: none !important;
+      transform: none;
+      will-change: auto;
+    }
+  }
+
   .carousel-set {
     display: flex;
     align-items: center;
@@ -1182,32 +1197,28 @@ html.theme-ready * {
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('https://raw.githubusercontent.com/cruip/open-react-template/master/public/fonts/nacelle-regular.woff2')
-    format('woff2');
+  src: url('/fonts/nacelle-regular.woff2') format('woff2');
 }
 @font-face {
   font-family: Nacelle;
   font-style: italic;
   font-weight: 400;
   font-display: swap;
-  src: url('https://raw.githubusercontent.com/cruip/open-react-template/master/public/fonts/nacelle-italic.woff2')
-    format('woff2');
+  src: url('/fonts/nacelle-italic.woff2') format('woff2');
 }
 @font-face {
   font-family: Nacelle;
   font-style: normal;
   font-weight: 600;
   font-display: swap;
-  src: url('https://raw.githubusercontent.com/cruip/open-react-template/master/public/fonts/nacelle-semibold.woff2')
-    format('woff2');
+  src: url('/fonts/nacelle-semibold.woff2') format('woff2');
 }
 @font-face {
   font-family: Nacelle;
   font-style: italic;
   font-weight: 600;
   font-display: swap;
-  src: url('https://raw.githubusercontent.com/cruip/open-react-template/master/public/fonts/nacelle-semibolditalic.woff2')
-    format('woff2');
+  src: url('/fonts/nacelle-semibolditalic.woff2') format('woff2');
 }
 
 /* Cruip open-react-template button primitives (Landing open-sample port) */

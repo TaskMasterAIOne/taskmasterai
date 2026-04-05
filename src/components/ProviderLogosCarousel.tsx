@@ -3,11 +3,76 @@
  * @see https://github.com/taskmaster-ai/docs (public docs repo; marketing app is not open-sourced there)
  */
 
+import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
+
+/** Wait for every raster `<img>` in the track to load (or error) so marquee width is stable before animating. */
+function useMarqueeReadyWhenImagesLoaded(trackRef: RefObject<HTMLDivElement | null>) {
+  const [ready, setReady] = useState(false)
+
+  useLayoutEffect(() => {
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reducedMotion) {
+      setReady(true)
+      return
+    }
+
+    const root = trackRef.current
+    if (!root) return
+
+    const imgs = root.querySelectorAll('img')
+    if (imgs.length === 0) {
+      setReady(true)
+      return
+    }
+
+    let cancelled = false
+
+    const waitImg = (img: HTMLImageElement) =>
+      new Promise<void>((resolve) => {
+        if (img.complete) {
+          resolve()
+          return
+        }
+        const done = () => {
+          img.removeEventListener('load', done)
+          img.removeEventListener('error', done)
+          resolve()
+        }
+        img.addEventListener('load', done)
+        img.addEventListener('error', done)
+      })
+
+    Promise.all(Array.from(imgs).map(waitImg)).then(() => {
+      if (cancelled) return
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (!cancelled) setReady(true)
+        })
+      })
+    })
+
+    const timeoutMs = 10000
+    const tid = window.setTimeout(() => {
+      if (!cancelled) setReady(true)
+    }, timeoutMs)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(tid)
+    }
+  }, [trackRef])
+
+  return ready
+}
+
 const GeminiLogo = () => (
   <div className="provider-logo flex-shrink-0">
-    <img 
-      src="https://firebasestorage.googleapis.com/v0/b/taskmaster-ai-e2302.firebasestorage.app/o/geminnoi.png?alt=media&token=8ddab5a2-41cb-4cde-9741-856d456812b9" 
-      alt="Gemini" 
+    <img
+      src="/providers/gemini.png"
+      alt="Gemini"
+      loading="eager"
+      fetchPriority="low"
+      decoding="async"
     />
   </div>
 )
@@ -21,18 +86,24 @@ const ClaudeLogo = () => (
 
 const ChatGPTLogo = () => (
   <div className="provider-logo provider-logo-lg flex-shrink-0">
-    <img 
-      src="https://firebasestorage.googleapis.com/v0/b/taskmaster-ai-e2302.firebasestorage.app/o/pngimg.com%20-%20chatgpt_PNG2.png?alt=media&token=727845a2-03cc-48ac-9781-8aa781b85faf" 
-      alt="ChatGPT" 
+    <img
+      src="/providers/chatgpt.png"
+      alt="ChatGPT"
+      loading="eager"
+      fetchPriority="low"
+      decoding="async"
     />
   </div>
 )
 
 const MistralLogo = () => (
   <div className="provider-logo flex-shrink-0">
-    <img 
-      src="https://firebasestorage.googleapis.com/v0/b/taskmaster-ai-e2302.firebasestorage.app/o/image-removebg-preview%20(4).png?alt=media&token=271919f1-3b7d-4b6e-9ba1-748fe0cba7ae" 
-      alt="Mistral" 
+    <img
+      src="/providers/mistral.png"
+      alt="Mistral"
+      loading="eager"
+      fetchPriority="low"
+      decoding="async"
     />
   </div>
 )
@@ -46,10 +117,13 @@ const PerplexityLogo = () => (
 
 const AzureLogo = () => (
   <div className="provider-logo flex-shrink-0" style={{ height: '48px' }}>
-    <img 
-      src="https://firebasestorage.googleapis.com/v0/b/taskmaster-ai-e2302.firebasestorage.app/o/azure.png?alt=media&token=a5a2e96b-0262-42a8-8c71-e22cd76e978d" 
-      alt="Azure" 
+    <img
+      src="/providers/azure.png"
+      alt="Azure"
       style={{ height: '48px' }}
+      loading="eager"
+      fetchPriority="low"
+      decoding="async"
     />
   </div>
 )
@@ -65,10 +139,13 @@ const OpenRouterLogo = () => (
 
 const OllamaLogo = () => (
   <div className="provider-logo flex-shrink-0" style={{ height: '40px' }}>
-    <img 
-      src="https://firebasestorage.googleapis.com/v0/b/taskmaster-ai-e2302.firebasestorage.app/o/ollama-logo.png?alt=media&token=d082c9e2-28c6-4cf5-a523-08451c9d3fb0" 
-      alt="Ollama" 
+    <img
+      src="/providers/ollama.png"
+      alt="Ollama"
       style={{ height: '40px' }}
+      loading="eager"
+      fetchPriority="low"
+      decoding="async"
     />
   </div>
 )
@@ -82,10 +159,13 @@ const DeepSeekLogo = () => (
 
 const ZhipuAILogo = () => (
   <div className="provider-logo flex-shrink-0" style={{ height: '52px' }}>
-    <img 
-      src="https://firebasestorage.googleapis.com/v0/b/taskmaster-ai-e2302.firebasestorage.app/o/Zhipu_AI.png?alt=media&token=cd2847f9-ffc4-48f6-9203-a85b77393725" 
-      alt="Zhipu AI" 
+    <img
+      src="/providers/zhipu.png"
+      alt="Zhipu AI"
       style={{ height: '52px' }}
+      loading="eager"
+      fetchPriority="low"
+      decoding="async"
     />
   </div>
 )
@@ -108,10 +188,13 @@ const MoonshotLogo = () => (
 
 const MetaLogo = () => (
   <div className="provider-logo flex-shrink-0" style={{ height: '70px' }}>
-    <img 
-      src="https://firebasestorage.googleapis.com/v0/b/taskmaster-ai-e2302.firebasestorage.app/o/Meta-Logo.png?alt=media&token=b560808e-f8c9-4460-93d3-048a8ebab27e" 
-      alt="Meta" 
+    <img
+      src="/providers/meta.png"
+      alt="Meta"
       style={{ height: '70px' }}
+      loading="eager"
+      fetchPriority="low"
+      decoding="async"
     />
   </div>
 )
@@ -125,6 +208,9 @@ const GrokLogo = () => (
 )
 
 export function HeroProviderCarousel() {
+  const trackRef = useRef<HTMLDivElement>(null)
+  const marqueeReady = useMarqueeReadyWhenImagesLoaded(trackRef)
+
   return (
         <section className="overflow-hidden py-8 sm:py-10" aria-label="AI providers">
           <div className="mx-auto max-w-2xl px-4">
@@ -132,8 +218,11 @@ export function HeroProviderCarousel() {
               Works with your favorite AI providers
             </p>
             <div className="carousel-wrapper">
-              {/* Carousel container */}
-              <div className="infinite-carousel">
+              {/* Carousel container — animation begins after raster images have loaded */}
+              <div
+                ref={trackRef}
+                className={`infinite-carousel${marqueeReady ? ' infinite-carousel--ready' : ''}`}
+              >
                 {/* First set of logos */}
                 <div className="carousel-set">
                   <ClaudeLogo />
@@ -150,8 +239,8 @@ export function HeroProviderCarousel() {
                   <MetaLogo />
                   <GrokLogo />
                 </div>
-                {/* Duplicate set for seamless loop */}
-                <div className="carousel-set">
+                {/* Duplicate set for seamless loop — hidden from AT so logos are not announced twice */}
+                <div className="carousel-set" aria-hidden>
                   <ClaudeLogo />
                   <ChatGPTLogo />
                   <GeminiLogo />
